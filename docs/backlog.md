@@ -122,8 +122,55 @@ Aceite:
   Implicação: ficha Pagamentos Efetuados sem urgência imediata, mas o sistema
   mantém o alerta "pegar CPF na hora" para quando a primeira diária aparecer
 
+---
+
+## Relato 002 — 2026-08-07 — "PIX mensal pra AJE, nota depois (talvez única)"
+
+> "mês passado por exemplo eu paguei uma parcela da AJE, mas eles não me
+> geraram nota ainda, nem boleto teve, foi direto via pix porque eu tenho que
+> pagá-los todo mês algum valor [...] pode ser que tenha vários pagamentos e
+> depois uma unica NF"
+
+### Dores extraídas
+
+| ID | Dor | Prioridade |
+|----|-----|-----------|
+| D6 | Pagamento acontece SEM documento prévio (nem NF nem boleto): o fluxo de captura do CONTAI-001 começa pelo documento e não cobre esse caso | **P0 fiscal** |
+| D7 | Exposição acumulada "pago sem nota" invisível: cada PIX sem NF é custo que não se sustenta no IR (e serviço sem retenção = INSS pago 2x na aferição) até o documento chegar | **P0 fiscal** |
+| D8 | Vínculo pode ser N:M — vários pagamentos ↔ uma NF consolidada — e o modelo/telas precisam suportar | **P0 fiscal** |
+
+### User stories
+
+**US-007 [P0 — MVP, junto do CONTAI-001] — Registrar pagamento avulso (sem documento)**
+Como dono da obra, quero registrar um PIX feito sem nota/boleto (valor, data,
+favorecido, comprovante) na hora, para o pagamento não se perder e virar
+pendência "aguardando NF".
+Aceite:
+1. [ ] Mock aprovado (entrada "registrar pagamento" além de "adicionar documento")
+2. [ ] Registro exige: valor, data efetiva, favorecido (CNPJ/CPF), comprovante
+3. [ ] Nasce com status "aguardando NF" e aparece nas pendências
+4. [ ] A home mostra a exposição acumulada por fornecedor: "pago sem nota:
+       R$ X" com a consequência explícita
+
+**Ajuste na US-003 (conciliação)** — o vínculo pagamento↔documento é **N:M**:
+1. [ ] Uma NF pode ser vinculada a vários pagamentos (e vice-versa)
+2. [ ] Conciliação de valores: soma dos pagamentos vinculados vs. valor da NF;
+       divergência vira pendência
+3. [ ] NF consolidada cruzando ano-calendário → alerta "regra fiscal a
+       confirmar" (Q6), nunca classificação silenciosa
+
+### Ação do Mateus (fora do app)
+
+- [ ] Conversar com Francisco/AJE: **nota mensal** (preferível) e cláusula
+  "entrega das NFs do período condiciona a liberação da parcela seguinte"
+- [ ] Conferir se as NFs virão com retenção de 11% (Q5)
+
 ### Perguntas abertas
 
+- **Q6 [P0 — regra para o contador confirmar]**: pagamentos em regime de caixa
+  no ano X, NF consolidada emitida no ano X+1 — o custo entra no ano do
+  pagamento? Que discriminação a NF precisa ter (parcelas/período) para
+  sustentar os pagamentos anteriores? Não cravar de memória
 - **Q4 [P0 — bloqueia regra da US-003]**: pagamento no cartão de crédito —
   o custo entra no ano da compra ou no ano do pagamento da fatura? Compra em
   dezembro + fatura em janeiro muda o ano-calendário. Regra a confirmar pelo
