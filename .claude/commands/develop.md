@@ -34,16 +34,21 @@ fiscal) → teste → validação.
 - **Sem mock aprovado → PARE.** Rode `/design` e obtenha a aprovação do Mateus
   antes de escrever qualquer código. Esta é a premissa nº 1 do projeto
 
-### Gate 1: Implementar
-- 🎭 Leia `.claude/agents/cto-obra.md`
+### Gate 1: Implementar — lead-engineer (modelo: opus)
+- 🎭 Leia `.claude/agents/lead-engineer.md` e execute como subagent
+  `lead-engineer` (pinado em opus no frontmatter)
 - Leia o código existente da área afetada antes de mudar
 - Implemente pelos critérios de aceite; siga o mock aprovado quando houver
 - Trate os 4 estados (loading/erro/vazio/sucesso) em tudo que é UI
 - Escreva testes junto; rode typecheck + testes (comandos no `CLAUDE.md`)
 
-### Gate 2: Review Técnico + Fiscal
-- 🎭 Leia `.claude/agents/cto-obra.md` (arquitetura, legibilidade, modelo de
-  dados, rastreabilidade pagamento↔documento)
+### Gate 2: Review Técnico + Fiscal — cto-obra (modelo: fable)
+- 🎭 Leia `.claude/agents/cto-obra.md` e execute como subagent `cto-obra`
+  (pinado em fable no frontmatter). **Quem implementou (lead-engineer) nunca
+  revisa o próprio código** — o revisor roda em modelo mais forte que o
+  implementador por design
+- Revise: arquitetura, legibilidade, modelo de dados, rastreabilidade
+  pagamento↔documento
 - 🎭 **Se o ticket tem Gate Fiscal no corpo**: leia `.claude/agents/contador.md`
   e revise a implementação contra as regras exatas do ticket — classificação,
   regime de caixa (data de pagamento!), retenção, documentação hábil. Erro

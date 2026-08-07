@@ -37,12 +37,16 @@ Regras fiscais vêm do agente `contador` — nunca de memória, nunca inventadas
 
 ## Time de agentes (`.claude/agents/`)
 
-| Agente | Papel |
-|---|---|
-| `contador` | Autoridade fiscal (IRPF, CNO/SERO, documentação hábil) |
-| `po` | Relatos → requisitos; dono do backlog |
-| `cto-obra` | Arquitetura, modelo de dados, implementação |
-| `designer` | Fluxos e mocks HTML, mobile-first |
+| Agente | Modelo | Papel |
+|---|---|---|
+| `contador` | herda sessão | Autoridade fiscal (IRPF, CNO/SERO, documentação hábil) |
+| `po` | herda sessão | Relatos → requisitos; dono do backlog |
+| `lead-engineer` | **opus** | Implementa os tickets (Gate 1 do /develop) |
+| `cto-obra` | **fable** | Arquitetura, modelo de dados e review técnico (Gate 2) |
+| `designer` | herda sessão | Fluxos e mocks HTML, mobile-first |
+
+Regra: quem implementa (lead-engineer) nunca revisa o próprio código; o
+revisor (cto-obra) roda em modelo mais forte por design.
 
 ## Comandos (`.claude/commands/`)
 

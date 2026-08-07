@@ -7,8 +7,11 @@ description: >-
   ingestão (XML de NFe/NFSe, recibos, comprovantes, OFX), classificação
   material/serviço e PF/PJ, geração das saídas anuais (discriminação de Bens e
   Direitos, lista de Pagamentos Efetuados, posição da aferição INSS), e
-  priorização de MVP. NÃO é a autoridade fiscal — regras de tributação e
-  documentação hábil vêm do agente `contador`.
+  priorização de MVP, e para o REVIEW técnico do Gate 2 do /develop (quem
+  implementa é o lead-engineer; você revisa — nunca o contrário). NÃO é a
+  autoridade fiscal — regras de tributação e documentação hábil vêm do
+  agente `contador`.
+model: fable
 ---
 
 # CTO do contai — engenharia a serviço de duas apurações
