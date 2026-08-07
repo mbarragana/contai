@@ -1,0 +1,20 @@
+<title>contai — Mocks</title>
+<style>
+  :root{ --bg:#d8d5cd; --ink:#3a382f; --mut:#6f6b60; --card:#faf9f6; --line:#e6e3da }
+  @media (prefers-color-scheme: dark){ :root{ --bg:#211f1b; --ink:#e8e5dc; --mut:#9b968a; --card:#2a2823; --line:#3a382f } }
+  :root[data-theme="dark"]{ --bg:#211f1b; --ink:#e8e5dc; --mut:#9b968a; --card:#2a2823; --line:#3a382f }
+  :root[data-theme="light"]{ --bg:#d8d5cd; --ink:#3a382f; --mut:#6f6b60; --card:#faf9f6; --line:#e6e3da }
+  body{background:var(--bg); color:var(--ink); font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    max-width:560px; margin:0 auto; padding:40px 20px}
+  h1{font-size:20px} p{color:var(--mut); font-size:13px; margin-top:4px}
+  a.mock{display:block; margin-top:16px; padding:16px 18px; background:var(--card); border:1px solid var(--line);
+    border-radius:10px; color:var(--ink); text-decoration:none}
+  a.mock:hover{filter:brightness(1.05)}
+  a.mock .id{font-weight:700} a.mock .st{font-size:12px; color:var(--mut)}
+</style>
+<h1>contai — hub de mocks</h1>
+<p>Todo ticket com UI precisa de mock aprovado aqui antes do /develop.</p>
+<a class="mock" href="CONTAI-001.html">
+  <span class="id">CONTAI-001</span> — Ingestão de NF/boleto com extração assistida<br>
+  <span class="st">Status: aguardando avaliação do Mateus · 9 telas</span>
+</a>
