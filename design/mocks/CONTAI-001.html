@@ -116,6 +116,13 @@
       </div>
 
       <div class="card">
+        <span class="chip red">Pago sem nota</span>
+        <div style="margin-top:6px; font-weight:600">3 PIX sem NF vinculada</div>
+        <div class="hint">AJE Construções · acumulado <span class="mono">R$ 45.000,00</span></div>
+        <div class="consequencia red">Custo não se sustenta no IR até a NF chegar. Cobre a nota antes da próxima parcela.</div>
+      </div>
+
+      <div class="card">
         <span class="chip amb">Sem retenção 11%</span>
         <div style="margin-top:6px; font-weight:600">NF de serviço sem retenção</div>
         <div class="hint">AJE Construções · <span class="mono">R$ 18.000,00</span></div>
@@ -129,12 +136,33 @@
 
   <!-- 2 · ADICIONAR -->
   <section class="screen" id="s2">
-    <div class="appbar"><div class="brand">Adicionar documento</div><div class="sub">Interação 1 de 3</div></div>
+    <div class="appbar"><div class="brand">Adicionar</div><div class="sub">Interação 1 de 3</div></div>
     <div class="body">
-      <button class="btn primary" onclick="go(3)">Escolher arquivo — PDF ou XML</button>
-      <p class="hint">A nota ou boleto que chegou no WhatsApp ou e-mail já está no seu celular. XML da NF-e é preferível ao PDF: leitura sem erro.</p>
+      <button class="btn primary" onclick="go(3)">📄 Documento — PDF ou XML</button>
+      <p class="hint">Nota ou boleto que chegou no WhatsApp/e-mail. XML da NF-e é preferível ao PDF: leitura sem erro.</p>
+      <button class="btn primary" onclick="go(10)">💸 Pagamento — PIX sem nota</button>
+      <p class="hint">Pagou e o documento ainda não existe? Registra agora; a NF vincula depois.</p>
     </div>
     <div class="foot"><button class="btn ghost" onclick="go(1)">Cancelar</button></div>
+  </section>
+
+  <!-- 10 · REGISTRAR PAGAMENTO -->
+  <section class="screen" id="s10">
+    <div class="appbar"><div class="brand">Registrar pagamento</div><div class="sub">Interação 2 de 3 — PIX sem documento</div></div>
+    <div class="body">
+      <div class="card">
+        <div class="row"><span class="lbl">Favorecido</span><span class="val">AJE Construções <span class="hint">(recente)</span></span></div>
+        <div class="row"><span class="lbl">Valor</span><span class="val mono">R$ 15.000,00</span></div>
+        <div class="row"><span class="lbl">Data do pagamento</span><span class="val mono">05/08/2026</span></div>
+        <div class="row"><span class="lbl">Comprovante</span><span class="val warn">anexar PIX — obrigatório</span></div>
+      </div>
+      <div class="banner amb">Vai nascer como <strong>aguardando NF</strong>. Quando a nota chegar (mensal ou consolidada), você vincula este e outros pagamentos a ela — o custo só conta no IR com a nota junto.</div>
+    </div>
+    <div class="foot">
+      <div class="step">Interação 3 de 3 ↓</div>
+      <button class="btn primary" onclick="go(8)">Salvar — aguardando NF</button>
+      <button class="btn ghost" onclick="go(2)">Voltar</button>
+    </div>
   </section>
 
   <!-- 3 · LENDO -->
@@ -260,7 +288,7 @@
 <script>
   const telas = [
     [1,"Início"],[2,"Adicionar"],[3,"Lendo"],[4,"NF material"],[5,"Boleto"],
-    [6,"Quarentena"],[7,"Retenção"],[8,"Confirmado"],[9,"Manual"]
+    [6,"Quarentena"],[7,"Retenção"],[8,"Confirmado"],[9,"Manual"],[10,"Pagamento"]
   ];
   const tabs = document.getElementById("tabs");
   telas.forEach(([n,nome])=>{
