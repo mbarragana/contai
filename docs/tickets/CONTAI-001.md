@@ -15,28 +15,33 @@ Como dono da obra, quero subir o arquivo de uma NF (PDF/XML) ou boleto (PDF)
 direto do celular e ter o registro proposto com os campos extraídos, para só
 confirmar em vez de digitar na planilha.
 
+## Re-escopo (decisão do Mateus, 2026-08-07): manual-first, sem extração
+
+Extração automática (Claude API) movida para US-008 [P2]. O registro é
+manual com anexo obrigatório do arquivo; os checks fiscais que a extração
+faria viram **perguntas obrigatórias do formulário** — condição do corte.
+
 ## Critérios de Aceite
-1. [x] **Mock em `design/mocks/CONTAI-001.html` aprovado pelo Mateus**
-       — **Mock v3 aprovado em 2026-08-07** (10 telas; inclui acumulado no
-       topo, lembrete no boleto e entrada de pagamento avulso/US-007)
-2. [ ] Upload de PDF (NF ou boleto) e XML (NF-e) funciona em viewport 375px
-3. [ ] Sistema propõe registro com: tipo de documento, emitente (CNPJ),
-       destinatário, valor, vencimento (boleto), material vs. serviço,
-       retenção 11% (NF de serviço)
-4. [ ] Confirmação do registro em ≤3 interações a partir do upload
-5. [ ] Campo extraído com incerteza vem marcado "revisar" — nunca aceito em
-       silêncio
-6. [ ] Destinatário ≠ CPF do Mateus → documento entra em quarentena com a
-       consequência explícita: "não entra no custo de aquisição"
-7. [ ] NF de serviço PJ sem retenção 11% identificada → aviso: "não abate na
-       aferição INSS" (informativo, não bloqueia)
-8. [ ] Arquivo original preservado no acervo (meta 3), associado ao registro
+1. [x] Mock aprovado — v3 em 2026-08-07; **v4 (fluxo manual) pendente de
+       aprovação**
+2. [ ] Upload do arquivo (PDF/XML/foto) funciona em viewport 375px e o
+       original é preservado no acervo (meta 3), associado ao registro
+3. [ ] Formulário manual: tipo (NF material/NF serviço/boleto), emitente
+       (CNPJ), valor, vencimento (boleto), material vs. serviço
+4. [ ] **Check obrigatório: "esta nota está no seu CPF?"** — "não" →
+       quarentena com a consequência explícita ("não entra no custo de
+       aquisição"); sem resposta não salva
+5. [ ] **Check obrigatório em NF de serviço: "tem retenção de 11%?"** —
+       "não"/"não sei" → aviso "não abate na aferição INSS" (não bloqueia)
+6. [ ] Registro sem arquivo anexado não é aceito silenciosamente — vira
+       pendência "sem comprovante"
+7. [ ] Fluxo de captura continua em ≤3 interações para o caso comum
 
 ## Out of Scope
+- **Extração automática de campos (Claude API) — movida para US-008 [P2]**
 - Conciliação com pagamento e data efetiva (US-003)
 - Captura automática de e-mail/WhatsApp (futuro; upload manual no MVP)
-- **Fotografar nota de papel — cortado do MVP (decisão do Mateus, 2026-08-07)**
-- Extração perfeita: a meta é propor bem e confirmar rápido, não acertar 100%
+- Fotografar nota de papel dentro do app (upload de foto como arquivo, sim)
 
 ## Decisões de design (avaliação do mock, 2026-08-07)
 - Resumo "em pendência" no topo: aprovado

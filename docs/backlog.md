@@ -74,6 +74,13 @@ Aceite:
 3. [ ] Lista CPF-por-CPF de pagamentos a PF (Pagamentos Efetuados), se houver
 4. [ ] Posição da aferição INSS: serviços PJ com vs. sem retenção 11%
 
+**US-008 [P2 — pós-MVP] — Extração automática de campos de PDF/XML**
+*(extraída do escopo original da US-001; decisão do Mateus 2026-08-07:
+manual-first)* Como dono da obra, quero que o sistema proponha os campos a
+partir do arquivo subido (XML determinístico; PDF via Claude API) para reduzir
+digitação. Pré-requisito: fluxo manual em produção. Nota: custo Anthropic é
+centavos/doc — a razão do corte é velocidade de MVP, não custo.
+
 **US-005 [P1] — Migração da planilha atual**
 Como dono da obra, quero importar o que já registrei na planilha para não
 retrabalhar.

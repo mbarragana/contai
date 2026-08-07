@@ -138,8 +138,8 @@
   <section class="screen" id="s2">
     <div class="appbar"><div class="brand">Adicionar</div><div class="sub">Interação 1 de 3</div></div>
     <div class="body">
-      <button class="btn primary" onclick="go(3)">📄 Documento — PDF ou XML</button>
-      <p class="hint">Nota ou boleto que chegou no WhatsApp/e-mail. XML da NF-e é preferível ao PDF: leitura sem erro.</p>
+      <button class="btn primary" onclick="go(9)">📄 Documento — PDF, XML ou foto</button>
+      <p class="hint">Nota ou boleto que chegou no WhatsApp/e-mail. O arquivo fica no acervo; você preenche os campos (extração automática: fase 2).</p>
       <button class="btn primary" onclick="go(10)">💸 Pagamento — PIX sem nota</button>
       <p class="hint">Pagou e o documento ainda não existe? Registra agora; a NF vincula depois.</p>
     </div>
@@ -265,21 +265,27 @@
     <div class="foot"><button class="btn primary" onclick="go(1)">Voltar ao início</button></div>
   </section>
 
-  <!-- 9 · LEITURA FALHOU / EDIÇÃO MANUAL -->
+  <!-- 9 · REGISTRAR DOCUMENTO (MANUAL) -->
   <section class="screen" id="s9">
-    <div class="appbar"><div class="brand">Edição manual</div><div class="sub">a leitura falhou ou você quis corrigir</div></div>
+    <div class="appbar"><div class="brand">Registrar documento</div><div class="sub">Interação 2 de 3 — arquivo anexado ✓</div></div>
     <div class="body">
-      <div class="banner amb">Não consegui ler tudo deste PDF. Preencha o que falta — o arquivo original fica guardado do mesmo jeito.</div>
       <div class="card">
-        <div class="row"><span class="lbl">Emitente</span><span class="val hint">— toque para preencher —</span></div>
-        <div class="row"><span class="lbl">Valor</span><span class="val hint">— toque para preencher —</span></div>
+        <div class="row"><span class="lbl">Arquivo</span><span class="val ok">NF-AJE-0091.pdf ✓ no acervo</span></div>
         <div class="row"><span class="lbl">Tipo</span><span class="val hint">NF material · NF serviço · boleto</span></div>
+        <div class="row"><span class="lbl">Emitente / CNPJ</span><span class="val hint">— toque para preencher —</span></div>
+        <div class="row"><span class="lbl">Valor</span><span class="val hint">— toque para preencher —</span></div>
         <div class="row"><span class="lbl">Classificação</span><span class="val hint">material · mão de obra</span></div>
       </div>
+      <div class="card">
+        <div class="row"><span class="lbl">A nota está no seu CPF?</span><span class="val warn">sim · não — obrigatório</span></div>
+        <div class="row"><span class="lbl">NF de serviço: retenção 11%?</span><span class="val warn">sim · não · não sei</span></div>
+      </div>
+      <p class="hint">Olhe na nota antes de responder — "não" no CPF leva à quarentena; "não/não sei" na retenção gera o aviso do INSS. Sem responder, não salva.</p>
     </div>
     <div class="foot">
+      <div class="step">Interação 3 de 3 ↓</div>
       <button class="btn primary" onclick="go(8)">Salvar registro</button>
-      <button class="btn ghost" onclick="go(2)">Tentar outro arquivo</button>
+      <button class="btn ghost" onclick="go(2)">Voltar</button>
     </div>
   </section>
 
@@ -287,8 +293,8 @@
 
 <script>
   const telas = [
-    [1,"Início"],[2,"Adicionar"],[3,"Lendo"],[4,"NF material"],[5,"Boleto"],
-    [6,"Quarentena"],[7,"Retenção"],[8,"Confirmado"],[9,"Manual"],[10,"Pagamento"]
+    [1,"Início"],[2,"Adicionar"],[3,"Lendo (fase 2)"],[4,"NF extraída (fase 2)"],[5,"Boleto"],
+    [6,"Quarentena"],[7,"Retenção"],[8,"Confirmado"],[9,"Registrar doc"],[10,"Pagamento"]
   ];
   const tabs = document.getElementById("tabs");
   telas.forEach(([n,nome])=>{

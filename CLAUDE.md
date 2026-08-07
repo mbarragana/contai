@@ -57,10 +57,11 @@ revisor (cto-obra) roda em modelo mais forte por design.
 - **App**: Next.js 16 + React 19 + TypeScript + Tailwind 4, mobile-first (PWA)
 - **Dados/acervo/auth**: Supabase (Postgres + Storage + Auth; login obrigatório
   desde o dia 1 — o app carrega CPF/CNO/dados fiscais)
-- **Extração**: XML NF-e → parse determinístico (fast-xml-parser); PDF
-  (boleto/DANFE/NFSe) → Claude API (`claude-opus-4-8`, PDF como document block +
-  structured outputs com schema Zod). Boleto: validar dígito verificador da
-  linha digitável deterministicamente após a extração
+- **Registro**: manual-first (decisão 2026-08-07, US-008) — formulário com
+  anexo obrigatório e checks fiscais obrigatórios (nota no CPF? retenção 11%?).
+  **Fase 2 (US-008)**: extração automática — XML NF-e via parse determinístico
+  (fast-xml-parser); PDF via Claude API (`claude-opus-4-8`, document block +
+  structured outputs Zod); boleto validado por dígito verificador
 - **Lembretes**: Google Calendar API (agenda que o Mateus já usa)
 - **Hospedagem**: Vercel
 - **Testes**: Vitest (unit) + Playwright (E2E) — padrão dos outros projetos
