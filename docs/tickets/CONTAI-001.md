@@ -16,8 +16,9 @@ direto do celular e ter o registro proposto com os campos extraídos, para só
 confirmar em vez de digitar na planilha.
 
 ## Critérios de Aceite
-1. [ ] **Mock em `design/mocks/CONTAI-001.html` aprovado pelo Mateus**
-       (PENDENTE — rodar `/design` antes de `/develop`)
+1. [x] **Mock em `design/mocks/CONTAI-001.html` aprovado pelo Mateus**
+       — **Mock v3 aprovado em 2026-08-07** (10 telas; inclui acumulado no
+       topo, lembrete no boleto e entrada de pagamento avulso/US-007)
 2. [ ] Upload de PDF (NF ou boleto) e XML (NF-e) funciona em viewport 375px
 3. [ ] Sistema propõe registro com: tipo de documento, emitente (CNPJ),
        destinatário, valor, vencimento (boleto), material vs. serviço,
