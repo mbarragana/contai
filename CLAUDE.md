@@ -48,10 +48,25 @@ Regras fiscais vêm do agente `contador` — nunca de memória, nunca inventadas
 
 `/relato` → `/tickets-req` → `/design` (se UI) → `/develop`
 
-## Stack
+## Stack (decidida em 2026-08-07)
 
-Ainda não definida. Quando definir, registre aqui: comandos de build, typecheck,
-teste unitário e E2E — o `/develop` depende disto.
+- **App**: Next.js 16 + React 19 + TypeScript + Tailwind 4, mobile-first (PWA)
+- **Dados/acervo/auth**: Supabase (Postgres + Storage + Auth; login obrigatório
+  desde o dia 1 — o app carrega CPF/CNO/dados fiscais)
+- **Extração**: XML NF-e → parse determinístico (fast-xml-parser); PDF
+  (boleto/DANFE/NFSe) → Claude API (`claude-opus-4-8`, PDF como document block +
+  structured outputs com schema Zod). Boleto: validar dígito verificador da
+  linha digitável deterministicamente após a extração
+- **Lembretes**: Google Calendar API (agenda que o Mateus já usa)
+- **Hospedagem**: Vercel
+- **Testes**: Vitest (unit) + Playwright (E2E) — padrão dos outros projetos
+
+**Requisito permanente do acervo**: exportação periódica dos documentos para
+storage do próprio Mateus (ex: zip mensal no Google Drive) — a guarda até
+venda+5 anos não pode depender de free tier de terceiro.
+
+Comandos de build/typecheck/teste: registrar aqui no scaffold do projeto
+(`npm run dev | build | test`, `npx tsc --noEmit`, `npx playwright test`).
 
 ## Estrutura
 

@@ -73,8 +73,8 @@ confirmar em vez de digitar na planilha.
   (US-003) com **duas datas possíveis** (compra e desembolso — Q4)
 - Extração: XML de NF-e = parse determinístico; PDF = extração via LLM/OCR com
   confirmação humana obrigatória
-- **Decisão que este ticket força: escolha da stack** (ainda não definida no
-  CLAUDE.md). Precisa ser resolvida antes do Gate 1 do `/develop`
+- **Stack decidida (2026-08-07)**: Next.js 16 + Supabase + Claude API + Vercel
+  — ver CLAUDE.md. Pendência resolvida
 - Complexidade: **L** (upload + extração + quarentena + acervo)
 
 ## Dependências
