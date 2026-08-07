@@ -82,6 +82,21 @@ Aceite:
 2. [ ] Campos faltantes (material/serviço, destinatário, retenção) viram
        pendências de complemento, não bloqueio
 
+**US-006 [P0 — MVP, logo após CONTAI-001] — Pagamento a prestador PF com
+captura de CPF** *(adicionada 2026-08-07, decisão do Mateus)*
+Como dono da obra, quero registrar na hora uma diária/serviço de pessoa física
+(nome, CPF, valor, data, foto do recibo), para o custo ser documentação hábil e
+a ficha Pagamentos Efetuados sair pronta.
+Contexto: a captura do CPF é irrepetível — é na hora do pagamento ou nunca.
+Sem CPF: multa por omissão na ficha [confirmar % com contador] E custo fora do
+IR. Registro manual simples: recibo manuscrito não extrai, então sem OCR.
+Aceite:
+1. [ ] Mock aprovado (fluxo dentro do padrão de captura ≤3 interações)
+2. [ ] CPF obrigatório e validado; sem CPF o registro fica em quarentena com a
+       consequência dupla explícita
+3. [ ] Foto do recibo anexada como arquivo (câmera do celular, fora do app)
+4. [ ] Registro alimenta a lista CPF-por-CPF da US-004 automaticamente
+
 ### Ação imediata (antes de qualquer código)
 
 - [ ] **Adicionar hoje na planilha atual as colunas**: material vs. serviço,
