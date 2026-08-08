@@ -1,0 +1,32 @@
+/**
+ * Coordenadas do stack LOCAL do Supabase (Docker, `npm run db:start`).
+ *
+ * Este arquivo é importado pelo playwright.config.ts, então não pode puxar
+ * dependência pesada — só constantes.
+ */
+
+/** Porta 5433x: o stack do bro-surf-report-2 usa 5432x na mesma máquina. */
+export const URL_SUPABASE_LOCAL = "http://127.0.0.1:54331";
+
+/**
+ * anon/publishable key do stack local. É pública e DETERMINÍSTICA — o CLI a
+ * deriva do JWT secret padrão de desenvolvimento, então é literalmente a mesma
+ * string em qualquer máquina que rode `supabase start` (conferido contra o
+ * stack do bro-surf-report-2). Versionar esta chave é seguro.
+ *
+ * A chave do projeto REMOTO nunca entra aqui: ela vive só no .env.local, que
+ * está no .gitignore.
+ */
+export const CHAVE_PUBLICAVEL_LOCAL =
+  "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
+
+// ── Usuário e obra criados por supabase/seed.sql ─────────────────────────
+// Não existem telas de login nem de cadastro de obra; o seed supre as duas.
+export const EMAIL_SEED = "mateus@contai.local";
+export const SENHA_SEED = "contai-local-123";
+export const USER_ID_SEED = "11111111-1111-4111-8111-111111111111";
+export const OBRA_ID_SEED = "22222222-2222-4222-8222-222222222222";
+/** valor_terreno da obra do seed, em centavos. */
+export const TERRENO_SEED_CENTAVOS = 80_000_000;
+
+export const BUCKET_ACERVO = "acervo";

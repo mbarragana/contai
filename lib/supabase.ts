@@ -11,8 +11,12 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 /** Bucket do acervo (ver supabase/migrations/0002_storage.sql). */
 export const BUCKET_ACERVO = "acervo";
 
-/** Chave de sessão fixa: não depende do project ref da URL. */
-const STORAGE_KEY = "contai-auth";
+/**
+ * Chave de sessão fixa: não depende do project ref da URL. Exportada porque o
+ * E2E injeta aqui a sessão obtida do GoTrue local (e2e/banco.ts) — se o nome
+ * mudar, o teste quebra junto, que é o que se quer.
+ */
+export const STORAGE_KEY = "contai-auth";
 
 export class ConfiguracaoAusenteError extends Error {
   constructor(variavel: string) {

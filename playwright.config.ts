@@ -1,17 +1,22 @@
 import { defineConfig, devices } from "@playwright/test";
 
+import { CHAVE_PUBLICAVEL_LOCAL, URL_SUPABASE_LOCAL } from "./e2e/ambiente";
+
 const PORTA = 3100;
 const BASE_URL = `http://localhost:${PORTA}`;
 
 /**
- * E2E do fluxo de ingestão. O Supabase é stubado no nível HTTP (e2e/stub.ts)
- * para o teste não depender de sessão real nem sujar o banco do Mateus — as
- * migrations JÁ estão aplicadas no projeto linkado. Repetir o mesmo fluxo
- * contra o banco real continua pendente (precisa de usuário de teste).
+ * E2E do fluxo de ingestão contra o Supabase LOCAL em Docker: login de verdade
+ * no GoTrue, escrita no Postgres com RLS ligada e upload no bucket `acervo`.
+ * Exige o stack de pé (`npm run db:start`) — o globalSetup dá `db reset` antes
+ * de tudo.
  */
 export default defineConfig({
   testDir: "./e2e",
-  fullyParallel: true,
+  globalSetup: "./e2e/global-setup.ts",
+  // Um banco, um usuário: paralelismo faria um teste ver as linhas do outro.
+  fullyParallel: false,
+  workers: 1,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: "list",
@@ -25,12 +30,14 @@ export default defineConfig({
   webServer: {
     command: `npm run dev -- --port ${PORTA}`,
     url: BASE_URL,
-    reuseExistingServer: !process.env.CI,
+    // Nunca reaproveitar servidor alheio: um `npm run dev` já aberto aponta
+    // para o projeto REMOTO (.env.local) e o teste passaria a gravar lá.
+    // Porta ocupada tem que falhar alto.
+    reuseExistingServer: false,
     timeout: 180_000,
     env: {
-      // Não depende do .env.local do Mateus: o backend é stub.
-      NEXT_PUBLIC_SUPABASE_URL: "https://stub.supabase.co",
-      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_e2e",
+      NEXT_PUBLIC_SUPABASE_URL: URL_SUPABASE_LOCAL,
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: CHAVE_PUBLICAVEL_LOCAL,
     },
   },
 });

@@ -74,6 +74,38 @@ teste, não o sistema. Foi assim que passou despercebido que `numeric(14,2)`
 volta do PostgREST como número e não como string — o E2E estava verde em cima
 de um formato inventado.
 
+**`npm run test:e2e` EXIGE o stack local de pé** (implementado no Gate 3 do
+CONTAI-001):
+
+1. `npm run db:start` — sobe os containers (portas 5433x; o stack do
+   bro-surf-report-2 usa 5432x, os dois convivem).
+2. `npm run test:e2e` — o `globalSetup` (`e2e/global-setup.ts`) roda
+   `supabase db reset` sozinho: migrations + `supabase/seed.sql`. Sem o stack
+   de pé, ele falha com a instrução de subir, em vez de silenciar.
+
+Como funciona (`e2e/`):
+- `ambiente.ts` — URL e anon key do stack local. Essa key é pública e
+  determinística (o CLI a deriva do JWT secret padrão de dev, idêntica em
+  qualquer máquina), por isso é versionada. A key do projeto REMOTO fica só no
+  `.env.local`, que é gitignored, e **nunca** entra em arquivo versionado.
+- `banco.ts` — login real via `signInWithPassword` no GoTrue local e injeção da
+  sessão no `localStorage` (chave `contai-auth`, exportada de `lib/supabase.ts`).
+  Sessão inventada não passa pela RLS. O mesmo client autenticado é usado para
+  montar o cenário e para conferir o estado gravado — nada de service key: o
+  que a policy barra para o app tem que barrar para o teste.
+- `fixtures.ts` — sessão + limpeza das linhas antes e depois de cada teste. A
+  obra do seed permanece (é pré-requisito e não tem tela).
+- `workers: 1`: um banco, um usuário — paralelismo faria um teste ver as linhas
+  do outro.
+- `reuseExistingServer: false`: um `npm run dev` já aberto aponta para o projeto
+  REMOTO pelo `.env.local`, e o E2E passaria a gravar lá. Porta 3100 ocupada
+  tem que falhar alto.
+- Objetos do bucket `acervo` não são apagados entre testes: a migration 0002 não
+  tem policy de delete (acervo é append-only). Quem zera é o `db reset` do
+  `globalSetup`.
+- Única falsificação de rede que resta: no teste de estado de erro, um 503 do
+  PostgREST. Derrubar o Postgres no meio da suíte não provaria mais nada.
+
 **Regra de concorrência entre agentes**: um agente por vez escrevendo na árvore
 de trabalho. Dois agentes commitando no mesmo repo já causaram commit
 sobrescrito e arquivos varridos para o commit errado. Trabalho paralelo exige
@@ -84,7 +116,8 @@ storage do próprio Mateus (ex: zip mensal no Google Drive) — a guarda até
 venda+5 anos não pode depender de free tier de terceiro.
 
 Comandos: `npm run dev` | `npm run build` | `npm run typecheck` |
-`npm run test` (Vitest unit) | `npm run test:e2e` (Playwright) | `npm run lint`.
+`npm run test` (Vitest unit) | `npm run test:e2e` (Playwright — **exige
+`npm run db:start` antes**) | `npm run lint`.
 
 Supabase local (Docker): `npm run db:start | db:stop | db:status`;
 `npm run db:reset` recria o banco local e roda `supabase/seed.sql` (usuário e
