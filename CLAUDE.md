@@ -73,6 +73,11 @@ venda+5 anos não pode depender de free tier de terceiro.
 Comandos: `npm run dev` | `npm run build` | `npm run typecheck` |
 `npm run test` (Vitest unit) | `npm run test:e2e` (Playwright) | `npm run lint`.
 
+Supabase local (Docker): `npm run db:start | db:stop | db:status`;
+`npm run db:reset` recria o banco local e roda `supabase/seed.sql` (usuário e
+obra de desenvolvimento — enquanto não existem tela de login e cadastro de
+obra). Banco remoto: `npx supabase db push` aplica as migrations.
+
 ## Estrutura
 
 - `docs/backlog.md` — backlog vivo (dores, stories, perguntas)
