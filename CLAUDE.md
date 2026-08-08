@@ -66,6 +66,18 @@ revisor (cto-obra) roda em modelo mais forte por design.
 - **Hospedagem**: Vercel
 - **Testes**: Vitest (unit) + Playwright (E2E) — padrão dos outros projetos
 
+**Regra dura de E2E (decisão do Mateus, 2026-08-08)**: teste E2E roda contra o
+**banco local em Docker** (`npm run db:start`), nunca contra Supabase stubado.
+Stub de backend em E2E é proibido: ele valida a suposição de quem escreveu o
+teste, não o sistema. Foi assim que passou despercebido que `numeric(14,2)`
+volta do PostgREST como número e não como string — o E2E estava verde em cima
+de um formato inventado.
+
+**Regra de concorrência entre agentes**: um agente por vez escrevendo na árvore
+de trabalho. Dois agentes commitando no mesmo repo já causaram commit
+sobrescrito e arquivos varridos para o commit errado. Trabalho paralelo exige
+worktree separado por agente.
+
 **Requisito permanente do acervo**: exportação periódica dos documentos para
 storage do próprio Mateus (ex: zip mensal no Google Drive) — a guarda até
 venda+5 anos não pode depender de free tier de terceiro.
