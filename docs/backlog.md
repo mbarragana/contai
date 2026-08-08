@@ -5,6 +5,27 @@ Backlog vivo. Dores extraídas dos relatos do Mateus, stories priorizadas
 
 ---
 
+## DECISÕES PENDENTES DO MATEUS (Gate 2 do CONTAI-001, 2026-08-08)
+
+*Bloco destacado: nada aqui avança sem resposta explícita do Mateus.*
+
+1. **Divergência do mock — headline "Em pendência"**: o implementado soma os
+   4 tipos de pendência (R$ 92.850 no cenário do mock); o mock v4 aprovado
+   mostra R$ 47.850 (sem "pago sem nota"). Ratificar a soma implementada ou
+   mandar corrigir para o comportamento do mock. Ver também a recomendação do
+   cto-obra na nota da US-003 (seção Gate 2).
+2. **Divergências menores do mock** aceitas pelo lead-engineer — ratificar ou
+   reverter:
+   - linha de imposto da tela 6 omitida até a fórmula ser aprovada;
+   - "Destinatário: AJE" omitido por falta de campo;
+   - botões sem comportamento removidos;
+   - FAB "+ Documento" renomeado para "+ Adicionar";
+   - tela 8 parametrizada.
+3. **Priorização dos novos tickets**: CONTAI-002 (login, P0) e CONTAI-003
+   (cadastro/onboarding da obra, P1) — ver seção Gate 2.
+
+---
+
 ## Relato 001 — 2026-08-07 — "Planilha, agenda e o medo do IR"
 
 > "hoje eu estou fazendo um planilha onde eu tenho a data do pagamento, a nota,
@@ -163,8 +184,9 @@ Aceite:
 1. [ ] Uma NF pode ser vinculada a vários pagamentos (e vice-versa)
 2. [ ] Conciliação de valores: soma dos pagamentos vinculados vs. valor da NF;
        divergência vira pendência
-3. [ ] NF consolidada cruzando ano-calendário → alerta "regra fiscal a
-       confirmar" (Q6), nunca classificação silenciosa
+3. [ ] NF consolidada cruzando ano-calendário → cada pagamento aloca no ano
+       do seu desembolso (Q6 FECHADA em 2026-08-08 — regra abaixo); o alerta
+       "regra a confirmar" saiu do escopo
 
 ### Ação do Mateus (fora do app)
 
@@ -172,16 +194,78 @@ Aceite:
   "entrega das NFs do período condiciona a liberação da parcela seguinte"
 - [ ] Conferir se as NFs virão com retenção de 11% (Q5)
 
+### Perguntas fechadas pelo contador (2026-08-08, review fiscal do CONTAI-001)
+
+- **Q4 — cartão de crédito — FECHADA**: o custo entra no ano do **pagamento
+  da fatura** que contém a parcela (regime de caixa, IN SRF 84/2001 art. 17 —
+  em 31/12 sem fatura paga não houve desembolso). Cartão liberado como meio de
+  pagamento, com `data_compra` + `data_pagamento` obrigatórias. Parcelado:
+  cada parcela entra no ano da SUA fatura paga. Juros/encargos de cartão ficam
+  FORA do custo. Comprovação: NF + fatura identificando a compra + comprovante
+  de pagamento da fatura. **Ressalva do contador**: tese defensável
+  (desembolso), mas existe tese contrária — confirmar com contador humano
+  (CRC) antes da primeira declaração que a use.
+- **Q6 — NF consolidada cruzando ano — FECHADA**: alocação por parcela, pelo
+  ano do pagamento efetivo de cada uma; a NF consolidada sustenta todas as
+  parcelas; a data de emissão da NF é irrelevante. Discriminação anual:
+  "NF nº X, valor total R$ Z, pago R$ Y no ano". Juros de parcelamento
+  destacados ficam fora do custo.
+
 ### Perguntas abertas
 
-- **Q6 [P0 — regra para o contador confirmar]**: pagamentos em regime de caixa
-  no ano X, NF consolidada emitida no ano X+1 — o custo entra no ano do
-  pagamento? Que discriminação a NF precisa ter (parcelas/período) para
-  sustentar os pagamentos anteriores? Não cravar de memória
-- **Q4 [P0 — bloqueia regra da US-003]**: pagamento no cartão de crédito —
-  o custo entra no ano da compra ou no ano do pagamento da fatura? Compra em
-  dezembro + fatura em janeiro muda o ano-calendário. Regra a confirmar pelo
-  `contador` na legislação (não cravar de memória). Enquanto pendente, o
-  sistema deve registrar as DUAS datas (compra e desembolso da fatura)
 - **Q5**: as NFs de serviço do empreiteiro estão vindo com retenção de 11%?
   Conferir na primeira nota — define a posição da aferição INSS na US-004
+
+---
+
+## Gate 2 do CONTAI-001 — 2026-08-08 — reviews aprovados com ressalvas
+
+Review técnico (cto-obra) e review fiscal (contador): ambos **APROVADO COM
+RESSALVAS**. Q4 e Q6 fechadas (ver Relato 002). Decisões que dependem do
+Mateus estão na seção destacada no topo deste arquivo.
+
+### Novos tickets propostos (a priorizar pelo Mateus)
+
+**LOGIN [P0] — proposto como CONTAI-002 (cto-obra)**
+O app exige sessão (RLS) e não há tela de login — inutilizável em produção.
+Escopo proposto: magic link/OTP por e-mail (Supabase Auth, single-user),
+redirect pós-login, logout, e distinguir o erro "sem sessão" do erro
+"banco fora".
+
+**CADASTRO/ONBOARDING DA OBRA [P1] — proposto como CONTAI-003**
+O app lê a primeira obra; sem obra cadastrada é beco sem saída. Hoje
+`valor_terreno` (compõe o acumulado de Bens e Direitos) só entra por SQL.
+Gate fiscal já definido pelo contador: valor do terreno = terreno + ITBI +
+escritura/registro.
+
+**CNPJ ALFANUMÉRICO [follow-up — resolver antes de 2027]**
+A validação atual só aceita 14 dígitos numéricos; CNPJs emitidos a partir de
+jul/2026 são alfanuméricos (IN RFB 2229/2024, a confirmar com o contador).
+Sem correção, fornecedor novo fica impossível de cadastrar.
+
+### Requisitos anotados em stories existentes
+
+- **US-004 (relatórios)**: o relatório de aferição INSS deve distinguir
+  `retencao_11 = false` ("sem retenção — confirmado", vira provisão) de
+  `null` em NF de serviço ("a confirmar" — estado acionável). O "sim" do
+  usuário não é prova: a retenção precisa estar destacada no corpo da NF
+  (conferência prevista na US-004). Confirmar a IN vigente do SERO antes de
+  citá-la em tela.
+- **US-003 (conciliação)**: definir a máquina de estados do boleto
+  (pago → conciliado → NF vinculada). Reavaliar o headline "Em pendência":
+  recomendação do cto-obra é headline só com custo-IRPF em risco
+  (quarentena + pago-sem-nota) e exposição INSS em linha separada — hoje a
+  soma inclui tudo e pode contar em dobro um boleto registrado + o pagamento
+  avulso do mesmo boleto. Ligada à decisão pendente nº 1 (topo do arquivo).
+- **US-006 / prestadores PF**: pagamento a contribuinte individual PF gera
+  obrigação previdenciária própria do dono da obra (equiparação a empresa,
+  Lei 8.212/91 art. 15 § único, a confirmar) — exigirá parecer próprio do
+  contador quando a US for especificada.
+- **Acervo/export (meta 3)**: upload órfão é possível (o arquivo sobe antes
+  do insert; retry cria segundo arquivo; bucket sem delete por design) — o
+  export periódico carregará lixo. Mitigação futura: reutilizar o mesmo path
+  no retry.
+- **Tela 6 (quarentena)**: a linha de imposto pode voltar com a fórmula do
+  contador: "até R$ X a mais na venda", onde X = 15% × valor do documento,
+  com a palavra "até" e disclaimer de redução/isenção (Lei 8.981/95 art. 21;
+  Lei 11.196/05 arts. 39–40). Depende de o Mateus aprovar a volta no mock.
