@@ -1,1 +1,25 @@
 .DS_Store
+
+# deps
+node_modules/
+.pnp
+.pnp.js
+
+# next
+/.next/
+/out/
+next-env.d.ts
+
+# env — NUNCA commitar segredos
+.env
+.env*.local
+
+# build / test
+/coverage
+/playwright-report/
+/test-results/
+*.tsbuildinfo
+
+# supabase local
+supabase/.branches
+supabase/.temp
