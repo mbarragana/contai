@@ -4,6 +4,7 @@ import {
   anoCalendario,
   ehDataValida,
   MEIO_PAGAMENTO_AVULSO,
+  rotulosPagoSemNota,
   STATUS_PAGAMENTO_AVULSO,
   validarPagamentoAvulso,
   type EntradaPagamento,
@@ -41,6 +42,35 @@ describe("ehDataValida", () => {
     expect(ehDataValida("2026-02-30")).toBe(false);
     expect(ehDataValida("05/08/2026")).toBe(false);
     expect(ehDataValida("")).toBe(false);
+  });
+});
+
+describe("rótulos do pagamento sem documento hábil", () => {
+  it("favorecido PJ deve NF", () => {
+    const r = rotulosPagoSemNota("pj");
+    expect(r.documento).toBe("NF");
+    expect(r.chip).toBe("Pago sem nota");
+    expect(r.semVinculo).toBe("sem NF vinculada");
+    expect(r.consequencia).toContain("NF");
+    expect(r.consequencia).not.toContain("recibo");
+  });
+
+  it("favorecido PF deve recibo assinado, nunca NF", () => {
+    const r = rotulosPagoSemNota("pf");
+    expect(r.documento).toBe("recibo");
+    expect(r.chip).toBe("Pago sem recibo");
+    expect(r.semVinculo).toBe("sem recibo vinculado");
+    // O recibo só é hábil com nome, CPF completo e descrição do serviço.
+    expect(r.consequencia).toContain("recibo assinado");
+    expect(r.consequencia).toContain("CPF");
+    expect(r.consequencia).toContain("descrição do serviço");
+    expect(r.consequencia).not.toContain("NF");
+  });
+
+  it("tipo desconhecido não assume PJ: pede o CNPJ/CPF", () => {
+    const r = rotulosPagoSemNota(null);
+    expect(r.documento).toBe("documento hábil");
+    expect(r.consequencia).toContain("CNPJ/CPF");
   });
 });
 

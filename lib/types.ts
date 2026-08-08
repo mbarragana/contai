@@ -139,6 +139,8 @@ export interface Pagamento {
   status: StatusPagamento;
   favorecidoId: string | null;
   favorecidoNome: string | null;
+  /** PF x PJ decide qual documento hábil está faltando (NF vs. recibo). */
+  favorecidoTipo: TipoFavorecido | null;
   comprovantePath: string | null;
   /** Documentos hábeis vinculados (N:M — Relato 002). */
   documentoIds: string[];

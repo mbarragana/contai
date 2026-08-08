@@ -35,6 +35,7 @@ function pag(over: Partial<Pagamento> & { id: string }): Pagamento {
     status: "aguardando_nf",
     favorecidoId: "fav-1",
     favorecidoNome: "AJE Construções",
+    favorecidoTipo: "pj",
     comprovantePath: "u/comprovante/a.pdf",
     documentoIds: [],
     ...over,
@@ -222,6 +223,41 @@ describe("pendências", () => {
     expect(aje?.titulo).toBe("3 PIX sem NF vinculada");
     expect(aje?.valorCentavos).toBe(4_500_000);
     expect(aje?.gravidade).toBe("red");
+  });
+
+  it("favorecido PJ: a pendência cobra a NF", () => {
+    const r = resumo({ pagamentos: [pag({ id: "p1" })] });
+    const p = r.pendencias.find((x) => x.tipo === "pago_sem_nota");
+    expect(p?.chip).toBe("Pago sem nota");
+    expect(p?.titulo).toBe("1 PIX sem NF vinculada");
+    expect(p?.consequencia).toContain("NF");
+  });
+
+  it("favorecido PF: a pendência cobra o recibo assinado, não a NF", () => {
+    const r = resumo({
+      pagamentos: [
+        pag({
+          id: "p1",
+          favorecidoId: "fav-pf",
+          favorecidoNome: "José Pedreiro",
+          favorecidoTipo: "pf",
+        }),
+      ],
+    });
+    const p = r.pendencias.find((x) => x.tipo === "pago_sem_nota");
+    expect(p?.chip).toBe("Pago sem recibo");
+    expect(p?.titulo).toBe("1 PIX sem recibo vinculado");
+    expect(p?.consequencia).toContain("recibo assinado");
+    expect(p?.consequencia).not.toContain("NF");
+  });
+
+  it("favorecido sem tipo conhecido não vira cobrança de NF", () => {
+    const r = resumo({
+      pagamentos: [pag({ id: "p1", favorecidoId: null, favorecidoTipo: null })],
+    });
+    const p = r.pendencias.find((x) => x.tipo === "pago_sem_nota");
+    expect(p?.chip).toBe("Pago sem documento");
+    expect(p?.titulo).toBe("1 PIX sem documento hábil vinculado");
   });
 
   it("NF de serviço sem retenção confirmada avisa do INSS", () => {

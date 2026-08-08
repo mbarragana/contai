@@ -179,7 +179,8 @@ export function pagamentoStub(over: Record<string, unknown> = {}) {
     comprovante_path: `${USER_ID}/comprovante/pix.png`,
     status: "aguardando_nf",
     created_at: "2026-08-05T12:00:00Z",
-    favorecido: { nome: "AJE Construções" },
+    // `tipo` decide o documento hábil que falta: PJ deve NF, PF deve recibo.
+    favorecido: { nome: "AJE Construções", tipo: "pj" },
     ...over,
   };
 }

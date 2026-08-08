@@ -10,13 +10,13 @@
  * - Acumulado = situação em 31/12 na ficha Bens e Direitos = terreno + obra.
  */
 
-import type { Documento, Obra, Pagamento } from "@/lib/types";
+import type { Documento, Obra, Pagamento, TipoFavorecido } from "@/lib/types";
 import {
   CONSEQUENCIA_BOLETO,
   CONSEQUENCIA_QUARENTENA,
   CONSEQUENCIA_SEM_RETENCAO,
 } from "./documento";
-import { anoCalendario, CONSEQUENCIA_PAGO_SEM_NOTA } from "./pagamento";
+import { anoCalendario, rotulosPagoSemNota } from "./pagamento";
 
 export type TipoPendencia =
   | "quarentena"
@@ -124,15 +124,23 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
   }
 
   // 3 · Exposição "pago sem nota", acumulada por favorecido (US-007, item 4).
+  // O documento que falta depende do favorecido: PJ deve NF, PF deve recibo.
   const porFavorecido = new Map<
     string,
-    { nome: string; total: number; qtd: number; sohPix: boolean }
+    {
+      nome: string;
+      tipo: TipoFavorecido | null;
+      total: number;
+      qtd: number;
+      sohPix: boolean;
+    }
   >();
   for (const p of pagamentos) {
     if (p.status !== "aguardando_nf") continue;
     const chave = p.favorecidoId ?? `sem-favorecido:${p.id}`;
     const atual = porFavorecido.get(chave) ?? {
       nome: p.favorecidoNome ?? SEM_FAVORECIDO,
+      tipo: p.favorecidoTipo,
       total: 0,
       qtd: 0,
       sohPix: true,
@@ -148,14 +156,15 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
       : agregado.qtd === 1
         ? "pagamento"
         : "pagamentos";
+    const rotulos = rotulosPagoSemNota(agregado.tipo);
     pendencias.push({
       id: `pago-sem-nota:${chave}`,
       tipo: "pago_sem_nota",
-      chip: "Pago sem nota",
-      titulo: `${agregado.qtd} ${unidade} sem NF vinculada`,
+      chip: rotulos.chip,
+      titulo: `${agregado.qtd} ${unidade} ${rotulos.semVinculo}`,
       detalhe: agregado.nome,
       valorCentavos: agregado.total,
-      consequencia: CONSEQUENCIA_PAGO_SEM_NOTA,
+      consequencia: rotulos.consequencia,
       gravidade: "red",
     });
   }

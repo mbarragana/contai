@@ -98,6 +98,29 @@ test.describe("home de pendências", () => {
     ).toBeVisible();
   });
 
+  test("favorecido PF: a home cobra recibo assinado, não NF", async ({
+    page,
+  }) => {
+    await instalarStub(page, {
+      pagamentos: [
+        pagamentoStub({
+          id: "p1",
+          valor: "3000.00",
+          favorecido_id: "fav-pf",
+          favorecido: { nome: "José Pedreiro", tipo: "pf" },
+        }),
+      ],
+    });
+
+    await page.goto("/");
+
+    await expect(page.getByText("Pago sem recibo")).toBeVisible();
+    await expect(page.getByText("1 PIX sem recibo vinculado")).toBeVisible();
+    await expect(
+      page.getByText(/Cobre o recibo assinado \(nome, CPF e descrição/),
+    ).toBeVisible();
+  });
+
   test("estado vazio: nada pendente", async ({ page }) => {
     await instalarStub(page, {});
     await page.goto("/");

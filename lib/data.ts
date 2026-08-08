@@ -23,6 +23,10 @@ import type {
 } from "@/lib/types";
 
 type ComFavorecido = { favorecido: { nome: string } | null };
+/** Pagamento também precisa do tipo: PF espera recibo, PJ espera NF. */
+type ComFavorecidoTipado = {
+  favorecido: { nome: string; tipo: TipoFavorecido } | null;
+};
 
 export class ObraAusenteError extends Error {
   constructor() {
@@ -58,7 +62,7 @@ function paraDocumento(row: DocumentoRow & ComFavorecido): Documento {
 }
 
 function paraPagamento(
-  row: PagamentoRow & ComFavorecido,
+  row: PagamentoRow & ComFavorecidoTipado,
   documentoIds: string[],
 ): Pagamento {
   return {
@@ -69,6 +73,7 @@ function paraPagamento(
     status: row.status,
     favorecidoId: row.favorecido_id,
     favorecidoNome: row.favorecido?.nome ?? null,
+    favorecidoTipo: row.favorecido?.tipo ?? null,
     comprovantePath: row.comprovante_path,
     documentoIds,
   };
@@ -106,7 +111,7 @@ export async function carregarPainel(): Promise<PainelDados> {
       .order("created_at", { ascending: false }),
     supabase
       .from("pagamento")
-      .select("*, favorecido(nome)")
+      .select("*, favorecido(nome, tipo)")
       .eq("obra_id", obra.id)
       .order("data_pagamento", { ascending: false }),
     supabase.from("pagamento_documento").select("*"),
@@ -128,9 +133,9 @@ export async function carregarPainel(): Promise<PainelDados> {
     documentos: ((documentos.data ?? []) as (DocumentoRow & ComFavorecido)[]).map(
       paraDocumento,
     ),
-    pagamentos: ((pagamentos.data ?? []) as (PagamentoRow & ComFavorecido)[]).map(
-      (row) => paraPagamento(row, docsPorPagamento.get(row.id) ?? []),
-    ),
+    pagamentos: (
+      (pagamentos.data ?? []) as (PagamentoRow & ComFavorecidoTipado)[]
+    ).map((row) => paraPagamento(row, docsPorPagamento.get(row.id) ?? [])),
   };
 }
 

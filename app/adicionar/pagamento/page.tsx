@@ -28,19 +28,20 @@ import {
   MEIO_PAGAMENTO_AVULSO,
   STATUS_PAGAMENTO_AVULSO,
   anoCalendario,
+  rotulosPagoSemNota,
   validarPagamentoAvulso,
   type EntradaPagamento,
   type ErroCampoPagamento,
 } from "@/lib/fiscal/pagamento";
 import { parseValorInput } from "@/lib/money";
-import type { Obra } from "@/lib/types";
+import type { Obra, TipoFavorecido } from "@/lib/types";
 
 type Fase =
   | { nome: "carregando" }
   | { nome: "erro"; mensagem: string }
   | { nome: "formulario" }
   | { nome: "salvando" }
-  | { nome: "salvo"; ano: number };
+  | { nome: "salvo"; ano: number; tipoFavorecido: TipoFavorecido | null };
 
 function hojeIso(): string {
   const agora = new Date();
@@ -99,6 +100,13 @@ export default function RegistrarPagamento() {
   const erroDe = (campo: ErroCampoPagamento["campo"]) =>
     erros.find((e) => e.campo === campo)?.mensagem;
 
+  // PF não emite NF: o que sustenta o custo dele é o recibo assinado. Os
+  // rótulos acompanham o CNPJ/CPF digitado, em vez de assumir PJ.
+  const tipoFavorecido = useMemo(
+    () => tipoPorDocumento(documento),
+    [documento],
+  );
+
   async function salvar() {
     const encontrados = validarPagamentoAvulso(entrada, hojeIso());
     setErros(encontrados);
@@ -107,7 +115,6 @@ export default function RegistrarPagamento() {
 
     setFase({ nome: "salvando" });
     try {
-      const tipoFavorecido = tipoPorDocumento(documento);
       if (tipoFavorecido === null) throw new Error("CNPJ/CPF inválido.");
 
       const comprovantePath = await subirParaAcervo(comprovante, "comprovante");
@@ -130,7 +137,7 @@ export default function RegistrarPagamento() {
         status: STATUS_PAGAMENTO_AVULSO,
       });
 
-      setFase({ nome: "salvo", ano: anoCalendario(data) });
+      setFase({ nome: "salvo", ano: anoCalendario(data), tipoFavorecido });
     } catch (erro) {
       setErroSalvar(mensagemDeErro(erro));
       setFase({ nome: "formulario" });
@@ -138,19 +145,22 @@ export default function RegistrarPagamento() {
   }
 
   if (fase.nome === "salvo") {
+    const salvos = rotulosPagoSemNota(fase.tipoFavorecido);
     return (
       <Registrado
         ano={fase.ano}
         proximoPasso={
           <>
-            vincular a NF quando ela chegar{" "}
+            vincular {salvos.documento} quando chegar{" "}
             <span className="text-[12px] text-mut">(em breve — US-003)</span>
           </>
         }
-        custo="só conta quando a NF for vinculada"
+        custo={`só conta depois de vincular ${salvos.documento}`}
       />
     );
   }
+
+  const rotulos = rotulosPagoSemNota(tipoFavorecido);
 
   return (
     <>
@@ -218,9 +228,27 @@ export default function RegistrarPagamento() {
             </Card>
 
             <Banner cor="amb" role="status">
-              Vai nascer como <strong>aguardando NF</strong>. Quando a nota
-              chegar (mensal ou consolidada), você vincula este e outros
-              pagamentos a ela — o custo só conta no IR com a nota junto.
+              Vai nascer como{" "}
+              <strong>aguardando {rotulos.documento}</strong>.{" "}
+              {tipoFavorecido === "pf" ? (
+                <>
+                  Prestador PF não emite nota: o que sustenta o custo é o recibo
+                  assinado com nome, CPF e descrição do serviço — junto deste
+                  comprovante.
+                </>
+              ) : tipoFavorecido === "pj" ? (
+                <>
+                  Quando a nota chegar (mensal ou consolidada), você vincula
+                  este e outros pagamentos a ela — o custo só conta no IR com a
+                  nota junto.
+                </>
+              ) : (
+                <>
+                  Informe o CNPJ/CPF do favorecido: PJ deve NF, PF deve recibo
+                  assinado (nome, CPF e descrição do serviço). O custo só conta
+                  no IR com o documento junto.
+                </>
+              )}
             </Banner>
           </>
         ) : null}
@@ -234,7 +262,9 @@ export default function RegistrarPagamento() {
             onClick={salvar}
             disabled={fase.nome === "salvando"}
           >
-            {fase.nome === "salvando" ? "Salvando…" : "Salvar — aguardando NF"}
+            {fase.nome === "salvando"
+              ? "Salvando…"
+              : `Salvar — aguardando ${rotulos.documento}`}
           </Botao>
           <BotaoLink href="/adicionar">Voltar</BotaoLink>
         </Rodape>
