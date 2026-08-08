@@ -34,6 +34,8 @@ export interface Capturas {
   documentos: Record<string, unknown>[];
   pagamentos: Record<string, unknown>[];
   uploads: string[];
+  /** URLs das gravações de favorecido — é onde aparece o on_conflict. */
+  favorecidos: string[];
 }
 
 function json(route: Route, corpo: unknown, status = 200) {
@@ -84,7 +86,12 @@ export async function instalarStub(
   page: Page,
   dados: DadosStub = {},
 ): Promise<Capturas> {
-  const capturas: Capturas = { documentos: [], pagamentos: [], uploads: [] };
+  const capturas: Capturas = {
+    documentos: [],
+    pagamentos: [],
+    uploads: [],
+    favorecidos: [],
+  };
 
   await instalarSessao(page);
 
@@ -118,6 +125,7 @@ export async function instalarStub(
       const corpo = route.request().postDataJSON() as Record<string, unknown>;
       switch (tabela) {
         case "favorecido":
+          capturas.favorecidos.push(route.request().url());
           return respostaInsert(route, { id: "fav-1", ...corpo });
         case "documento":
           capturas.documentos.push(corpo);

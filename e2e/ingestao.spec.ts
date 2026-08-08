@@ -190,6 +190,8 @@ test.describe("registrar documento", () => {
     await expect(page.getByText(/Original guardado no acervo/)).toBeVisible();
 
     expect(capturas.uploads[0]).toContain(`acervo/${USER_ID}/documento/`);
+    // Favorecido entra por upsert: dois toques no salvar não duplicam o CNPJ.
+    expect(capturas.favorecidos[0]).toContain("on_conflict=user_id%2Cdocumento");
     expect(capturas.documentos).toHaveLength(1);
     expect(capturas.documentos[0]).toMatchObject({
       tipo: "nf_material",

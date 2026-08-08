@@ -12,7 +12,7 @@ import type {
   Documento,
   DocumentoInsert,
   DocumentoRow,
-  FavorecidoRow,
+  FavorecidoInsert,
   Obra,
   ObraRow,
   Pagamento,
@@ -170,34 +170,31 @@ export async function subirParaAcervo(
   return caminho;
 }
 
-/** Reaproveita o favorecido pelo CNPJ/CPF; cria se for a primeira vez. */
+/**
+ * Reaproveita o favorecido pelo CNPJ/CPF; cria se for a primeira vez.
+ *
+ * Upsert em vez de select-then-insert: com dois toques no "Salvar" (ou um
+ * retry de rede) as duas chamadas liam "não existe" e criavam favorecidos
+ * duplicados, quebrando a agregação CPF-por-CPF. O conflito é resolvido pela
+ * unicidade (user_id, documento) da migration 0003.
+ */
 export async function garantirFavorecido(entrada: {
   nome: string;
   documento: string;
   tipo: TipoFavorecido;
 }): Promise<string> {
-  const supabase = getSupabase();
-  const { data, error } = await supabase
+  const linha: FavorecidoInsert = {
+    nome: entrada.nome,
+    documento: entrada.documento,
+    tipo: entrada.tipo,
+  };
+  const { data, error } = await getSupabase()
     .from("favorecido")
-    .select("*")
-    .eq("documento", entrada.documento)
-    .limit(1);
-  if (error) throw error;
-
-  const existente = (data as FavorecidoRow[] | null)?.[0];
-  if (existente) return existente.id;
-
-  const { data: criado, error: erroInsert } = await supabase
-    .from("favorecido")
-    .insert({
-      nome: entrada.nome,
-      documento: entrada.documento,
-      tipo: entrada.tipo,
-    })
+    .upsert(linha, { onConflict: "user_id,documento" })
     .select("id")
     .single();
-  if (erroInsert) throw erroInsert;
-  return (criado as { id: string }).id;
+  if (error) throw error;
+  return (data as { id: string }).id;
 }
 
 export async function criarDocumento(

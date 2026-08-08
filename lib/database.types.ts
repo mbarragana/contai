@@ -1,6 +1,6 @@
 // Tipos GERADOS a partir do banco — não edite à mão.
 // Fonte: `npx supabase gen types typescript --linked` (projeto contai,
-// migrations 0001 e 0002 aplicadas). Regerar sempre que uma migration entrar.
+// migrations 0001, 0002 e 0003 aplicadas). Regerar sempre que uma migration entrar.
 
 export type Json =
   | string
@@ -15,6 +15,31 @@ export type Database = {
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.15"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
@@ -376,6 +401,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       classificacao: ["material", "mao_obra"],
