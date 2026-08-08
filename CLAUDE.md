@@ -66,7 +66,8 @@ revisor (cto-obra) roda em modelo mais forte por design.
 - **Hospedagem**: Vercel
 - **Testes**: Vitest (unit) + Playwright (E2E) — padrão dos outros projetos
 
-**Regra dura de E2E (decisão do Mateus, 2026-08-08)**: teste E2E roda contra o
+**Regra dura de E2E (proposta pelo time de agentes em 2026-08-08, pendente de
+ratificação do Mateus)**: teste E2E roda contra o
 **banco local em Docker** (`npm run db:start`), nunca contra Supabase stubado.
 Stub de backend em E2E é proibido: ele valida a suposição de quem escreveu o
 teste, não o sistema. Foi assim que passou despercebido que `numeric(14,2)`
