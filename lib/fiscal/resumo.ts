@@ -55,8 +55,18 @@ export interface EntradaResumo {
 const SEM_FAVORECIDO = "Favorecido não informado";
 
 /**
+ * Documento hábil (Gate Fiscal do ticket):
+ * - boleto NUNCA é hábil sozinho — é título de cobrança, não prova o que foi
+ *   comprado nem quem é o destinatário;
+ * - documento em quarentena não é hábil — está fora do CPF do dono.
+ */
+function ehDocumentoHabil(documento: Documento): boolean {
+  return documento.tipo !== "boleto" && documento.status !== "quarentena";
+}
+
+/**
  * O pagamento sustenta custo quando está conciliado a pelo menos um documento
- * que não está em quarentena. Documento em quarentena não é documento hábil.
+ * hábil.
  */
 function sustentaCusto(
   pagamento: Pagamento,
@@ -69,9 +79,7 @@ function sustentaCusto(
 export function calcularResumo(entrada: EntradaResumo): ResumoObra {
   const { obra, documentos, pagamentos, ano } = entrada;
 
-  const habeis = new Set(
-    documentos.filter((d) => d.status !== "quarentena").map((d) => d.id),
-  );
+  const habeis = new Set(documentos.filter(ehDocumentoHabil).map((d) => d.id));
 
   let custoAno = 0;
   let custoAteFimDoAno = 0;

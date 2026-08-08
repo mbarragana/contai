@@ -120,6 +120,47 @@ describe("custo confirmado (regime de caixa)", () => {
     expect(r.custoConfirmadoAnoCentavos).toBe(0);
   });
 
+  it("boleto não é documento hábil sozinho — pagamento conciliado só a ele não vira custo", () => {
+    const r = resumo({
+      documentos: [
+        doc({
+          id: "d1",
+          tipo: "boleto",
+          status: "aguardando_pagamento",
+          valorCentavos: 2_500_000,
+        }),
+      ],
+      pagamentos: [
+        pag({
+          id: "p1",
+          status: "conciliado",
+          documentoIds: ["d1"],
+          valorCentavos: 2_500_000,
+        }),
+      ],
+    });
+    expect(r.custoConfirmadoAnoCentavos).toBe(0);
+    expect(r.acumuladoImovelCentavos).toBe(OBRA.valorTerrenoCentavos);
+  });
+
+  it("boleto + NF no mesmo pagamento: a NF é que sustenta o custo", () => {
+    const r = resumo({
+      documentos: [
+        doc({ id: "d1", tipo: "boleto", status: "aguardando_pagamento" }),
+        doc({ id: "d2", tipo: "nf_material" }),
+      ],
+      pagamentos: [
+        pag({
+          id: "p1",
+          status: "conciliado",
+          documentoIds: ["d1", "d2"],
+          valorCentavos: 2_500_000,
+        }),
+      ],
+    });
+    expect(r.custoConfirmadoAnoCentavos).toBe(2_500_000);
+  });
+
   it("acumulado começa no terreno mesmo sem obra lançada", () => {
     expect(resumo().acumuladoImovelCentavos).toBe(OBRA.valorTerrenoCentavos);
   });
