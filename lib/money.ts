@@ -8,17 +8,24 @@ const FORMATADOR = new Intl.NumberFormat("pt-BR", {
   currency: "BRL",
 });
 
-/** numeric(14,2) do PostgREST ("4850.00") → centavos. */
-export function numericParaCentavos(valor: string | null): number | null {
-  if (valor === null || valor.trim() === "") return null;
+/**
+ * numeric(14,2) vindo do PostgREST → centavos. O tipo gerado do banco diz
+ * `number` (4850) mas a serialização pode chegar como texto ("4850.00"),
+ * então os dois são aceitos — o que não se aceita é virar 0 em silêncio.
+ */
+export function numericParaCentavos(
+  valor: string | number | null,
+): number | null {
+  if (valor === null) return null;
+  if (typeof valor === "string" && valor.trim() === "") return null;
   const n = Number(valor);
   if (!Number.isFinite(n)) return null;
   return Math.round(n * 100);
 }
 
-/** centavos → string aceita por numeric(14,2) ("4850.00"). */
-export function centavosParaNumeric(centavos: number): string {
-  return (centavos / 100).toFixed(2);
+/** centavos → o número que numeric(14,2) recebe (485000 → 4850.00). */
+export function centavosParaNumeric(centavos: number): number {
+  return centavos / 100;
 }
 
 export function formatarBRL(centavos: number): string {

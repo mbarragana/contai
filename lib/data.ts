@@ -204,9 +204,13 @@ export async function criarDocumento(
   insert: Omit<DocumentoInsert, "valor"> & { valorCentavos: number },
 ): Promise<string> {
   const { valorCentavos, ...resto } = insert;
+  const linha: DocumentoInsert = {
+    ...resto,
+    valor: centavosParaNumeric(valorCentavos),
+  };
   const { data, error } = await getSupabase()
     .from("documento")
-    .insert({ ...resto, valor: centavosParaNumeric(valorCentavos) })
+    .insert(linha)
     .select("id")
     .single();
   if (error) throw error;
@@ -217,9 +221,13 @@ export async function criarPagamento(
   insert: Omit<PagamentoInsert, "valor"> & { valorCentavos: number },
 ): Promise<string> {
   const { valorCentavos, ...resto } = insert;
+  const linha: PagamentoInsert = {
+    ...resto,
+    valor: centavosParaNumeric(valorCentavos),
+  };
   const { data, error } = await getSupabase()
     .from("pagamento")
-    .insert({ ...resto, valor: centavosParaNumeric(valorCentavos) })
+    .insert(linha)
     .select("id")
     .single();
   if (error) throw error;

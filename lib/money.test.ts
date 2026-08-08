@@ -9,6 +9,12 @@ import {
 
 describe("numericParaCentavos", () => {
   it("converte o numeric(14,2) do PostgREST", () => {
+    expect(numericParaCentavos(4850)).toBe(485000);
+    expect(numericParaCentavos(0.01)).toBe(1);
+    expect(numericParaCentavos(932400.55)).toBe(93240055);
+  });
+
+  it("aceita também o numeric serializado como texto", () => {
     expect(numericParaCentavos("4850.00")).toBe(485000);
     expect(numericParaCentavos("0.01")).toBe(1);
     expect(numericParaCentavos("932400.55")).toBe(93240055);
@@ -22,9 +28,10 @@ describe("numericParaCentavos", () => {
 });
 
 describe("centavosParaNumeric", () => {
-  it("volta para o formato aceito pelo numeric(14,2)", () => {
-    expect(centavosParaNumeric(485000)).toBe("4850.00");
-    expect(centavosParaNumeric(1)).toBe("0.01");
+  it("volta para o valor aceito pelo numeric(14,2)", () => {
+    expect(centavosParaNumeric(485000)).toBe(4850);
+    expect(centavosParaNumeric(1)).toBe(0.01);
+    expect(centavosParaNumeric(93240055)).toBe(932400.55);
   });
 
   it("ida e volta não perde centavo", () => {

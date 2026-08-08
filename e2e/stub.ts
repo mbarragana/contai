@@ -16,7 +16,7 @@ export const OBRA = {
   matricula: null,
   cartorio: null,
   municipio: "Florianópolis",
-  valor_terreno: "800000.00",
+  valor_terreno: 800000,
   created_at: "2026-01-02T10:00:00Z",
 };
 
@@ -153,7 +153,7 @@ export function documentoStub(over: Record<string, unknown> = {}) {
     favorecido_id: "fav-1",
     tipo: "nf_material",
     arquivo_path: `${USER_ID}/documento/nf.pdf`,
-    valor: "4850.00",
+    valor: 4850,
     vencimento: null,
     classificacao: "material",
     destinatario_cpf_ok: true,
@@ -172,7 +172,7 @@ export function pagamentoStub(over: Record<string, unknown> = {}) {
     id: "pag-1",
     obra_id: OBRA_ID,
     favorecido_id: "fav-1",
-    valor: "15000.00",
+    valor: 15000,
     data_pagamento: "2026-08-05",
     meio: "pix",
     data_compra: null,

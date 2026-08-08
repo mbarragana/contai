@@ -4,9 +4,10 @@ const PORTA = 3100;
 const BASE_URL = `http://localhost:${PORTA}`;
 
 /**
- * E2E do fluxo de ingestão. O Supabase é stubado no nível HTTP (e2e/stub.ts):
- * a migration ainda não está aplicada no projeto remoto e o app exige sessão.
- * Quando o banco estiver migrado, o mesmo fluxo deve ser repetido contra ele.
+ * E2E do fluxo de ingestão. O Supabase é stubado no nível HTTP (e2e/stub.ts)
+ * para o teste não depender de sessão real nem sujar o banco do Mateus — as
+ * migrations JÁ estão aplicadas no projeto linkado. Repetir o mesmo fluxo
+ * contra o banco real continua pendente (precisa de usuário de teste).
  */
 export default defineConfig({
   testDir: "./e2e",

@@ -1,111 +1,36 @@
 /**
- * Tipos do schema (supabase/migrations/0001_init.sql), escritos à mão: a
- * migration ainda não está aplicada no banco remoto, então não há como gerar
- * tipos pelo CLI. Ao aplicar a migration, trocar por `supabase gen types`.
+ * Tipos do schema. Enums, rows e inserts DERIVAM dos tipos gerados do banco
+ * (`lib/database.types.ts`, produzido por `npx supabase gen types typescript
+ * --linked`) — as migrations 0001/0002 estão aplicadas no projeto linkado.
+ * Não redeclare coluna à mão aqui: é assim que o tipo descola do banco sem
+ * ninguém perceber.
  *
- * Convenção: `*Row` = o que o PostgREST devolve (numeric vem como string);
- * os tipos de domínio (sem sufixo) já vêm com dinheiro em CENTAVOS (inteiro),
- * para somar valor fiscal sem erro de ponto flutuante.
+ * Convenção: `*Row` = o que o PostgREST devolve; os tipos de domínio (sem
+ * sufixo) já vêm com dinheiro em CENTAVOS (inteiro), para somar valor fiscal
+ * sem erro de ponto flutuante.
  */
 
+import type { Enums, Tables, TablesInsert } from "@/lib/database.types";
+
 // ── Enums ────────────────────────────────────────────────────────────────
-export type TipoFavorecido = "pj" | "pf";
-export type TipoDocumento = "nf_material" | "nf_servico" | "boleto";
-export type Classificacao = "material" | "mao_obra";
-export type StatusDocumento =
-  | "registrado"
-  | "quarentena"
-  | "aguardando_pagamento";
-export type MeioPagamento = "pix" | "boleto" | "cartao";
-export type StatusPagamento = "aguardando_nf" | "conciliado";
+export type TipoFavorecido = Enums<"tipo_favorecido">;
+export type TipoDocumento = Enums<"tipo_documento">;
+export type Classificacao = Enums<"classificacao">;
+export type StatusDocumento = Enums<"status_documento">;
+export type MeioPagamento = Enums<"meio_pagamento">;
+export type StatusPagamento = Enums<"status_pagamento">;
 
 // ── Rows (PostgREST) ─────────────────────────────────────────────────────
-export interface ObraRow {
-  id: string;
-  nome: string;
-  cno: string | null;
-  matricula: string | null;
-  cartorio: string | null;
-  municipio: string | null;
-  valor_terreno: string;
-  created_at: string;
-}
-
-export interface FavorecidoRow {
-  id: string;
-  tipo: TipoFavorecido;
-  nome: string;
-  documento: string;
-  retencao_11: boolean | null;
-  created_at: string;
-}
-
-export interface DocumentoRow {
-  id: string;
-  obra_id: string;
-  favorecido_id: string | null;
-  tipo: TipoDocumento;
-  arquivo_path: string;
-  valor: string | null;
-  vencimento: string | null;
-  classificacao: Classificacao | null;
-  destinatario_cpf_ok: boolean;
-  retencao_11: boolean | null;
-  status: StatusDocumento;
-  motivo_quarentena: string | null;
-  created_at: string;
-}
-
-export interface PagamentoRow {
-  id: string;
-  obra_id: string;
-  favorecido_id: string | null;
-  valor: string;
-  data_pagamento: string;
-  meio: MeioPagamento;
-  data_compra: string | null;
-  comprovante_path: string | null;
-  status: StatusPagamento;
-  created_at: string;
-}
-
-export interface PagamentoDocumentoRow {
-  pagamento_id: string;
-  documento_id: string;
-}
+export type ObraRow = Tables<"obra">;
+export type FavorecidoRow = Tables<"favorecido">;
+export type DocumentoRow = Tables<"documento">;
+export type PagamentoRow = Tables<"pagamento">;
+export type PagamentoDocumentoRow = Tables<"pagamento_documento">;
 
 // ── Inserts ──────────────────────────────────────────────────────────────
-export interface FavorecidoInsert {
-  tipo: TipoFavorecido;
-  nome: string;
-  documento: string;
-  retencao_11?: boolean | null;
-}
-
-export interface DocumentoInsert {
-  obra_id: string;
-  favorecido_id: string | null;
-  tipo: TipoDocumento;
-  arquivo_path: string;
-  valor: string | null;
-  vencimento: string | null;
-  classificacao: Classificacao | null;
-  destinatario_cpf_ok: boolean;
-  retencao_11: boolean | null;
-  status: StatusDocumento;
-  motivo_quarentena: string | null;
-}
-
-export interface PagamentoInsert {
-  obra_id: string;
-  favorecido_id: string | null;
-  valor: string;
-  data_pagamento: string;
-  meio: MeioPagamento;
-  data_compra: string | null;
-  comprovante_path: string | null;
-  status: StatusPagamento;
-}
+export type FavorecidoInsert = TablesInsert<"favorecido">;
+export type DocumentoInsert = TablesInsert<"documento">;
+export type PagamentoInsert = TablesInsert<"pagamento">;
 
 // ── Domínio (centavos) ───────────────────────────────────────────────────
 export interface Obra {

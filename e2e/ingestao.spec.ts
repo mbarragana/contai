@@ -42,13 +42,13 @@ test.describe("home de pendências", () => {
           status: "quarentena",
           destinatario_cpf_ok: false,
           motivo_quarentena: "Documento não está no CPF do dono da obra.",
-          valor: "4850.00",
+          valor: 4850,
         }),
         documentoStub({
           id: "d2",
           tipo: "boleto",
           status: "aguardando_pagamento",
-          valor: "25000.00",
+          valor: 25000,
           vencimento: `${ANO}-09-15`,
           favorecido: { nome: "AJE Construções" },
         }),
@@ -57,14 +57,14 @@ test.describe("home de pendências", () => {
           tipo: "nf_servico",
           classificacao: "mao_obra",
           retencao_11: null,
-          valor: "18000.00",
+          valor: 18000,
           favorecido: { nome: "AJE Construções" },
         }),
       ],
       pagamentos: [
-        pagamentoStub({ id: "p1", valor: "15000.00", data_pagamento: `${ANO}-06-05` }),
-        pagamentoStub({ id: "p2", valor: "15000.00", data_pagamento: `${ANO}-07-05` }),
-        pagamentoStub({ id: "p3", valor: "15000.00", data_pagamento: `${ANO}-08-05` }),
+        pagamentoStub({ id: "p1", valor: 15000, data_pagamento: `${ANO}-06-05` }),
+        pagamentoStub({ id: "p2", valor: 15000, data_pagamento: `${ANO}-07-05` }),
+        pagamentoStub({ id: "p3", valor: 15000, data_pagamento: `${ANO}-08-05` }),
       ],
     });
 
@@ -105,7 +105,7 @@ test.describe("home de pendências", () => {
       pagamentos: [
         pagamentoStub({
           id: "p1",
-          valor: "3000.00",
+          valor: 3000,
           favorecido_id: "fav-pf",
           favorecido: { nome: "José Pedreiro", tipo: "pf" },
         }),
@@ -193,7 +193,7 @@ test.describe("registrar documento", () => {
     expect(capturas.documentos).toHaveLength(1);
     expect(capturas.documentos[0]).toMatchObject({
       tipo: "nf_material",
-      valor: "4850.00",
+      valor: 4850,
       classificacao: "material",
       destinatario_cpf_ok: true,
       status: "registrado",
@@ -314,7 +314,7 @@ test.describe("registrar pagamento avulso", () => {
     expect(capturas.uploads[0]).toContain(`acervo/${USER_ID}/comprovante/`);
     expect(capturas.pagamentos).toHaveLength(1);
     expect(capturas.pagamentos[0]).toMatchObject({
-      valor: "15000.00",
+      valor: 15000,
       meio: "pix",
       status: "aguardando_nf",
       data_compra: null,
