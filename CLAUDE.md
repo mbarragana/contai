@@ -70,8 +70,8 @@ revisor (cto-obra) roda em modelo mais forte por design.
 storage do próprio Mateus (ex: zip mensal no Google Drive) — a guarda até
 venda+5 anos não pode depender de free tier de terceiro.
 
-Comandos de build/typecheck/teste: registrar aqui no scaffold do projeto
-(`npm run dev | build | test`, `npx tsc --noEmit`, `npx playwright test`).
+Comandos: `npm run dev` | `npm run build` | `npm run typecheck` |
+`npm run test` (Vitest unit) | `npm run test:e2e` (Playwright) | `npm run lint`.
 
 ## Estrutura
 
