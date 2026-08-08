@@ -1,69 +1,147 @@
-import Image from "next/image";
+"use client";
+
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
+
+import {
+  AppBar,
+  Banner,
+  BotaoLink,
+  Card,
+  Carregando,
+  Chip,
+  Consequencia,
+  Corpo,
+  Dica,
+  EstadoErro,
+} from "@/app/_components/ui";
+import { carregarPainel, mensagemDeErro, type PainelDados } from "@/lib/data";
+import { calcularResumo, type Pendencia, type ResumoObra } from "@/lib/fiscal/resumo";
+import { formatarBRL } from "@/lib/money";
+
+type Estado =
+  | { fase: "carregando" }
+  | { fase: "erro"; mensagem: string }
+  | { fase: "pronto"; dados: PainelDados; resumo: ResumoObra };
+
+const ACAO_POR_TIPO: Partial<Record<Pendencia["tipo"], string>> = {
+  quarentena: "Resolver",
+  servico_sem_retencao: "Ver detalhes",
+};
 
 export default function Home() {
+  const [estado, setEstado] = useState<Estado>({ fase: "carregando" });
+  const [tentativa, setTentativa] = useState(0);
+
+  useEffect(() => {
+    let cancelado = false;
+    void (async () => {
+      try {
+        const dados = await carregarPainel();
+        const ano = new Date().getFullYear();
+        if (cancelado) return;
+        setEstado({
+          fase: "pronto",
+          dados,
+          resumo: calcularResumo({ ...dados, ano }),
+        });
+      } catch (erro) {
+        if (cancelado) return;
+        setEstado({ fase: "erro", mensagem: mensagemDeErro(erro) });
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [tentativa]);
+
+  const tentarDeNovo = useCallback(() => {
+    setEstado({ fase: "carregando" });
+    setTentativa((t) => t + 1);
+  }, []);
+
+  const obra = estado.fase === "pronto" ? estado.dados.obra : null;
+  const ano = estado.fase === "pronto" ? estado.resumo.ano : new Date().getFullYear();
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <>
+      <AppBar
+        titulo="contai"
+        sub={
+          obra
+            ? `${obra.nome}${obra.cno ? ` · CNO ${obra.cno}` : ""} · ${ano}`
+            : `Obra · ${ano}`
+        }
+      />
+
+      <Corpo>
+        {estado.fase === "carregando" ? (
+          <Carregando rotulo="Carregando a obra" />
+        ) : null}
+
+        {estado.fase === "erro" ? (
+          <EstadoErro mensagem={estado.mensagem} onTentarDeNovo={tentarDeNovo} />
+        ) : null}
+
+        {estado.fase === "pronto" ? (
+          <>
+            <Card>
+              <Dica>Custo confirmado em {estado.resumo.ano}</Dica>
+              <div className="mono text-[26px] font-bold tracking-tight">
+                {formatarBRL(estado.resumo.custoConfirmadoAnoCentavos)}
+              </div>
+              <div className="mono mt-1 text-[14px] font-semibold">
+                Acumulado do imóvel:{" "}
+                {formatarBRL(estado.resumo.acumuladoImovelCentavos)}
+              </div>
+              <Dica>
+                = situação em 31/12 na ficha Bens e Direitos (terreno + obra)
+              </Dica>
+              {estado.resumo.pendencias.length > 0 ? (
+                <p className="mt-1.5 text-[12px] text-mut">
+                  Em pendência:{" "}
+                  <span className="mono font-semibold text-red">
+                    {formatarBRL(estado.resumo.emPendenciaCentavos)}
+                  </span>{" "}
+                  — resolver abaixo
+                </p>
+              ) : null}
+            </Card>
+
+            {estado.resumo.pendencias.length === 0 ? (
+              <Banner cor="grn" role="status">
+                <strong>Nenhuma pendência.</strong> Todo documento e pagamento
+                registrado está com a documentação em ordem.
+              </Banner>
+            ) : null}
+
+            {estado.resumo.pendencias.map((p) => (
+              <Card key={p.id}>
+                <Chip cor={p.gravidade}>{p.chip}</Chip>
+                <div className="mt-1.5 font-semibold">{p.titulo}</div>
+                <Dica>
+                  {p.detalhe} ·{" "}
+                  <span className="mono">{formatarBRL(p.valorCentavos)}</span>
+                </Dica>
+                <Consequencia cor={p.gravidade}>{p.consequencia}</Consequencia>
+                {p.href && ACAO_POR_TIPO[p.tipo] ? (
+                  <div className="mt-2.5">
+                    <BotaoLink href={p.href}>{ACAO_POR_TIPO[p.tipo]}</BotaoLink>
+                  </div>
+                ) : null}
+              </Card>
+            ))}
+          </>
+        ) : null}
+
+        {/* Ação principal sempre ao alcance do polegar, rolando junto. */}
+        <Link
+          href="/adicionar"
+          className="sticky bottom-0 mt-auto self-end rounded-full bg-ink px-5 py-[13px] text-[14.5px] font-semibold text-paper shadow-[0_6px_16px_rgba(0,0,0,.18)]"
+        >
+          + Adicionar
+        </Link>
+      </Corpo>
+    </>
   );
 }
