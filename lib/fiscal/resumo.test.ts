@@ -187,7 +187,7 @@ describe("pendências", () => {
     expect(p?.consequencia).toContain("custo de aquisição");
   });
 
-  it("boleto registrado fica aguardando NF", () => {
+  it("boleto registrado fica aguardando pagamento", () => {
     const r = resumo({
       documentos: [
         doc({
@@ -199,7 +199,8 @@ describe("pendências", () => {
       ],
     });
     const p = r.pendencias.find((x) => x.tipo === "boleto_sem_nf");
-    expect(p?.chip).toBe("Aguardando NF");
+    // O documento está em `aguardando_pagamento` — o chip não pode dizer outra coisa.
+    expect(p?.chip).toBe("Aguardando pagamento");
     expect(p?.valorCentavos).toBe(2_500_000);
   });
 

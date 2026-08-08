@@ -114,7 +114,9 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
     pendencias.push({
       id: `boleto:${d.id}`,
       tipo: "boleto_sem_nf",
-      chip: "Aguardando NF",
+      // O chip reflete o estado gravado (`aguardando_pagamento`): o boleto
+      // ainda não foi pago. O ciclo de vida completo é da US-003.
+      chip: "Aguardando pagamento",
       titulo: "Boleto sem nota vinculada",
       detalhe: d.favorecidoNome ?? SEM_FAVORECIDO,
       valorCentavos: d.valorCentavos ?? 0,

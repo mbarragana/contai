@@ -18,12 +18,18 @@ import {
 import { carregarDocumento, mensagemDeErro } from "@/lib/data";
 import { CONSEQUENCIA_SEM_RETENCAO } from "@/lib/fiscal/documento";
 import { formatarBRL } from "@/lib/money";
-import type { Documento, TipoDocumento } from "@/lib/types";
+import type { Classificacao, Documento, TipoDocumento } from "@/lib/types";
 
 const NOME_TIPO: Record<TipoDocumento, string> = {
   nf_material: "NF de material",
   nf_servico: "NF de serviço",
   boleto: "Boleto",
+};
+
+const NOME_CLASSIFICACAO: Record<Classificacao | "indefinida", string> = {
+  material: "Material",
+  mao_obra: "Mão de obra",
+  indefinida: "—",
 };
 
 type Estado =
@@ -171,7 +177,8 @@ export default function DetalheDocumento() {
             <span className="font-semibold text-grn">Seu CPF ✓</span>
           </Linha>
           <Linha rotulo="Classificação">
-            {d.classificacao === "material" ? "Material" : "Mão de obra"}
+            {/* Sem classificação gravada não se inventa uma: "—" é honesto. */}
+            {NOME_CLASSIFICACAO[d.classificacao ?? "indefinida"]}
           </Linha>
         </Card>
         {d.status === "aguardando_pagamento" ? (
