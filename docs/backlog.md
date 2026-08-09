@@ -5,24 +5,177 @@ Backlog vivo. Dores extraídas dos relatos do Mateus, stories priorizadas
 
 ---
 
-## DECISÕES PENDENTES DO MATEUS (Gate 2 do CONTAI-001, 2026-08-08)
+## DECISÕES PENDENTES DO MATEUS (Gate 4 do CONTAI-001, 2026-08-08)
 
 *Bloco destacado: nada aqui avança sem resposta explícita do Mateus.*
 
-1. **Divergência do mock — headline "Em pendência"**: o implementado soma os
-   4 tipos de pendência (R$ 92.850 no cenário do mock); o mock v4 aprovado
-   mostra R$ 47.850 (sem "pago sem nota"). Ratificar a soma implementada ou
-   mandar corrigir para o comportamento do mock. Ver também a recomendação do
-   cto-obra na nota da US-003 (seção Gate 2).
-2. **Divergências menores do mock** aceitas pelo lead-engineer — ratificar ou
-   reverter:
-   - linha de imposto da tela 6 omitida até a fórmula ser aprovada;
-   - "Destinatário: AJE" omitido por falta de campo;
-   - botões sem comportamento removidos;
-   - FAB "+ Documento" renomeado para "+ Adicionar";
-   - tela 8 parametrizada.
-3. **Priorização dos novos tickets**: CONTAI-002 (login, P0) e CONTAI-003
-   (cadastro/onboarding da obra, P1) — ver seção Gate 2.
+1. **Headline "Em pendência" — recomendação do PO: nem 92.850, nem 47.850.**
+   Os R$ 47.850 do mock são aritmética de antes do card "pago sem nota"
+   existir; os R$ 92.850 somam quatro moedas diferentes (perda de custo,
+   conta a pagar e base de INSS). Proposta: headline = **"Custo em risco no
+   IR"** = quarentena + pago sem nota (R$ 49.850 no cenário do mock);
+   exposição INSS em linha separada expressa **em base** ("R$ 18.000 de NF de
+   serviço sem retenção"), sem reais perdidos até o contador fechar o cálculo
+   na US-004; boleto sai do headline e fica só como card (o lugar dele é a
+   fila "a pagar" da US-002). Efeito colateral: some o double-count apontado
+   pelo cto-obra. → **CONTAI-005 [P0]**. Raciocínio completo no Gate 4 do
+   ticket CONTAI-001.
+2. **Divergências menores do mock — recomendação do PO por item** (detalhe no
+   Gate 4 do ticket):
+   - linha de imposto da tela 6 → **ratificar a omissão**; volta com a
+     fórmula do contador ("até R$ X", com disclaimer);
+   - "Destinatário: AJE" omitido → **backlog, anexado à US-008** (a extração
+     entrega de graça; perguntar hoje custa mais um campo no caminho ruim);
+   - botão "Anotar: falar com o empreiteiro" → **cortar em definitivo**
+     (comunicação com empreiteiro é escopo declarado fora do produto);
+   - botão "Pedir nota corrigida" → **backlog P2 com trava**: só deep-link de
+     WhatsApp com texto pronto, zero estado no sistema;
+   - FAB "+ Adicionar" → **ratificar e corrigir o mock** (o mock é que
+     ficou com o rótulo da v2);
+   - tela 8 parametrizada por porta → **ratificar**;
+   - "Favorecido (recente)" → **backlog P1**, primeiro da fila depois do
+     login (não é conveniência: CNPJ digitado errado parte a agregação
+     CPF-por-CPF da US-004 em dois).
+3. **Priorização da fila proposta pelo PO** (ver "Fila recomendada" abaixo):
+   CONTAI-004 (nº e data do documento, P0) e CONTAI-005 (headline, P0) antes
+   de CONTAI-002 (login, P0) ir a produção; depois CONTAI-003 (obra, P1),
+   CONTAI-006 (estados de rede, P1) e US-009 (ver o que já registrei, P1).
+
+---
+
+## Gate 4 do CONTAI-001 — 2026-08-08 — validação do PO
+
+**Veredito: DONE COM RESSALVAS.** Verificação independente: 64/64 unit,
+typecheck limpo, 10/10 e2e contra Postgres local. Critérios 1–6 atendidos
+(o 6 por bloqueio em vez de pendência — ratificado); **critério 7 (≤3
+interações) NÃO atendido** e formalmente transferido para a US-008: o caminho
+comum tem ~10 interações, 4 delas de digitação.
+
+Leitura das metas: meta 1 move muito (mas o app **cria** pendências e não
+**fecha** nenhuma — US-003 é o fecho obrigatório, não um "depois"); meta 2
+quase não move (e o "Custo confirmado" da home é estruturalmente R$ 0,00 até
+a US-003, porque nada cria pagamento `conciliado`); meta 3 move o mínimo
+(preserva, mas não recupera, não verifica legibilidade e não exporta).
+
+### Fila recomendada pelo PO
+
+**push do repo** → `CONTAI-004` → `CONTAI-005` → `CONTAI-002` → `CONTAI-003`
+→ `CONTAI-006` → `US-009`. Duas regras por trás: **o que é irreversível vem
+antes do que é caro** (daí o push em primeiro lugar, 5 minutos contra perder
+tudo), e **tudo que gera retrabalho manual depois do primeiro registro real
+entra antes do login** (CONTAI-004 e 005 antes do CONTAI-002 ir ao ar).
+
+### Novos tickets / stories
+
+**CONTAI-004 [P0] — nº do documento e data de emissão no formulário**
+O contador já fixou o formato da discriminação anual: *"NF nº X, valor total
+R$ Z, pago R$ Y no ano"* (Q6). Hoje o formulário não pergunta o número da
+nota e o schema (`documento`) não tem a coluna — sem isso a US-004 não gera o
+texto. Custo agora: um campo. Custo depois: reabrir documento por documento.
+Aceite:
+1. [ ] `numero` e `data_emissao` capturados no registro de documento
+2. [ ] Obrigatórios em NF (material e serviço); opcionais em boleto
+3. [ ] Campos disponíveis para o texto da discriminação da US-004
+
+**CONTAI-005 [P0] — headline "Custo em risco no IR" + exposição INSS separada**
+Ver decisão pendente nº 1. Toca `lib/fiscal/resumo.ts`, a home e o mock.
+Aceite:
+1. [ ] Headline soma só quarentena + pago sem nota, rotulado "Custo em risco
+       no IR"
+2. [ ] Exposição INSS em linha própria, em base (R$ de NF sem retenção), sem
+       valor de imposto até o contador definir (US-004)
+3. [ ] Boleto fora do headline; segue como card
+4. [ ] Mock v5 atualizado com os mesmos números
+
+**CONTAI-006 [P1] — estados de rede lenta/indisponível no canteiro**
+Achado do Gate 3: a tela fica ~7,7 s em "Carregando a obra" antes de mostrar
+erro (retry do postgrest-js, 1 s+2 s+4 s — confirmado, e2e leva 7,8 s). O
+problema não é a duração, é a tela mentir por 7 s; e o sintoma esconde algo
+pior: **nenhuma tela tem teto de espera**, então numa 4G ruim o spinner pode
+durar indefinidamente. Não é P0 — não põe custo em risco e ninguém perde dado.
+Aceite:
+1. [ ] Feedback progressivo aos ~2 s ("sem resposta do servidor — tentando de
+       novo") — mínimo aceitável
+2. [ ] Teto de espera com erro acionável e "Tentar de novo"
+3. [ ] Retry do postgrest-js revisto para leituras de tela (definição
+       técnica: `cto-obra`)
+
+**US-009 [P1] — ver o que já foi registrado**
+Como dono da obra, quero uma lista do que já registrei (com busca por
+favorecido) para conferir sem abrir o banco. Hoje o documento registrado
+**some da interface** depois de salvo — só pendência aparece. Quem vem de uma
+planilha onde vê tudo não confia num app que esconde tudo: ele registra duas
+vezes, ou volta para a planilha.
+Aceite:
+1. [ ] Lista de documentos e pagamentos do ano, com filtro por favorecido
+2. [ ] Cada item abre o detalhe já existente
+
+**US-010 [P1] — abrir/baixar o original do acervo**
+Preservar sem recuperar não é acervo (meta 3). Hoje o arquivo sobe para o
+bucket e nenhuma tela o abre. Aceite: no detalhe do documento/pagamento, o
+original abre ou baixa; falha de leitura é visível, não silenciosa.
+
+**US-011 [P0 — antes do 1º ano fechar] — export periódico do acervo**
+Requisito **permanente** do CLAUDE.md, ainda inexistente: zip periódico dos
+documentos + índice para storage do próprio Mateus (ex.: Google Drive). A
+guarda até venda + 5 anos não pode depender de free tier de terceiro.
+Depende de resolver o upload órfão (Gate 2), senão o export carrega lixo.
+
+**Legibilidade do anexo [P2]** — o CLAUDE.md pede "legibilidade verificada" e
+hoje o app aceita arquivo de 0 byte ou foto tremida. Mínimo barato: recusar
+arquivo vazio e avisar em foto abaixo de um limiar de resolução.
+
+**"Pedir nota corrigida ao fornecedor" [P2 — com trava de escopo]** — deep-link
+de WhatsApp com texto pronto a partir da tela de quarentena, **zero estado no
+sistema**. Se em algum momento pedir caixa de entrada, thread ou histórico de
+conversa, cortar: é escopo declarado fora do produto.
+
+**"Favorecido (recente)" [P1]** — ver decisão pendente nº 2.
+
+### Risco de projeto (não é feature, mas é decisão de priorização)
+
+**PUSH DO REPO [P1 — custa 5 minutos]** — o repositório nunca foi enviado para
+o GitHub. Um HD queimado hoje leva junto o backlog, os pareceres do contador,
+as migrations e o app que vai guardar o acervo fiscal até venda + 5 anos. Isso
+é a **meta 3 dependendo de um laptop**. Priorizo acima de qualquer feature
+desta lista porque o custo é trivial e a perda é irreversível.
+
+**CI [P2 — enquanto for um dev só]** — não há CI; nada impede commit quebrado.
+Com `npm run quality` (lint + typecheck + test + test:e2e) disponível na mão e
+um único desenvolvedor, o ganho marginal de CI hoje é pequeno. Vira P1 no dia
+em que houver push automático para a Vercel — aí um commit quebrado vai a
+produção sozinho. Definição técnica: `cto-obra`.
+
+**`npm run dev` aponta para o banco REMOTO [P1 — mitigação barata]** — o
+comando padrão, o que se digita sem pensar, grava no projeto de verdade;
+`npm run dev:local` (porta 3200) é que fala com o banco local. Um teste manual
+distraído injeta documento de brincadeira no acervo que vira declaração. Não
+é hipótese: `playwright.config.ts` já documenta esse tiro no pé
+(`reuseExistingServer: false`, com comentário explicando exatamente isso).
+Mitigação sugerida: `npm run dev` passa a ser o local, e o remoto ganha nome
+explícito (`dev:remoto`) — quem quer tocar em dado real que digite por
+extenso.
+
+### Ajustes em itens existentes
+
+- **US-008 (extração)**: absorve o campo "destinatário real" da tela de
+  quarentena e absorve o **critério 7 do CONTAI-001** (≤3 interações). No
+  fluxo manual a métrica de aceite passa a ser **"tempo até salvar ≤ 60 s com
+  uma mão"**, medida no primeiro uso real — não contagem de toques.
+- **US-003 (conciliação)**: promovida de fato a bloqueador da meta 1 — o app
+  hoje só abre pendências e não fecha nenhuma; e a meta 2 não sai do zero
+  porque "custo confirmado" exige pagamento `conciliado`, que nada cria.
+- **Rótulo "Interação X de 3"**: trocar por "Passo X de 3" junto com
+  CONTAI-004. A tela afirma um número que ela não cumpre.
+
+### Cortado no Gate 4 (com justificativa)
+
+- **Botão "Anotar: falar com o empreiteiro"** (tela 7 do mock): comunicação
+  com empreiteiro é escopo declarado fora do produto (CLAUDE.md). Não vai
+  para o backlog — vai para cá.
+- **Linha de imposto na tela de quarentena, com número fixo**: número de
+  imposto errado é pior que ausente; só volta com a fórmula do contador e a
+  palavra "até".
 
 ---
 
@@ -54,6 +207,8 @@ não no formato PDF — NF-e tem XML canônico, preferível quando existir.
 ### User stories
 
 **US-001 [P0] — Ingestão de documento com extração assistida**
+*(status 2026-08-08: entregue na versão manual pelo CONTAI-001 — DONE com
+ressalvas no Gate 4. Os itens 2 e 4 abaixo seguem abertos na US-008.)*
 Como dono da obra, quero subir uma NF (PDF/XML) ou boleto (PDF) e ter os campos
 extraídos automaticamente (emitente, CNPJ/CPF, destinatário, valor, vencimento,
 material vs. serviço) para só confirmar em vez de digitar.
@@ -170,6 +325,9 @@ Aceite:
 ### User stories
 
 **US-007 [P0 — MVP, junto do CONTAI-001] — Registrar pagamento avulso (sem documento)**
+*(status 2026-08-08: entregue pelo CONTAI-001; itens 1–3 atendidos. O item 4
+(exposição acumulada por fornecedor na home) está entregue mas com o headline
+errado — corrigido por CONTAI-005.)*
 Como dono da obra, quero registrar um PIX feito sem nota/boleto (valor, data,
 favorecido, comprovante) na hora, para o pagamento não se perder e virar
 pendência "aguardando NF".
