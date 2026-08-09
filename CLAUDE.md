@@ -119,6 +119,39 @@ Comandos: `npm run dev` | `npm run build` | `npm run typecheck` |
 `npm run test` (Vitest unit) | `npm run test:e2e` (Playwright — **exige
 `npm run db:start` antes**) | `npm run lint`.
 
+`npm run quality` = lint + typecheck + unit + E2E, na mesma ideia do
+surf-forecast. É o comando único antes de fechar um gate; exige o stack local
+de pé.
+
+`npm run dev:local` = `next dev` na porta **3200** com as env do Supabase local
+inline (elas vencem o `.env.local`, que aponta para o projeto REMOTO). Portas
+separadas de propósito: 3200 = uso manual, 3100 = servidor do Playwright, 3000
+costuma estar ocupada por outro projeto. Como não existe tela de login, para
+usar o app manualmente cole no console do navegador:
+
+```js
+const r = await fetch(
+  "http://127.0.0.1:54331/auth/v1/token?grant_type=password",
+  {
+    method: "POST",
+    headers: {
+      apikey: "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      email: "mateus@contai.local",
+      password: "contai-local-123",
+    }),
+  },
+);
+localStorage.setItem("contai-auth", JSON.stringify(await r.json()));
+location.reload();
+```
+
+Se a tela mostrar `JWT issued at future`, o relógio do Docker desencontrou do
+relógio do Mac (acontece depois que a máquina dorme): `npm run db:stop && npm
+run db:start`.
+
 Supabase local (Docker): `npm run db:start | db:stop | db:status`;
 `npm run db:reset` recria o banco local e roda `supabase/seed.sql` (usuário e
 obra de desenvolvimento — enquanto não existem tela de login e cadastro de
