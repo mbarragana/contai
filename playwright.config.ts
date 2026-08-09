@@ -19,7 +19,11 @@ export default defineConfig({
   workers: 1,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  reporter: "list",
+  // No CI sai também o HTML, que é o que o workflow guarda como artefato
+  // quando quebra — "list" sozinho não deixa nada para depurar depois.
+  reporter: process.env.CI
+    ? [["list"], ["html", { open: "never" }]]
+    : [["list"]],
   use: {
     baseURL: BASE_URL,
     // Canteiro, uma mão livre: 375px é o alvo do ticket.

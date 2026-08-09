@@ -152,6 +152,28 @@ Se a tela mostrar `JWT issued at future`, o relógio do Docker desencontrou do
 relógio do Mac (acontece depois que a máquina dorme): `npm run db:stop && npm
 run db:start`.
 
+## CI (`.github/workflows/ci.yml`)
+
+Roda em push e PR na `main`, em dois jobs paralelos:
+
+- **quality** — lint, typecheck, testes unitários (regras fiscais) e build. Sem
+  Docker, ~1 min. O build recebe as env do Supabase local para o bundle nunca
+  sair com a URL do projeto REMOTO.
+- **e2e** — `npx supabase start` (mesma CLI da devDependency, para não existir
+  "passa aqui e quebra lá") e a suíte inteira contra o Postgres local. Instala
+  **webkit**, não chromium: o config usa `devices["iPhone SE"]`, cujo
+  `defaultBrowserType` é webkit — o motor do alvo real. Um passo confere que a
+  URL e a anon key versionadas em `e2e/ambiente.ts` ainda batem com o que a CLI
+  gera, para uma CLI nova não virar 10 testes vermelhos sem explicação. Em
+  falha, sobe `playwright-report/` como artefato (7 dias).
+
+Nenhum segredo de produção entra no CI: o stack é local e efêmero, criado do
+zero pelas migrations + `seed.sql`.
+
+**Deploy NÃO está no workflow** — na Vercel ele vem da integração com o Git, e
+não de action com token. Enquanto o projeto não estiver conectado na Vercel,
+não há deploy nenhum.
+
 Supabase local (Docker): `npm run db:start | db:stop | db:status`;
 `npm run db:reset` recria o banco local e roda `supabase/seed.sql` (usuário e
 obra de desenvolvimento — enquanto não existem tela de login e cadastro de
