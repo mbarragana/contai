@@ -21,9 +21,9 @@ jobs:
     name: lint · tipos · unit · build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -33,6 +33,10 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # `typecheck` roda `next typegen` antes do tsc: os tipos gerados de rota
+      # (LayoutProps e cia.) vivem em .next/types e não existem em checkout
+      # limpo. Sem isso o comando só passava em máquina com .next quente — foi
+      # o primeiro bug que este CI pegou.
       - name: Typecheck
         run: npm run typecheck
 
@@ -57,9 +61,9 @@ jobs:
     name: E2E contra o Supabase local
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
