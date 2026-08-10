@@ -29,4 +29,26 @@ export const OBRA_ID_SEED = "22222222-2222-4222-8222-222222222222";
 /** valor_terreno da obra do seed, em centavos. */
 export const TERRENO_SEED_CENTAVOS = 80_000_000;
 
+/**
+ * A obra do seed, campo a campo — o `limpar` de cada teste recria esta linha
+ * quando um teste a apaga (o caso "nenhuma obra cadastrada", critério 12).
+ * Tem de bater com supabase/seed.sql; se divergir, o teste que confere o
+ * acumulado do imóvel acusa.
+ */
+export const OBRA_SEED = {
+  id: OBRA_ID_SEED,
+  nome: "Casa Cachoeira",
+  cno: "12.345.67890/26",
+  matricula: "38.104",
+  cartorio: "1º Ofício de Registro de Imóveis",
+  municipio: "Florianópolis",
+  valor_terreno: 800000,
+  valor_itbi: 0,
+  valor_escritura_registro: 0,
+  data_inicio_obra: "2025-11-04",
+  cno_registrado_em: "2025-11-20",
+  unidades_autonomas: 1,
+  origem_desmembramento_loteamento: false,
+} as const;
+
 export const BUCKET_ACERVO = "acervo";

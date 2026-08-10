@@ -1,10 +1,12 @@
 import { test as base } from "@playwright/test";
 
+import { CHAVE_OBRA_ATIVA } from "../lib/obra-ativa";
+import { OBRA_ID_SEED } from "./ambiente";
 import { entrar, injetarSessao, limpar, type Db } from "./banco";
 
 /**
- * Fixture única do E2E: login real, sessão injetada no browser e banco limpo
- * antes e depois de cada teste.
+ * Fixture única do E2E: login real, sessão injetada no browser, obra ativa
+ * conhecida e banco limpo antes e depois de cada teste.
  *
  * `auto: true` porque nenhum teste deste projeto faz sentido sem sessão — o
  * app trata ausência de sessão como erro explícito (SemSessaoError), não como
@@ -15,14 +17,39 @@ export interface Fixtures {
   db: Db;
 }
 
-export const test = base.extend<Fixtures>({
+export interface Opcoes {
+  /**
+   * Preferência de obra ativa no aparelho. `null` simula celular novo/storage
+   * limpo — o estado em que o app tem de abrir a lista e NÃO escolher obra
+   * nenhuma (critérios 6 e 16). Use `test.use({ obraAtiva: null })`.
+   */
+  obraAtiva: string | null;
+}
+
+export const test = base.extend<Fixtures & Opcoes>({
+  obraAtiva: [OBRA_ID_SEED, { option: true }],
+
   db: [
-    async ({ page }, use) => {
+    async ({ page, obraAtiva }, use) => {
       // Login por teste (e não por worker): cada um recebe o seu refresh
       // token, então a rotação de token de um não invalida a sessão do outro.
       const { db, sessao } = await entrar();
       await limpar(db);
       await injetarSessao(page, sessao);
+
+      if (obraAtiva !== null) {
+        // O init script roda a CADA navegação: sem a guarda, ele desfaria a
+        // troca de obra feita pelo teste na navegação seguinte — e um teste de
+        // obra ativa que reescreve a obra ativa não prova nada.
+        await page.addInitScript(
+          ([chave, valor]) => {
+            if (!window.localStorage.getItem(chave)) {
+              window.localStorage.setItem(chave, valor);
+            }
+          },
+          [CHAVE_OBRA_ATIVA, obraAtiva] as [string, string],
+        );
+      }
 
       await use(db);
 

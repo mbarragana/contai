@@ -12,6 +12,7 @@ import {
   CHAVE_PUBLICAVEL_LOCAL,
   EMAIL_SEED,
   OBRA_ID_SEED,
+  OBRA_SEED,
   SENHA_SEED,
   URL_SUPABASE_LOCAL,
   USER_ID_SEED,
@@ -78,8 +79,12 @@ function conferir(rotulo: string, error: { message: string } | null) {
 }
 
 /**
- * Estado conhecido antes (e depois) de cada teste. A obra do seed fica: é
- * pré-requisito do app e não existe tela para recriá-la.
+ * Estado conhecido antes (e depois) de cada teste: só a obra do seed, sem
+ * documento, pagamento nem favorecido.
+ *
+ * As obras criadas por teste caem, e a do seed é RECRIADA se sumiu — o teste
+ * do critério 12 (nenhuma obra cadastrada) precisa apagar todas, e sem esta
+ * restauração ele deixaria o banco sem obra para o próximo.
  * `pagamento_documento` já cairia por cascade, mas apagar explícito deixa o
  * erro no lugar certo se a policy do vínculo mudar.
  */
@@ -101,6 +106,37 @@ export async function limpar(db: Db) {
     "limpar favorecido",
     (await db.from("favorecido").delete().neq("id", NENHUM_ID)).error,
   );
+  conferir(
+    "limpar obras de teste",
+    (await db.from("obra").delete().neq("id", OBRA_ID_SEED)).error,
+  );
+  conferir(
+    "restaurar obra do seed",
+    (await db.from("obra").upsert(OBRA_SEED, { onConflict: "id" })).error,
+  );
+}
+
+/** Obra extra do cenário. Sem `cno` para o caso "obra sem CNO". */
+export async function criarObra(
+  db: Db,
+  linha: Partial<TablesInsert<"obra">> & { nome: string },
+): Promise<string> {
+  const { data, error } = await db
+    .from("obra")
+    .insert({ data_inicio_obra: "2026-03-15", ...linha })
+    .select("id")
+    .single();
+  conferir("criar obra", error);
+  return data!.id;
+}
+
+export async function obras(db: Db) {
+  const { data, error } = await db
+    .from("obra")
+    .select("*")
+    .order("created_at", { ascending: true });
+  conferir("ler obra", error);
+  return data!;
 }
 
 // ── Inserções de cenário ─────────────────────────────────────────────────

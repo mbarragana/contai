@@ -113,8 +113,9 @@ test.describe("home de pendências", () => {
 
     await page.goto("/");
 
-    // Acumulado do imóvel = terreno + obra confirmada (situação em 31/12).
-    await expect(page.getByText(/Acumulado do imóvel/)).toContainText(
+    // Acumulado da obra = terreno (preço + ITBI + escritura) + obra
+    // confirmada (situação em 31/12). Nada é somado com a outra obra.
+    await expect(page.getByText(/Acumulado desta obra/)).toContainText(
       "800.000,00",
     );
     // 4.850 (quarentena) + 25.000 (boleto) + 18.000 (sem retenção) + 45.000 (PIX sem NF)
