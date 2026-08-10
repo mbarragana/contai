@@ -36,10 +36,9 @@ Backlog vivo. Dores extraídas dos relatos do Mateus, stories priorizadas
    - "Favorecido (recente)" → **backlog P1**, primeiro da fila depois do
      login (não é conveniência: CNPJ digitado errado parte a agregação
      CPF-por-CPF da US-004 em dois).
-3. **Priorização da fila proposta pelo PO** (ver "Fila recomendada" abaixo):
-   CONTAI-004 (nº e data do documento, P0) e CONTAI-005 (headline, P0) antes
-   de CONTAI-002 (login, P0) ir a produção; depois CONTAI-003 (obra, P1),
-   CONTAI-006 (estados de rede, P1) e US-009 (ver o que já registrei, P1).
+3. ~~**Priorização da fila proposta pelo PO**~~ — **OBSOLETA** (2026-08-09).
+   Valia enquanto o produto era de uma obra só. Vale a **"Fila revista — 2ª
+   revisão"**, no Relato 003. As decisões 1 e 2 acima seguem abertas.
 
 ---
 
@@ -534,9 +533,14 @@ CONTAI-007 é captura de campo no formulário e tem outro dono de risco.
 **Mas 002 e 003 são uma única release**: login que desemboca em
 `ObraAusenteError` é beco sem saída, então não vão a produção separados.
 
-### Fila revista — 2026-08-09
+### Fila revista — 2026-08-09 (1ª revisão) — **SUPERADA**
 
-*Substitui a proposta do item 3 do bloco de decisões pendentes no topo. O
+> **SUPERADA em 2026-08-09 pelas respostas Q11–Q13** (ver "Fila revista — 2ª
+> revisão", mais abaixo neste mesmo relato). Mantida aqui só como registro do
+> raciocínio e do que eu errei: esta fila apostava que a segunda obra era
+> futura, e colocava CONTAI-007 antes do CONTAI-003, de quem ele depende.
+
+*Substituía a proposta do item 3 do bloco de decisões pendentes no topo. O
 bloco em si segue intocado — as decisões 1 e 2 continuam esperando o Mateus.*
 
 **push do repo** → `CONTAI-004` + `CONTAI-007` (mesma migration, mesmo
@@ -592,33 +596,173 @@ rateio.
 - **US-002 (lembretes no Calendar)**: o lembrete precisa dizer **de qual obra**
   é o boleto, senão ele paga certo e registra errado.
 
-### Perguntas abertas (as 3 que mais destravam)
+### Perguntas Q11–Q13 — respondidas pelo Mateus em 2026-08-09
 
-- **Q11** — *"Cada uma das duas obras fica na sua própria matrícula, com uma
-  única unidade autônoma (uma casa)? Algum dos dois terrenos veio de
-  desmembramento ou loteamento de um terreno maior?"*
-  É a única pergunta que separa ganho de capital de equiparação a PJ. Se a
-  resposta for "mais de uma unidade" ou "veio de desmembramento", **os
-  relatórios deste produto deixam de valer** e o escopo do contai muda.
-- **Q12** — *"A segunda obra já está em andamento hoje, com nota ou pagamento
-  chegando?"*
-  **É a pergunta que mais muda a fila.** Se sim, os critérios de obra ativa do
-  CONTAI-003 são urgência de agora e nada pode ir a produção sem eles. Se ela
-  começa em meses, CONTAI-002+003 podem ir ao ar com uma obra só e o seletor
-  vem em seguida.
-- **Q13** — *"As duas obras já têm CNO próprio, e as NFs de serviço da AJE vêm
-  com o CNO da obra impresso na nota?"*
-  Define se o CONTAI-007 é validação (caminho comum = nota traz o CNO) ou
-  cobrança de nota correta ao prestador (caminho comum = nota não traz).
-  **Fecha de carona a Q5**, aberta desde o relato 002 — é a mesma nota na mão.
+- **Q11 — FECHADA.** *"sim, cada obra tem sua própria unidade"*: matrícula
+  própria, **uma unidade autônoma cada**, sem desmembramento/loteamento.
+  **Os relatórios do produto continuam valendo** — a equiparação a PJ está
+  afastada pelos fatos (contador Q7b: é taxativa). Efeito: os campos
+  `unidades_autonomas` e `origem_desmembramento_loteamento` **ficam**, mas o
+  aviso do critério 11 do CONTAI-003 **nunca dispara com os fatos de hoje** —
+  é rede para uma terceira obra ou um terreno de outra origem, não caminho a
+  desenhar no mock nem a testar como caminho comum. **O escopo do contai não
+  muda.**
+- **Q12 — FECHADA, e derruba a aposta da fila anterior.** *"obra ativa é
+  urgência, as duas obras já estão em andamento"*. Não existe janela para
+  CONTAI-002+003 irem ao ar com uma obra só e o seletor vir depois. Fila
+  refeita abaixo.
+- **Q13 — PARCIAL.** *"não, uma das obras não tem CNO"*. Segue aberta a parte
+  *"as NFs de serviço da AJE trazem o CNO impresso?"* — que continua fechando
+  de carona a **Q5** (retenção de 11%), aberta desde o relato 002: é a mesma
+  nota, olhada uma vez.
+  **Regra fiscal do CNO ausente NÃO é decidida pelo PO.** O `contador` está
+  produzindo parecer (em curso, 2026-08-09) sobre obra em andamento sem CNO:
+  obrigatoriedade, prazo, efeito sobre as notas já emitidas e se o cadastro
+  deve **bloquear / aceitar com pendência / ignorar**. Até lá, o critério 3 do
+  CONTAI-003 está marcado **[AGUARDANDO PARECER]** e não vai a mock nem a
+  desenvolvimento. O resto do ticket não espera.
+
+### Fila revista — 2026-08-09 (2ª revisão, depois das respostas Q11–Q13)
+
+*Substitui a "Fila revista" da 1ª revisão, logo acima. O bloco de decisões
+pendentes no topo do arquivo segue intocado — as decisões 1 e 2 continuam
+esperando o Mateus.*
+
+**0. Ação do Mateus, fora do app — o item mais urgente desta lista e o único
+que não é software**: a obra sem CNO. O prazo de CNO corre por lei (30 dias do
+início da obra, contador Q8) e **as duas obras já estão em andamento** — ou
+seja, o relógio já está correndo e notas já podem ter sido emitidas para uma
+obra que não tem CNO. Nenhum ticket protege contra isso; só o parecer do
+contador (em curso) e a ação dele. Priorizo acima de qualquer código porque o
+custo de agir é uma conversa e o custo de não agir é a averbação da matrícula.
+
+**1. push do repo** — inalterado, 5 minutos contra perda irreversível.
+
+**2. Release R1 — a primeira produção do contai, como release única:**
+`CONTAI-003` → `CONTAI-007` → `CONTAI-004` → `CONTAI-002` → `CONTAI-005`
+(essa é a ordem de **implementação**; o **deploy é um só**).
+
+**3. Depois:** `CONTAI-006` → `US-009` → `US-010` → `US-011` → `US-012`.
+
+#### Por que a fila mudou (e o que eu errei antes)
+
+A fila anterior era `004 + 007` → `005` → `002 + 003`. Ela apostava que a
+segunda obra era futura. **A aposta caiu**, e com ela caem três coisas:
+
+1. **CONTAI-003 não pode mais ser fatiado.** Antes ele podia ir a produção com
+   uma obra só (critérios 6–9 depois). Com as duas em andamento, os critérios
+   6–9 **são** o ticket.
+2. **CONTAI-007 não pode mais vir antes do CONTAI-003.** Isso não é urgência,
+   é dependência — e era uma **contradição que já existia nos documentos**: o
+   CONTAI-007 declarava "bloqueado por CONTAI-003" e mesmo assim aparecia
+   antes dele na fila. Com duas obras vivas, o caminho comum do 007 é *"esse
+   CNO é o da outra obra"*, que não existe sem cadastro de obra — e a
+   mitigação do pre-mortem 1 do 007 (escolher o CNO em vez de digitar) exige a
+   lista de CNOs cadastrados. Ordem corrigida: **003 antes de 007**.
+3. **CONTAI-005 desce, e pelo motivo inverso do que o colocou no topo.** Ele
+   estava cedo por "nada vai ao ar com número enganoso". Com duas obras, **o
+   headline do 005 não tem como estar certo antes do 003**: todo número em tela
+   passa a precisar do rótulo da obra (Bens e Direitos não soma entre
+   matrículas, aferição não soma entre CNOs). Fazer 005 primeiro é produzir um
+   número de aparência correta que mistura obras — exatamente a classe de erro
+   desta leva. Além disso 005 e 003 tocam a mesma home e o mesmo mock.
+   **005 é também o único item de R1 que não captura dado**, logo o único
+   descartável se R1 crescer demais: é display, e display se conserta depois.
+
+**O que NÃO mudou, e é a regra que sustenta o resto:** *tudo que gera
+retrabalho manual depois do primeiro registro real entra antes de o login ir ao
+ar*. O que mudou é a leitura dela. **O contai nunca esteve em produção**;
+produção começa com o CONTAI-002 (login). Logo o corte não é "antes ou depois
+do 002" — é **"dentro ou fora da primeira release"**. Tudo que é captura
+irreversível no ato do registro tem de estar na R1:
+- **obra correta** (003) — erro = base de aferição inflada = impedimento de venda;
+- **CNO referenciado** (007) — não dá para reabrir: se a nota saiu errada, custa a nota;
+- **nº e data de emissão** (004) — reabrir documento a documento.
+
+**Por que isso não é "empurrar tudo para uma release gigante":** a R1 é grande
+porque a estreia é grande, não porque eu empilhei desejos. Nada de 006, US-009,
+US-010, US-011 ou US-012 entrou nela. O critério de admissão foi um só: *este
+campo é impossível ou caro de capturar depois?* Se não for, ficou de fora.
+
+**Consequência de aceitar esta fila, e é desconfortável:** o Mateus fica mais
+tempo na planilha. Trocar isso por uma produção antecipada só é possível
+sacrificando captura irreversível — que é o oposto da meta 1. Se ele quiser
+encurtar, o único corte legítimo é **CONTAI-005** (o headline sai errado por
+mais um tempo, e é conserto de tela).
 
 *Pergunta do contador que eu deliberadamente não trago ao Mateus como
 requisito*: "quantos imóveis você vendeu nos últimos 5 anos e pretende
 repetir?" — importa para habitualidade e para o art. 39, mas é conversa com o
 CRC, não pergunta que muda uma linha de software.
 
+### Dores novas, extraídas das respostas de 2026-08-09
+
+O Mateus descreveu um **fluxo** ("cria a obra, anexa o CNO / duas obras na lista
+em um dashboard / seleciono a que quero interagir / obra aberta em localstorage
+/ abrir direto nela ou sempre abrir a lista"). Fluxo é hipótese de solução. As
+dores por trás dele:
+
+| ID | Dor | Citação / origem | Prioridade |
+|----|-----|------------------|-----------|
+| D14 | A obra gravada no registro pode vir de **estado de cliente que ninguém leu** — storage limpo, celular novo, outro dispositivo, sessão velha. O erro é silencioso e o campo é fiscal | "essa obra aberta fica em localstorage" | **P0 fiscal** |
+| D15 | Erro de obra é descoberto tarde e hoje **não tem conserto pela interface**: `obra_id` errado é permanente ou volta a exigir SQL (a D9 pela porta dos fundos) | derivada do pre-mortem 1 do CONTAI-003 | **P0 fiscal** |
+| D16 | Ele precisa de uma porta de entrada para escolher a obra do dia — hoje não existe nenhuma | "duas obras na lista... eu seleciono a que quero interagir agora e vai" | P1 fricção |
+| D17 | Uma das obras em andamento **não tem CNO**, e o relógio legal já corre | "não, uma das obras não tem CNO" | **P0 fiscal — mas é ação fora do app**, aguardando parecer do contador |
+
+**Todas as D14–D16 viraram critérios do CONTAI-003** (6, 7, 13, 14, 15), e não
+tickets novos: são o mesmo ticket, que agora tem de nascer completo. **D17 não
+vira requisito de software antes do parecer** — decidir por conta própria o
+comportamento do cadastro para obra sem CNO seria inventar regra fiscal.
+
+**Requisito de UI → mock obrigatório antes de desenvolvimento** (premissa
+mock-first, CLAUDE.md). O CONTAI-003 passa a exigir mock de **cinco** telas, e
+três delas não existem em nenhum mock aprovado: **lista de obras** (sem valores
+em dinheiro), **afirmação da obra ativa na tela de registro** + **confirmação
+de salvo nomeando a obra**, e **correção da obra de um registro já salvo**.
+Enquanto o mock não for aprovado pelo Mateus, o CONTAI-003 não entra no
+`/develop` — e, como ele é o primeiro item da R1, **o mock é hoje o caminho
+crítico do projeto inteiro**.
+
+### Ajustes adicionais em stories existentes (2026-08-09, 2ª revisão)
+
+- **US-012 (rateio de material)**: continua **P1** e continua com a mesma
+  recomendação do contador — **corrigir no processo, não no software**. Mas a
+  **ação do Mateus deixa de ser preventiva e passa a ser de hoje**: com as duas
+  obras em andamento ao mesmo tempo, a entrega de material compartilhada entre
+  elas é evento corrente, não hipótese. **Pedir nota separada por obra, agora**,
+  custa zero e elimina a story.
+- **US-004 (relatórios)**: as duas obras estão em andamento **dentro do mesmo
+  ano-calendário**, então a primeira declaração já nasce com duas
+  discriminações de Bens e Direitos e duas posições de aferição. Não muda a
+  fila (US-004 é de fechamento de ano), mas mata qualquer versão "primeiro uma
+  obra, depois generaliza".
+- **US-002 (lembrete no Calendar)**: reforçado — o lembrete precisa dizer de
+  qual obra é o boleto. Com as duas ativas simultaneamente, o lembrete sem obra
+  é convite direto ao erro do D10.
+- **CONTAI-007**: ganha um ramo novo, **condicionado ao parecer em curso** —
+  o que o app faz quando a NF de serviço é de uma obra que **não tem CNO**
+  (hipótese diferente de "a nota não traz CNO", que o critério 3 já cobre).
+  Não especificar até o parecer chegar.
+
 ### Cortado (com justificativa)
 
+- **"Dashboard" com as duas obras** *(2026-08-09 — corte feito contra as
+  palavras do próprio Mateus)*: "duas obras na lista em um dashboard". A
+  **lista** fica (é navegação: nome, CNO ou pendência de CNO, nº de
+  pendências). O **dashboard** não: valor em dinheiro na lista de obras é o
+  painel consolidado já cortado, entrando por outra porta. Dois números
+  corretos lado a lado estão a uma soma mental de virar um total que não existe
+  em declaração nenhuma — e nenhuma decisão de "qual obra eu vou abrir" precisa
+  de dinheiro para ser tomada.
+- **"Sempre abrir a lista de obras" como comportamento padrão de abertura**
+  *(2026-08-09)*: era a alternativa que o próprio Mateus levantou, e eu
+  recomendo a outra. Pedágio cobrado em 100% das aberturas para um erro que
+  acontece em poucas vira carimbo — ele aprende a tocar sem ler, e aí a tela
+  deixa de proteger e passa a **fabricar confiança falsa**. A proteção certa
+  fica onde o dano acontece: a afirmação da obra na tela de registro e na
+  confirmação de salvo. **A lista continua sendo o comportamento obrigatório
+  em um caso**: quando não há obra ativa confiável — aí o app **nunca** escolhe
+  sozinho.
 - **Campo "destinação (morar / vender)"** — o item mais chamativo do relato, e
   o primeiro a cair. Não altera custo, documentação hábil, regime de caixa nem
   discriminação (contador Q7d, aval expresso). Num produto cuja disciplina é
