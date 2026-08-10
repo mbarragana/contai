@@ -611,16 +611,49 @@ rateio.
   urgência, as duas obras já estão em andamento"*. Não existe janela para
   CONTAI-002+003 irem ao ar com uma obra só e o seletor vir depois. Fila
   refeita abaixo.
-- **Q13 — PARCIAL.** *"não, uma das obras não tem CNO"*. Segue aberta a parte
-  *"as NFs de serviço da AJE trazem o CNO impresso?"* — que continua fechando
-  de carona a **Q5** (retenção de 11%), aberta desde o relato 002: é a mesma
-  nota, olhada uma vez.
-  **Regra fiscal do CNO ausente NÃO é decidida pelo PO.** O `contador` está
-  produzindo parecer (em curso, 2026-08-09) sobre obra em andamento sem CNO:
-  obrigatoriedade, prazo, efeito sobre as notas já emitidas e se o cadastro
-  deve **bloquear / aceitar com pendência / ignorar**. Até lá, o critério 3 do
-  CONTAI-003 está marcado **[AGUARDANDO PARECER]** e não vai a mock nem a
-  desenvolvimento. O resto do ticket não espera.
+- **Q13 — FECHADA na parte do CNO** (parecer do contador chegou em 2026-08-09,
+  ver abaixo). Segue aberta só a parte *"as NFs de serviço da AJE trazem o CNO
+  impresso?"* — que continua fechando de carona a **Q5** (retenção de 11%),
+  aberta desde o relato 002: é a mesma nota, olhada uma vez.
+
+### 2º parecer do contador — 2026-08-09 — obra em andamento SEM CNO
+
+**Decisão: (b) aceitar a obra sem CNO, com pendência de consequência fiscal
+explícita. NÃO bloquear.** Fecha o critério 3 do CONTAI-003.
+
+- **CNO obrigatório em 30 dias do início da obra** (Lei 8.212/91 art. 49, II).
+  A dispensa do art. 30, VIII **não se aplica** — há mão de obra remunerada.
+  Obra sem CNO não está "pendente de cadastro": está com **obrigação vencida**
+- **Sem CNO**: notas de serviço não abatem a aferição daquela obra → sem
+  aferição não há **CND** (art. 47, II) → sem CND não há averbação → sem
+  averbação não há financiamento nem lavratura
+- **O custo de aquisição no IRPF é indiferente ao CNO** (IN SRF 84/2001 art.
+  17) — **registrar continua valendo, e é por isso que não se bloqueia**:
+  bloquear destruiria a apuração que funciona para proteger a que já está
+  danificada, e faria isso na obra que acumula documento hoje
+- **A alavanca, e ela tem prazo**: exigir do prestador **CNO impresso na nota e
+  retificação da EFD-Reinf antes de liberar a próxima parcela**. Depois do
+  último pagamento não há mais força para pedir
+
+**Onde eu estava certo e onde estava errado.** A hipótese provisória que eu
+tinha escrito ("aceitar com pendência") **se confirmou, mas eu a justificava
+por fricção** — "se bloquear, ele volta para a planilha". O motivo correto é
+fiscal e mais forte. **E eu tinha aceitado do Mateus, sem questionar, o
+"anexa o CNO se existir"** — o contador derrubou: "se existir" ensina que o CNO
+é opcional, quando ele é **dívida vencida**. Corrigido no ticket.
+
+**Lacuna do meu ticket, apontada pelo contador**: faltava `data_inicio_obra`.
+Sem ela não há como ancorar os 30 dias, definir o período da aferição, nem
+escrever *"[N] dias em atraso"* — e aviso sem número não faz agir. Entrou como
+campo **obrigatório em toda obra**, com ou sem CNO, junto de
+`cno_registrado_em` (a janela entre as duas é o intervalo das notas
+irregulares, e é o que permite gerar a lista de cobrança).
+
+**Fronteira de escopo que eu guardo aqui, porque a alavanca a tensiona**: o
+app **gera a lista de cobrança** e mostra a consequência. Ele **não** envia
+mensagem, não guarda thread, não acompanha status de conversa com o prestador —
+comunicação com empreiteiro é escopo declarado fora do produto (CLAUDE.md). A
+lista é uma **saída**, como a discriminação anual; a cobrança é do Mateus.
 
 ### Fila revista — 2026-08-09 (2ª revisão, depois das respostas Q11–Q13)
 
@@ -629,11 +662,17 @@ pendentes no topo do arquivo segue intocado — as decisões 1 e 2 continuam
 esperando o Mateus.*
 
 **0. Ação do Mateus, fora do app — o item mais urgente desta lista e o único
-que não é software**: a obra sem CNO. O prazo de CNO corre por lei (30 dias do
-início da obra, contador Q8) e **as duas obras já estão em andamento** — ou
-seja, o relógio já está correndo e notas já podem ter sido emitidas para uma
-obra que não tem CNO. Nenhum ticket protege contra isso; só o parecer do
-contador (em curso) e a ação dele. Priorizo acima de qualquer código porque o
+que não é software** *(detalhado com o 2º parecer, 2026-08-09)*: a obra sem
+CNO. O prazo **já venceu** (30 dias do início, Lei 8.212/91 art. 49, II) e as
+duas obras estão em andamento, então notas já foram emitidas para uma obra sem
+CNO. Três ações, nesta ordem:
+  1. **Registrar o CNO dessa obra no e-CAC** — antes disso nada mais funciona;
+  2. **Antes de liberar a próxima parcela**, exigir do prestador **CNO impresso
+     na nota** e **retificação da EFD-Reinf** das notas já emitidas. **Esta é a
+     única janela de força**: depois do último pagamento não há mais alavanca;
+  3. Confirmar se a obra é **empreitada total** (Q14 abaixo) — se for, o CNO é
+     da construtora e as ações 1 e 2 mudam de dono.
+Nenhum ticket protege contra isso. Priorizo acima de qualquer código porque o
 custo de agir é uma conversa e o custo de não agir é a averbação da matrícula.
 
 **1. push do repo** — inalterado, 5 minutos contra perda irreversível.
@@ -707,12 +746,15 @@ dores por trás dele:
 | D14 | A obra gravada no registro pode vir de **estado de cliente que ninguém leu** — storage limpo, celular novo, outro dispositivo, sessão velha. O erro é silencioso e o campo é fiscal | "essa obra aberta fica em localstorage" | **P0 fiscal** |
 | D15 | Erro de obra é descoberto tarde e hoje **não tem conserto pela interface**: `obra_id` errado é permanente ou volta a exigir SQL (a D9 pela porta dos fundos) | derivada do pre-mortem 1 do CONTAI-003 | **P0 fiscal** |
 | D16 | Ele precisa de uma porta de entrada para escolher a obra do dia — hoje não existe nenhuma | "duas obras na lista... eu seleciono a que quero interagir agora e vai" | P1 fricção |
-| D17 | Uma das obras em andamento **não tem CNO**, e o relógio legal já corre | "não, uma das obras não tem CNO" | **P0 fiscal — mas é ação fora do app**, aguardando parecer do contador |
+| D17 | Uma das obras em andamento **não tem CNO**, e o prazo legal já venceu | "não, uma das obras não tem CNO" | **P0 fiscal** — ação do Mateus fora do app + pendência no app (parecer 2026-08-09) |
+| D18 | As notas de serviço emitidas para a obra **antes** do CNO sair não abatem a aferição — e hoje nada as identifica. Sem lista, não há o que cobrar do prestador enquanto ainda há parcela para segurar | 2º parecer do contador | **P0 fiscal** → CONTAI-007 |
 
-**Todas as D14–D16 viraram critérios do CONTAI-003** (6, 7, 13, 14, 15), e não
-tickets novos: são o mesmo ticket, que agora tem de nascer completo. **D17 não
-vira requisito de software antes do parecer** — decidir por conta própria o
-comportamento do cadastro para obra sem CNO seria inventar regra fiscal.
+**Todas as D14–D16 viraram critérios do CONTAI-003** (6, 7, 13, 14, 16), e não
+tickets novos: são o mesmo ticket, que agora tem de nascer completo.
+**D17 virou requisito depois do parecer**: critérios 2, 3 e 15 do CONTAI-003
+(campos `data_inicio_obra`/`cno_registrado_em`, pendência com o atraso em dias,
+e a proibição explícita de bloquear). **D18 é a única dor deste lote que
+recupera valor em vez de só registrar perda** — vai para o CONTAI-007.
 
 **Requisito de UI → mock obrigatório antes de desenvolvimento** (premissa
 mock-first, CLAUDE.md). O CONTAI-003 passa a exigir mock de **cinco** telas, e
@@ -739,10 +781,56 @@ crítico do projeto inteiro**.
 - **US-002 (lembrete no Calendar)**: reforçado — o lembrete precisa dizer de
   qual obra é o boleto. Com as duas ativas simultaneamente, o lembrete sem obra
   é convite direto ao erro do D10.
-- **CONTAI-007**: ganha um ramo novo, **condicionado ao parecer em curso** —
-  o que o app faz quando a NF de serviço é de uma obra que **não tem CNO**
-  (hipótese diferente de "a nota não traz CNO", que o critério 3 já cobre).
-  Não especificar até o parecer chegar.
+- **CONTAI-007** *(atualizado com o 2º parecer — o ticket precisa ser reescrito
+  antes de ir ao `/develop`)*:
+  1. **"A nota não traz CNO" deixa de ser exceção** e vira o **caso comum** da
+     obra sem CNO. O critério 3 do 007 foi escrito como desvio raro; ele é o
+     caminho principal daquela obra;
+  2. **A escolha de três opções quebra**. O pre-mortem 1 do 007 mandava trocar
+     digitação por escolha entre *"é o CNO desta obra" / "é o da outra obra" /
+     "a nota não traz CNO"*. Numa obra sem CNO, **a primeira opção não é
+     ofertável** — oferecer é induzir resposta falsa. O mock precisa de um
+     estado próprio para essa obra;
+  3. **Critério novo — lista de cobrança [P0]**: as notas daquela obra
+     emitidas **entre `data_inicio_obra` e `cno_registrado_em`**, com **número,
+     data, prestador e valor**. É a **única coisa deste lote que recupera valor
+     em vez de só registrar perda**, e ela só vale enquanto houver parcela a
+     liberar — depois do último pagamento vira histórico;
+  4. **A dependência declarada estava com o motivo errado.** Eu escrevi "sem
+     obra cadastrada com CNO não há contra o que validar"; o contador desmontou
+     — há trabalho de sobra sem CNO nenhum. **A ordem 003 → 007 se mantém**,
+     por outro motivo, material: o 007 precisa de `cno`, `data_inicio_obra` e
+     `cno_registrado_em`, que só o 003 cria. Sem `cno_registrado_em` não existe
+     a janela, e sem a janela não existe lista de cobrança.
+
+### Perguntas e riscos que o 2º parecer abriu (não viram requisito hoje)
+
+- **Q14 — para o Mateus, e pode trocar o titular da obrigação**: *"a obra sem
+  CNO é empreitada TOTAL — a construtora fornece o material e assina a ART da
+  obra inteira?"* Se for, **o CNO é dela, não dele**. Não bloqueia o
+  CONTAI-003 (os campos e a pendência valem nos dois casos), **mas bloqueia o
+  texto da pendência**: cobrar do Mateus uma obrigação de terceiro é pior do
+  que não cobrar. É a 1ª pergunta a fazer a ele no próximo ciclo.
+- **Pergunta nº 1 para contador humano (CRC) — e é um risco no código que já
+  está em produção interna**: o app trata `retencao_11 = não` como **fatal**,
+  mas o art. 31 da Lei 8.212/91 dirige a retenção à **empresa** contratante, e
+  é discutível que o tomador **pessoa física** esteja obrigado a reter. Se a
+  tese do CRC for essa, o produto está classificando como perda algo que pode
+  não ser perda — e a exposição INSS do headline (CONTAI-005) fica inflada.
+  **NÃO mudar código antes da resposta do CRC** — nem para "corrigir": trocar
+  fatal por benigno com base em inferência é o mesmo erro na direção oposta,
+  e essa é mais cara, porque some com o alerta.
+  Anotado como pergunta obrigatória do bloco "exige contador humano" do
+  CONTAI-003, junto das demais que travam a US-004.
+- **Risco de processo, e é meu**: os pareceres do `contador` de 2026-08-09 —
+  inclusive os **dois textos de tela** que o CONTAI-003 manda copiar — **não
+  existem em arquivo neste repositório**; vivem no transcript da sessão. O
+  CLAUDE.md manda regra fiscal vir do contador *"nunca de memória"*, e parecer
+  que só existe em memória de sessão é a mesma falha com outro nome. **Ação:
+  materializar os pareceres em `docs/pareceres/` antes do mock** — senão quem
+  desenhar vai reinventar a redação fiscal, que é exatamente o que a regra
+  proíbe. Isso vale para os textos de tela mais do que para o resto: eles são
+  a parte do parecer que vai para os olhos do usuário.
 
 ### Cortado (com justificativa)
 

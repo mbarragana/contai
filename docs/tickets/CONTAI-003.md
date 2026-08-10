@@ -21,6 +21,12 @@ ser **pré-requisito de existir produção**, não item da fila — e **bloqueia
 CONTAI-007** (ver Dependências). Detalhe nas seções "Respostas do Mateus" e
 "Perguntas Abertas".
 
+**Atualização 2026-08-09 (2º parecer do contador).** Critério 3 **fechado**:
+obra sem CNO é **aceita com pendência**, nunca bloqueada. Dois campos novos
+exigidos (`data_inicio_obra`, `cno_registrado_em`) e um critério novo (15:
+obra sem CNO não bloqueia registro). **Nenhum item deste ticket aguarda
+parecer.**
+
 ## Respostas do Mateus — 2026-08-09 (fecham Q11 e Q12; Q13 em parte)
 
 **Q11 — FECHADA.** *"sim, cada obra tem sua própria unidade"*: matrícula
@@ -41,13 +47,26 @@ começar" e passam a ser condição de existir produção. Consequência direta:
 caminho comum e vira estado de primeiro uso (dia 1, entre cadastrar a obra A e
 cadastrar a obra B)**. O mock deve ser desenhado para N=2 como normal.
 
-**Q13 — PARCIAL.** *"não, uma das obras não tem CNO"*. A parte de "as NFs de
-serviço trazem o CNO impresso?" segue aberta (ver Perguntas Abertas).
-**Não decido a regra deste ponto.** O agente `contador` está produzindo parecer
-sobre obra em andamento sem CNO (obrigatoriedade, prazo, efeito sobre notas já
-emitidas, e se o cadastro deve bloquear / aceitar com pendência / ignorar).
-Até o parecer chegar, o critério 3 fica marcado **[AGUARDANDO PARECER DO
-CONTADOR — em curso]** e nenhum mock desse ramo entra em desenvolvimento.
+**Q13 — FECHADA na parte do CNO ausente** (parecer do `contador`, 2026-08-09;
+ver Gate Fiscal). *"não, uma das obras não tem CNO"*. A parte de "as NFs de
+serviço trazem o CNO impresso?" segue aberta e agora importa menos aqui e mais
+no CONTAI-007 (ver Perguntas Abertas).
+
+**Decisão do contador: (b) aceitar a obra sem CNO, com pendência de
+consequência fiscal explícita — NÃO bloquear.** A hipótese provisória que eu
+tinha escrito neste critério se sustentou, mas **pelo motivo errado**: eu a
+tinha justificado por fricção ("se bloquear, ele volta para a planilha"). O
+motivo correto é fiscal e mais forte — **bloquear destruiria a apuração que
+funciona sem CNO (o custo de aquisição no IRPF é indiferente ao CNO, IN SRF
+84/2001 art. 17) para proteger a que já está danificada (a aferição)**, e
+justamente na obra que acumula documento hoje.
+
+**E uma parte do que eu tinha aceitado do Mateus estava errada.** Eu havia
+acolhido *"anexa o CNO se existir"* como requisito. O contador derrubou: **CNO
+não é opcional — está EM FALTA, com prazo vencido** (obrigatório em 30 dias do
+início da obra, Lei 8.212/91 art. 49, II; a dispensa do art. 30, VIII não se
+aplica porque há mão de obra remunerada). "Se existir" ensina que é escolha.
+O produto tem de dizer que é dívida. Correção aplicada nos critérios 2, 3 e 15.
 
 ### O fluxo desenhado pelo Mateus (é hipótese de solução, não requisito)
 
@@ -57,10 +76,19 @@ CONTADOR — em curso]** e nenhum mock desse ramo entra em desenvolvimento.
 > obra aberta fica em localstorage e abrir de novo pode abrir direto nela, ou
 > então sempre abrir a lista de obras"*
 
-O que eu aceito dele: **"o CNO é por obra"** (bate com o contador, Q8),
-**cadastro por obra com o CNO anexado quando existir**, e **lista de obras como
-porta de entrada**. O que eu trato como hipótese e reescrevo: o **"dashboard"**
-e o **"localStorage"**.
+O que eu aceito dele: **"o CNO é por obra"** (bate com o contador, Q8) e
+**lista de obras como porta de entrada**. O que eu trato como hipótese e
+reescrevo: o **"dashboard"**, o **"localStorage"** e o **"anexa o CNO se
+existir"**.
+
+**Furo 0 — "se existir".** *(acrescentado 2026-08-09, depois do parecer)* É a
+parte do fluxo dele que eu tinha aceitado sem questionar, e é a que o contador
+derrubou. O app não pode tratar o CNO como campo opcional que talvez venha:
+ele é **obrigação vencida**. A obra sem CNO é cadastrada e opera normalmente
+(critério 15), mas nasce com uma **pendência que diz a dívida e o atraso em
+dias** (critério 3). A diferença entre "opcional" e "em falta" é a diferença
+entre um app que registra o problema e um que provoca a ação enquanto ela ainda
+tem efeito.
 
 **Furo 1 — o dashboard.** "Duas obras na lista em um dashboard" é, nas palavras
 dele, a porta de entrada do **painel consolidado que este ticket já cortou**.
@@ -124,19 +152,39 @@ discriminação de Bens e Direitos e a sua própria aferição no SERO.
        entrada, sem valores em dinheiro; (c) **como a obra ativa é afirmada na
        tela de registro** de documento e de pagamento; (d) **confirmação de
        salvo nomeando a obra**; (e) **correção da obra de um registro já
-       salvo**. As telas (b)–(e) são novas em relação ao mock v3 aprovado
+       salvo**; (f) **a pendência de CNO**, na obra e no ato de registrar NF de
+       serviço (critério 3), com a redação copiada do parecer do contador.
+       As telas (b)–(f) são novas em relação ao mock v3 aprovado. **A (f) é a
+       que faz agir**: a tela de cadastro se vê uma vez na vida, a de registro
+       se vê a cada nota
 2. [ ] Obra é cadastrada em tela; **nenhum campo de obra exige SQL**. Campos:
-       nome, matrícula, cartório, município, CNO, valor do terreno
-3. [ ] **[AGUARDANDO PARECER DO CONTADOR — em curso, 2026-08-09]** Tratamento
-       da obra **sem CNO**. Fato confirmado pelo Mateus (Q13): **uma das duas
-       obras em andamento não tem CNO hoje**. O comportamento provisório aqui
-       registrado — cadastro aceita "ainda não tenho", obra nasce com
-       **pendência de CNO** com a consequência escrita, nunca em branco
-       silencioso — é **hipótese do PO, não regra fechada**. O parecer em curso
-       decide obrigatoriedade, prazo, efeito sobre as notas já emitidas e se o
-       cadastro deve **bloquear**, **aceitar com pendência** ou **ignorar**.
-       Este critério **não vai para o mock nem para desenvolvimento** antes do
-       parecer; o resto do ticket não fica parado por ele
+       nome, matrícula, cartório, município, CNO, valor do terreno,
+       **`data_inicio_obra`** e **`cno_registrado_em`**.
+       **`data_inicio_obra` é obrigatória em toda obra, com ou sem CNO**
+       (exigência do contador, 2026-08-09): ela ancora o prazo de 30 dias, tem
+       de definir o período da aferição, e sem ela o app **não consegue
+       escrever "[N] dias em atraso"** — vira aviso genérico, que não faz agir.
+       **A ausência desse campo era lacuna fiscal deste ticket, apontada pelo
+       contador; assumo o erro.** `cno_registrado_em` é preenchida quando o CNO
+       sai — a janela entre `data_inicio_obra` e `cno_registrado_em` é
+       exatamente o intervalo das notas irregulares, e é o que permite gerar a
+       lista de cobrança do CONTAI-007
+3. [ ] **FECHADO pelo parecer do contador de 2026-08-09 — decisão (b):
+       obra sem CNO é ACEITA, com pendência de consequência fiscal explícita.
+       NÃO bloqueia o cadastro.** A obra nasce com pendência que diz, em tela:
+       (i) que o CNO é **obrigação legal vencida**, não campo opcional
+       (30 dias do início, Lei 8.212/91 art. 49, II); (ii) **há quantos dias
+       está em atraso**, calculado de `data_inicio_obra`; (iii) a cadeia de
+       consequência — *sem CNO as notas de serviço não abatem a aferição desta
+       obra; sem aferição não há CND (art. 47, II); sem CND não há averbação;
+       sem averbação não há financiamento do comprador nem lavratura*;
+       (iv) que **o custo de aquisição no IRPF não é afetado** (IN SRF 84/2001
+       art. 17) — **registrar continua valendo, e por isso o app não bloqueia**.
+       **A redação literal dos dois textos de tela é do contador** (parecer
+       2026-08-09: um para o cadastro da obra sem CNO, outro para o registro de
+       NF de serviço em obra sem CNO) — **copiar do parecer, não redigir aqui**;
+       o PO não escreve texto fiscal. Os quatro pontos acima são o conteúdo
+       mínimo que a redação tem de carregar
 4. [ ] `valor_terreno` é capturado com a composição já fixada pelo contador
        (Gate 2): **terreno + ITBI + escritura/registro**, com os três itens
        perguntados separadamente ou a composição explicada em tela
@@ -165,7 +213,13 @@ discriminação de Bens e Direitos e a sua própria aferição no SERO.
        rotulados com o nome dela. **Nada é somado entre obras** (ver Gate
        Fiscal: Bens e Direitos e aferição INSS nunca somam)
 10. [ ] Duas obras com o **mesmo CNO** → bloqueio. O CNO é a chave da
-        aferição; dois imóveis no mesmo CNO quebram a segregação por construção
+        aferição; dois imóveis no mesmo CNO quebram a segregação por construção.
+        **Teste obrigatório (exigência do contador, 2026-08-09): duas obras
+        SEM CNO coexistem sem erro.** O unique é parcial (`where cno is not
+        null`) e por isso já deveria permitir, mas "deveria" não é teste — e um
+        unique que trate `null` como valor transformaria a decisão (b) deste
+        ticket em bloqueio disfarçado no dia em que a segunda obra sem CNO
+        aparecer
 11. [ ] Campos de premissa do produto: `unidades_autonomas` (inteiro) e
         `origem_desmembramento_loteamento` (S/N). Se `unidades_autonomas > 1`
         **ou** desmembramento = sim → aviso persistente na obra: *"a sua
@@ -186,14 +240,53 @@ discriminação de Bens e Direitos e a sua própria aferição no SERO.
 14. [ ] A **lista de obras** mostra nome, CNO (ou a pendência de CNO) e nº de
         pendências. **Nenhum valor em dinheiro, e nenhuma linha de total** —
         ver Out of Scope. É tela de navegação, não painel
-15. [ ] E2E do caminho perigoso, afirmando **estado gravado**: com duas obras
+15. [ ] **Obra sem CNO NÃO bloqueia registro de documento nem de pagamento**,
+        e isso está escrito aqui em vez de subentendido porque **alguém vai
+        "ajudar" bloqueando** — o produto já bloqueia por destinatário CPF
+        errado e vai bloquear por CNO divergente (CONTAI-007), então bloquear
+        por CNO ausente parece coerente e é o oposto do parecer. Bloquear aqui
+        destrói o custo de aquisição (que não depende do CNO) para proteger uma
+        aferição que já está danificada. **E2E prova**: obra sem CNO registra
+        documento de material, NF de serviço e pagamento, todos gravados
+16. [ ] E2E do caminho perigoso, afirmando **estado gravado**: com duas obras
         cadastradas, abrir o app sem obra ativa persistida **não grava** nada
         em nenhuma obra antes de uma escolha explícita; e um registro salvo na
         obra A, após correção (critério 13) para a obra B, tem `obra_id` de B e
         deixa de aparecer em qualquer saída da obra A
 
 ## Gate Fiscal (Contador)
-Parecer de 2026-08-09, questões Q7–Q10. Formato "se X → Y":
+
+### Parecer de 2026-08-09 (2º) — obra em andamento SEM CNO
+
+Disparado pela resposta parcial da Q13. **Fecha o critério 3.**
+
+- **Se** existe obra com mão de obra remunerada → **então** o CNO é
+  **obrigatório em 30 dias do início da obra** (Lei 8.212/91 art. 49, II). A
+  dispensa do art. 30, VIII **não se aplica** — há mão de obra remunerada.
+  Obra sem CNO hoje não é "pendente de cadastro": é **obrigação vencida**
+- **Se** a obra não tem CNO → **então** as notas de serviço daquele período
+  **não abatem a aferição** daquela obra → sem aferição não há **CND**
+  (art. 47, II) → sem CND não há averbação → sem averbação não há financiamento
+  do comprador nem lavratura. **Mesma cadeia do erro de obra trocada, chegando
+  pelo outro lado**
+- **Se** a obra não tem CNO → **então** o **custo de aquisição no IRPF é
+  indiferente** a isso (IN SRF 84/2001 art. 17). São duas apurações distintas.
+  **Por isso o app aceita e não bloqueia**: bloquear destruiria a apuração que
+  ainda funciona para proteger a que já está danificada — e faria isso
+  justamente na obra que acumula documento hoje, empurrando-a para a planilha
+- **Decisão (b), recomendada pelo contador e adotada**: **aceitar com pendência
+  de consequência fiscal explícita**, nunca bloquear (critérios 3 e 15)
+- **O texto de tela é do contador, não do PO.** Ele redigiu dois: cadastro da
+  obra sem CNO, e registro de NF de serviço em obra sem CNO. **O segundo é o
+  que faz agir** — a tela de cadastro se vê uma vez na vida; a de registro se
+  vê a cada nota. Copiar a redação do parecer
+- **A alavanca, e ela tem prazo**: exigir do prestador **CNO impresso na nota e
+  retificação da EFD-Reinf ANTES de liberar a próxima parcela**. Depois do
+  último pagamento não há mais força para pedir. Isso é **ação do Mateus fora
+  do app** (registrada no backlog); o que o software faz é **entregar a lista
+  de cobrança** (CONTAI-007), não conduzir a conversa
+
+### Parecer de 2026-08-09 (1º), questões Q7–Q10. Formato "se X → Y":
 
 - **Se** existe uma obra → **então** ela tem CNO **próprio e obrigatório**, em
   até 30 dias do início. Não existe CNO único para duas obras em matrículas
@@ -311,7 +404,12 @@ muda a conversa com o CRC.
   `pagamento` já têm `obra_id` **obrigatório**. Nada precisa nascer para
   múltiplas obras existirem
 - Migration nova, pequena: `unidades_autonomas int`, `origem_desmembramento
-  boolean`, unique parcial `(user_id, cno) where cno is not null`
+  boolean`, **`data_inicio_obra date not null`**, **`cno_registrado_em date
+  null`**, unique parcial `(user_id, cno) where cno is not null`.
+  Atenção do `cto-obra` a dois pontos: (1) `data_inicio_obra` é `not null` em
+  obra nova, mas a obra do seed já existe — decidir o default da migration em
+  vez de deixar o backfill implícito; (2) o unique parcial precisa de teste
+  provando que **duas obras sem CNO coexistem** (critério 10)
 - **Onde mora a "obra ativa"** segue sendo decisão do `cto-obra` — banco
   (sobrevive à troca de celular, custa uma tabela) vs. `localStorage` (barato,
   o que o Mateus propôs, some no celular novo). **Mas o PO retira este ponto da
@@ -336,13 +434,19 @@ muda a conversa com o CRC.
 - **Deploy conjunto obrigatório com CONTAI-002** — release única
 - **Bloqueia**: US-004 (discriminação por matrícula, aferição por CNO),
   US-011 (export segmentável por obra), US-012 (rateio)
-- **Bloqueia CONTAI-007** *(corrigido em 2026-08-09)*: o CONTAI-007 já
-  declarava "bloqueado por CONTAI-003", mas a fila de 2026-08-09 o colocava
-  **antes** deste ticket. Era contradição, e a resposta da Q12 a resolve no
-  sentido único possível: com duas obras em andamento, o caminho comum do
-  CONTAI-007 é justamente *"o CNO é o da outra obra"*, que não existe sem
-  cadastro de obra. **CONTAI-007 passa a vir depois deste ticket**, na mesma
-  release (ver Fila revista no backlog)
+- **Bloqueia CONTAI-007** *(corrigido em 2026-08-09; justificativa revista
+  depois do 2º parecer)*: o CONTAI-007 já declarava "bloqueado por
+  CONTAI-003", mas a fila o colocava **antes** deste ticket — contradição
+  resolvida em favor de **003 antes de 007**.
+  **A ordem se mantém; o motivo que eu escrevi estava errado.** Eu havia dito
+  "sem obra cadastrada com CNO não há contra o que validar" — o contador
+  desmontou: há trabalho de sobra no 007 mesmo sem CNO nenhum (a nota sem CNO
+  vira o caso comum daquela obra, e a **lista de cobrança** é justamente o que
+  se faz quando não há CNO). O motivo correto da dependência é outro e é
+  material: **o 007 precisa dos campos que só este ticket cria** — `cno`,
+  `data_inicio_obra` e `cno_registrado_em`. Sem `cno_registrado_em` não existe
+  a janela "notas emitidas antes do CNO", e sem ela não existe lista de
+  cobrança
 
 ## Perguntas Abertas
 **Q11 e Q12 fechadas em 2026-08-09** (ver seção "Respostas do Mateus" no topo).
@@ -350,11 +454,24 @@ muda a conversa com o CRC.
 parte *"as NFs de serviço da AJE vêm com o CNO da obra impresso?"* — ela não
 bloqueia este ticket, bloqueia o mock do CONTAI-007.
 
-**Aguardando parecer do `contador` (em curso, 2026-08-09)**: obra em andamento
-**sem CNO** — obrigatoriedade e prazo, efeito sobre as notas já emitidas para
-essa obra, e o comportamento do cadastro (bloquear / aceitar com pendência /
-ignorar). **É o único item deste ticket que não pode ser desenhado nem
-implementado hoje** (critério 3). O restante segue.
+~~**Aguardando parecer do `contador`**~~ — **CHEGOU em 2026-08-09 e fechou o
+critério 3** (ver Gate Fiscal, 2º parecer). **Nada neste ticket está bloqueado
+por parecer.** Bloqueia só o mock.
+
+**Nova pergunta ao Mateus (Q14), levantada pelo contador — pode trocar o
+titular da obrigação**: *"a obra sem CNO é empreitada TOTAL — a construtora
+fornece o material e assina a ART da obra inteira?"* Se for, **o CNO é dela, e
+não do Mateus** — e a pendência que este ticket cria estaria cobrando dele uma
+obrigação de terceiro. Não bloqueia a implementação (a pendência e os campos
+valem nos dois casos), **mas bloqueia o texto da tela**: cobrar o titular
+errado é pior que não cobrar. Registrada no backlog.
+
+**Registro de risco de processo, e é meu**: o parecer que fecha o critério 3
+**não existe em arquivo neste repositório** — vive no transcript da sessão.
+O CLAUDE.md manda regra fiscal vir do contador "nunca de memória"; um parecer
+que só existe em memória de sessão é a mesma falha com outro nome. Os textos de
+tela precisam ser copiados do parecer para o repo **antes** do mock, senão vão
+ser reinventados por quem desenhar.
 
 ## Teste do Canteiro
 - **Meta 1** (nenhum pagamento sem documento hábil): move — a obra passa a ser
@@ -369,9 +486,8 @@ implementado hoje** (critério 3). O restante segue.
   vezes na vida); **a troca de obra ativa é**, e é ela que o mock precisa
   resolver em 375px. *(2026-08-09)* Com as duas obras em andamento, o mock deve
   assumir **N=2 como estado normal** — a tela de uma obra só é o dia 1
-- **Veredito: APROVADO** — Q12 respondida (as duas obras já estão em
-  andamento), o que **remove a condicional e sobe a urgência**. Condicionado
-  apenas a: (1) **mock aprovado pelo Mateus** cobrindo as cinco telas do
-  critério 1 (mock-first, CLAUDE.md); (2) **parecer do contador sobre a obra
-  sem CNO** antes de o critério 3 ir a mock/desenvolvimento — os demais
-  critérios não esperam
+- **Veredito: APROVADO, sem condicional de parecer** *(atualizado 2026-08-09,
+  após o 2º parecer)*. Q12 e Q13 respondidas, critério 3 fechado. Resta **uma**
+  condição: **mock aprovado pelo Mateus** cobrindo as **seis** telas do
+  critério 1 (mock-first, CLAUDE.md). A Q14 (empreitada total) não segura o
+  ticket — segura só a redação da pendência de CNO
