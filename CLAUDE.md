@@ -123,6 +123,12 @@ Comandos: `npm run dev` | `npm run build` | `npm run typecheck` |
 surf-forecast. É o comando único antes de fechar um gate; exige o stack local
 de pé.
 
+**`npm run quality` NÃO roda com `npm run dev:local` aberto.** Portas separadas
+(3200 manual, 3100 Playwright) não bastam: o Next 16 recusa um segundo
+`next dev` no mesmo diretório — `Another next dev server is already running` —
+e o `webServer` do Playwright morre com exit 1. Derrube o dev antes de rodar a
+suíte.
+
 `npm run dev:local` = `next dev` na porta **3200** com as env do Supabase local
 inline (elas vencem o `.env.local`, que aponta para o projeto REMOTO). Portas
 separadas de propósito: 3200 = uso manual, 3100 = servidor do Playwright, 3000

@@ -37,8 +37,31 @@ Backlog vivo. Dores extraídas dos relatos do Mateus, stories priorizadas
      login (não é conveniência: CNPJ digitado errado parte a agregação
      CPF-por-CPF da US-004 em dois).
 3. ~~**Priorização da fila proposta pelo PO**~~ — **OBSOLETA** (2026-08-09).
-   Valia enquanto o produto era de uma obra só. Vale a **"Fila revista — 2ª
-   revisão"**, no Relato 003. As decisões 1 e 2 acima seguem abertas.
+   Valia enquanto o produto era de uma obra só. Vale a **"Fila revista — 3ª
+   revisão"**, no Gate 2 do CONTAI-003 (fim deste arquivo). As decisões 1 e 2
+   acima seguem abertas.
+
+### ⚠️ Q14 — A PERGUNTA MAIS CARA EM ABERTO (acrescentada em 2026-08-10)
+
+> **"A obra sem CNO é empreitada TOTAL — a construtora fornece o material e
+> assina a ART da obra inteira?"**
+
+Custa uma frase de resposta e decide **de quem é a obrigação do CNO**. Se for
+empreitada total, o CNO é **da construtora**, e o texto que o CONTAI-003 põe em
+produção **cobra do Mateus uma obrigação de terceiro** — mandando a pessoa
+errada agir e deixando a certa parada, na **única janela de força que existe**
+(antes de liberar a próxima parcela; depois do último pagamento não há mais o
+que segurar).
+
+- **Não bloqueia** o CONTAI-003 nem a implementação
+- **Bloqueia o texto em tela**, junto de uma 2ª condição cumulativa:
+  **confirmar na IN vigente de quem é o titular do CNO em empreitada total**
+- O `contador` **já redigiu o texto alternativo completo** para o caso de
+  empreitada total (título, frase do prazo, próximo passo, rótulo do campo de
+  CNO). Ele saiu no review fiscal do Gate 2 e **ainda não está em arquivo** —
+  materializar em `docs/pareceres/2026-08-09-obra-sem-cno.md` antes de usar
+- **Também muda a ação nº 0 da fila** (registrar o CNO no e-CAC): se for
+  empreitada total, essa ação **troca de dono**
 
 ---
 
@@ -239,6 +262,12 @@ Aceite:
 2. [ ] Pagamento sem documento hábil vinculado → pendência visível
 3. [ ] NF sem pagamento registrado → pendência visível
 4. [ ] O ano-calendário do custo é o da data do pagamento [regra: contador]
+5. [ ] *(2026-08-10)* **A US-003 não fecha sem o CONTAI-008.** Ela é quem cria
+       a primeira linha real em `pagamento_documento` e, com isso, torna
+       **alcançável** o defeito latente de mover registro conciliado entre
+       obras (D19). Hoje o defeito é inatingível pela UI; no dia em que a
+       conciliação existir, ele passa de latente a ativo **sem que nada mude de
+       cor no repositório**
 
 **US-004 [P0] — Relatório anual pronto para o IRPF**
 Como dono da obra, quero o total do ano quebrado em materiais vs. mão de obra e
@@ -248,6 +277,10 @@ Aceite:
 2. [ ] Texto da discriminação gerado (modelo do contador, com CNO)
 3. [ ] Lista CPF-por-CPF de pagamentos a PF (Pagamentos Efetuados), se houver
 4. [ ] Posição da aferição INSS: serviços PJ com vs. sem retenção 11%
+5. [ ] *(2026-08-10)* **Nenhuma discriminação de ano anterior pode ser gerada
+       antes do CONTAI-010.** Sem data de pagamento do terreno, do ITBI e da
+       escritura não há regime de caixa, e o custo do terreno inteiro compõe
+       **todo** ano-calendário — inclusive os anteriores ao desembolso (D22)
 
 **US-008 [P2 — pós-MVP] — Extração automática de campos de PDF/XML**
 *(extraída do escopo original da US-001; decisão do Mateus 2026-08-07:
@@ -878,3 +911,198 @@ crítico do projeto inteiro**.
   andamento) — escopo declarado fora do produto (CLAUDE.md). A palavra
   "gerenciar" no relato é exatamente a porta por onde isso entra; o que o
   produto faz é **segregar**, não gerenciar.
+
+---
+
+## Gate 2 do CONTAI-003 — 2026-08-10 — reviews aprovados com ressalvas
+
+`contador` e `cto-obra`: **APROVADO COM RESSALVAS**. **Gate 2 concluído** — o
+ticket segue para o Gate 3. Nenhuma ressalva ficou bloqueante: a única que era
+caiu por verificação de fato.
+
+**Este lote não veio de relato do Mateus.** Veio de review, e registro isso
+porque muda o peso das dores: são dores que ele **ainda não sentiu** e sentiria
+tarde — uma delas só na declaração, outra só na regularização.
+
+### A ressalva bloqueante que caiu — o backfill de `data_inicio_obra`
+
+O `contador` marcou como **BLOQUEANTE** o backfill da migration
+`0004_obra_multipla.sql` (`update obra set data_inicio_obra = created_at::date
+where data_inicio_obra is null`), supondo que ele tivesse gravado **data falsa
+numa obra real** no banco remoto. O `cto-obra` **repetiu a suposição** e propôs
+ação do Mateus para corrigir os dados.
+
+**A premissa factual caiu, verificada na sessão principal**: o dump do banco remoto mostrou que
+a tabela `obra` está **VAZIA** — o backfill afetou **zero linhas**. O seed local
+traz `data_inicio_obra` explícita, então nem lá o `update` teve efeito. **Não há
+dado corrompido. Não há ação do Mateus a fazer.** Ressalva desfeita.
+
+**O texto do parecer segue válido como regra, e integralmente**: `data_inicio_obra`
+é campo fiscal — ancora o prazo dos 30 dias (Lei 8.212/91 art. 49, II), o
+período da aferição e a frase *"[N] dias em atraso"*. **Data inventada em campo
+fiscal é pior do que campo vazio**: vazio pergunta, `created_at` afirma. Caiu a
+premissa de fato, não a regra — e a regra já está exercida por escrito no
+critério 6 do CONTAI-010.
+
+**O que o processo perdeu aqui, e é meu registro de risco**: dois agentes
+propagaram uma suposição sobre o estado do banco **sem consultá-lo**, e a
+segunda opinião confirmou a primeira em vez de verificá-la. Quem verificou foi o
+Mateus. Revisor que herda a premissa do revisor anterior não é segunda revisão;
+é a mesma revisão contada duas vezes.
+
+### Dores extraídas das ressalvas
+
+| ID | Dor | Origem | Prioridade |
+|----|-----|--------|-----------|
+| D19 | Corrigir a obra de um registro **conciliado** desfaz a apuração da obra de origem **em silêncio**: o custo some do resumo de A, nenhuma pendência captura, e cada linha isolada parece correta. É o D10 chegando pela ferramenta feita para consertar o D10 | `cto-obra` R1 | **P0 fiscal** (latente) |
+| D20 | Pagamento com `obra_id` errado é **incorrigível pela interface** depois que a tela de "salvo" fecha — só por URL. É a **D9 pela porta dos fundos**, e a **D15 viva** para metade dos registros | `cto-obra` R2 | **P0 fiscal** |
+| D21 | Pagamento salvo **não tem tela que o mostre**: ele não é só incorrigível, é invisível. O Mateus não descobre o erro tarde — não descobre | `cto-obra` R2 | P1 fricção |
+| D22 | Terreno, ITBI e escritura entram **sem data de pagamento** → sem regime de caixa → o custo do terreno inteiro compõe **todo** ano-calendário. Terreno pago em 2024 com ITBI em 2025 infla a situação em 31/12/2024 | `contador` R2 | **P0 fiscal** |
+
+**D19 e D22 têm dano ZERO hoje** e eu registro isso em vez de esconder: nada na
+UI cria `pagamento_documento`, e o app só mostra o ano corrente. Elas são P0
+pela consequência quando o gatilho existir — US-003 e US-004, respectivamente —,
+não por urgência de calendário. **Por isso nenhuma das duas entra na R1.**
+
+### Tickets criados
+
+| Ticket | Prioridade | O quê | Onde entra |
+|---|---|---|---|
+| **CONTAI-008** | **P0 condicionado** | Mover registro entre obras não pode quebrar o vínculo `pagamento_documento` em silêncio. As três saídas possíveis (mover o par / bloquear / pendência nas duas obras) têm consequência fiscal distinta → **Gate Fiscal obrigatório** antes do `/develop` | **Fora da R1** — antes/junto da **US-003**, que não fecha sem ele |
+| **CONTAI-009** | **P0** | Detalhe do pagamento (`/pagamento/[id]`), com a correção de obra alcançável a partir dele. **Não é feature nova: é a metade não cumprida do critério 13 do CONTAI-003.** Precisa de mock | **Dentro da R1**, depois do 003 |
+| **CONTAI-010** | **P0** | Datas de pagamento do terreno, do ITBI e da escritura — regime de caixa aplicado ao maior custo isolado da obra | **Fora da R1** — obrigatório antes da **US-004** |
+
+**Regra nova de admissão na R1, e ela nasce aqui**: *critério de aceite de item
+da R1 que não foi cumprido volta como ticket da R1*. Sem ela, "fatiar o que não
+coube" vira a porta por onde a R1 encolhe no papel e a dívida some do radar.
+É o único motivo de o CONTAI-009 entrar — e note que ele **não** captura dado
+irreversível, que era o critério anterior.
+
+**Por que o CONTAI-010 é P0 e mesmo assim fica fora da R1**: são **duas obras**,
+um formulário visto duas vezes na vida, três datas. Reabrir dois cadastros é
+barato; não é safra de documentos. Metê-lo na R1 seria contradizer a regra que
+mantém a R1 fechada — e essa regra vale mais do que economizar uma reabertura de
+tela. **Carona explícita**: se o mock do CONTAI-003 for reaberto por qualquer
+outro motivo antes do merge, os três campos entram junto.
+
+### Acrescentado ao CONTAI-007 (sem ticket novo)
+
+Três itens, todos já com desenho ou parecer prontos — nenhum pede mock novo:
+
+1. **Ligar `cnoReferenciado` na tela de correção de obra** — hoje é `null`
+   **hard-coded** em `app/documento/[id]/obra/page.tsx:100`, com comentário
+   explicando que o campo nasce no 007. **Se o 007 popular a coluna e ninguém
+   trocar o literal, a revalidação nunca passa a barrar e ninguém percebe**:
+   nada quebra, nenhum teste fica vermelho, e a porta que leva NF de serviço
+   para a obra errada segue aberta — agora com o agravante de que o sistema
+   **tinha** o dado para barrar. Exige **teste que falha se o literal voltar**;
+   sem ele o critério é um comentário, e comentário não protege nada.
+2. **Tela 14 do mock** (lista das notas emitidas sem CNO) e o link *"Ver as [N]
+   notas desta obra emitidas sem CNO"* na tela 13 — **já aprovados pelo Mateus
+   em 2026-08-10**, adiados do CONTAI-003 porque dependem de `numero`,
+   `data_emissao` (CONTAI-004) e `cno_referenciado` (007). É o **único item
+   deste lote que recupera valor** em vez de só registrar perda.
+3. **Aviso ao pagar favorecido PJ em obra sem CNO** — **só a frase da alavanca
+   do parecer, sem atrito adicional**: sem caixa a marcar, sem toque a mais,
+   sem bloqueio. Razão de existir: **é o único momento em que o app sabe que
+   ainda há parcela a pagar**, e a alavanca morre no último pagamento.
+   Restrições: só **PJ** (em PF a frase é ruído, e ruído fabrica cegueira ao
+   aviso) e só obra **sem CNO**.
+
+**Consequência de ordem que isso expôs**: o item 2 lista as notas por **número e
+data de emissão**, campos do **CONTAI-004**. A "2ª revisão" da fila punha 007
+antes de 004 sem motivo declarado — **é a mesma classe de contradição que já
+tinha posto o 007 antes do 003**. Corrigido: dentro do par, **004 primeiro**.
+
+### Dívidas nomeadas do CONTAI-003 (nenhuma segura o Gate 2)
+
+- **Critério 13 fica meio cumprido** — vale para documento, não para pagamento.
+  Nomeado, não carimbado. Resto no CONTAI-009.
+- **Desvio formal de mock**: a tela de edição `/obras/[id]` **não existe no mock
+  aprovado**; foi **composta na implementação a partir de blocos aprovados**
+  porque o critério 5 a exige. O `cto-obra` carimbou **com ressalva**. **O aval
+  do Mateus continua devido na revisão da release** — registro o desvio como
+  desvio, e não como equivalência: mock-first pede aprovação **explícita**, e
+  reuso de blocos não é aprovação. Sem registro, "compus de blocos aprovados"
+  vira o precedente que dispensa mock na próxima vez.
+- **Gap conhecido — terceiro gatilho da equiparação**: o Gate Fiscal lista três
+  (unidades > 1, desmembramento/loteamento, **registro de incorporação**); só os
+  dois primeiros viraram campo. O `contador` está certo em dizer que
+  "incorporação é implicada por unidades > 1" **não é implicação perfeita**.
+  **Fica como gap aceito, não como ticket**: os fatos de hoje afastam a hipótese
+  (Q11 — duas matrículas, uma unidade cada) e o critério 11 produz **aviso, não
+  bloqueio**, então o falso-negativo custa um aviso que não aparece numa
+  situação que o Mateus saberia antes do app. **Vira ticket se aparecer uma
+  terceira obra.**
+- **Materializar o texto alternativo de empreitada total** em
+  `docs/pareceres/2026-08-09-obra-sem-cno.md` — ele existe, redigido pelo
+  `contador` no Gate 2, e vive só no transcript. É o mesmo risco de processo já
+  registrado no Relato 003: parecer em memória de sessão é "regra fiscal de
+  memória" com outro nome.
+
+### Fila revista — 2026-08-10 (3ª revisão)
+
+*Substitui a "2ª revisão" do Relato 003. O bloco de decisões pendentes no topo
+segue intocado — as decisões 1 e 2 continuam esperando o Mateus.*
+
+**0. Ação do Mateus, fora do app — inalterada e ainda o item mais urgente**: a
+obra sem CNO (registrar no e-CAC com a **data real de início**; exigir CNO
+impresso + retificação da EFD-Reinf **antes de liberar a próxima parcela**).
+**Com uma ressalva nova: responda a Q14 primeiro** — se for empreitada total,
+esta ação inteira **troca de dono**.
+
+**1. Q14 ao Mateus** — custa uma frase e é pré-requisito do texto que vai a
+produção. Subiu de "próximo ciclo" para **primeira coisa a fazer**.
+
+**2. Mock do CONTAI-009 ao Mateus** — em paralelo com o item 3. **É o novo
+caminho crítico da R1**, pelo mesmo motivo que o mock do CONTAI-003 foi: nada
+entra no `/develop` sem ele, e a aprovação não depende de nós.
+
+**3. Release R1 (deploy único), ordem de implementação:**
+`CONTAI-003` ✅ *(Gate 2 concluído)* → `CONTAI-004` + `CONTAI-007` (nesta ordem
+dentro do par) → `CONTAI-009` → `CONTAI-002` → `CONTAI-005`.
+
+**4. Depois da R1:** `CONTAI-010` *(antes da US-004)* → `CONTAI-006` →
+`US-003` + `CONTAI-008` *(juntos — a US-003 não fecha sem o 008)* → `US-009` →
+`US-010` → `US-011` → `US-012`.
+
+#### O que mudou em relação à 2ª revisão, e por quê
+
+1. **CONTAI-003 sai da fila** — Gate 2 concluído, segue para o Gate 3.
+2. **004 e 007 trocam de ordem dentro do par.** Não é preferência: o critério 8
+   do 007 (lista de cobrança) mostra **número e data de emissão**, que são
+   campos do 004. Deixa de ser "economia de migration" e passa a ser
+   dependência de conteúdo.
+3. **CONTAI-009 entra na R1** — pela regra nova de admissão (dívida de critério
+   de aceite de item da R1). É o **único** acréscimo à R1 deste lote.
+4. **CONTAI-008 e CONTAI-010 ficam fora da R1**, apesar de P0. Os dois têm dano
+   **zero** hoje e gatilho conhecido (US-003 e US-004). Amarrá-los ao gatilho
+   protege mais do que antecipá-los: dentro da R1 eles competiriam por atenção
+   com captura irreversível, que é o que a R1 existe para proteger.
+5. **CONTAI-005 continua sendo o único corte legítimo** se a R1 crescer demais.
+   Com o 009 dentro, ela cresceu — e o 005 segue sendo o único item que **não
+   captura dado**. Display se conserta depois; captura, não.
+
+**O que NÃO mudou, e sustenta o resto**: *tudo que gera retrabalho manual depois
+do primeiro registro real entra antes de o login ir ao ar*, e o corte é **dentro
+ou fora da primeira release**.
+
+### Cortado no Gate 2 (com justificativa)
+
+- **Ação do Mateus para "corrigir" `data_inicio_obra` no banco remoto** —
+  proposta pelo `cto-obra` em cima de premissa que não se sustenta. **Não
+  existe dado a corrigir.** Cortado, e registrado aqui para não voltar como
+  pendência fantasma numa próxima leitura dos pareceres.
+- **Histórico/auditoria de movimentações entre obras** (levantado ao redor do
+  CONTAI-008) — tentador e não serve nenhuma das três metas hoje. Só volta se o
+  `contador` exigir trilha para sustentar declaração retificadora.
+- **Campo para "registro de incorporação"** — ver gap aceito acima.
+- **Inventário/busca de tudo que foi registrado** dentro do CONTAI-009 — é a
+  **US-009 [P1]** e continua fora da R1. O 009 entrega o **detalhe de um
+  registro**, alcançável dos pontos que já existem; não entrega lista.
+- **Edição geral de campo de pagamento** (valor, data, favorecido) no detalhe do
+  CONTAI-009 — só a **obra** é corrigível. Abrir edição de campo fiscal sem
+  parecer é como se cria erro novo consertando erro velho.
+- **Anexar escritura, ITBI e matrícula ao acervo** (levantado ao redor do
+  CONTAI-010) — é meta 3 e é legítimo, mas é outro ticket: o 010 captura
+  **quando foi pago**, não o documento. Anotado para não voltar como "óbvio".

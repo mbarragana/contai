@@ -27,6 +27,127 @@ exigidos (`data_inicio_obra`, `cno_registrado_em`) e um critério novo (15:
 obra sem CNO não bloqueia registro). **Nenhum item deste ticket aguarda
 parecer.**
 
+---
+
+## Gate 2 — 2026-08-10 — reviews do `contador` e do `cto-obra`
+
+**Veredito dos dois: APROVADO COM RESSALVAS.** Registro do PO abaixo: o que
+caiu, o que virou ticket, o que fica como dívida nomeada e o que **não pode ir
+para tela** sem resposta do Mateus.
+
+### Ressalva DESFEITA — o backfill de `data_inicio_obra` não corrompeu nada
+
+O `contador` marcou como **BLOQUEANTE** o backfill da migration
+`0004_obra_multipla.sql`:
+
+```sql
+update obra set data_inicio_obra = created_at::date where data_inicio_obra is null;
+```
+
+supondo que ele tivesse gravado **data falsa numa obra real** no banco remoto; o
+`cto-obra` repetiu a suposição e chegou a propor ação do Mateus para corrigir os
+dados.
+
+**A premissa factual caiu.** A sessão principal dumpou o banco remoto e verificou: a
+tabela `obra` está **VAZIA** — o backfill afetou **zero linhas**. O seed local
+(`supabase/seed.sql`) traz `data_inicio_obra` **explícita**, então nem lá a
+linha do `update` teve efeito. **Não há dado corrompido e não há ação do Mateus
+a fazer.** A ressalva está desfeita e **não bloqueia nada**.
+
+**O que continua valendo, e vale integralmente: o texto do parecer como
+regra.** `data_inicio_obra` é campo fiscal — ancora o prazo de 30 dias
+(Lei 8.212/91 art. 49, II), o período da aferição e a frase *"[N] dias em
+atraso"*. **Data inventada em campo fiscal é pior do que campo vazio**: vazio
+pergunta, `created_at` afirma. Nenhuma migration futura pode preencher campo
+fiscal por conveniência de `not null` — e essa regra já está exercida no
+critério 6 do **CONTAI-010**, que a herda por escrito.
+
+**A distinção que eu quero deixar registrada, porque ela se repete:** o parecer
+estava **certo na regra e errado no fato**. Desfazer a ressalva não é desautorizar
+o `contador` — é separar as duas coisas. O que o processo perdeu aqui foi
+verificação: dois agentes propagaram uma suposição sobre o estado do banco sem
+consultá-lo, e quem consultou foi o Mateus.
+
+### Ressalvas que viraram ticket
+
+| Origem | Vira | Prioridade | Onde entra |
+|---|---|---|---|
+| `cto-obra` R1 — mover registro com vínculo quebra a apuração em silêncio | **CONTAI-008** | P0 condicionado | **Fora da R1**, antes/junto da US-003 |
+| `cto-obra` R2 — `/pagamento/[id]/obra` só alcançável pela tela de "salvo" | **CONTAI-009** | **P0** | **Dentro da R1** |
+| `contador` R2 — terreno/ITBI/escritura sem data de pagamento | **CONTAI-010** | P0 | **Fora da R1**, antes da US-004 |
+
+Mais três itens **acrescentados ao CONTAI-007** (critérios 7, 8 e 9): ligar
+`cnoReferenciado` na tela de correção de obra, a tela 14 do mock (lista das
+notas sem CNO) com o seu link, e o aviso da alavanca ao pagar favorecido PJ em
+obra sem CNO.
+
+**Sobre o CONTAI-009 e o critério 13 deste ticket.** O critério 13 pede a
+correção *"visível no detalhe do documento/pagamento"*. Ela ficou visível no
+detalhe do **documento**; no **pagamento** não, porque **não existe tela de
+detalhe de pagamento**. **O critério 13 fica meio cumprido, e isso está
+nomeado** em vez de carimbado — o resto vai no CONTAI-009, que precisa de mock
+e por isso não podia ser enxertado aqui. A regra que eu aplico: *critério de
+aceite de item da R1 que não foi cumprido volta como ticket da R1.*
+
+### O texto da pendência de CNO é CONDICIONADO A EMPREITADA PARCIAL
+
+**Regra de bloqueio determinada pelo `contador`, e ela vale para os dois
+textos**: a redação hoje aprovada (parecer de 2026-08-09 + adendo de
+2026-08-10, em `docs/pareceres/2026-08-09-obra-sem-cno.md`) pressupõe
+**empreitada parcial** — o Mateus é o dono da obra e o titular do CNO.
+
+O `contador` **já redigiu a versão alternativa completa para empreitada
+total** — título, frase do prazo, próximo passo e rótulo do campo de CNO
+mudam, porque em empreitada total **o CNO é da construtora, não do Mateus**.
+Esse texto foi emitido no review fiscal do Gate 2 e **ainda não está em
+arquivo**: precisa ser materializado como adendo em
+`docs/pareceres/2026-08-09-obra-sem-cno.md` — é o mesmo risco de processo já
+registrado neste ticket (parecer que só existe em transcript de sessão é
+"regra fiscal de memória" com outro nome).
+
+**Nada disso vai para tela antes de DUAS condições, ambas obrigatórias:**
+1. **Q14 respondida pelo Mateus** — *a obra sem CNO é empreitada total?*
+2. **Confirmação, na IN vigente, de quem é o titular do CNO em empreitada
+   total.**
+
+Enquanto as duas não fecharem, **o texto em produção cobra do Mateus uma
+obrigação que pode ser da construtora**. Não é erro de redação: é o app
+mandando a pessoa errada agir, e mandando-a agir **na única janela de força que
+existe** (antes de liberar a próxima parcela). É a pergunta mais cara em aberto
+do projeto — ver "Perguntas Abertas".
+
+### Desvio formal de mock — a tela de edição `/obras/[id]`
+
+O critério 5 exige que a obra seja editável depois de criada. **A tela de
+edição não existe no mock aprovado**: ela foi **composta na implementação a
+partir de blocos já aprovados** do mock (os mesmos campos do cadastro). O
+`cto-obra` carimbou **com ressalva**, e eu registro o desvio como desvio, não
+como equivalência: a premissa mock-first do CLAUDE.md pede aprovação
+**explícita** do Mateus, e reuso de blocos aprovados não é aprovação.
+
+**O aval do Mateus continua devido, na revisão da release.** Ficar sem registro
+seria pior do que o desvio: é assim que "compus de blocos aprovados" vira o
+precedente que dispensa mock na próxima vez.
+
+### Gap conhecido, aceito e nomeado — o terceiro gatilho da equiparação
+
+O Gate Fiscal lista **três** gatilhos de equiparação a empresa: unidades
+autônomas > 1, origem em desmembramento/loteamento e **registro de
+incorporação**. Os dois primeiros viraram campo (critério 11); o terceiro
+**não tem campo** — e o corte foi deliberado (ver Out of Scope: incorporação
+foi tratada como implicada por `unidades_autonomas > 1`).
+
+**O `contador` está certo em apontar que a implicação não é perfeita**: existe
+registro de incorporação sem que o app veja unidades > 1. **Fica como gap
+aceito**, e não como ticket, por dois motivos: (i) os fatos de hoje afastam a
+hipótese — duas matrículas, uma unidade autônoma cada, sem desmembramento
+(Q11); (ii) o critério 11 produz **aviso, não bloqueio**, então o custo do
+falso-negativo é um aviso que não aparece, numa situação que o Mateus saberia
+antes do app. **Se surgir uma terceira obra, isto vira ticket** — anotado no
+backlog.
+
+---
+
 ## Respostas do Mateus — 2026-08-09 (fecham Q11 e Q12; Q13 em parte)
 
 **Q11 — FECHADA.** *"sim, cada obra tem sua própria unidade"*: matrícula
@@ -460,13 +581,29 @@ bloqueia este ticket, bloqueia o mock do CONTAI-007.
 critério 3** (ver Gate Fiscal, 2º parecer). **Nada neste ticket está bloqueado
 por parecer.** Bloqueia só o mock.
 
-**Nova pergunta ao Mateus (Q14), levantada pelo contador — pode trocar o
-titular da obrigação**: *"a obra sem CNO é empreitada TOTAL — a construtora
-fornece o material e assina a ART da obra inteira?"* Se for, **o CNO é dela, e
-não do Mateus** — e a pendência que este ticket cria estaria cobrando dele uma
-obrigação de terceiro. Não bloqueia a implementação (a pendência e os campos
-valem nos dois casos), **mas bloqueia o texto da tela**: cobrar o titular
-errado é pior que não cobrar. Registrada no backlog.
+### Q14 — a pergunta mais cara em aberto do projeto
+
+*"A obra sem CNO é empreitada **TOTAL** — a construtora fornece o material e
+assina a ART da obra inteira?"* Levantada pelo `contador`, **reforçada no
+Gate 2 de 2026-08-10**.
+
+Se for empreitada total, **o CNO é da construtora, não do Mateus** — e o texto
+que este ticket põe em produção **cobra dele uma obrigação de terceiro**, na
+única janela de força que existe (antes de liberar a próxima parcela). Errar o
+titular não é imprecisão de redação: é mandar a pessoa errada agir e deixar a
+certa parada.
+
+- **Não bloqueia a implementação** — os campos e a pendência valem nos dois
+  casos, e o CONTAI-003 fecha o Gate 2 sem ela
+- **Bloqueia o texto em tela**, junto de uma segunda condição: **confirmar na
+  IN vigente de quem é o titular do CNO em empreitada total**. As duas
+  condições são cumulativas (ver "Gate 2", regra de bloqueio)
+- **O texto alternativo já existe**, redigido pelo `contador` no Gate 2, e
+  precisa ser materializado em `docs/pareceres/2026-08-09-obra-sem-cno.md`
+  antes de ser usado
+
+**É a 1ª pergunta a fazer ao Mateus no próximo ciclo**, e é mais barata do que
+qualquer linha de código deste ticket: uma frase de resposta.
 
 **Registro de risco de processo, e é meu**: o parecer que fecha o critério 3
 **não existe em arquivo neste repositório** — vive no transcript da sessão.
@@ -493,3 +630,20 @@ ser reinventados por quem desenhar.
   condição: **mock aprovado pelo Mateus** cobrindo as **seis** telas do
   critério 1 (mock-first, CLAUDE.md). A Q14 (empreitada total) não segura o
   ticket — segura só a redação da pendência de CNO
+
+## Status — 2026-08-10
+
+**Gate 2 CONCLUÍDO** (`contador` e `cto-obra`: aprovado com ressalvas; a única
+ressalva bloqueante — o backfill — caiu por verificação de fato do Mateus, ver
+seção "Gate 2"). O ticket **segue para o Gate 3**.
+
+Dívidas nomeadas que **saem daqui e não voltam** (nenhuma segura o Gate 2):
+
+1. **Critério 13, metade do pagamento** → **CONTAI-009**, dentro da R1
+2. **Texto da pendência de CNO** → só entra em tela com **Q14** respondida
+   **e** titularidade confirmada na IN vigente
+3. **Aval do Mateus sobre a tela `/obras/[id]`** — devido na revisão da release
+4. **Materializar em `docs/pareceres/` o texto alternativo de empreitada
+   total** — antes de qualquer uso
+5. **Gap do terceiro gatilho da equiparação** (registro de incorporação) —
+   aceito, vira ticket se aparecer uma terceira obra
