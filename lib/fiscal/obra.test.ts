@@ -5,6 +5,7 @@ import {
   exigeAvisoEquiparacao,
   diasEntre,
   escolherObraAtiva,
+  estadoDataInicio,
   formatarDataBR,
   fraseDoPrazoCno,
   janelaSemCnoDias,
@@ -70,10 +71,49 @@ describe("prazo do CNO", () => {
     expect(frase).not.toContain("atraso");
   });
 
+  it("no dia do vencimento a frase diz 'vence hoje' — sem atraso e sem contagem", () => {
+    // O dia 30 é o último dia útil da obrigação: dizer "faltam 0 dias" ou
+    // "0 dias em atraso" transformaria a única data acionável do prazo em
+    // ruído. É o estado que o Mateus vê na véspera de perder o prazo.
+    const frase = fraseDoPrazoCno(INICIO, "2026-04-14");
+    expect(frase).toContain("começou em 15/03/2026");
+    expect(frase).toContain("o prazo vence hoje");
+    expect(frase).not.toContain("atraso");
+    expect(frase).not.toContain("faltam");
+    // "30 dias" só pode aparecer como o prazo legal, nunca como contagem: a
+    // única outra menção seria "0 dias", que é o ruído que este estado evita.
+    expect(frase).not.toContain("0 dias em atraso");
+    expect(frase.replace("30 dias contados do início", "")).not.toMatch(
+      /\d+ dias/,
+    );
+  });
+
   it("sem data de início não inventa número nenhum", () => {
     const frase = fraseDoPrazoCno("", HOJE);
     expect(frase).toContain("Informe a data real de início");
     expect(frase).not.toMatch(/\d+ dias em atraso/);
+  });
+
+  it("data de início FUTURA não é tratada como campo em branco", () => {
+    // Ressalva do Gate 2: a frase de "sem data" pedia "informe a data real" a
+    // quem já tinha informado — mentira de tela. E nenhum prazo é contado a
+    // partir de uma data que ainda não chegou.
+    const frase = fraseDoPrazoCno("2026-09-01", HOJE);
+    expect(frase).toContain("01/09/2026");
+    expect(frase).toContain("no futuro");
+    expect(frase).toContain("Corrija para a data real de início");
+    expect(frase).not.toContain("Informe a data real de início desta obra");
+    expect(frase).not.toMatch(/\d+ dias em atraso/);
+    expect(frase).not.toContain("faltam");
+  });
+
+  it("estadoDataInicio separa ausente, futura e corrente", () => {
+    expect(estadoDataInicio("", HOJE)).toBe("ausente");
+    expect(estadoDataInicio("2026-02-30", HOJE)).toBe("ausente");
+    expect(estadoDataInicio("2026-09-01", HOJE)).toBe("futura");
+    expect(estadoDataInicio(INICIO, HOJE)).toBe("corrente");
+    // Obra que começa hoje já tem prazo correndo.
+    expect(estadoDataInicio(HOJE, HOJE)).toBe("corrente");
   });
 });
 
@@ -233,15 +273,31 @@ describe("validação do cadastro de obra", () => {
     origemDesmembramentoLoteamento: false,
   };
 
-  const campos = (e: EntradaObra) => validarObra(e).map((x) => x.campo);
+  const campos = (e: EntradaObra) => validarObra(e, HOJE).map((x) => x.campo);
 
   it("obra sem CNO é válida — a ausência é pendência, não bloqueio", () => {
-    expect(validarObra(VALIDA)).toEqual([]);
+    expect(validarObra(VALIDA, HOJE)).toEqual([]);
   });
 
   it("data de início é obrigatória com ou sem CNO", () => {
     expect(campos({ ...VALIDA, dataInicioObra: "" })).toContain("dataInicioObra");
     expect(campos({ ...VALIDA, dataInicioObra: "2026-02-30" })).toContain(
+      "dataInicioObra",
+    );
+  });
+
+  it("data de início no futuro é recusada; a de hoje passa", () => {
+    // Mesma trava da data de pagamento: a data de início ancora o vencimento
+    // do CNO e o período da aferição, então uma data futura esconde o atraso
+    // real e desloca a janela que o CONTAI-007 vai cobrar.
+    const futura = validarObra(
+      { ...VALIDA, dataInicioObra: "2026-08-11" },
+      HOJE,
+    );
+    expect(futura.find((x) => x.campo === "dataInicioObra")?.mensagem).toContain(
+      "Data no futuro",
+    );
+    expect(campos({ ...VALIDA, dataInicioObra: HOJE })).not.toContain(
       "dataInicioObra",
     );
   });

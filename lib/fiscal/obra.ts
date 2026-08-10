@@ -73,11 +73,27 @@ export function prazoCno(dataInicio: string, hoje: string): PrazoCno {
 }
 
 /**
+ * Os três estados possíveis da data de início — e eles NÃO são a mesma coisa em
+ * tela (ressalva do contador, Gate 2 do CONTAI-003): "não informei" e "informei
+ * uma data futura" pediam a mesma frase ("informe a data real"), que mente para
+ * quem já informou. Data futura é dado a corrigir, não campo em branco.
+ */
+export type EstadoDataInicio = "ausente" | "futura" | "corrente";
+
+export function estadoDataInicio(
+  dataInicio: string,
+  hoje: string,
+): EstadoDataInicio {
+  if (!ehDataValida(dataInicio)) return "ausente";
+  return diasEntre(dataInicio, hoje) < 0 ? "futura" : "corrente";
+}
+
+/**
  * A frase de prazo só existe quando há data de início conhecida e não futura
  * (regra do adendo): obra que ainda vai começar não tem prazo correndo.
  */
 export function temPrazoCorrendo(dataInicio: string, hoje: string): boolean {
-  return ehDataValida(dataInicio) && diasEntre(dataInicio, hoje) >= 0;
+  return estadoDataInicio(dataInicio, hoje) === "corrente";
 }
 
 /**
@@ -102,8 +118,19 @@ export function fraseDoPrazoCno(dataInicio: string, hoje: string): string {
   const base =
     "O CNO é obrigatório e o prazo é de 30 dias contados do início da obra " +
     "(Lei 8.212/91, art. 49).";
-  if (!temPrazoCorrendo(dataInicio, hoje)) {
+  const estado = estadoDataInicio(dataInicio, hoje);
+  if (estado === "ausente") {
     return `${base} Informe a data real de início desta obra para o app calcular o prazo.`;
+  }
+  if (estado === "futura") {
+    // Não pedir de novo o que já foi informado: o campo está preenchido, o que
+    // está errado é o valor. `validarObra` barra este estado no salvar; aqui
+    // ele ainda aparece enquanto a data é digitada na tela.
+    return (
+      `${base} A data de início desta obra está em ${formatarDataBR(dataInicio)}, ` +
+      `no futuro — obra não começa amanhã, e é essa data que ancora o prazo do ` +
+      `CNO e o período da aferição. Corrija para a data real de início.`
+    );
   }
   const prazo = prazoCno(dataInicio, hoje);
   const comecou = `Esta obra começou em ${formatarDataBR(dataInicio)}`;
@@ -306,7 +333,10 @@ export interface ErroCampoObra {
   mensagem: string;
 }
 
-export function validarObra(entrada: EntradaObra): ErroCampoObra[] {
+export function validarObra(
+  entrada: EntradaObra,
+  hojeIso: string,
+): ErroCampoObra[] {
   const erros: ErroCampoObra[] = [];
 
   if (entrada.nome.trim().length < 2) {
@@ -323,6 +353,15 @@ export function validarObra(entrada: EntradaObra): ErroCampoObra[] {
     erros.push({
       campo: "dataInicioObra",
       mensagem: "Informe a data real de início da obra.",
+    });
+  } else if (entrada.dataInicioObra > hojeIso) {
+    // Mesma trava da data de pagamento, e pelo mesmo motivo: data futura aqui
+    // não é só cosmética — ela empurra o vencimento do CNO para frente (o
+    // atraso real some da tela) e desloca o período que a aferição enxerga.
+    erros.push({
+      campo: "dataInicioObra",
+      mensagem:
+        "Data no futuro — obra não começa amanhã, e é esta data que ancora o prazo do CNO e o período da aferição. Informe a data real de início.",
     });
   }
 

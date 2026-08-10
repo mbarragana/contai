@@ -100,7 +100,7 @@ export default function DadosDaObra() {
 
   async function salvar() {
     if (!entrada) return;
-    const encontrados = validarObra(entrada);
+    const encontrados = validarObra(entrada, hoje);
     setErros(encontrados);
     setErroSalvar(null);
     if (encontrados.length > 0) return;

@@ -117,7 +117,7 @@ export default function NovaObra() {
   );
 
   function avancar() {
-    const encontrados = validarObra(entrada);
+    const encontrados = validarObra(entrada, hoje);
     const doPasso = encontrados.filter((e) =>
       CAMPOS_DO_PASSO[passo].includes(e.campo),
     );
@@ -128,7 +128,7 @@ export default function NovaObra() {
   }
 
   async function criar() {
-    const encontrados = validarObra(entrada);
+    const encontrados = validarObra(entrada, hoje);
     setErros(encontrados);
     setErroSalvar(null);
     if (encontrados.length > 0) {
