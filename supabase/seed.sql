@@ -39,9 +39,20 @@ insert into auth.identities (
 
 -- ── Obra ─────────────────────────────────────────────────────────────────
 -- user_id explícito: o seed roda fora de sessão, então auth.uid() é null.
-insert into obra (id, user_id, nome, cno, municipio, valor_terreno)
+-- Datas fixas (não relativas a now()) para o E2E poder afirmar a janela sem
+-- CNO e os dias de atraso sem depender do dia em que a suíte roda.
+insert into obra (
+  id, user_id, nome, cno, matricula, cartorio, municipio,
+  valor_terreno, valor_itbi, valor_escritura_registro,
+  data_inicio_obra, cno_registrado_em,
+  unidades_autonomas, origem_desmembramento_loteamento
+)
 values (
   '22222222-2222-4222-8222-222222222222',
   '11111111-1111-4111-8111-111111111111',
-  'Casa Cachoeira', '12.345.67890/26', 'Florianópolis', 800000.00
+  'Casa Cachoeira', '12.345.67890/26', '38.104', '1º Ofício de Registro de Imóveis',
+  'Florianópolis',
+  800000.00, 0, 0,
+  '2025-11-04', '2025-11-20',
+  1, false
 );

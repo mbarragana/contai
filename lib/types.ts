@@ -28,6 +28,7 @@ export type PagamentoRow = Tables<"pagamento">;
 export type PagamentoDocumentoRow = Tables<"pagamento_documento">;
 
 // ── Inserts ──────────────────────────────────────────────────────────────
+export type ObraInsert = TablesInsert<"obra">;
 export type FavorecidoInsert = TablesInsert<"favorecido">;
 export type DocumentoInsert = TablesInsert<"documento">;
 export type PagamentoInsert = TablesInsert<"pagamento">;
@@ -37,12 +38,25 @@ export interface Obra {
   id: string;
   nome: string;
   cno: string | null;
+  matricula: string | null;
+  cartorio: string | null;
   municipio: string | null;
+  /** Preço pago ao vendedor. O custo do terreno é a soma dos três valores. */
   valorTerrenoCentavos: number;
+  valorItbiCentavos: number;
+  valorEscrituraRegistroCentavos: number;
+  /** Obrigatória: ancora o prazo de 30 dias do CNO e o período da aferição. */
+  dataInicioObra: string;
+  /** Quando o CNO saiu; do início até aqui é a janela das notas sem CNO. */
+  cnoRegistradoEm: string | null;
+  unidadesAutonomas: number;
+  origemDesmembramentoLoteamento: boolean;
 }
 
 export interface Documento {
   id: string;
+  /** Obra a que o registro pertence — corrigível pela interface (crit. 13). */
+  obraId: string;
   tipo: TipoDocumento;
   status: StatusDocumento;
   valorCentavos: number | null;
@@ -57,6 +71,7 @@ export interface Documento {
 
 export interface Pagamento {
   id: string;
+  obraId: string;
   valorCentavos: number;
   /** Regime de caixa: é DAQUI que sai o ano-calendário do custo. */
   dataPagamento: string;

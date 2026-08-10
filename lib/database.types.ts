@@ -1,6 +1,6 @@
 // Tipos GERADOS a partir do banco — não edite à mão.
-// Fonte: `npx supabase gen types typescript --linked` (projeto contai,
-// migrations 0001, 0002 e 0003 aplicadas). Regerar sempre que uma migration entrar.
+// Fonte: `npx supabase gen types typescript --local` com as migrations 0001 a
+// 0004 aplicadas (`npm run db:reset`). Regerar sempre que uma migration entrar.
 
 export type Json =
   | string
@@ -11,11 +11,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.15"
-  }
   graphql_public: {
     Tables: {
       [_ in never]: never
@@ -143,34 +138,52 @@ export type Database = {
         Row: {
           cartorio: string | null
           cno: string | null
+          cno_registrado_em: string | null
           created_at: string
+          data_inicio_obra: string
           id: string
           matricula: string | null
           municipio: string | null
           nome: string
+          origem_desmembramento_loteamento: boolean
+          unidades_autonomas: number
           user_id: string
+          valor_escritura_registro: number
+          valor_itbi: number
           valor_terreno: number
         }
         Insert: {
           cartorio?: string | null
           cno?: string | null
+          cno_registrado_em?: string | null
           created_at?: string
+          data_inicio_obra: string
           id?: string
           matricula?: string | null
           municipio?: string | null
           nome: string
+          origem_desmembramento_loteamento?: boolean
+          unidades_autonomas?: number
           user_id?: string
+          valor_escritura_registro?: number
+          valor_itbi?: number
           valor_terreno?: number
         }
         Update: {
           cartorio?: string | null
           cno?: string | null
+          cno_registrado_em?: string | null
           created_at?: string
+          data_inicio_obra?: string
           id?: string
           matricula?: string | null
           municipio?: string | null
           nome?: string
+          origem_desmembramento_loteamento?: boolean
+          unidades_autonomas?: number
           user_id?: string
+          valor_escritura_registro?: number
+          valor_itbi?: number
           valor_terreno?: number
         }
         Relationships: []
@@ -415,3 +428,4 @@ export const Constants = {
     },
   },
 } as const
+
