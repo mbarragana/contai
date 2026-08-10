@@ -183,6 +183,10 @@ obra). Banco remoto: `npx supabase db push` aplica as migrations.
 
 - `docs/backlog.md` — backlog vivo (dores, stories, perguntas)
 - `docs/tickets/` — tickets gerados pelo `/tickets-req`
+- `docs/pareceres/` — pareceres do agente `contador`, transcritos em arquivo.
+  Regra fiscal vem daqui, **nunca de memória de sessão**: parecer que só existe
+  no transcript é a mesma falha que a regra proíbe, com outro nome. Texto de
+  tela com consequência fiscal se copia do parecer, não se reescreve.
 - `design/mocks/` — mocks HTML navegáveis + `index.html` (hub)
 
 <!-- BEGIN:nextjs-agent-rules -->
