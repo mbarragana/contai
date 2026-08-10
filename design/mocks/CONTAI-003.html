@@ -312,7 +312,8 @@
         <p style="margin-top:10px; font-size:13.5px">
           O CNO é obrigatório e o prazo é de 30 dias contados do início da obra
           (Lei 8.212/91, art. 49). Esta obra começou em <strong class="mono">15/03/2026</strong> —
-          o registro está <strong class="mono">148 dias</strong> em atraso.
+          o prazo venceu em <strong class="mono">14/04/2026</strong> e o registro está
+          <strong class="mono">118 dias</strong> em atraso.
         </p>
         <div class="consequencia red" style="margin-top:10px">
           Enquanto não houver CNO:<br>
@@ -333,7 +334,10 @@
         </p>
         <button class="btn ghost" style="margin-top:10px" onclick="go(6)">Já registrei — informar o CNO</button>
       </div>
-      <div class="parecer">Redação copiada de docs/pareceres/2026-08-09-obra-sem-cno.md — não reescrever.</div>
+      <div class="parecer">Redação copiada de docs/pareceres/2026-08-09-obra-sem-cno.md — não reescrever.
+        Corrigido em 2026-08-10 (adendo do contador): o atraso conta do VENCIMENTO do prazo (118),
+        não da data de início (148). Dentro do prazo, a mesma tela diz "faltam N dias" e mantém
+        as consequências.</div>
     </div>
     <div class="foot">
       <div class="step">Passo 2 de 4 ↓</div>
@@ -414,7 +418,7 @@
       <div class="banner grn"><strong>Casa do Morro</strong> foi criada e está aberta agora.</div>
       <div class="card">
         <div class="row"><span class="lbl">Início da obra</span><span class="val mono">15/03/2026</span></div>
-        <div class="row"><span class="lbl">CNO</span><span class="val bad">pendente — 148 dias</span></div>
+        <div class="row"><span class="lbl">CNO</span><span class="val bad">pendente — 118 dias em atraso</span></div>
         <div class="row"><span class="lbl">Custo do terreno</span><span class="val mono">R$ 441.000,00</span></div>
         <div class="row"><span class="lbl">Unidades</span><span class="val">1 · sem desmembramento</span></div>
       </div>
@@ -518,17 +522,17 @@
           (a) CNO impresso nas próximas notas e (b) reemissão ou retificação da EFD-Reinf das
           notas já emitidas. Depois do último pagamento você perde a força para pedir.
         </div>
-        <div style="margin-top:12px; display:flex; align-items:center; gap:8px; font-size:13.5px">
-          <span style="width:18px;height:18px;border:2px solid var(--ink);border-radius:4px;display:inline-block"></span>
-          Salvar mesmo assim
-        </div>
-        <button class="btn ghost sm" style="margin-top:10px" onclick="go(14)">Ver as 4 notas desta obra emitidas sem CNO</button>
+        <button class="btn ghost sm" style="margin-top:12px" onclick="go(14)">Ver as 4 notas desta obra emitidas sem CNO</button>
       </div>
       <div class="parecer">Redação copiada de docs/pareceres/2026-08-09-obra-sem-cno.md — não reescrever.
-        Esta é a tela que faz agir: a de cadastro se vê uma vez, esta se vê a cada nota.</div>
+        Esta é a tela que faz agir: a de cadastro se vê uma vez, esta se vê a cada nota.
+        Corrigido em 2026-08-10 (adendo do contador): "Salvar mesmo assim" é o RÓTULO DO BOTÃO, não
+        caixa a marcar — confirmação obrigatória a cada nota seria bloqueio disfarçado (critério 15).
+        A lista de notas sem CNO (tela 14) depende da data de emissão e do CNO da nota, campos do
+        CONTAI-007: fora do CONTAI-003.</div>
     </div>
     <div class="foot">
-      <button class="btn primary" onclick="go(15)">Salvar</button>
+      <button class="btn primary" onclick="go(15)">Salvar mesmo assim</button>
       <button class="btn ghost" onclick="go(11)">Voltar</button>
     </div>
   </section>

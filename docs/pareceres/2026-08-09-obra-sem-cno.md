@@ -6,7 +6,9 @@
   andamento, cada uma com matrícula própria e unidade autônoma única, e **uma
   delas não tem CNO**.
 - **Consome**: `docs/tickets/CONTAI-003.md` (critério 3), `CONTAI-007`.
-- **Estado**: vigente.
+- **Estado**: vigente, **com adendo de 2026-08-10** (ver o fim do arquivo): o
+  atraso do CNO conta-se do VENCIMENTO do prazo, não da data de início, e a
+  confirmação "Salvar mesmo assim" é rótulo de botão, não caixa obrigatória.
 
 > Transcrição do parecer emitido pelo agente `contador`. As marcações
 > `[Certain]` / `[Likely]` / `[Guessing]` são dele e indicam o grau de
@@ -137,6 +139,9 @@ cada nota nova**. Pendência que não cresce pode esperar; esta cresce.
 
 ### Texto de tela — cadastro da obra, ao escolher "ainda não tenho CNO"
 
+> ⚠️ **A primeira frase foi corrigida pelo adendo de 2026-08-10** — [N] conta do
+> vencimento. A redação vigente está no adendo, no fim deste arquivo.
+>
 > **Obra sem CNO — pendência aberta**
 >
 > O CNO é obrigatório e o prazo é de 30 dias contados do início da obra
@@ -172,6 +177,10 @@ cada nota nova**. Pendência que não cresce pode esperar; esta cresce.
 > notas já emitidas. Depois do último pagamento você perde a força para pedir.
 >
 > Salvar mesmo assim [ ] · Ver as [N] notas desta obra emitidas sem CNO
+>
+> ⚠️ **Corrigido pelo adendo de 2026-08-10**: "Salvar mesmo assim" é o RÓTULO DO
+> BOTÃO de salvar, não uma caixa a marcar. Exigir marcação a cada nota seria
+> bloqueio disfarçado, que este mesmo parecer rejeita.
 
 > Este segundo texto é o gancho que faz agir: a tela de cadastro se vê uma vez
 > na vida.
@@ -213,3 +222,49 @@ fazer e mais cara de errar do projeto.
 3. Exigir CNO impresso e retificação da EFD-Reinf das notas anteriores
    **antes de liberar a próxima parcela**.
 4. Levar ao CRC a pergunta do item 5.
+
+---
+
+## Adendo de 2026-08-10 — como se conta o atraso e o que é "Salvar mesmo assim"
+
+Provocado pelo `lead-engineer` no Gate 1 do CONTAI-003, ao encontrar duas
+leituras possíveis entre este parecer e o mock aprovado. Emitido pelo agente
+`contador`; transcrição.
+
+### 1. [N] dias em atraso conta do VENCIMENTO, não do início [Certain]
+
+O prazo é de 30 dias contados do início (Lei 8.212/91, art. 49, II). Estar "em
+atraso" só existe **depois** de vencido o prazo. Obra iniciada em 15/03/2026,
+com hoje em 10/08/2026: vencimento 14/04/2026 e **118 dias de atraso** — não
+148. O mock somava o prazo ao atraso e afirmava, na mesma frase, "o prazo é de
+30 dias" e "148 dias em atraso"; é contradição que o leitor resolve
+subtraindo, e número inflado em tela fiscal contamina a confiança nas outras.
+
+Redação vigente do primeiro parágrafo, nos três estados:
+
+> **Em atraso** — "O CNO é obrigatório e o prazo é de 30 dias contados do
+> início da obra (Lei 8.212/91, art. 49). Esta obra começou em [início] — o
+> prazo venceu em [vencimento] e o registro está **[N] dias em atraso**."
+>
+> **Vencendo hoje** — "… Esta obra começou em [início] — o prazo vence hoje."
+>
+> **Dentro do prazo** — "… Esta obra começou em [início] — o prazo vence em
+> [vencimento], faltam [N] dias. Registre antes da primeira nota da
+> empreiteira."
+>
+> **Sem data de início** — não renderizar frase de prazo nenhuma; pedir a data.
+
+**O bloco de consequências é idêntico nos três estados e sempre visível.** O
+dano à aferição não começa no dia 31: nota de serviço emitida no dia 3 sem CNO
+já não abate. O prazo governa a multa, que é a menor das três consequências.
+
+### 2. "Salvar mesmo assim" é rótulo de botão, não caixa obrigatória [Certain]
+
+Marcação obrigatória a cada NF de serviço é **bloqueio disfarçado** — atrito
+recorrente sem alternativa a oferecer, na obra que acumula documento hoje. Vira
+carimbo em duas semanas, e carimbo fabrica a confiança falsa de "eu li". O
+efeito de aviso vem do texto, que continua acima do botão; o botão nomeia o que
+está sendo feito.
+
+**Nada disto muda a decisão (b)**: obra sem CNO é aceita, com pendência de
+consequência fiscal explícita, e nunca bloqueada.
