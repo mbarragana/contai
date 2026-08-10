@@ -80,6 +80,11 @@ function paraPagamento(
 }
 
 export async function carregarObra(): Promise<Obra> {
+  // Sem sessão a RLS devolve zero linhas, e o erro sairia como "nenhuma obra
+  // cadastrada" — diagnóstico errado para quem só não está logado. Exigir a
+  // sessão aqui também faz o autologin de desenvolvimento valer quando se
+  // entra direto por /adicionar/*, sem passar pela home.
+  await getUsuarioId();
   const { data, error } = await getSupabase()
     .from("obra")
     .select("*")

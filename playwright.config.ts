@@ -42,6 +42,10 @@ export default defineConfig({
     env: {
       NEXT_PUBLIC_SUPABASE_URL: URL_SUPABASE_LOCAL,
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: CHAVE_PUBLICAVEL_LOCAL,
+      // Fixado em "0" porque o env do webServer herda o shell: com a flag
+      // exportada por acaso, o autologin daria sessão a todo teste e a injeção
+      // real de sessão passaria a ser decorativa — verde pelo motivo errado.
+      NEXT_PUBLIC_DEV_AUTOLOGIN: "0",
     },
   },
 });

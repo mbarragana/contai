@@ -58,10 +58,64 @@ export class SemSessaoError extends Error {
   }
 }
 
+// ── Login automático de DESENVOLVIMENTO ──────────────────────────────────
+// Enquanto a tela de login não existe (CONTAI-002), abrir o app local exigia
+// colar um fetch no console do navegador para plantar a sessão à mão. Isto
+// substitui aquilo. Credenciais do supabase/seed.sql — nunca de produção.
+
+const EMAIL_DEV = "mateus@contai.local";
+const SENHA_DEV = "contai-local-123";
+
+/**
+ * Trava de segurança do autologin: só vale para o stack em Docker na própria
+ * máquina. Se a URL for de qualquer outro host, o autologin não roda — é o que
+ * impede uma flag esquecida de tentar entrar no projeto do Mateus.
+ */
+export function ehSupabaseLocal(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    const { protocol, hostname } = new URL(url);
+    if (protocol !== "http:" && protocol !== "https:") return false;
+    return hostname === "127.0.0.1" || hostname === "localhost" || hostname === "[::1]";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Três condições, todas obrigatórias: a flag explícita (só `npm run dev:local`
+ * a define), build fora de produção, e Supabase local. Em produção não roda nem
+ * por acidente — o build da Vercel não tem a flag, e mesmo que tivesse, a URL
+ * não passaria em `ehSupabaseLocal`.
+ */
+function autologinHabilitado(): boolean {
+  return (
+    process.env.NEXT_PUBLIC_DEV_AUTOLOGIN === "1" &&
+    process.env.NODE_ENV !== "production" &&
+    ehSupabaseLocal(process.env.NEXT_PUBLIC_SUPABASE_URL)
+  );
+}
+
+async function entrarComoDesenvolvimento(): Promise<string | null> {
+  if (!autologinHabilitado()) return null;
+  const { data, error } = await getSupabase().auth.signInWithPassword({
+    email: EMAIL_DEV,
+    password: SENHA_DEV,
+  });
+  // Falhou (banco fora, seed não rodou)? Devolve null e deixa o fluxo normal
+  // reportar ausência de sessão — autologin não inventa usuário.
+  if (error || !data.session) return null;
+  return data.session.user.id;
+}
+
 export async function getUsuarioId(): Promise<string> {
   const { data, error } = await getSupabase().auth.getSession();
   if (error) throw error;
   const id = data.session?.user.id;
-  if (!id) throw new SemSessaoError();
-  return id;
+  if (id) return id;
+
+  const idDev = await entrarComoDesenvolvimento();
+  if (idDev) return idDev;
+
+  throw new SemSessaoError();
 }
