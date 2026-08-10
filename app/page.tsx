@@ -1,8 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import {
+  AfirmacaoObra,
+  AvisoEquiparacao,
+  PendenciaCno,
+} from "@/app/_components/obra";
 import {
   AppBar,
   Banner,
@@ -15,9 +21,17 @@ import {
   Dica,
   EstadoErro,
 } from "@/app/_components/ui";
-import { carregarPainel, mensagemDeErro, type PainelDados } from "@/lib/data";
+import {
+  carregarObras,
+  carregarPainel,
+  mensagemDeErro,
+  type PainelDados,
+} from "@/lib/data";
+import { escolherObraAtiva } from "@/lib/fiscal/obra";
 import { calcularResumo, type Pendencia, type ResumoObra } from "@/lib/fiscal/resumo";
+import { hojeIso } from "@/lib/hoje";
 import { formatarBRL } from "@/lib/money";
+import { lerObraPreferida } from "@/lib/obra-ativa";
 
 type Estado =
   | { fase: "carregando" }
@@ -30,6 +44,7 @@ const ACAO_POR_TIPO: Partial<Record<Pendencia["tipo"], string>> = {
 };
 
 export default function Home() {
+  const router = useRouter();
   const [estado, setEstado] = useState<Estado>({ fase: "carregando" });
   const [tentativa, setTentativa] = useState(0);
 
@@ -37,8 +52,20 @@ export default function Home() {
     let cancelado = false;
     void (async () => {
       try {
-        const dados = await carregarPainel();
-        const ano = new Date().getFullYear();
+        const obras = await carregarObras();
+        // Critério 6: sem valor confiável de obra ativa — primeiro uso, celular
+        // novo, storage limpo, outro dispositivo — o app ABRE A LISTA e não
+        // escolhe obra nenhuma. Nem a primeira, nem a mais recente, nem a
+        // única: escolher em silêncio é o bug que este ticket veio matar.
+        const ativa = escolherObraAtiva(obras, lerObraPreferida());
+        if (cancelado) return;
+        if (!ativa) {
+          router.replace("/obras");
+          return;
+        }
+
+        const dados = await carregarPainel(ativa.id);
+        const ano = Number(hojeIso().slice(0, 4));
         if (cancelado) return;
         setEstado({
           fase: "pronto",
@@ -53,15 +80,18 @@ export default function Home() {
     return () => {
       cancelado = true;
     };
-  }, [tentativa]);
+  }, [tentativa, router]);
 
   const tentarDeNovo = useCallback(() => {
     setEstado({ fase: "carregando" });
     setTentativa((t) => t + 1);
   }, []);
 
+  const trocarObra = useCallback(() => router.push("/obras"), [router]);
+
   const obra = estado.fase === "pronto" ? estado.dados.obra : null;
   const ano = estado.fase === "pronto" ? estado.resumo.ano : new Date().getFullYear();
+  const hoje = hojeIso();
 
   return (
     <>
@@ -69,7 +99,7 @@ export default function Home() {
         titulo="contai"
         sub={
           obra
-            ? `${obra.nome}${obra.cno ? ` · CNO ${obra.cno}` : ""} · ${ano}`
+            ? `${obra.nome}${obra.cno ? ` · CNO ${obra.cno}` : " · sem CNO"} · ${ano}`
             : `Obra · ${ano}`
         }
       />
@@ -83,19 +113,33 @@ export default function Home() {
           <EstadoErro mensagem={estado.mensagem} onTentarDeNovo={tentarDeNovo} />
         ) : null}
 
-        {estado.fase === "pronto" ? (
+        {estado.fase === "pronto" && obra ? (
           <>
+            {/* Critério 7: a obra é afirmada, não subentendida. */}
+            <AfirmacaoObra
+              rotulo="Obra aberta"
+              nome={obra.nome}
+              onTrocar={trocarObra}
+            />
+
             <Card>
-              <Dica>Custo confirmado em {estado.resumo.ano}</Dica>
+              {/* Critério 9: todo número carrega o nome da obra. */}
+              <Dica>
+                Custo confirmado em {estado.resumo.ano} · {obra.nome}
+              </Dica>
               <div className="mono text-[26px] font-bold tracking-tight">
                 {formatarBRL(estado.resumo.custoConfirmadoAnoCentavos)}
               </div>
               <div className="mono mt-1 text-[14px] font-semibold">
-                Acumulado do imóvel:{" "}
+                Acumulado desta obra:{" "}
                 {formatarBRL(estado.resumo.acumuladoImovelCentavos)}
               </div>
               <Dica>
                 = situação em 31/12 na ficha Bens e Direitos (terreno + obra)
+              </Dica>
+              <Dica>
+                Nada é somado com as outras obras — cada matrícula é um item da
+                declaração.
               </Dica>
               {estado.resumo.pendencias.length > 0 ? (
                 <p className="mt-1.5 text-[12px] text-mut">
@@ -107,6 +151,21 @@ export default function Home() {
                 </p>
               ) : null}
             </Card>
+
+            <AvisoEquiparacao obra={obra} />
+
+            {/* A pendência de CNO fica aberta na obra até o CNO existir. */}
+            {obra.cno ? null : (
+              <PendenciaCno
+                obra={obra}
+                hoje={hoje}
+                acao={
+                  <BotaoLink href={`/obras/${obra.id}`}>
+                    Já registrei — informar o CNO
+                  </BotaoLink>
+                }
+              />
+            )}
 
             {estado.resumo.pendencias.length === 0 ? (
               <Banner cor="grn" role="status">
@@ -131,6 +190,13 @@ export default function Home() {
                 ) : null}
               </Card>
             ))}
+
+            <Dica>
+              <Link href={`/obras/${obra.id}`} className="underline">
+                Dados da obra
+              </Link>{" "}
+              — matrícula, CNO, custo do terreno.
+            </Dica>
           </>
         ) : null}
 

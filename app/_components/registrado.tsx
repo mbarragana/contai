@@ -6,31 +6,52 @@ import {
   BotaoLink,
   Card,
   Corpo,
+  Dica,
   Linha,
   Rodape,
 } from "@/app/_components/ui";
 
-/** Tela 8 do mock — estado de sucesso das duas portas de entrada. */
+/**
+ * Estado de sucesso das duas portas de entrada (mock CONTAI-003, tela 15).
+ *
+ * A confirmação NOMEIA a obra de propósito (critério 7): é a última chance de
+ * perceber o erro enquanto ele ainda está fresco — e o erro de obra é
+ * silencioso e descoberto tarde, quando já virou impedimento de venda.
+ */
 export function Registrado({
   proximoPasso,
   custo,
   ano,
+  obraNome,
+  hrefCorrigirObra,
 }: {
   proximoPasso: ReactNode;
   custo: ReactNode;
   ano: number;
+  obraNome: string;
+  /** Correção da obra deste registro (critério 13). */
+  hrefCorrigirObra: string;
 }) {
   return (
     <>
-      <AppBar titulo="Registrado ✓" sub="Interação 3 de 3 — pronto" />
+      <AppBar titulo="Registrado ✓" sub={obraNome} />
       <Corpo>
         <Banner cor="grn" role="status">
-          <strong>Salvo.</strong> Original guardado no acervo — fica disponível
-          até a venda + 5 anos.
+          Salvo em <strong>{obraNome}</strong>. Original guardado no acervo —
+          fica disponível até a venda + 5 anos.
         </Banner>
         <Card>
+          <Linha rotulo="Obra">{obraNome}</Linha>
           <Linha rotulo="Próximo passo">{proximoPasso}</Linha>
           <Linha rotulo={`Custo ${ano}`}>{custo}</Linha>
+        </Card>
+        <Card>
+          <Dica>Salvou na obra errada?</Dica>
+          <div className="mt-2">
+            <BotaoLink href={hrefCorrigirObra}>
+              Corrigir a obra deste registro
+            </BotaoLink>
+          </div>
         </Card>
       </Corpo>
       <Rodape>

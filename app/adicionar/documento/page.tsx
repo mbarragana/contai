@@ -1,10 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { CampoArquivo, CampoTexto, Escolha } from "@/app/_components/campos";
+import { AfirmacaoObra, TelaTrocarObra } from "@/app/_components/obra";
 import { Registrado } from "@/app/_components/registrado";
+import { useObraDoRegistro } from "@/app/_components/usar-obra-do-registro";
 import {
   AppBar,
   Banner,
@@ -12,6 +14,8 @@ import {
   BotaoLink,
   Card,
   Carregando,
+  Chip,
+  Consequencia,
   Corpo,
   Dica,
   EstadoErro,
@@ -19,7 +23,6 @@ import {
   Rodape,
 } from "@/app/_components/ui";
 import {
-  carregarObra,
   criarDocumento,
   garantirFavorecido,
   mensagemDeErro,
@@ -40,8 +43,15 @@ import {
   type RespostaRetencao,
 } from "@/lib/fiscal/documento";
 import { soDigitos, tipoPorDocumento } from "@/lib/fiscal/identificacao";
+import {
+  NF_SERVICO_SEM_CNO_ALAVANCA,
+  NF_SERVICO_SEM_CNO_EFEITO,
+  NF_SERVICO_SEM_CNO_TITULO,
+  ROTULO_SALVAR_SEM_CNO,
+} from "@/lib/fiscal/obra";
+import { hojeIso } from "@/lib/hoje";
 import { parseValorInput } from "@/lib/money";
-import type { Classificacao, Obra, TipoDocumento } from "@/lib/types";
+import type { Classificacao, TipoDocumento } from "@/lib/types";
 
 const TIPOS = [
   { valor: "nf_material", texto: "NF material" },
@@ -66,16 +76,18 @@ const RESPOSTAS_RETENCAO = [
 ] as const satisfies readonly { valor: RespostaRetencao; texto: string }[];
 
 type Fase =
-  | { nome: "carregando" }
-  | { nome: "erro"; mensagem: string }
   | { nome: "formulario" }
   | { nome: "salvando" }
-  | { nome: "salvo" };
+  | { nome: "salvo"; id: string; obraNome: string };
 
 export default function RegistrarDocumento() {
   const router = useRouter();
-  const [obra, setObra] = useState<Obra | null>(null);
-  const [fase, setFase] = useState<Fase>({ nome: "carregando" });
+  // A obra deste registro: afirmada na tela, trocável aqui mesmo, e é ELA que
+  // vai para o `obra_id` no salvar (critérios 6, 7 e 16).
+  const registro = useObraDoRegistro();
+  const obra = registro.obra;
+  const [trocando, setTrocando] = useState(false);
+  const [fase, setFase] = useState<Fase>({ nome: "formulario" });
   const [erroSalvar, setErroSalvar] = useState<string | null>(null);
 
   const [arquivo, setArquivo] = useState<File | null>(null);
@@ -88,31 +100,6 @@ export default function RegistrarDocumento() {
   const [notaNoCpf, setNotaNoCpf] = useState<RespostaCpf | null>(null);
   const [retencao11, setRetencao11] = useState<RespostaRetencao | null>(null);
   const [erros, setErros] = useState<ErroCampo[]>([]);
-
-  const [tentativa, setTentativa] = useState(0);
-
-  useEffect(() => {
-    let cancelado = false;
-    void (async () => {
-      try {
-        const carregada = await carregarObra();
-        if (cancelado) return;
-        setObra(carregada);
-        setFase({ nome: "formulario" });
-      } catch (erro) {
-        if (cancelado) return;
-        setFase({ nome: "erro", mensagem: mensagemDeErro(erro) });
-      }
-    })();
-    return () => {
-      cancelado = true;
-    };
-  }, [tentativa]);
-
-  const tentarDeNovo = useCallback(() => {
-    setFase({ nome: "carregando" });
-    setTentativa((t) => t + 1);
-  }, []);
 
   /** Proposta automática a partir do tipo; o humano pode corrigir. */
   function escolherTipo(novo: TipoDocumento) {
@@ -168,6 +155,8 @@ export default function RegistrarDocumento() {
       });
 
       const status = statusDocumento(tipo, notaNoCpf);
+      // `obra.id` é o da obra afirmada na tela — não se relê a preferência do
+      // aparelho aqui: entre abrir e salvar ela pode ter mudado em outra aba.
       const id = await criarDocumento({
         obra_id: obra.id,
         favorecido_id: favorecidoId,
@@ -187,7 +176,7 @@ export default function RegistrarDocumento() {
         router.push(`/documento/${id}`);
         return;
       }
-      setFase({ nome: "salvo" });
+      setFase({ nome: "salvo", id, obraNome: obra.nome });
     } catch (erro) {
       setErroSalvar(mensagemDeErro(erro));
       setFase({ nome: "formulario" });
@@ -197,7 +186,9 @@ export default function RegistrarDocumento() {
   if (fase.nome === "salvo") {
     return (
       <Registrado
-        ano={new Date().getFullYear()}
+        ano={Number(hojeIso().slice(0, 4))}
+        obraNome={fase.obraNome}
+        hrefCorrigirObra={`/documento/${fase.id}/obra`}
         proximoPasso={
           <>
             registrar o pagamento quando ele acontecer{" "}
@@ -208,6 +199,25 @@ export default function RegistrarDocumento() {
       />
     );
   }
+
+  // Tela 12 — troca sem sair do fluxo: este componente continua montado, então
+  // os campos já preenchidos seguem intactos ao voltar.
+  if (trocando && obra) {
+    return (
+      <TelaTrocarObra
+        obras={registro.obras}
+        hoje={hojeIso()}
+        onEscolher={(escolhida) => {
+          registro.escolher(escolhida);
+          setTrocando(false);
+        }}
+        onCancelar={() => setTrocando(false)}
+      />
+    );
+  }
+
+  const semCno = obra !== null && obra.cno === null;
+  const avisaObraSemCno = semCno && tipo === "nf_servico";
 
   return (
     <>
@@ -221,17 +231,29 @@ export default function RegistrarDocumento() {
       />
 
       <Corpo>
-        {fase.nome === "carregando" ? (
+        {registro.fase === "carregando" ? (
           <Carregando rotulo="Carregando a obra" />
         ) : null}
 
-        {fase.nome === "erro" ? (
-          <EstadoErro mensagem={fase.mensagem} onTentarDeNovo={tentarDeNovo} />
+        {registro.fase === "erro" ? (
+          <EstadoErro
+            mensagem={registro.mensagem ?? ""}
+            onTentarDeNovo={registro.recarregar}
+          />
         ) : null}
 
-        {fase.nome === "formulario" || fase.nome === "salvando" ? (
+        {registro.fase === "pronta" && obra ? (
           <>
             {erroSalvar ? <Banner cor="red" role="alert">{erroSalvar}</Banner> : null}
+
+            {/* Critério 7: o nome da obra por extenso, com o escape ao lado. */}
+            <AfirmacaoObra
+              rotulo="Registrando em"
+              nome={obra.nome}
+              onTrocar={
+                registro.obras.length > 1 ? () => setTrocando(true) : undefined
+              }
+            />
 
             <Card className="flex flex-col gap-3.5">
               <CampoArquivo
@@ -327,6 +349,23 @@ export default function RegistrarDocumento() {
               ) : null}
             </Card>
 
+            {avisaObraSemCno ? (
+              // Texto literal do parecer do contador (2026-08-09, seção 4). É
+              // ESTA tela que faz agir: a de cadastro se vê uma vez na vida.
+              // Não bloqueia (critério 15) — bloquear destruiria o custo de
+              // aquisição, que não depende do CNO, para proteger uma aferição
+              // que já está danificada.
+              <Card className="border-red">
+                <Chip cor="red">{NF_SERVICO_SEM_CNO_TITULO}</Chip>
+                <p className="mt-2.5 text-[13.5px]">
+                  {NF_SERVICO_SEM_CNO_EFEITO}
+                </p>
+                <Consequencia cor="amb">
+                  {NF_SERVICO_SEM_CNO_ALAVANCA}
+                </Consequencia>
+              </Card>
+            ) : null}
+
             <Dica>
               Olhe na nota antes de responder — &quot;não&quot; no CPF leva à
               quarentena; &quot;não/não sei&quot; na retenção gera o aviso do
@@ -336,7 +375,7 @@ export default function RegistrarDocumento() {
         ) : null}
       </Corpo>
 
-      {fase.nome === "formulario" || fase.nome === "salvando" ? (
+      {registro.fase === "pronta" ? (
         <Rodape>
           <Passo>Interação 3 de 3 ↓</Passo>
           <Botao
@@ -344,7 +383,11 @@ export default function RegistrarDocumento() {
             onClick={salvar}
             disabled={fase.nome === "salvando"}
           >
-            {fase.nome === "salvando" ? "Salvando…" : "Salvar registro"}
+            {fase.nome === "salvando"
+              ? "Salvando…"
+              : avisaObraSemCno
+                ? ROTULO_SALVAR_SEM_CNO
+                : "Salvar registro"}
           </Botao>
           <BotaoLink href="/adicionar">Voltar</BotaoLink>
         </Rodape>

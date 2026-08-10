@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { CampoArquivo, CampoTexto } from "@/app/_components/campos";
+import { AfirmacaoObra, TelaTrocarObra } from "@/app/_components/obra";
 import { Registrado } from "@/app/_components/registrado";
+import { useObraDoRegistro } from "@/app/_components/usar-obra-do-registro";
 import {
   AppBar,
   Banner,
@@ -17,7 +19,6 @@ import {
   Rodape,
 } from "@/app/_components/ui";
 import {
-  carregarObra,
   criarPagamento,
   garantirFavorecido,
   mensagemDeErro,
@@ -33,25 +34,28 @@ import {
   type EntradaPagamento,
   type ErroCampoPagamento,
 } from "@/lib/fiscal/pagamento";
+import { hojeIso } from "@/lib/hoje";
 import { parseValorInput } from "@/lib/money";
-import type { Obra, TipoFavorecido } from "@/lib/types";
+import type { TipoFavorecido } from "@/lib/types";
 
 type Fase =
-  | { nome: "carregando" }
-  | { nome: "erro"; mensagem: string }
   | { nome: "formulario" }
   | { nome: "salvando" }
-  | { nome: "salvo"; ano: number; tipoFavorecido: TipoFavorecido | null };
-
-function hojeIso(): string {
-  const agora = new Date();
-  const local = new Date(agora.getTime() - agora.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 10);
-}
+  | {
+      nome: "salvo";
+      ano: number;
+      tipoFavorecido: TipoFavorecido | null;
+      id: string;
+      obraNome: string;
+    };
 
 export default function RegistrarPagamento() {
-  const [obra, setObra] = useState<Obra | null>(null);
-  const [fase, setFase] = useState<Fase>({ nome: "carregando" });
+  // Mesma regra do documento: obra afirmada na tela, trocável aqui, e é ela
+  // que grava o `obra_id` (critérios 6, 7 e 16).
+  const registro = useObraDoRegistro();
+  const obra = registro.obra;
+  const [trocando, setTrocando] = useState(false);
+  const [fase, setFase] = useState<Fase>({ nome: "formulario" });
   const [erroSalvar, setErroSalvar] = useState<string | null>(null);
 
   const [nome, setNome] = useState("");
@@ -60,31 +64,6 @@ export default function RegistrarPagamento() {
   const [data, setData] = useState(hojeIso);
   const [comprovante, setComprovante] = useState<File | null>(null);
   const [erros, setErros] = useState<ErroCampoPagamento[]>([]);
-
-  const [tentativa, setTentativa] = useState(0);
-
-  useEffect(() => {
-    let cancelado = false;
-    void (async () => {
-      try {
-        const carregada = await carregarObra();
-        if (cancelado) return;
-        setObra(carregada);
-        setFase({ nome: "formulario" });
-      } catch (erro) {
-        if (cancelado) return;
-        setFase({ nome: "erro", mensagem: mensagemDeErro(erro) });
-      }
-    })();
-    return () => {
-      cancelado = true;
-    };
-  }, [tentativa]);
-
-  const tentarDeNovo = useCallback(() => {
-    setFase({ nome: "carregando" });
-    setTentativa((t) => t + 1);
-  }, []);
 
   const entrada: EntradaPagamento = useMemo(
     () => ({
@@ -124,7 +103,8 @@ export default function RegistrarPagamento() {
         tipo: tipoFavorecido,
       });
 
-      await criarPagamento({
+      // A obra que está na tela, não a preferência do aparelho.
+      const id = await criarPagamento({
         obra_id: obra.id,
         favorecido_id: favorecidoId,
         valorCentavos: entrada.valorCentavos as number,
@@ -137,7 +117,13 @@ export default function RegistrarPagamento() {
         status: STATUS_PAGAMENTO_AVULSO,
       });
 
-      setFase({ nome: "salvo", ano: anoCalendario(data), tipoFavorecido });
+      setFase({
+        nome: "salvo",
+        ano: anoCalendario(data),
+        tipoFavorecido,
+        id,
+        obraNome: obra.nome,
+      });
     } catch (erro) {
       setErroSalvar(mensagemDeErro(erro));
       setFase({ nome: "formulario" });
@@ -149,6 +135,8 @@ export default function RegistrarPagamento() {
     return (
       <Registrado
         ano={fase.ano}
+        obraNome={fase.obraNome}
+        hrefCorrigirObra={`/pagamento/${fase.id}/obra`}
         proximoPasso={
           <>
             vincular {salvos.documento} quando chegar{" "}
@@ -162,6 +150,21 @@ export default function RegistrarPagamento() {
 
   const rotulos = rotulosPagoSemNota(tipoFavorecido);
 
+  // Tela 12 — troca sem sair do fluxo.
+  if (trocando && obra) {
+    return (
+      <TelaTrocarObra
+        obras={registro.obras}
+        hoje={hojeIso()}
+        onEscolher={(escolhida) => {
+          registro.escolher(escolhida);
+          setTrocando(false);
+        }}
+        onCancelar={() => setTrocando(false)}
+      />
+    );
+  }
+
   return (
     <>
       <AppBar
@@ -170,21 +173,32 @@ export default function RegistrarPagamento() {
       />
 
       <Corpo>
-        {fase.nome === "carregando" ? (
+        {registro.fase === "carregando" ? (
           <Carregando rotulo="Carregando a obra" />
         ) : null}
 
-        {fase.nome === "erro" ? (
-          <EstadoErro mensagem={fase.mensagem} onTentarDeNovo={tentarDeNovo} />
+        {registro.fase === "erro" ? (
+          <EstadoErro
+            mensagem={registro.mensagem ?? ""}
+            onTentarDeNovo={registro.recarregar}
+          />
         ) : null}
 
-        {fase.nome === "formulario" || fase.nome === "salvando" ? (
+        {registro.fase === "pronta" && obra ? (
           <>
             {erroSalvar ? (
               <Banner cor="red" role="alert">
                 {erroSalvar}
               </Banner>
             ) : null}
+
+            <AfirmacaoObra
+              rotulo="Registrando em"
+              nome={obra.nome}
+              onTrocar={
+                registro.obras.length > 1 ? () => setTrocando(true) : undefined
+              }
+            />
 
             <Card className="flex flex-col gap-3.5">
               <CampoTexto
@@ -254,7 +268,7 @@ export default function RegistrarPagamento() {
         ) : null}
       </Corpo>
 
-      {fase.nome === "formulario" || fase.nome === "salvando" ? (
+      {registro.fase === "pronta" ? (
         <Rodape>
           <Passo>Interação 3 de 3 ↓</Passo>
           <Botao
