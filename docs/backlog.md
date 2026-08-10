@@ -427,3 +427,220 @@ Sem correção, fornecedor novo fica impossível de cadastrar.
   contador: "até R$ X a mais na venda", onde X = 15% × valor do documento,
   com a palavra "até" e disclaimer de redução/isenção (Lei 8.981/95 art. 21;
   Lei 11.196/05 arts. 39–40). Depende de o Mateus aprovar a volta no mock.
+  *(Correção do contador, 2026-08-09: a Lei 8.981/95 art. 21 é a regra de
+  alíquotas — 15% a 22,5%, redação da Lei 13.259/2016 —, não o fator de
+  redução. O fator de redução é só o art. 40 da Lei 11.196/05. Corrigir a
+  citação antes de qualquer texto desses ir para tela.)*
+
+---
+
+## Relato 003 — 2026-08-09 — "Duas obras ao mesmo tempo: uma para vender, outra para morar"
+
+> "criar um ticket para login e criação de nova obra, assim posso gerenciar
+> mais de uma obra ao mesmo tempo. Por exemplo, tenho uma casa que estou
+> construindo para vender e tenho outra construindo para morar."
+
+Este relato **muda uma premissa do produto**, não pede uma tela. O `CLAUDE.md`
+descreve *uma* obra ("a construção da residência do Mateus... com venda futura
+provável"); passam a ser duas, simultâneas, uma delas explicitamente para
+vender. Consultei o `contador` antes de escrever requisito (Q7–Q10 abaixo).
+
+### Dores extraídas
+
+| ID | Dor | Citação / origem | Prioridade |
+|----|-----|------------------|-----------|
+| D9 | Não há como cadastrar obra pela interface: `cno`, `matricula` e `valor_terreno` (que compõe Bens e Direitos) só entram por SQL. Login publicado sem isso desemboca em `ObraAusenteError` | "criação de nova obra" | **P0 fiscal** |
+| D10 | O código assume obra única (`carregarObra()` = `order by created_at limit 1`); um gasto da obra 2 cai **silenciosamente** na obra 1 | "gerenciar mais de uma obra ao mesmo tempo" | **P0 fiscal** |
+| D11 | Ao registrar, ele precisa saber em qual obra está mexendo — hoje a tela não diz | "tenho uma casa... e tenho outra" | P1 fricção |
+| D12 | *(derivada do parecer, não do relato)* A dedução da NF de serviço no SERO é amarrada ao **CNO impresso na nota**; o app não captura esse CNO. Nota da obra A entra como dedutível na obra B | contador Q8b | **P0 fiscal** |
+| D13 | Não existe login: usar o app publicado exigiria criar usuário no dashboard do Supabase e injetar sessão pelo DevTools do celular | "criar um ticket para login" | **P0 bloqueador de deploy** |
+
+### Hipóteses do relato que **não** viraram requisito
+
+- **"Seletor de obra"** — é a solução proposta, não a dor. A dor é atribuição
+  correta; o seletor é uma das formas (e com uma obra só ele não deve existir).
+- **"Gerenciar duas obras"** — a palavra "gerenciar" é a porta de entrada da
+  gestão de cronograma e orçado vs. realizado, escopo declarado fora do
+  produto. O que entra é **segregar**, não gerenciar.
+
+### O que o contador respondeu (parecer 2026-08-09)
+
+**A hipótese principal caiu.** Eu e o lead-engineer suspeitávamos que
+"construir para vender" mudasse o tratamento fiscal e obrigasse um campo
+**destinação**. Não muda:
+
+- **Q7 — construir para vender vs. para morar**: tratamento **idêntico** no
+  registro — custo de aquisição, Bens e Direitos, regime de caixa, ganho de
+  capital (IN SRF 84/2001 art. 17) [Certain]. **Aval expresso para cortar o
+  campo destinação.**
+- **Q7b — equiparação a empresa**: é **taxativa** (loteamento, desmembramento
+  ou incorporação), **não** decorre de quantidade de obras nem de intenção
+  declarada. Duas casas, duas matrículas, uma unidade cada = **ruído, não
+  risco**. Base: RIR/2018, origem DL 1.381/74 e DL 2.072/83; Lei 4.591/64.
+  *Correção: o DL 1.598/77 art. 27 que eu havia citado é regra de PJ.*
+  O risco real e diferente é **habitualidade** (construir-e-vender repetido →
+  tributação como atividade comercial, não ganho de capital): duas obras não
+  caracterizam; a terceira e a quarta começam a caracterizar [Likely].
+- **Q7c — benefícios de ganho de capital**: o art. 39 da Lei 11.196/05
+  (reinvestir em 180 dias) **vale** para imóvel construído para vender, mas é
+  **1 vez a cada 5 anos** — usar na venda da casa 1 queima a da casa 2. O fator
+  de redução (art. 40) vale, mas com prazo curto rende pouco. **A isenção do
+  art. 23 da Lei 9.250/95 (único imóvel até R$ 440 mil) morreu com os fatos**:
+  com dois imóveis, nenhum é "o único" [Certain]. Não é requisito de software —
+  é informação que muda a conversa com o CRC.
+- **Q8 — CNO e aferição**: **um CNO por obra, obrigatório**; nenhuma hipótese
+  de dispensa se aplica (há empreiteiro PJ e prestadores PF). A aferição no
+  SERO é **isolada por CNO**; NF da obra A jamais abate base da obra B. A
+  saída "posição da aferição INSS" deixa de ser um número e vira um relatório
+  **por CNO**. Consequência de atribuir errado, e é a mais cara do projeto até
+  hoje: base inflada, INSS pago 2x, **a regularização daquele CNO não sai; sem
+  regularização não há averbação da construção na matrícula; sem averbação o
+  banco do comprador não financia e o cartório não lavra.** *Erro de CNO não é
+  erro de imposto — é impedimento de venda.*
+- **Q9a — Pagamentos Efetuados**: a ficha é **do declarante, não do imóvel** —
+  um lançamento por beneficiário com o **total do ano somando as duas obras**.
+  Logo a US-004 precisa de **dois cortes da mesma base**: agregado por CPF
+  (para a ficha) e segregado por obra (para a discriminação). Nunca um só.
+- **Q9b — Bens e Direitos**: **um item por matrícula**, duas discriminações
+  independentes, cada uma com o seu CNO. Terreno + construção da mesma
+  matrícula seguem como um item só.
+- **Q9c — rateio**: material **pode** ser rateado (exige memória de cálculo
+  guardada junto do documento); **NF de serviço não pode** — a dedução é
+  amarrada ao CNO impresso, então um documento de serviço pertence a uma obra
+  e só. Recibo de PF: um por obra. *Recomendação de processo antes de
+  software: pedir nota separada por obra ao fornecedor — o caminhão de areia
+  dividido é problema criado na compra.*
+- **Q9d — documento sem obra**: não entra em nenhuma discriminação → custo não
+  declarado não existe (IN SRF 84/2001 art. 17) → na venda vira ganho
+  tributado. **Mas a pendência é o remédio errado**: com duas obras não há
+  default seguro e escolher custa um toque → **obra é campo obrigatório e
+  bloqueante**, igual ao destinatário CPF. Pendência só no legado da US-005.
+- **Q10 — guarda**: o relógio é **por imóvel** — 5 anos do 1º dia do exercício
+  seguinte à DAA que declarou aquela venda (CTN art. 173, I). Obra não vendida
+  = prazo **indefinido**. Documento rateado sobrevive ao **maior** dos dois
+  prazos. O relógio **nunca** dispara exclusão automática — só informa.
+
+### Tickets criados
+
+| Ticket | Prioridade | O quê |
+|---|---|---|
+| **CONTAI-002** | **P0** — bloqueador de deploy | Autenticação real (magic link, sessão persistente, redirect pós-login, logout). **Sem regra fiscal** — registrado assim no Gate Fiscal do ticket, em vez de inventar uma |
+| **CONTAI-003** | **P0** (promovido de P1) | Cadastro de obra (CNO obrigatório, valor do terreno com ITBI+escritura, edição) + **obra ativa**: o app deixa de assumir obra única. Carrega o Gate Fiscal pesado do parecer |
+| **CONTAI-007** | **P0 condicionado** | `cno_referenciado` na NF de serviço, com **bloqueio** se divergir do CNO da obra. Captura irreversível: antes da próxima NF de serviço em produção |
+
+**Por que três e não um.** CONTAI-002 é infraestrutura pura e testável
+sozinho; CONTAI-003 é o que destrava a produção e carrega a regra fiscal;
+CONTAI-007 é captura de campo no formulário e tem outro dono de risco.
+**Mas 002 e 003 são uma única release**: login que desemboca em
+`ObraAusenteError` é beco sem saída, então não vão a produção separados.
+
+### Fila revista — 2026-08-09
+
+*Substitui a proposta do item 3 do bloco de decisões pendentes no topo. O
+bloco em si segue intocado — as decisões 1 e 2 continuam esperando o Mateus.*
+
+**push do repo** → `CONTAI-004` + `CONTAI-007` (mesma migration, mesmo
+formulário, mesmo mock) → `CONTAI-005` → `CONTAI-002` + `CONTAI-003` (release
+única) → `CONTAI-006` → `US-009` → `US-012`.
+
+A regra que move CONTAI-007 para tão cedo é a mesma que já colocou o
+CONTAI-004 lá: **tudo que gera retrabalho manual depois do primeiro registro
+real entra antes do login ir ao ar**. Capturar `cno_referenciado` hoje custa um
+campo; capturar depois custa reabrir documento a documento — e, se a nota já
+foi emitida com o CNO errado, não custa retrabalho, custa a nota.
+
+### Novas stories
+
+**US-012 [P1] — Rateio de documento de material entre obras**
+Como dono da obra, quero dividir uma NF de material entre as duas obras com um
+critério registrado, para que cada imóvel receba a parcela de custo que é dele.
+Só **material** (serviço é impossível, ver Q9c). Vínculo N:M documento↔obra.
+Aceite:
+1. [ ] Percentuais somando 100%, bloqueio se não somarem
+2. [ ] Campo textual de **critério do rateio** obrigatório (é a memória de
+       cálculo que sustenta a prova — o ônus é do Mateus)
+3. [ ] Cada parcela entra na discriminação da sua obra (US-004)
+4. [ ] O documento rateado sobrevive ao **maior** dos prazos de guarda (US-011)
+5. [ ] Bloqueado para NF de serviço e recibo de PF, com o motivo em tela
+
+**P1 e não P0, deliberadamente**: o contador recomendou **corrigir no
+processo, não no software** — pedir nota separada por obra ao fornecedor.
+Enquanto isso não existir, um documento compartilhado registrado 100% numa
+obra é reaberto depois; é um documento, não uma safra.
+
+**Ação do Mateus (fora do app)**: pedir a fornecedores **nota separada por
+obra/entrega**, e recibo de PF separado por obra. Custa zero e elimina o
+rateio.
+
+### Ajustes em stories existentes
+
+- **US-004 (relatórios)**: passa a exigir **três saídas com cortes
+  diferentes** — discriminação de Bens e Direitos **por matrícula**; posição da
+  aferição INSS **por CNO** (nunca somada); Pagamentos Efetuados **agregado por
+  CPF somando as duas obras** (a ficha é do declarante), com corte auxiliar por
+  obra para conferência. Gerar um relatório só é gerar um relatório errado.
+- **US-011 (export do acervo)**: o export precisa ser **segmentável por obra**
+  — na venda, o comprador e o contador pedem o dossiê **daquele** imóvel, não o
+  acumulado. E o relógio de guarda é por obra (Q10).
+- **US-005 (migração da planilha)**: é o **único** lugar onde "documento sem
+  obra" vira pendência em vez de bloqueio — o registro legado já nasceu sem
+  obra. Nos registros novos, obra é bloqueante.
+- **US-006 (prestadores PF)**: a obrigação previdenciária do dono da obra sobre
+  contribuinte individual (Lei 8.212/91 art. 15 § único) é **por CNO** — com
+  duas obras, dobra. Segue exigindo parecer próprio do contador quando a US for
+  especificada.
+- **US-002 (lembretes no Calendar)**: o lembrete precisa dizer **de qual obra**
+  é o boleto, senão ele paga certo e registra errado.
+
+### Perguntas abertas (as 3 que mais destravam)
+
+- **Q11** — *"Cada uma das duas obras fica na sua própria matrícula, com uma
+  única unidade autônoma (uma casa)? Algum dos dois terrenos veio de
+  desmembramento ou loteamento de um terreno maior?"*
+  É a única pergunta que separa ganho de capital de equiparação a PJ. Se a
+  resposta for "mais de uma unidade" ou "veio de desmembramento", **os
+  relatórios deste produto deixam de valer** e o escopo do contai muda.
+- **Q12** — *"A segunda obra já está em andamento hoje, com nota ou pagamento
+  chegando?"*
+  **É a pergunta que mais muda a fila.** Se sim, os critérios de obra ativa do
+  CONTAI-003 são urgência de agora e nada pode ir a produção sem eles. Se ela
+  começa em meses, CONTAI-002+003 podem ir ao ar com uma obra só e o seletor
+  vem em seguida.
+- **Q13** — *"As duas obras já têm CNO próprio, e as NFs de serviço da AJE vêm
+  com o CNO da obra impresso na nota?"*
+  Define se o CONTAI-007 é validação (caminho comum = nota traz o CNO) ou
+  cobrança de nota correta ao prestador (caminho comum = nota não traz).
+  **Fecha de carona a Q5**, aberta desde o relato 002 — é a mesma nota na mão.
+
+*Pergunta do contador que eu deliberadamente não trago ao Mateus como
+requisito*: "quantos imóveis você vendeu nos últimos 5 anos e pretende
+repetir?" — importa para habitualidade e para o art. 39, mas é conversa com o
+CRC, não pergunta que muda uma linha de software.
+
+### Cortado (com justificativa)
+
+- **Campo "destinação (morar / vender)"** — o item mais chamativo do relato, e
+  o primeiro a cair. Não altera custo, documentação hábil, regime de caixa nem
+  discriminação (contador Q7d, aval expresso). Num produto cuja disciplina é
+  "todo campo tem consequência fiscal", um campo decorativo ensina o oposto —
+  e o campo `nome` da obra já resolve ("Casa de morar" / "Casa de vender").
+- **Painel consolidado / comparação entre as duas obras** — não serve nenhuma
+  das três metas **e é fiscalmente enganoso**: Bens e Direitos não soma entre
+  matrículas, aferição INSS não soma entre CNOs. Um total das duas obras é um
+  número que não existe em nenhuma declaração. Esta é a parte do relato que é
+  **conveniência**, e é a que eu corto.
+- **`registro_incorporacao` e `alienações nos últimos 5 anos` como campos** —
+  o contador sugeriu cinco campos de indício de equiparação; fico com **dois**
+  (`unidades_autonomas`, `origem_desmembramento_loteamento`). Incorporação é
+  implicada por unidades > 1, e "nº de alienações" é um número sobre o
+  titular que decai e envelhece dentro do app — pertence à conversa com o CRC,
+  não a um formulário preenchido duas vezes na vida.
+- **Validar CNO contra a Receita / e-CAC** e **conferir EFD-Reinf do
+  prestador** — fora do alcance do produto; obrigação de terceiro.
+- **Multiusuário / convidar o contador para ver a obra** — não pedido, e
+  alargaria a superfície da RLS sem servir as três metas. Anotado aqui para
+  não voltar como "óbvio" quando o login existir.
+- **"Gerenciar" as obras** (cronograma, orçado vs. realizado, status de
+  andamento) — escopo declarado fora do produto (CLAUDE.md). A palavra
+  "gerenciar" no relato é exatamente a porta por onde isso entra; o que o
+  produto faz é **segregar**, não gerenciar.
