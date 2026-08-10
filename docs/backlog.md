@@ -385,7 +385,9 @@ Mateus estão na seção destacada no topo deste arquivo.
 
 **LOGIN [P0] — proposto como CONTAI-002 (cto-obra)**
 O app exige sessão (RLS) e não há tela de login — inutilizável em produção.
-Escopo proposto: magic link/OTP por e-mail (Supabase Auth, single-user),
+Escopo proposto: código de 6 dígitos por e-mail (Supabase Auth, single-user;
+decisão do Mateus em 2026-08-10 — sem magic link, que abre no navegador errado
+se o app virar nativo),
 redirect pós-login, logout, e distinguir o erro "sem sessão" do erro
 "banco fora".
 
@@ -523,7 +525,7 @@ vender. Consultei o `contador` antes de escrever requisito (Q7–Q10 abaixo).
 
 | Ticket | Prioridade | O quê |
 |---|---|---|
-| **CONTAI-002** | **P0** — bloqueador de deploy | Autenticação real (magic link, sessão persistente, redirect pós-login, logout). **Sem regra fiscal** — registrado assim no Gate Fiscal do ticket, em vez de inventar uma |
+| **CONTAI-002** | **P0** — bloqueador de deploy | Autenticação real (código de 6 dígitos no e-mail — decisão do Mateus 2026-08-10, sem magic link —, sessão persistente, redirect pós-login, logout). **Sem regra fiscal** — registrado assim no Gate Fiscal do ticket, em vez de inventar uma |
 | **CONTAI-003** | **P0** (promovido de P1) | Cadastro de obra (CNO obrigatório, valor do terreno com ITBI+escritura, edição) + **obra ativa**: o app deixa de assumir obra única. Carrega o Gate Fiscal pesado do parecer |
 | **CONTAI-007** | **P0 condicionado** | `cno_referenciado` na NF de serviço, com **bloqueio** se divergir do CNO da obra. Captura irreversível: antes da próxima NF de serviço em produção |
 

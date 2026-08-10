@@ -18,9 +18,20 @@ e-mail e continuar logado entre visitas, para registrar uma nota sem passar
 pelo dashboard do Supabase.
 
 ## Critérios de Aceite
-1. [ ] Mock aprovado pelo Mateus (tela de login, estado de espera do link,
-       erro de link expirado) em `design/mocks/`, 375px, uma mão
-2. [ ] Login por magic link / OTP no e-mail (Supabase Auth), sem senha
+1. [ ] Mock aprovado pelo Mateus (tela de login, digitação do código, erro de
+       código inválido/expirado) em `design/mocks/CONTAI-002.html`, 375px, uma
+       mão
+2. [ ] Login por **código de 6 dígitos no e-mail** (`signInWithOtp` +
+       `verifyOtp` do Supabase Auth), sem senha e **sem magic link**.
+       **Decisão do Mateus, 2026-08-10**: o app pode virar nativo, e link em
+       e-mail abre no navegador padrão — quem entra é a aba, não o app. O
+       código é digitado dentro do app que pediu, então a sessão nasce onde
+       tem de nascer. Mesmo padrão do `surf-forecast`
+       (`src/lib/auth/actions.ts`, `src/components/email-code-form.tsx`).
+       Campo com `inputMode="numeric"` e `autoComplete="one-time-code"` para o
+       sistema oferecer o código colado de uma vez.
+       **`shouldCreateUser: false`** — o login nunca cria conta: a base guarda
+       CPF, CNO e as notas da obra, e conta de terceiro não tem o que fazer ali
 3. [ ] A sessão persiste entre aberturas do app — fechar e reabrir o PWA não
        pede login de novo
 4. [ ] Rota pedida sem sessão → redireciona para o login e **volta para a rota
@@ -52,18 +63,31 @@ autenticação. Registro a única consequência fiscal indireta:
 - Cadastro de obra e obra ativa — **CONTAI-003** (deploy conjunto, ver abaixo)
 
 ## Pre-mortem
-1. Magic link abre no navegador padrão e não no PWA instalado → ele "loga" numa
-   aba e o app continua deslogado. Mitigação: testar o fluxo no celular real
-   antes de dar DONE, não só no e2e
+1. ~~Magic link abre no navegador padrão e não no PWA instalado → ele "loga"
+   numa aba e o app continua deslogado.~~ **Eliminado pela decisão de 2026-08-10**
+   (critério 2): com código digitado no app, não existe link para abrir no
+   lugar errado. Era o pre-mortem mais provável deste ticket, e a mitigação
+   anterior ("testar no celular real") só detectava o problema, não o resolvia.
+   Continua valendo testar no celular real antes de dar DONE
 2. Sessão expira em silêncio no meio do formulário de documento → ele digita
    tudo e perde no "salvar". Mitigação: critério 5 + preservar o formulário
-3. Login vira fricção diária no canteiro (link no e-mail toda vez) → ele para
+3. Login vira fricção diária no canteiro (código no e-mail toda vez) → ele para
    de registrar na hora. Mitigação: critério 3 é o critério que mais importa
    deste ticket
+4. O e-mail com o código demora ou não chega, e ele está sem sinal bom no
+   canteiro → não entra e não registra. Mitigação: critério 3 (sessão longa,
+   para o login ser raro) — o código só aparece quando a sessão realmente
+   caiu, não a cada visita
 
 ## Viabilidade (CTO)
-- Supabase Auth com magic link; `@supabase/ssr` para sessão em Server
-  Components (o app é Next.js 16 App Router)
+- Supabase Auth com código de e-mail (`signInWithOtp` sem `emailRedirectTo` +
+  `verifyOtp`); `@supabase/ssr` para sessão em Server Components (o app é
+  Next.js 16 App Router). O template de e-mail do projeto precisa expor
+  `{{ .Token }}` — por padrão o Supabase envia `{{ .ConfirmationURL }}`, e sem
+  essa troca o e-mail chega com link em vez de código
+- Referência pronta no `surf-forecast`: `src/lib/auth/actions.ts`,
+  `src/components/email-code-form.tsx` e o E2E
+  `e2e/playwright/auth-002-email-otp-code.spec.ts`
 - Nada muda no schema. `auth.uid()` já é o default de `user_id` em todas as
   tabelas
 - Complexidade: **S/M**

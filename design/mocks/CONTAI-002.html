@@ -78,12 +78,21 @@
   .env{font-size:32px; text-align:center; margin-top:20px}
   .preservado{border:1px dashed var(--grn); background:var(--grn-bg); color:var(--grn);
     border-radius:8px; padding:8px 10px; font-size:12.5px}
+
+  /* ── código de 6 dígitos ─────────────────────────── */
+  .codigo{display:flex; gap:8px; justify-content:center; margin:18px 0 4px}
+  .digito{width:44px; height:56px; border:1px solid var(--line); border-radius:10px; background:#fff;
+    display:flex; align-items:center; justify-content:center;
+    font:600 24px/1 ui-monospace,SFMono-Regular,Menlo,monospace; font-variant-numeric:tabular-nums}
+  .digito.vazio{color:#c9c3b6; border-style:dashed}
+  .digito.erro{border-color:var(--red); color:var(--red); background:var(--red-bg)}
 </style>
 
 <div class="evalbar">
   <h1>Mock CONTAI-002 — Entrar e sair do app</h1>
   <p>Navegável: use as abas ou toque nos botões das telas. Fidelidade média — avalie fluxo e conteúdo, não estética final.
-     Login por link no e-mail, sem senha. Sobe em release única com o CONTAI-003 (cadastro de obra).</p>
+     Login por <strong>código de 6 dígitos</strong> no e-mail, sem senha — mesmo padrão do surf-forecast,
+     e o único que sobrevive a virar app nativo. Sobe em release única com o CONTAI-003 (cadastro de obra).</p>
   <div class="tabs" id="tabs"></div>
 </div>
 
@@ -104,8 +113,8 @@
       </div>
 
       <p class="hint">
-        Você recebe um link por e-mail e entra tocando nele. Sem senha para lembrar
-        no meio do canteiro.
+        Você recebe um <strong>código de 6 dígitos</strong> por e-mail e digita aqui.
+        Sem senha para lembrar no meio do canteiro.
       </p>
 
       <div class="card">
@@ -116,53 +125,68 @@
       </div>
     </div>
     <div class="foot">
-      <button class="btn primary" onclick="go(2)">Enviar link de acesso</button>
+      <button class="btn primary" onclick="go(2)">Enviar código</button>
     </div>
   </section>
 
-  <!-- 2 · LINK ENVIADO -->
+  <!-- 2 · DIGITAR O CÓDIGO -->
   <section class="screen" id="s2">
-    <div class="appbar"><div class="brand">contai</div><div class="sub">Link enviado</div></div>
+    <div class="appbar"><div class="brand">contai</div><div class="sub">Código enviado</div></div>
     <div class="body">
       <div class="env">✉️</div>
       <div style="text-align:center">
-        <div style="font-size:15px; font-weight:600">Link enviado</div>
+        <div style="font-size:15px; font-weight:600">Digite o código</div>
         <p class="hint" style="margin-top:8px">
-          Abra o e-mail em <strong>mateus.barragana@gmail.com</strong> e toque no link.
-          Pode fechar esta tela.
+          Enviamos 6 dígitos para <strong>mateus.barragana@gmail.com</strong>.
         </p>
       </div>
 
-      <div class="banner amb">
-        <strong>Abra o link no mesmo celular.</strong> Se ele abrir no computador,
-        é o computador que entra — este aparelho continua deslogado.
+      <div class="codigo">
+        <span class="digito">4</span><span class="digito">1</span><span class="digito">7</span>
+        <span class="digito">2</span><span class="digito">0</span><span class="digito vazio">·</span>
+      </div>
+      <div class="hint" style="text-align:center">
+        Teclado numérico, e o iOS/Android oferece o código do e-mail para colar de uma vez.
+      </div>
+
+      <div class="banner grn">
+        <strong>Você entra neste aparelho, sempre.</strong> O código é digitado aqui dentro —
+        não existe link que possa abrir no navegador errado e deixar o app deslogado.
       </div>
 
       <div class="card">
         <div class="hint">Não chegou em 1 minuto? Veja o spam antes de pedir outro —
-          pedir de novo invalida o link anterior.</div>
+          pedir de novo invalida o código anterior.</div>
         <button class="btn ghost sm" style="margin-top:8px" onclick="go(2)">Enviar de novo</button>
       </div>
 
       <div class="hint">Trocar de e-mail? <span style="text-decoration:underline; cursor:pointer" onclick="go(1)">Voltar</span></div>
     </div>
+    <div class="foot">
+      <button class="btn primary" onclick="go(4)">Entrar</button>
+    </div>
   </section>
 
-  <!-- 3 · LINK EXPIRADO -->
+  <!-- 3 · CÓDIGO ERRADO OU EXPIRADO -->
   <section class="screen" id="s3">
-    <div class="appbar"><div class="brand">contai</div><div class="sub">Link expirado</div></div>
+    <div class="appbar"><div class="brand">contai</div><div class="sub">Código não confere</div></div>
     <div class="body">
+      <div class="codigo">
+        <span class="digito erro">4</span><span class="digito erro">1</span><span class="digito erro">7</span>
+        <span class="digito erro">2</span><span class="digito erro">0</span><span class="digito erro">9</span>
+      </div>
       <div class="banner red">
-        <strong>Este link não vale mais.</strong> Links de acesso expiram, e pedir um novo
-        invalida o anterior — se você tocou num e-mail antigo, é isso.
+        <strong>Esse código não vale.</strong> Ou foi digitado errado, ou expirou, ou você
+        pediu outro depois — pedir um novo invalida o anterior.
       </div>
       <div class="card">
         <div class="hint">Nada foi perdido: seus documentos e pagamentos continuam guardados.
-          É só entrar de novo.</div>
+          É só digitar de novo.</div>
       </div>
     </div>
     <div class="foot">
-      <button class="btn primary" onclick="go(1)">Pedir um link novo</button>
+      <button class="btn primary" onclick="go(2)">Digitar de novo</button>
+      <button class="btn ghost" onclick="go(1)">Pedir um código novo</button>
     </div>
   </section>
 
@@ -273,7 +297,7 @@
 
 <script>
   const telas = [
-    [1,"Entrar"],[2,"Link enviado"],[3,"Link expirado"],[4,"Volta à rota pedida"],
+    [1,"Entrar"],[2,"Digitar código"],[3,"Código não confere"],[4,"Volta à rota pedida"],
     [5,"Sem sessão ≠ banco fora"],[6,"Sessão caiu no formulário"],[7,"Conta e sair"]
   ];
   const tabs = document.getElementById("tabs");
