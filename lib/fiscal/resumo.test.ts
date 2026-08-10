@@ -7,12 +7,21 @@ const OBRA: Obra = {
   id: "obra-1",
   nome: "Casa Cachoeira",
   cno: "12.345.67890/26",
+  matricula: "38.104",
+  cartorio: "1º Ofício de Registro de Imóveis",
   municipio: "Florianópolis",
   valorTerrenoCentavos: 80_000_000, // R$ 800.000,00
+  valorItbiCentavos: 0,
+  valorEscrituraRegistroCentavos: 0,
+  dataInicioObra: "2025-11-04",
+  cnoRegistradoEm: "2025-11-20",
+  unidadesAutonomas: 1,
+  origemDesmembramentoLoteamento: false,
 };
 
 function doc(over: Partial<Documento> & { id: string }): Documento {
   return {
+    obraId: OBRA.id,
     tipo: "nf_material",
     status: "registrado",
     valorCentavos: 100_000,
@@ -29,6 +38,7 @@ function doc(over: Partial<Documento> & { id: string }): Documento {
 
 function pag(over: Partial<Pagamento> & { id: string }): Pagamento {
   return {
+    obraId: OBRA.id,
     valorCentavos: 100_000,
     dataPagamento: "2026-05-10",
     meio: "pix",

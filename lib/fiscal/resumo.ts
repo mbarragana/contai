@@ -7,7 +7,9 @@
  * - Custo é regime de caixa: entra pela DATA DO PAGAMENTO.
  * - Só conta como custo o pagamento sustentado por documento hábil — boleto
  *   sozinho não sustenta, e documento em quarentena não é hábil.
- * - Acumulado = situação em 31/12 na ficha Bens e Direitos = terreno + obra.
+ * - Acumulado = situação em 31/12 na ficha Bens e Direitos = terreno + obra,
+ *   e o terreno é preço + ITBI + escritura/registro (IN SRF 84/2001 art. 17).
+ * - Nada é somado entre obras: a entrada é de UMA obra (CONTAI-003, crit. 9).
  */
 
 import type { Documento, Obra, Pagamento, TipoFavorecido } from "@/lib/types";
@@ -16,6 +18,7 @@ import {
   CONSEQUENCIA_QUARENTENA,
   CONSEQUENCIA_SEM_RETENCAO,
 } from "./documento";
+import { custoTerrenoCentavos } from "./obra";
 import { anoCalendario, rotulosPagoSemNota } from "./pagamento";
 
 export type TipoPendencia =
@@ -193,7 +196,7 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
   return {
     ano,
     custoConfirmadoAnoCentavos: custoAno,
-    acumuladoImovelCentavos: obra.valorTerrenoCentavos + custoAteFimDoAno,
+    acumuladoImovelCentavos: custoTerrenoCentavos(obra) + custoAteFimDoAno,
     emPendenciaCentavos: emPendencia,
     pendencias,
   };
