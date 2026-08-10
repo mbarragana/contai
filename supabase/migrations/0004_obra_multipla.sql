@@ -36,6 +36,18 @@ alter table obra
 -- disponível e fica visível para correção na tela de edição da obra — o que
 -- não pode acontecer é a migration falhar em banco com dados ou inventar uma
 -- data em silêncio para linhas futuras (por isso não há default).
+--
+-- ATENÇÃO A QUEM APLICAR ESTA MIGRATION EM BANCO COM DADOS (ressalva do
+-- contador, Gate 2 do CONTAI-003): `created_at` é a data em que a LINHA foi
+-- criada no app, não a data em que a OBRA começou. As duas só coincidem por
+-- acaso, e a diferença não é cosmética — a data de início ancora o vencimento
+-- do CNO (30 dias, Lei 8.212/91 art. 49, II) e o período que a aferição do
+-- INSS enxerga, então uma data aproximada mostra atraso errado em tela e
+-- desloca a janela "notas emitidas antes do CNO" do CONTAI-007.
+-- Depois de aplicar: abrir cada obra em /obras/[id] e CONFIRMAR a data real de
+-- início. Aqui (2026-08-10) não houve vítima — a tabela `obra` do projeto
+-- remoto estava vazia e o seed local já traz data explícita —, mas em banco
+-- povoado o backfill é ponto de partida, nunca resposta.
 update obra set data_inicio_obra = created_at::date where data_inicio_obra is null;
 alter table obra alter column data_inicio_obra set not null;
 
