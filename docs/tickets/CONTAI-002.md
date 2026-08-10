@@ -18,9 +18,11 @@ e-mail e continuar logado entre visitas, para registrar uma nota sem passar
 pelo dashboard do Supabase.
 
 ## Critérios de Aceite
-1. [ ] Mock aprovado pelo Mateus (tela de login, digitação do código, erro de
-       código inválido/expirado) em `design/mocks/CONTAI-002.html`, 375px, uma
-       mão
+1. [x] **Mock APROVADO pelo Mateus em 2026-08-10** —
+       `design/mocks/CONTAI-002.html`, 7 telas, 375px, uma mão: login,
+       digitação do código, código inválido/expirado, volta à rota pedida,
+       "sem sessão" ≠ "banco fora", sessão caída no meio do formulário, e
+       conta/sair
 2. [ ] Login por **código de 6 dígitos no e-mail** (`signInWithOtp` +
        `verifyOtp` do Supabase Auth), sem senha e **sem magic link**.
        **Decisão do Mateus, 2026-08-10**: o app pode virar nativo, e link em

@@ -146,9 +146,11 @@ para que cada gasto entre no imóvel certo e cada obra gere a sua própria
 discriminação de Bens e Direitos e a sua própria aferição no SERO.
 
 ## Critérios de Aceite
-1. [ ] **Mock aprovado pelo Mateus antes de qualquer desenvolvimento**
-       (premissa mock-first, CLAUDE.md), 375px, uma mão. Telas obrigatórias no
-       mock: (a) cadastro/edição de obra; (b) **lista de obras** — a porta de
+1. [x] **Mock APROVADO pelo Mateus em 2026-08-10** —
+       `design/mocks/CONTAI-003.html`, 16 telas, 375px, uma mão. Todas as telas
+       obrigatórias abaixo estão cobertas; os textos fiscais das telas 7 e 13
+       são cópia literal do parecer do contador.
+       Telas exigidas: (a) cadastro/edição de obra; (b) **lista de obras** — a porta de
        entrada, sem valores em dinheiro; (c) **como a obra ativa é afirmada na
        tela de registro** de documento e de pagamento; (d) **confirmação de
        salvo nomeando a obra**; (e) **correção da obra de um registro já
