@@ -28,7 +28,9 @@ import {
 import {
   atualizarObra,
   carregarObra,
+  classificarErro,
   mensagemDeErro,
+  type ErroDeTela,
 } from "@/lib/data";
 import { validarObra, type ErroCampoObra } from "@/lib/fiscal/obra";
 import { hojeIso } from "@/lib/hoje";
@@ -42,7 +44,7 @@ import type { Obra } from "@/lib/types";
 
 type Fase =
   | { nome: "carregando" }
-  | { nome: "erro"; mensagem: string }
+  | { nome: "erro"; erro: ErroDeTela }
   | { nome: "pronto" }
   | { nome: "salvando" };
 
@@ -70,7 +72,7 @@ export default function DadosDaObra() {
         setEstado(estadoDaObra(carregada));
         setFase({ nome: "pronto" });
       } catch (erro) {
-        if (!cancelado) setFase({ nome: "erro", mensagem: mensagemDeErro(erro) });
+        if (!cancelado) setFase({ nome: "erro", erro: classificarErro(erro) });
       }
     })();
     return () => {
@@ -125,7 +127,7 @@ export default function DadosDaObra() {
         <AppBar titulo="Dados da obra" />
         <Corpo>
           {fase.nome === "erro" ? (
-            <EstadoErro mensagem={fase.mensagem} onTentarDeNovo={tentarDeNovo} />
+            <EstadoErro erro={fase.erro} onTentarDeNovo={tentarDeNovo} />
           ) : (
             <Carregando rotulo="Carregando a obra" />
           )}

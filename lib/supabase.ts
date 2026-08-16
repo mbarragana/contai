@@ -1,6 +1,9 @@
 "use client";
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import { COOKIE_SESSAO } from "@/lib/auth";
 
 /**
  * Client do browser. A publishable key é pública por design — o que protege
@@ -12,11 +15,28 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 export const BUCKET_ACERVO = "acervo";
 
 /**
- * Chave de sessão fixa: não depende do project ref da URL. Exportada porque o
- * E2E injeta aqui a sessão obtida do GoTrue local (e2e/banco.ts) — se o nome
- * mudar, o teste quebra junto, que é o que se quer.
+ * Nome do COOKIE de sessão (era a chave do localStorage até o CONTAI-002).
+ *
+ * A sessão saiu do localStorage por decisão do Mateus (2026-08-10): no Safari
+ * do iOS o ITP apaga armazenamento gravável por script depois de ~7 dias sem
+ * interação com o site, e o uso aqui é esporádico — no canteiro, a cada
+ * quinzena. Perder a sessão semanalmente é o pre-mortem 3 do próprio ticket
+ * ("login vira fricção diária → ele para de registrar").
+ *
+ * Cookie escrito por JavaScript sofre o MESMO limite de 7 dias. Quem sobrevive
+ * é cookie regravado pelo SERVIDOR via `Set-Cookie` — por isso existe o
+ * `proxy.ts`, que renova a sessão a cada navegação. Sem ele esta troca não
+ * resolveria nada.
+ *
+ * Fixo em vez do padrão derivado do project ref: o E2E e a documentação
+ * precisam de um nome estável. `cookieOptions.name` é a opção da própria
+ * biblioteca — o formato (chunking `.0`/`.1`, encoding base64url) continua
+ * sendo dela, nunca montado à mão.
+ *
+ * O valor mora em lib/auth.ts porque o `proxy.ts` (servidor) também precisa
+ * dele e não pode importar módulo `"use client"`.
  */
-export const STORAGE_KEY = "contai-auth";
+export const STORAGE_KEY = COOKIE_SESSAO;
 
 export class ConfiguracaoAusenteError extends Error {
   constructor(variavel: string) {
@@ -39,8 +59,23 @@ export function getSupabase(): SupabaseClient {
     throw new ConfiguracaoAusenteError("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
   }
 
-  cliente = createClient(url, key, {
-    auth: { storageKey: STORAGE_KEY, persistSession: true },
+  cliente = createBrowserClient(url, key, {
+    // `name` vira o `storageKey` do auth-js e o nome do cookie (ver
+    // createBrowserClient.js da 0.12.4). O resto é o padrão da biblioteca:
+    // path "/", SameSite=Lax, maxAge de 400 dias.
+    cookieOptions: { name: STORAGE_KEY },
+    auth: {
+      // Critério 3: fechar e reabrir o PWA não pode pedir código de novo. O
+      // SDK renova o access token sozinho enquanto a aba está aberta, e o
+      // proxy.ts renova (e REGRAVA o cookie pelo servidor) a cada navegação.
+      persistSession: true,
+      autoRefreshToken: true,
+      // Não existe link de login (decisão de 2026-08-10): nada de sessão vinda
+      // do fragmento da URL. Ligado, isto tentaria consumir um hash de magic
+      // link aberto por engano no navegador — exatamente o caminho que o
+      // código de 6 dígitos veio eliminar.
+      detectSessionInUrl: false,
+    },
   });
   return cliente;
 }
@@ -48,28 +83,22 @@ export function getSupabase(): SupabaseClient {
 /**
  * O app carrega CPF/CNO/dados fiscais: sem sessão não há o que mostrar (a RLS
  * devolveria vazio, o que seria indistinguível de "nada pendente").
- * A tela de login não é deste ticket — aqui a ausência de sessão vira erro
- * explícito, nunca estado vazio silencioso.
+ * Aqui a ausência de sessão vira erro EXPLÍCITO, nunca estado vazio silencioso
+ * — e a tela sabe distinguir isto de "banco fora" (critério 5 do CONTAI-002):
+ * "tentar de novo" nunca resolveu falta de sessão.
  */
 export class SemSessaoError extends Error {
   constructor() {
-    super("Sessão não iniciada — entre com sua conta para ver a obra.");
+    super("Sua sessão terminou. Entre de novo para ver a obra.");
     this.name = "SemSessaoError";
   }
 }
 
-// ── Login automático de DESENVOLVIMENTO ──────────────────────────────────
-// Enquanto a tela de login não existe (CONTAI-002), abrir o app local exigia
-// colar um fetch no console do navegador para plantar a sessão à mão. Isto
-// substitui aquilo. Credenciais do supabase/seed.sql — nunca de produção.
-
-const EMAIL_DEV = "mateus@contai.local";
-const SENHA_DEV = "contai-local-123";
-
 /**
- * Trava de segurança do autologin: só vale para o stack em Docker na própria
- * máquina. Se a URL for de qualquer outro host, o autologin não roda — é o que
- * impede uma flag esquecida de tentar entrar no projeto do Mateus.
+ * Trava de segurança do atalho de desenvolvimento (lib/sessao.ts): só vale
+ * para o stack em Docker na própria máquina. Se a URL for de qualquer outro
+ * host, o atalho não aparece — é o que impede uma flag esquecida de tentar
+ * entrar no projeto do Mateus.
  */
 export function ehSupabaseLocal(url: string | undefined): boolean {
   if (!url) return false;
@@ -83,39 +112,19 @@ export function ehSupabaseLocal(url: string | undefined): boolean {
 }
 
 /**
- * Três condições, todas obrigatórias: a flag explícita (só `npm run dev:local`
- * a define), build fora de produção, e Supabase local. Em produção não roda nem
- * por acidente — o build da Vercel não tem a flag, e mesmo que tivesse, a URL
- * não passaria em `ehSupabaseLocal`.
+ * Quem é o dono da sessão — ou erro explícito.
+ *
+ * Antes do CONTAI-002 esta função tentava um login automático de dev quando
+ * não havia sessão. Não tenta mais: com tela de login de verdade, entrar em
+ * silêncio esconderia a tela, e o portão de rota (app/_components/sessao.tsx)
+ * já manda para /entrar antes de qualquer chamada de dados. O atalho de dev
+ * virou botão na tela de login (lib/sessao.ts, mesma trava tripla).
  */
-function autologinHabilitado(): boolean {
-  return (
-    process.env.NEXT_PUBLIC_DEV_AUTOLOGIN === "1" &&
-    process.env.NODE_ENV !== "production" &&
-    ehSupabaseLocal(process.env.NEXT_PUBLIC_SUPABASE_URL)
-  );
-}
-
-async function entrarComoDesenvolvimento(): Promise<string | null> {
-  if (!autologinHabilitado()) return null;
-  const { data, error } = await getSupabase().auth.signInWithPassword({
-    email: EMAIL_DEV,
-    password: SENHA_DEV,
-  });
-  // Falhou (banco fora, seed não rodou)? Devolve null e deixa o fluxo normal
-  // reportar ausência de sessão — autologin não inventa usuário.
-  if (error || !data.session) return null;
-  return data.session.user.id;
-}
-
 export async function getUsuarioId(): Promise<string> {
   const { data, error } = await getSupabase().auth.getSession();
   if (error) throw error;
   const id = data.session?.user.id;
   if (id) return id;
-
-  const idDev = await entrarComoDesenvolvimento();
-  if (idDev) return idDev;
 
   throw new SemSessaoError();
 }

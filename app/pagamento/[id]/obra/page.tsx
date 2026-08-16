@@ -14,7 +14,8 @@ import {
 } from "@/app/_components/ui";
 import {
   carregarPagamento,
-  mensagemDeErro,
+  classificarErro,
+  type ErroDeTela,
   moverPagamentoDeObra,
 } from "@/lib/data";
 import { formatarDataBR } from "@/lib/fiscal/obra";
@@ -29,7 +30,7 @@ import type { Pagamento } from "@/lib/types";
 export default function CorrigirObraDoPagamento() {
   const { id } = useParams<{ id: string }>();
   const [pagamento, setPagamento] = useState<Pagamento | null>(null);
-  const [erro, setErro] = useState<string | null>(null);
+  const [erro, setErro] = useState<ErroDeTela | null>(null);
   const [tentativa, setTentativa] = useState(0);
 
   useEffect(() => {
@@ -39,7 +40,7 @@ export default function CorrigirObraDoPagamento() {
         const carregado = await carregarPagamento(id);
         if (!cancelado) setPagamento(carregado);
       } catch (e) {
-        if (!cancelado) setErro(mensagemDeErro(e));
+        if (!cancelado) setErro(classificarErro(e));
       }
     })();
     return () => {
@@ -63,7 +64,7 @@ export default function CorrigirObraDoPagamento() {
         <AppBar titulo="Corrigir obra" />
         <Corpo>
           {erro ? (
-            <EstadoErro mensagem={erro} onTentarDeNovo={tentarDeNovo} />
+            <EstadoErro erro={erro} onTentarDeNovo={tentarDeNovo} />
           ) : (
             <Carregando rotulo="Carregando o pagamento" />
           )}

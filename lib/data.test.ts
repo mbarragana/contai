@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { mensagemDeErro } from "@/lib/data";
+import { classificarErro, mensagemDeErro } from "@/lib/data";
+import { SemSessaoError } from "@/lib/supabase";
 
 /**
  * O que o Mateus lê quando a gravação falha. Regressão encontrada no Gate 3
@@ -34,5 +35,28 @@ describe("mensagemDeErro", () => {
     expect(mensagemDeErro({ code: "PGRST000" })).toBe(generico);
     expect(mensagemDeErro({ message: "   " })).toBe(generico);
     expect(mensagemDeErro(new Error(""))).toBe(generico);
+  });
+});
+
+/**
+ * Critério 5 do CONTAI-002. A distinção é pelo TIPO do erro e não pelo texto:
+ * farejar string de mensagem faria "sem sessão" virar "banco fora" no dia em
+ * que alguém reescrevesse a frase.
+ */
+describe("classificarErro", () => {
+  it("separa falta de sessão de falha do servidor", () => {
+    expect(classificarErro(new SemSessaoError())).toEqual({
+      tipo: "sem_sessao",
+    });
+    expect(classificarErro({ code: "PGRST000", message: "could not connect" })).toEqual(
+      { tipo: "falha", mensagem: "could not connect" },
+    );
+  });
+
+  it("erro sem mensagem aproveitável continua sendo falha, não sessão", () => {
+    expect(classificarErro(null)).toEqual({
+      tipo: "falha",
+      mensagem: "Não foi possível falar com o servidor. Tente de novo.",
+    });
   });
 });

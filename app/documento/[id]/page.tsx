@@ -15,7 +15,12 @@ import {
   Linha,
   Rodape,
 } from "@/app/_components/ui";
-import { carregarDocumento, carregarObra, mensagemDeErro } from "@/lib/data";
+import {
+  carregarDocumento,
+  carregarObra,
+  classificarErro,
+  type ErroDeTela,
+} from "@/lib/data";
 import { CONSEQUENCIA_SEM_RETENCAO } from "@/lib/fiscal/documento";
 import { formatarBRL } from "@/lib/money";
 import type { Classificacao, Documento, Obra, TipoDocumento } from "@/lib/types";
@@ -34,7 +39,7 @@ const NOME_CLASSIFICACAO: Record<Classificacao | "indefinida", string> = {
 
 type Estado =
   | { fase: "carregando" }
-  | { fase: "erro"; mensagem: string }
+  | { fase: "erro"; erro: ErroDeTela }
   | { fase: "pronto"; documento: Documento };
 
 export default function DetalheDocumento() {
@@ -62,7 +67,7 @@ export default function DetalheDocumento() {
         }
       } catch (erro) {
         if (!cancelado) {
-          setEstado({ fase: "erro", mensagem: mensagemDeErro(erro) });
+          setEstado({ fase: "erro", erro: classificarErro(erro) });
         }
       }
     })();
@@ -84,7 +89,7 @@ export default function DetalheDocumento() {
           {estado.fase === "carregando" ? (
             <Carregando rotulo="Carregando o documento" />
           ) : (
-            <EstadoErro mensagem={estado.mensagem} onTentarDeNovo={tentarDeNovo} />
+            <EstadoErro erro={estado.erro} onTentarDeNovo={tentarDeNovo} />
           )}
         </Corpo>
         <Rodape>

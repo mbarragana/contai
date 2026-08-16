@@ -24,7 +24,8 @@ import {
 import {
   carregarObras,
   carregarPainel,
-  mensagemDeErro,
+  classificarErro,
+  type ErroDeTela,
   type PainelDados,
 } from "@/lib/data";
 import { escolherObraAtiva } from "@/lib/fiscal/obra";
@@ -35,7 +36,7 @@ import { lerObraPreferida } from "@/lib/obra-ativa";
 
 type Estado =
   | { fase: "carregando" }
-  | { fase: "erro"; mensagem: string }
+  | { fase: "erro"; erro: ErroDeTela }
   | { fase: "pronto"; dados: PainelDados; resumo: ResumoObra };
 
 const ACAO_POR_TIPO: Partial<Record<Pendencia["tipo"], string>> = {
@@ -74,7 +75,7 @@ export default function Home() {
         });
       } catch (erro) {
         if (cancelado) return;
-        setEstado({ fase: "erro", mensagem: mensagemDeErro(erro) });
+        setEstado({ fase: "erro", erro: classificarErro(erro) });
       }
     })();
     return () => {
@@ -110,7 +111,7 @@ export default function Home() {
         ) : null}
 
         {estado.fase === "erro" ? (
-          <EstadoErro mensagem={estado.mensagem} onTentarDeNovo={tentarDeNovo} />
+          <EstadoErro erro={estado.erro} onTentarDeNovo={tentarDeNovo} />
         ) : null}
 
         {estado.fase === "pronto" && obra ? (
@@ -196,6 +197,15 @@ export default function Home() {
                 Dados da obra
               </Link>{" "}
               — matrícula, CNO, custo do terreno.
+            </Dica>
+
+            {/* Único caminho até a saída (critério 6 do CONTAI-002): logout
+                que não se encontra é logout que não existe. */}
+            <Dica>
+              <Link href="/conta" className="underline">
+                Sua conta
+              </Link>{" "}
+              — e-mail da sessão e sair deste aparelho.
             </Dica>
           </>
         ) : null}

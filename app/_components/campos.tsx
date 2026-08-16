@@ -25,14 +25,20 @@ export function CampoTexto({
   tipo = "text",
   placeholder,
   inputMode,
+  autoComplete,
+  classe = "",
 }: {
   rotulo: string;
   valor: string;
   onChange: (v: string) => void;
   erro?: string;
-  tipo?: "text" | "date";
+  tipo?: "text" | "date" | "email";
   placeholder?: string;
-  inputMode?: "text" | "numeric" | "decimal";
+  inputMode?: "text" | "numeric" | "decimal" | "email";
+  /** `one-time-code` faz o iOS/Android oferecer o código do e-mail (CONTAI-002). */
+  autoComplete?: string;
+  /** Ajuste pontual de aparência (ex.: o campo do código, grande e espaçado). */
+  classe?: string;
 }) {
   const id = useId();
   return (
@@ -46,11 +52,12 @@ export function CampoTexto({
         value={valor}
         inputMode={inputMode}
         placeholder={placeholder}
+        autoComplete={autoComplete}
         onChange={(e) => onChange(e.target.value)}
         aria-invalid={erro ? true : undefined}
         className={`min-h-[44px] rounded-lg border bg-white px-3 text-[15px] ${
           erro ? "border-red" : "border-line"
-        }`}
+        } ${classe}`}
       />
       <ErroCampo mensagem={erro} />
     </div>

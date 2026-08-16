@@ -14,7 +14,12 @@ import {
   EstadoErro,
   Rodape,
 } from "@/app/_components/ui";
-import { carregarPaineis, mensagemDeErro, type PainelDados } from "@/lib/data";
+import {
+  carregarPaineis,
+  classificarErro,
+  type ErroDeTela,
+  type PainelDados,
+} from "@/lib/data";
 import { calcularResumo } from "@/lib/fiscal/resumo";
 import { hojeIso } from "@/lib/hoje";
 import { gravarObraPreferida } from "@/lib/obra-ativa";
@@ -32,7 +37,7 @@ import type { Obra } from "@/lib/types";
 
 type Estado =
   | { fase: "carregando" }
-  | { fase: "erro"; mensagem: string }
+  | { fase: "erro"; erro: ErroDeTela }
   | { fase: "pronto"; paineis: PainelDados[] };
 
 export default function Obras() {
@@ -48,7 +53,7 @@ export default function Obras() {
         if (!cancelado) setEstado({ fase: "pronto", paineis });
       } catch (erro) {
         if (!cancelado) {
-          setEstado({ fase: "erro", mensagem: mensagemDeErro(erro) });
+          setEstado({ fase: "erro", erro: classificarErro(erro) });
         }
       }
     })();
@@ -111,7 +116,7 @@ export default function Obras() {
         ) : null}
 
         {estado.fase === "erro" ? (
-          <EstadoErro mensagem={estado.mensagem} onTentarDeNovo={tentarDeNovo} />
+          <EstadoErro erro={estado.erro} onTentarDeNovo={tentarDeNovo} />
         ) : null}
 
         {estado.fase === "pronto" ? (

@@ -24,18 +24,27 @@ export interface Opcoes {
    * nenhuma (critérios 6 e 16). Use `test.use({ obraAtiva: null })`.
    */
   obraAtiva: string | null;
+  /**
+   * `false` deixa o browser SEM sessão — é o estado em que os testes de login
+   * (CONTAI-002) precisam rodar. Use `test.use({ sessao: false })`.
+   *
+   * O `db` continua logado de qualquer jeito: ele é o olho do teste sobre o
+   * estado gravado, e precisa enxergar as linhas que o app não pode enxergar.
+   */
+  sessao: boolean;
 }
 
 export const test = base.extend<Fixtures & Opcoes>({
   obraAtiva: [OBRA_ID_SEED, { option: true }],
+  sessao: [true, { option: true }],
 
   db: [
-    async ({ page, obraAtiva }, use) => {
+    async ({ page, obraAtiva, sessao: comSessao }, use) => {
       // Login por teste (e não por worker): cada um recebe o seu refresh
       // token, então a rotação de token de um não invalida a sessão do outro.
       const { db, sessao } = await entrar();
       await limpar(db);
-      await injetarSessao(page, sessao);
+      if (comSessao) await injetarSessao(page, sessao);
 
       if (obraAtiva !== null) {
         // O init script roda a CADA navegação: sem a guarda, ele desfaria a

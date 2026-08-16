@@ -1,10 +1,16 @@
+"use client";
+
 /**
  * Peças visuais do mock v4 (design/mocks/CONTAI-001.html), mobile-first.
  * Alvos de toque ≥ 44px: canteiro, uma mão livre.
  */
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+
+import { urlDeEntrada } from "@/lib/auth";
+import type { ErroDeTela } from "@/lib/data";
 
 export function AppBar({ titulo, sub }: { titulo: string; sub?: string }) {
   return (
@@ -186,18 +192,45 @@ export function Carregando({ rotulo }: { rotulo: string }) {
   );
 }
 
-/** Estado de erro — sempre com saída, nunca tela morta. */
+/**
+ * Estado de erro — sempre com saída, nunca tela morta.
+ *
+ * Tela 5 do mock CONTAI-002: "sem sessão" e "banco fora" são DOIS erros, com
+ * duas saídas. Botão "Tentar de novo" em cima de falta de sessão é uma porta
+ * que não abre — quem bate nela três vezes desiste de registrar a nota, e
+ * custo não comprovado não existe na declaração.
+ */
 export function EstadoErro({
-  mensagem,
+  erro,
   onTentarDeNovo,
 }: {
-  mensagem: string;
+  erro: ErroDeTela;
   onTentarDeNovo?: () => void;
 }) {
+  // `usePathname` e não `window.location`: seguro no render do servidor. A
+  // query string do deep link é preservada pelo portão de sessão, que roda no
+  // browser (app/_components/sessao.tsx).
+  const caminho = usePathname();
+
+  if (erro.tipo === "sem_sessao") {
+    return (
+      <Card>
+        <Chip cor="amb">Sua sessão terminou</Chip>
+        <Consequencia cor="amb">
+          Entre de novo para ver a obra. Nada foi perdido: seus documentos e
+          pagamentos continuam guardados.
+        </Consequencia>
+        <div className="mt-2.5">
+          <BotaoLink href={urlDeEntrada(caminho)}>Entrar</BotaoLink>
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-3">
       <Banner cor="red" role="alert">
-        {mensagem}
+        {erro.mensagem}
       </Banner>
       {onTentarDeNovo ? (
         <Botao variante="ghost" onClick={onTentarDeNovo}>

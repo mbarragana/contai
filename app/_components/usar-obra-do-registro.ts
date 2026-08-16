@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
-import { carregarObras, mensagemDeErro } from "@/lib/data";
+import { carregarObras, classificarErro, type ErroDeTela } from "@/lib/data";
 import { escolherObraAtiva } from "@/lib/fiscal/obra";
 import { lerObraPreferida } from "@/lib/obra-ativa";
 import type { Obra } from "@/lib/types";
@@ -24,7 +24,7 @@ export type FaseObraDoRegistro = "carregando" | "erro" | "pronta";
 
 export interface ObraDoRegistro {
   fase: FaseObraDoRegistro;
-  mensagem: string | null;
+  erro: ErroDeTela | null;
   obras: Obra[];
   obra: Obra | null;
   escolher: (obra: Obra) => void;
@@ -34,7 +34,7 @@ export interface ObraDoRegistro {
 export function useObraDoRegistro(): ObraDoRegistro {
   const router = useRouter();
   const [fase, setFase] = useState<FaseObraDoRegistro>("carregando");
-  const [mensagem, setMensagem] = useState<string | null>(null);
+  const [erro, setErro] = useState<ErroDeTela | null>(null);
   const [obras, setObras] = useState<Obra[]>([]);
   const [obra, setObra] = useState<Obra | null>(null);
   const [tentativa, setTentativa] = useState(0);
@@ -53,9 +53,9 @@ export function useObraDoRegistro(): ObraDoRegistro {
         setObras(todas);
         setObra(ativa);
         setFase("pronta");
-      } catch (erro) {
+      } catch (e) {
         if (cancelado) return;
-        setMensagem(mensagemDeErro(erro));
+        setErro(classificarErro(e));
         setFase("erro");
       }
     })();
@@ -66,9 +66,9 @@ export function useObraDoRegistro(): ObraDoRegistro {
 
   const recarregar = useCallback(() => {
     setFase("carregando");
-    setMensagem(null);
+    setErro(null);
     setTentativa((t) => t + 1);
   }, []);
 
-  return { fase, mensagem, obras, obra, escolher: setObra, recarregar };
+  return { fase, erro, obras, obra, escolher: setObra, recarregar };
 }

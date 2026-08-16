@@ -7,7 +7,12 @@
  */
 
 import { numericParaCentavos, centavosParaNumeric } from "@/lib/money";
-import { BUCKET_ACERVO, getSupabase, getUsuarioId } from "@/lib/supabase";
+import {
+  BUCKET_ACERVO,
+  getSupabase,
+  getUsuarioId,
+  SemSessaoError,
+} from "@/lib/supabase";
 import type {
   Documento,
   DocumentoInsert,
@@ -100,9 +105,9 @@ function paraPagamento(
  * Todas as obras da conta, da mais antiga para a mais nova.
  *
  * Sem sessão a RLS devolve zero linhas, e "nenhuma obra cadastrada" seria
- * diagnóstico errado para quem só não está logado. Exigir a sessão aqui também
- * faz o autologin de desenvolvimento valer quando se entra direto por
- * /adicionar/*, sem passar pela home.
+ * diagnóstico errado para quem só não está logado — por isso a sessão é
+ * exigida aqui, e a falta dela sobe como SemSessaoError (critério 5 do
+ * CONTAI-002), não como lista vazia.
  *
  * O `limit(1)` que existia aqui era o bug do critério 6: com duas obras, todo
  * documento da segunda caía silenciosamente na primeira.
@@ -450,4 +455,22 @@ export function mensagemDeErro(erro: unknown): string {
     if (typeof message === "string" && message.trim() !== "") return message;
   }
   return "Não foi possível falar com o servidor. Tente de novo.";
+}
+
+/**
+ * Critério 5 do CONTAI-002: "sem sessão" e "banco fora" NÃO são o mesmo erro.
+ *
+ * Os dois davam a mesma tela com o mesmo botão "Tentar de novo" — e tentar de
+ * novo nunca resolveu falta de sessão: o Mateus ficaria batendo no botão até
+ * desistir de registrar. Cada causa leva à ação que resolve ela (entrar de
+ * novo × repetir a chamada), e quem decide isso é o TIPO do erro, nunca o
+ * texto da mensagem.
+ */
+export type ErroDeTela =
+  | { tipo: "sem_sessao" }
+  | { tipo: "falha"; mensagem: string };
+
+export function classificarErro(erro: unknown): ErroDeTela {
+  if (erro instanceof SemSessaoError) return { tipo: "sem_sessao" };
+  return { tipo: "falha", mensagem: mensagemDeErro(erro) };
 }

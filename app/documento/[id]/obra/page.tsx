@@ -14,7 +14,8 @@ import {
 } from "@/app/_components/ui";
 import {
   carregarDocumento,
-  mensagemDeErro,
+  classificarErro,
+  type ErroDeTela,
   moverDocumentoDeObra,
 } from "@/lib/data";
 import { formatarBRL } from "@/lib/money";
@@ -30,7 +31,7 @@ const NOME_TIPO = {
 export default function CorrigirObraDoDocumento() {
   const { id } = useParams<{ id: string }>();
   const [documento, setDocumento] = useState<Documento | null>(null);
-  const [erro, setErro] = useState<string | null>(null);
+  const [erro, setErro] = useState<ErroDeTela | null>(null);
   const [tentativa, setTentativa] = useState(0);
 
   useEffect(() => {
@@ -40,7 +41,7 @@ export default function CorrigirObraDoDocumento() {
         const carregado = await carregarDocumento(id);
         if (!cancelado) setDocumento(carregado);
       } catch (e) {
-        if (!cancelado) setErro(mensagemDeErro(e));
+        if (!cancelado) setErro(classificarErro(e));
       }
     })();
     return () => {
@@ -64,7 +65,7 @@ export default function CorrigirObraDoDocumento() {
         <AppBar titulo="Corrigir obra" />
         <Corpo>
           {erro ? (
-            <EstadoErro mensagem={erro} onTentarDeNovo={tentarDeNovo} />
+            <EstadoErro erro={erro} onTentarDeNovo={tentarDeNovo} />
           ) : (
             <Carregando rotulo="Carregando o documento" />
           )}

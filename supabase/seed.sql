@@ -1,6 +1,15 @@
 -- Seed do ambiente LOCAL (supabase db reset). Nunca roda em produção.
--- Cria o usuário de desenvolvimento e a obra, porque o app exige sessão (RLS)
--- e uma obra cadastrada — nenhuma das duas telas existe ainda.
+-- Cria o usuário de desenvolvimento e a obra do dia a dia de dev/E2E.
+--
+-- CONTAI-002, critério 8: este arquivo NÃO é o caminho de criação de usuário
+-- em produção, e nunca foi para ser. O login do app usa
+-- `signInWithOtp({ shouldCreateUser: false })` — ele jamais cria conta, porque
+-- a base guarda CPF, CNO e as notas da obra. Em produção a conta do Mateus se
+-- cria UMA vez, à mão, no dashboard do Supabase (Authentication → Users → Add
+-- user / Invite), e daí em diante ele entra pelo código de 6 dígitos.
+-- Consequência prática: `npx supabase db push` aplica migrations no projeto
+-- remoto e NÃO leva este seed junto. Se um dia levar, um usuário com senha
+-- conhecida e publicada em repositório entra na base fiscal.
 
 -- ── Usuário local ────────────────────────────────────────────────────────
 -- As colunas de token precisam ser '' e não NULL: o GoTrue lê todas como

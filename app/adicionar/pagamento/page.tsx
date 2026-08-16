@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { CampoArquivo, CampoTexto } from "@/app/_components/campos";
 import { AfirmacaoObra, TelaTrocarObra } from "@/app/_components/obra";
 import { Registrado } from "@/app/_components/registrado";
+import { useSessao } from "@/app/_components/sessao";
 import { useObraDoRegistro } from "@/app/_components/usar-obra-do-registro";
 import {
   AppBar,
@@ -19,6 +20,7 @@ import {
   Rodape,
 } from "@/app/_components/ui";
 import {
+  classificarErro,
   criarPagamento,
   garantirFavorecido,
   mensagemDeErro,
@@ -53,6 +55,7 @@ export default function RegistrarPagamento() {
   // Mesma regra do documento: obra afirmada na tela, trocável aqui, e é ela
   // que grava o `obra_id` (critérios 6, 7 e 16).
   const registro = useObraDoRegistro();
+  const { pedirReautenticacao } = useSessao();
   const obra = registro.obra;
   const [trocando, setTrocando] = useState(false);
   const [fase, setFase] = useState<Fase>({ nome: "formulario" });
@@ -125,8 +128,16 @@ export default function RegistrarPagamento() {
         obraNome: obra.nome,
       });
     } catch (erro) {
-      setErroSalvar(mensagemDeErro(erro));
       setFase({ nome: "formulario" });
+      // Sessão morta descoberta no "Salvar": sobreposto de reautenticação, e
+      // NUNCA navegação. O formulário continua montado com comprovante, valor
+      // e data — perder isso no canteiro é perder o registro, e custo não
+      // comprovado não existe (IN SRF 84/2001 art. 17).
+      if (classificarErro(erro).tipo === "sem_sessao") {
+        pedirReautenticacao();
+        return;
+      }
+      setErroSalvar(mensagemDeErro(erro));
     }
   }
 
@@ -179,7 +190,7 @@ export default function RegistrarPagamento() {
 
         {registro.fase === "erro" ? (
           <EstadoErro
-            mensagem={registro.mensagem ?? ""}
+            erro={registro.erro ?? { tipo: "falha", mensagem: "" }}
             onTentarDeNovo={registro.recarregar}
           />
         ) : null}

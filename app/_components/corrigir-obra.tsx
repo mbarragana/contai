@@ -16,7 +16,7 @@ import {
   Linha,
   Rodape,
 } from "@/app/_components/ui";
-import { carregarObras, mensagemDeErro } from "@/lib/data";
+import { carregarObras, classificarErro, type ErroDeTela } from "@/lib/data";
 import { podeCorrigirObra } from "@/lib/fiscal/obra";
 import type { Obra, TipoDocumento } from "@/lib/types";
 
@@ -53,7 +53,7 @@ export function CorrigirObra({
 }) {
   const [obras, setObras] = useState<Obra[] | null>(null);
   const [destino, setDestino] = useState<Obra | null>(null);
-  const [erro, setErro] = useState<string | null>(null);
+  const [erro, setErro] = useState<ErroDeTela | null>(null);
   const [movendo, setMovendo] = useState(false);
   const [movido, setMovido] = useState<Obra | null>(null);
   const [tentativa, setTentativa] = useState(0);
@@ -65,7 +65,7 @@ export function CorrigirObra({
         const todas = await carregarObras();
         if (!cancelado) setObras(todas);
       } catch (e) {
-        if (!cancelado) setErro(mensagemDeErro(e));
+        if (!cancelado) setErro(classificarErro(e));
       }
     })();
     return () => {
@@ -93,7 +93,7 @@ export function CorrigirObra({
       await mover(destino.id);
       setMovido(destino);
     } catch (e) {
-      setErro(mensagemDeErro(e));
+      setErro(classificarErro(e));
     } finally {
       setMovendo(false);
     }
@@ -130,7 +130,7 @@ export function CorrigirObra({
     <>
       <AppBar titulo={titulo} sub={sub} />
       <Corpo>
-        {erro ? <EstadoErro mensagem={erro} onTentarDeNovo={tentarDeNovo} /> : null}
+        {erro ? <EstadoErro erro={erro} onTentarDeNovo={tentarDeNovo} /> : null}
         {obras === null && !erro ? (
           <Carregando rotulo="Carregando as obras" />
         ) : null}

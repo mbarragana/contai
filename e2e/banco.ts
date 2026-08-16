@@ -1,12 +1,13 @@
 import type { Page } from "@playwright/test";
+import { createServerClient } from "@supabase/ssr";
 import {
   createClient,
   type Session,
   type SupabaseClient,
 } from "@supabase/supabase-js";
 
+import { COOKIE_SESSAO } from "../lib/auth";
 import type { Database, TablesInsert } from "../lib/database.types";
-import { STORAGE_KEY } from "../lib/supabase";
 import {
   BUCKET_ACERVO,
   CHAVE_PUBLICAVEL_LOCAL,
@@ -61,16 +62,62 @@ export async function entrar(): Promise<{ db: Db; sessao: Session }> {
 }
 
 /**
- * Põe a sessão real no localStorage antes do primeiro script da página — é
- * exatamente o que o supabase-js grava (`JSON.stringify(session)` na
- * `storageKey`). Sessão inventada não passaria pela RLS do Postgres.
+ * Põe a sessão real nos COOKIES do browser (a sessão saiu do localStorage no
+ * CONTAI-002, por causa do ITP do Safari).
+ *
+ * O formato do cookie NÃO é montado aqui. Quem o produz é o próprio
+ * `@supabase/ssr`: um client de servidor com um `setAll` que apenas captura o
+ * que a biblioteca decidiu escrever — nome, chunking (`.0`/`.1`) e encoding
+ * base64url saem dela. Replicar isso à mão seria inventar um formato e
+ * validar a suposição de quem escreveu o teste, que é o que a regra dura de
+ * E2E do projeto proíbe.
+ *
+ * A sessão em si vem de um login de verdade no GoTrue (`entrar()`): sessão
+ * inventada não passaria pela RLS do Postgres.
  */
-export async function injetarSessao(page: Page, sessao: Session) {
-  await page.addInitScript(
-    ([chave, valor]) => {
-      window.localStorage.setItem(chave, valor);
+export async function cookiesDaSessao(
+  sessao: Session,
+): Promise<{ name: string; value: string; path: string }[]> {
+  const capturados: { name: string; value: string; path: string }[] = [];
+
+  const escritor = createServerClient(URL_SUPABASE_LOCAL, CHAVE_PUBLICAVEL_LOCAL, {
+    cookieOptions: { name: COOKIE_SESSAO },
+    cookies: {
+      getAll: () => [],
+      setAll: (cookies) => {
+        for (const { name, value, options } of cookies) {
+          capturados.push({ name, value, path: options?.path ?? "/" });
+        }
+      },
     },
-    [STORAGE_KEY, JSON.stringify(sessao)] as [string, string],
+  });
+
+  const { error } = await escritor.auth.setSession({
+    access_token: sessao.access_token,
+    refresh_token: sessao.refresh_token,
+  });
+  if (error) throw new Error(`setSession para cookie falhou: ${error.message}`);
+  if (capturados.length === 0) {
+    throw new Error(
+      "@supabase/ssr não escreveu cookie nenhum — a API de storage mudou?",
+    );
+  }
+  return capturados;
+}
+
+/** Planta a sessão no contexto do browser, antes da primeira navegação. */
+export async function injetarSessao(page: Page, sessao: Session) {
+  const cookies = await cookiesDaSessao(sessao);
+  await page.context().addCookies(
+    cookies.map((c) => ({
+      name: c.name,
+      value: c.value,
+      domain: "localhost",
+      path: c.path,
+      httpOnly: false,
+      secure: false,
+      sameSite: "Lax" as const,
+    })),
   );
 }
 
