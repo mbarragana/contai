@@ -7,6 +7,7 @@ import {
   URL_SUPABASE_LOCAL,
   USER_ID_SEED,
 } from "./ambiente";
+import { COOKIE_SESSAO } from "../lib/auth";
 import { criarDocumento, criarFavorecido, criarPagamento } from "./banco";
 import { expect, test } from "./fixtures";
 import { codigoNaCaixa, limparCaixaDeEntrada } from "./mailpit";
@@ -175,6 +176,60 @@ test.describe("entrar no app", () => {
     ).toBeVisible();
   });
 
+  /**
+   * Critério 3 — o critério que o pre-mortem 3 do ticket chama de o que mais
+   * importa: se o app pedir código a cada visita, ele para de registrar no
+   * canteiro, e documento que não se registra na hora tende a não ser
+   * registrado nunca.
+   *
+   * O que os outros testes provam é que a sessão sobrevive à NAVEGAÇÃO, que é
+   * outra coisa. Aqui a asserção é sobre o cookie ser PERSISTENTE: cookie de
+   * sessão passaria em qualquer teste de navegação e morreria no iPhone real,
+   * na primeira vez que ele fechasse o app.
+   */
+  test("a sessão sobrevive a fechar e reabrir o app", async ({
+    page,
+    request,
+    browser,
+  }) => {
+    await page.goto("/entrar");
+    await entrarPelaTela(page, request);
+    await expect(page).toHaveURL(/\/$/);
+
+    const cookies = await page.context().cookies();
+    const daSessao = cookies.filter((c) => c.name.startsWith(COOKIE_SESSAO));
+    expect(daSessao.length).toBeGreaterThan(0);
+
+    // `expires` = -1 é como o Playwright devolve cookie de sessão. Exigir data
+    // lá na frente é o que trava a regressão: no dia em que alguém passar um
+    // `cookieOptions` sem `maxAge`, ou o default da lib mudar, este teste cai.
+    const daquiADuasSemanas = Date.now() / 1000 + 14 * 24 * 60 * 60;
+    for (const cookie of daSessao) {
+      expect(
+        cookie.expires,
+        `o cookie ${cookie.name} não sobrevive a fechar o app`,
+      ).toBeGreaterThan(daquiADuasSemanas);
+    }
+
+    // "Reabrir o PWA": contexto novo — processo novo, memória zerada — levando
+    // só o que um navegador guarda em DISCO. Cookie de sessão ficaria para
+    // trás neste filtro, exatamente como ficaria no aparelho dele.
+    const origem = new URL(page.url()).origin;
+    const persistentes = cookies.filter((c) => c.expires > 0);
+    const reaberto = await browser.newContext();
+    try {
+      await reaberto.addCookies(persistentes);
+      const aberturaNova = await reaberto.newPage();
+
+      // Direto na rota protegida, sem passar pelo login.
+      await aberturaNova.goto(`${origem}/conta`);
+      await expect(aberturaNova).toHaveURL(/\/conta$/);
+      await expect(aberturaNova.getByText(EMAIL_SEED).first()).toBeVisible();
+    } finally {
+      await reaberto.close();
+    }
+  });
+
   test("destino forjado para outro site é ignorado", async ({
     page,
     request,
@@ -199,7 +254,7 @@ test.describe("sair da conta", () => {
     await expect(page).toHaveURL(/\/entrar/);
     // Não sobra cookie de sessão nenhum no aparelho.
     const cookies = await page.context().cookies();
-    expect(cookies.filter((c) => c.name.startsWith("contai-auth"))).toEqual([]);
+    expect(cookies.filter((c) => c.name.startsWith(COOKIE_SESSAO))).toEqual([]);
 
     // E a porta continua fechada: voltar para a rota protegida devolve o login.
     await page.goto("/");

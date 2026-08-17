@@ -87,8 +87,19 @@ export function assinarMudancaDeSessao(
 // `npm run dev:local` a define), build fora de produção e Supabase local. O
 // playwright.config.ts fixa a flag em "0" — no E2E o caminho testado é o real.
 
-const EMAIL_DEV = "mateus@contai.local";
-const SENHA_DEV = "contai-local-123";
+// Condicionadas ao NODE_ENV para o minifier APAGAR as literais do bundle de
+// produção. O Next inlina `process.env.NODE_ENV` como "production" no build,
+// então a comparação dobra para constante e o ramo de dev vira código morto —
+// `contai-local-123` deixa de existir em .next/static/chunks/.
+//
+// A trava tripla de `atalhoDevDisponivel` já barrava o uso em produção; o que
+// isto conserta é outra coisa: senha literal viajando no JavaScript que o
+// navegador de qualquer pessoa baixa. O app carrega CPF, CNO e as notas da
+// obra — credencial em bundle público é dívida que ninguém volta para pagar.
+const EMAIL_DEV =
+  process.env.NODE_ENV === "production" ? "" : "mateus@contai.local";
+const SENHA_DEV =
+  process.env.NODE_ENV === "production" ? "" : "contai-local-123";
 
 export function atalhoDevDisponivel(): boolean {
   return (
@@ -100,7 +111,7 @@ export function atalhoDevDisponivel(): boolean {
 
 /** Credenciais do supabase/seed.sql — nunca de produção. */
 export async function entrarComoDesenvolvimento(): Promise<Session> {
-  if (!atalhoDevDisponivel()) {
+  if (!atalhoDevDisponivel() || !EMAIL_DEV || !SENHA_DEV) {
     throw new Error("Atalho de desenvolvimento indisponível.");
   }
   const { data, error } = await getSupabase().auth.signInWithPassword({
