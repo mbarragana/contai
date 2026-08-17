@@ -9,7 +9,20 @@ Backlog vivo. Dores extraídas dos relatos do Mateus, stories priorizadas
 
 *Bloco destacado: nada aqui avança sem resposta explícita do Mateus.*
 
-1. **Headline "Em pendência" — recomendação do PO: nem 92.850, nem 47.850.**
+1. ~~**Headline "Em pendência"**~~ — **DECIDIDA em 2026-08-17: R$ 49.850.**
+   Fechada pelo **contador + PO**, sob a delegação do Mateus do mesmo dia
+   (decisão técnica é do Lead+CTO; fiscal e de produto, do Contador+PO — ele
+   decide só mock, fatos que só ele sabe, ações fora do app e push).
+   O contador **não carimbou nem os 92.850 nem os 47.850**; carimbou a
+   recomendação do PO. Parecer completo em
+   `docs/pareceres/2026-08-16-gate-fiscal-contai-004-005.md`, Parte 2, com os
+   textos de tela prontos e três ressalvas bloqueantes — sendo a maior a R5: o
+   *"Custo confirmado R$ 0,00"* ao lado do headline é **estrutural**, e como
+   está a home afirma que 100% do que foi gasto está em risco.
+   **O `CONTAI-005` está destravado** (ver `docs/tickets/CONTAI-005.md`,
+   alternativa (a)). Texto original da pendência, preservado para histórico:
+
+   **Headline "Em pendência" — recomendação do PO: nem 92.850, nem 47.850.**
    Os R$ 47.850 do mock são aritmética de antes do card "pago sem nota"
    existir; os R$ 92.850 somam quatro moedas diferentes (perda de custo,
    conta a pagar e base de INSS). Proposta: headline = **"Custo em risco no

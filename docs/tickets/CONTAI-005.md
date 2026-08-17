@@ -6,9 +6,14 @@ feature (display) — **P0 na etiqueta do backlog; último da R1 e o único cort
 legítimo dela** (2ª e 3ª revisões: *"005 é o único item de R1 que não captura
 dado, logo o único descartável — é display, e display se conserta depois"*).
 
-⚠️ **BLOQUEADO.** Este ticket não entra no `/develop` e **não é desenhável em
-mock** enquanto a **DECISÃO PENDENTE Nº 1** do topo do `docs/backlog.md` não for
-respondida pelo Mateus. Ela está aberta desde **2026-08-08**.
+✅ **DESTRAVADO em 2026-08-17.** A **decisão pendente nº 1** — aberta desde
+2026-08-08 — foi fechada pelo **contador + PO**, sob a delegação do Mateus:
+**vale a alternativa (a) da Parte B — headline "Custo em risco no IR" =
+R$ 49.850**. O corte automático da R1 previsto na alternativa (d) **não se
+aplica mais**.
+
+O que ainda segura o `/develop`: **mock v5 aprovado pelo Mateus** (Gate 0), que
+agora é desenhável, porque a composição do número está fechada.
 
 - **Gate 0 (mock)**: **OBRIGATÓRIO — PENDENTE e não desenhável ainda.** É
   revisão do card da home do `design/mocks/CONTAI-001.html` (v5), não mock novo.
