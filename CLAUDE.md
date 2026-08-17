@@ -12,8 +12,15 @@ avulsos, obra de ~20 meses cruzando anos-calendário.
 2. **Relatórios anuais prontos para a declaração** — texto da discriminação
    (Bens e Direitos), lista CPF-por-CPF (Pagamentos Efetuados), posição da
    aferição INSS
-3. **Acervo documental que sobrevive até venda + 5 anos** — digitalização
-   obrigatória, legibilidade verificada
+3. **Acervo documental que sobrevive ao prazo de decadência** — digitalização
+   obrigatória, legibilidade verificada.
+   ⚠️ **"Venda + 5 anos" era atalho errado, corrigido em 2026-08-16.** O relógio
+   é o do CTN art. 173, I: 5 anos do **1º dia do exercício seguinte** à **última
+   DAA que declarou qualquer parcela** do ganho. Venda em 2028 → prazo até
+   **31/12/2034** — quase 7 anos, não 5. Há um **segundo relógio,
+   previdenciário**, para os documentos do CNO: guardar o maior dos dois. Obra
+   não vendida = **prazo indefinido**. Parecer completo em
+   `docs/pareceres/2026-08-16-gate-fiscal-contai-011.md`
 
 ## Invariante fiscal central
 
@@ -89,10 +96,14 @@ Como funciona (`e2e/`):
   qualquer máquina), por isso é versionada. A key do projeto REMOTO fica só no
   `.env.local`, que é gitignored, e **nunca** entra em arquivo versionado.
 - `banco.ts` — login real via `signInWithPassword` no GoTrue local e injeção da
-  sessão no `localStorage` (chave `contai-auth`, exportada de `lib/supabase.ts`).
-  Sessão inventada não passa pela RLS. O mesmo client autenticado é usado para
-  montar o cenário e para conferir o estado gravado — nada de service key: o
-  que a policy barra para o app tem que barrar para o teste.
+  sessão em **COOKIE** (`contai-auth`, constante `COOKIE_SESSAO` de
+  `lib/auth.ts`, reexportada como `STORAGE_KEY` por `lib/supabase.ts`). Mudou no
+  CONTAI-002: era `localStorage`. O formato do cookie (chunking `.0`/`.1`,
+  encoding base64url) **nunca é montado à mão** — quem o produz é o próprio
+  `@supabase/ssr`, e o teste só repassa com `context().addCookies`. Sessão
+  inventada não passa pela RLS. O mesmo client autenticado é usado para montar o
+  cenário e para conferir o estado gravado — nada de service key: o que a policy
+  barra para o app tem que barrar para o teste.
 - `fixtures.ts` — sessão + limpeza das linhas antes e depois de cada teste. A
   obra do seed permanece (é pré-requisito e não tem tela).
 - `workers: 1`: um banco, um usuário — paralelismo faria um teste ver as linhas
@@ -112,8 +123,10 @@ sobrescrito e arquivos varridos para o commit errado. Trabalho paralelo exige
 worktree separado por agente.
 
 **Requisito permanente do acervo**: exportação periódica dos documentos para
-storage do próprio Mateus (ex: zip mensal no Google Drive) — a guarda até
-venda+5 anos não pode depender de free tier de terceiro.
+storage do próprio Mateus (Google Drive, decidido em 2026-08-16) — a guarda pelo
+prazo de decadência (ver meta 3) não pode depender de free tier de terceiro.
+Especificado em `docs/tickets/CONTAI-011.md`; o auto-pause do free tier é
+problema separado, no `CONTAI-012`.
 
 Comandos: `npm run dev` | `npm run build` | `npm run typecheck` |
 `npm run test` (Vitest unit) | `npm run test:e2e` (Playwright — **exige
@@ -132,27 +145,30 @@ suíte.
 `npm run dev:local` = `next dev` na porta **3200** com as env do Supabase local
 inline (elas vencem o `.env.local`, que aponta para o projeto REMOTO). Portas
 separadas de propósito: 3200 = uso manual, 3100 = servidor do Playwright, 3000
-costuma estar ocupada por outro projeto. Como não existe tela de login, para
-usar o app manualmente cole no console do navegador:
+costuma estar ocupada por outro projeto.
 
-```js
-const r = await fetch(
-  "http://127.0.0.1:54331/auth/v1/token?grant_type=password",
-  {
-    method: "POST",
-    headers: {
-      apikey: "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      email: "mateus@contai.local",
-      password: "contai-local-123",
-    }),
-  },
-);
-localStorage.setItem("contai-auth", JSON.stringify(await r.json()));
-location.reload();
-```
+**Como entrar no app local (mudou no CONTAI-002).** Existe tela de login em
+`/entrar`. Duas formas:
+
+- **Atalho de desenvolvimento** — o botão que aparece em `/entrar` quando as três
+  condições do `atalhoDevDisponivel()` batem (flag `NEXT_PUBLIC_DEV_AUTOLOGIN=1`,
+  build fora de produção, Supabase local). É o caminho normal no `dev:local`.
+- **Fluxo real, por código de 6 dígitos** — digite `mateus@contai.local` e leia o
+  código no **Mailpit: http://127.0.0.1:54334**. O stack local não manda e-mail
+  de verdade. Use este quando quiser exercitar o fluxo que vai a produção.
+
+⚠️ **O snippet de console que plantava a sessão no `localStorage` foi removido
+daqui: não funciona mais.** A sessão virou cookie escrito pelo `@supabase/ssr`, e
+`localStorage.setItem("contai-auth", ...)` hoje não faz nada.
+
+**Por que existe `proxy.ts` na raiz** (Next 16 — é `proxy.ts`, não
+`middleware.ts`): ele renova a sessão a cada navegação, **regravando o cookie
+pelo servidor** via `Set-Cookie`. Isso não é detalhe de implementação, é o
+mecanismo inteiro: o ITP do Safari capa em ~7 dias todo armazenamento gravável
+por script — **cookie escrito por JavaScript inclusive**. Cookie sem renovação
+pelo servidor é o mesmo bug do `localStorage` com outro nome, e o E2E **não
+pegaria**, porque o Playwright não simula ITP. Quem trava a regressão é a
+asserção de `expires > 14 dias` em `e2e/entrar.spec.ts`.
 
 Se a tela mostrar `JWT issued at future`, o relógio do Docker desencontrou do
 relógio do Mac (acontece depois que a máquina dorme): `npm run db:stop && npm
@@ -180,10 +196,37 @@ zero pelas migrations + `seed.sql`.
 não de action com token. Enquanto o projeto não estiver conectado na Vercel,
 não há deploy nenhum.
 
+## Antes do primeiro deploy — passos de dashboard, sem os quais o login não entra
+
+Nenhum destes está em código, e todos falham **em silêncio** se forem esquecidos.
+
+1. **Template de e-mail** — Authentication → Emails → Templates → **Magic Link**
+   (é esse que o `signInWithOtp` dispara para usuário **já existente**; o
+   "Confirm signup" só valeria com `shouldCreateUser: true`, que o CONTAI-002
+   proíbe). O corpo tem que expor **`{{ .Token }}`** e **não pode** conter
+   `{{ .ConfirmationURL }}`: link abre no navegador padrão e o PWA continua
+   deslogado — foi a decisão de 2026-08-10.
+2. **Criar a conta à mão** — Authentication → Users → Add user, com **Auto
+   Confirm User** marcado. Signup está desligado e o app usa
+   `shouldCreateUser: false`, então sem este passo o primeiro login devolve
+   *"Não existe conta com esse e-mail"*.
+3. **SMTP próprio** (Resend/Brevo servem) — o SMTP embutido do Supabase manda
+   **2 e-mails por hora** e **só entrega para membros do time do projeto**. Não é
+   teoria: o limite reprovou a suíte E2E na primeira rodada do Gate 3 do
+   CONTAI-002. Em produção, errar o código duas vezes no canteiro custa uma hora
+   fora do app.
+4. **Site URL** — Authentication → URL Configuration, com a URL da Vercel, depois
+   que ela existir.
+
+⚠️ No plano Hobby da Vercel o domínio de produção **não é protegível**. Qualquer
+um com a URL pede código para um e-mail qualquer e queima o limite de envio,
+travando o login do Mateus. Mitigação barata: Authentication → **Attack
+Protection** → captcha, somado ao item 3.
+
 Supabase local (Docker): `npm run db:start | db:stop | db:status`;
 `npm run db:reset` recria o banco local e roda `supabase/seed.sql` (usuário e
-obra de desenvolvimento — enquanto não existem tela de login e cadastro de
-obra). Banco remoto: `npx supabase db push` aplica as migrations.
+obra de desenvolvimento). Banco remoto: `npx supabase db push` aplica as
+migrations.
 
 ## Estrutura
 
