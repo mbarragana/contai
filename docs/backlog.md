@@ -1139,7 +1139,17 @@ arquivo)* → `CONTAI-005`.
 **A R1 ganhou uma condição de deploy que não existia**: `CONTAI-013`
 (configuração de produção do login). Sem ele o CONTAI-002 sobe e não loga
 ninguém, em silêncio.
-**Nada foi acrescentado à R1 neste ciclo, e essa é a decisão.**
+
+**⚠️ ADENDO 2026-08-16 — a R1 ganhou UM item.** `CONTAI-014` (manifest de PWA +
+`apple-touch-icon`) **entra na R1**, por decisão do Mateus. Vai **junto do
+CONTAI-002**, não no fim: os dois fecham o mesmo critério.
+Fila da R1 fica: `CONTAI-003` ✅ → `CONTAI-004` + `CONTAI-007` → `CONTAI-009` →
+`CONTAI-002` ✅ + **`CONTAI-014`** → `CONTAI-005`.
+**A frase "nada foi acrescentado à R1" da 4ª revisão está SUPERADA** — mas só
+por este item, e pela exceção que já existia (dívida de critério de aceite de
+item da R1, a mesma que admitiu o CONTAI-009). A regra de admissão original —
+*captura irreversível no ato do registro* — segue intacta e não foi invocada
+aqui. Justificativa completa na ficha do CONTAI-014, no fim deste arquivo.
 
 **3.1. Infraestrutura de deploy** (fora do escopo da R1, condição para ela ir ao
 ar): conectar a Vercel + **`CONTAI-012` (manter o projeto Supabase acordado)**.
@@ -1254,10 +1264,16 @@ deixou de ser caixa obrigatória e virou **rótulo de botão**.
   novo"), que o próprio ticket chama de o que mais importa, **não é verificável
   no modo de uso real**. Junto vai o que o pre-mortem 1 do CONTAI-002 já exigia
   e ninguém fez: **testar o login no celular real antes do DONE de verdade**.
-  → **Pergunta ao Mateus (não decido sozinho): entra na R1?** A 4ª revisão
-  fechou com "nada foi acrescentado à R1, e essa é a decisão". Mantenho o
-  respeito a isso e registro o custo de manter: a R1 sobe um login cujo critério
-  central só foi provado no navegador.
+  → ~~**Pergunta ao Mateus: entra na R1?**~~ **RESPONDIDA — SIM, entra**
+  (Mateus, 2026-08-16).
+  **Fundamento, e ele importa para não virar precedente solto**: o CONTAI-014
+  não entra por ser P1 nem por ser barato — entra pela **mesma exceção que
+  admitiu o CONTAI-009**, aberta no Gate 2 do CONTAI-003: *"dívida de critério
+  de aceite de item da R1 volta como ticket da R1"*. O critério 3 do CONTAI-002
+  é item da R1 e não é verificável no modo de uso real sem o manifest. Não é
+  porta nova; é a porta que já estava aberta.
+  A regra de admissão da R1 — *captura irreversível no ato do registro* —
+  **segue intacta**, e o CONTAI-014 não a invoca.
 
 ### Decisão tomada no gate (não vira ticket)
 
