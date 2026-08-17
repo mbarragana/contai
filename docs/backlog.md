@@ -1106,3 +1106,95 @@ ou fora da primeira release**.
 - **Anexar escritura, ITBI e matrícula ao acervo** (levantado ao redor do
   CONTAI-010) — é meta 3 e é legítimo, mas é outro ticket: o 010 captura
   **quando foi pago**, não o documento. Anotado para não voltar como "óbvio".
+
+### Fila revista — 2026-08-16 (4ª revisão)
+
+*Substitui a "3ª revisão" do Gate 2 do CONTAI-003. O bloco de decisões
+pendentes no topo segue intocado — as decisões 1 e 2 continuam esperando o
+Mateus.*
+
+**0. Ação do Mateus, fora do app — inalterada e ainda o item mais urgente**: a
+obra sem CNO, com a Q14 antes (se for empreitada total, a ação troca de dono).
+
+**0.1. ~~`git push`~~ FEITO (2026-08-16, `94bed1a..2572c01`).** O repositório
+remoto estava em 2026-08-09: sete dias de trabalho — o Gate 2 inteiro do
+CONTAI-003, os pareceres e as migrations — existiam **só no Mac do Mateus**. Era
+a tese do CONTAI-011 aplicada a nós mesmos. Registrado aqui porque a lição vale
+mais que a tarefa: *a meta 3 falha primeiro por onde ninguém está olhando.*
+
+**1. Q14 ao Mateus** — inalterada.
+
+**2. Mock do CONTAI-009** — inalterado, caminho crítico da R1.
+
+**2.1. Mock do CONTAI-011** — pode ser desenhado **em paralelo com a R1**,
+porque não compete por implementação e a aprovação não depende de nós (mesma
+jogada do mock do 009). Escopo mínimo: a linha de estado *"último export: há N
+dias"* na home, em dois estados, e o disparo do dossiê por obra.
+
+**3. Release R1 (deploy único), ordem de implementação — INALTERADA:**
+`CONTAI-003` ✅ → `CONTAI-004` + `CONTAI-007` (nesta ordem) → `CONTAI-009` →
+`CONTAI-002` *(Gate 1 feito em 2026-08-16, `2572c01`; Gates 2–4 pendentes)* →
+`CONTAI-005`.
+**Nada foi acrescentado à R1 neste ciclo, e essa é a decisão.**
+
+**3.1. Infraestrutura de deploy** (fora do escopo da R1, condição para ela ir ao
+ar): conectar a Vercel + **`CONTAI-012` (manter o projeto Supabase acordado)**.
+
+**4. Depois da R1:** `CONTAI-010` *(antes da US-004)* → **`CONTAI-011` +
+`US-010`** *(par de meta 3: mesma superfície de leitura do bucket)* →
+`CONTAI-006` → `US-003` + `CONTAI-008` *(juntos)* → `US-009` → `US-012`.
+
+#### O que mudou em relação à 3ª revisão, e por quê
+
+1. **A US-011 (CONTAI-011) sobe de penúltima para o 2º item pós-R1**, pela regra
+   que o backlog já usa: *o irreversível vem antes do caro*. Não fazer a US-003
+   custa pendência que não fecha — visível e recuperável. Não fazer a US-011
+   custa acervo que não volta.
+2. **A US-011 NÃO entra na R1**, apesar do argumento do auto-pause. Hoje ela
+   protege um bucket vazio: o contai nunca esteve em produção e a `obra` remota
+   estava vazia no Gate 2. O risco nasce no deploy. Some-se o Gate Fiscal com 5
+   ressalvas bloqueantes e o fato de a decisão de segurança do job (service role
+   vs. sessão) preceder o CONTAI-002.
+3. **O auto-pause vira `CONTAI-012`** — 30 minutos, pré-requisito de deploy e
+   não de release. Resolve disponibilidade; **não** resolve acervo, e o ticket
+   diz isso com todas as letras para não virar falsa sensação de proteção.
+4. **A US-011 passa a exigir mock** (linha de estado do último export na home),
+   desenhável em paralelo com a R1.
+5. **Não existiam `docs/tickets/CONTAI-004.md`, `005` nem `006`** — o próximo
+   item da R1 não tem ticket escrito. Antes de rodar `/develop` no par 004+007,
+   o 004 precisa passar pelo `/tickets-req`.
+
+### Achados de 2026-08-16 que viram item de backlog
+
+- **[P1] Path do anexo derivado do sha256 do conteúdo, não de UUID.** Hoje
+  `subirParaAcervo` (`lib/data.ts:364`) gera `crypto.randomUUID()` a cada
+  chamada e o upload precede o insert — retry ou abandono deixam objeto órfão, e
+  o bucket não tem policy de delete. A mitigação antes anotada aqui (reutilizar o
+  path no retry) **cobre só metade**: não cobre o usuário fechar o app entre o
+  upload e o insert. Path por hash faz o segundo upload colidir, e a colisão se
+  trata como sucesso; de brinde, deduplica anexo enviado duas vezes.
+- **[P1] Categoria de "documento da obra sem favorecido e sem pagamento".**
+  Decisão do Mateus em 2026-08-16 ao resolver a divergência dos três revisores
+  sobre o órfão: objeto sem vínculo é bloqueante **até ser resolvido, descartado,
+  ou anotado como ok de manter sem vínculo**. O terceiro destino é categoria
+  nova, e é exatamente o que o F4 do parecer fiscal de 2026-08-16 já exigia —
+  alvará, ART, matrícula, habite-se nascem sem favorecido e sem pagamento.
+- **[P0 informativo] O "venda + 5 anos" do `CLAUDE.md` está subdimensionado em
+  ~1 ano e 9 meses.** O relógio é o do CTN art. 173, I, ancorado na **última DAA
+  que declarou qualquer parcela do ganho** — venda em 2028 → prazo até
+  **31/12/2034**. E há um **segundo relógio previdenciário**, do CNO. Guardar o
+  maior dos dois. Parecer completo em
+  `docs/pareceres/2026-08-16-gate-fiscal-contai-011.md`.
+- **[P1] O acervo pode estourar o free tier de origem antes do fim da obra.**
+  Estimativa do `cto-obra`: 400–600 arquivos, 0,5 a 2 GB; o storage gratuito do
+  Supabase é [Likely] ~1 GB. É outro relógio, independente do auto-pause.
+- **[P2] Aviso de cópia digital vs. papel no fluxo de captura (CONTAI-001).**
+  Cópia simples não substitui o original em fiscalização administrativa (Lei
+  12.682/2012, Decreto 10.278/2020 — exigem ICP-Brasil); NF-e/NFS-e são exceção,
+  nascem digitais. Textos de tela **prontos e copiáveis** no parecer de
+  2026-08-16. Vale para recibo de PF, contrato, ART e comprovante impresso.
+- **[P2] Manifest de PWA não existe.** Não há `app/manifest.ts` nem
+  `apple-touch-icon`, e o `viewport` tem `maximumScale: 1`. "Adicionar à Tela de
+  Início" não garante modo standalone — e o container do ícone no iOS tem
+  storage separado do Safari, então o critério 3 do CONTAI-002 pode passar no
+  Safari e falhar no ícone, que é o uso real.
