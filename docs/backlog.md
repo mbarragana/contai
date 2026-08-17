@@ -1308,3 +1308,125 @@ deixou de ser caixa obrigatória e virou **rótulo de botão**.
   e-mail", texto da era do magic link. A decisão do Mateus de 2026-08-10 trocou
   link por código, e o app diz "código". O mock é que ficou desatualizado, e
   mock desatualizado é a próxima divergência falsa que alguém vai reportar.
+
+### Ressalvas R5–R7 do Gate 4 do CONTAI-002 — gravadas em 2026-08-17
+
+*O Gate 4 do CONTAI-002 rodou **duas vezes em paralelo**, por erro de
+orquestração da sessão principal: um `po` foi spawnado para o gate enquanto o
+agente do `/develop` já o executava e tinha sido informado de que era dono
+exclusivo da árvore. Não houve commit sobrescrito porque os dois adicionaram
+arquivo por arquivo, mas era exatamente a condição que o `CLAUDE.md` proíbe. Os
+dois chegaram ao mesmo veredito; estes três achados vieram só do segundo e
+ficaram fora do backlog na hora porque a árvore estava ocupada.*
+
+- **R5 [P1] — Corrida de refresh token, e é o achado mais concreto dos três.**
+  [Likely] Depois da migração para cookie existem **dois renovadores**: o browser
+  client (`autoRefreshToken: true`) e o `proxy.ts`, que renova a cada navegação.
+  Com `enable_refresh_token_rotation = true` e `refresh_token_reuse_interval = 10`,
+  reapresentar um token já usado **fora da janela de 10s revoga a sessão**.
+  **Sintoma**: *"o app me deslogou do nada"* — intermitente, invisível para o
+  E2E, e atacando justamente o **critério 3**, que é o que o ticket chama de o
+  que mais importa. **Mitigação barata**: subir o intervalo para 30s. É knob de
+  dashboard, chamada do `cto-obra`, e entra no runbook do `CONTAI-013`.
+- **R6 [P2] — A premissa do ITP é mais fraca do que o enunciado.** [Likely] o
+  teto de 7 dias do Safari **não se aplica a web app adicionado à tela de
+  início** — que é justamente o cenário primário do ticket. Isso **não invalida**
+  a migração para cookie (o mecanismo `Set-Cookie` server-side está correto por
+  construção e foi conferido linha a linha), mas significa que o argumento que
+  motivou a decisão vale sobretudo para o **uso pelo Safari**, não pelo ícone.
+  Registrado para a próxima decisão não herdar a premissa forte sem conferir.
+- **R7 [P2] — Duas dívidas técnicas conscientes, não corrigidas para não inflar
+  o ticket**: o matcher do `proxy.ts` não exclui assets de `public/` (teórico até
+  o PWA existir — vira real com o `CONTAI-014`), e o `erro={registro.erro ?? {…}}`
+  cosmético nas duas telas de adicionar.
+
+### Fila revista — 2026-08-17 (5ª revisão)
+
+*Substitui a 4ª revisão e o adendo de 2026-08-16. Incorpora a reordenação
+proposta pelo `cto-obra` e aprovada pelo Mateus, e a separação entre fila de
+implementação e bloco de deploy proposta pelo `po`.*
+
+**0. Ação do Mateus, fora do app**: a obra sem CNO, com a **Q14** antes.
+
+**1. Q14 ao contador/Mateus** — inalterada, e é pré-requisito de texto que vai a
+produção.
+
+**2. Fila de implementação da R1:**
+`CONTAI-003` ✅ → **`CONTAI-014` (código)** → `CONTAI-004` + `CONTAI-007` →
+`CONTAI-009` → `CONTAI-002` ✅ → `CONTAI-005` *(ou corte automático)*.
+
+**Por que o 014 foi para a frente** (decisão do Mateus, 2026-08-17): com o 002 já
+implementado, o slot "junto do 002" perdeu sentido de sequência. O 014 é o único
+item restante que não depende de mock em desenho, não toca formulário nenhum, é
+XS de código, e **destrava a verificação no aparelho real do critério 3 do
+CONTAI-002** — dívida aberta e envelhecendo. Os conjuntos de arquivos são
+disjuntos, então o risco da troca é nenhum que o `cto-obra` enxergue.
+
+**3. Bloco de deploy** (fora da fila de implementação; condição para produção):
+conectar a Vercel → `CONTAI-012` → **deploy de preview** → `CONTAI-013` +
+`CONTAI-014` (prova no aparelho real, mesmo deploy) → **deploy de produção**.
+
+**4. Depois da R1:** `CONTAI-010` → `CONTAI-011` + `US-010` → `CONTAI-006` →
+`US-003` + `CONTAI-008` → `CONTAI-015` *(captcha, P2)* → `US-009` → `US-012`.
+
+#### O que mudou, e por quê
+
+1. **`CONTAI-013` e `CONTAI-014` deixam de ser "itens da fila da R1" e viram
+   bloco de deploy.** A parte de código do 014 é independente e cabe em qualquer
+   ponto (XS); a **verificação** de 013 e 014 roda **uma vez, junto, no primeiro
+   deploy de preview**. Pôr o 014 "junto do 002" na fila de implementação, como
+   estava no adendo de 2026-08-16, **não é executável**: o 002 já está
+   implementado, e o que falta do 014 não é código.
+2. **O captcha saiu do `CONTAI-013` e virou `CONTAI-015` [P2]**, por decisão do
+   Mateus em 2026-08-17. O `po` recomendara cortar para P2 sem ticket; o Mateus
+   optou por ticket próprio. Motivo técnico da separação: ligar o captcha no
+   dashboard **sem shipar o widget derruba 100% dos logins**, e o CI não pega —
+   a suíte roda contra o stack local com captcha desligado.
+3. **`CONTAI-005` ganha prazo de corte automático**: sem resposta à **decisão
+   pendente nº 1** até o merge do `CONTAI-009`, ele sai da R1. A decisão está
+   aberta desde 2026-08-08 e é o único item da release que não captura dado.
+4. **O par `004 + 007` NÃO está pronto para o `/develop`** — o 007 precisa de
+   revisão de Passo 1. Ver abaixo.
+
+#### ⚠️ O CONTAI-007 precisa de revisão antes do `/develop` — seis pontos
+
+Apurados pelo `po` e pelo `cto-obra` em 2026-08-16/17. Ele **não** foi escrito
+antes do CONTAI-003 (é de 2026-08-10 e já traz a seção "Atualização 2026-08-10");
+o eixo real de desatualização é outro.
+
+- **(a) Contradição interna, a mais cara.** "Dependências → Mock" diz que os
+  critérios 8 e 9 não pedem mock novo — **e isso está correto**: as telas 13 e 14
+  existem e estão aprovadas em `design/mocks/CONTAI-003.html`. Mas os
+  **critérios 1–3 — a captura do `cno_referenciado` no formulário, que é o núcleo
+  do ticket — não estão desenhados em lugar nenhum**, e o Teste do Canteiro do
+  próprio ticket fecha com *"APROVADO — condicionado ao mock sem campo livre de
+  14 dígitos"*. Corrigir para: **exige mock, no mesmo passe do CONTAI-004**.
+- **(b) Não incorporou o item 2 da atualização que declara ter incorporado.** O
+  Relato 003 derrubou a escolha fixa de três opções: em obra **sem** CNO, *"é o
+  CNO desta obra"* **não é ofertável — oferecer é induzir resposta falsa**; e com
+  N obras a oferta é **a lista de CNOs cadastrados**, não "a outra obra". O
+  pre-mortem 1 e os critérios 1–3 ainda descrevem as três opções. Os itens 1, 3 e
+  4 daquela atualização entraram; o **2 não**.
+- **(c) Condição de urgência vencida.** "obrigatoriamente antes de existir uma
+  segunda obra no sistema" — as duas obras existem desde a Q12 e o CONTAI-003 já
+  entregou multi-obra. A condição que ainda vale é só *"antes da próxima NF de
+  serviço registrada em produção"*, e a fila já a satisfaz por construção.
+- **(d) Dependência declarada satisfeita cedo demais.** "Bloqueado por:
+  CONTAI-003 — já satisfeito (Gate 2 concluído)". **Gate 2 não é o fim do
+  `/develop`.** Confirmar em que gate o 003 está antes de tratar como satisfeito.
+- **(e) Não menciona a R4 do Gate 4 do CONTAI-002** (o E2E de login preenchendo
+  formulário de registro). Anotado nos dois tickets — com a ressalva de que o
+  `cto-obra` verificou o teste e **a dívida está superdimensionada**: ele preenche
+  o formulário de *pagamento*, que o 004 não toca, e o aviso do 007 só dispara com
+  favorecido **PJ** enquanto o teste usa **PF**.
+- **(f) Complexidade "S → M"** estimada antes de o 004 virar ticket. Reavaliar no
+  Gate 2.
+
+#### Migrations: uma por ticket
+
+O `cto-obra` **discorda da frase do CONTAI-007** ("duas migrations na mesma
+tabela é desperdício"): o custo de uma migration é zero (`db reset` roda todas) e
+o benefício é real — cada gate revisa um diff autocontido, e se o 007 atrasar a
+migration do 004 não embarca coluna morta. A convenção do repo já é
+**1 migration ↔ 1 ticket** (0004 = CONTAI-003). **O argumento verdadeiro do
+"junto" nunca foi a migration: é o mock e o formulário**, e esse se mantém.
