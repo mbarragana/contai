@@ -1,10 +1,10 @@
 /**
  * Lógica pura do login (CONTAI-002). Nada aqui toca Supabase nem `window`:
  * é o que dá para testar sem browser e sem banco — validação do destino do
- * redirect, normalização do código digitado e tradução do erro do GoTrue.
+ * redirect e tradução do erro do GoTrue.
  *
  * A mensagem que o Mateus lê nunca é a do GoTrue: elas vêm em inglês
- * ("Signups not allowed for otp") e não dizem o que fazer.
+ * ("Invalid login credentials") e não dizem o que fazer.
  */
 
 /** Rota do login. Constante porque destino e portão precisam concordar. */
@@ -50,23 +50,14 @@ export function urlDeEntrada(destinoBruto: string | null | undefined): string {
   return `${ROTA_ENTRAR}?${PARAM_DESTINO}=${encodeURIComponent(destino)}`;
 }
 
-/** Quantidade de dígitos do código (supabase/config.toml: otp_length = 6). */
-export const DIGITOS_CODIGO = 6;
-
-/**
- * O que o campo aceita. Colar "417 209" ou "Seu código é 417209" tem de virar
- * o código — no canteiro, o que o iOS oferece para colar nem sempre vem limpo.
- */
-export function normalizarCodigo(texto: string): string {
-  return texto.replace(/\D/g, "").slice(0, DIGITOS_CODIGO);
-}
-
-export function codigoCompleto(codigo: string): boolean {
-  return new RegExp(`^\\d{${DIGITOS_CODIGO}}$`).test(codigo);
-}
-
 export function ehEmailValido(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+}
+
+/** Dois e-mails são o mesmo endereço? Espaço e caixa não contam. */
+export function mesmoEmail(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
 }
 
 /** Forma mínima de um erro do GoTrue, para não depender do tipo do SDK aqui. */
@@ -79,13 +70,25 @@ export interface FalhaBruta {
 
 export type FalhaAuth =
   | "email_invalido"
+  | "senha_vazia"
+  | "senha_incorreta"
   | "sem_conta"
-  | "codigo_invalido"
+  | "credencial_invalida"
+  | "email_nao_confirmado"
   | "muitas_tentativas"
-  | "envio"
-  | "rede";
+  | "rede"
+  | "desconhecida";
 
-export type EtapaAuth = "email" | "codigo";
+/**
+ * O que a TELA sabe na hora de traduzir a falha. `emailConhecido` é o e-mail do
+ * último login bem-sucedido NESTE aparelho (lib/sessao.ts) — sem ele não há
+ * como separar senha errada de e-mail errado; ver o comentário de
+ * `classificarFalhaAuth`.
+ */
+export interface ContextoFalha {
+  emailTentado?: string | null;
+  emailConhecido?: string | null;
+}
 
 function texto(f: FalhaBruta): string {
   return (f.message ?? "").toLowerCase();
@@ -94,22 +97,27 @@ function texto(f: FalhaBruta): string {
 /**
  * Traduz a falha do GoTrue para a causa que o Mateus precisa saber.
  *
- * `shouldCreateUser: false` faz o GoTrue devolver 422 `otp_disabled` para
- * e-mail sem conta — "Signups not allowed for otp" não pode chegar cru a
- * ninguém: quem lê isso entende "o app está quebrado", não "esse e-mail não é
- * o da sua conta".
+ * **O GoTrue NÃO distingue senha errada de e-mail sem conta.** Conferido contra
+ * o stack local em 2026-08-17: os dois casos devolvem a MESMA resposta, byte a
+ * byte — `400 {"error_code":"invalid_credentials","msg":"Invalid login
+ * credentials"}`. É de propósito (impede enumerar e-mails), e não existe
+ * endpoint público que responda "essa conta existe".
+ *
+ * Como o Mateus é o único usuário e precisa saber qual dos dois foi, quem
+ * desempata é o próprio aparelho: o e-mail do último login bem-sucedido fica
+ * guardado aqui (não a senha, não a sessão — só o endereço). Se o e-mail
+ * digitado é o mesmo, a conta existe e o que falhou foi a senha; se é outro, o
+ * que ele tem em mãos é um e-mail que este aparelho nunca usou. Em aparelho
+ * novo (sem memória) o app não finge saber: diz os dois casos e diz por quê.
  */
 export function classificarFalhaAuth(
   erro: unknown,
-  etapa: EtapaAuth,
+  contexto: ContextoFalha = {},
 ): FalhaAuth {
   const f = (erro ?? {}) as FalhaBruta;
   const code = f.code ?? "";
   const status = f.status ?? null;
   const msg = texto(f);
-
-  if (code === "otp_disabled" || code === "signup_disabled") return "sem_conta";
-  if (msg.includes("signups not allowed")) return "sem_conta";
 
   if (status === 429 || code.startsWith("over_") || msg.includes("rate limit")) {
     return "muitas_tentativas";
@@ -125,26 +133,58 @@ export function classificarFalhaAuth(
     return "rede";
   }
 
-  if (etapa === "codigo") return "codigo_invalido";
-  return "envio";
+  // Conta criada no dashboard sem "Auto Confirm": existe, senha certa, e o
+  // login recusa mesmo assim. Sem esta linha viraria "credencial inválida" e
+  // ele trocaria a senha para sempre, sem nunca entrar.
+  if (code === "email_not_confirmed" || msg.includes("email not confirmed")) {
+    return "email_nao_confirmado";
+  }
+
+  if (
+    code === "invalid_credentials" ||
+    code === "invalid_login_credentials" ||
+    msg.includes("invalid login credentials")
+  ) {
+    if (!contexto.emailConhecido || !contexto.emailTentado) {
+      return "credencial_invalida";
+    }
+    return mesmoEmail(contexto.emailConhecido, contexto.emailTentado)
+      ? "senha_incorreta"
+      : "sem_conta";
+  }
+
+  return "desconhecida";
 }
 
 /**
- * Texto de tela por causa. Copiado do mock aprovado (design/mocks/CONTAI-002.html,
- * telas 1 a 3): honesto sobre o que aconteceu e com a saída junto.
+ * Texto de tela por causa. Mesma régua do mock aprovado
+ * (design/mocks/CONTAI-002.html, telas 1 a 3): honesto sobre o que aconteceu e
+ * com a saída junto.
  */
 export const MENSAGEM_FALHA: Record<FalhaAuth, string> = {
-  email_invalido: "Digite um e-mail válido — o código vai para ele.",
+  email_invalido: "Digite um e-mail válido — é com ele que você entra.",
+  senha_vazia: "Digite a sua senha para entrar.",
+  senha_incorreta:
+    "A senha não confere. O e-mail é o mesmo com que você já entrou neste aparelho, então a conta existe — se você trocou a senha no painel do Supabase, use a nova.",
   sem_conta:
-    "Não existe conta com esse e-mail no contai. O app guarda o seu CPF, o CNO e as notas da obra, então o acesso é só do dono — confira se digitou certo.",
-  codigo_invalido:
-    "Esse código não vale. Ou foi digitado errado, ou expirou, ou você pediu outro depois — pedir um novo invalida o anterior.",
+    "Esse não é o e-mail com que você entra neste aparelho. Confira o e-mail antes de mexer na senha — o app guarda o seu CPF, o CNO e as notas da obra, então o acesso é só do dono.",
+  credencial_invalida:
+    "E-mail ou senha não conferem. O Supabase responde igual nos dois casos, e este aparelho ainda não tem um login anterior para comparar — confira o e-mail primeiro, depois a senha.",
+  email_nao_confirmado:
+    "Essa conta existe, mas o e-mail nunca foi confirmado. Confirme no painel do Supabase (Authentication → Users) e entre de novo.",
   muitas_tentativas:
-    "Muitos pedidos em pouco tempo. Espere um minuto e peça o código de novo.",
-  envio: "Não foi possível enviar o código agora. Tente de novo.",
+    "Muitas tentativas em pouco tempo. Espere um minuto e tente de novo.",
   rede: "Não foi possível falar com o servidor. Tente de novo.",
+  desconhecida: "Não foi possível entrar agora. Tente de novo.",
 };
 
-export function mensagemDeFalhaAuth(erro: unknown, etapa: EtapaAuth): string {
-  return MENSAGEM_FALHA[classificarFalhaAuth(erro, etapa)];
+export function mensagemDeFalhaAuth(
+  erro: unknown,
+  contexto: ContextoFalha = {},
+): string {
+  const causa = classificarFalhaAuth(erro, contexto);
+  if (causa === "sem_conta" && contexto.emailConhecido) {
+    return `${MENSAGEM_FALHA.sem_conta} Neste aparelho você entrou com ${contexto.emailConhecido}.`;
+  }
+  return MENSAGEM_FALHA[causa];
 }

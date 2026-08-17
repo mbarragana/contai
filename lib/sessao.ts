@@ -2,13 +2,21 @@
 
 /**
  * A sessão vista pelo app (CONTAI-002). Tudo que fala com o Supabase Auth
- * passa por aqui; a lógica pura (destino do redirect, tradução de erro,
- * normalização do código) fica em lib/auth.ts, sem browser e sem banco.
+ * passa por aqui; a lógica pura (destino do redirect, tradução de erro) fica em
+ * lib/auth.ts, sem browser e sem banco.
  *
- * Login por CÓDIGO de 6 dígitos, nunca por link (decisão do Mateus,
- * 2026-08-10): o app pode virar nativo, e link em e-mail abre no navegador
- * padrão — quem entraria é a aba, não o app. O código é digitado dentro do app
- * que pediu, então a sessão nasce onde tem de nascer.
+ * Login por E-MAIL + SENHA (decisão do Mateus, 2026-08-17, revertendo a de
+ * 2026-08-10). O código de 6 dígitos por e-mail não sobreviveu ao contato com
+ * o Supabase: o SMTP embutido não deixa editar o template, então o e-mail sai
+ * sempre como LINK e nunca como código — e o login projetado não existe. As
+ * saídas eram todas SMTP de terceiro (domínio novo com renovação anual, conta
+ * de outro produto, Gmail), cada uma um ponto a mais que falha em silêncio num
+ * app que precisa durar até 2034. Senha não depende de e-mail nenhum: nada é
+ * enviado, e o gerenciador do iPhone preenche.
+ *
+ * Nenhum caminho daqui cria conta. A conta do Mateus se cria UMA vez, à mão, no
+ * dashboard do Supabase (ver supabase/seed.sql e CLAUDE.md): a base guarda CPF,
+ * CNO e as notas da obra, e conta de terceiro não tem o que fazer ali.
  */
 
 import type { Session, Subscription } from "@supabase/supabase-js";
@@ -16,37 +24,61 @@ import type { Session, Subscription } from "@supabase/supabase-js";
 import { ehSupabaseLocal, getSupabase } from "@/lib/supabase";
 
 /**
- * `shouldCreateUser: false` — o login NUNCA cria conta (critério 2). A base
- * guarda CPF, CNO e as notas da obra; conta de terceiro não tem o que fazer
- * ali. Conta nova em produção se cria por convite/criação manual no dashboard
- * do Supabase (ver supabase/seed.sql e CLAUDE.md).
+ * O e-mail do último login que deu certo NESTE aparelho.
  *
- * Sem `emailRedirectTo`: não existe link para clicar. O que o e-mail carrega é
- * o `{{ .Token }}` do template supabase/templates/magic_link.html.
+ * Não é sessão e não é credencial — é só o endereço, e existe por um motivo:
+ * o GoTrue devolve a MESMA resposta para senha errada e para e-mail sem conta
+ * (`invalid_credentials`, conferido no stack local em 2026-08-17). Sem esta
+ * memória o app teria de dizer "e-mail ou senha", e o único usuário do app
+ * ficaria adivinhando qual dos dois consertar. Ver `classificarFalhaAuth`.
+ *
+ * localStorage aqui NÃO reabre a discussão da sessão: a sessão continua em
+ * cookie via @supabase/ssr, com refresh no proxy.ts, que é o que sobrevive ao
+ * ITP do Safari. O que se perde se o ITP apagar esta chave é a precisão da
+ * mensagem de erro, e o app cai no texto que diz os dois casos.
  */
-export async function pedirCodigo(email: string): Promise<void> {
-  const { error } = await getSupabase().auth.signInWithOtp({
-    email: email.trim(),
-    options: { shouldCreateUser: false },
-  });
-  if (error) throw error;
+export const CHAVE_EMAIL_CONHECIDO = "contai-email";
+
+export function emailConhecidoNesteAparelho(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(CHAVE_EMAIL_CONHECIDO);
+  } catch {
+    // Safari em modo privado joga ao tocar no storage. Sem memória, sem
+    // desempate — e nenhum login deixa de acontecer por isso.
+    return null;
+  }
 }
 
-export async function entrarComCodigo(
+function lembrarEmail(email: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(CHAVE_EMAIL_CONHECIDO, email.trim());
+  } catch {
+    // idem
+  }
+}
+
+/**
+ * Entrar de verdade. Nenhum e-mail é enviado: `signInWithPassword` fala direto
+ * com o GoTrue, e a sessão nasce dentro do app que pediu — que era a razão de
+ * ser do código de 6 dígitos e continua valendo aqui, sem depender de SMTP.
+ */
+export async function entrarComSenha(
   email: string,
-  codigo: string,
+  senha: string,
 ): Promise<Session> {
-  const { data, error } = await getSupabase().auth.verifyOtp({
+  const { data, error } = await getSupabase().auth.signInWithPassword({
     email: email.trim(),
-    token: codigo,
-    type: "email",
+    password: senha,
   });
   if (error) throw error;
   if (!data.session) {
-    // Defensivo: verifyOtp sem erro e sem sessão não deveria acontecer, mas
-    // seguir em frente aqui deixaria o app "logado" sem sessão nenhuma.
-    throw new Error("O código foi aceito, mas a sessão não veio. Tente de novo.");
+    // Defensivo: sem erro e sem sessão não deveria acontecer, mas seguir em
+    // frente aqui deixaria o app "logado" sem sessão nenhuma.
+    throw new Error("O login foi aceito, mas a sessão não veio. Tente de novo.");
   }
+  lembrarEmail(data.session.user.email ?? email);
   return data.session;
 }
 
@@ -56,7 +88,13 @@ export async function sessaoAtual(): Promise<Session | null> {
   return data.session;
 }
 
-/** Sair de verdade: apaga a sessão deste aparelho (critério 6). */
+/**
+ * Sair de verdade: apaga a sessão deste aparelho (critério 6).
+ *
+ * O e-mail lembrado FICA, de propósito: ele não dá acesso a nada (a sessão é
+ * que dá, e ela some aqui) e é o que preenche o campo e desempata a mensagem de
+ * erro no login seguinte. Apagá-lo transformaria todo "sair" num aparelho novo.
+ */
 export async function sair(): Promise<void> {
   const { error } = await getSupabase().auth.signOut({ scope: "local" });
   if (error) throw error;
@@ -120,5 +158,6 @@ export async function entrarComoDesenvolvimento(): Promise<Session> {
   });
   if (error) throw error;
   if (!data.session) throw new Error("Sem sessão após o atalho de dev.");
+  lembrarEmail(data.session.user.email ?? EMAIL_DEV);
   return data.session;
 }

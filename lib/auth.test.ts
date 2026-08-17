@@ -2,11 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   classificarFalhaAuth,
-  codigoCompleto,
   destinoSeguro,
   ehEmailValido,
   mensagemDeFalhaAuth,
-  normalizarCodigo,
+  mesmoEmail,
   urlDeEntrada,
 } from "./auth";
 
@@ -71,20 +70,15 @@ describe("urlDeEntrada", () => {
   });
 });
 
-describe("normalizarCodigo", () => {
-  it("fica só com os dígitos, no máximo seis", () => {
-    expect(normalizarCodigo("417209")).toBe("417209");
-    expect(normalizarCodigo("417 209")).toBe("417209");
-    expect(normalizarCodigo("Seu código é 417209 — contai")).toBe("417209");
-    expect(normalizarCodigo("41720999")).toBe("417209");
-    expect(normalizarCodigo("abc")).toBe("");
+describe("mesmoEmail", () => {
+  it("ignora espaço e caixa — o teclado do iPhone capitaliza a primeira letra", () => {
+    expect(mesmoEmail("mateus@contai.local", " Mateus@Contai.local ")).toBe(true);
+    expect(mesmoEmail("mateus@contai.local", "outro@contai.local")).toBe(false);
   });
 
-  it("só considera completo com seis dígitos", () => {
-    expect(codigoCompleto("417209")).toBe(true);
-    expect(codigoCompleto("41720")).toBe(false);
-    expect(codigoCompleto("")).toBe(false);
-    expect(codigoCompleto("41720a")).toBe(false);
+  it("sem os dois lados não há comparação", () => {
+    expect(mesmoEmail(null, "mateus@contai.local")).toBe(false);
+    expect(mesmoEmail("mateus@contai.local", "")).toBe(false);
   });
 });
 
@@ -103,56 +97,120 @@ describe("ehEmailValido", () => {
 });
 
 /**
- * O GoTrue responde em inglês. `otp_disabled` (422) é a resposta para e-mail
- * sem conta com `shouldCreateUser: false` — "Signups not allowed for otp"
- * chegando cru ao Mateus vira "o app quebrou", que é o diagnóstico errado.
+ * O GoTrue responde em inglês e, no login por senha, responde IGUAL para senha
+ * errada e para e-mail sem conta — conferido no stack local em 2026-08-17:
+ * `400 {"error_code":"invalid_credentials","msg":"Invalid login credentials"}`
+ * nos dois casos, byte a byte.
+ *
+ * Quem desempata é a memória do aparelho (o e-mail do último login que deu
+ * certo). O Mateus é o único usuário: dizer "e-mail ou senha" e deixá-lo
+ * adivinhar qual dos dois é o mesmo que não dizer nada.
  */
+const CREDENCIAL_INVALIDA = {
+  code: "invalid_credentials",
+  status: 400,
+  message: "Invalid login credentials",
+};
+
 describe("classificarFalhaAuth", () => {
-  it("e-mail sem conta cadastrada", () => {
-    const erro = {
-      code: "otp_disabled",
-      status: 422,
-      message: "Signups not allowed for otp",
+  it("no aparelho conhecido, e-mail que bate = senha errada", () => {
+    const ctx = {
+      emailTentado: " Mateus@Contai.local ",
+      emailConhecido: "mateus@contai.local",
     };
-    expect(classificarFalhaAuth(erro, "email")).toBe("sem_conta");
-    expect(mensagemDeFalhaAuth(erro, "email")).toContain("Não existe conta");
+    expect(classificarFalhaAuth(CREDENCIAL_INVALIDA, ctx)).toBe("senha_incorreta");
+    expect(mensagemDeFalhaAuth(CREDENCIAL_INVALIDA, ctx)).toContain(
+      "A senha não confere",
+    );
     // Nada de inglês na tela.
-    expect(mensagemDeFalhaAuth(erro, "email")).not.toContain("Signups");
+    expect(mensagemDeFalhaAuth(CREDENCIAL_INVALIDA, ctx)).not.toContain("Invalid");
   });
 
-  it("código errado e código expirado dão a MESMA causa", () => {
-    // O GoTrue funde os dois casos; a tela promete os dois na mesma frase.
-    const errado = {
-      code: "otp_expired",
-      status: 403,
-      message: "Token has expired or is invalid",
+  it("no aparelho conhecido, e-mail que NÃO bate = conta que não é a dele", () => {
+    const ctx = {
+      emailTentado: "outro@exemplo.com",
+      emailConhecido: "mateus@contai.local",
     };
-    const invalido = { status: 403, message: "Invalid token" };
-    expect(classificarFalhaAuth(errado, "codigo")).toBe("codigo_invalido");
-    expect(classificarFalhaAuth(invalido, "codigo")).toBe("codigo_invalido");
-    expect(mensagemDeFalhaAuth(errado, "codigo")).toContain("expirou");
+    expect(classificarFalhaAuth(CREDENCIAL_INVALIDA, ctx)).toBe("sem_conta");
+    const mensagem = mensagemDeFalhaAuth(CREDENCIAL_INVALIDA, ctx);
+    expect(mensagem).toContain("Confira o e-mail");
+    // A mensagem diz QUAL é o e-mail deste aparelho — senão ele fica tentando.
+    expect(mensagem).toContain("mateus@contai.local");
   });
 
-  it("excesso de pedidos", () => {
-    expect(
-      classificarFalhaAuth({ status: 429, message: "rate limit exceeded" }, "email"),
-    ).toBe("muitas_tentativas");
-    expect(
-      classificarFalhaAuth({ code: "over_email_send_rate_limit" }, "email"),
-    ).toBe("muitas_tentativas");
+  it("as duas causas produzem mensagens DIFERENTES", () => {
+    const senha = mensagemDeFalhaAuth(CREDENCIAL_INVALIDA, {
+      emailTentado: "mateus@contai.local",
+      emailConhecido: "mateus@contai.local",
+    });
+    const conta = mensagemDeFalhaAuth(CREDENCIAL_INVALIDA, {
+      emailTentado: "outro@exemplo.com",
+      emailConhecido: "mateus@contai.local",
+    });
+    expect(senha).not.toBe(conta);
   });
 
-  it("falha de rede não vira 'código inválido'", () => {
-    // Digitar o código certo sem sinal no canteiro não pode acusar o código.
+  it("aparelho novo não finge saber qual dos dois foi", () => {
+    // Sem login anterior neste aparelho não há com o que comparar. Inventar um
+    // veredito aqui mandaria ele trocar a senha por causa de um e-mail errado.
+    expect(classificarFalhaAuth(CREDENCIAL_INVALIDA, {})).toBe(
+      "credencial_invalida",
+    );
     expect(
-      classificarFalhaAuth({ name: "AuthRetryableFetchError", status: 0 }, "codigo"),
+      classificarFalhaAuth(CREDENCIAL_INVALIDA, {
+        emailTentado: "mateus@contai.local",
+        emailConhecido: null,
+      }),
+    ).toBe("credencial_invalida");
+    expect(mensagemDeFalhaAuth(CREDENCIAL_INVALIDA, {})).toContain(
+      "E-mail ou senha não conferem",
+    );
+  });
+
+  it("conta criada sem Auto Confirm tem causa própria", () => {
+    // Senha certa e login recusado: sem esta causa ele trocaria a senha para
+    // sempre, sem nunca entrar.
+    const erro = {
+      code: "email_not_confirmed",
+      status: 400,
+      message: "Email not confirmed",
+    };
+    expect(classificarFalhaAuth(erro, { emailTentado: "a@b.com", emailConhecido: "a@b.com" })).toBe(
+      "email_nao_confirmado",
+    );
+    expect(mensagemDeFalhaAuth(erro)).toContain("nunca foi confirmado");
+  });
+
+  it("excesso de tentativas", () => {
+    expect(
+      classificarFalhaAuth({ status: 429, message: "rate limit exceeded" }),
+    ).toBe("muitas_tentativas");
+    expect(classificarFalhaAuth({ code: "over_request_rate_limit" })).toBe(
+      "muitas_tentativas",
+    );
+  });
+
+  it("banco fora não vira 'senha errada'", () => {
+    // Digitar a senha certa sem sinal no canteiro não pode acusar a senha —
+    // ele trocaria a senha no painel por causa de um problema de rede.
+    const ctx = {
+      emailTentado: "mateus@contai.local",
+      emailConhecido: "mateus@contai.local",
+    };
+    expect(
+      classificarFalhaAuth({ name: "AuthRetryableFetchError", status: 0 }, ctx),
     ).toBe("rede");
-    expect(classificarFalhaAuth({ status: 503 }, "codigo")).toBe("rede");
+    expect(classificarFalhaAuth({ status: 503 }, ctx)).toBe("rede");
+    expect(classificarFalhaAuth({ name: "TypeError" }, ctx)).toBe("rede");
   });
 
-  it("falha desconhecida cai na causa da etapa, nunca em texto do servidor", () => {
-    expect(classificarFalhaAuth({ status: 400 }, "email")).toBe("envio");
-    expect(classificarFalhaAuth({ status: 400 }, "codigo")).toBe("codigo_invalido");
-    expect(classificarFalhaAuth(null, "email")).toBe("envio");
+  it("falha desconhecida não acusa credencial nenhuma", () => {
+    expect(classificarFalhaAuth({ status: 400, message: "algo novo" })).toBe(
+      "desconhecida",
+    );
+    expect(classificarFalhaAuth(null)).toBe("desconhecida");
+    expect(mensagemDeFalhaAuth({ status: 400 })).toBe(
+      "Não foi possível entrar agora. Tente de novo.",
+    );
   });
 });
