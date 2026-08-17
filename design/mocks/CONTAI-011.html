@@ -1,0 +1,1242 @@
+<title>contai — Mock CONTAI-011 · Export do acervo e dossiê por obra</title>
+<style>
+  :root{
+    --bd-bg:#d8d5cd; --bd-ink:#3a382f; --bd-mut:#6f6b60;
+    --paper:#faf9f6; --ink:#23221d; --mut:#716c61; --line:#e6e3da; --soft:#f1efe9;
+    --red:#b91c1c; --red-bg:#fbecec; --amb:#92600a; --amb-bg:#fdf3df; --grn:#15803d; --grn-bg:#e9f5ed;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bd-bg:#211f1b; --bd-ink:#e8e5dc; --bd-mut:#9b968a; }
+  }
+  :root[data-theme="dark"]{ --bd-bg:#211f1b; --bd-ink:#e8e5dc; --bd-mut:#9b968a; }
+  :root[data-theme="light"]{ --bd-bg:#d8d5cd; --bd-ink:#3a382f; --bd-mut:#6f6b60; }
+
+  *{box-sizing:border-box; margin:0}
+  body{background:var(--bd-bg); color:var(--bd-ink);
+    font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:24px 12px 48px; gap:16px}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-variant-numeric:tabular-nums}
+
+  /* ── barra de avaliação ─────────────────────────── */
+  .evalbar{max-width:760px; width:100%; text-align:center}
+  .evalbar h1{font-size:15px; font-weight:600}
+  .evalbar p{font-size:12.5px; color:var(--bd-mut); margin-top:2px}
+  .grupo{font-size:11px; color:var(--bd-mut); text-transform:uppercase; letter-spacing:.08em;
+    width:100%; text-align:left; margin:8px 0 -2px}
+  .tabs{display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-start; margin-top:4px}
+  .tab{border:1px solid color-mix(in srgb, var(--bd-ink) 25%, transparent); background:transparent;
+    color:var(--bd-ink); border-radius:999px; padding:4px 10px; font-size:12px; cursor:pointer}
+  .tab:hover{background:color-mix(in srgb, var(--bd-ink) 8%, transparent)}
+  .tab.on{background:var(--bd-ink); color:var(--bd-bg); border-color:var(--bd-ink)}
+  .tab:focus-visible,.btn:focus-visible{outline:2px solid var(--bd-ink); outline-offset:2px}
+
+  /* ── celular ────────────────────────────────────── */
+  .phone{width:375px; max-width:100%; height:760px; background:var(--paper); color:var(--ink);
+    border-radius:30px; border:6px solid #16150f; overflow:hidden; display:flex; flex-direction:column;
+    box-shadow:0 18px 40px rgba(0,0,0,.28)}
+  .screen{display:none; flex-direction:column; height:100%}
+  .screen.on{display:flex}
+  .appbar{padding:14px 18px 10px; border-bottom:1px solid var(--line); flex:none}
+  .appbar .brand{font-weight:700; font-size:16px; letter-spacing:-.01em}
+  .appbar .sub{font-size:11.5px; color:var(--mut); margin-top:1px}
+  .body{flex:1; overflow-y:auto; padding:16px 18px; display:flex; flex-direction:column; gap:12px}
+  .foot{flex:none; padding:12px 18px 18px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:8px}
+  .step{font-size:11px; color:var(--mut); text-transform:uppercase; letter-spacing:.08em}
+
+  .card{border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:#fff}
+  .card.tap{cursor:pointer} .card.tap:hover{background:var(--soft)}
+  .chip{display:inline-block; font-size:11px; font-weight:600; border-radius:999px; padding:2px 9px}
+  .chip.red{color:var(--red); background:var(--red-bg)}
+  .chip.amb{color:var(--amb); background:var(--amb-bg)}
+  .chip.grn{color:var(--grn); background:var(--grn-bg)}
+  .chip.mud{color:var(--mut); background:var(--soft)}
+  .consequencia{font-size:12.5px; margin-top:6px; padding:8px 10px; border-radius:8px}
+  .consequencia.red{background:var(--red-bg); color:var(--red)}
+  .consequencia.amb{background:var(--amb-bg); color:var(--amb)}
+  .consequencia.grn{background:var(--grn-bg); color:var(--grn)}
+
+  .btn{display:block; width:100%; text-align:center; border-radius:10px; padding:13px 14px;
+    font-size:14.5px; font-weight:600; cursor:pointer; border:1px solid transparent}
+  .btn.primary{background:var(--ink); color:var(--paper)}
+  .btn.ghost{background:transparent; color:var(--ink); border-color:var(--line)}
+  .btn.danger{background:var(--red); color:#fff}
+  .btn.danger-ghost{background:transparent; color:var(--red); border-color:var(--red-bg)}
+  .btn:hover{filter:brightness(1.12)}
+  .btn.sm{padding:8px 12px; font-size:13px; width:auto; display:inline-block}
+
+  .row{display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:9px 0; border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:none}
+  .row .lbl{font-size:12px; color:var(--mut); flex:none}
+  .row .val{font-size:13.5px; text-align:right}
+  .ok{color:var(--grn); font-weight:600}
+  .warn{color:var(--amb); font-weight:600}
+  .bad{color:var(--red); font-weight:600}
+
+  .hint{font-size:12px; color:var(--mut)}
+  .banner{border-radius:10px; padding:12px 14px; font-size:13.5px}
+  .banner.red{background:var(--red-bg); color:var(--red)}
+  .banner.amb{background:var(--amb-bg); color:var(--amb)}
+  .banner.grn{background:var(--grn-bg); color:var(--grn)}
+  .big{font-size:26px; font-weight:700; letter-spacing:-.02em}
+
+  .afirma{border:1px solid var(--line); border-left:3px solid var(--ink); border-radius:8px;
+    padding:10px 12px; background:var(--soft); display:flex; justify-content:space-between;
+    align-items:center; gap:10px}
+  .afirma .nome{font-size:13.5px; font-weight:600}
+  .afirma .trocar{font-size:12.5px; color:var(--mut); text-decoration:underline; cursor:pointer; flex:none}
+
+  .campo{display:flex; flex-direction:column; gap:4px}
+  .campo label{font-size:12px; color:var(--mut)}
+  .campo .inp{border:1px solid var(--line); border-radius:8px; padding:10px 12px; background:#fff; font-size:14px}
+  .campo .inp.vazio{color:#b3ada0}
+  .obrig{color:var(--red)}
+
+  .pendente{border:1px dashed var(--amb); background:var(--amb-bg); color:var(--amb);
+    border-radius:8px; padding:8px 10px; font-size:12px}
+  .parecer{font-size:11px; color:var(--mut); margin-top:6px; font-style:italic}
+
+  /* ── LINHA DE ESTADO DO EXPORT (critério 6c) ─────── */
+  /* Posição estável na home; o que muda é o PESO. */
+  .estado{border-radius:10px; padding:10px 12px; cursor:pointer; display:flex; gap:9px; align-items:flex-start}
+  .estado .pt{width:8px; height:8px; border-radius:99px; flex:none; margin-top:5px}
+  .estado .txt{flex:1; min-width:0}
+  .estado .seta{color:var(--mut); flex:none; font-size:16px; line-height:1}
+  .estado.ok{border:1px solid var(--line); background:#fff}
+  .estado.ok .pt{background:var(--grn)}
+  .estado.ok .t1{font-size:12.5px; color:var(--mut)}
+  .estado.grave{border:1px solid var(--red); background:var(--red-bg); color:var(--red); align-items:flex-start}
+  .estado.grave .pt{background:var(--red)}
+  .estado.grave .t1{font-size:14.5px; font-weight:700; line-height:1.25}
+  .estado.grave .t2{font-size:12.5px; margin-top:4px}
+  .estado.alerta{border:1px solid var(--amb); background:var(--amb-bg); color:var(--amb)}
+  .estado.alerta .pt{background:var(--amb)}
+  .estado.alerta .t1{font-size:14.5px; font-weight:700; line-height:1.25}
+  .estado.alerta .t2{font-size:12.5px; margin-top:4px}
+  .estado .acao{margin-top:9px}
+
+  .skel{background:linear-gradient(90deg,var(--soft),#fff,var(--soft));
+    background-size:200% 100%; animation:sh 1.2s linear infinite; border-radius:6px; height:11px}
+  @keyframes sh{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+  .destino{border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:#fff; cursor:pointer}
+  .destino:hover{background:var(--soft)}
+  .destino .tit{font-weight:600; font-size:14px}
+  .destino .sub{font-size:12.5px; color:var(--mut); margin-top:3px}
+  .destino .efeito{font-size:11.5px; margin-top:7px; padding:6px 8px; border-radius:6px; background:var(--soft); color:var(--mut)}
+  .destino.novo{border-left:3px solid var(--amb)}
+
+  .arq{display:flex; gap:10px; align-items:center; border:1px solid var(--line); border-radius:10px;
+    padding:10px 12px; background:#fff; cursor:pointer}
+  .arq:hover{background:var(--soft)}
+  .arq .ic{width:34px; height:42px; flex:none; border:1px solid var(--line); border-radius:4px;
+    background:var(--soft); display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--mut)}
+  .arq .nm{font-size:12.5px; word-break:break-all; line-height:1.3}
+  .arq .txt{flex:1; min-width:0}
+  .seta{color:var(--mut); flex:none; font-size:16px; line-height:1}
+
+  .prog{height:6px; border-radius:99px; background:var(--soft); overflow:hidden}
+  .prog i{display:block; height:100%; background:var(--ink); width:42%; animation:pg 2.4s ease-in-out infinite}
+  @keyframes pg{0%{width:8%}50%{width:64%}100%{width:92%}}
+
+  .leiame{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11.5px; line-height:1.55;
+    white-space:pre-wrap; background:#fff; border:1px solid var(--line); border-radius:8px; padding:12px}
+
+  .toggle{display:flex; border:1px solid var(--line); border-radius:999px; overflow:hidden; background:#fff}
+  .toggle button{flex:1; border:none; background:transparent; padding:9px 8px; font-size:12.5px; cursor:pointer; color:var(--mut)}
+  .toggle button.on{background:var(--ink); color:var(--paper); font-weight:600}
+
+  .lista-nao{font-size:12.5px; padding-left:16px; margin-top:4px}
+  .lista-nao li{margin:2px 0}
+</style>
+
+<div class="evalbar">
+  <h1>Mock CONTAI-011 — Estado do export, triagem de arquivo sem vínculo e dossiê por obra</h1>
+  <p>Baixa fidelidade, navegável. A rotina é quase toda servidor: aqui está só a superfície visível —
+     e ela é o que separa o ticket de um placebo (critério 6, modo c).
+     Cenário: duas obras (Casa Cachoeira / Casa do Morro), cadência <strong>semanal</strong>, destino Google Drive.
+     Textos com consequência fiscal são <strong>cópia literal</strong> do parecer de 2026-08-16 — a origem está escrita na própria tela.<br>
+     <strong>Mock NÃO aprovado</strong> — aprovação é ato do Mateus. Os blocos tracejados âmbar são
+     perguntas em aberto, não decisões tomadas.</p>
+  <div class="grupo">Linha de estado na home — os 6 estados no mesmo lugar</div>
+  <div class="tabs" id="g1"></div>
+  <div class="grupo">Tela do acervo</div>
+  <div class="tabs" id="g2"></div>
+  <div class="grupo">Triagem de arquivo sem vínculo (critério 15)</div>
+  <div class="tabs" id="g3"></div>
+  <div class="grupo">Dossiê por obra (critério 10)</div>
+  <div class="tabs" id="g4"></div>
+</div>
+
+<div class="phone">
+
+  <!-- ══════════ 1 · HOME — EXPORT EM DIA (sucesso) ══════════ -->
+  <section class="screen" id="s1">
+    <div class="appbar">
+      <div class="brand">contai</div>
+      <div class="sub">Casa Cachoeira · CNO 12.345.67890/26 · 2026</div>
+    </div>
+    <div class="body">
+      <div class="afirma">
+        <div><div class="hint">Obra aberta</div><div class="nome">Casa Cachoeira</div></div>
+        <span class="trocar">Trocar obra</span>
+      </div>
+
+      <!-- a linha mora sempre aqui; muda o peso, não o lugar -->
+      <div class="estado ok" onclick="go(8)">
+        <span class="pt"></span>
+        <div class="txt"><div class="t1">Cópia do acervo <strong>há 3 dias</strong> · 412 arquivos</div></div>
+        <span class="seta">›</span>
+      </div>
+
+      <div class="card">
+        <div class="hint">Custo confirmado em 2026 · Casa Cachoeira</div>
+        <div class="big mono">R$ 132.400</div>
+        <div class="hint">= situação em 31/12 na ficha Bens e Direitos</div>
+      </div>
+
+      <div class="card">
+        <span class="chip red">Quarentena</span>
+        <div style="margin-top:6px; font-weight:600">NF fora do seu CPF</div>
+        <div class="hint">Casa do Construtor · <span class="mono">R$ 4.850,00</span></div>
+        <div class="consequencia red">Não entra no custo de aquisição. Peça a nota no seu CPF.</div>
+      </div>
+
+      <div class="hint">
+        <strong>Decisão de desenho:</strong> em dia, a linha do export é uma linha só e não disputa
+        atenção com a quarentena — quarentena custa dinheiro hoje, o export só custa quando falha.
+        Nos estados de falha ela vira o item mais alto da tela, no mesmo lugar.
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ 2 · HOME — ATRASADO (erro) ══════════ -->
+  <section class="screen" id="s2">
+    <div class="appbar">
+      <div class="brand">contai</div>
+      <div class="sub">Casa Cachoeira · CNO 12.345.67890/26 · 2026</div>
+    </div>
+    <div class="body">
+      <div class="afirma">
+        <div><div class="hint">Obra aberta</div><div class="nome">Casa Cachoeira</div></div>
+        <span class="trocar">Trocar obra</span>
+      </div>
+
+      <div class="estado grave" onclick="go(9)">
+        <span class="pt"></span>
+        <div class="txt">
+          <div class="t1">O acervo não é copiado há 23 dias</div>
+          <div class="t2">
+            A cópia é <strong>semanal</strong>. A última que deu certo foi em <span class="mono">24/07</span>,
+            com 412 arquivos. Os <strong>38 arquivos</strong> que entraram depois disso existem
+            em um lugar só.
+          </div>
+          <div class="acao"><button class="btn danger sm" onclick="go(9)">Ver o que aconteceu</button></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="hint">Custo confirmado em 2026 · Casa Cachoeira</div>
+        <div class="big mono">R$ 132.400</div>
+      </div>
+
+      <div class="hint">
+        <strong>O gatilho é 2× a cadência</strong> (semanal → vermelho a partir de 14 dias),
+        como manda o critério 6(c). Entre 7 e 14 dias a linha fica âmbar, não vermelha:
+        um atraso de uma execução é rotina de free tier; dois atrasos seguidos é sintoma.
+      </div>
+      <div class="hint">
+        A linha diz <strong>quantos arquivos ficaram de fora</strong>, não só "há N dias".
+        "Há 23 dias" é uma métrica; "38 arquivos em um lugar só" é uma perda.
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ 3 · HOME — NUNCA EXPORTOU (vazio) ══════════ -->
+  <section class="screen" id="s3">
+    <div class="appbar">
+      <div class="brand">contai</div>
+      <div class="sub">Casa Cachoeira · CNO 12.345.67890/26 · 2026</div>
+    </div>
+    <div class="body">
+      <div class="afirma">
+        <div><div class="hint">Obra aberta</div><div class="nome">Casa Cachoeira</div></div>
+        <span class="trocar">Trocar obra</span>
+      </div>
+
+      <div class="estado alerta" onclick="go(8)">
+        <span class="pt"></span>
+        <div class="txt">
+          <div class="t1">O acervo nunca foi copiado</div>
+          <div class="t2">
+            Os <strong>412 arquivos</strong> existem em um lugar só: o Supabase desta conta.
+            Nada foi para uma pasta sua ainda.
+          </div>
+          <div class="acao"><button class="btn primary sm" onclick="go(8)">Ligar a cópia semanal</button></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="hint">Custo confirmado em 2026 · Casa Cachoeira</div>
+        <div class="big mono">R$ 132.400</div>
+      </div>
+
+      <div class="hint">
+        Estado vazio com CTA, não estado vazio decorativo. É o modo (c) do critério 6 na sua forma
+        mais provável: a primeira execução nunca aconteceu porque a credencial do destino nunca
+        foi configurada (risco 2 do pre-mortem).
+      </div>
+      <div class="hint">
+        Este estado <strong>não</strong> se confunde com “configurei e ainda não chegou o domingo”:
+        enquanto a primeira cópia não existir, o texto é o mesmo — porque a consequência é a mesma.
+        Zero cópias é zero cópias, com ou sem boa intenção.
+      </div>
+      <div class="pendente">
+        <strong>Mesma dependência da tela 4:</strong> a configuração do destino (OAuth do Drive)
+        hoje mora no workflow, fora do app. Se ficar assim, este botão não liga nada — vira
+        instrução. Pergunta ao cto-obra.
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ 4 · HOME — FALHOU (erro: token morto) ══════════ -->
+  <section class="screen" id="s4">
+    <div class="appbar">
+      <div class="brand">contai</div>
+      <div class="sub">Casa Cachoeira · CNO 12.345.67890/26 · 2026</div>
+    </div>
+    <div class="body">
+      <div class="afirma">
+        <div><div class="hint">Obra aberta</div><div class="nome">Casa Cachoeira</div></div>
+        <span class="trocar">Trocar obra</span>
+      </div>
+
+      <div class="estado grave" onclick="go(9)">
+        <span class="pt"></span>
+        <div class="txt">
+          <div class="t1">A cópia falhou nas 3 últimas tentativas</div>
+          <div class="t2">
+            O contai perdeu o acesso ao Google Drive. Última cópia que deu certo:
+            <strong>há 22 dias</strong>, 412 arquivos.
+          </div>
+          <div class="acao"><button class="btn danger sm" onclick="go(9)">Reconectar o Google Drive</button></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="hint">Custo confirmado em 2026 · Casa Cachoeira</div>
+        <div class="big mono">R$ 132.400</div>
+      </div>
+
+      <div class="hint">
+        "Token morto" é o modo de falha que o próprio ticket obriga a cobrir como falha
+        <em>visível</em> (condições da escolha do Drive). A tela nunca diz "erro 401":
+        diz o que quebrou e qual é o único botão que resolve.
+      </div>
+      <div class="pendente">
+        <strong>Pergunta ao cto-obra:</strong> este botão pode existir? A Decisão 2 põe o refresh
+        token do Drive num <strong>GitHub Secret</strong>, e o app não escreve em GitHub Secret.
+        Ou o token passa a viver onde o app alcança, ou o botão vira instrução (“renove o token no
+        repositório”) — que é pior, mas honesto. Não escolhi por você: desenhei o botão e marquei
+        a dependência.
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ 5 · HOME — CARREGANDO ══════════ -->
+  <section class="screen" id="s5">
+    <div class="appbar">
+      <div class="brand">contai</div>
+      <div class="sub">Casa Cachoeira · CNO 12.345.67890/26 · 2026</div>
+    </div>
+    <div class="body">
+      <div class="afirma">
+        <div><div class="hint">Obra aberta</div><div class="nome">Casa Cachoeira</div></div>
+        <span class="trocar">Trocar obra</span>
+      </div>
+
+      <div class="estado ok" style="cursor:default">
+        <span class="pt" style="background:var(--line)"></span>
+        <div class="txt" style="padding:2px 0">
+          <div class="skel" style="width:78%"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="hint">Custo confirmado em 2026 · Casa Cachoeira</div>
+        <div class="big mono">R$ 132.400</div>
+      </div>
+
+      <div class="hint">
+        A linha reserva o espaço dela enquanto carrega, em vez de aparecer depois e empurrar
+        a tela. Carregando ela é <strong>neutra</strong> — nunca otimista: um esqueleto verde
+        seria "está tudo bem" antes de saber.
+      </div>
+      <div class="pendente">
+        Se a leitura demorar mais que ~4 s ou falhar, a tela cai no estado 6 (“não deu para saber”),
+        nunca no estado 1.
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ 6 · HOME — NÃO DEU PARA SABER (erro) ══════════ -->
+  <section class="screen" id="s6">
+    <div class="appbar">
+      <div class="brand">contai</div>
+      <div class="sub">Casa Cachoeira · CNO 12.345.67890/26 · 2026</div>
+    </div>
+    <div class="body">
+      <div class="afirma">
+        <div><div class="hint">Obra aberta</div><div class="nome">Casa Cachoeira</div></div>
+        <span class="trocar">Trocar obra</span>
+      </div>
+
+      <div class="estado grave" onclick="go(9)">
+        <span class="pt"></span>
+        <div class="txt">
+          <div class="t1">Não deu para saber quando foi a última cópia</div>
+          <div class="t2">
+            Enquanto isso não for lido, conta como <strong>falha</strong> — não como “provavelmente
+            está tudo bem”.
+          </div>
+          <div class="acao"><button class="btn danger sm" onclick="go(9)">Tentar de novo</button></div>
+        </div>
+      </div>
+
+      <div class="hint">
+        Estado que quase todo produto esquece, e que aqui é o motivo do ticket existir:
+        <em>“silêncio é indistinguível de sucesso”</em> (CONTAI-011, critério 6c).
+        Se a fonte do estado não responde, a tela assume o pior — a alternativa é um verde mentiroso.
+      </div>
+      <div class="pendente">
+        <strong>Pergunta ao cto-obra (bloqueante do Gate 2):</strong> de onde o app lê este estado?
+        A Viabilidade decidiu “não criar tabela de execuções de export” e pôs o recibo em
+        <span class="mono">docs/export/ultimo-export.md</span>, no repositório — mas o app roda na
+        Vercel contra o Supabase e <strong>não lê o Git</strong>. Sem uma fonte que o app alcance,
+        o critério 6(c) não tem como existir. Esta tela é a mesma nas três saídas possíveis
+        (tabela mínima / arquivo no bucket / API pública do GitHub).
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ 7 · HOME — BLOQUEADO PELA TRIAGEM ══════════ -->
+  <section class="screen" id="s7">
+    <div class="appbar">
+      <div class="brand">contai</div>
+      <div class="sub">Casa Cachoeira · CNO 12.345.67890/26 · 2026</div>
+    </div>
+    <div class="body">
+      <div class="afirma">
+        <div><div class="hint">Obra aberta</div><div class="nome">Casa Cachoeira</div></div>
+        <span class="trocar">Trocar obra</span>
+      </div>
+
+      <div class="estado alerta" onclick="go(10)">
+        <span class="pt"></span>
+        <div class="txt">
+          <div class="t1">A cópia desta semana não fechou</div>
+          <div class="t2">
+            <strong>3 arquivos</strong> estão no acervo sem nenhum registro no contai. Enquanto eles
+            não tiverem destino, a cópia não fecha.
+          </div>
+          <div class="acao"><button class="btn primary sm" onclick="go(10)">Dar destino aos 3</button></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="hint">Custo confirmado em 2026 · Casa Cachoeira</div>
+        <div class="big mono">R$ 132.400</div>
+      </div>
+
+      <div class="hint">
+        Âmbar e não vermelho: os arquivos que <em>têm</em> registro foram copiados normalmente.
+        O que está parado é o <strong>fechamento</strong> — e é uma pendência com dono, não uma
+        falha de infraestrutura.
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ 8 · ACERVO — DETALHE, EM DIA ══════════ -->
+  <section class="screen" id="s8">
+    <div class="appbar">
+      <div class="brand">Acervo</div>
+      <div class="sub">Cópia semanal · Google Drive</div>
+    </div>
+    <div class="body">
+      <div class="banner grn">
+        <strong>Cópia em dia.</strong> Última: <span class="mono">13/08, 03:12</span> — há 3 dias.
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Arquivos copiados</span><span class="val mono">412</span></div>
+        <div class="row"><span class="lbl">Referenciados no banco</span><span class="val mono ok">412 ✓</span></div>
+        <div class="row"><span class="lbl">Tamanho</span><span class="val mono">1,31 GB</span></div>
+        <div class="row"><span class="lbl">Destino</span><span class="val">Drive · <span class="mono">/contai-acervo</span></span></div>
+        <div class="row"><span class="lbl">Pasta</span><span class="val ok">privada ✓</span></div>
+        <div class="row"><span class="lbl">Hash do índice</span><span class="val mono" style="font-size:11px">a3f9…c412</span></div>
+      </div>
+      <div class="hint">
+        As duas contagens lado a lado são o critério 2. Iguais, a cópia está completa;
+        diferentes, a execução falha em vez de virar linha de log.
+      </div>
+
+      <div class="card">
+        <div style="font-weight:600; font-size:13.5px">Sem comprovante no acervo</div>
+        <div class="hint" style="margin-top:3px">2 pagamentos registrados não têm nenhum arquivo anexado.</div>
+        <div class="consequencia amb">
+          Não é falha da cópia — é pendência que já existia. Pagamento sem documento hábil
+          não sustenta custo de aquisição.
+        </div>
+        <div class="parecer">Reconciliação inversa — R7 do parecer do contador, 2026-08-16.</div>
+      </div>
+
+      <div class="card">
+        <div class="hint">Últimas execuções</div>
+        <div class="row"><span class="lbl mono">13/08</span><span class="val ok">ok · 412 arq · +7</span></div>
+        <div class="row"><span class="lbl mono">06/08</span><span class="val ok">ok · 405 arq · +12</span></div>
+        <div class="row"><span class="lbl mono">30/07</span><span class="val ok">ok · 393 arq · +4</span></div>
+        <div class="row"><span class="lbl mono">24/07</span><span class="val bad">falhou · Drive sem acesso</span></div>
+      </div>
+
+      <div class="card tap" onclick="go(16)">
+        <div style="font-weight:600">Gerar o dossiê de uma obra</div>
+        <div class="hint">O pacote completo de <strong>uma</strong> obra, para mandar ao comprador ou ao contador.</div>
+      </div>
+
+      <div class="card tap" onclick="go(22)">
+        <div style="font-weight:600">O que vai dentro do pacote</div>
+        <div class="hint">Índice, integridade e o LEIA-ME.txt</div>
+      </div>
+
+      <div class="card tap" onclick="go(23)">
+        <div style="font-weight:600">Avisos</div>
+        <div class="hint">Quando o contai te procura sobre a cópia</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ 9 · ACERVO — FALHA + RETRY ══════════ -->
+  <section class="screen" id="s9">
+    <div class="appbar">
+      <div class="brand">Acervo</div>
+      <div class="sub">Cópia semanal · Google Drive</div>
+    </div>
+    <div class="body">
+      <div class="banner red">
+        <strong>O contai perdeu o acesso ao Google Drive.</strong>
+        As 3 tentativas desde <span class="mono">27/07</span> falharam antes de copiar qualquer arquivo.
+      </div>
+
+      <button class="btn primary" onclick="go(8)">Reconectar o Google Drive</button>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Última cópia que deu certo</span><span class="val mono">24/07 · há 22 dias</span></div>
+        <div class="row"><span class="lbl">Protegidos até ali</span><span class="val mono">412 arquivos</span></div>
+        <div class="row"><span class="lbl bad">Entraram depois e não foram copiados</span><span class="val mono bad">38 arquivos</span></div>
+      </div>
+
+      <div class="card">
+        <div class="hint">Últimas execuções</div>
+        <div class="row"><span class="lbl mono">13/08</span><span class="val bad">falhou · Drive sem acesso</span></div>
+        <div class="row"><span class="lbl mono">06/08</span><span class="val bad">falhou · Drive sem acesso</span></div>
+        <div class="row"><span class="lbl mono">30/07</span><span class="val bad">falhou · Drive sem acesso</span></div>
+        <div class="row"><span class="lbl mono">24/07</span><span class="val ok">ok · 412 arq</span></div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:600; font-size:13.5px">Enquanto isso não voltar</div>
+        <div class="hint" style="margin-top:4px">
+          Você ainda consegue gerar o dossiê de uma obra e baixar o pacote na hora —
+          ele não depende da rotina semanal estar viva.
+        </div>
+        <button class="btn ghost sm" style="margin-top:9px" onclick="go(16)">Gerar dossiê agora</button>
+      </div>
+      <div class="hint">
+        Saída manual dentro do estado de erro: é a razão de o ticket entregar duas saídas
+        (critério 10) e não só o cron.
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ 10 · TRIAGEM — LISTA ══════════ -->
+  <section class="screen" id="s10">
+    <div class="appbar">
+      <div class="brand">Arquivos sem registro</div>
+      <div class="sub">3 arquivos · a cópia não fecha sem destino</div>
+    </div>
+    <div class="body">
+      <div class="banner amb">
+        Estes arquivos estão no acervo e <strong>não têm registro nenhum</strong> no contai —
+        nem documento, nem pagamento.
+      </div>
+
+      <div class="card">
+        <div class="consequencia amb" style="margin-top:0">
+          “órfão no pacote é documento sem vínculo com pagamento nenhum — numa conferência levanta
+          <em>‘e este gasto, por que não está declarado?’</em>”
+        </div>
+        <div class="parecer">Cópia literal — parecer do contador registrado em CONTAI-011,
+          seção Dependências, 2026-08-16. Foi por este parecer que o Mateus decidiu que isto bloqueia.</div>
+      </div>
+
+      <div class="arq" onclick="go(11)">
+        <div class="ic">JPG</div>
+        <div class="txt">
+          <div class="nm mono">9f2c1e…-nota-eletrica.jpg</div>
+          <div class="hint">enviado 02/08 · 2,4 MB</div>
+        </div>
+        <span class="seta" style="color:var(--mut)">›</span>
+      </div>
+
+      <div class="arq" onclick="go(11)">
+        <div class="ic">JPG</div>
+        <div class="txt">
+          <div class="nm mono">c81a44…-nota-eletrica.jpg</div>
+          <div class="hint">enviado 02/08 · 2,4 MB · <span class="warn">mesmo conteúdo do anterior</span></div>
+        </div>
+        <span class="seta" style="color:var(--mut)">›</span>
+      </div>
+
+      <div class="arq" onclick="go(11)">
+        <div class="ic">PDF</div>
+        <div class="txt">
+          <div class="nm mono">4b70da…-alvara-2026.pdf</div>
+          <div class="hint">enviado 11/07 · 780 KB</div>
+        </div>
+        <span class="seta" style="color:var(--mut)">›</span>
+      </div>
+
+      <div class="hint">
+        O app já sabe dizer <strong>quais são iguais entre si</strong> (mesmo sha256) — é o caso
+        clássico do retry que subiu duas vezes, e é a dica que faz o Mateus escolher “descartar”
+        sem abrir os dois.
+      </div>
+      <div class="hint">
+        Ordenado do mais recente para o mais antigo: o arquivo de ontem você lembra de onde veio,
+        o de três meses atrás não.
+      </div>
+    </div>
+    <div class="foot">
+      <div class="step">3 sem destino</div>
+      <button class="btn ghost" onclick="go(7)">Voltar</button>
+    </div>
+  </section>
+
+  <!-- ══════════ 11 · TRIAGEM — OS TRÊS DESTINOS ══════════ -->
+  <section class="screen" id="s11">
+    <div class="appbar">
+      <div class="brand">Que arquivo é este?</div>
+      <div class="sub mono">4b70da…-alvara-2026.pdf · 780 KB</div>
+    </div>
+    <div class="body">
+      <div class="card" style="text-align:center; padding:18px">
+        <div class="hint">prévia do arquivo</div>
+        <div style="margin-top:8px; font-size:13px">PREFEITURA MUNICIPAL<br>ALVARÁ DE CONSTRUÇÃO<br>nº 2026/1184</div>
+      </div>
+
+      <div class="destino" onclick="go(12)">
+        <div class="tit">É o anexo de algo que já registrei</div>
+        <div class="sub">Uma nota, um recibo ou um comprovante que está no contai sem arquivo.</div>
+        <div class="efeito">Entra no pacote junto com o registro, com valor e data de pagamento.</div>
+      </div>
+
+      <div class="destino" onclick="go(13)">
+        <div class="tit">Não serve — foi engano</div>
+        <div class="sub">Envio duplicado, foto errada, tentativa que falhou no meio.</div>
+        <div class="efeito">Fica fora do pacote. O arquivo continua no acervo — o contai não apaga nada.</div>
+      </div>
+
+      <div class="destino novo" onclick="go(14)">
+        <div class="tit">É um documento da obra, sem pagamento</div>
+        <div class="sub">Alvará, ART, matrícula, habite-se. Não tem favorecido e não tem valor —
+          e é isso que faz ele parecer órfão.</div>
+        <div class="efeito">Entra no pacote numa seção própria, <strong>fora</strong> da conta do custo.</div>
+      </div>
+
+      <div class="hint">
+        <strong>A ordem é deliberada.</strong> “Vincular” primeiro porque é o destino que
+        <em>recupera</em> um custo; “engano” no meio porque é o mais frequente; “documento da obra”
+        por último porque é o mais raro e o que exige mais atenção — e ele fica marcado à esquerda
+        por ser categoria nova.
+      </div>
+      <div class="hint">
+        Nenhum dos três é o default e não existe “pular”. Pular é o que produz o arquivo órfão
+        que estamos triando três meses depois.
+      </div>
+      <div class="hint">
+        <em>(No mock, cada destino abre com um arquivo diferente da lista — assim você vê os três
+        casos sem ter que voltar aqui três vezes.)</em>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" onclick="go(10)">Voltar para a lista</button>
+    </div>
+  </section>
+
+  <!-- ══════════ 12 · DESTINO 1 — VINCULAR ══════════ -->
+  <section class="screen" id="s12">
+    <div class="appbar">
+      <div class="brand">Vincular a um registro</div>
+      <div class="sub mono">9f2c1e…-nota-eletrica.jpg</div>
+    </div>
+    <div class="body">
+      <div class="hint">Registros desta obra que estão <strong>sem arquivo</strong>, do mais próximo
+        da data do envio (02/08) para o mais distante:</div>
+
+      <div class="card tap" onclick="go(15)">
+        <div style="font-weight:600">NF de material · Elétrica Sul</div>
+        <div class="hint mono">01/08 · R$ 3.120,00 · sem anexo</div>
+        <div class="hint">enviado 1 dia depois</div>
+      </div>
+
+      <div class="card tap" onclick="go(15)">
+        <div style="font-weight:600">Pagamento PIX · Elétrica Sul</div>
+        <div class="hint mono">01/08 · R$ 3.120,00 · sem comprovante</div>
+      </div>
+
+      <div class="card tap" onclick="go(15)">
+        <div style="font-weight:600">NF de serviço · Construtora Ilha</div>
+        <div class="hint mono">18/07 · R$ 18.000,00 · sem anexo</div>
+      </div>
+
+      <div class="card tap" onclick="go(15)">
+        <div style="font-weight:600">Nenhum destes — registrar um documento novo</div>
+        <div class="hint">Abre o registro normal, já com este arquivo anexado.</div>
+      </div>
+
+      <div class="hint">
+        A proximidade de data faz quase todo o trabalho: o anexo órfão quase sempre pertence ao
+        registro que foi feito no mesmo dia e travou na hora de salvar.
+      </div>
+      <div class="pendente">
+        <strong>Pergunta ao po:</strong> a busca precisa alcançar registros de <em>outra</em> obra?
+        O arquivo não sabe de que obra é — foi para o acervo antes de existir registro.
+        Desenhei a lista da obra aberta + link implícito para as demais; falta fechar o requisito.
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" onclick="go(11)">Voltar</button>
+    </div>
+  </section>
+
+  <!-- ══════════ 13 · DESTINO 2 — DESCARTAR ══════════ -->
+  <section class="screen" id="s13">
+    <div class="appbar">
+      <div class="brand">Marcar como engano</div>
+      <div class="sub mono">c81a44…-nota-eletrica.jpg</div>
+    </div>
+    <div class="body">
+      <div class="card">
+        <div class="row"><span class="lbl">Enviado</span><span class="val mono">02/08, 14:22</span></div>
+        <div class="row"><span class="lbl">Tamanho</span><span class="val mono">2,4 MB</span></div>
+        <div class="row"><span class="lbl">Conteúdo idêntico a</span><span class="val mono" style="font-size:11px">9f2c1e…</span></div>
+      </div>
+
+      <div class="banner amb">
+        <strong>Isto não apaga nada.</strong> O arquivo continua no acervo — o contai não tem
+        como apagar do acervo, de propósito. O que muda é que ele para de bloquear a cópia
+        e fica fora do pacote.
+      </div>
+
+      <div class="card">
+        <div class="hint">Se um dia isto se mostrar errado, o arquivo continua lá e pode ser
+          vinculado depois. Marcar como engano é reversível; apagar não seria.</div>
+      </div>
+
+      <div class="campo">
+        <label>Por quê? (opcional)</label>
+        <div class="inp vazio">ex.: subiu duas vezes</div>
+        <div class="hint">Fica no índice do pacote, na seção de descartados, para quem ler
+          daqui a sete anos saber que o arquivo foi visto e julgado — não esquecido.</div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" onclick="go(15)">Marcar como engano</button>
+      <button class="btn ghost" onclick="go(11)">Voltar</button>
+    </div>
+  </section>
+
+  <!-- ══════════ 14 · DESTINO 3 — DOCUMENTO DA OBRA (categoria nova) ══════════ -->
+  <section class="screen" id="s14">
+    <div class="appbar">
+      <div class="brand">Documento da obra</div>
+      <div class="sub mono">4b70da…-alvara-2026.pdf</div>
+    </div>
+    <div class="body">
+      <div class="banner amb">
+        Documento que descreve a obra e <strong>não é um gasto</strong>: não tem favorecido,
+        não tem valor, não entra no custo de aquisição. Guardar é obrigatório; somar seria erro.
+      </div>
+
+      <div class="campo">
+        <label>Que documento é <span class="obrig">*</span></label>
+        <div class="inp">Alvará de construção</div>
+        <div class="hint">Alvará · ART/RRT · Matrícula do imóvel · Habite-se · Projeto aprovado ·
+          Contrato de empreitada · CND da obra · Outro</div>
+      </div>
+
+      <div class="campo">
+        <label>De qual obra <span class="obrig">*</span></label>
+        <div class="inp">Casa Cachoeira</div>
+        <div class="hint">Obrigatório: o dossiê é por obra, e um documento sem obra não entra em
+          dossiê nenhum.</div>
+      </div>
+
+      <div class="campo">
+        <label>Data do documento</label>
+        <div class="inp mono">11/07/2026</div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:600; font-size:13.5px">O que isto muda no pacote</div>
+        <div class="hint" style="margin-top:4px">
+          O arquivo passa a entrar no dossiê da Casa Cachoeira, na seção
+          <strong>“documentos da obra”</strong>, e sai da lista do LEIA-ME que diz o que o pacote
+          <em>não</em> contém.
+        </div>
+      </div>
+
+      <div class="pendente">
+        <strong>Categoria nova — pergunta ao po e ao contador.</strong> O parecer (F4) lista
+        justamente estes documentos como “fiscalmente categoria nova”, e a captura própria deles
+        foi cortada para outro ticket. Aqui ela nasce <em>pela porta dos fundos</em>: só existe para
+        arquivo que já subiu órfão. Duas coisas a fechar: (1) quais campos são obrigatórios no
+        índice para esta categoria (tipo e obra bastam? número e órgão emissor?);
+        (2) esta lista de tipos vem do F4 do parecer — precisa ser confirmada como a lista do
+        produto, não a minha leitura dela.
+      </div>
+      <div class="parecer">Lista de tipos derivada da tabela do F4 — parecer do contador, 2026-08-16.</div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" onclick="go(15)">Salvar como documento da obra</button>
+      <button class="btn ghost" onclick="go(11)">Voltar</button>
+    </div>
+  </section>
+
+  <!-- ══════════ 15 · TRIAGEM — LIMPA (sucesso/vazio) ══════════ -->
+  <section class="screen" id="s15">
+    <div class="appbar">
+      <div class="brand">Arquivos sem registro</div>
+      <div class="sub">nenhum pendente</div>
+    </div>
+    <div class="body">
+      <div class="banner grn">
+        <strong>Nenhum arquivo sem destino.</strong> A próxima cópia fecha normalmente.
+      </div>
+
+      <div class="card">
+        <div class="hint">O que você decidiu</div>
+        <div class="row"><span class="lbl">Vinculados a um registro</span><span class="val mono">1</span></div>
+        <div class="row"><span class="lbl">Marcados como engano</span><span class="val mono">1</span></div>
+        <div class="row"><span class="lbl">Documentos da obra</span><span class="val mono">1</span></div>
+      </div>
+
+      <div class="hint">
+        As três decisões ficam no índice do pacote, cada uma na sua seção. Um arquivo que
+        <em>foi julgado</em> e um arquivo que <em>ninguém olhou</em> parecem iguais no bucket
+        e não podem parecer iguais no dossiê.
+      </div>
+
+      <button class="btn ghost" onclick="go(1)">Voltar ao início</button>
+    </div>
+  </section>
+
+  <!-- ══════════ 16 · DOSSIÊ — ESCOLHER OBRA ══════════ -->
+  <section class="screen" id="s16">
+    <div class="appbar">
+      <div class="brand">Dossiê da obra</div>
+      <div class="sub">O pacote completo de uma obra só</div>
+    </div>
+    <div class="body">
+      <div class="hint">
+        Na venda pedem o dossiê <strong>daquele</strong> imóvel. Escolha a obra:
+      </div>
+
+      <div class="card tap" onclick="go(17)">
+        <div style="font-weight:600">Casa Cachoeira</div>
+        <div class="hint mono">matrícula 32.114 · CNO 12.345.67890/26</div>
+        <div class="hint" style="margin-top:5px">218 arquivos · 640 MB</div>
+      </div>
+
+      <div class="card tap" onclick="go(17)">
+        <div style="font-weight:600">Casa do Morro</div>
+        <div class="hint mono">matrícula 45.892 · sem CNO</div>
+        <div class="hint" style="margin-top:5px">194 arquivos · 690 MB</div>
+      </div>
+
+      <div class="banner amb">
+        Uma obra por vez, sem opção de “as duas”. Não existe declaração que some as duas obras
+        no lado dos bens: cada matrícula é um item.
+      </div>
+      <div class="hint">
+        Esta é a saída que não depende de nenhum agendamento continuar vivo — e por isso é ela,
+        e não a cópia semanal, que atende a venda.
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" onclick="go(8)">Voltar</button>
+    </div>
+  </section>
+
+  <!-- ══════════ 17 · DOSSIÊ — CONFIRMAR ══════════ -->
+  <section class="screen" id="s17">
+    <div class="appbar">
+      <div class="brand">Dossiê · Casa Cachoeira</div>
+      <div class="sub">Confira antes de gerar</div>
+    </div>
+    <div class="body">
+      <div class="card">
+        <div style="font-weight:600; font-size:13.5px">Vai dentro</div>
+        <div class="row"><span class="lbl">Arquivos originais</span><span class="val mono">218</span></div>
+        <div class="row"><span class="lbl">Documentos da obra</span><span class="val mono">1</span></div>
+        <div class="row"><span class="lbl">Índice</span><span class="val" style="font-size:12px">documentos · pagamentos · vínculos</span></div>
+        <div class="row"><span class="lbl">sha256 por arquivo</span><span class="val ok">sim</span></div>
+        <div class="row"><span class="lbl">LEIA-ME.txt</span><span class="val ok">sim</span></div>
+        <div class="row"><span class="lbl">Tamanho estimado</span><span class="val mono">640 MB</span></div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:600; font-size:13.5px">Não vai dentro</div>
+        <div class="hint" style="margin-top:3px">e o LEIA-ME diz isso por escrito, item por item:</div>
+        <ul class="lista-nao">
+          <li>nada da Casa do Morro</li>
+          <li>escritura do terreno · certidão da matrícula · ITBI</li>
+          <li>habite-se · CND da obra</li>
+          <li>número e data de emissão das notas — ainda não existem no contai</li>
+        </ul>
+        <div class="parecer">Lista do que falta: F4 do parecer, 2026-08-16. Campos ausentes do
+          índice: R10 (dependem de CONTAI-004 e CONTAI-007).</div>
+      </div>
+
+      <div class="pendente">
+        <strong>Pergunta em aberto (po + contador).</strong> O critério 12 manda o pacote carregar,
+        por ano, a discriminação de Bens e Direitos, a lista de Pagamentos Efetuados e o recibo da
+        DAA. Mas o R6 do mesmo parecer diz que a ficha Pagamentos Efetuados é <em>do declarante</em>,
+        soma as duas obras, e que <strong>“o dossiê que vai ao comprador não deve conter a outra
+        obra nem cópia da DAA”</strong>. Os dois não cabem no mesmo pacote. Não decidi isso no mock:
+        ou o dossiê tem duas versões (minha / do comprador), ou o critério 12 vale só para o acervo
+        do declarante. Falta fechar.
+      </div>
+
+      <div class="card">
+        <div style="font-weight:600; font-size:13.5px">Contém dados de outras pessoas</div>
+        <div class="hint" style="margin-top:4px">
+          O índice traz nome e CPF/CNPJ completos dos prestadores. Trate o pacote como documento
+          privado: quem receber, recebe os dados deles também.
+        </div>
+        <div class="parecer">R8 do parecer do contador, 2026-08-16 (LGPD e terceiros).</div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" onclick="go(18)">Gerar o dossiê</button>
+      <button class="btn ghost" onclick="go(16)">Trocar de obra</button>
+    </div>
+  </section>
+
+  <!-- ══════════ 18 · DOSSIÊ — GERANDO (loading) ══════════ -->
+  <section class="screen" id="s18">
+    <div class="appbar">
+      <div class="brand">Dossiê · Casa Cachoeira</div>
+      <div class="sub">gerando</div>
+    </div>
+    <div class="body">
+      <div class="card">
+        <div style="font-weight:600">Montando o pacote</div>
+        <div class="hint mono" style="margin-top:4px">142 de 218 arquivos · 3 min restantes</div>
+        <div class="prog" style="margin-top:10px"><i></i></div>
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Copiando originais</span><span class="val mono">142/218</span></div>
+        <div class="row"><span class="lbl">Calculando sha256</span><span class="val mono">142/218</span></div>
+        <div class="row"><span class="lbl">Índice</span><span class="val hint">depois dos arquivos</span></div>
+        <div class="row"><span class="lbl">Conferência final</span><span class="val hint">—</span></div>
+      </div>
+
+      <div class="banner amb">
+        <strong>Pode sair desta tela.</strong> A montagem continua no servidor. Quando terminar,
+        o pacote aparece aqui em Acervo.
+      </div>
+      <div class="hint">
+        640 MB no 4G do canteiro não cabem numa tela de espera com o dedo parado. O progresso é
+        detalhado o bastante para dar confiança e abandonável o bastante para ser usado de pé.
+      </div>
+      <div class="pendente">
+        <strong>Amarrado à pergunta M3:</strong> “aparece aqui em Acervo” é uma promessa que a tela
+        cumpre sozinha. Se o Mateus escolher receber aviso, ganha também e-mail/push —
+        <em>sem mudar esta tela</em>.
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" onclick="go(19)">(mock) pular para o resultado</button>
+      <button class="btn ghost" onclick="go(21)">(mock) ver quando a conferência final falha</button>
+    </div>
+  </section>
+
+  <!-- ══════════ 19 · DOSSIÊ — PRONTO (sucesso) ══════════ -->
+  <section class="screen" id="s19">
+    <div class="appbar">
+      <div class="brand">Dossiê pronto</div>
+      <div class="sub">Casa Cachoeira · 16/08/2026</div>
+    </div>
+    <div class="body">
+      <div class="banner grn">
+        <strong>Pacote gerado.</strong> Está na sua pasta privada do Drive.
+      </div>
+
+      <div class="card">
+        <div class="mono" style="font-weight:600; font-size:12.5px; word-break:break-all">
+          dossie-casa-cachoeira-2026-08-16.zip
+        </div>
+        <div class="row" style="margin-top:8px"><span class="lbl">Arquivos</span><span class="val mono">219</span></div>
+        <div class="row"><span class="lbl">Conferidos por sha256</span><span class="val mono ok">219/219 ✓</span></div>
+        <div class="row"><span class="lbl">Tamanho</span><span class="val mono">641 MB</span></div>
+        <div class="row"><span class="lbl">Hash do índice</span><span class="val mono" style="font-size:11px">7c04…9ab1</span></div>
+      </div>
+
+      <button class="btn primary" onclick="go(20)">Entregar para alguém</button>
+      <button class="btn ghost" onclick="go(22)">Ver o LEIA-ME do pacote</button>
+      <button class="btn ghost">Abrir a pasta no Drive</button>
+
+      <div class="card">
+        <div class="hint">Este pacote não será reescrito. Se um valor, uma data ou a obra de um
+          registro mudar depois, o próximo pacote é <strong>novo</strong> e cita este —
+          e os dois continuam existindo.</div>
+        <div class="parecer">Imutabilidade do pacote — R5 do parecer do contador, 2026-08-16
+          (defender uma declaração retificadora exige mostrar o que foi declarado antes).</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ 20 · DOSSIÊ — ENTREGAR ══════════ -->
+  <section class="screen" id="s20">
+    <div class="appbar">
+      <div class="brand">Entregar o dossiê</div>
+      <div class="sub mono">dossie-casa-cachoeira-2026-08-16.zip</div>
+    </div>
+    <div class="body">
+      <div class="campo">
+        <label>Para quem <span class="obrig">*</span></label>
+        <div class="inp vazio">e-mail de quem vai receber</div>
+        <div class="hint">Só quem você nomear aqui consegue abrir. Não existe link aberto:
+          o pacote tem todas as suas notas, com CPF e CNPJ de terceiros.</div>
+      </div>
+
+      <div class="campo">
+        <label>Quem é</label>
+        <div class="inp">Contador do comprador</div>
+        <div class="hint">Aparece na lista abaixo, para você lembrar daqui a um ano quem tem acesso.</div>
+      </div>
+
+      <div class="card">
+        <div class="hint">Quem tem acesso hoje</div>
+        <div class="row">
+          <span class="lbl">marcia@contabil.com.br<br><span style="font-size:11px">contadora · desde 02/08</span></span>
+          <span class="val"><button class="btn danger-ghost sm">Tirar acesso</button></span>
+        </div>
+      </div>
+
+      <div class="hint">
+        A lista com “tirar acesso” existe por causa do risco 4 do pre-mortem: o vazamento provável
+        não é a credencial, é a pasta compartilhada uma vez e nunca revogada. Se o app dá o acesso,
+        ele tem que mostrar quem tem — e desfazer.
+      </div>
+      <div class="pendente">
+        <strong>Pergunta de viabilidade ao cto-obra:</strong> o escopo <span class="mono">drive.file</span>
+        alcança conceder e revogar permissão nos arquivos que o próprio app criou? Se não alcançar,
+        a alternativa é “Abrir a pasta no Drive” e o Mateus compartilha lá — mas aí o app
+        <em>não</em> consegue mostrar esta lista, e o critério 11 fica sem quem o verifique.
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" onclick="go(19)">Dar acesso</button>
+      <button class="btn ghost" onclick="go(19)">Voltar</button>
+    </div>
+  </section>
+
+  <!-- ══════════ 21 · DOSSIÊ — FALHOU (erro) ══════════ -->
+  <section class="screen" id="s21">
+    <div class="appbar">
+      <div class="brand">Dossiê · Casa Cachoeira</div>
+      <div class="sub">não foi gerado</div>
+    </div>
+    <div class="body">
+      <div class="banner red">
+        <strong>O pacote não fechou.</strong> 3 arquivos que o contai tem registrados não foram
+        encontrados no acervo.
+      </div>
+
+      <div class="card">
+        <div class="hint">Registros cujo arquivo sumiu</div>
+        <div class="row"><span class="lbl">NF material · Depósito Ilha</span><span class="val mono">12/05</span></div>
+        <div class="row"><span class="lbl">Recibo PF · João Alves</span><span class="val mono">03/06</span></div>
+        <div class="row"><span class="lbl">Comprovante PIX · Elétrica Sul</span><span class="val mono">21/06</span></div>
+      </div>
+
+      <div class="consequencia red">
+        O pacote não é gerado incompleto de propósito. Um dossiê que parece completo e não está
+        faz parar de procurar — e a hora de descobrir isso não é na venda.
+      </div>
+
+      <button class="btn primary" onclick="go(18)">Tentar de novo</button>
+      <button class="btn ghost" onclick="go(19)">Gerar assim mesmo, com a falta declarada</button>
+      <div class="hint">
+        A segunda opção existe porque na véspera de uma escritura um dossiê incompleto e
+        <strong>honesto</strong> vale mais que nenhum — mas ela é secundária, e a falta vai
+        escrita no LEIA-ME e no índice.
+      </div>
+      <div class="pendente">
+        <strong>Pergunta ao po:</strong> essa segunda saída existe mesmo? O critério 5 diz que
+        divergência “falha a execução, alto e visível”, o que eu li como valendo para a
+        <em>rotina</em>. Para o dossiê sob demanda, com uma pessoa olhando a tela, deixei a saída
+        consciente — mas isso é requisito, não desenho.
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ 22 · LEIA-ME (prévia) ══════════ -->
+  <section class="screen" id="s22">
+    <div class="appbar">
+      <div class="brand">LEIA-ME.txt</div>
+      <div class="sub">vai dentro de todo pacote</div>
+    </div>
+    <div class="body">
+      <div class="hint">Quem abre o pacote daqui a sete anos pode nunca ter visto o contai.
+        Este arquivo é a primeira coisa que ele lê.</div>
+
+      <div class="leiame"><strong>Este arquivo é uma cópia, não o original</strong>
+
+Documento que nasceu em papel — recibo assinado, comprovante impresso,
+contrato — só teria o mesmo valor do original se a digitalização seguisse os
+requisitos técnicos e a assinatura digital ICP-Brasil da Lei 12.682/2012 e do
+Decreto 10.278/2020. O contai não faz isso: o que ele guarda é cópia simples.
+
+Na prática: a cópia serve para localizar, conferir e não perder. Se a Receita
+pedir, quem responde é o papel.
+
+<strong>Guarde o original assinado</strong> enquanto o imóvel não for vendido, e por 5 anos
+contados do primeiro dia do ano seguinte à declaração que informar a venda.
+
+Nota fiscal eletrônica (NF-e / NFS-e) é diferente: ela já nasce digital, o
+arquivo é o original e não há papel a guardar.</div>
+      <div class="parecer">Cópia literal da “versão longa” do texto de tela do F3 — parecer do
+        contador, 2026-08-16. Não foi reescrita nem resumida.</div>
+
+      <div class="pendente">
+        <strong>Trava antes do Gate 1:</strong> o próprio parecer lista “numeração da Lei 12.682/2012
+        / Decreto 10.278/2020 no texto do F3” entre os <em>pontos a confirmar antes de virar texto
+        de tela</em>. Reproduzi o texto como ele está escrito porque o critério 13 manda copiar —
+        mas a numeração precisa ser conferida na legislação vigente antes de ir para o produto.
+      </div>
+
+      <div class="card">
+        <div style="font-weight:600; font-size:13.5px">Por quanto tempo guardar</div>
+        <div class="leiame" style="margin-top:8px">O relógio é o da decadência tributária: 5 anos contados do primeiro
+dia do exercício seguinte àquele em que o lançamento poderia ter
+sido efetuado — CTN, art. 173, I.
+
+Obra não vendida = prazo indefinido.
+
+O relógio nunca dispara exclusão automática — só informa.
+
+Regra prática: guardar o maior dos dois relógios (o do imposto de
+renda e o previdenciário), contado o previdenciário da
+regularização/CND da obra.</div>
+        <div class="parecer">Trechos copiados do F1 e da Q10 — parecer do contador, 2026-08-16.
+          As numerações da guarda previdenciária ficaram de fora de propósito: o parecer as marca
+          como “confirmar numeração e vigência antes de citar em tela”.</div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:600; font-size:13.5px">O que este pacote NÃO contém</div>
+        <ul class="lista-nao">
+          <li>escritura / contrato de compra do terreno</li>
+          <li>certidão da matrícula com o registro da compra</li>
+          <li>guia e comprovante do ITBI</li>
+          <li>guia e comprovante de escritura e registro</li>
+          <li>ART/RRT do responsável técnico</li>
+          <li>habite-se / certidão de conclusão</li>
+          <li>CND da obra e averbação na matrícula</li>
+        </ul>
+        <div class="hint" style="margin-top:6px">Guardados fora do contai. O alvará <em>está</em> no
+          pacote — foi marcado como documento da obra na triagem.</div>
+        <div class="parecer">Lista do F4 — parecer do contador, 2026-08-16. Critério 13(c):
+          “um dossiê que parece completo e não tem estes itens é pior que um que diz que faltam”.</div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" onclick="go(19)">Voltar</button>
+    </div>
+  </section>
+
+  <!-- ══════════ 23 · AVISOS (M3) ══════════ -->
+  <section class="screen" id="s23">
+    <div class="appbar">
+      <div class="brand">Avisos</div>
+      <div class="sub">Quando o contai te procura sobre a cópia</div>
+    </div>
+    <div class="body">
+      <div class="card">
+        <div style="font-weight:600; font-size:13.5px">Me avisar</div>
+        <div class="toggle" style="margin-top:9px">
+          <button class="on">só quando falhar</button>
+          <button>a cada cópia</button>
+        </div>
+        <div class="hint" style="margin-top:8px">
+          Uma escolha, duas opções, nenhuma delas muda as outras telas.
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:600; font-size:13.5px">Sempre ligado</div>
+        <div class="hint" style="margin-top:4px">
+          A linha de estado na tela inicial funciona nas duas opções e não pode ser desligada.
+          É ela que cobre o caso de a cópia <strong>nunca ter rodado</strong> — nenhum aviso de
+          falha detecta isso, porque um job que não roda não manda e-mail nenhum.
+        </div>
+      </div>
+
+      <div class="pendente">
+        <strong>M3 — pergunta em aberto para o Mateus.</strong> Aviso a cada cópia bem-sucedida,
+        ou só quando falhar? Este mock é desenhado para <em>não</em> mudar com a resposta:
+        a linha de estado e o histórico de execuções existem nos dois casos, e a resposta só
+        troca o valor deste seletor. O default desenhado é “só quando falhar” — se você responder
+        o contrário, muda um valor, não uma tela.
+      </div>
+
+      <div class="hint">
+        Contraponto honesto ao default: “só quando falhar” tem um defeito conhecido — você para
+        de receber e-mail tanto quando está tudo certo quanto quando o job foi desligado pelo
+        GitHub. Os dois silêncios são iguais na caixa de entrada. É exatamente por isso que a
+        linha de estado é obrigatória e não opcional.
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" onclick="go(8)">Voltar</button>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  const grupos = {
+    g1:[[1,"em dia"],[2,"atrasado"],[3,"nunca rodou"],[4,"falhou"],[5,"carregando"],[6,"sem saber"],[7,"bloqueado"]],
+    g2:[[8,"acervo · ok"],[9,"acervo · falha + retry"],[23,"avisos (M3)"]],
+    g3:[[10,"lista"],[11,"3 destinos"],[12,"→ vincular"],[13,"→ engano"],[14,"→ doc da obra"],[15,"limpa"]],
+    g4:[[16,"escolher obra"],[17,"confirmar"],[18,"gerando"],[19,"pronto"],[20,"entregar"],[21,"falhou"],[22,"LEIA-ME"]]
+  };
+  Object.entries(grupos).forEach(([id,itens])=>{
+    const box=document.getElementById(id);
+    itens.forEach(([n,nome])=>{
+      const b=document.createElement("button");
+      b.className="tab"; b.textContent=`${n} · ${nome}`; b.id=`t${n}`;
+      b.onclick=()=>go(n); box.appendChild(b);
+    });
+  });
+  function go(n){
+    document.querySelectorAll(".screen").forEach(s=>s.classList.remove("on"));
+    document.querySelectorAll(".tab").forEach(t=>t.classList.remove("on"));
+    document.getElementById(`s${n}`).classList.add("on");
+    document.getElementById(`t${n}`).classList.add("on");
+  }
+  go(1);
+</script>

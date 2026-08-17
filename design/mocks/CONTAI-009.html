@@ -1,0 +1,807 @@
+<title>contai — Mock CONTAI-009 · Detalhe do pagamento</title>
+<style>
+  :root{
+    --bd-bg:#d8d5cd; --bd-ink:#3a382f; --bd-mut:#6f6b60;
+    --paper:#faf9f6; --ink:#23221d; --mut:#716c61; --line:#e6e3da; --soft:#f1efe9;
+    --red:#b91c1c; --red-bg:#fbecec; --amb:#92600a; --amb-bg:#fdf3df; --grn:#15803d; --grn-bg:#e9f5ed;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bd-bg:#211f1b; --bd-ink:#e8e5dc; --bd-mut:#9b968a; }
+  }
+  :root[data-theme="dark"]{ --bd-bg:#211f1b; --bd-ink:#e8e5dc; --bd-mut:#9b968a; }
+  :root[data-theme="light"]{ --bd-bg:#d8d5cd; --bd-ink:#3a382f; --bd-mut:#6f6b60; }
+
+  *{box-sizing:border-box; margin:0}
+  body{background:var(--bd-bg); color:var(--bd-ink);
+    font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:24px 12px 48px; gap:16px}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-variant-numeric:tabular-nums}
+
+  /* ── barra de avaliação ─────────────────────────── */
+  .evalbar{max-width:780px; width:100%; text-align:center}
+  .evalbar h1{font-size:15px; font-weight:600}
+  .evalbar p{font-size:12.5px; color:var(--bd-mut); margin-top:4px}
+  .tabs{display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-top:8px}
+  .tab{border:1px solid color-mix(in srgb, var(--bd-ink) 25%, transparent); background:transparent;
+    color:var(--bd-ink); border-radius:999px; padding:4px 10px; font-size:12px; cursor:pointer}
+  .tab:hover{background:color-mix(in srgb, var(--bd-ink) 8%, transparent)}
+  .tab.on{background:var(--bd-ink); color:var(--bd-bg); border-color:var(--bd-ink)}
+  .tab:focus-visible,.btn:focus-visible{outline:2px solid var(--bd-ink); outline-offset:2px}
+  .grupo{font-size:10.5px; color:var(--bd-mut); text-transform:uppercase; letter-spacing:.09em;
+    width:100%; margin-top:10px; text-align:center}
+
+  /* ── celular ────────────────────────────────────── */
+  .phone{width:375px; max-width:100%; height:740px; background:var(--paper); color:var(--ink);
+    border-radius:30px; border:6px solid #16150f; overflow:hidden; display:flex; flex-direction:column;
+    box-shadow:0 18px 40px rgba(0,0,0,.28)}
+  .screen{display:none; flex-direction:column; height:100%}
+  .screen.on{display:flex}
+  .appbar{padding:12px 18px 10px; border-bottom:1px solid var(--line); flex:none}
+  .appbar .brand{font-weight:700; font-size:16px; letter-spacing:-.01em}
+  .appbar .sub{font-size:11.5px; color:var(--mut); margin-top:1px}
+  .voltar{font-size:12px; color:var(--mut); cursor:pointer; display:block; margin-bottom:2px}
+  .voltar:hover{color:var(--ink)}
+  .body{flex:1; overflow-y:auto; padding:16px 18px; display:flex; flex-direction:column; gap:12px}
+  .foot{flex:none; padding:12px 18px 18px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:8px}
+
+  .card{border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:#fff}
+  .card.tap{cursor:pointer} .card.tap:hover{background:var(--soft)}
+  .chip{display:inline-block; font-size:11px; font-weight:600; border-radius:999px; padding:2px 9px}
+  .chip.red{color:var(--red); background:var(--red-bg)}
+  .chip.amb{color:var(--amb); background:var(--amb-bg)}
+  .chip.grn{color:var(--grn); background:var(--grn-bg)}
+  .consequencia{font-size:12.5px; margin-top:6px; padding:8px 10px; border-radius:8px}
+  .consequencia.red{background:var(--red-bg); color:var(--red)}
+  .consequencia.amb{background:var(--amb-bg); color:var(--amb)}
+  .consequencia.grn{background:var(--grn-bg); color:var(--grn)}
+
+  .btn{display:block; width:100%; text-align:center; border-radius:10px; padding:13px 14px;
+    font-size:14.5px; font-weight:600; cursor:pointer; border:1px solid transparent}
+  .btn.primary{background:var(--ink); color:var(--paper)}
+  .btn.ghost{background:transparent; color:var(--ink); border-color:var(--line)}
+  .btn.danger-ghost{background:transparent; color:var(--red); border-color:var(--red-bg)}
+  .btn:hover{filter:brightness(1.12)}
+  .btn.sm{padding:8px 12px; font-size:13px; width:auto; display:inline-block}
+  .btn.obra{text-align:left; background:#fff; border-color:var(--line); color:var(--ink); font-weight:600}
+
+  .row{display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:9px 0; border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:none}
+  .row .lbl{font-size:12px; color:var(--mut); flex:none}
+  .row .val{font-size:13.5px; text-align:right}
+  .ok{color:var(--grn); font-weight:600}
+  .warn{color:var(--amb); font-weight:600}
+  .bad{color:var(--red); font-weight:600}
+
+  .skel{height:13px; border-radius:6px; background:var(--soft); animation:pulse 1.2s ease-in-out infinite}
+  .skel.alto{height:30px}
+  @keyframes pulse{0%,100%{opacity:.55}50%{opacity:1}}
+  @media (prefers-reduced-motion:reduce){.skel{animation:none}}
+
+  .hint{font-size:12px; color:var(--mut)}
+  .banner{border-radius:10px; padding:12px 14px; font-size:13.5px}
+  .banner.red{background:var(--red-bg); color:var(--red)}
+  .banner.amb{background:var(--amb-bg); color:var(--amb)}
+  .banner.grn{background:var(--grn-bg); color:var(--grn)}
+  .big{font-size:26px; font-weight:700; letter-spacing:-.02em}
+
+  .afirma{border:1px solid var(--line); border-left:3px solid var(--ink); border-radius:8px;
+    padding:10px 12px; background:var(--soft); display:flex; justify-content:space-between;
+    align-items:center; gap:10px}
+  .afirma .nome{font-size:13.5px; font-weight:600}
+  .afirma .trocar{font-size:12.5px; color:var(--mut); text-decoration:underline; cursor:pointer; flex:none}
+
+  .anexo{display:flex; align-items:center; gap:10px; border:1px solid var(--line); border-radius:8px;
+    padding:10px 12px; background:#fff}
+  .anexo .ico{font-size:20px; flex:none}
+  .anexo.faltando{border-style:dashed; color:var(--amb); border-color:var(--amb); background:var(--amb-bg)}
+  .naoedita{border:1px dashed var(--line); border-radius:8px; padding:10px 12px; background:var(--soft)}
+  .vaziobox{text-align:center; padding:26px 6px 6px}
+  .vaziobox .t{font-size:15px; font-weight:600}
+
+  .fonte{font-size:11px; color:var(--mut); margin-top:2px; font-style:italic;
+    border-top:1px dashed var(--line); padding-top:8px}
+  .pergunta{border:1px dashed var(--amb); background:var(--amb-bg); color:var(--amb);
+    border-radius:8px; padding:9px 11px; font-size:12px}
+  .delta{border-left:3px solid var(--grn); background:var(--grn-bg); color:var(--grn);
+    border-radius:6px; padding:8px 10px; font-size:12px}
+</style>
+
+<div class="evalbar">
+  <h1>Mock CONTAI-009 — Detalhe do pagamento, com a correção de obra alcançável a partir dele</h1>
+  <p>Navegável: use as abas ou toque nos botões e cards. Fidelidade média — avalie fluxo e conteúdo, não estética final.<br>
+     Hoje o pagamento salvo <strong>some da interface</strong> depois que a tela de "Registrado ✓" é fechada (D20/D21): não existe
+     <span class="mono">/pagamento/[id]</span> e nenhum pagamento é clicável em lugar nenhum do app.<br>
+     Escopo: <strong>o detalhe de UM registro</strong>. Não é inventário (US-009), não abre o comprovante (US-010) e
+     não edita valor, data ou favorecido — <strong>só a obra é corrigível</strong>.<br>
+     Texto com consequência fiscal é <strong>cópia</strong> do que já está carimbado; cada tela cita a fonte no rodapé,
+     e o que ainda <strong>não</strong> tem carimbo está marcado em amarelo como pergunta.</p>
+  <div class="tabs" id="tabs"></div>
+</div>
+
+<div class="phone">
+
+  <!-- 1 · HOME: a porta que falta -->
+  <section class="screen" id="s1">
+    <div class="appbar">
+      <div class="brand">contai</div>
+      <div class="sub">Casa Cachoeira · CNO 12.345.67890/26 · 2026</div>
+    </div>
+    <div class="body">
+      <div class="afirma">
+        <div>
+          <div class="hint">Obra aberta</div>
+          <div class="nome">Casa Cachoeira</div>
+        </div>
+        <span class="trocar">Trocar obra</span>
+      </div>
+
+      <div class="card">
+        <span class="chip red">Quarentena</span>
+        <div style="margin-top:6px; font-weight:600">NF fora do seu CPF</div>
+        <div class="hint">Casa do Construtor · <span class="mono">R$ 4.850,00</span></div>
+        <div class="consequencia red">Não entra no custo de aquisição. Peça a nota no seu CPF.</div>
+        <button class="btn ghost sm" style="margin-top:10px">Resolver</button>
+        <div class="hint" style="margin-top:6px">↑ já leva ao detalhe do documento. É o que falta do lado do pagamento.</div>
+      </div>
+
+      <div class="card tap" onclick="go(2)" style="border-color:var(--red)">
+        <span class="chip red">Pago sem nota</span>
+        <div style="margin-top:6px; font-weight:600">3 PIX sem NF vinculada</div>
+        <div class="hint">AJE Construções Ltda · <span class="mono">R$ 45.000,00</span></div>
+        <div class="consequencia red">Custo não se sustenta no IR até a NF chegar. Cobre a NF antes da próxima parcela.</div>
+        <button class="btn ghost sm" style="margin-top:10px" onclick="go(2)">Ver os pagamentos</button>
+      </div>
+
+      <div class="card tap" onclick="go(5)" style="border-color:var(--red)">
+        <span class="chip red">Pago sem recibo</span>
+        <div style="margin-top:6px; font-weight:600">1 PIX sem recibo vinculado</div>
+        <div class="hint">Valdir Souza · <span class="mono">R$ 1.800,00</span></div>
+        <div class="consequencia red">Custo não se sustenta no IR até o recibo chegar. Cobre o recibo assinado (nome, CPF e descrição do serviço) antes do próximo pagamento.</div>
+        <button class="btn ghost sm" style="margin-top:10px" onclick="go(5)">Ver o pagamento</button>
+      </div>
+
+      <div class="hint">
+        <strong>O que muda nesta tela:</strong> nenhum card novo, nenhuma soma nova — os cards de
+        exposição por favorecido, que hoje são cartaz, passam a ser porta. Grupo com 1 pagamento
+        vai direto ao detalhe; com mais de 1, abre a lista do grupo.
+      </div>
+
+      <div class="fonte">
+        Chips, títulos e consequências: cópia literal de <span class="mono">lib/fiscal/resumo.ts</span> +
+        <span class="mono">lib/fiscal/pagamento.ts</span>, que já implementam a correção R2 do contador
+        (docs/pareceres/2026-08-08-gate2-contai-001.md, §8): PJ cobra NF, PF cobra recibo.
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 · DENTRO DA EXPOSIÇÃO POR FAVORECIDO -->
+  <section class="screen" id="s2">
+    <div class="appbar">
+      <span class="voltar" onclick="go(1)">← Casa Cachoeira</span>
+      <div class="brand">Pago sem nota</div>
+      <div class="sub">AJE Construções Ltda · 3 pagamentos</div>
+    </div>
+    <div class="body">
+      <div class="banner red">
+        Custo não se sustenta no IR até a NF chegar. Cobre a NF antes da próxima parcela.
+      </div>
+
+      <div class="card tap" onclick="go(3)">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px">
+          <span class="mono" style="font-size:16px; font-weight:700">R$ 15.000,00</span>
+          <span class="chip red">Pago sem nota</span>
+        </div>
+        <div class="hint mono" style="margin-top:4px">PIX · pago em 05/08/2026</div>
+        <div class="hint">Casa Cachoeira</div>
+      </div>
+
+      <div class="card tap" onclick="go(3)">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px">
+          <span class="mono" style="font-size:16px; font-weight:700">R$ 15.000,00</span>
+          <span class="chip red">Pago sem nota</span>
+        </div>
+        <div class="hint mono" style="margin-top:4px">PIX · pago em 05/07/2026</div>
+        <div class="hint">Casa Cachoeira</div>
+      </div>
+
+      <div class="card tap" onclick="go(3)">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px">
+          <span class="mono" style="font-size:16px; font-weight:700">R$ 15.000,00</span>
+          <span class="chip red">Pago sem nota</span>
+        </div>
+        <div class="hint mono" style="margin-top:4px">PIX · pago em 05/06/2026</div>
+        <div class="hint">Casa Cachoeira</div>
+      </div>
+
+      <div class="hint">
+        Ordenado do pagamento <strong>mais recente para o mais antigo</strong>: o erro fresco é o
+        que ainda dá para corrigir com a memória do dia.
+      </div>
+
+      <div class="pergunta">
+        <strong>Pergunta ao PO — esta tela é escopo ou é US-009?</strong>
+        O card da home agrega N pagamentos sob um favorecido e <strong>não tem id de pagamento para
+        linkar</strong>. Ou existe esta lista do grupo, ou o card só é clicável quando tem 1 item —
+        e aí os outros 2 PIX continuam invisíveis. Desenhei a lista porque a alternativa não fecha
+        o critério 5, mas ela <strong>não é</strong> inventário: só mostra o que aquele card já
+        contava, sem busca, sem filtro e sem outros favorecidos.
+      </div>
+
+      <div class="fonte">
+        O nome da obra aparece em cada linha porque é justamente ele que pode estar errado
+        (critério 9 do CONTAI-003). Nenhum valor somado entre obras — o grupo é de uma obra só.
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 · DETALHE · CARREGANDO -->
+  <section class="screen" id="s3" onclick="go(4)" style="cursor:pointer">
+    <div class="appbar">
+      <span class="voltar">← Pago sem nota</span>
+      <div class="brand">Pagamento</div>
+      <div class="sub">carregando…</div>
+    </div>
+    <div class="body">
+      <div class="skel alto" style="width:58%"></div>
+      <div class="skel" style="width:44%"></div>
+      <div class="card">
+        <div class="skel" style="width:86%; margin:7px 0"></div>
+        <div class="skel" style="width:70%; margin:7px 0"></div>
+        <div class="skel" style="width:78%; margin:7px 0"></div>
+        <div class="skel" style="width:56%; margin:7px 0"></div>
+      </div>
+      <div class="skel" style="width:92%"></div>
+      <p class="hint" style="margin-top:8px">
+        Mesmo componente <span class="mono">Carregando</span> do detalhe do documento, com
+        rótulo "Carregando o pagamento". O esqueleto tem a forma da tela cheia — valor no topo,
+        bloco de campos, faixa de consequência — para o layout não pular quando o dado chega.
+      </p>
+      <p class="hint">(mock: toque em qualquer lugar para continuar)</p>
+    </div>
+  </section>
+
+  <!-- 4 · DETALHE · PJ, PAGO SEM NOTA (tela principal) -->
+  <section class="screen" id="s4">
+    <div class="appbar">
+      <span class="voltar" onclick="go(2)">← Pago sem nota · AJE</span>
+      <div class="brand">Pagamento</div>
+      <div class="sub">AJE Construções Ltda</div>
+    </div>
+    <div class="body">
+      <div>
+        <div class="big mono">R$ 15.000,00</div>
+        <div class="hint">PIX pago em <strong class="mono">05/08/2026</strong></div>
+      </div>
+
+      <div><span class="chip red">Pago sem nota</span></div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Valor</span><span class="val mono">R$ 15.000,00</span></div>
+        <div class="row"><span class="lbl">Data do pagamento</span><span class="val mono">05/08/2026</span></div>
+        <div class="row"><span class="lbl">Favorecido</span><span class="val">AJE Construções Ltda<br><span class="mono hint">11.222.333/0001-81</span></span></div>
+        <div class="row"><span class="lbl">Meio</span><span class="val">PIX</span></div>
+        <div class="row"><span class="lbl">Documento vinculado</span><span class="val warn">nenhum ainda</span></div>
+      </div>
+
+      <div class="consequencia red" style="margin-top:0">
+        Custo não se sustenta no IR até a NF chegar. Cobre a NF antes da próxima parcela.
+      </div>
+
+      <div>
+        <div class="hint" style="margin-bottom:4px">Comprovante</div>
+        <div class="anexo">
+          <span class="ico">📎</span>
+          <div>
+            <div style="font-size:13.5px">comprovante-pix-05-08.jpg</div>
+            <div class="hint">no acervo desde 05/08/2026</div>
+          </div>
+        </div>
+        <div class="hint" style="margin-top:4px">Abrir ou baixar o original é a US-010 — aqui o anexo é citado como existente, não servido.</div>
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Obra</span><span class="val">Casa Cachoeira</span></div>
+        <button class="btn ghost sm" style="margin-top:10px" onclick="go(9)">Corrigir a obra deste registro</button>
+      </div>
+
+      <div class="naoedita">
+        <div class="hint">
+          <strong>Valor, data e favorecido não se corrigem aqui.</strong> Nesta tela só a obra é
+          corrigível: mexer em campo fiscal sem regra escrita é como se cria erro novo consertando
+          erro velho.
+        </div>
+      </div>
+
+      <div class="fonte">
+        <strong>Fontes.</strong> Consequência "pago sem nota" (PJ): literal de
+        <span class="mono">lib/fiscal/pagamento.ts</span>, redação carimbada em
+        docs/pareceres/2026-08-08-gate2-contai-001.md §8 (ressalva R2).
+        Bloco "Obra" + rótulo <strong>Corrigir a obra deste registro</strong>: cópia exata do que já
+        existe em <span class="mono">app/documento/[id]/page.tsx</span> e
+        <span class="mono">app/_components/registrado.tsx</span> — critério 4 fecha por reuso, não
+        por texto novo. Obrigatoriedade do <span class="mono">obra_id</span> correto: resposta Q9d do
+        contador (2026-08-09).
+      </div>
+
+      <div class="pergunta">
+        <strong>Pergunta ao PO (chip de status).</strong> O critério 2 pede o status
+        "aguardando NF / conciliado". Usei o vocabulário da home
+        (<em>Pago sem nota / Pago sem recibo / Pago sem documento</em>) em vez de "aguardando NF"
+        porque o contador barrou "NF" para favorecido PF na ressalva R2. Se ele quiser o rótulo do
+        ticket ao pé da letra, é decisão do PO — mas aí volta o texto que já foi reprovado.
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 · DETALHE · PF, PAGO SEM RECIBO -->
+  <section class="screen" id="s5">
+    <div class="appbar">
+      <span class="voltar" onclick="go(1)">← Casa Cachoeira</span>
+      <div class="brand">Pagamento</div>
+      <div class="sub">Valdir Souza</div>
+    </div>
+    <div class="body">
+      <div>
+        <div class="big mono">R$ 1.800,00</div>
+        <div class="hint">PIX pago em <strong class="mono">12/08/2026</strong></div>
+      </div>
+
+      <div><span class="chip red">Pago sem recibo</span></div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Valor</span><span class="val mono">R$ 1.800,00</span></div>
+        <div class="row"><span class="lbl">Data do pagamento</span><span class="val mono">12/08/2026</span></div>
+        <div class="row"><span class="lbl">Favorecido</span><span class="val">Valdir Souza<br><span class="mono hint">CPF 123.456.789-00</span></span></div>
+        <div class="row"><span class="lbl">Meio</span><span class="val">PIX</span></div>
+        <div class="row"><span class="lbl">Documento vinculado</span><span class="val warn">nenhum ainda</span></div>
+      </div>
+
+      <div class="consequencia red" style="margin-top:0">
+        Custo não se sustenta no IR até o recibo chegar. Cobre o recibo assinado (nome, CPF e
+        descrição do serviço) antes do próximo pagamento.
+      </div>
+
+      <div>
+        <div class="hint" style="margin-bottom:4px">Comprovante</div>
+        <div class="anexo">
+          <span class="ico">📎</span>
+          <div>
+            <div style="font-size:13.5px">pix-valdir-12-08.jpg</div>
+            <div class="hint">no acervo desde 12/08/2026</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Obra</span><span class="val">Casa Cachoeira</span></div>
+        <button class="btn ghost sm" style="margin-top:10px" onclick="go(9)">Corrigir a obra deste registro</button>
+      </div>
+
+      <div class="fonte">
+        Esta tela existe no mock por um motivo só: o detalhe <strong>não pode</strong> dizer
+        "aguardando NF" para prestador PF. Prestador PF autônomo nunca emite NF — o documento hábil
+        é recibo com nome, CPF e descrição do serviço. Redação literal de
+        <span class="mono">lib/fiscal/pagamento.ts</span>, carimbada em
+        docs/pareceres/2026-08-08-gate2-contai-001.md §8.
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 · DETALHE · REGISTRO INCOMPLETO (favorecido e comprovante ausentes) -->
+  <section class="screen" id="s6">
+    <div class="appbar">
+      <span class="voltar" onclick="go(1)">← Casa Cachoeira</span>
+      <div class="brand">Pagamento</div>
+      <div class="sub">Favorecido não informado</div>
+    </div>
+    <div class="body">
+      <div>
+        <div class="big mono">R$ 3.200,00</div>
+        <div class="hint">PIX pago em <strong class="mono">28/07/2026</strong></div>
+      </div>
+
+      <div><span class="chip red">Pago sem documento</span></div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Valor</span><span class="val mono">R$ 3.200,00</span></div>
+        <div class="row"><span class="lbl">Data do pagamento</span><span class="val mono">28/07/2026</span></div>
+        <div class="row"><span class="lbl">Favorecido</span><span class="val warn">Favorecido não informado</span></div>
+        <div class="row"><span class="lbl">Meio</span><span class="val">PIX</span></div>
+        <div class="row"><span class="lbl">Documento vinculado</span><span class="val warn">nenhum ainda</span></div>
+      </div>
+
+      <div class="consequencia red" style="margin-top:0">
+        Custo não se sustenta no IR sem documento hábil. Informe o CNPJ/CPF do favorecido para
+        saber se falta NF (PJ) ou recibo assinado (PF).
+      </div>
+
+      <div>
+        <div class="hint" style="margin-bottom:4px">Comprovante</div>
+        <div class="anexo faltando">
+          <span class="ico">⚠️</span>
+          <div>
+            <div style="font-size:13.5px; font-weight:600">Sem comprovante anexado</div>
+            <div class="hint" style="color:inherit">Registro antigo, de antes de o anexo ser obrigatório.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Obra</span><span class="val">Casa Cachoeira</span></div>
+        <button class="btn ghost sm" style="margin-top:10px" onclick="go(9)">Corrigir a obra deste registro</button>
+      </div>
+
+      <div class="pergunta">
+        <strong>Duas perguntas ao PO nesta tela, e não decidi nenhuma sozinho:</strong><br>
+        1. A consequência manda <em>"informe o CNPJ/CPF do favorecido"</em> — mas o favorecido é
+        campo que o Out of Scope proíbe editar aqui. A tela pede uma ação que ela mesma não oferece.
+        Ou o texto ganha um caminho, ou o Out of Scope abre exceção para favorecido ausente
+        (<strong>preencher o que está vazio</strong> não é a mesma coisa que trocar o que está
+        preenchido) — precisa de decisão, e o texto é carimbado, então quem mexe nele é o contador.<br>
+        2. Anexar comprovante que faltou: é ação desta tela ou é US-010? Enquanto não houver
+        resposta, a tela <strong>aponta a falta e não oferece botão</strong> — prefiro um buraco
+        visível a um botão inventado.
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 · DETALHE · CONCILIADO -->
+  <section class="screen" id="s7">
+    <div class="appbar">
+      <span class="voltar" onclick="go(1)">← Casa Cachoeira</span>
+      <div class="brand">Pagamento</div>
+      <div class="sub">AJE Construções Ltda</div>
+    </div>
+    <div class="body">
+      <div>
+        <div class="big mono">R$ 25.000,00</div>
+        <div class="hint">Boleto pago em <strong class="mono">15/09/2026</strong></div>
+      </div>
+
+      <div><span class="chip grn">Conciliado</span></div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Valor</span><span class="val mono">R$ 25.000,00</span></div>
+        <div class="row"><span class="lbl">Data do pagamento</span><span class="val mono">15/09/2026</span></div>
+        <div class="row"><span class="lbl">Favorecido</span><span class="val">AJE Construções Ltda<br><span class="mono hint">11.222.333/0001-81</span></span></div>
+        <div class="row"><span class="lbl">Meio</span><span class="val">Boleto</span></div>
+        <div class="row"><span class="lbl">Documento vinculado</span><span class="val ok">NF de serviço 1042 ✓</span></div>
+      </div>
+
+      <div class="consequencia grn" style="margin-top:0">
+        Este pagamento entra no custo de aquisição de <strong>2026</strong> — o ano sai da data do
+        pagamento, não da data da nota.
+      </div>
+
+      <div>
+        <div class="hint" style="margin-bottom:4px">Comprovante</div>
+        <div class="anexo">
+          <span class="ico">📎</span>
+          <div>
+            <div style="font-size:13.5px">boleto-1042-pago.pdf</div>
+            <div class="hint">no acervo desde 15/09/2026</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Obra</span><span class="val">Casa Cachoeira</span></div>
+        <button class="btn ghost sm" style="margin-top:10px" onclick="go(9)">Corrigir a obra deste registro</button>
+      </div>
+
+      <div class="hint">
+        Conciliado não vira tela só de leitura: erro de obra sobrevive à conciliação e continua
+        indo para a discriminação da matrícula errada.
+      </div>
+
+      <div class="pergunta">
+        <strong>Pergunta ao PO — este pagamento não tem porta.</strong> Conciliado, ele sai da lista
+        de pendências e volta a ser invisível: a home só expõe o que está pendente e o inventário é
+        US-009. Duas saídas possíveis, nenhuma no ticket: (a) o detalhe do documento passa a listar
+        os pagamentos vinculados (tela 14), ou (b) aceita-se que pagamento conciliado só se alcança
+        pela US-009. Se for (b), o critério 5 fecha só para pendência.
+      </div>
+
+      <div class="fonte">
+        <strong>Frase ainda sem carimbo.</strong> "O ano sai da data do pagamento, não da data da
+        nota" é derivada do parecer 2026-08-08 §1 (regime de caixa) e §7/Q6 ("cada parcela integra o
+        custo do ano do seu pagamento efetivo; a data de emissão é irrelevante para a alocação"),
+        mas a redação é minha. <strong>Precisa passar pelo contador antes de virar código</strong> —
+        regra dura do CLAUDE.md.
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 · ERRO + RETRY -->
+  <section class="screen" id="s8">
+    <div class="appbar">
+      <span class="voltar" onclick="go(2)">← Pago sem nota · AJE</span>
+      <div class="brand">Pagamento</div>
+      <div class="sub">não foi possível carregar</div>
+    </div>
+    <div class="body">
+      <div class="banner red">
+        Não foi possível falar com o servidor. Tente de novo.
+      </div>
+      <button class="btn ghost" onclick="go(3)">Tentar de novo</button>
+
+      <div class="card">
+        <div class="hint">
+          <strong>Nada foi perdido.</strong> O pagamento continua gravado — o que falhou foi
+          mostrar ele aqui.
+        </div>
+      </div>
+
+      <div class="card">
+        <span class="chip amb">Sua sessão terminou</span>
+        <div class="consequencia amb">Entre de novo para ver a obra. Nada foi perdido: seus documentos e pagamentos continuam guardados.</div>
+        <button class="btn ghost sm" style="margin-top:8px">Entrar</button>
+      </div>
+
+      <div class="hint">
+        Os dois erros já são telas diferentes no app (componente <span class="mono">EstadoErro</span>):
+        falha de rede tem "Tentar de novo", sessão expirada tem "Entrar" — porque "tentar de novo"
+        nunca resolve falta de sessão. Aqui estão juntos só para comparar.
+      </div>
+
+      <div class="fonte">
+        Mensagens literais de <span class="mono">lib/data.ts</span> e
+        <span class="mono">app/_components/ui.tsx</span> — o detalhe do pagamento reusa o mesmo
+        componente do detalhe do documento, sem texto novo.
+      </div>
+    </div>
+  </section>
+
+  <!-- 9 · CORRIGIR OBRA — TELA JÁ APROVADA E JÁ IMPLEMENTADA -->
+  <section class="screen" id="s9">
+    <div class="appbar">
+      <span class="voltar" onclick="go(4)">← Pagamento</span>
+      <div class="brand">Corrigir obra</div>
+      <div class="sub">Pagamento · AJE Construções Ltda</div>
+    </div>
+    <div class="body">
+      <div class="banner amb">
+        <strong>Esta tela não se redesenha.</strong> Ela já está aprovada no mock do CONTAI-003 e já
+        funciona em <span class="mono">/pagamento/[id]/obra</span>. Está aqui só para o fluxo fechar —
+        o que o CONTAI-009 entrega é o botão que chega nela e o caminho de volta.
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Valor</span><span class="val mono">R$ 15.000,00</span></div>
+        <div class="row"><span class="lbl">Data do pagamento</span><span class="val mono">05/08/2026</span></div>
+        <div class="row"><span class="lbl">Está em</span><span class="val">Casa Cachoeira</span></div>
+      </div>
+
+      <div class="hint">Mover para</div>
+      <button class="btn obra" onclick="go(10)">Casa do Morro<br><span class="hint" style="font-weight:400">sem CNO</span></button>
+
+      <div class="delta">
+        <strong>Único delta do CONTAI-009 nesta tela:</strong> o "voltar" hoje aponta para a home
+        (<span class="mono">voltarHref="/"</span>) porque não havia detalhe de pagamento. Passa a
+        apontar para <span class="mono">/pagamento/[id]</span>.
+      </div>
+
+      <div class="fonte">
+        Sem aviso de revalidação de CNO aqui, e é de propósito: revalidação é regra de NF de serviço.
+        Pagamento não referencia CNO.
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" onclick="go(10)">Mover para a obra escolhida</button>
+      <button class="btn ghost" onclick="go(4)">Cancelar</button>
+    </div>
+  </section>
+
+  <!-- 10 · OBRA CORRIGIDA ✓ -->
+  <section class="screen" id="s10">
+    <div class="appbar">
+      <div class="brand">Obra corrigida ✓</div>
+      <div class="sub">Casa do Morro</div>
+    </div>
+    <div class="body">
+      <div class="banner grn">
+        Este registro agora está em <strong>Casa do Morro</strong> e sai de todas as saídas da obra anterior.
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Valor</span><span class="val mono">R$ 15.000,00</span></div>
+        <div class="row"><span class="lbl">Data do pagamento</span><span class="val mono">05/08/2026</span></div>
+        <div class="row"><span class="lbl">Obra</span><span class="val" style="font-weight:600">Casa do Morro</span></div>
+      </div>
+
+      <div class="delta">
+        <strong>Delta do CONTAI-009:</strong> hoje esta tela termina com um único botão
+        "Voltar ao início" — corrigir a obra de um pagamento obriga a cair na home. Passa a oferecer
+        <strong>Voltar ao pagamento</strong> em primeiro lugar: é lá que se confere se o nome da obra
+        mudou mesmo. Sucesso que esconde o resultado obriga a conferir no banco, que é a dor que este
+        ticket fecha.
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" onclick="go(11)">Voltar ao pagamento</button>
+      <button class="btn ghost" onclick="go(1)">Voltar ao início</button>
+    </div>
+  </section>
+
+  <!-- 11 · DETALHE DEPOIS DA CORREÇÃO -->
+  <section class="screen" id="s11">
+    <div class="appbar">
+      <span class="voltar" onclick="go(1)">← Casa do Morro</span>
+      <div class="brand">Pagamento</div>
+      <div class="sub">AJE Construções Ltda</div>
+    </div>
+    <div class="body">
+      <div>
+        <div class="big mono">R$ 15.000,00</div>
+        <div class="hint">PIX pago em <strong class="mono">05/08/2026</strong></div>
+      </div>
+
+      <div><span class="chip red">Pago sem nota</span></div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Valor</span><span class="val mono">R$ 15.000,00</span></div>
+        <div class="row"><span class="lbl">Data do pagamento</span><span class="val mono">05/08/2026</span></div>
+        <div class="row"><span class="lbl">Favorecido</span><span class="val">AJE Construções Ltda<br><span class="mono hint">11.222.333/0001-81</span></span></div>
+        <div class="row"><span class="lbl">Meio</span><span class="val">PIX</span></div>
+        <div class="row"><span class="lbl">Documento vinculado</span><span class="val warn">nenhum ainda</span></div>
+      </div>
+
+      <div class="consequencia red" style="margin-top:0">
+        Custo não se sustenta no IR até a NF chegar. Cobre a NF antes da próxima parcela.
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Obra</span><span class="val" style="font-weight:600">Casa do Morro</span></div>
+        <button class="btn ghost sm" style="margin-top:10px" onclick="go(9)">Corrigir a obra deste registro</button>
+      </div>
+
+      <div class="hint">
+        O nome da obra novo, na mesma linha de sempre. É este o "visível no detalhe do pagamento"
+        que o critério 13 do CONTAI-003 pedia e que ficou faltando.
+      </div>
+    </div>
+  </section>
+
+  <!-- 12 · REGISTRADO ✓ → VER O PAGAMENTO -->
+  <section class="screen" id="s12">
+    <div class="appbar"><div class="brand">Registrado ✓</div><div class="sub">Casa Cachoeira</div></div>
+    <div class="body">
+      <div class="banner grn">
+        Salvo em <strong>Casa Cachoeira</strong>. Original guardado no acervo — fica disponível até a venda + 5 anos.
+      </div>
+      <div class="card">
+        <div class="row"><span class="lbl">Obra</span><span class="val">Casa Cachoeira</span></div>
+        <div class="row"><span class="lbl">Próximo passo</span><span class="val">vincular NF quando chegar <span class="hint">(em breve — US-003)</span></span></div>
+        <div class="row"><span class="lbl">Custo 2026</span><span class="val">só conta depois de vincular NF</span></div>
+      </div>
+
+      <div class="card">
+        <div class="hint">Salvou na obra errada?</div>
+        <button class="btn ghost sm" style="margin-top:8px" onclick="go(9)">Corrigir a obra deste registro</button>
+      </div>
+
+      <div class="delta">
+        <strong>Delta do CONTAI-009:</strong> um botão "Ver o pagamento". Hoje esta é a última tela
+        que fala do registro — fechada ela, o pagamento some. É o caminho do critério 6 do E2E:
+        registrar, <strong>fechar esta tela</strong>, chegar ao detalhe pela navegação e corrigir a obra.
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" onclick="go(4)">Ver o pagamento</button>
+      <button class="btn ghost" onclick="go(1)">Voltar ao início</button>
+    </div>
+  </section>
+
+  <!-- 13 · ESTADOS VAZIOS -->
+  <section class="screen" id="s13">
+    <div class="appbar">
+      <div class="brand">Pagamento</div>
+      <div class="sub">não encontrado</div>
+    </div>
+    <div class="body">
+      <div class="vaziobox">
+        <div class="t">Pagamento não encontrado.</div>
+        <p class="hint" style="margin-top:8px">
+          O endereço aberto não corresponde a nenhum pagamento seu. Costuma ser link antigo — ou o
+          registro foi movido para outra obra.
+        </p>
+      </div>
+
+      <div class="hint">
+        Uma tela de detalhe não fica vazia por falta de dado: ela fica vazia quando o registro
+        pedido não existe. É este o caso a cobrir, e a saída nunca é um beco — sempre há para onde ir.
+      </div>
+
+      <div class="card">
+        <div class="hint" style="margin-bottom:6px"><strong>O outro vazio: a lista do grupo esvaziou</strong></div>
+        <div class="vaziobox" style="padding:6px">
+          <div class="t" style="font-size:14px">Nenhum pagamento nesta pendência</div>
+          <p class="hint" style="margin-top:6px">
+            Todos os pagamentos da AJE Construções Ltda já têm documento vinculado. Um PIX novo sem
+            documento volta a aparecer aqui.
+          </p>
+        </div>
+        <button class="btn ghost sm" style="margin-top:8px" onclick="go(1)">Voltar ao início</button>
+      </div>
+
+      <div class="fonte">
+        "Pagamento não encontrado." é a mensagem literal que <span class="mono">lib/data.ts</span>
+        já devolve — a tela mostra a mensagem que o sistema já tem, não uma inventada.
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" onclick="go(1)">Voltar ao início</button>
+      <button class="btn ghost" onclick="go(2)">Ver as pendências</button>
+    </div>
+  </section>
+
+  <!-- 14 · PROPOSTA: PAGAMENTOS NO DETALHE DO DOCUMENTO -->
+  <section class="screen" id="s14">
+    <div class="appbar">
+      <span class="voltar" onclick="go(7)">← Pagamento</span>
+      <div class="brand">NF de serviço</div>
+      <div class="sub">AJE Construções Ltda</div>
+    </div>
+    <div class="body">
+      <div class="pergunta">
+        <strong>PROPOSTA — não decidi isto, é pergunta ao PO.</strong> Sem esta lista, pagamento
+        <em>conciliado</em> não tem nenhuma porta no app (tela 7). Com ela, o detalhe do documento
+        vira a porta. Só que isso mexe numa tela que <strong>não é</strong> deste ticket. Se o PO
+        disser não, o critério 5 fecha só para pendência e o resto espera a US-009.
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Valor</span><span class="val mono">R$ 25.000,00</span></div>
+        <div class="row"><span class="lbl">Destinatário</span><span class="val ok">Seu CPF ✓</span></div>
+        <div class="row"><span class="lbl">Classificação</span><span class="val">Mão de obra</span></div>
+      </div>
+
+      <div class="card" style="border-style:dashed">
+        <div class="hint" style="margin-bottom:6px">Pagamentos vinculados <span style="font-style:italic">(proposta)</span></div>
+        <div class="card tap" onclick="go(7)" style="margin-bottom:8px">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px">
+            <span class="mono" style="font-weight:600">R$ 25.000,00</span>
+            <span class="chip grn">Conciliado</span>
+          </div>
+          <div class="hint mono" style="margin-top:4px">Boleto · pago em 15/09/2026</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Obra</span><span class="val">Casa Cachoeira</span></div>
+        <button class="btn ghost sm" style="margin-top:10px">Corrigir a obra deste registro</button>
+        <div class="hint" style="margin-top:6px">
+          Rótulo idêntico ao do detalhe do pagamento — critério 4. Ele já existe hoje nesta tela;
+          o que faltava era o gêmeo do outro lado.
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  const grupos = [
+    ["chegar até o pagamento", [[1,"Home · a porta que falta"],[2,"Dentro da exposição"],[12,"Registrado ✓ → detalhe"]]],
+    ["o detalhe", [[3,"Carregando"],[4,"PJ · pago sem nota"],[5,"PF · pago sem recibo"],[6,"Registro incompleto"],[7,"Conciliado"]]],
+    ["quando dá ruim", [[8,"Erro + retry"],[13,"Vazios"]]],
+    ["corrigir a obra", [[9,"Corrigir obra"],[10,"Corrigida ✓"],[11,"Detalhe corrigido"]]],
+    ["em aberto", [[14,"Proposta · doc → pagamentos"]]]
+  ];
+  const tabs = document.getElementById("tabs");
+  grupos.forEach(([nome, itens])=>{
+    const g=document.createElement("div"); g.className="grupo"; g.textContent=nome; tabs.appendChild(g);
+    itens.forEach(([n,rotulo])=>{
+      const b=document.createElement("button");
+      b.className="tab"; b.textContent=`${n} · ${rotulo}`; b.id=`t${n}`;
+      b.onclick=()=>go(n); tabs.appendChild(b);
+    });
+  });
+  function go(n){
+    document.querySelectorAll(".screen").forEach(s=>s.classList.remove("on"));
+    document.querySelectorAll(".tab").forEach(t=>t.classList.remove("on"));
+    document.getElementById(`s${n}`).classList.add("on");
+    document.getElementById(`t${n}`).classList.add("on");
+  }
+  go(1);
+</script>
