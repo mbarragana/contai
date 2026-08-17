@@ -23,3 +23,6 @@ next-env.d.ts
 # supabase local
 supabase/.branches
 supabase/.temp
+
+# claude — settings da máquina (agents/ e commands/ SÃO versionados)
+.claude/settings.local.json
