@@ -32,12 +32,12 @@ export function CampoTexto({
   valor: string;
   onChange: (v: string) => void;
   erro?: string;
-  tipo?: "text" | "date" | "email";
+  tipo?: "text" | "date" | "email" | "password";
   placeholder?: string;
   inputMode?: "text" | "numeric" | "decimal" | "email";
-  /** `one-time-code` faz o iOS/Android oferecer o código do e-mail (CONTAI-002). */
+  /** `current-password` faz o gerenciador do iPhone preencher (CONTAI-002). */
   autoComplete?: string;
-  /** Ajuste pontual de aparência (ex.: o campo do código, grande e espaçado). */
+  /** Ajuste pontual de aparência. */
   classe?: string;
 }) {
   const id = useId();

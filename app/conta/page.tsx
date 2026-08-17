@@ -22,12 +22,12 @@ import { carregarObras, classificarErro, type ErroDeTela } from "@/lib/data";
 /**
  * Tela 7 do mock CONTAI-002 — a conta e a saída (critério 6).
  *
- * DIVERGÊNCIA INTENCIONAL do mock aprovado: a tela 7 ainda diz "para voltar,
- * você precisa do LINK no e-mail". Isso é texto da era do magic link e
- * contradiz a decisão do Mateus de 2026-08-10 (critério 2 do ticket), que
- * trocou o link pelo código de 6 dígitos. Aqui está "código" — a consequência
- * de sair continua real (precisa do e-mail para voltar), mas descrita pelo
- * mecanismo que o app tem de verdade.
+ * DIVERGÊNCIA INTENCIONAL do mock aprovado: a tela 7 diz "para voltar, você
+ * precisa do LINK no e-mail" — texto da era do magic link, que já não valia
+ * quando o login era por código (decisão de 2026-08-10) e vale menos ainda
+ * agora que é por SENHA (decisão de 2026-08-17). Aqui está "senha": a
+ * consequência de sair continua real, mas descrita pelo mecanismo que o app
+ * tem de verdade.
  */
 
 type Estado =
@@ -88,16 +88,17 @@ export default function Conta() {
 
             <Dica>
               Você continua logado entre visitas ao canteiro — fechar o app não
-              pede código de novo. Sair só é necessário se este aparelho deixar
+              pede a senha de novo. Sair só é necessário se este aparelho deixar
               de ser seu.
             </Dica>
 
             <Card>
               <Chip cor="red">Sair</Chip>
               <Consequencia cor="red">
-                Sair apaga a sessão deste aparelho. Para voltar, você precisa do
-                código que chega no e-mail — e sem sinal no canteiro isso pode
-                significar não registrar a nota hoje.
+                Sair apaga a sessão deste aparelho. Para voltar, você precisa da
+                sua senha — se ela só existe no gerenciador deste aparelho,
+                confira antes de sair. Não há recuperação por e-mail: senha
+                esquecida se troca no painel do Supabase.
               </Consequencia>
               <div className="mt-2.5">
                 <Botao

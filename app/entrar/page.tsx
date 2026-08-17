@@ -18,7 +18,7 @@ import { destinoSeguro, PARAM_DESTINO } from "@/lib/auth";
 export default function Entrar() {
   const router = useRouter();
   // Lido uma vez, no primeiro render do browser. O destino não aparece em
-  // lugar nenhum da tela — só é usado depois que o código é aceito.
+  // lugar nenhum da tela — só é usado depois que a sessão nasce.
   const [destino] = useState(() =>
     typeof window === "undefined"
       ? "/"
