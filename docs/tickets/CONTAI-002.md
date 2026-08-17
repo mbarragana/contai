@@ -1,5 +1,29 @@
 # CONTAI-002 — Autenticação real (entrar e sair do app)
 
+> **MUDANÇA DE MÉTODO — 2026-08-17.** O login deixou de ser **código de 6
+> dígitos por e-mail** e passou a ser **e-mail + senha**
+> (`signInWithPassword`). Decisão do Mateus, revertendo a de 2026-08-10.
+> **Motivo:** o SMTP embutido do Supabase **não deixa editar o template de
+> e-mail** (constatado no dashboard em 2026-08-17). Sem template editável o
+> e-mail sai sempre como **link** e nunca como código — ou seja, o login
+> projetado **não existia em produção**, e teria falhado em silêncio, com toda
+> a suíte verde contra o Mailpit local. As alternativas (SMTP da Resend com
+> domínio de outro produto, domínio novo com renovação anual, Gmail SMTP)
+> acrescentavam, cada uma, um ponto a mais que falha calado num app que precisa
+> durar até 2034. Senha não depende de e-mail nenhum.
+>
+> **Efeito nos critérios:** o critério 2 foi **reescrito**. Os critérios 1
+> (mock) e 3 (sessão persiste) voltam a ficar **em aberto na parte da tela** —
+> a tela de login mudou depois do Gate 4, então a validação daquela tela está
+> reaberta. Os critérios 4, 5, 6, 7 e 8 não dependem do método e seguem como o
+> Gate 4 os deixou, com o código adaptado e o E2E reescrito.
+>
+> **Nenhum veredito de gate é declarado aqui.** Isto é registro de mudança feito
+> pelo Gate 1 (lead-engineer); quem julga é o `cto-obra` (Gate 2) e o `po`
+> (Gate 4).
+>
+> Detalhe da implementação em [Mudança de método — 2026-08-17](#mudança-de-método--2026-08-17), no fim do arquivo.
+
 ## Tipo e Prioridade
 enabler — **P0** — bloqueador de deploy. Sem isto o app publicado é
 inutilizável: criar usuário no dashboard do Supabase e injetar sessão no
@@ -18,24 +42,42 @@ e-mail e continuar logado entre visitas, para registrar uma nota sem passar
 pelo dashboard do Supabase.
 
 ## Critérios de Aceite
-1. [x] **Mock APROVADO pelo Mateus em 2026-08-10** —
+1. [~] **Mock APROVADO pelo Mateus em 2026-08-10** —
        `design/mocks/CONTAI-002.html`, 7 telas, 375px, uma mão: login,
        digitação do código, código inválido/expirado, volta à rota pedida,
        "sem sessão" ≠ "banco fora", sessão caída no meio do formulário, e
-       conta/sair
-2. [x] Login por **código de 6 dígitos no e-mail** (`signInWithOtp` +
-       `verifyOtp` do Supabase Auth), sem senha e **sem magic link**.
-       **Decisão do Mateus, 2026-08-10**: o app pode virar nativo, e link em
-       e-mail abre no navegador padrão — quem entra é a aba, não o app. O
-       código é digitado dentro do app que pediu, então a sessão nasce onde
-       tem de nascer. Mesmo padrão do `surf-forecast`
-       (`src/lib/auth/actions.ts`, `src/components/email-code-form.tsx`).
-       Campo com `inputMode="numeric"` e `autoComplete="one-time-code"` para o
-       sistema oferecer o código colado de uma vez.
-       **`shouldCreateUser: false`** — o login nunca cria conta: a base guarda
-       CPF, CNO e as notas da obra, e conta de terceiro não tem o que fazer ali
-3. [x] A sessão persiste entre aberturas do app — fechar e reabrir o PWA não
-       pede login de novo
+       conta/sair.
+       **REABERTO em 2026-08-17 para as telas 1, 2, 3 e 7**: o método de login
+       mudou para senha e essas telas do mock descrevem o fluxo do código. Por
+       decisão de processo registrada no pedido de implementação, **o mock NÃO
+       foi alterado** — a tela de senha vai ser aprovada pelo Mateus no
+       **deploy de preview**, exceção deliberada ao mock-first. As telas 4, 5 e
+       6 não dependem do método e seguem aprovadas
+2. [x] ~~Login por **código de 6 dígitos no e-mail** (`signInWithOtp` +
+       `verifyOtp`), sem senha e sem magic link (decisão de 2026-08-10)~~ —
+       **SUBSTITUÍDO em 2026-08-17.** Login por **e-mail + senha**
+       (`signInWithPassword` do Supabase Auth), **um passo só**, e **nenhum
+       e-mail é enviado** pelo app. Campo de senha com `type="password"` e
+       `autoComplete="current-password"`, para o gerenciador do iPhone
+       preencher no canteiro.
+       O que a decisão de 2026-08-10 protegia continua protegido, e por um
+       caminho mais curto: não existe link nem código no e-mail, então não há
+       nada que possa abrir no navegador errado — a sessão nasce dentro do app
+       que pediu.
+       **O login nunca cria conta**: não há cadastro no app (antes isso era o
+       `shouldCreateUser: false`; agora é a ausência de qualquer chamada de
+       `signUp`). A conta se cria à mão no dashboard do Supabase.
+       **Erro em português, e distinguindo as causas**: o GoTrue devolve a
+       MESMA resposta para senha errada e para e-mail sem conta
+       (`invalid_credentials`, conferido contra o stack local em 2026-08-17).
+       Quem desempata é o e-mail do último login **neste aparelho** — ver
+       "Mudança de método" no fim do arquivo
+3. [~] A sessão persiste entre aberturas do app — fechar e reabrir o PWA não
+       pede login de novo.
+       **A asserção de `expires > 14 dias` nos cookies foi mantida** e o E2E
+       continua reabrindo o app num contexto novo. O que reabre este critério é
+       o mesmo de sempre (ressalva R2: aparelho real nunca exercitado), agora
+       com a tela de login trocada por baixo
 4. [x] Rota pedida sem sessão → redireciona para o login e **volta para a rota
        pedida** depois de entrar (o deep link do lembrete do Google Calendar,
        US-002, não pode cair na home)
@@ -61,7 +103,12 @@ autenticação. Registro a única consequência fiscal indireta:
 ## Out of Scope
 - Multiusuário / convidar o contador para ver a obra — não serve nenhuma das
   três metas hoje e alarga a superfície da RLS
-- Senha, SSO, 2FA, recuperação de conta por outro canal
+- ~~Senha~~, SSO, 2FA, recuperação de conta por outro canal. **A senha entrou
+  em 2026-08-17** (critério 2). **A recuperação de senha continua FORA**, e
+  agora por um motivo explícito: implementá-la traria o SMTP de volta pela
+  porta dos fundos, que é justamente o que a troca de método elimina. Senha
+  esquecida se troca no dashboard do Supabase — a tela de conta diz isso
+- Cadastro/signup dentro do app — continua desligado
 - Cadastro de obra e obra ativa — **CONTAI-003** (deploy conjunto, ver abaixo)
 
 ## Pre-mortem
@@ -248,3 +295,108 @@ aparelho real (`CONTAI-014` + deploy) e um ajuste de texto no arquivo do mock
 
 Continua valendo o que o ticket já dizia: **deploy conjunto obrigatório com o
 CONTAI-003** (feito). Sozinho, este login desemboca em `ObraAusenteError`.
+
+---
+
+## Mudança de método — 2026-08-17
+
+**De código de 6 dígitos por e-mail para e-mail + senha.** Decisão do Mateus,
+revertendo a de 2026-08-10. Implementado pelo `lead-engineer` (Gate 1). **Nenhum
+veredito de gate é declarado aqui** — a mudança de método **reabre a validação
+da tela de login**, que estava DONE com ressalvas desde o Gate 4 de 2026-08-16.
+
+### Por que
+
+O SMTP embutido do Supabase **trava a edição do template de e-mail**. Sem
+template editável, o e-mail do login sai como `{{ .ConfirmationURL }}` — um
+**link** — e nunca como código. O login que o Gate 4 aprovou funcionava contra o
+Mailpit do Docker local, onde o template versionado (`supabase/templates/`) era
+aplicado, e teria falhado em produção **em silêncio**: e-mail chegando com link,
+tela pedindo seis dígitos, tudo verde no CI. É a mesma classe de falha que a
+ressalva R1 já apontava, agora confirmada como bloqueio de plataforma e não como
+passo esquecido.
+
+As três saídas possíveis eram todas SMTP de terceiro: Resend com domínio de
+outro produto, domínio novo (renovação anual), ou Gmail SMTP. Cada uma
+acrescenta um ponto que falha calado a um app que precisa durar até **venda + 5
+anos** (2034+). Senha acrescenta zero: nada é enviado.
+
+### O que mudou no código
+
+| Antes | Agora |
+|---|---|
+| `signInWithOtp({ shouldCreateUser: false })` + `verifyOtp` | `signInWithPassword({ email, password })` (`lib/sessao.ts`) |
+| Tela em dois passos (e-mail → código) | Tela em **um** passo, com `type="password"` e `autoComplete="current-password"` (`app/_components/entrar.tsx`) |
+| `classificarFalhaAuth(erro, etapa)` — causas de OTP | `classificarFalhaAuth(erro, { emailTentado, emailConhecido })` — causas de senha (`lib/auth.ts`) |
+| `e2e/mailpit.ts` lia o código no Mailpit | **Removido** — nenhum e-mail é enviado |
+| `supabase/templates/magic_link.html` + bloco no `config.toml` | **Removidos** — o template não tem mais função |
+| `email_sent = 100` no rate limit local | De volta ao padrão `2`: nenhum caminho do app manda e-mail |
+| — | `sign_in_sign_ups` local subiu para 200: com senha, todo login da suíte passa por esse limite |
+
+**Não mudou** (e não podia): sessão em **cookie** via `@supabase/ssr` com
+refresh server-side no `proxy.ts`, RLS, guard de rota, retomada da rota pedida,
+"sem sessão" ≠ "banco fora", o sobreposto de reautenticação que preserva o
+formulário, e o atalho de desenvolvimento com trava tripla.
+
+### "Senha errada" ≠ "não existe conta" — como, e o que isso custa
+
+**O GoTrue não distingue os dois.** Conferido contra o stack local em
+2026-08-17: senha errada em conta existente e e-mail que não existe devolvem a
+mesma resposta, byte a byte — `400 {"error_code":"invalid_credentials",
+"msg":"Invalid login credentials"}`. É de propósito (impede enumerar e-mails) e
+não há endpoint público que responda "essa conta existe".
+
+Como o Mateus é o **único** usuário e precisa saber qual dos dois consertar,
+quem desempata é o **aparelho**: o e-mail do último login bem-sucedido fica
+guardado no `localStorage` (chave `contai-email` — só o endereço, nunca a senha,
+nunca a sessão). Três comportamentos:
+
+- e-mail digitado **igual** ao do último login → *"A senha não confere…"*
+- e-mail digitado **diferente** → *"Esse não é o e-mail com que você entra neste
+  aparelho…"*, dizendo qual é
+- aparelho **sem login anterior** → o app **não finge saber**: diz os dois casos
+  e diz por que não sabe
+
+Custo registrado, para não ser redescoberto como surpresa: (a) o campo de
+e-mail passa a vir **preenchido** com o último e-mail usado no aparelho;
+(b) se o ITP do Safari apagar o `localStorage`, o app volta ao texto que diz os
+dois casos — nenhum login deixa de acontecer por isso; (c) `sair` **não** apaga
+essa memória, senão todo logout viraria "aparelho novo". Isso **não** reabre a
+decisão da sessão em cookie: sessão continua em cookie.
+
+Uma causa nova entrou junto: **`email_not_confirmed`**. Conta criada no
+dashboard sem "Auto Confirm" existe, aceita a senha certa e mesmo assim recusa o
+login. Sem essa mensagem, ele trocaria a senha para sempre sem nunca entrar.
+
+### Impacto nas ressalvas do Gate 4
+
+- **R1 (`CONTAI-013`) — encolhe.** Somem dois passos de dashboard: o template
+  Magic Link com `{{ .Token }}` e o SMTP próprio. Sobram: criar a conta à mão
+  **com senha e Auto Confirm**, Site URL, e o captcha do Attack Protection.
+  Quem julga o novo escopo do `CONTAI-013` é o `po`
+- **R2 (`CONTAI-014`) — inalterada e mais relevante**: a tela de login mudou e
+  continua sem nunca ter sido exercitada no aparelho real. É no deploy de
+  preview que o Mateus aprova a tela nova (exceção ao mock-first)
+- **R3 e R4 — inalteradas**
+
+### Pendências que esta mudança cria
+
+1. **`CLAUDE.md` está desatualizado** — a seção de uso manual do stack local
+   ainda manda ler o código no Mailpit, e a lista de passos de dashboard ainda
+   fala do template Magic Link. **Não foi alterado por este Gate 1**
+2. **Mock não alterado**, por decisão de processo. Se o Mateus aprovar a tela no
+   preview, alguém precisa registrar essa aprovação — ela não está em
+   `design/mocks/`
+3. **A senha de produção não existe ainda**: a conta do Mateus foi criada no
+   dashboard para o fluxo de código. Definir senha (e guardá-la no gerenciador
+   dele) é passo de release, dentro do `CONTAI-013`
+
+### Verificação (Gate 1, 2026-08-17)
+
+`npm run quality` contra o stack local, com o `dev` derrubado:
+
+- **lint**: limpo
+- **typecheck**: limpo
+- **Vitest**: **121/121** (9 arquivos), sem skip
+- **Playwright**: **30/30** (era 31 — dois testes de OTP saíram, um de senha
+  entrou), sem skip
