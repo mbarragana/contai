@@ -1133,8 +1133,12 @@ dias"* na home, em dois estados, e o disparo do dossiê por obra.
 
 **3. Release R1 (deploy único), ordem de implementação — INALTERADA:**
 `CONTAI-003` ✅ → `CONTAI-004` + `CONTAI-007` (nesta ordem) → `CONTAI-009` →
-`CONTAI-002` *(Gate 1 feito em 2026-08-16, `2572c01`; Gates 2–4 pendentes)* →
-`CONTAI-005`.
+`CONTAI-002` ✅ *(implementado fora de ordem, a pedido do Mateus; os quatro
+gates fechados em 2026-08-16 — Gate 4 DONE COM RESSALVAS, ver o fim deste
+arquivo)* → `CONTAI-005`.
+**A R1 ganhou uma condição de deploy que não existia**: `CONTAI-013`
+(configuração de produção do login). Sem ele o CONTAI-002 sobe e não loga
+ninguém, em silêncio.
 **Nada foi acrescentado à R1 neste ciclo, e essa é a decisão.**
 
 **3.1. Infraestrutura de deploy** (fora do escopo da R1, condição para ela ir ao
@@ -1198,3 +1202,93 @@ ar): conectar a Vercel + **`CONTAI-012` (manter o projeto Supabase acordado)**.
   Início" não garante modo standalone — e o container do ícone no iOS tem
   storage separado do Safari, então o critério 3 do CONTAI-002 pode passar no
   Safari e falhar no ícone, que é o uso real.
+  → **Reprecificado para [P1] e promovido a `CONTAI-014` no Gate 4 do
+  CONTAI-002 (2026-08-16)**: deixou de ser conveniência quando virou a única
+  coisa entre o critério mais importante do login e o modo de uso real.
+
+---
+
+## Gate 4 do CONTAI-002 — 2026-08-16 — DONE COM RESSALVAS
+
+Validação completa em `docs/tickets/CONTAI-002.md`, seção "Gate 4". Os oito
+critérios passaram, com evidência nomeada por teste; **nada volta ao Gate 1**.
+O que fica registrado aqui é o que sobrou fora do código.
+
+### Aprovação do Mateus registrada neste gate (escopo exato)
+
+Perguntado se duas mudanças feitas **depois** da aprovação do mock de
+2026-08-10 contavam como divergência — (1) a sessão sair do `localStorage` para
+**cookie via `@supabase/ssr` + `proxy.ts`**, e (2) o **botão de atalho de
+desenvolvimento** na tela `/entrar` —, o Mateus respondeu **"mocks ok"**
+(2026-08-16). Vale para **esses dois itens e nada mais**. Não aprova mock do
+`CONTAI-009` nem do `CONTAI-011`: esses mocks **não existem** (`design/mocks/`
+tem 001, 002 e 003) e seguem pendentes de `/design`.
+
+**Ciência registrada, do CONTAI-003** (fora deste gate, aqui pelo histórico): o
+Mateus deu ciência da alteração feita no mock do CONTAI-003 **depois** da
+aprovação, por ordem do contador — o atraso do CNO conta do **vencimento**
+(início + 30 dias), então "148 dias" virou **118**, e "Salvar mesmo assim"
+deixou de ser caixa obrigatória e virou **rótulo de botão**.
+
+### Tickets novos propostos (precisam passar pelo `/tickets-req`)
+
+- **`CONTAI-013` [P0 de deploy] — Configuração de produção do login.** Os quatro
+  passos de dashboard do Supabase (template Magic Link com `{{ .Token }}` e sem
+  `{{ .ConfirmationURL }}`; conta do Mateus criada à mão com Auto Confirm; **SMTP
+  próprio**; Site URL), mais **captcha no Attack Protection**. Hoje isso existe
+  só como parágrafo no `CLAUDE.md` — e parágrafo em arquivo de contexto não tem
+  dono nem fila.
+  **Por que é P0 e não checklist**: o SMTP embutido do Supabase manda 2 e-mails
+  por hora e **só entrega para membros do time do projeto**. Se o Gmail do
+  Mateus não for membro, o primeiro login em produção não dá erro — o código
+  simplesmente **nunca chega**, com os 31 testes verdes. É a falha silenciosa
+  mais cara do CONTAI-002: um P0 que entrega zero.
+  O captcha entra no mesmo ticket porque o domínio de produção não é protegível
+  no plano Hobby da Vercel: qualquer um com a URL queima a cota de envio e
+  **tranca o login do Mateus** — que é o risco real do login aberto, e não a
+  enumeração de e-mail (ver decisão abaixo).
+- **`CONTAI-014` [P1] — Manifest de PWA + `apple-touch-icon`.** Promovido do
+  achado [P2] acima. Sem ele, "Adicionar à Tela de Início" não garante
+  standalone, e o container do ícone no iOS tem storage separado do Safari — ou
+  seja, o critério 3 do CONTAI-002 ("fechar e reabrir o PWA não pede login de
+  novo"), que o próprio ticket chama de o que mais importa, **não é verificável
+  no modo de uso real**. Junto vai o que o pre-mortem 1 do CONTAI-002 já exigia
+  e ninguém fez: **testar o login no celular real antes do DONE de verdade**.
+  → **Pergunta ao Mateus (não decido sozinho): entra na R1?** A 4ª revisão
+  fechou com "nada foi acrescentado à R1, e essa é a decisão". Mantenho o
+  respeito a isso e registro o custo de manter: a R1 sobe um login cujo critério
+  central só foi provado no navegador.
+
+### Decisão tomada no gate (não vira ticket)
+
+- **A mensagem "Não existe conta com esse e-mail no contai" FICA como está.**
+  Ela permite enumerar e-mails, e o ganho de trocar por texto neutro é quase
+  nada num app pessoal; o custo é real — e-mail digitado errado com uma mão só
+  ficaria indistinguível de "o código não chegou". O risco de verdade do domínio
+  aberto é a **cota de envio queimada**, que mensagem neutra não toca. Quem
+  resolve é o `CONTAI-013`.
+- **Sourcemap do servidor com a senha de desenvolvimento: ressalva, sem
+  ticket.** `contai-local-123` aparece em `.next/server/chunks/ssr/*.js.map`; o
+  bundle do cliente está limpo. A mesma string já está publicada em texto em
+  `supabase/seed.sql`, versionado; sourcemap de servidor não é servido ao
+  navegador; e o atalho exige Supabase local em runtime. Abrir ticket seria
+  trabalho que não serve nenhuma das três metas e não reduz exposição nenhuma.
+
+### Dívidas da implementação fora de ordem (002 antes de 004, 007 e 009)
+
+- **[P1] O E2E do login depende do formulário de `/adicionar/pagamento`.** O
+  teste da tela 6 (sessão que cai no meio do preenchimento) preenche aquele
+  formulário campo a campo. `CONTAI-004`, `007` e `009` deveriam ter vindo antes
+  e mexem nessa área: quando mexerem, **quebra um teste de login**, e o sintoma
+  vai parecer regressão de autenticação. Quem pegar esses tickets já sabe onde
+  olhar.
+- **[P1] `proxy.ts` é o novo ponto de entrada de toda navegação.** Rota nova que
+  precise ser pública entra em `PUBLICAS`; hoje só `/entrar` está lá. Cada
+  navegação custa uma chamada ao GoTrue — preço consciente da sobrevivência ao
+  ITP do Safari, mas é latência a mais em rede ruim de canteiro. Território do
+  `cto-obra` quando aparecer.
+- **Chore do designer (sem ticket): corrigir o texto da tela 7 do mock
+  `CONTAI-002.html`** — ele ainda diz "para voltar, você precisa do **link** no
+  e-mail", texto da era do magic link. A decisão do Mateus de 2026-08-10 trocou
+  link por código, e o app diz "código". O mock é que ficou desatualizado, e
+  mock desatualizado é a próxima divergência falsa que alguém vai reportar.
