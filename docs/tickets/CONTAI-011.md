@@ -8,10 +8,16 @@
 - **Posição na fila**: **FORA da R1.** 2º item pós-R1, pareado com a US-010
   (4ª revisão da fila, 2026-08-16). A proposta de promover para a R1 foi
   **rejeitada pelo `po`** — justificativa na "Dor de Origem".
-- **Gate 0 (mock)**: **OBRIGATÓRIO — PENDENTE.** Rodar `/design` antes do
-  `/develop`. Escopo mínimo: linha de estado *"último export: há N dias, X
-  arquivos"* na home, em dois estados (ok / atrasado), e o disparo do dossiê
-  por obra. Pode ser desenhado **em paralelo com a R1**.
+- **Gate 0 (mock)**: **APROVADO pelo Mateus em 2026-08-16** —
+  `design/mocks/CONTAI-011.html`, v1, 23 telas. Cobre a linha de estado na home
+  (com um estado âmbar intermediário que o ticket não pedia), a triagem do
+  critério 15 com os três destinos, e o dossiê por obra com acesso nomeado e
+  revogável.
+  ⚠️ **A aprovação é do desenho e do fluxo. NÃO fecha as 3 perguntas
+  bloqueantes** (P1, P2 e P3, em "Perguntas Abertas"). Em particular, **P1 é
+  pré-requisito duro do Gate 1**: hoje não existe fonte de dados que o app
+  consiga ler para a linha de estado, e sem ela o critério 6(c) não existe —
+  o ticket volta a ser o cron que morre em silêncio do próprio pre-mortem.
 - **Gate Fiscal**: `docs/pareceres/2026-08-16-gate-fiscal-contai-011.md` —
   APROVADO COM RESSALVAS (R1–R5 bloqueantes, já incorporadas abaixo).
 

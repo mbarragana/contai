@@ -47,10 +47,18 @@ ele entrou e corrigir dali se estiver errado, para que um PIX registrado com
 pressa não fique preso no imóvel errado até a hora da declaração.
 
 ## Critérios de Aceite
-1. [ ] **Mock aprovado pelo Mateus** antes do desenvolvimento (mock-first).
+1. [x] **Mock APROVADO pelo Mateus em 2026-08-16** —
+       `design/mocks/CONTAI-009.html`, v1.
        Escopo do mock: (a) detalhe do pagamento; (b) o ponto de entrada para
        `/pagamento/[id]/obra` dentro dele. A tela de correção em si **já está
-       aprovada** no mock do CONTAI-003 e **não se redesenha**
+       aprovada** no mock do CONTAI-003 e **não se redesenha**.
+       ⚠️ **A aprovação é do desenho e do fluxo. NÃO fecha as 5 perguntas em
+       aberto** que o `designer` deixou marcadas — duas delas mudam o escopo do
+       ticket e uma exige o `contador`. Gate 0 satisfeito **não** torna este
+       ticket elegível para `/develop` enquanto as perguntas 1, 2 e 5 (abaixo,
+       em "Perguntas Abertas") estiverem sem resposta: a tela 2 (lista do grupo)
+       e a tela 14 (pagamentos vinculados no detalhe do documento) foram
+       desenhadas **como proposta**, e podem não sobreviver
 2. [ ] Existe `/pagamento/[id]`, com: valor, data efetiva do pagamento,
        favorecido, **nome da obra por extenso**, status (aguardando NF /
        conciliado) e o comprovante anexado
