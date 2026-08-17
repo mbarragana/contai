@@ -180,14 +180,12 @@ password_requirements = ""
 [auth.rate_limit]
 # Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.
 #
-# CONTAI-002: subido de 2 para 100 NO STACK LOCAL. Com 2/hora, o terceiro
-# teste que pede um código recebe 429 e a suíte passa a testar o rate limit em
-# vez do login — e o dev que erra o código duas vezes fica uma hora fora do
-# app. Isto é knob do Docker local; em produção quem manda é o limite do
-# projeto no dashboard do Supabase (ver PERGUNTA ABERTA no relatório do
-# CONTAI-002: com o SMTP padrão, o limite de produção é baixo o bastante para
-# machucar no canteiro).
-email_sent = 100
+# CONTAI-002, 2026-08-17: de volta ao padrão (estava em 100). Com o login por
+# SENHA o app não manda e-mail nenhum — nem no login, nem na recuperação (que
+# não existe de propósito). O limite de envio deixou de tocar em qualquer
+# caminho do app, e junto com ele some o risco que a troca de método eliminou:
+# um app que não depende de SMTP não fica fora do ar quando o SMTP falha.
+email_sent = 2
 # Number of SMS messages that can be sent per hour. Requires auth.sms to be enabled.
 sms_sent = 30
 # Number of anonymous sign-ins that can be made per hour per IP address. Requires enable_anonymous_sign_ins = true.
@@ -195,7 +193,13 @@ anonymous_users = 30
 # Number of sessions that can be refreshed in a 5 minute interval per IP address.
 token_refresh = 150
 # Number of sign up and sign-in requests that can be made in a 5 minute interval per IP address (excludes anonymous users).
-sign_in_sign_ups = 30
+#
+# CONTAI-002, 2026-08-17: subido de 30 para 200 NO STACK LOCAL. Com o login por
+# senha, TUDO passa por aqui — o login de cada teste (e2e/banco.ts), o login
+# pela tela e cada tentativa que erra de propósito. A suíte inteira roda em
+# poucos minutos e estouraria 30, e aí a suíte testaria o rate limit em vez do
+# login. Knob do Docker local; em produção quem manda é o dashboard.
+sign_in_sign_ups = 200
 # Number of OTP / Magic link verifications that can be made in a 5 minute interval per IP address.
 token_verifications = 30
 # Number of Web3 logins that can be made in a 5 minute interval per IP address.
@@ -239,20 +243,13 @@ otp_expiry = 3600
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
 
-# CONTAI-002: `signInWithOtp` para usuário JÁ EXISTENTE dispara o template
-# magic_link. O padrão do Supabase manda {{ .ConfirmationURL }} (um LINK) e não
-# expõe {{ .Token }} — com ele, o e-mail chega sem código nenhum e a tela de
-# login não tem o que receber. Este template carrega só o código.
-#
-# O código vai também no ASSUNTO: é o que o iOS/Android lê para oferecer o
-# preenchimento automático, e é de onde o E2E extrai o código real do Mailpit.
-#
-# PASSO DE RELEASE (não é código): em produção o template mora no dashboard do
-# Supabase (Authentication → Email Templates → Magic Link). Aplicar lá o mesmo
-# HTML, sem nenhum {{ .ConfirmationURL }}.
-[auth.email.template.magic_link]
-subject = "{{ .Token }} é o seu código de acesso — contai"
-content_path = "./supabase/templates/magic_link.html"
+# CONTAI-002, 2026-08-17: aqui morava o template magic_link com {{ .Token }},
+# que fazia o e-mail do login carregar o código de 6 dígitos em vez de um link.
+# Saiu junto com o método: o SMTP embutido do Supabase NÃO deixa editar o
+# template no projeto hospedado, então em produção o e-mail sairia sempre como
+# link e o código nunca chegaria — o login funcionava no Docker local e falharia
+# em silêncio no aparelho do Mateus. O login agora é por senha
+# (`signInWithPassword`) e o app não envia e-mail nenhum.
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]

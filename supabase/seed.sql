@@ -3,10 +3,15 @@
 --
 -- CONTAI-002, critério 8: este arquivo NÃO é o caminho de criação de usuário
 -- em produção, e nunca foi para ser. O login do app usa
--- `signInWithOtp({ shouldCreateUser: false })` — ele jamais cria conta, porque
--- a base guarda CPF, CNO e as notas da obra. Em produção a conta do Mateus se
--- cria UMA vez, à mão, no dashboard do Supabase (Authentication → Users → Add
--- user / Invite), e daí em diante ele entra pelo código de 6 dígitos.
+-- `signInWithPassword` — não existe cadastro no app, porque a base guarda CPF,
+-- CNO e as notas da obra. Em produção a conta do Mateus se cria UMA vez, à mão,
+-- no dashboard do Supabase (Authentication → Users → Add user, com senha e
+-- Auto Confirm), e daí em diante ele entra com e-mail e senha.
+--
+-- 2026-08-17: a senha abaixo passou a ser o caminho de login do E2E e do
+-- `dev:local` (antes era só o atalho de desenvolvimento). Ela continua sendo o
+-- que sempre foi — credencial de banco LOCAL e efêmero, publicada aqui de
+-- propósito.
 -- Consequência prática: `npx supabase db push` aplica migrations no projeto
 -- remoto e NÃO leva este seed junto. Se um dia levar, um usuário com senha
 -- conhecida e publicada em repositório entra na base fiscal.

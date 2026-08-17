@@ -1,90 +1,48 @@
-import type { APIRequestContext, Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 
 import {
   CHAVE_PUBLICAVEL_LOCAL,
   EMAIL_SEED,
+  SENHA_SEED,
   URL_SUPABASE_LOCAL,
   USER_ID_SEED,
 } from "./ambiente";
 import { COOKIE_SESSAO } from "../lib/auth";
 import { criarDocumento, criarFavorecido, criarPagamento } from "./banco";
 import { expect, test } from "./fixtures";
-import { codigoNaCaixa, limparCaixaDeEntrada } from "./mailpit";
 
 /**
- * CONTAI-002 contra o stack LOCAL: GoTrue de verdade, e-mail de verdade no
- * Mailpit, cookie de sessão escrito pela própria biblioteca e RLS ligada.
+ * CONTAI-002 contra o stack LOCAL: GoTrue de verdade, senha de verdade, cookie
+ * de sessão escrito pela própria biblioteca e RLS ligada.
  *
- * Nada de backend falsificado (regra dura do CLAUDE.md): o código digitado é o
- * que o Supabase mandou, e a asserção que mais importa (critério 7) olha o
- * ESTADO GRAVADO — quem não tem sessão não lê linha nenhuma do acervo fiscal.
+ * O login mudou em 2026-08-17 (código de 6 dígitos por e-mail → e-mail +
+ * senha), e com ele saiu o Mailpit destes testes: nenhum e-mail é enviado.
+ *
+ * Nada de backend falsificado (regra dura do CLAUDE.md): a senha vai para o
+ * GoTrue, e a asserção que mais importa (critério 7) olha o ESTADO GRAVADO —
+ * quem não tem sessão não lê linha nenhuma do acervo fiscal.
  */
 
 const CNPJ_AJE_DIGITOS = "11222333000181";
 const EMAIL_SEM_CONTA = "nao-sou-o-dono@contai.local";
 
-/**
- * Pede o código pela tela e chega no passo de digitação.
- *
- * A repetição existe por causa do GoTrue, não do app: `max_frequency = "1s"`
- * recusa dois pedidos para o MESMO endereço a menos de um segundo, e a suíte
- * encadeia logins mais rápido do que qualquer humano no canteiro. Esperar a
- * janela e pedir de novo é exatamente o que a tela oferece a quem toma esse
- * 429 — o teste não contorna nada, faz o que o usuário faria.
- */
-async function pedirCodigoNaTela(
-  page: Page,
-  request: APIRequestContext,
-  email: string = EMAIL_SEED,
-) {
-  await limparCaixaDeEntrada(request);
-  await page.getByLabel("Seu e-mail").fill(email);
-
-  const botao = page.getByRole("button", { name: "Enviar código" });
-  const campo = page.getByLabel("Código do e-mail");
-
-  for (let tentativa = 1; tentativa <= 3; tentativa++) {
-    await botao.click();
-    try {
-      await expect(campo).toBeVisible({ timeout: 5_000 });
-      return campo;
-    } catch (erro) {
-      if (tentativa === 3) throw erro;
-      await page.waitForTimeout(1_500);
-    }
-  }
-  throw new Error("inalcançável");
-}
-
-/** Faz o login pela tela, com o código lido do e-mail real. */
+/** Login pela tela, um passo só. */
 async function entrarPelaTela(
   page: Page,
-  request: APIRequestContext,
   email: string = EMAIL_SEED,
+  senha: string = SENHA_SEED,
 ) {
-  const campo = await pedirCodigoNaTela(page, request, email);
-
-  let codigo = "";
-  await expect
-    .poll(async () => (codigo = await codigoNaCaixa(request, email)), {
-      timeout: 15_000,
-    })
-    .toMatch(/^\d{6}$/);
-
-  await campo.fill(codigo);
+  await page.getByLabel("Seu e-mail").fill(email);
+  await page.getByLabel("Sua senha").fill(senha);
   await page.getByRole("button", { name: "Entrar", exact: true }).click();
-  return codigo;
 }
 
 test.describe("entrar no app", () => {
   // Estes testes precisam do estado que todos os outros evitam: sem sessão.
   test.use({ sessao: false });
 
-  test("pede o código, aceita o código do e-mail e abre a obra", async ({
-    page,
-    request,
-  }) => {
+  test("entra com e-mail e senha e abre a obra", async ({ page }) => {
     await page.goto("/");
     // Sem sessão nenhuma rota do app abre — e o que aparece é o login, não uma
     // tela de erro com "Tentar de novo" (critério 5).
@@ -93,73 +51,91 @@ test.describe("entrar no app", () => {
       page.getByRole("button", { name: "Tentar de novo" }),
     ).toHaveCount(0);
 
-    const campo = page.getByLabel("Seu e-mail");
-    await expect(campo).toHaveAttribute("autocomplete", "email");
+    const campoEmail = page.getByLabel("Seu e-mail");
+    await expect(campoEmail).toHaveAttribute("autocomplete", "email");
 
-    await entrarPelaTela(page, request);
+    // Os dois atributos que fazem o gerenciador do iPhone oferecer a senha
+    // guardada. Sem eles, entrar no canteiro vira digitar senha com uma mão.
+    const campoSenha = page.getByLabel("Sua senha");
+    await expect(campoSenha).toHaveAttribute("type", "password");
+    await expect(campoSenha).toHaveAttribute("autocomplete", "current-password");
+
+    await entrarPelaTela(page);
 
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByText("Casa Cachoeira").first()).toBeVisible();
   });
 
-  test("o campo do código pede teclado numérico e aceita o código colado sujo", async ({
+  /**
+   * O GoTrue devolve a MESMA resposta para senha errada e para e-mail sem conta
+   * (`invalid_credentials`). Quem desempata é o e-mail do último login DESTE
+   * aparelho — e é isto que este teste exerce, do jeito real: entra, sai, e
+   * erra cada um dos dois campos.
+   *
+   * O Mateus é o único usuário do app. "E-mail ou senha inválidos" o deixaria
+   * trocando a senha no painel do Supabase por causa de um e-mail digitado
+   * errado.
+   */
+  test("no aparelho conhecido, senha errada e e-mail errado dizem coisas diferentes", async ({
     page,
-    request,
   }) => {
     await page.goto("/entrar");
-    const campo = await pedirCodigoNaTela(page, request);
+    await entrarPelaTela(page);
+    await expect(page).toHaveURL(/\/$/);
 
-    // O sistema só oferece o código do e-mail com estes dois atributos.
-    await expect(campo).toHaveAttribute("inputmode", "numeric");
-    await expect(campo).toHaveAttribute("autocomplete", "one-time-code");
-
-    // Colar "417 209" (ou o trecho da notificação) tem de virar o código.
-    await campo.fill("417 209");
-    await expect(campo).toHaveValue("417209");
-  });
-
-  test("código errado diz o que houve, sem perder o caminho de volta", async ({
-    page,
-    request,
-  }) => {
-    await page.goto("/entrar");
-    const campo = await pedirCodigoNaTela(page, request);
-
-    await campo.fill("000000");
-    await page.getByRole("button", { name: "Entrar", exact: true }).click();
-
-    await expect(
-      page.getByRole("main").getByRole("alert"),
-    ).toContainText("Esse código não vale");
-    // Continua no login e continua editável: erro com saída, nunca tela morta.
+    // Sai: a sessão morre, a memória do e-mail fica.
+    await page.goto("/conta");
+    await page.getByRole("button", { name: /Sair da conta/ }).click();
     await expect(page).toHaveURL(/\/entrar/);
-    await expect(campo).toBeEnabled();
+
+    // O campo já vem preenchido com o e-mail deste aparelho — um toque a menos.
+    await expect(page.getByLabel("Seu e-mail")).toHaveValue(EMAIL_SEED);
+
+    // 1. E-mail certo, senha errada.
+    await entrarPelaTela(page, EMAIL_SEED, "senha-que-nao-e-a-dele");
+    // Escopo no <main>: o anunciador de rota do Next também é role=alert.
+    const alerta = page.getByRole("main").getByRole("alert");
+    await expect(alerta).toContainText("A senha não confere");
+    // Nada de inglês do GoTrue: "Invalid login credentials" vira "o app
+    // quebrou" na cabeça de quem lê, e o app não quebrou.
+    await expect(alerta).not.toContainText("Invalid");
+
+    // Erro com saída, nunca tela morta — e o que foi digitado continua lá.
+    await expect(page).toHaveURL(/\/entrar/);
+    await expect(page.getByLabel("Sua senha")).toHaveValue(
+      "senha-que-nao-e-a-dele",
+    );
     await expect(
       page.getByRole("button", { name: "Entrar", exact: true }),
     ).toBeEnabled();
+
+    // 2. Mesma resposta do GoTrue, outra causa: e-mail que não é o da conta.
+    await entrarPelaTela(page, EMAIL_SEM_CONTA, SENHA_SEED);
+    await expect(alerta).toContainText("Confira o e-mail");
+    // E diz QUAL é o e-mail deste aparelho, senão ele fica tentando às cegas.
+    await expect(alerta).toContainText(EMAIL_SEED);
+    await expect(alerta).not.toContainText("A senha não confere");
   });
 
-  test("e-mail sem conta recebe português, não o erro do GoTrue", async ({
+  test("aparelho novo não finge saber se foi o e-mail ou a senha", async ({
     page,
   }) => {
+    // Sem login anterior neste aparelho não há com o que comparar, e o GoTrue
+    // não conta. Inventar um veredito aqui seria mentir com cara de precisão.
     await page.goto("/entrar");
-    await page.getByLabel("Seu e-mail").fill(EMAIL_SEM_CONTA);
-    await page.getByRole("button", { name: "Enviar código" }).click();
+    await expect(page.getByLabel("Seu e-mail")).toHaveValue("");
 
-    // Escopo no <main>: o anunciador de rota do Next também é role=alert.
+    await entrarPelaTela(page, EMAIL_SEM_CONTA, "qualquer-coisa");
+
     const alerta = page.getByRole("main").getByRole("alert");
-    await expect(alerta).toContainText("Não existe conta com esse e-mail");
-    // O GoTrue responde 422 "Signups not allowed for otp". Isso não pode
-    // chegar ao Mateus: quem lê entende "o app quebrou", e o app não quebrou.
-    await expect(alerta).not.toContainText("Signups");
-    // E o login NÃO cria conta (shouldCreateUser: false) — o passo do código
-    // nem aparece.
-    await expect(page.getByLabel("Código do e-mail")).toHaveCount(0);
+    await expect(alerta).toContainText("E-mail ou senha não conferem");
+    await expect(alerta).not.toContainText("Invalid");
+    // Continua no login: o app nunca cria conta, nem quando o e-mail não existe.
+    await expect(page).toHaveURL(/\/entrar/);
   });
 
   test("a rota pedida é retomada depois de entrar, com a query junto", async ({
     page,
-    request,
   }) => {
     // O deep link do lembrete da agenda (US-002) não pode cair na home.
     await page.goto("/adicionar/documento?origem=agenda");
@@ -168,7 +144,7 @@ test.describe("entrar no app", () => {
       `/entrar?destino=${encodeURIComponent("/adicionar/documento?origem=agenda")}`,
     );
 
-    await entrarPelaTela(page, request);
+    await entrarPelaTela(page);
 
     await expect(page).toHaveURL("/adicionar/documento?origem=agenda");
     await expect(
@@ -189,11 +165,10 @@ test.describe("entrar no app", () => {
    */
   test("a sessão sobrevive a fechar e reabrir o app", async ({
     page,
-    request,
     browser,
   }) => {
     await page.goto("/entrar");
-    await entrarPelaTela(page, request);
+    await entrarPelaTela(page);
     await expect(page).toHaveURL(/\/$/);
 
     const cookies = await page.context().cookies();
@@ -230,14 +205,11 @@ test.describe("entrar no app", () => {
     }
   });
 
-  test("destino forjado para outro site é ignorado", async ({
-    page,
-    request,
-  }) => {
+  test("destino forjado para outro site é ignorado", async ({ page }) => {
     // Redirect aberto aqui viraria link de phishing com o domínio do contai —
-    // e o Mateus acabou de digitar o código.
+    // e o Mateus acabou de digitar a senha.
     await page.goto("/entrar?destino=https://exemplo-malicioso.test/roubar");
-    await entrarPelaTela(page, request);
+    await entrarPelaTela(page);
 
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByText("Casa Cachoeira").first()).toBeVisible();
@@ -333,7 +305,6 @@ test.describe("a RLS é a guarda do acervo", () => {
 test.describe("sessão que cai no meio do formulário", () => {
   test("o que foi digitado sobrevive à reautenticação e o registro entra no banco", async ({
     page,
-    request,
     db,
   }) => {
     await page.goto("/adicionar/pagamento");
@@ -363,7 +334,7 @@ test.describe("sessão que cai no meio do formulário", () => {
     ).toBeVisible();
     await expect(page).toHaveURL(/\/adicionar\/pagamento$/);
 
-    await entrarPelaTela(page, request);
+    await entrarPelaTela(page);
 
     // O sobreposto some e os campos estão como ele deixou.
     await expect(
