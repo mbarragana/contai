@@ -172,11 +172,21 @@ export default function LigarPagamentos() {
     const pagosDepois =
       pronto.jaLigados.reduce((t, x) => t + x.valorCentavos, 0) + somaMarcados;
 
+    const acumuladoAntes = custoComprovadoAteOAno(antes, pronto.ano);
+    const acumuladoDepois = custoComprovadoAteOAno(depois, pronto.ano);
+
     return {
       anoAntes: custoComprovadoDoAno(antes, pronto.ano),
       anoDepois: custoComprovadoDoAno(depois, pronto.ano),
-      acumuladoAntes: custoComprovadoAteOAno(antes, pronto.ano),
-      acumuladoDepois: custoComprovadoAteOAno(depois, pronto.ano),
+      acumuladoAntes,
+      acumuladoDepois,
+      /**
+       * O número do rodapé do mock ("custo confirmado se ligar agora"): o
+       * ACRÉSCIMO real, e não o valor cheio do conjunto. Sai do acumulado
+       * porque pagamento de ano anterior também confirma custo, só que em
+       * outro ano — e data futura não existe (a validação do registro recusa).
+       */
+      acrescimo: acumuladoDepois - acumuladoAntes,
       faltaDepois: habil
         ? (depois.porDocumento.get(pronto.documento.id)?.excedenteNotaCentavos ??
           valor)
@@ -383,19 +393,27 @@ export default function LigarPagamentos() {
       </Corpo>
 
       <Rodape>
-        {/* Critério 15: o efeito no custo dito ANTES do toque, no formato
-            "antes → depois" da tela de desligar, e nos DOIS números — ligar um
-            pagamento de ano anterior não mexe no ano corrente, mas mexe no
-            acumulado da ficha Bens e Direitos. */}
+        {/* Critério 15: o efeito no custo dito ANTES do toque. O rótulo é o do
+            mock aprovado (rodapé fixo do seletor, s2/s3c); o NÚMERO passou a
+            ser o acréscimo REAL sobre o grafo inteiro — antes ele era o valor
+            cheio do conjunto simulado, que superestimava o custo.
+            O "antes → depois" completa o rótulo do mock em vez de substituí-lo,
+            e vem nos DOIS números: ligar pagamento de ano anterior não mexe no
+            ano corrente, mas mexe no acumulado da ficha Bens e Direitos. */}
         <Dica>
-          Custo confirmado {pronto.ano}:{" "}
-          <span className="mono font-semibold">
+          Custo confirmado se ligar agora:{" "}
+          <span className={`mono font-semibold ${habil ? "" : "text-red"}`}>
+            {formatarBRL(efeito?.acrescimo ?? 0)}
+          </span>
+          {habil ? null : " — a nota não é hábil"}
+          <br />
+          {pronto.ano}:{" "}
+          <span className="mono">
             {formatarBRL(efeito?.anoAntes ?? 0)} →{" "}
             {formatarBRL(efeito?.anoDepois ?? 0)}
           </span>
-          <br />
-          Acumulado até {pronto.ano}:{" "}
-          <span className="mono font-semibold">
+          {" · "}acumulado:{" "}
+          <span className="mono">
             {formatarBRL(efeito?.acumuladoAntes ?? 0)} →{" "}
             {formatarBRL(efeito?.acumuladoDepois ?? 0)}
           </span>

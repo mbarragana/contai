@@ -166,13 +166,21 @@ export default function LigarDocumentos() {
       acumuladoDepois: custoComprovadoAteOAno(depois, pronto.ano),
       /** Parte DESTE pagamento comprovada depois de ligar. */
       comprovadoDepois: deDepois?.comprovadoCentavos ?? 0,
-      /** O acréscimo real — o número que a tela prometia inflado. */
+      /**
+       * O acréscimo real DESTE pagamento — o número que a tela prometia
+       * inflado. Marcar uma nota já coberta acrescenta só o saldo dela.
+       */
       acrescimo:
         (deDepois?.comprovadoCentavos ?? 0) - (deAntes?.comprovadoCentavos ?? 0),
       faltaCobrirDepois:
         deDepois?.semNotaCentavos ?? pronto.pagamento.valorCentavos,
     };
   }, [pronto, marcadosDeVerdade]);
+
+  /** Variante s3c do mock: marcou só nota não hábil, o efeito é zero e diz por quê. */
+  const soNaoHabeis =
+    marcadosDeVerdade.length > 0 &&
+    marcadosDeVerdade.every((c) => !ehDocumentoHabil(c.item));
 
   /** C5: nota hábil sem valor informado comprova ZERO — e não em silêncio. */
   const marcouSemValor = marcadosDeVerdade.some(
@@ -360,18 +368,25 @@ export default function LigarDocumentos() {
       </Corpo>
 
       <Rodape>
-        {/* Critério 15: "antes → depois", o mesmo formato da tela de desligar,
-            nos dois números — pagamento de ano anterior não move o ano
-            corrente, mas move o acumulado da ficha Bens e Direitos. */}
+        {/* Mesmo rodapé do mock do outro seletor, com o número corrigido: o
+            ACRÉSCIMO real sobre o grafo, e não o valor cheio das notas
+            marcadas. O "antes → depois" acompanha nos dois números. */}
         <Dica>
-          Custo confirmado {pronto.ano}:{" "}
-          <span className="mono font-semibold">
+          Custo confirmado se ligar agora:{" "}
+          <span
+            className={`mono font-semibold ${soNaoHabeis ? "text-red" : ""}`}
+          >
+            {formatarBRL(efeito?.acrescimo ?? 0)}
+          </span>
+          {soNaoHabeis ? " — a nota não é hábil" : null}
+          <br />
+          {pronto.ano}:{" "}
+          <span className="mono">
             {formatarBRL(efeito?.anoAntes ?? 0)} →{" "}
             {formatarBRL(efeito?.anoDepois ?? 0)}
           </span>
-          <br />
-          Acumulado até {pronto.ano}:{" "}
-          <span className="mono font-semibold">
+          {" · "}acumulado:{" "}
+          <span className="mono">
             {formatarBRL(efeito?.acumuladoAntes ?? 0)} →{" "}
             {formatarBRL(efeito?.acumuladoDepois ?? 0)}
           </span>
