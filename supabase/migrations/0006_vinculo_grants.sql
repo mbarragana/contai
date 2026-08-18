@@ -1,0 +1,40 @@
+-- contai — privilégios de escrita no vínculo pagamento↔documento (CONTAI-018)
+--
+-- A migration 0005 concedeu apenas `select` em `pagamento_documento`, e disse
+-- por escrito por quê: "hoje o app só LÊ [...] a conciliação é ticket futuro,
+-- e é ele que acrescenta o `grant insert` aqui". Este é o ticket.
+--
+-- Sem este GRANT, o comportamento em PRODUÇÃO seria exatamente o incidente de
+-- 2026-08-17: toda tentativa de ligar um pagamento a uma nota voltaria
+-- `{"code":"42501","message":"permission denied for table pagamento_documento"}`
+-- depois de um login bem-sucedido — e o E2E local passaria verde, porque o
+-- stack do CLI traz `alter default privileges` ligado no schema `public`. A
+-- 0005 revogou antes de conceder, então hoje o local espelha o remoto: a
+-- ausência do privilégio é visível aqui também. É por isso que o GRANT entra
+-- no MESMO diff do código que grava.
+--
+-- Resposta à pergunta obrigatória do incidente ("isto depende de algum default
+-- do stack local que o remoto não tem?"): dependia. Depois desta linha, não.
+
+-- ── Por que DELETE, quando o acervo é append-only ────────────────────────
+-- O vínculo NÃO é acervo. Documento e pagamento são fatos do mundo com arquivo
+-- no acervo — eles continuam SEM DELETE, e continuam sem ele depois desta
+-- migration: o app não apaga nota nem pagamento, e "excluir pagamento" segue
+-- em Out of Scope pelo CONTAI-009.
+--
+-- O vínculo é outra coisa: é uma AFIRMAÇÃO do Mateus de que aquele PIX pagou
+-- aquela nota. Afirmação errada aqui não perde documento nenhum — ela INFLA O
+-- CUSTO DE AQUISIÇÃO que vai para a declaração, que é o único erro que o
+-- parecer de 2026-08-17 (§4) classifica como gerador de passivo tributário,
+-- cobrado na venda com multa e juros. Por isso o critério 15 do CONTAI-018
+-- exige desvincular PELA INTERFACE: correção que exige SQL é a dor D9 de volta.
+--
+-- Não há UPDATE: a tabela é só a PK composta (pagamento_id, documento_id) —
+-- corrigir um vínculo é apagar um e criar outro.
+grant insert, delete on table pagamento_documento to authenticated;
+
+-- A RLS não muda: a policy `dono_vinculo` da 0001 já exige, no `using` e no
+-- `with check`, que o pagamento E o documento sejam do próprio usuário. O que
+-- ela NÃO garante é que os dois estejam na MESMA OBRA (não há `obra_id` nem
+-- check nesta tabela) — essa guarda é do código (critério 11), em
+-- `lib/fiscal/vinculo.ts` e no caminho de escrita de `lib/data.ts`.

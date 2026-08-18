@@ -30,9 +30,12 @@ const ESPERADO: Record<string, string> = {
   favorecido: "INSERT,SELECT,UPDATE",
   documento: "INSERT,SELECT,UPDATE",
   pagamento: "INSERT,SELECT,UPDATE",
-  // Só leitura: nenhum caminho do app grava vínculo ainda. Quem implementar a
-  // conciliação acrescenta o INSERT aqui e na migration, junto.
-  pagamento_documento: "SELECT",
+  // Leitura, escrita e remoção do VÍNCULO (migration 0006, CONTAI-018). O
+  // DELETE é a exceção do append-only e está justificado lá: o vínculo não é
+  // acervo, é uma afirmação sobre correspondência — e afirmação errada infla o
+  // custo de aquisição que vai para a declaração. `documento` e `pagamento`
+  // continuam sem DELETE.
+  pagamento_documento: "DELETE,INSERT,SELECT",
 };
 
 test.describe("privilégios do schema public", () => {
