@@ -29,6 +29,7 @@ import {
   custoComprovadoDoAno,
   despesasComprovadas,
   documentosHabeisSemPagamento,
+  ehDocumentoHabil,
   type Alocacao,
 } from "./vinculo";
 
@@ -270,9 +271,9 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
         : -1,
     )
     .map((c) => {
-      const habeis = c.documentos.filter(
-        (d) => d.tipo !== "boleto" && d.status !== "quarentena",
-      );
+      // `ehDocumentoHabil` e não o predicado escrito à mão: duas definições de
+      // "documento hábil" descolam em silêncio no dia em que a regra mudar.
+      const habeis = c.documentos.filter(ehDocumentoHabil);
       const noAno = c.pagamentos.reduce(
         (s, p) =>
           anoCalendario(p.dataPagamento) === ano
