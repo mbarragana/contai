@@ -42,12 +42,21 @@ Achou linha? A revisão falha.
 | Ordem | # | Ticket | P | Status | O que trava |
 |---|---|---|---|---|---|
 | **1** | **018** | **Vínculo pagamento↔nota** | P0 | 🔨 **`/develop` rodando** | nada — Gate 0 aprovado 18/08, Gate Fiscal fechado |
-| 2 | 019 | Pagamento agendado (compromisso × pagamento) | P1 | 🟡 | **mock (3 estados)** + **parecer do compromisso não está em arquivo**. Vira **P0** se ele tiver registrado com data de hoje |
-| 3 | 014 | Manifest de PWA + prova no aparelho | P1 | 🟢 | Gate 0 substituído por aprovação de ícone |
-| 4 | 004 | Nº do documento e data de emissão | P0 | 🟡 | **mock pendente** — mesmo passe do 007 |
-| 4 | 007 | CNO referenciado na NF de serviço | P0 | 🟡 | **mock pendente** + **6 pontos a reescrever** |
-| 5 | 009 | Detalhe do pagamento | P0 | 🟡 | Gate 0 aprovado 16/08; **5 perguntas em aberto** |
-| 6 | 005 | Headline da home (reduzido a corte) | P0 | 🟡 | **mock v5 pendente**. Decisão nº 1 fechada em 17/08: R$ 49.850 |
+| **2** | **021** | **Corrigir documento já registrado** | P1 | 🟡 | **mock pendente (`/design`)**. Gate Fiscal fechado 18/08 em arquivo. Vira **P0** no registro da 2ª nota (R$ 40.857,14) — hoje **nenhuma tela corrige**, e o link "Corrigir na nota" já está em produção mentindo |
+| 3 | 019 | Pagamento agendado (compromisso × pagamento) | P1 | 🟡 | **mock (3 estados)** + **parecer do compromisso não está em arquivo**. Vira **P0** se ele tiver registrado com data de hoje |
+| 4 | 014 | Manifest de PWA + prova no aparelho | P1 | 🟢 | Gate 0 substituído por aprovação de ícone |
+| 5 | 004 | Nº do documento e data de emissão | P0 | 🟡 | **mock pendente** — mesmo passe do 007 |
+| 5 | 007 | CNO referenciado na NF de serviço | P0 | 🟡 | **mock pendente** + **6 pontos a reescrever** |
+| 6 | 009 | Detalhe do pagamento | P0 | 🟡 | Gate 0 aprovado 16/08; **5 perguntas em aberto** |
+| 7 | 005 | Headline da home (reduzido a corte) | P0 | 🟡 | **mock v5 pendente**. Decisão nº 1 fechada em 17/08: R$ 49.850 |
+
+*O `004` e o `007` dividem a ordem 5 de propósito: mesmo formulário, mesmo passe
+de mock.*
+
+⚠️ **`CONTAI-020` está RESERVADO e não tem arquivo** — é a **fila de
+conciliação**, cortada do critério 18 do `CONTAI-018` (ver
+`CONTAI-018.md:201`). Ele só vira ticket se a **pergunta aberta nº 2** do 018
+disser que a home não basta. Não reutilizar o ID.
 
 ## Bloco de deploy — fora da fila de implementação
 
@@ -75,6 +84,12 @@ Achou linha? A revisão falha.
 PF) · `US-008` (extração automática — **Gate Fiscal já fechado**, parecer de
 17/08) · `US-009` a `US-012`.
 
+**Dores sem ticket, abertas no Gate Fiscal do `CONTAI-021` (18/08)**: **D24** —
+o app não sabe qual ano-calendário já foi declarado, e sem isso nem o aviso do
+021 nem o da D-018.2 conseguem ser verdadeiros (mesmo detector, construir uma
+vez); **D25** — documento em duplicidade não tem saída depois do registro
+("marcar como duplicata de X" é anotação, não delete).
+
 ---
 
 ## Dívidas de escrituração
@@ -101,3 +116,10 @@ PF) · `US-008` (extração automática — **Gate Fiscal já fechado**, parecer
    3. **a contradição do CONTAI-007 sobre precisar de mock** — o *"não precisa,
       a tela é mínima para o polegar"* **perde o fundamento**. A revisão de
       Passo 1 do 007 deve reabrir este ponto primeiro.
+5. ⚠️ **Dois briefs de agente contradizem o `CLAUDE.md`** (aberta em 18/08 pelo
+   `po`): `.claude/agents/po.md` ainda diz *"venda + 5 anos"* (corrigido em
+   16/08) e `.claude/agents/designer.md` ainda diz *"majoritariamente de
+   celular, no canteiro… julgado nesse cenário primeiro"* (corrigido em 18/08).
+   Os briefs **reinjetam a régua velha em toda execução** — inclusive no
+   `/design` do `CONTAI-021`, que é tela de **gestão**. É configuração do time:
+   quem corrige é o Mateus, não um agente.

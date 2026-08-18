@@ -1656,3 +1656,48 @@ como ticket próprio. Estão aqui para o `po` priorizar.
    a regra proíbe, com outro nome"*. Materializar em `docs/pareceres/` **antes**
    de abrir o Gate 1 do 019. Recomendação do `po`: não abrir o 019 sem esse
    arquivo no disco.
+
+### Dores da correção de documento — 2026-08-18 (origem: adendo + commit `b807901`)
+
+Extraídas pelo `po` ao escrever o `CONTAI-021`. Origem: o **adendo de
+2026-08-18** ao parecer `docs/pareceres/2026-08-17-vinculo-pagamento-documento.md`
+(§2 e §4) e o commit **`b807901`**, que implementou o primeiro passo da saída do
+impasse — *"Link 'corrigir na nota' → edição do documento, com rastro"* — e
+parou aí.
+
+| ID | Dor | Origem | Prioridade |
+|----|-----|--------|-----------|
+| D23 | **O link "Corrigir na nota" está em produção e leva a uma tela que não corrige.** Nenhuma das telas do documento (detalhe, `/obra`, `/ligar`, `/desligar`) edita coisa alguma. É o critério 19 do CONTAI-018 (*nenhuma tela promete o que não faz*) violado por um **botão**. Consequência do mesmo commit: **nome de favorecido gravado errado é permanente** — o app deixou de renomear em qualquer fluxo, e o "ato deliberado com rastro" que deveria substituir isso não existe | `b807901` + adendo §4 | **P1**, vira **P0** no registro da 2ª nota (R$ 40.857,14) |
+| D24 | **O app não sabe qual ano-calendário já foi declarado.** Sem esse dado, nenhum aviso de "isso mexe em ano já declarado" consegue ser verdadeiro: ou nunca dispara, ou dispara sempre. Inferir por calendário ("ano anterior = declarado") erra de **janeiro a abril**, que é exatamente a janela em que ele mexe no acervo. Falta uma informação simples que só o Mateus tem: *"DAA do ano X entregue em DD/MM/AAAA"*. **Trava o aviso preciso do CONTAI-021 e o da D-018.2 ao mesmo tempo** — as duas compartilham o mesmo detector | `contador`, Gate Fiscal do 021 | **P1** (destrava dois avisos fiscais) |
+| D25 | **Documento registrado em duplicidade não tem saída depois do registro.** Não se resolve editando campo: precisa de *"marcar como duplicata de X"*, que é **anotação, não delete** (acervo append-only). O CONTAI-004 só **avisa no ato do registro**; passado esse instante, os dois registros convivem e a duplicidade é o erro que o parecer de 17/08 (§4) classifica como **gerador de passivo tributário** | `contador`, Gate Fiscal do 021 | **P1** (P0 quando houver o 2º registro do mesmo papel) |
+
+**D23 tem dano ZERO hoje** e registro isso em vez de esconder: há **uma única
+nota no banco, e ela está certa**. A prioridade vem do gatilho nomeado, não de
+urgência de calendário.
+
+**Duas mudanças de posição registradas no Gate Fiscal do 021** — o `contador`
+corrigiu o próprio adendo, e o parecer novo
+(`docs/pareceres/2026-08-18-correcao-de-documento-registrado.md`) prevalece:
+
+1. **Rastro é obrigatório em TODA correção**, não só quando o documento já tem
+   pagamento vinculado. *"Ter pagamento vinculado é estado mutável e futuro; o
+   rastro que não foi gravado não se recupera."*
+2. **`documento.favorecido_id` É corrigível** — o que é imutável é a **string
+   CNPJ/CPF de um favorecido já cadastrado**. O adendo colapsava as duas coisas.
+
+**Achado do `lead-engineer` que NÃO virou ticket**: `documento` não tem número
+de nota no schema — isso já é o **`CONTAI-004`**, escrito e priorizado. Nada
+novo a abrir.
+
+**Achado do `lead-engineer` que virou decisão, não ticket**: a deriva de
+privilégio (`update` em `favorecido` concedido e não executado desde `b807901`)
+**morre por uso** no critério 6 do 021, sem migration de revogação. Revogar
+agora para reconceder depois é churn de duas migrations e dois `db push`.
+
+⚠️ **Dívida de processo, aberta aqui**: `.claude/agents/po.md` e
+`.claude/agents/designer.md` ainda carregam as **duas premissas já corrigidas no
+`CLAUDE.md`** — *"venda + 5 anos"* (corrigido em 16/08) e *"majoritariamente de
+celular, no canteiro… julgado nesse cenário primeiro"* (corrigido em 18/08).
+Os briefs reinjetam a régua velha em toda execução — inclusive no `/design`
+deste ticket, que é justamente uma tela de **gestão**. Corrigir os dois arquivos
+é decisão do Mateus (é configuração do time), não de agente.
