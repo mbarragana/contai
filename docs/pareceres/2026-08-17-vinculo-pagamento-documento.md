@@ -246,3 +246,115 @@ o alerta do §4. (Regime de caixa: §1 e §3 deste parecer.)
 - **Continuam exigindo CRC**: o **texto da discriminação** que vai à
   declaração; qualquer **retificadora**; e o caso de **venda entre os dois
   anos-calendário** do conjunto.
+
+---
+
+# ADENDO — 2026-08-18 · favorecido do pagamento que nasce ligado a uma nota
+
+- **Origem**: pergunta do Mateus sobre `/adicionar/pagamento?documento=<id>` —
+  "o nome e CNPJ podem ser read only carregados da NOTA neste caso?"
+- **Motivo imediato**: `garantirFavorecido` (`lib/data.ts`) faz upsert por
+  `user_id,documento` **sem** `ignoreDuplicates` e **sobrescreve o nome**.
+  Um typo digitado hoje renomeia o favorecido em **todos os registros
+  anteriores**, em silêncio.
+- **Normativo para**: a tela de pagamento vinculado, a edição de documento e a
+  integridade do cadastro de favorecidos.
+
+## 1. Divergência entre favorecido do pagamento e emitente da nota
+
+**Fiscalmente, o par que sustenta custo é `documento hábil ↔ desembolso
+correspondente` (§1, condição 3 deste parecer). Quem recebe o dinheiro não é um
+terceiro grau de liberdade: é atributo do documento.** `[Certain]`
+
+Casos legítimos de o dinheiro ir para outro CNPJ existem — cessão de crédito /
+factoring (boleto sacado por banco), pagamento por conta e ordem, e o clássico
+"PIX para o CPF do sócio". Mas nenhum deles é um **favorecido diferente**:
+
+- **Cessão/factoring** `[Certain]`: o credor da nota continua sendo o emitente.
+  O banco é **instrumento de pagamento**, não beneficiário do negócio. Prova-se
+  com o boleto + comprovante anexados, não trocando o nome do favorecido.
+- **PIX para CPF de sócio contra nota da PJ** `[Certain]`: isso **enfraquece a
+  prova**, não a fortalece. É exatamente a divergência que a fiscalização usa
+  para dizer que o desembolso não corresponde ao documento. E na ponta do INSS
+  é pior: pagamento a PF, com nota de PJ, contamina a leitura da empreitada.
+  Não é caso a acomodar em campo — é caso a **sinalizar**.
+- **Frequência numa obra residencial de PF**: rara. `[Likely]`
+
+**Conclusão: o produto não deve oferecer o campo.** Divergência real se
+documenta em observação + comprovante anexado, e entra na fila de **revisão
+humana** — nunca reescrevendo o cadastro do favorecido.
+
+## 2. Correção é na origem, e há dois erros diferentes
+
+**Sim: corrige-se no documento; o pagamento herda.** `[Certain]` O pagamento não
+tem opinião própria sobre quem emitiu a nota.
+
+Mas separe os dois casos, porque um o app resolve e o outro não:
+
+| O que está errado | Quem corrige |
+|---|---|
+| **A transcrição no app** (typo ao registrar a nota) | o Mateus, editando o documento |
+| **A nota em si** (o emitente errou nome/CNPJ) | **só o emitente** — carta de correção ou NF substitutiva. Digitar por cima produz um registro que **não bate com o papel do acervo**, e é a divergência que derruba a prova |
+
+**Rastro** `[Likely]` — não conheço regra que exija versionamento de um controle
+pessoal (**confirmar na legislação**), mas a meta 3 do projeto já exige: quem
+corrige dado de documento **que já tem pagamento vinculado** grava
+antes→depois, data e autor. Sem isso, o acervo deixa de ser append-only na
+prática, ainda que seja no banco.
+
+**Regra dura**: **CNPJ/CPF não é campo corrigível.** É a identidade do
+favorecido. CNPJ errado não é typo — é **outro favorecido**, e a saída é
+corrigir o documento e refazer o vínculo, nunca reescrever a chave.
+
+## 3. Efeito na ficha Pagamentos Efetuados
+
+- A ficha é **por CPF, um lançamento por prestador PF** (§ regra do projeto).
+  **A chave é o CPF; o nome tem que ser o que corresponde àquele CPF na base da
+  Receita e no recibo.** `[Certain]` Nome divergente do CPF é gerador de malha.
+- **O que a declaração exige preservar é o nome como consta no documento e como
+  foi declarado à época** `[Likely]` — porque a DAA já entregue é um documento
+  fechado; o app não pode passar a contar uma história diferente daquela.
+  Renomear retroativamente cria divergência entre o acervo e uma declaração
+  entregue, e é o Mateus que explica isso numa intimação, anos depois.
+- Mesma pessoa com grafias diferentes não divide a obrigação (a chave é o CPF),
+  mas **quebra a consolidação do app** e produz um acervo que parece
+  desleixado. `[Certain]`
+
+**O que isso decide**: nome de favorecido **muda por ato deliberado, com
+rastro** — nunca como efeito colateral de registrar um pagamento. Read-only na
+tela de pagamento implementa isso; **não substitui** corrigir o
+`garantirFavorecido`, que é o caminho pelo qual o dano acontece.
+
+## 4. Recomendação para a tela
+
+**Read-only.** `[Certain]` Favorecido e CNPJ/CPF vêm da nota, exibidos como
+herdados ("Favorecido — da nota NF 123"), sem campo de edição.
+
+Saída do impasse, nesta ordem:
+1. **Link "corrigir na nota"** → edição do documento, com rastro (§2). Volta ao
+   pagamento com o dado novo.
+2. **CNPJ/CPF errado** → não se edita: é outro favorecido. Corrige-se o
+   documento e refaz-se o vínculo.
+3. **Dinheiro foi mesmo para outro CNPJ** (cessão, factoring) → o favorecido
+   segue sendo o emitente; a divergência vai em **observação + comprovante**, e
+   o registro entra em **revisão humana**.
+4. **Bloqueio total, nunca** — impasse sem saída ensina o usuário a inventar
+   dado no campo que sobrou.
+
+Fora da tela, e mais importante: **nenhum registro novo pode alterar
+retroativamente dado de registro anterior.** Isso é requisito do acervo, não
+preferência de UX.
+
+## 5. Automático × humano
+
+- **Sistema sozinho**: herdar o favorecido da nota; recusar edição de
+  CNPJ/CPF; gravar rastro na correção do documento; sinalizar divergência
+  emitente↔beneficiário do comprovante.
+- **Exige CRC**: o efeito de uma correção de nome/CNPJ em ano **já declarado**
+  (pode virar retificadora) e o tratamento da nota que o próprio emitente
+  emitiu errado.
+
+**Pergunta ao Mateus (uma só)**: algum pagamento da obra já saiu para conta
+diferente do emitente da nota — boleto sacado por banco, ou PIX para CPF de
+sócio da WK? Se nunca aconteceu, o caso 3 acima fica só como sinalização e não
+vira caminho no produto.
