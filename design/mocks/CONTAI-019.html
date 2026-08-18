@@ -118,7 +118,9 @@
   .valpago{color:var(--ink); font-weight:700}
 
   .resp3{display:flex; gap:6px; margin-top:9px}
-  .resp3 .btn{flex:1; padding:11px 6px; font-size:13px}
+  .resp3 .btn{flex:1; min-width:0; padding:11px 6px; font-size:13px; overflow-wrap:anywhere}
+  .row .val{overflow-wrap:anywhere}
+  .perna{flex-wrap:wrap}
 
   /* ── formulário ─────────────────────────────────── */
   .lab{display:block; font-size:12px; color:var(--mut); margin-bottom:5px}
@@ -697,12 +699,13 @@
       </div>
 
       <div class="pendente">
-        <strong>Pergunta em aberto:</strong> "Saiu" leva à tela de confirmação (data + valor +
-        encargos), que é trabalho de <strong>mesa</strong>. No canteiro, um toque em "Saiu" abre uma
-        tela que você provavelmente não vai terminar ali. Alternativa não desenhada porque
-        <em>ninguém pediu</em>: "Saiu" gravar direto com data de hoje e valor previsto, e deixar a
-        conferência para depois. Isso violaria a proibição de default em campo fiscal — devolvo a
-        decisão em vez de embutir.
+        <strong>Pergunta em aberto — e a tela de confirmação NÃO encolhe por causa dela:</strong>
+        as três respostas deste cartão são a única parte do CONTAI-019 medida pela régua do canteiro,
+        e "Saiu" abre a confirmação, que é tela de <strong>mesa</strong> e continua densa de
+        propósito. A pergunta é só o que acontece quando você toca "Saiu" longe de casa: interrompe
+        ali, ou o app guarda "ele disse que saiu" como pendência de completar depois? Não desenhei a
+        terceira saída — gravar direto com data de hoje e valor previsto — porque ela violaria a
+        proibição de default em campo fiscal. Devolvo a decisão em vez de embutir.
       </div>
     </div>
     <div class="foot"><button class="btn ghost" data-ir="s3">Voltar ao início</button></div>
@@ -782,6 +785,13 @@
       <div class="sub">WK Construções · parcela 3 · previsto ~R$ 10.000,00 para 15/09</div>
     </div>
     <div class="body">
+      <div class="banner mud" style="font-size:12px">
+        <strong>Tela de mesa, densa de propósito.</strong> Confirmar um pagamento é gestão — em casa,
+        sentado, olhando o extrato. 375 px é <strong>piso</strong> (nada pode quebrar), não alvo:
+        nenhum campo foi cortado aqui porque "não caberia com uma mão".
+        <div class="parecer">Régua de cenários do CLAUDE.md, corrigida pelo Mateus em 2026-08-18.</div>
+      </div>
+
       <div class="banner blu" style="font-size:12.5px">
         <strong>Mexa no valor pago.</strong> Digite <span class="mono">10000</span>,
         <span class="mono">10320</span>, <span class="mono">9800</span> e
