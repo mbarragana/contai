@@ -24,9 +24,20 @@ mesma despesa contada como duas coisas, nenhuma delas virando custo.
 
 Três defeitos distintos no mesmo sintoma:
 
-1. **Não existe caminho na interface para vincular.**
+1. **Não existe caminho na interface para vincular — e o app promete que existe.**
    `app/adicionar/pagamento/page.tsx:154` e `app/adicionar/documento/page.tsx:206`
    prometem literalmente "(em breve — US-003)". A promessa venceu.
+   **Pior: a promessa também está na tela `/adicionar`**, no momento exato da
+   decisão de registrar (print do Mateus, 2026-08-18):
+   > *"Pagamento — PIX sem nota. Pagou e o documento ainda não existe? Registra
+   > agora; **a NF vincula depois**."*
+   **Não vincula.** Texto de produto que afirma um comportamento inexistente é
+   pior que ausência de funcionalidade: ele ensina o usuário a confiar num
+   mecanismo que não vai acontecer, e o passivo de registros soltos cresce com o
+   consentimento dele. **Critério 19.**
+   Segundo achado do mesmo print: o rótulo **"PIX sem nota"** enquadra o
+   pagamento como exceção, quando no caso do Mateus a nota costuma existir — ele
+   só não tem onde dizer isso. O rótulo empurra para o caminho errado.
 2. **O cálculo colapsa "não demonstrável" em "inexistente".**
    `lib/fiscal/resumo.ts:78` — `if (pagamento.status !== "conciliado") return false`.
    Como nada cria vínculo, todo pagamento é `aguardando_nf` e o custo confirmado
@@ -152,6 +163,15 @@ pare de aparecer duas vezes.
 17. [ ] **Nenhum backfill automático, nenhuma heurística retroativa** (Gate
     Fiscal, item 5). Os registros de hoje permanecem exatamente como estão:
     documentos sem vínculo e pagamentos `aguardando_nf`.
+19. [ ] **Nenhuma tela promete comportamento que não existe.** Auditar os textos
+    de `/adicionar`, `/adicionar/documento` e `/adicionar/pagamento`: as frases
+    "a NF vincula depois" e "(em breve — US-003)" ou passam a ser verdade (este
+    ticket), ou saem. **Enquanto o ticket não fechar, a frase é removida** — é
+    edição de uma linha e para de fabricar confiança falsa hoje.
+    E o rótulo **"Pagamento — PIX sem nota"** é reavaliado: ele enquadra como
+    exceção o caminho que o Mateus usa quando a nota existe e ele não tem onde
+    dizer.
+
 18. [ ] Existe uma **fila de conciliação pendente** — a lista dos registros sem
     vínculo, com os candidatos sugeridos — para o Mateus limpar o passivo (a NF da
     WK inclusive) em uma sessão, sem caçar registro por registro.
