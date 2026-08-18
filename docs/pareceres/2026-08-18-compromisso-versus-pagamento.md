@@ -633,3 +633,109 @@ compartilhado.
 **Exige CRC** `[Certain]`: o peso probatório de nota de PJ sem comprovante de
 pagamento em glosa de custo de aquisição; e a suficiência do extrato bancário
 como substituto do comprovante avulso.
+
+## F. Diferença não explicada — o conjunto fechado de resoluções e o texto de tela
+
+- **Origem**: duas perguntas do `po` a partir do desenho do `designer` (2026-08-18).
+- **Normativo para**: a tela de resolução da diferença no `CONTAI-019`, e o texto
+  da frase substituta em produção no `CONTAI-018`.
+
+### F.1 "Era principal" não aumenta o custo hoje — mas não é no-op, e o botão fica
+
+**Confirmado no cálculo, corrigido na conclusão** `[Certain]`.
+
+No caso (compromisso R$ 10.000, nota hábil R$ 10.000, pago R$ 10.500, R$ 200 de
+encargo, R$ 300 sem explicação): o custo comprovado é
+`min(Σ pagamentos elegíveis, Σ documentos hábeis) = min(10.300, 10.000) = 10.000`.
+Dizer "os R$ 300 eram principal" **não move o custo confirmado**, porque o teto é
+a nota. Até aí, a leitura do `po` está certa.
+
+**O que está errado é concluir que a opção é mentira e deve sair da tela.** Ela
+muda duas coisas, e as duas são fiscais:
+
+1. **Muda o alerta.** Encargo é dinheiro que fica fora do custo **para sempre** e
+   **não é pendência** — não há o que cobrar de ninguém. Principal sem nota é
+   **custo real ainda não comprovável**: vira **"pago sem nota"**, que é risco
+   registrado e cobrança a fazer **enquanto ainda há parcela a liberar** (§4 do
+   parecer de 17/08 — "some o alerta" está listado lá como dano, não como
+   detalhe). Classificar principal como encargo **subestima o custo em definitivo
+   e mata a cobrança da nota**.
+2. **Muda o número depois.** Chegando a nota do aditivo de R$ 300, o teto vira
+   `min(10.300, 10.300) = 10.300`. A classificação de hoje é o que decide se esse
+   custo é recuperável amanhã.
+
+**A mentira não está no botão — está em prometer aumento de custo no ato.** A
+tela não pode sugerir "+R$ 300 no custo"; tem que dizer que o número não se move
+hoje e **o que o move** (a nota).
+
+### F.2 O conjunto fechado — quatro resoluções, rotuladas pelo resultado
+
+Rotular pelo **resultado, não pela causa** (mesma razão do §D): ele não tem de
+caracterizar juridicamente nada.
+
+| Resolução | Efeito no custo | Resíduo |
+|---|---|---|
+| **1. Não compõe custo da obra** — juros, multa de mora, taxa, ou item não incorporado ao imóvel | fica fora, **definitivamente** | registrado, **sem pendência** — nada a cobrar |
+| **2. É da obra e falta o documento** | fica fora **hoje**; entra quando houver nota hábil no CPF dele que o cubra | **"pago sem nota"** pelo valor da diferença — pendência acionável |
+| **3. O pagamento cobriu mais de um documento** | **único caminho que aumenta o custo no ato**, se o outro documento hábil já estiver no acervo | resolve-se por **vínculo**, não por classificação |
+| **4. Errei o valor digitado** | não é classificação fiscal | **correção do registro**, com rastro — `CONTAI-021` |
+
+Notas de fechamento `[Certain]`:
+
+- **A opção 3 é a que faltava na leitura do `po`** e é caso comum da obra: um PIX
+  cobrindo duas compras do mesmo favorecido. Sem ela, o Mateus é empurrado para a
+  1 ou a 2 e **perde custo real que já está comprovado no acervo**.
+- **Causas diferentes com o mesmo efeito colapsam numa opção só** (mora e "não é
+  da obra" falham condições diferentes do §1 de 17/08 — a 2 e a lista de
+  exclusões — e produzem resultado idêntico).
+- ⚠️ **"Não sei ainda" é estado permitido e é o único que pode ser o estado
+  inicial**, porque é o único que não afirma nada. Forçar classificação ensina a
+  inventar dado no campo que sobrou. A diferença sem resposta fica **fora do
+  custo** — direção segura, subestima.
+- **Diferença sem resposta NÃO bloqueia o relatório anual** (ao contrário do
+  compromisso vencido do §A): aqui o fato consumado já está registrado e o erro
+  possível só subestima. Ela entra na **lista de revisão pré-declaração**.
+
+### F.3 Ordem de cálculo, que é onde o erro caro mora
+
+`[Certain]` **O encargo sai do pagamento ANTES do teto do mínimo, nunca depois.**
+Primeiro `pagamento elegível = pago − encargos`, depois
+`min(Σ elegíveis, Σ documentos hábeis)`.
+
+Prova de que a ordem não é cosmética: nota de R$ 10.400, pago R$ 10.500 com
+R$ 500 de mora. Na ordem certa: `min(10.000, 10.400) = 10.000`. Na ordem
+invertida: `min(10.500, 10.400) = 10.400` — **R$ 400 de mora entrando como obra**,
+que é o risco nº 1 do pre-mortem do ticket, acontecendo dentro da fórmula.
+
+### F.4 Texto de tela — substitui a minuta do `designer`
+
+A minuta (*"Saiu R$ 300,00 a mais que o previsto…"*) **não vai para a tela**, por
+um motivo fiscal: ancora a consequência no **previsto**, e a previsão não decide
+custo nenhum — quem limita o custo é o **documento hábil**. No exemplo os dois
+valores coincidem e o erro fica invisível; com previsto de R$ 9.000 e nota de
+R$ 10.000, a frase estaria fiscalmente errada em tela.
+
+**Texto que vai para a tela, literal:**
+
+> **R$ 300,00 do que você pagou ainda estão sem explicação.**
+> Enquanto estiverem, ficam fora do custo de aquisição. Se forem juros, multa ou
+> algo que não é da obra, ficam fora para sempre — e não há o que cobrar. Se
+> forem obra, entram no custo quando houver nota no seu CPF que os cubra; até
+> lá, contam como pago sem nota.
+
+Por que assim: ancora no **pagamento**, não na previsão; diz **por que** o número
+é o que é e **o que o muda** (§5.1 do parecer de 17/08 — "o zero nunca aparece
+sozinho"); nomeia as duas saídas sem pedir que ele caracterize a causa; e não usa
+"regime de caixa" nem "previsto/efetivado" (critério 7). Densidade cabe: esta é
+tela de **gestão**, em casa e sentado (régua de 18/08).
+
+### F.5 A frase substituta do CONTAI-018 — aprovada como está
+
+> **"A data que vale para o custo é a do pagamento, não a da nota. Nota de
+> dezembro paga em janeiro é custo do ano seguinte."**
+
+`[Certain]` Fiscalmente correta nas duas sentenças, e a segunda **não é texto
+novo**: é o §4 do parecer de 17/08 em linguagem de tela ("nota de dezembro paga
+em janeiro quebra o regime de caixa em dois anos ao mesmo tempo"). **O exemplo
+fica** — é ele que ensina; a sentença abstrata sozinha é esquecível, e errar o
+ano é o item 3 do pre-mortem do `CONTAI-019`.
