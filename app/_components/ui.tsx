@@ -29,11 +29,48 @@ export function Corpo({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Rodapé fixo: fica FORA do `Corpo` (que rola), no fluxo normal, e por
+ * construção não cobre conteúdo nenhum.
+ *
+ * `env(safe-area-inset-bottom)` somado ao padding: em PWA standalone e em
+ * aparelho com notch, o rodapé encostaria na barra de gestos do iOS e o alvo
+ * ficaria embaixo dela.
+ */
 export function Rodape({ children }: { children: ReactNode }) {
   return (
-    <div className="flex flex-none flex-col gap-2 border-t border-line px-[18px] pt-3 pb-[18px]">
+    <div className="flex flex-none flex-col gap-2 border-t border-line px-[18px] pt-3 pb-[calc(18px+env(safe-area-inset-bottom))]">
       {children}
     </div>
+  );
+}
+
+/**
+ * Barra fixa com "+ Adicionar" — critério 12 do CONTAI-018.
+ *
+ * Substitui o FAB `sticky bottom-0 mt-auto self-end` que existia SÓ na home.
+ * O FAB morava DENTRO do `Corpo` (`overflow-y-auto` em `h-dvh`) e por isso
+ * POUSAVA SOBRE O CONTEÚDO: na home cobria o acumulado da obra, e num detalhe
+ * cobriria o botão de ação da tela. Esta barra usa o `Rodape`, que já é o
+ * padrão de toda outra tela do app, está fora da área que rola e não pode
+ * cobrir nada.
+ *
+ * Resolve as DUAS hipóteses do critério 12 de uma vez — "não renderiza no
+ * aparelho dele" e "renderiza onde ele não olha" — sem depender de uma foto
+ * da tela para escolher entre elas. E `/adicionar` passa a ser alcançável de
+ * toda tela principal, não só da home: o relato ("não tem um link para
+ * acessar a página /adicionar, o que é um absurdo") é sobre isso.
+ */
+export function BarraAdicionar({ voltar }: { voltar?: ReactNode }) {
+  return (
+    <Rodape>
+      <div className="flex gap-2">
+        {voltar ? <div className="flex-1">{voltar}</div> : null}
+        <div className={voltar ? "flex-none" : "flex-1"}>
+          <BotaoLink href="/adicionar">+ Adicionar</BotaoLink>
+        </div>
+      </div>
+    </Rodape>
   );
 }
 

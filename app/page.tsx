@@ -12,6 +12,7 @@ import {
 import {
   AppBar,
   Banner,
+  BarraAdicionar,
   BotaoLink,
   Card,
   Carregando,
@@ -209,15 +210,11 @@ export default function Home() {
             </Dica>
           </>
         ) : null}
-
-        {/* Ação principal sempre ao alcance do polegar, rolando junto. */}
-        <Link
-          href="/adicionar"
-          className="sticky bottom-0 mt-auto self-end rounded-full bg-ink px-5 py-[13px] text-[14.5px] font-semibold text-paper shadow-[0_6px_16px_rgba(0,0,0,.18)]"
-        >
-          + Adicionar
-        </Link>
       </Corpo>
+
+      {/* Critério 12: o alvo sai do FAB flutuante e vai para a barra fixa —
+          o FAB pousava sobre o acumulado quando a lista de pendências crescia. */}
+      <BarraAdicionar />
     </>
   );
 }
