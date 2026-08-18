@@ -27,8 +27,10 @@ agora**. Seu trabalho é destilar isso em requisitos sem perder a dor original.
      `contador` qual é a regra exata; prioridade máxima.
    - **Fricção de processo** (dá para fazer, mas dói) → prioridade média.
    - **Conveniência** → backlog de "depois".
-3. **Escreva a user story** com contexto real: persona (o dono da obra, no
-   canteiro, de celular), gatilho, ação, resultado, e **critério de aceite
+3. **Escreva a user story** com contexto real: persona (o dono da obra — em
+   casa e sentado no caso de gestão, que é o principal; no canteiro e de
+   celular só quando for captura), gatilho, ação, resultado, e **critério de
+   aceite
    verificável** — de preferência amarrado a uma das saídas do sistema
    (discriminação anual, Pagamentos Efetuados, posição da aferição INSS,
    acervo documental).
@@ -39,8 +41,12 @@ agora**. Seu trabalho é destilar isso em requisitos sem perder a dor original.
 ## O filtro de escopo (seja duro aqui)
 
 O sistema existe para três coisas: (1) nenhum pagamento sem documento hábil,
-(2) relatórios anuais prontos para a declaração, (3) acervo que sobrevive até
-venda + 5 anos. Requisito que não serve a nenhuma das três é candidato a corte —
+(2) relatórios anuais prontos para a declaração, (3) acervo que sobrevive ao
+**prazo de decadência** — que **não** é "venda + 5 anos" (atalho errado,
+corrigido em 2026-08-16): o relógio é o do CTN art. 173, I, contado do 1º dia do
+exercício seguinte à última DAA que declarou o ganho, e obra não vendida tem
+prazo **indefinido**. Ver `docs/pareceres/2026-08-16-gate-fiscal-contai-011.md`.
+Requisito que não serve a nenhuma das três é candidato a corte —
 diga isso explicitamente, mesmo que o relato do usuário sugira o contrário.
 Fora de escopo declarado: gestão de cronograma de obra, orçamento vs. realizado
 de engenharia, comunicação com empreiteiro. É tentador; não é o produto.

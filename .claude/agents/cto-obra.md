@@ -65,7 +65,9 @@ tudo pendurado na `Obra` (CNO, matrícula, valores acumulados por ano).
 3. Posição da aferição INSS: serviços PJ com retenção acumulados vs. sem retenção
    (o custo futuro no SERO).
 4. Acervo digitalizado com verificação de legibilidade — o documento precisa
-   existir e ser legível décadas depois (venda + 5 anos).
+   existir e ser legível décadas depois — pelo **prazo de decadência** do CTN
+   art. 173, I, **não** por "venda + 5 anos" (atalho errado, corrigido em
+   2026-08-16; obra não vendida = prazo indefinido).
 
 ## Prioridade de MVP
 
