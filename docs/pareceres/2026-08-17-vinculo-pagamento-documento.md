@@ -187,7 +187,10 @@ de ofício em caso de custo inflado; e o texto que vai à declaração.
 
 - **Origem**: ratificação do agente `contador` no **Gate 2 do CONTAI-018**
   (item A1 do parecer de revisão), transcrita aqui porque **regra fiscal que só
-  existe em transcript é a falha que o `CLAUDE.md` proíbe**.
+  existe em transcript é a falha que o `CLAUDE.md` proíbe**. As emendas E1
+  (ressalva do pagamento retroativo), E2 (separação dos tags do argumento 3) e
+  E3 (a frase que se lia ao contrário) vieram da **2ª passada do Gate 2** do
+  mesmo ticket, e estão incorporadas abaixo, no texto.
 - **Status**: **regra fiscal do projeto** — deixou de ser "decisão de
   implementação pendente de ratificação", que era como o código a marcava.
 - **Normativo para**: `lib/fiscal/vinculo.ts` (função `cronologico` e o laço de
@@ -206,8 +209,9 @@ de ofício em caso de custo inflado; e o texto que vai à declaração.
 > Empate de data → ordem estável arbitrária (**sem efeito fiscal**: mesma data,
 > mesmo ano-calendário).
 
-Ela só muda algum número quando o conjunto **cruza anos-calendário** — e aí ela
-decide **em qual ano** o custo cai (regime de caixa, §1 e §3 deste parecer).
+Ela só muda o custo de um ANO quando o conjunto cruza anos-calendário; dentro
+do mesmo ano ela continua decidindo em qual pagamento recai o "pago sem nota" —
+o alerta do §4. (Regime de caixa: §1 e §3 deste parecer.)
 
 ## Por que cronológica, e não pro-rata
 
@@ -217,12 +221,24 @@ decide **em qual ano** o custo cai (regime de caixa, §1 e §3 deste parecer).
    já dissera R$ 2.000, **contradizendo uma DAA entregue**. Sob a regra
    cronológica, **acrescentar um pagamento posterior nunca altera a alocação de
    um pagamento anterior**.
+
+   > **Ressalva.** A imutabilidade vale para pagamentos acrescentados **depois**
+   > na linha do tempo. Registrar um pagamento com data **anterior** à de
+   > pagamentos já alocados, ou corrigir a data de um já registrado,
+   > **redistribui o custo comprovado do conjunto e pode mover custo entre
+   > anos-calendário** — inclusive de um ano já declarado. Não é defeito da
+   > regra: é o fato novo chegando fora de ordem. Quando o ano afetado já foi
+   > declarado, o caminho é **retificadora**, e isso **exige CRC**.
+
 2. **A fotografia de 31/12** `[Likely]` — o que a ficha Bens e Direitos
    descreve naquela data é o que de fato estava **desembolsado e coberto**
    naquela data.
-3. **O "pago sem nota" fica no pagamento mais recente** `[Certain]` — que é o
-   único ainda **cobrável do empreiteiro** (§4 deste parecer: o alerta só serve
-   se apontar para a nota que ainda dá para exigir).
+3. **O "pago sem nota" fica no pagamento mais recente** `[Certain]` — isto é
+   aritmética da regra. Que esse pagamento seja **o único ainda cobrável do
+   empreiteiro** é outra afirmação, inferência prática sobre a relação
+   comercial: `[Likely]`, no máximo (§4 deste parecer: o alerta só serve se
+   apontar para a nota que ainda dá para exigir). Os dois tags separados porque
+   **"tag inflado é a mesma doença do número inflado"**.
 
 ## Alcance da ratificação
 
