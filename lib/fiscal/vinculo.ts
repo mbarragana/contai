@@ -475,16 +475,25 @@ export interface Previsao {
  * seletor manipula. O número autoritativo continua saindo de `alocarCusto`
  * sobre o grafo inteiro depois de gravado.
  */
-export function preverVinculo(
-  documento: Documento,
+export function preverConjunto(
   pagamentos: readonly Pagamento[],
+  documentos: readonly Documento[],
 ): Previsao {
   const somaPagamentos = pagamentos.reduce((s, p) => s + p.valorCentavos, 0);
-  const somaHabeis = ehDocumentoHabil(documento) ? valorDocumento(documento) : 0;
+  const somaHabeis = documentos
+    .filter(ehDocumentoHabil)
+    .reduce((s, d) => s + valorDocumento(d), 0);
   const comprovado = Math.min(somaPagamentos, somaHabeis);
   return {
     custoComprovadoCentavos: comprovado,
     excedentePagamentoCentavos: somaPagamentos - comprovado,
     restanteNotaCentavos: somaHabeis - comprovado,
   };
+}
+
+export function preverVinculo(
+  documento: Documento,
+  pagamentos: readonly Pagamento[],
+): Previsao {
+  return preverConjunto(pagamentos, [documento]);
 }

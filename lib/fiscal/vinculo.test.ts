@@ -9,6 +9,7 @@ import {
   MOTIVO_OBRA_DIFERENTE,
   pagamentosCandidatos,
   podeVincular,
+  preverConjunto,
   preverVinculo,
 } from "@/lib/fiscal/vinculo";
 import type { Documento, Pagamento } from "@/lib/types";
@@ -436,6 +437,33 @@ describe("previsão do efeito no custo antes do toque", () => {
       [pag({ id: "p1" })],
     );
     expect(previsao.custoComprovadoCentavos).toBe(0);
+  });
+
+  it("caminho inverso: um pagamento marcado em duas notas hábeis", () => {
+    const previsao = preverConjunto(
+      [pag({ id: "p1", valorCentavos: 300_000 })],
+      [
+        doc({ id: "d1", valorCentavos: 200_000 }),
+        doc({ id: "d2", valorCentavos: 200_000 }),
+      ],
+    );
+    expect(previsao).toEqual({
+      custoComprovadoCentavos: 300_000,
+      excedentePagamentoCentavos: 0,
+      restanteNotaCentavos: 100_000,
+    });
+  });
+
+  it("caminho inverso: nota em quarentena não entra na soma hábil", () => {
+    const previsao = preverConjunto(
+      [pag({ id: "p1", valorCentavos: 300_000 })],
+      [
+        doc({ id: "d1", valorCentavos: 100_000 }),
+        doc({ id: "d2", valorCentavos: 200_000, status: "quarentena", destinatarioCpfOk: false }),
+      ],
+    );
+    expect(previsao.custoComprovadoCentavos).toBe(100_000);
+    expect(previsao.excedentePagamentoCentavos).toBe(200_000);
   });
 
   it("nada marcado: previsão zerada e a nota inteira restante", () => {
