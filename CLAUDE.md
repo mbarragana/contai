@@ -282,6 +282,31 @@ Supabase local (Docker): `npm run db:start | db:stop | db:status`;
 obra de desenvolvimento). Banco remoto: `npx supabase db push` aplica as
 migrations.
 
+### ⚠️ Ordem obrigatória do release: `npx supabase db push` ANTES de `git push`
+
+**Migration primeiro, código depois. Sempre, sem exceção.**
+
+1. `npx supabase db push` — aplica as migrations pendentes no banco REMOTO.
+2. Conferir no dashboard do Supabase que a migration entrou (Database →
+   Migrations) antes de seguir.
+3. `git push` — e só então a Vercel deploya, porque lá o deploy vem da
+   **integração com o Git**, não de action com token.
+
+**Por que esta ordem e não a inversa** — a assimetria é o ponto:
+
+- Migration na frente do código é **aditiva e inofensiva**: um `grant` que
+  nenhuma tela ainda exercita não muda comportamento nenhum. O banco fica
+  pronto esperando.
+- Código na frente da migration **quebra em produção**, e quebra em silêncio
+  para quem testou: foi o incidente de 2026-08-17 — `{"code":"42501",
+  "message":"permission denied for table ..."}` depois de um login
+  bem-sucedido, **com o E2E local verde**, porque o stack do CLI traz
+  privilégios que o remoto não tem.
+
+Vale para toda migration, e é especialmente cruel com as de `grant`: a falha
+não aparece no build, não aparece no teste, e só aparece no dedo do Mateus, no
+canteiro, na hora de gravar.
+
 ## Estrutura
 
 - `docs/backlog.md` — backlog vivo (dores, stories, perguntas)
