@@ -53,7 +53,14 @@ Três defeitos distintos no mesmo sintoma:
 Dores de backlog atendidas: D2 (pago sem nota), D9 (correção sem SQL), R5 do
 parecer do CONTAI-005 ("Custo confirmado R$ 0,00" sem ressalva é falso).
 
-## Gate Fiscal (Contador) — FECHADO em 2026-08-16
+## Gate Fiscal (Contador) — FECHADO em 2026-08-17
+
+<!-- A data é a do parecer NORMATIVO deste ticket
+     (`docs/pareceres/2026-08-17-vinculo-pagamento-documento.md`, ver linha 12).
+     Estava escrito 2026-08-16, que é OUTRO parecer — o Gate Fiscal do
+     CONTAI-004/005, que este consome mas não substitui. Corrigido no Gate 2
+     loop 2 (D1 do contador): data errada em cabeçalho de Gate Fiscal é o
+     começo de alguém aplicar o parecer errado. -->
 
 Transcrito do parecer. **Nada aqui é negociável em implementação.**
 
@@ -69,9 +76,17 @@ Transcrito do parecer. **Nada aqui é negociável em implementação.**
    *existe vínculo em `pagamento_documento` com documento hábil*.
    `status = 'conciliado'` passa a ser **derivado**, nunca pré-requisito.
 4. **Custo comprovado de um par = mínimo entre a soma dos pagamentos vinculados e
-   a soma dos documentos hábeis vinculados.** O excedente de cada lado cai na
-   coluna correspondente — pagou mais do que a nota, o excedente é "pago sem
-   nota".
+   a soma dos documentos hábeis vinculados.** O excedente **do lado do
+   pagamento** é a exposição **"pago sem nota"**. O excedente **do lado da
+   nota** NÃO tem coluna de risco: documento hábil sem pagamento *"não soma, e
+   não é pendência de risco"* (parecer §3) — regime de caixa, sem desembolso
+   não há dispêndio. <!-- A redação anterior ("o excedente de cada lado cai na
+   coluna correspondente") lia-se como se a nota também tivesse coluna de
+   risco. Correção de transcrição no Gate 2 loop 2 (D2 do contador); a
+   implementação já seguia o parecer. -->
+
+   **Repartição entre os pagamentos do conjunto**: cronológica, pela data de
+   pagamento — regra ratificada em 2026-08-18, no adendo do mesmo parecer.
 5. **Proibido inferir vínculo por heurística** ("mesmo favorecido, mesmo valor").
    Sugere, **nunca vincula sozinho**.
 6. **Documento em quarentena vinculado não produz custo confirmado.**
