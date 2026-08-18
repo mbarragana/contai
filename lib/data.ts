@@ -392,6 +392,29 @@ export async function subirParaAcervo(
  * retry de rede) as duas chamadas liam "não existe" e criavam favorecidos
  * duplicados, quebrando a agregação CPF-por-CPF. O conflito é resolvido pela
  * unicidade (user_id, documento) da migration 0003.
+ *
+ * ⚠️ `ignoreDuplicates` — O NOME DE QUEM JÁ EXISTE NUNCA É SOBRESCRITO.
+ *
+ * Sem ele, o upsert virava `on conflict do update` e gravava por cima do nome:
+ * um typo digitado hoje RENOMEAVA o favorecido em todos os registros
+ * anteriores, em silêncio. Adendo de 2026-08-18 do parecer
+ * `docs/pareceres/2026-08-17-vinculo-pagamento-documento.md`, §3 e §4:
+ *
+ *   nenhum registro novo pode alterar retroativamente dado de registro
+ *   anterior [...] nome de favorecido muda por ato deliberado, com rastro —
+ *   nunca como efeito colateral de registrar um pagamento.
+ *
+ * O dano é fora do app: a DAA já entregue é documento fechado, e renomear
+ * retroativamente faz o acervo contar uma história diferente da que foi
+ * declarada — quem explica isso numa intimação, anos depois, é o Mateus.
+ *
+ * Consequência aceita e deliberada: nome gravado errado NÃO se corrige por
+ * aqui. A correção é ato próprio, com rastro, e não existe hoje.
+ *
+ * `ignoreDuplicates` manda `Prefer: resolution=ignore-duplicates`, que o
+ * PostgREST traduz em `on conflict do nothing` — e aí a linha que já existia
+ * NÃO volta no retorno. Por isso o segundo passo: quem já estava lá é lido, e
+ * é o id dele que vale.
  */
 export async function garantirFavorecido(entrada: {
   nome: string;
@@ -403,13 +426,28 @@ export async function garantirFavorecido(entrada: {
     documento: entrada.documento,
     tipo: entrada.tipo,
   };
-  const { data, error } = await getSupabase()
+  const supabase = getSupabase();
+  const { data, error } = await supabase
     .from("favorecido")
-    .upsert(linha, { onConflict: "user_id,documento" })
-    .select("id")
-    .single();
+    .upsert(linha, { onConflict: "user_id,documento", ignoreDuplicates: true })
+    .select("id");
   if (error) throw error;
-  return (data as { id: string }).id;
+
+  const criado = (data as { id: string }[] | null)?.[0];
+  if (criado) return criado.id;
+
+  // Já existia: o cadastro dele fica como está, e o nome digitado agora é
+  // descartado de propósito (ver acima). A RLS já restringe ao dono, então o
+  // documento sozinho identifica a linha — é a chave única da migration 0003.
+  const existente = await supabase
+    .from("favorecido")
+    .select("id")
+    .eq("documento", entrada.documento)
+    .limit(1);
+  if (existente.error) throw existente.error;
+  const row = (existente.data as { id: string }[] | null)?.[0];
+  if (!row) throw new Error("Não foi possível identificar o favorecido.");
+  return row.id;
 }
 
 export async function criarDocumento(

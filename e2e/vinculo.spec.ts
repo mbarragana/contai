@@ -429,17 +429,22 @@ test.describe("caminho A — vínculo no ato do registro", () => {
       page.getByRole("button", { name: "Desfazer o vínculo antes de salvar" }),
     ).toBeVisible();
 
-    // Os TRÊS vêm da nota. O CNPJ é o que trava a regressão do relato de
-    // 2026-08-18: redigitado à mão, um dígito trocado criaria um segundo
+    // Os TRÊS vêm da nota, e os dois do favorecido vêm SEM campo (adendo de
+    // 2026-08-18): quem recebe o dinheiro é atributo da nota. O CNPJ era o do
+    // relato — redigitado à mão, um dígito trocado criaria um segundo
     // favorecido e a ficha Pagamentos Efetuados sairia com a WK em duas linhas.
-    await expect(page.getByLabel("Favorecido", { exact: true })).toHaveValue(
-      "WK Construções LTDA",
-    );
-    await expect(page.getByLabel("CNPJ / CPF do favorecido")).toHaveValue(
-      CNPJ_WK,
-    );
-    // Nota sem pagamento nenhum ligado: falta ela inteira.
+    const herdado = page.getByRole("group", { name: "Favorecido da nota" });
+    await expect(
+      herdado.getByText("Favorecido — da NF de serviço de R$ 3.000,00", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(herdado.getByText("WK Construções LTDA")).toBeVisible();
+    await expect(herdado.getByText(CNPJ_WK)).toBeVisible();
+    // Nota sem pagamento nenhum ligado: falta ela inteira. E este continua
+    // digitável — é o único dos três que diverge legitimamente.
     await expect(page.getByLabel("Valor")).toHaveValue("3.000,00");
+    await expect(page.getByLabel("Valor")).toBeEditable();
     await expect(page.getByText("Vem da nota — valor da nota.")).toBeVisible();
 
     await page.getByLabel("Comprovante").setInputFiles(png("pix-wk.png"));
@@ -457,6 +462,51 @@ test.describe("caminho A — vínculo no ato do registro", () => {
     ]);
     // Nada de favorecido novo: o CNPJ que voltou do banco é o mesmo que subiu.
     expect(await favorecidos(db)).toHaveLength(1);
+  });
+
+  /**
+   * O par que descreve a regra do adendo de 2026-08-18: nascendo LIGADO, o
+   * favorecido é herdado e não tem campo; AVULSO, ele é do pagamento e se
+   * digita. E o impasse tem saída — "Corrigir na nota" leva à nota, e
+   * "Desfazer o vínculo" devolve os campos.
+   */
+  test("favorecido herdado quando nasce ligado, digitável quando avulso", async ({
+    page,
+    db,
+  }) => {
+    const { documentoId } = await cenarioWk(db);
+
+    await page.goto(`/adicionar/pagamento?documento=${documentoId}`);
+    await expect(
+      page
+        .getByRole("group", { name: "Favorecido da nota" })
+        .getByText("Favorecido — da NF de serviço de R$ 3.000,00", {
+          exact: true,
+        }),
+    ).toBeVisible();
+    // Não existe campo para digitar quem recebeu: nenhum dos dois.
+    await expect(page.getByLabel("Favorecido", { exact: true })).toHaveCount(0);
+    await expect(page.getByLabel("CNPJ / CPF do favorecido")).toHaveCount(0);
+
+    // Saída 1: corrigir na origem.
+    await expect(
+      page.getByRole("link", { name: "Corrigir na nota" }),
+    ).toHaveAttribute("href", `/documento/${documentoId}`);
+
+    // Saída 2: sem vínculo o pagamento é avulso, e aí os campos voltam.
+    await page
+      .getByRole("button", { name: "Desfazer o vínculo antes de salvar" })
+      .click();
+    await expect(page.getByLabel("Favorecido", { exact: true })).toBeEditable();
+    await expect(page.getByLabel("CNPJ / CPF do favorecido")).toBeEditable();
+
+    // Pagamento avulso desde o começo: nunca houve nota para herdar.
+    await page.goto("/adicionar/pagamento");
+    await expect(page.getByLabel("Favorecido", { exact: true })).toBeEditable();
+    await expect(page.getByLabel("CNPJ / CPF do favorecido")).toBeEditable();
+    await expect(
+      page.getByRole("group", { name: "Favorecido da nota" }),
+    ).toHaveCount(0);
   });
 
   /**
@@ -490,9 +540,9 @@ test.describe("caminho A — vínculo no ato do registro", () => {
 
     await expect(page.getByLabel("Valor")).toHaveValue("2.000,00");
     await expect(page.getByText("Vem da nota — falta desta nota.")).toBeVisible();
-    await expect(page.getByLabel("CNPJ / CPF do favorecido")).toHaveValue(
-      CNPJ_WK,
-    );
+    await expect(
+      page.getByRole("group", { name: "Favorecido da nota" }).getByText(CNPJ_WK),
+    ).toBeVisible();
 
     await page.getByLabel("Comprovante").setInputFiles(png("pix-wk-2.png"));
     await page

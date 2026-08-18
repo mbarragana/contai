@@ -298,7 +298,11 @@ test.describe("registrar documento", () => {
     // Upsert por (user_id, documento): um CNPJ, um favorecido.
     const donos = await favorecidos(db);
     expect(donos).toHaveLength(1);
-    expect(donos[0].nome).toBe("Casa do Construtor Ltda");
+    // ⚠️ E o NOME antigo permanece — esta asserção era o inverso disto até o
+    // adendo de 2026-08-18: o registro novo gravava "Casa do Construtor Ltda"
+    // por cima e renomeava o favorecido em todos os registros anteriores. Era
+    // o teste que carimbava a corrupção retroativa como comportamento certo.
+    expect(donos[0].nome).toBe("Casa do Construtor (cadastro antigo)");
 
     // O original está no acervo, na pasta do dono (policy do bucket).
     expect(gravados[0].arquivo_path).toMatch(
@@ -448,5 +452,51 @@ test.describe("registrar pagamento avulso", () => {
     expect(await arquivosNoAcervo(db, "comprovante")).toContain(
       gravados[0].comprovante_path!.split("/").pop(),
     );
+  });
+
+  /**
+   * ⚠️ O teste que trava a CORRUPÇÃO RETROATIVA (adendo de 2026-08-18 do
+   * parecer do vínculo, §3 e §4): "nenhum registro novo pode alterar
+   * retroativamente dado de registro anterior".
+   *
+   * `garantirFavorecido` fazia upsert SEM `ignoreDuplicates`: o nome digitado
+   * hoje era gravado por cima e renomeava o favorecido em TODOS os registros
+   * anteriores, em silêncio — inclusive nos de um ano-calendário já
+   * declarado, fazendo o acervo contar uma história diferente da DAA entregue.
+   *
+   * Aqui o mesmo CNPJ volta com o nome errado de propósito. O certo é o
+   * cadastro NÃO mudar e NÃO nascer uma segunda linha.
+   */
+  test("nome divergente no mesmo CNPJ não renomeia o favorecido antigo", async ({
+    page,
+    db,
+  }) => {
+    const antigo = await criarFavorecido(db, {
+      nome: "AJE Construções",
+      documento: CNPJ_AJE_DIGITOS,
+      tipo: "pj",
+    });
+
+    await irParaFormulario(page);
+    // Sem cedilha e sem acento: é o typo de quem digita com uma mão.
+    await page.getByLabel("Favorecido", { exact: true }).fill("AJE Construcoes");
+    await page.getByLabel("CNPJ / CPF do favorecido").fill(CNPJ_AJE);
+    await page.getByLabel("Valor").fill("5.000,00");
+    await page
+      .getByLabel("Comprovante")
+      .setInputFiles(png("comprovante-pix-2.png"));
+
+    await page.getByRole("button", { name: "Salvar — aguardando NF" }).click();
+    await expect(page.getByRole("heading", { name: "Registrado ✓" })).toBeVisible();
+
+    const donos = await favorecidos(db);
+    expect(donos).toHaveLength(1);
+    expect(donos[0].id).toBe(antigo);
+    expect(donos[0].nome).toBe("AJE Construções");
+
+    // E o pagamento novo aponta para ELE, não para uma segunda linha.
+    const gravados = await pagamentos(db);
+    expect(gravados).toHaveLength(1);
+    expect(gravados[0].favorecido_id).toBe(antigo);
   });
 });

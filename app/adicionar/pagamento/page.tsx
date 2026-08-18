@@ -3,7 +3,12 @@
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 
-import { CampoArquivo, CampoTexto } from "@/app/_components/campos";
+import {
+  CampoArquivo,
+  CampoTexto,
+  ErroCampo,
+  Rotulo,
+} from "@/app/_components/campos";
 import { AfirmacaoObra, TelaTrocarObra } from "@/app/_components/obra";
 import { Registrado } from "@/app/_components/registrado";
 import { useSessao } from "@/app/_components/sessao";
@@ -78,6 +83,12 @@ type Fase =
        */
       motivoSemVinculo: string | null;
     };
+
+const NOME_TIPO = {
+  nf_material: "NF de material",
+  nf_servico: "NF de serviço",
+  boleto: "Boleto",
+} as const;
 
 /**
  * De onde saiu o número do campo Valor. Rótulo curto e literal — o campo
@@ -447,21 +458,37 @@ function RegistrarPagamento() {
             ) : null}
 
             <Card className="flex flex-col gap-3.5">
-              <CampoTexto
-                rotulo="Favorecido"
-                valor={nome}
-                onChange={setNome}
-                placeholder="Quem recebeu o PIX"
-                erro={erroDe("favorecidoNome")}
-              />
-              <CampoTexto
-                rotulo="CNPJ / CPF do favorecido"
-                valor={documento}
-                onChange={setDocumento}
-                inputMode="numeric"
-                placeholder="00.000.000/0000-00"
-                erro={erroDe("favorecidoDocumento")}
-              />
+              {documentoDeOrigemId ? (
+                documentoDeOrigem ? (
+                  <FavorecidoHerdado
+                    nota={documentoDeOrigem}
+                    nome={nome}
+                    documento={documento}
+                    erroNome={erroDe("favorecidoNome")}
+                    erroDocumento={erroDe("favorecidoDocumento")}
+                  />
+                ) : (
+                  <Carregando rotulo="Carregando a nota" />
+                )
+              ) : (
+                <>
+                  <CampoTexto
+                    rotulo="Favorecido"
+                    valor={nome}
+                    onChange={setNome}
+                    placeholder="Quem recebeu o PIX"
+                    erro={erroDe("favorecidoNome")}
+                  />
+                  <CampoTexto
+                    rotulo="CNPJ / CPF do favorecido"
+                    valor={documento}
+                    onChange={setDocumento}
+                    inputMode="numeric"
+                    placeholder="00.000.000/0000-00"
+                    erro={erroDe("favorecidoDocumento")}
+                  />
+                </>
+              )}
               <CampoTexto
                 rotulo="Valor"
                 valor={valor}
@@ -546,6 +573,81 @@ function RegistrarPagamento() {
         </Rodape>
       )}
     </>
+  );
+}
+
+/**
+ * Favorecido e CNPJ/CPF do pagamento que NASCE LIGADO a uma nota: herdados,
+ * sem campo de edição.
+ *
+ * Adendo de 2026-08-18 do parecer
+ * `docs/pareceres/2026-08-17-vinculo-pagamento-documento.md`, §1 e §4:
+ *
+ *   Fiscalmente, o par que sustenta custo é `documento hábil ↔ desembolso
+ *   correspondente`. Quem recebe o dinheiro não é um terceiro grau de
+ *   liberdade: é atributo do documento. [...] O produto não deve oferecer o
+ *   campo.
+ *
+ * O campo editável não era só o caminho do bug (typo criando favorecido
+ * duplicado, ou renomeando o antigo): é um campo que fiscalmente não existe.
+ * O VALOR continua editável — é o único dos três que diverge legitimamente,
+ * porque a nota se paga em parcelas.
+ *
+ * ⚠️ Impasse com saída, nunca bloqueio total (§4, item 4: "impasse sem saída
+ * ensina o usuário a inventar dado no campo que sobrou"). São duas: corrigir
+ * na nota, e o "Desfazer o vínculo antes de salvar" logo acima — sem vínculo,
+ * o pagamento é avulso e os campos voltam a ser digitáveis.
+ *
+ * Os erros de validação aparecem AQUI: nota sem emitente identificado
+ * reprovaria no "Salvar" com a mensagem sem lugar para aparecer, que é a
+ * falha muda que este produto não aceita.
+ */
+function FavorecidoHerdado({
+  nota,
+  nome,
+  documento,
+  erroNome,
+  erroDocumento,
+}: {
+  nota: Documento;
+  nome: string;
+  documento: string;
+  erroNome?: string;
+  erroDocumento?: string;
+}) {
+  const daNota = `da ${NOME_TIPO[nota.tipo]} de ${formatarBRL(nota.valorCentavos ?? 0)}`;
+  return (
+    // `group` com nome: dá ao bloco herdado uma identidade acessível — e é por
+    // ela que o E2E distingue o que está AQUI do mesmo nome repetido no cartão
+    // "Ligado a:" logo acima.
+    <div
+      role="group"
+      aria-label="Favorecido da nota"
+      className="flex flex-col gap-3"
+    >
+      <div className="flex flex-col gap-1">
+        <Rotulo>Favorecido — {daNota}</Rotulo>
+        <div className="text-[15px] font-semibold">
+          {nome || "esta nota está sem emitente identificado"}
+        </div>
+        <ErroCampo mensagem={erroNome} />
+      </div>
+      <div className="flex flex-col gap-1">
+        <Rotulo>CNPJ / CPF do favorecido — {daNota}</Rotulo>
+        <div className="mono text-[15px]">
+          {documento || "esta nota está sem CNPJ/CPF"}
+        </div>
+        <ErroCampo mensagem={erroDocumento} />
+      </div>
+      <p className="text-[12px] text-mut">
+        Quem recebe o dinheiro é atributo da nota, não do pagamento. CNPJ/CPF
+        errado não se edita: é outro favorecido — corrige-se o documento e
+        refaz-se o vínculo.
+      </p>
+      <div>
+        <BotaoLink href={`/documento/${nota.id}`}>Corrigir na nota</BotaoLink>
+      </div>
+    </div>
   );
 }
 
