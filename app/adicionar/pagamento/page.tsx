@@ -29,7 +29,11 @@ import {
   mensagemDeErro,
   subirParaAcervo,
 } from "@/lib/data";
-import { ehDocumentoHabil } from "@/lib/fiscal/vinculo";
+import {
+  ehDocumentoHabil,
+  MOTIVO_OBRA_DIFERENTE,
+  podeVincular,
+} from "@/lib/fiscal/vinculo";
 import { soDigitos, tipoPorDocumento } from "@/lib/fiscal/identificacao";
 import {
   MEIO_PAGAMENTO_AVULSO,
@@ -60,6 +64,12 @@ type Fase =
        */
       vinculoFalhou: boolean;
       documentoDeOrigemId: string | null;
+      /**
+       * Critério 11: quando o vínculo não nasceu, POR QUÊ. Obra diferente tem
+       * motivo próprio e ação própria (corrigir a obra de um dos dois) — o
+       * `catch` cru engolia isso e a tela dizia só "ficou SEM VÍNCULO".
+       */
+      motivoSemVinculo: string | null;
     };
 
 function RegistrarPagamento() {
@@ -131,6 +141,18 @@ function RegistrarPagamento() {
   const erroDe = (campo: ErroCampoPagamento["campo"]) =>
     erros.find((e) => e.campo === campo)?.mensagem;
 
+  /**
+   * Critério 11 conferido ANTES do salvar, e não no `catch`: chegando por
+   * `?documento=` de uma nota da obra B com a preferência do aparelho na obra
+   * A, o vínculo é impossível — e o Mateus tem de saber disso enquanto ainda
+   * pode trocar a obra desta tela, não depois de gravar.
+   */
+  const permissaoVinculo =
+    documentoDeOrigem && obra
+      ? podeVincular({ obraId: obra.id }, documentoDeOrigem)
+      : null;
+  const obraDivergente = permissaoVinculo !== null && !permissaoVinculo.ok;
+
   // PF não emite NF: o que sustenta o custo dele é o recibo assinado. Os
   // rótulos acompanham o CNPJ/CPF digitado, em vez de assumir PJ.
   const tipoFavorecido = useMemo(
@@ -174,7 +196,12 @@ function RegistrarPagamento() {
       // fingir que existe. Se ele falhar, o pagamento continua salvo e a tela
       // diz que ficou SEM VÍNCULO, com o caminho para completar (critério 1).
       let vinculoFalhou = false;
-      if (documentoDeOrigem) {
+      let motivoSemVinculo: string | null = null;
+      if (documentoDeOrigem && obraDivergente) {
+        // Nem tenta: o motivo é conhecido e é ele que vai para a tela.
+        vinculoFalhou = true;
+        motivoSemVinculo = MOTIVO_OBRA_DIFERENTE;
+      } else if (documentoDeOrigem) {
         try {
           await criarVinculos([
             {
@@ -185,8 +212,9 @@ function RegistrarPagamento() {
               documentoHabil: ehDocumentoHabil(documentoDeOrigem),
             },
           ]);
-        } catch {
+        } catch (erroVinculo) {
           vinculoFalhou = true;
+          motivoSemVinculo = mensagemDeErro(erroVinculo);
         }
       }
 
@@ -198,6 +226,7 @@ function RegistrarPagamento() {
         obraNome: obra.nome,
         vinculoFalhou,
         documentoDeOrigemId: documentoDeOrigem?.id ?? null,
+        motivoSemVinculo,
       });
     } catch (erro) {
       setFase({ nome: "formulario" });
@@ -225,9 +254,11 @@ function RegistrarPagamento() {
           fase.vinculoFalhou ? (
             <>
               <strong>O pagamento foi salvo, mas ficou SEM VÍNCULO</strong> com
-              a nota. Ele está registrado no acervo e conta como pago sem nota
-              até você ligar os dois — abra o pagamento e use
-              &quot;Ligar a uma nota&quot;.
+              a nota.{" "}
+              {fase.motivoSemVinculo ? <>{fase.motivoSemVinculo} </> : null}
+              Ele está registrado no acervo e conta como pago sem nota até você
+              ligar os dois — abra o pagamento e use &quot;Ligar a uma
+              nota&quot;.
             </>
           ) : undefined
         }
@@ -269,7 +300,7 @@ function RegistrarPagamento() {
       <AppBar
         titulo="Registrar pagamento"
         sub={
-          documentoDeOrigem
+          documentoDeOrigem && !obraDivergente
             ? `Já nasce ligado a ${formatarBRL(documentoDeOrigem.valorCentavos ?? 0)}`
             : "Interação 2 de 3 — comprovante obrigatório"
         }
@@ -302,6 +333,15 @@ function RegistrarPagamento() {
                 registro.obras.length > 1 ? () => setTrocando(true) : undefined
               }
             />
+
+            {/* Critério 11 dito ANTES de salvar, com o motivo e a saída. */}
+            {obraDivergente ? (
+              <Banner cor="red" role="alert">
+                <strong>Este pagamento não vai nascer ligado à nota.</strong>{" "}
+                {MOTIVO_OBRA_DIFERENTE} Troque a obra desta tela ou desfaça o
+                vínculo antes de salvar.
+              </Banner>
+            ) : null}
 
             {/* Mock s3b — o vínculo é afirmado na tela e desfazível ANTES de
                 salvar: ninguém liga por engano o PIX à nota errada. */}
@@ -416,7 +456,9 @@ function RegistrarPagamento() {
             {fase.nome === "salvando"
               ? "Salvando…"
               : documentoDeOrigem
-                ? "Salvar pagamento e ligar à nota"
+                ? obraDivergente
+                  ? "Salvar sem ligar à nota"
+                  : "Salvar pagamento e ligar à nota"
                 : `Salvar — aguardando ${rotulos.documento}`}
           </Botao>
           <BotaoLink href="/adicionar">Voltar</BotaoLink>
