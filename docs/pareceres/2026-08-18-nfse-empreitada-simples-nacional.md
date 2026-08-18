@@ -649,3 +649,317 @@ já pagou o quê.
 - **Limite de caracteres do campo Discriminação** [Likely — historicamente 512].
 - **Alíquotas do ganho de capital, DARF 4600 e códigos de ficha** — conferir no
   programa do ano da venda.
+
+---
+
+# ADENDO — 2026-08-18 · "sai no meu CNO" — a aferição é dele, e isso corrige um invariante do projeto
+
+- **Provocação**: resposta literal do Mateus à pergunta de quem responde pela
+  obra — **"sai no meu CNO"** —, somada a: *tudo passa pela empreiteira* (não
+  contrata mão de obra direto) e *a empreiteira confirmou que faria exatamente
+  como está na nota*.
+- **Efeito**: **cai a hipótese de empreitada total deslocar a responsabilidade.**
+  O §3.2 acima deixa de ser condicional: **a aferição é dele, ponto.** O §1
+  (dúvida sobre o regime) fica resolvido pelo lado que importa — **não pelo
+  contrato, pelo cadastro**, exatamente como aquele parágrafo previu.
+- **Este adendo corrige o §3.1 deste mesmo parecer.** Ver A.0.
+
+---
+
+## A.0 ⚠️ Correção de uma razão que eu dei há uma hora
+
+No §3.1 escrevi que a nota não abate nada por **duas razões independentes**, a
+primeira sendo *"não houve retenção de 11%"*. **A primeira razão está errada como
+razão independente.** [Certain]
+
+A retenção nunca foi o que abate — ela é o **mecanismo de garantia** de um mundo
+em que o tomador é empresa. **Vale a segunda razão, e só ela**: *nota não é
+declaração*. A consequência prática muda de sinal:
+
+| Leitura | Consequência |
+|---|---|
+| ~~Não abate porque não houve retenção~~ | seria **perda definitiva** — nada a fazer |
+| **Não abate porque falta a declaração vinculada ao CNO** | **perda recuperável**, enquanto houver prazo de retificação **e** parcela a pagar |
+
+**Isso é notícia melhor e mais urgente ao mesmo tempo.**
+
+---
+
+## A.1 ⚠️⚠️ CORREÇÃO DE INVARIANTE CENTRAL — o `CLAUDE.md` descreve hoje uma condição inalcançável
+
+**Texto vigente**, no bloco "Invariante fiscal central":
+
+> *"**Base de aferição INSS (SERO)**: só NF de serviço PJ com retenção de 11%
+> abate; material é irrelevante aqui."*
+
+**Por que ele não pode ficar de pé** [Likely, confiança alta]:
+
+1. A retenção de 11% é obrigação dirigida à **"empresa contratante"** — Lei
+   8.212/91, **art. 31**. O tomador deste produto é **pessoa física, dona de obra
+   de residência própria**, e não é empresa para esse efeito: a equiparação do
+   **art. 15, parágrafo único** alcança o contribuinte individual *"em relação a
+   segurado que lhe presta serviço"* — o prestador **pessoa física**, não a nota
+   de PJ. Consta ainda dispositivo da IN de arrecadação que **exclui
+   expressamente** a retenção quando o contratante é pessoa física
+   [**confirmar o artigo na IN vigente**].
+2. Logo: **nenhuma nota de serviço desta obra — nem desta, nem da outra, nem de
+   nenhuma obra de pessoa física — vai vir com retenção de 11%.** Não é falha da
+   empreiteira, não é negligência do Mateus, não é corrigível por cobrança.
+3. **Uma condição que nunca pode ser satisfeita não é uma regra: é um alarme
+   permanente.** E alarme permanente vira carimbo — foi exatamente o argumento
+   que rejeitou a caixa "Salvar mesmo assim" em 2026-08-10. Hoje o app manda o
+   Mateus perseguir uma coisa que **não existe no mundo dele**, e cala sobre a
+   que existe.
+
+### Redação que substitui o invariante
+
+> **Base de aferição INSS (SERO)**: o que reduz a base é a **remuneração de mão
+> de obra declarada pela empresa prestadora e vinculada ao CNO da obra**
+> (eSocial, com **lotação tributária no CNO**, mais EFD-Reinf/DCTFWeb).
+> **A retenção de 11% NÃO é condição** — ela é o mecanismo do mundo em que o
+> tomador é empresa (Lei 8.212/91, art. 31) e **não existe quando o tomador é
+> pessoa física**. **NF de material não abate nada.**
+
+**Isto não afrouxa nada.** A exigência ficou **mais difícil de cumprir**, não
+menos: retenção é ato do tomador (ele mandaria fazer); declaração é ato **da
+empreiteira**, e depende de a contabilidade dela lançar a folha com o CNO dele.
+**Saiu do controle dele e passou para o controle de um terceiro** — por isso a
+alavanca do saldo a pagar deixou de ser conselho e virou o instrumento principal.
+
+### Consequência de produto, direta
+
+`documento.retencao_11` **deixa de ser o gatilho fiscal**. Em obra de pessoa
+física seu valor correto é **sempre "não"**, e um campo que nunca varia não
+informa nada — só produz vermelho. Ver A.4.
+
+---
+
+## A.2 Então o que abate, de verdade? — o caminho que existe
+
+**Resposta curta: a declaração da empreiteira, com o CNO dele. Não a nota, não a
+retenção, não o comprovante de recolhimento dela.** [Likely, confiança alta]
+
+### Como a conta é montada
+
+A aferição da obra é **indireta**: a Receita apura a **remuneração da mão de obra
+total** da obra a partir de **área construída, tipo e padrão da obra**, com base
+no **CUB** — **não** a partir do que ele gastou. Sobre essa base incidem as
+contribuições. **Deduz-se dessa base a mão de obra que já foi declarada e
+vinculada àquele CNO.** [Likely; **confirmar a mecânica e os percentuais na IN
+vigente e no manual do SERO**]
+
+Três consequências que precisam estar escritas:
+
+1. **O que ele pagou não entra na conta.** Os R$ 40.857,14 **não são teto, nem
+   piso, nem base.** A base é área × CUB × percentual. Nota paga sem declaração
+   vinculada é dinheiro que saiu **e** base que não desce.
+2. **A dedução tem endereço: o CNO 900298420564.** O mecanismo concreto, no
+   eSocial, é a **lotação tributária** da obra: a empresa cadastra o CNO como
+   lotação (evento **S-1020**) e informa nele as remunerações dos trabalhadores
+   alocados (**S-1200**), consolidando em **DCTFWeb**; na EFD-Reinf, o evento de
+   **serviços prestados (R-2020)** carrega a obra. [Likely quanto aos códigos —
+   **confirmar**.] Se a folha da obra dele estiver lançada no CNPJ da empreiteira
+   **sem lotação no CNO**, aquela mão de obra **existe para o fisco e não existe
+   para a obra dele**.
+3. **O comprovante de recolhimento da empreiteira NÃO serve** — ver A.3.
+
+### E se ela não declarar? A resposta honesta
+
+**Aferição integral sobre a base do CUB, e ele paga INSS sobre mão de obra que já
+pagou dentro do preço.** [Certain quanto ao mecanismo] Não há terceira via: não
+existe, para pessoa física dona de obra, um caminho de dedução que dependa só
+dele. **É por isso que a pergunta à empreiteira vale mais que qualquer campo do
+app.**
+
+### Um ponto que precisa de CRC, e é específico do Simples
+
+Construção de imóveis e obras de engenharia em geral são tributadas no **Anexo
+IV** [Likely, confiança alta — **confirmar LC 123/2006, art. 18, §5º-C e o
+enquadramento real dela**], e o Anexo IV tem a **contribuição patronal FORA do
+DAS** — ou seja, a empreiteira **tem folha, CPP própria e declarações
+previdenciárias**, que é justamente o que pode ser vinculado ao CNO. **Se ela
+estiver em anexo em que a CPP está dentro do DAS, o caminho da dedução muda e eu
+não sei dizer como.** [Guessing] **É pergunta ao CRC, e é barata: basta saber o
+anexo** (P4).
+
+---
+
+## A.3 Corrijo o coordenador: "comprovantes de recolhimento" não é o pedido certo
+
+**Você está certo em ter percebido, e a correção é maior do que parece.**
+[Certain]
+
+O comprovante de recolhimento da empreiteira — DAS, DARF, guia — **é por empresa,
+por competência, e não identifica obra nenhuma.** Ele prova que ela pagou os
+tributos dela; **não prova que um único centavo daquilo se refere à obra do
+Mateus**. Guardar essa guia dá sensação de cobertura e **não abate um real** da
+aferição.
+
+### O que substitui — lista curta, na ordem em que dá para exigir
+
+1. **Uma pergunta, hoje, ao contador da empreiteira, por escrito**:
+   > *"Vocês declaram a folha desta obra com **lotação tributária no CNO
+   > 900298420564**? A partir de qual competência?"*
+
+   **É o item mais barato e mais caro do parecer.** Se a resposta for "não",
+   ele descobre **hoje**, com parcelas na mão, que vai pagar a aferição integral
+   — e isso é **negociação de preço agora**, não surpresa na venda.
+2. **Comprovação mensal, antes de cada parcela**: recibo de entrega do **eSocial
+   / EFD-Reinf / DCTFWeb** da competência **em que o CNO apareça**. Não é a guia
+   de pagamento — é o **recibo da declaração**.
+3. **Retificação das competências já passadas**, enquanto o prazo permite e
+   enquanto ela tem interesse (parcela a receber). **Quanto mais tarde, mais caro
+   para ela — e mais ela resiste.**
+4. **Cláusula contratual** (aditivo, se o contrato já existe): obrigação de
+   declarar com o CNO, entrega mensal do comprovante, e **retenção de uma parcela
+   final até a emissão da CND da obra** — instrumento que a **Lei 8.212/91, art.
+   30, VI** nomeia expressamente ao admitir a retenção de importância devida ao
+   construtor como garantia.
+5. **Declaração por escrito**, por nota: número, competência, **CNO** e o valor
+   da mão de obra declarada naquela obra.
+
+**O que NÃO adianta pedir**: cópia do DAS; "declaração de que está tudo em dia";
+carta de correção da nota (não muda declaração); e **passar a reter 11% por
+conta própria** — retenção não devida não gera dedução para ele e cria problema
+de crédito para ela.
+
+### Sobre "a empreiteira confirmou que faria exatamente como está na nota"
+
+**Você está certo, e há dispositivo para citar.** [Certain] **CTN, art. 123**: as
+convenções particulares relativas à responsabilidade pelo pagamento de tributos
+**não podem ser opostas à Fazenda Pública** para modificar a definição legal do
+sujeito passivo. A empreiteira concordar não desloca obrigação nenhuma.
+
+**Uma ressalva que joga a favor dele**: entre as partes, o acordo **vale** — é
+base de **direito de regresso** e de responsabilidade contratual. Por isso a
+regra prática é: **combine por escrito, e não confunda o escrito com proteção
+fiscal.** O papel serve para processar a empreiteira depois, não para responder
+ao fisco antes.
+
+---
+
+## A.4 Consequência de caixa — ordem de grandeza e vencimento
+
+### O número
+
+**Recuso estimar em reais, e a recusa é útil.** [Certain quanto à recusa] A base
+depende de **área construída, tipo e padrão da obra e CUB do período** — três
+dados que eu não tenho e que **nenhum deles está no app**. Qualquer faixa que eu
+escrevesse aqui viraria "o contador disse que dá em torno de X", e número inflado
+ou deflado em tela fiscal contamina a confiança nas outras (adendo de
+2026-08-10).
+
+**O que substitui a estimativa, e é melhor que ela**: o **próprio SERO calcula**,
+no e-CAC, informando área e padrão. **Ele pode levantar esse número agora**, com
+parcelas ainda a pagar, em vez de descobri-lo na venda. [**Confirmar se o SERO
+permite aferição em rascunho/simulação sem gerar débito** — se não permitir,
+é conversa de dez minutos com o CRC, que faz a conta de cabeça.]
+
+**A única coisa que eu afirmo sobre a grandeza** [Certain]: ela **não é
+proporcional ao que ele gastou**. Obra grande e barata paga a mesma aferição de
+obra grande e cara. Comparar com os R$ 40.857,14 é comparar unidades diferentes.
+
+### O vencimento — e esta é a parte desconfortável
+
+**Não vence na venda.** [Likely, confiança alta] O fato gerador da contribuição é
+**mensal**, acompanha a execução da obra. O débito **já existe**, competência a
+competência, e **multa e juros já correm**. A aferição não cria a dívida: ela
+**apura** uma dívida que está correndo desde a primeira semana de obra.
+
+**A venda é apenas o momento em que ele é obrigado a resolver**: sem
+regularização não sai a **CND da obra**; sem CND não há averbação da construção;
+sem averbação o cartório não lavra e o banco do comprador não financia (Lei
+8.212/91, **art. 47, II**) [Likely, confiança alta]. **Esperar não é neutro — é
+caro e cresce.**
+
+Sobre decadência de competências antigas: **não conto com ela** [Guessing]. Pode
+haver competência alcançada pelo prazo, mas a CND exige a regularização da obra
+como um todo, e apostar em decadência para não pagar é estratégia que se descobre
+errada no balcão do cartório. **Pergunta ao CRC, não premissa do app.**
+
+### O que dá para fazer com dinheiro, hoje
+
+Enquanto houver parcela a pagar, isto é **negociação comercial**, não fiscal: se
+a empreiteira **não** for declarar com o CNO, o custo do INSS não declarado é
+**real e previsível**, e cabe nas parcelas que faltam. Depois da última, cabe só
+no bolso dele.
+
+---
+
+## A.5 Produto — a lista encurta, e o campo que hoje alarma é o campo errado
+
+O Mateus tem razão na crítica: o sistema estava caminhando para uma **taxonomia
+de regimes**, e taxonomia é a forma mais elegante de engessar. **Corto.** O que
+resta são **duas perguntas** — e nenhuma delas é sobre retenção.
+
+### Pergunta 1 — por obra, uma vez: *quem responde pela aferição do INSS desta obra?*
+
+| Opção | Consequência que o app escreve ao lado |
+|---|---|
+| **Eu — a obra está no meu CNO** ← **resposta do Mateus para a Casa Tanheiros** | "A base do INSS desta obra é apurada em **seu** nome. Só abate a mão de obra que as empresas declararem **com o seu CNO**." |
+| A construtora — empreitada total, obra matriculada no CNO dela | "A aferição é dela. **Você continua solidário** (art. 30, VI) e **precisa da CND da obra** para averbar e vender." |
+| **Não sei ainda** | "Enquanto não souber, o app não afirma nada sobre a aferição desta obra." — **é a resposta verdadeira para a obra sem CNO, e ela precisa existir.** |
+
+**Sem default.** [Certain] E **nada hardcoded**: a resposta é dado da obra, não
+constante do código. A Casa Tanheiros nasce com **"Eu"**; a segunda obra nasce
+com **"Não sei ainda"**, porque **Q14 continua aberta** e este adendo **não a
+responde** — a resposta "sai no meu CNO" é sobre o CNO 900298420564.
+
+### Pergunta 2 — por nota de serviço: *esta mão de obra foi declarada no meu CNO?*
+
+**Sim** (com comprovante da declaração anexado) · **Não** · **Ainda não sei**
+(padrão de nascimento — nunca "sim" presumido).
+
+É **este** o campo que varia, que custa dinheiro e que gera a lista de cobrança
+do CONTAI-007. Só aparece quando a Pergunta 1 for **"Eu"** e a obra tiver CNO —
+nos outros casos a pergunta não tem função.
+
+### O que eu corto, e digo que cortei
+
+- **Corto o toggle "houve retenção de 11%?" do caminho de captura.** [Certain]
+  Em obra de pessoa física a resposta é **sempre "não"**, estruturalmente
+  (A.1). Pergunta cuja resposta nunca muda é atrito puro — e pior: hoje ela
+  **pinta de vermelho o estado normal e correto**. O valor continua sendo
+  **capturado** da nota como fato (R$ 0,00, ao lado das outras retenções, §4.1),
+  mas **deixa de ser pergunta e deixa de disparar alerta**.
+- **Corto a taxonomia de regimes** (total / parcial / administração / misto) como
+  **configuração**. Ela permanece **neste parecer, como referência fiscal** (§7),
+  e **sai da tela**: o único efeito que o app precisa dela é *quem responde pela
+  aferição*, que é a Pergunta 1. **Um radio, não um formulário.**
+- **Mantenho cortados**: cessão de mão de obra pura, RET/afetação/Lucro Real/PoC,
+  e a dispensa de CNO do art. 30, VIII (some no instante em que alguém é pago
+  para trabalhar). **Equiparação a PJ continua sendo alerta, nunca opção.**
+- **Nomenclatura**: o rótulo comercial ("empreitada global, preço fechado, tudo
+  com a empreiteira") e o efeito previdenciário **divergem** neste caso — o
+  arranjo é comercialmente global e, para o INSS, **não é empreitada total**,
+  porque a matrícula ficou com o dono. **O app não deve nomear pelo rótulo
+  comercial**; deve perguntar pelo efeito. É o que a Pergunta 1 faz.
+
+---
+
+## A.6 O que este adendo NÃO muda
+
+- **§4 — custo de aquisição**: continua **R$ 40.857,14, o bruto**, com as duas
+  pernas de pagamento e o fechamento `Σ pagamentos == valor da nota`. Regime de
+  empreitada e aferição **não tocam o custo**. [Certain]
+- **§5 — ISSRF**: inalterado; os dois desfechos (A)/(B) seguem abertos e
+  dependem da lei municipal (P1/P6).
+- **§6 — CNO impresso na nota**: **ganha peso**. Com a aferição confirmada no CNO
+  dele, o CNO impresso deixa de ser boa prática e vira **o primeiro elo da única
+  cadeia que abate**. A checagem "o CNO está impresso nesta nota?" é a versão
+  barata da Pergunta 2 — mas **não a substitui**: nota com CNO impresso e sem
+  declaração **não abate nada**.
+- **§8.2** — Q14 segue aberta; **Q15 está respondida** ("sai no meu CNO") e o que
+  restou dela é: *se é assim, o contrato precisa parar de ser chamado de
+  empreitada total em qualquer lugar do app*.
+
+---
+
+## A.7 Perguntas que este adendo acrescenta
+
+- **P11** — A empreiteira declara a folha desta obra com **lotação tributária no
+  CNO 900298420564**? Desde qual competência? (uma frase ao contador dela)
+- **P12** — **Qual a área total construída** e o padrão/tipo da obra? (sem isso
+  não existe ordem de grandeza da aferição, nem no app nem no CRC)
+- **P13** — Quantas competências de obra já se passaram desde o início, e quantas
+  parcelas ainda faltam? (mede a dívida que já corre e a alavanca que resta)
