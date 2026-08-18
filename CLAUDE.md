@@ -40,7 +40,31 @@ Regras fiscais vêm do agente `contador` — nunca de memória, nunca inventadas
   processados via `/relato` → `docs/backlog.md`
 - **Gate fiscal**: ticket que toca regra fiscal é especificado e revisado pelo
   agente `contador`
-- Cenário de uso primário: **celular, no canteiro, uma mão livre** (375px)
+- **Cenários de uso — corrigido em 2026-08-18, e a correção é do Mateus.**
+  A linha anterior dizia *"cenário primário: celular, no canteiro, uma mão livre
+  (375px)"*, e o time colapsou **primário** em **único**: o "Teste do Canteiro"
+  virou filtro universal e passou a rejeitar coisa que é razoável sentado.
+  Palavras dele: *"eu vou usar mais em casa do que no canteiro… **quem gerencia
+  a obra, não gerencia do canteiro**"*.
+
+  | Cenário | Onde | O que acontece lá |
+  |---|---|---|
+  | **Principal — gestão** | **em casa, sentado, com calma** | conciliar pagamento↔nota, agendar, corrigir, revisar antes da declaração, gerar dossiê, cadastrar obra |
+  | **Eventual — captura** | canteiro, celular, uma mão | registrar a nota/o pagamento que acabou de acontecer |
+
+  **Consequências para quem desenha e decide:**
+  - **375px continua sendo o piso**, não o alvo. Nenhuma tela pode quebrar no
+    celular; mas **"não cabe com uma mão"** deixa de ser veto automático para
+    tela de gestão.
+  - O **"Teste do Canteiro"** vira teste de **captura**, não de tudo. Aplicar a
+    régua de pressa e uma mão a conciliação, agendamento ou revisão anual é
+    medir a coisa errada — e foi o que aconteceu em várias decisões de
+    2026-08-17/18.
+  - Telas de gestão podem ter **mais campos, mais densidade e passos**, desde
+    que o caminho de captura continue curto.
+  - O que **não** muda: a disciplina fiscal (campo vazio pergunta, campo
+    preenchido afirma), a proibição de default em campo fiscal, e o anexo
+    obrigatório no ato do registro.
 
 ## Time de agentes (`.claude/agents/`)
 
