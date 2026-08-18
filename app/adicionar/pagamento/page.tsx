@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { CampoArquivo, CampoTexto } from "@/app/_components/campos";
 import { AfirmacaoObra, TelaTrocarObra } from "@/app/_components/obra";
@@ -20,12 +20,15 @@ import {
   Rodape,
 } from "@/app/_components/ui";
 import {
+  carregarDocumento,
   classificarErro,
   criarPagamento,
+  criarVinculos,
   garantirFavorecido,
   mensagemDeErro,
   subirParaAcervo,
 } from "@/lib/data";
+import { ehDocumentoHabil } from "@/lib/fiscal/vinculo";
 import { soDigitos, tipoPorDocumento } from "@/lib/fiscal/identificacao";
 import {
   MEIO_PAGAMENTO_AVULSO,
@@ -37,8 +40,8 @@ import {
   type ErroCampoPagamento,
 } from "@/lib/fiscal/pagamento";
 import { hojeIso } from "@/lib/hoje";
-import { parseValorInput } from "@/lib/money";
-import type { TipoFavorecido } from "@/lib/types";
+import { formatarBRL, parseValorInput } from "@/lib/money";
+import type { Documento, TipoFavorecido } from "@/lib/types";
 
 type Fase =
   | { nome: "formulario" }
@@ -49,6 +52,13 @@ type Fase =
       tipoFavorecido: TipoFavorecido | null;
       id: string;
       obraNome: string;
+      /**
+       * Critério 1: o pagamento salvou e o VÍNCULO falhou. Não existe
+       * transação pelo PostgREST entre duas tabelas, então este caso é real —
+       * e a tela tem de dizer que o pagamento ficou SEM VÍNCULO.
+       */
+      vinculoFalhou: boolean;
+      documentoDeOrigemId: string | null;
     };
 
 export default function RegistrarPagamento() {
@@ -61,12 +71,50 @@ export default function RegistrarPagamento() {
   const [fase, setFase] = useState<Fase>({ nome: "formulario" });
   const [erroSalvar, setErroSalvar] = useState<string | null>(null);
 
+  // Mock s3b — "registrar o pagamento agora, já ligado": o documento de origem
+  // vem na query string de quem mandou para cá (a tela da nota ou o seletor).
+  // Lido uma vez, como em `app/entrar/page.tsx`, para não obrigar uma
+  // fronteira de Suspense só por um parâmetro.
+  const [documentoDeOrigemId, setDocumentoDeOrigemId] = useState<string | null>(
+    () =>
+      typeof window === "undefined"
+        ? null
+        : new URLSearchParams(window.location.search).get("documento"),
+  );
+  const [documentoDeOrigem, setDocumentoDeOrigem] = useState<Documento | null>(
+    null,
+  );
+
   const [nome, setNome] = useState("");
   const [documento, setDocumento] = useState("");
   const [valor, setValor] = useState("");
   const [data, setData] = useState(hojeIso);
   const [comprovante, setComprovante] = useState<File | null>(null);
   const [erros, setErros] = useState<ErroCampoPagamento[]>([]);
+
+  useEffect(() => {
+    if (!documentoDeOrigemId) return;
+    let cancelado = false;
+    void (async () => {
+      try {
+        const carregado = await carregarDocumento(documentoDeOrigemId);
+        if (cancelado) return;
+        setDocumentoDeOrigem(carregado);
+        // O nome do emitente vem da nota porque é a mesma pessoa e poupa
+        // digitação no canteiro. O VALOR não vem: default em campo fiscal é
+        // proibido, e "pagou exatamente o valor da nota" é suposição — o caso
+        // da parcela é o comum na obra.
+        setNome((atual) => atual || (carregado.favorecidoNome ?? ""));
+      } catch {
+        // Documento que não abre não pode travar o registro do pagamento: o
+        // dispêndio é o fato, e ele tem de entrar. O vínculo se faz depois.
+        if (!cancelado) setDocumentoDeOrigemId(null);
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [documentoDeOrigemId]);
 
   const entrada: EntradaPagamento = useMemo(
     () => ({
@@ -120,12 +168,35 @@ export default function RegistrarPagamento() {
         status: STATUS_PAGAMENTO_AVULSO,
       });
 
+      // O vínculo vem DEPOIS do pagamento e em outra chamada — não existe
+      // transação entre duas tabelas pelo PostgREST, e não se inventa RPC para
+      // fingir que existe. Se ele falhar, o pagamento continua salvo e a tela
+      // diz que ficou SEM VÍNCULO, com o caminho para completar (critério 1).
+      let vinculoFalhou = false;
+      if (documentoDeOrigem) {
+        try {
+          await criarVinculos([
+            {
+              pagamentoId: id,
+              documentoId: documentoDeOrigem.id,
+              obraDoPagamentoId: obra.id,
+              obraDoDocumentoId: documentoDeOrigem.obraId,
+              documentoHabil: ehDocumentoHabil(documentoDeOrigem),
+            },
+          ]);
+        } catch {
+          vinculoFalhou = true;
+        }
+      }
+
       setFase({
         nome: "salvo",
         ano: anoCalendario(data),
         tipoFavorecido,
         id,
         obraNome: obra.nome,
+        vinculoFalhou,
+        documentoDeOrigemId: documentoDeOrigem?.id ?? null,
       });
     } catch (erro) {
       setFase({ nome: "formulario" });
@@ -143,13 +214,34 @@ export default function RegistrarPagamento() {
 
   if (fase.nome === "salvo") {
     const salvos = rotulosPagoSemNota(fase.tipoFavorecido);
+    const ligou = fase.documentoDeOrigemId !== null && !fase.vinculoFalhou;
     return (
       <Registrado
         ano={fase.ano}
         obraNome={fase.obraNome}
         hrefCorrigirObra={`/pagamento/${fase.id}/obra`}
-        proximoPasso={<>vincular {salvos.documento} quando chegar</>}
-        custo={`só conta depois de vincular ${salvos.documento}`}
+        aviso={
+          fase.vinculoFalhou ? (
+            <>
+              <strong>O pagamento foi salvo, mas ficou SEM VÍNCULO</strong> com
+              a nota. Ele está registrado no acervo e conta como pago sem nota
+              até você ligar os dois — abra o pagamento e use
+              &quot;Ligar a uma nota&quot;.
+            </>
+          ) : undefined
+        }
+        proximoPasso={
+          ligou ? (
+            <>já ligado à nota — nada pendente aqui</>
+          ) : (
+            <>vincular {salvos.documento} quando chegar</>
+          )
+        }
+        custo={
+          ligou
+            ? "conta pela data deste pagamento — regime de caixa"
+            : `só conta depois de vincular ${salvos.documento}`
+        }
       />
     );
   }
@@ -175,7 +267,11 @@ export default function RegistrarPagamento() {
     <>
       <AppBar
         titulo="Registrar pagamento"
-        sub="Interação 2 de 3 — comprovante obrigatório"
+        sub={
+          documentoDeOrigem
+            ? `Já nasce ligado a ${formatarBRL(documentoDeOrigem.valorCentavos ?? 0)}`
+            : "Interação 2 de 3 — comprovante obrigatório"
+        }
       />
 
       <Corpo>
@@ -205,6 +301,33 @@ export default function RegistrarPagamento() {
                 registro.obras.length > 1 ? () => setTrocando(true) : undefined
               }
             />
+
+            {/* Mock s3b — o vínculo é afirmado na tela e desfazível ANTES de
+                salvar: ninguém liga por engano o PIX à nota errada. */}
+            {documentoDeOrigem ? (
+              <Card>
+                <div className="text-[13px]">
+                  <strong>Ligado a:</strong>{" "}
+                  {documentoDeOrigem.favorecidoNome ?? "documento sem emitente"} ·{" "}
+                  <span className="mono">
+                    {formatarBRL(documentoDeOrigem.valorCentavos ?? 0)}
+                  </span>
+                </div>
+                <div className="mt-2">
+                  <Botao
+                    variante="ghost"
+                    onClick={() => {
+                      // Os dois juntos: o efeito só CARREGA, e desfazer é ato
+                      // do usuário, não sincronização de estado.
+                      setDocumentoDeOrigemId(null);
+                      setDocumentoDeOrigem(null);
+                    }}
+                  >
+                    Desfazer o vínculo antes de salvar
+                  </Botao>
+                </div>
+              </Card>
+            ) : null}
 
             <Card className="flex flex-col gap-3.5">
               <CampoTexto
@@ -247,6 +370,14 @@ export default function RegistrarPagamento() {
               />
             </Card>
 
+            {documentoDeOrigem ? (
+              <Banner cor="amb" role="status">
+                Se o pagamento salvar e o vínculo falhar, a tela diz que o
+                pagamento ficou <strong>sem vínculo</strong> e mostra como
+                completar — nunca um sucesso mentiroso.
+              </Banner>
+            ) : null}
+
             <Banner cor="amb" role="status">
               Vai nascer como{" "}
               <strong>aguardando {rotulos.documento}</strong>.{" "}
@@ -283,7 +414,9 @@ export default function RegistrarPagamento() {
           >
             {fase.nome === "salvando"
               ? "Salvando…"
-              : `Salvar — aguardando ${rotulos.documento}`}
+              : documentoDeOrigem
+                ? "Salvar pagamento e ligar à nota"
+                : `Salvar — aguardando ${rotulos.documento}`}
           </Botao>
           <BotaoLink href="/adicionar">Voltar</BotaoLink>
         </Rodape>

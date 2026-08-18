@@ -38,7 +38,9 @@ import { anoCalendario } from "./pagamento";
  * pagamentos entre si e permite a dedup dos critérios 8 e 9) e contribui ZERO
  * para a soma que forma o custo comprovado.
  */
-export function ehDocumentoHabil(documento: Documento): boolean {
+export function ehDocumentoHabil(
+  documento: Pick<Documento, "tipo" | "status">,
+): boolean {
   return documento.tipo !== "boleto" && documento.status !== "quarentena";
 }
 

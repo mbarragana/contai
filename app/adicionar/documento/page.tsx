@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { CampoArquivo, CampoTexto, Escolha } from "@/app/_components/campos";
 import { useSessao } from "@/app/_components/sessao";
@@ -24,11 +24,14 @@ import {
   Rodape,
 } from "@/app/_components/ui";
 import {
+  carregarPainel,
   classificarErro,
   criarDocumento,
+  criarVinculos,
   garantirFavorecido,
   mensagemDeErro,
   subirParaAcervo,
+  type PainelDados,
 } from "@/lib/data";
 import {
   avisaInss,
@@ -51,9 +54,15 @@ import {
   NF_SERVICO_SEM_CNO_TITULO,
   ROTULO_SALVAR_SEM_CNO,
 } from "@/lib/fiscal/obra";
+import {
+  alocarCusto,
+  ehDocumentoHabil,
+  pagamentosCandidatos,
+  type Candidato,
+} from "@/lib/fiscal/vinculo";
 import { hojeIso } from "@/lib/hoje";
-import { parseValorInput } from "@/lib/money";
-import type { Classificacao, TipoDocumento } from "@/lib/types";
+import { formatarBRL, parseValorInput } from "@/lib/money";
+import type { Classificacao, Documento, Pagamento, TipoDocumento } from "@/lib/types";
 
 const TIPOS = [
   { valor: "nf_material", texto: "NF material" },
@@ -80,7 +89,19 @@ const RESPOSTAS_RETENCAO = [
 type Fase =
   | { nome: "formulario" }
   | { nome: "salvando" }
-  | { nome: "salvo"; id: string; obraNome: string };
+  | {
+      nome: "salvo";
+      id: string;
+      obraNome: string;
+      /** Quantos pagamentos entraram ligados a este documento. */
+      ligados: number;
+      /**
+       * Critério 1: o documento entrou e o VÍNCULO falhou. Sem transação entre
+       * tabelas no PostgREST, este caso é real — e a tela diz que o documento
+       * ficou SEM VÍNCULO, em vez de dar um sucesso mentiroso.
+       */
+      vinculoFalhou: boolean;
+    };
 
 export default function RegistrarDocumento() {
   const router = useRouter();
@@ -136,8 +157,60 @@ export default function RegistrarDocumento() {
     ],
   );
 
+  // Caminho A (critério 1): "já paguei esta nota". Os pagamentos da obra só
+  // são buscados quando ele marca — o caminho de captura continua curto.
+  const [jaPaguei, setJaPaguei] = useState(false);
+  const [painelDaObra, setPainelDaObra] = useState<PainelDados | null>(null);
+  const [erroCandidatos, setErroCandidatos] = useState<string | null>(null);
+  const [marcados, setMarcados] = useState<string[]>([]);
+
   const erroDe = (campo: ErroCampo["campo"]) =>
     erros.find((e) => e.campo === campo)?.mensagem;
+
+  useEffect(() => {
+    if (!jaPaguei || !obra) return;
+    let cancelado = false;
+    void (async () => {
+      try {
+        const painel = await carregarPainel(obra.id);
+        if (!cancelado) setPainelDaObra(painel);
+      } catch (erro) {
+        if (!cancelado) setErroCandidatos(mensagemDeErro(erro));
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [jaPaguei, obra]);
+
+  /**
+   * O documento ainda não existe no banco — os candidatos são ordenados contra
+   * um documento PROVISÓRIO montado com o que já está na tela, pela mesma
+   * função pura do seletor do caminho B. Sugestão continua sendo ordenação e
+   * rótulo; marcação é sempre do dedo do Mateus (critério 10).
+   */
+  const candidatos: Candidato<Pagamento>[] = useMemo(() => {
+    if (!painelDaObra || !obra) return [];
+    const provisorio: Documento = {
+      id: "novo",
+      obraId: obra.id,
+      tipo: tipo ?? "nf_material",
+      status: statusDocumento(tipo, notaNoCpf),
+      valorCentavos: parseValorInput(valor),
+      vencimento: null,
+      classificacao,
+      destinatarioCpfOk: notaNoCpf === "sim",
+      retencao11: null,
+      motivoQuarentena: null,
+      favorecidoNome: nome.trim() || null,
+      arquivoPath: "",
+    };
+    return pagamentosCandidatos(
+      provisorio,
+      painelDaObra.pagamentos,
+      alocarCusto(painelDaObra),
+    );
+  }, [painelDaObra, obra, tipo, notaNoCpf, valor, classificacao, nome]);
 
   async function salvar() {
     const encontrados = validarDocumento(entrada);
@@ -179,7 +252,37 @@ export default function RegistrarDocumento() {
         router.push(`/documento/${id}`);
         return;
       }
-      setFase({ nome: "salvo", id, obraNome: obra.nome });
+      // Caminho A: o vínculo vem depois do documento e em outra chamada — não
+      // há transação entre tabelas no PostgREST. Falhando, o documento fica
+      // salvo e a tela DIZ que ele ficou sem vínculo (critério 1).
+      const paraLigar = candidatos.filter((c) => marcados.includes(c.item.id));
+      let vinculoFalhou = false;
+      if (paraLigar.length > 0) {
+        try {
+          await criarVinculos(
+            paraLigar.map((c) => ({
+              pagamentoId: c.item.id,
+              documentoId: id,
+              obraDoPagamentoId: c.item.obraId,
+              obraDoDocumentoId: obra.id,
+              documentoHabil: ehDocumentoHabil({
+                tipo: tipo as TipoDocumento,
+                status,
+              }),
+            })),
+          );
+        } catch {
+          vinculoFalhou = true;
+        }
+      }
+
+      setFase({
+        nome: "salvo",
+        id,
+        obraNome: obra.nome,
+        ligados: vinculoFalhou ? 0 : paraLigar.length,
+        vinculoFalhou,
+      });
     } catch (erro) {
       setFase({ nome: "formulario" });
       // Sessão morta descoberta no "Salvar": sobreposto de reautenticação, e
@@ -200,8 +303,31 @@ export default function RegistrarDocumento() {
         ano={Number(hojeIso().slice(0, 4))}
         obraNome={fase.obraNome}
         hrefCorrigirObra={`/documento/${fase.id}/obra`}
-        proximoPasso={<>registrar o pagamento quando ele acontecer</>}
-        custo="soma quando o pagamento for registrado"
+        aviso={
+          fase.vinculoFalhou ? (
+            <>
+              <strong>O documento foi salvo, mas ficou SEM VÍNCULO</strong> com
+              os pagamentos que você marcou. Ele está no acervo e ainda não
+              compõe custo confirmado — abra o documento e use &quot;Ligar a um
+              pagamento&quot;.
+            </>
+          ) : undefined
+        }
+        proximoPasso={
+          fase.ligados > 0 ? (
+            <>
+              nada pendente — {fase.ligados}{" "}
+              {fase.ligados === 1 ? "pagamento ligado" : "pagamentos ligados"}
+            </>
+          ) : (
+            <>registrar o pagamento quando ele acontecer</>
+          )
+        }
+        custo={
+          fase.ligados > 0
+            ? "conta pela data do pagamento ligado — regime de caixa"
+            : "soma quando o pagamento for registrado e ligado a esta nota"
+        }
       />
     );
   }
@@ -371,6 +497,100 @@ export default function RegistrarDocumento() {
                 </Consequencia>
               </Card>
             ) : null}
+
+            {/* Caminho A do critério 1: o vínculo no ATO do registro, que é o
+                caminho mais curto do parecer §5.4 — o caso dele é 1↔1, mesmo
+                valor. Nada aqui vem marcado. */}
+            <Card className="flex flex-col gap-2">
+              <label className="flex min-h-[44px] cursor-pointer items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={jaPaguei}
+                  onChange={(e) => {
+                    setJaPaguei(e.target.checked);
+                    if (!e.target.checked) setMarcados([]);
+                  }}
+                  className="h-5 w-5 flex-none"
+                />
+                <span className="text-[13.5px] font-semibold">
+                  Já paguei esta nota
+                </span>
+              </label>
+
+              {jaPaguei ? (
+                <>
+                  <Dica>
+                    Marque os pagamentos já registrados que correspondem a esta
+                    nota. Nada vem marcado — o vínculo é você que afirma.
+                  </Dica>
+
+                  {erroCandidatos ? (
+                    <Banner cor="red" role="alert">
+                      Não deu para carregar os pagamentos desta obra:{" "}
+                      {erroCandidatos} Você pode salvar a nota assim mesmo e
+                      ligar depois, pela tela dela.
+                    </Banner>
+                  ) : null}
+
+                  {painelDaObra === null && !erroCandidatos ? (
+                    <Carregando rotulo="Carregando os pagamentos" />
+                  ) : null}
+
+                  {painelDaObra !== null && candidatos.length === 0 ? (
+                    <Dica>
+                      Nenhum pagamento desta obra está sem nota. Se você já
+                      pagou, o pagamento ainda não foi registrado — dá para
+                      registrá-lo depois de salvar a nota.
+                    </Dica>
+                  ) : null}
+
+                  {candidatos.map((c) => {
+                    const marcado = marcados.includes(c.item.id);
+                    return (
+                      <label
+                        key={c.item.id}
+                        className={`flex min-h-[44px] cursor-pointer gap-3 rounded-[10px] border px-3 py-2.5 ${
+                          marcado ? "border-ink bg-soft" : "border-line bg-white"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={marcado}
+                          onChange={() =>
+                            setMarcados((atual) =>
+                              atual.includes(c.item.id)
+                                ? atual.filter((x) => x !== c.item.id)
+                                : [...atual, c.item.id],
+                            )
+                          }
+                          className="mt-1 h-5 w-5 flex-none"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-baseline justify-between gap-2">
+                            <span className="text-[14px] font-semibold break-words">
+                              {c.item.favorecidoNome ??
+                                "Favorecido não informado"}
+                            </span>
+                            <span className="mono flex-none text-[15px] font-bold">
+                              {formatarBRL(c.item.valorCentavos)}
+                            </span>
+                          </span>
+                          <span className="mt-0.5 block text-[12px] text-mut">
+                            {c.item.meio.toUpperCase()} · pago em{" "}
+                            {c.item.dataPagamento}
+                          </span>
+                          {c.sugestao ? (
+                            <span className="mt-1 block text-[11.5px] font-semibold text-mut">
+                              {c.sugestao}
+                            </span>
+                          ) : null}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </>
+              ) : null}
+            </Card>
 
             <Dica>
               Olhe na nota antes de responder — &quot;não&quot; no CPF leva à

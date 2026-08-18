@@ -24,6 +24,7 @@ export function Registrado({
   ano,
   obraNome,
   hrefCorrigirObra,
+  aviso,
 }: {
   proximoPasso: ReactNode;
   custo: ReactNode;
@@ -31,11 +32,22 @@ export function Registrado({
   obraNome: string;
   /** Correção da obra deste registro (critério 13). */
   hrefCorrigirObra: string;
+  /**
+   * Critério 1 do CONTAI-018: quando o registro entra mas o VÍNCULO falha, a
+   * tela diz isso e mostra como completar. Nunca um sucesso mentiroso — o
+   * registro solto é justamente o passivo que este ticket veio reduzir.
+   */
+  aviso?: ReactNode;
 }) {
   return (
     <>
       <AppBar titulo="Registrado ✓" sub={obraNome} />
       <Corpo>
+        {aviso ? (
+          <Banner cor="red" role="alert">
+            {aviso}
+          </Banner>
+        ) : null}
         <Banner cor="grn" role="status">
           Salvo em <strong>{obraNome}</strong>. Original guardado no acervo —
           fica disponível até a venda + 5 anos.
