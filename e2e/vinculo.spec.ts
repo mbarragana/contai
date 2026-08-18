@@ -123,11 +123,17 @@ test.describe("caminho B — a partir do documento já registrado", () => {
     expect(await vinculos(db)).toHaveLength(0);
 
     await candidato.check();
-    // O saldo restante e o efeito no custo aparecem ANTES do toque no botão.
+    // O saldo restante e o efeito no custo aparecem ANTES do toque no botão —
+    // e o efeito é "antes → depois" da MESMA conta que produz o número da
+    // home, nos dois números (ano e acumulado).
     await expect(page.getByText("Nota coberta por inteiro.")).toBeVisible();
-    await expect(
-      page.getByText(/Custo confirmado se ligar agora/),
-    ).toContainText("3.000,00");
+    // O rótulo é o do mock aprovado (rodapé fixo do seletor); o número é o
+    // ACRÉSCIMO real, e vem acompanhado do "antes → depois" do ano e do
+    // acumulado — os dois calculados pela mesma `alocarCusto` da home.
+    const rodape = page.getByText(/Custo confirmado se ligar agora/);
+    await expect(rodape).toContainText("R$ 3.000,00");
+    await expect(rodape).toContainText(`${ANO}: R$ 0,00 → R$ 3.000,00`);
+    await expect(rodape).toContainText("acumulado: R$ 0,00 → R$ 3.000,00");
 
     await page
       .getByRole("button", { name: "Ligar 1 pagamento — R$ 3.000,00" })
@@ -175,9 +181,15 @@ test.describe("caminho B — a partir do documento já registrado", () => {
 
     await page.getByRole("link", { name: "Desligar este pagamento" }).click();
 
-    // Critério 15: o efeito no custo dito ANTES, com o número que vai aparecer.
-    await expect(page.getByText(`Custo confirmado ${ANO}`)).toBeVisible();
-    await expect(page.getByText("R$ 3.000,00 → R$ 0,00")).toBeVisible();
+    // Critério 15: o efeito no custo dito ANTES, com o número que vai aparecer
+    // — e desde o Gate 2 também no ACUMULADO, para o pagamento de ano anterior
+    // não mostrar efeito zero (C2).
+    await expect(
+      page.getByText(`Custo confirmado ${ANO}`).locator(".."),
+    ).toContainText("R$ 3.000,00 → R$ 0,00");
+    await expect(
+      page.getByText(`Acumulado até ${ANO}`).locator(".."),
+    ).toContainText("R$ 3.000,00 → R$ 0,00");
     await expect(page.getByText(/Nada é apagado/)).toBeVisible();
 
     await page
@@ -241,6 +253,71 @@ test.describe("caminho A — vínculo no ato do registro", () => {
     ]);
   });
 
+  /**
+   * B2 do Gate 2: o `router.push` da quarentena acontecia ANTES da criação dos
+   * vínculos, e os pagamentos marcados eram descartados em silêncio. O
+   * critério 8 diz o oposto — quarentena PODE ser ligada, e é isso que impede
+   * a mesma despesa de contar duas vezes.
+   */
+  test("nota em quarentena entra LIGADA ao pagamento marcado (critério 8)", async ({
+    page,
+    db,
+  }) => {
+    const deposito = await criarFavorecido(db, {
+      nome: "Depósito Cachoeira ME",
+      documento: CNPJ_DEPOSITO_DIGITOS,
+      tipo: "pj",
+    });
+    const pagamentoId = await criarPagamento(db, {
+      favorecido_id: deposito,
+      valor: 800,
+      data_pagamento: `${ANO}-08-05`,
+      meio: "pix",
+      status: "aguardando_nf",
+      comprovante_path: `${USER_ID_SEED}/comprovante/pix-deposito.png`,
+    });
+
+    await page.goto("/adicionar/documento");
+    await page.getByLabel("Arquivo").setInputFiles(pdf("NF-DEPOSITO.pdf"));
+    await escolher(page, "Tipo", "NF material");
+    await page
+      .getByLabel("Emitente", { exact: true })
+      .fill("Depósito Cachoeira ME");
+    await page.getByLabel("CNPJ / CPF do emitente").fill("11.444.777/0001-61");
+    await page.getByLabel("Valor").fill("800,00");
+    await escolher(page, "A nota está no seu CPF?", "Não");
+
+    await page.getByRole("checkbox", { name: "Já paguei esta nota" }).check();
+    // O texto do parecer é dito na hora do vínculo, não depois.
+    await expect(
+      page.getByText(/Ligar o pagamento é permitido e útil/),
+    ).toBeVisible();
+
+    const candidato = page
+      .getByRole("checkbox")
+      .filter({ hasNotText: "Já paguei" })
+      .last();
+    // Critério 10 e, de quebra, a espera pela lista: enquanto os pagamentos da
+    // obra não chegam, o único checkbox da tela é o "Já paguei", que ESTÁ
+    // marcado — a asserção só passa quando o candidato existe.
+    await expect(candidato).not.toBeChecked();
+    await candidato.check();
+
+    await page.getByRole("button", { name: "Salvar registro" }).click();
+    await expect(page.getByRole("heading", { name: "Quarentena" })).toBeVisible();
+
+    const docs = await documentos(db);
+    expect(docs).toHaveLength(1);
+    expect(docs[0].status).toBe("quarentena");
+    // O vínculo EXISTE — e o pagamento NÃO virou `conciliado`, porque o
+    // documento não é hábil.
+    expect(await vinculos(db)).toEqual([
+      { pagamento_id: pagamentoId, documento_id: docs[0].id },
+    ]);
+    const pagos = await pagamentos(db);
+    expect(pagos[0].status).toBe("aguardando_nf");
+  });
+
   test("registra o pagamento já ligado à nota (mock s3b)", async ({ page, db }) => {
     const wk = await criarFavorecido(db, {
       nome: "WK Construções LTDA",
@@ -288,6 +365,71 @@ test.describe("caminho A — vínculo no ato do registro", () => {
     expect(await vinculos(db)).toEqual([
       { pagamento_id: pagos[0].id, documento_id: documentoId },
     ]);
+  });
+});
+
+/**
+ * O caso misto do Gate 2 (B1): um candidato foi ligado POR OUTRA ABA enquanto
+ * este seletor estava aberto. Sem `on conflict`, a violação de PK abortava a
+ * statement inteira — o novo NÃO entrava, a tela navegava como sucesso e o
+ * `conciliado` era gravado sem vínculo por trás. O cenário é montado de
+ * verdade: a linha concorrente entra pelo MESMO client autenticado, depois de
+ * a tela já ter carregado e marcado os dois.
+ */
+test.describe("um candidato já ligado por outra aba (B1)", () => {
+  test("o novo vínculo entra mesmo com o duplicado na mesma chamada", async ({
+    page,
+    db,
+  }) => {
+    const wk = await criarFavorecido(db, {
+      nome: "WK Construções LTDA",
+      documento: CNPJ_WK_DIGITOS,
+      tipo: "pj",
+    });
+    const documentoId = await criarDocumento(db, {
+      favorecido_id: wk,
+      tipo: "nf_servico",
+      classificacao: "mao_obra",
+      valor: 3000,
+      retencao_11: true,
+      destinatario_cpf_ok: true,
+      status: "registrado",
+    });
+    const pagamentoA = await criarPagamento(db, {
+      favorecido_id: wk,
+      valor: 1500,
+      data_pagamento: `${ANO}-08-10`,
+      meio: "pix",
+      status: "aguardando_nf",
+      comprovante_path: `${USER_ID_SEED}/comprovante/pix-a.png`,
+    });
+    const pagamentoB = await criarPagamento(db, {
+      favorecido_id: wk,
+      valor: 1500,
+      data_pagamento: `${ANO}-08-11`,
+      meio: "pix",
+      status: "aguardando_nf",
+      comprovante_path: `${USER_ID_SEED}/comprovante/pix-b.png`,
+    });
+
+    await page.goto(`/documento/${documentoId}/ligar`);
+    const caixas = page.getByRole("checkbox");
+    await expect(caixas).toHaveCount(2);
+    await caixas.nth(0).check();
+    await caixas.nth(1).check();
+
+    // A "outra aba": o A é ligado depois que esta tela já o listou.
+    const { error } = await db
+      .from("pagamento_documento")
+      .insert({ pagamento_id: pagamentoA, documento_id: documentoId });
+    expect(error).toBeNull();
+
+    await page.getByRole("button", { name: /Ligar 2 pagamentos/ }).click();
+    await expect(page.getByText(/Ligado\./)).toBeVisible();
+
+    // O B TEM de estar no banco: o duplicado do A não pode ter abortado tudo.
+    const ligados = (await vinculos(db)).map((v) => v.pagamento_id).sort();
+    expect(ligados).toEqual([pagamentoA, pagamentoB].sort());
   });
 });
 
