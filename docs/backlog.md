@@ -1502,3 +1502,69 @@ projeto **remoto** com uma conta de verificação e faça um SELECT por tabela? 
 única defesa que pega divergência de configuração que nenhum banco local espelha
 — e custa uma credencial de produção guardada em algum lugar, que é exatamente o
 tipo de coisa que este projeto evita. Não implementado; decisão do Mateus.
+
+
+### Fila revista — 2026-08-18 (6ª revisão)
+
+*Substitui a 5ª revisão. Escrita depois de o app entrar em produção e de o
+Mateus usá-lo com dado real — o que mudou mais coisa que dez dias de análise.*
+
+**A premissa que caiu, e ela reordena tudo**: o problema nunca foi volume de
+escopo, foi **nada ter ido ao ar**. Diagnóstico do `po` em 2026-08-17, com o app
+ainda na `main`. Corrigido no mesmo dia: Vercel conectada, login por senha,
+migration `0005_grants` aplicada no remoto, obra cadastrada, primeira NF
+registrada.
+
+**A segunda premissa que caiu, e é do Mateus (2026-08-18)**: *"quem gerencia a
+obra, não gerencia do canteiro"*. O `CLAUDE.md` foi corrigido — gestão em casa é
+o cenário **principal**; captura no canteiro é o **eventual**. **Isso torce para
+trás várias decisões de 2026-08-17/18** que usaram "uma mão, com pressa" como
+veto. Reavaliar caso a caso, não em bloco.
+
+**Fila de implementação:**
+
+1. **`CONTAI-018`** — vínculo pagamento↔nota. **P0, 1º.** Gate Fiscal fechado,
+   mock em desenho. É o que faz o custo existir na tela: hoje `sustentaCusto`
+   exige `status = 'conciliado'` e **nenhuma tela cria esse status**.
+2. **`CONTAI-019`** — pagamento agendado (previsto × executado). **P1, 2º.**
+   Desmembrado do 018 pelo `po` em 2026-08-18. Reescreve a **US-002**.
+3. `CONTAI-014` (código) · `CONTAI-004` + `CONTAI-007` · `CONTAI-009` ·
+   `CONTAI-005` reduzido.
+
+**Bloco de deploy** (fora da fila de implementação): `CONTAI-012` ·
+`CONTAI-013` (encolheu — SMTP e template saíram com a troca para senha) ·
+`CONTAI-014` (prova no aparelho real).
+
+**Depois:** `CONTAI-010` revisado (terreno financiado, Passo 1) ·
+`CONTAI-011` · `CONTAI-016` · `CONTAI-017` · `CONTAI-015` (captcha, P2) ·
+`CONTAI-008` · `US-008` (extração) · `US-009` · `US-012`.
+
+#### US-002 — REESCRITA, não fundida
+
+Deixa de ser *"fila de boletos a pagar com lembrete"* e vira **compromisso de
+pagamento previsto**, com boleto sendo **uma origem** e o PIX agendado sendo
+outra. Absorvida pelo `CONTAI-019`.
+
+**A decisão de 2026-08-07** (*"o lembrete nasce junto com a confirmação do
+boleto na ingestão"*) **está morta** — ela amarrava o lembrete ao boleto, e a
+premissa não sobrevive ao previsto genérico.
+
+**O Google Calendar desce a P2, com recomendação de corte** (`po`, 2026-08-18):
+*"não pagar juros" não serve a nenhuma das três metas — é gestão de caixa.* O
+que serve é **data prevista passou sem confirmação = dinheiro possivelmente fora
+da obra sem registro**, e isso é pendência in-app, custo zero, sem OAuth.
+⚠️ **Revisitar**: parte desse raciocínio assumia uso só no canteiro, premissa que
+caiu no mesmo dia.
+
+#### O que o uso real produziu em 24 horas
+
+Os dois defeitos que mais importam **não vieram de análise, vieram de uso**:
+
+1. **Duplicação**: a mesma despesa aparecendo como NF e como PIX, e nenhuma
+   virando custo → `CONTAI-018`.
+2. **A bifurcação de `/adicionar`**: nenhuma das duas opções é o caso comum
+   (*"paguei e tenho a nota"* não tem porta) → diretriz de rótulo no 018.
+
+E um terceiro, de processo: **o app promete por escrito o que não cumpre** —
+*"a NF vincula depois"* na tela `/adicionar`. Virou o critério 19 do 018, com a
+frase saindo **antes** do ticket fechar.
