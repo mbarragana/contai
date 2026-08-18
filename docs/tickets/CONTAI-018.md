@@ -93,12 +93,21 @@ Transcrito do parecer. **Nada aqui é negociável em implementação.**
 
 ## User Story
 
-**Como** dono da obra, no canteiro, de celular e com uma mão livre,
+**Como** dono da obra, **em casa, revisando os registros com calma** (e,
+eventualmente, no canteiro logo depois de pagar),
 **quando** a nota da empreiteira chega no WhatsApp e eu já paguei o PIX (ou o
 contrário),
-**quero** ligar os dois com um toque, na tela onde já estou,
+**quero** ligar os dois na tela onde já estou,
 **para que** o custo apareça como confirmado na discriminação anual e a despesa
 pare de aparecer duas vezes.
+
+<!-- Corrigida no Gate 4 (po, 2026-08-18). A redação anterior era "no canteiro,
+de celular e com uma mão livre" — a régua que o CLAUDE.md derrubou em
+2026-08-18, quando o Mateus disse "quem gerencia a obra, não gerencia do
+canteiro". Conciliar pagamento<->nota está NOMINALMENTE na coluna "gestão, em
+casa, sentado". Deixar a régua velha aqui armaria o próximo revisor para
+rejeitar o seletor por densidade — exatamente o erro que o CLAUDE.md registra
+como tendo contaminado as decisões de 17-18/08. -->
 
 ## Critérios de Aceite
 
@@ -189,7 +198,17 @@ pare de aparecer duas vezes.
     exceção o caminho que o Mateus usa quando a nota existe e ele não tem onde
     dizer.
 
-18. [ ] Existe uma **fila de conciliação pendente** — a lista dos registros sem
+18. [~] **CORTADO DESTA RODADA — vira `CONTAI-020`** (Gate 4, `po`,
+    2026-08-18). Motivo material, não processual: **a home já é a fila.** A
+    seção "Notas hábeis sem pagamento vinculado" lista toda nota hábil sem
+    pagamento com botão próprio, e a pendência "pago sem nota" lista cada
+    pagamento com botão próprio. O que falta de verdade é (a) a **contagem** de
+    registros sem vínculo, (b) o **par provável** — a única parte que economiza
+    ler valor a valor, e é o caso da WK — e (c) agrupamento para lista longa não
+    esconder o ganho fácil. O que o Mateus perde não é a limpeza; é **a limpeza
+    sem ler tudo**. A **pergunta aberta nº 2** decide se o 020 vale a pena: com
+    5 registros soltos, a home basta e o ticket morre sem ser escrito.
+    Texto original: existe uma **fila de conciliação pendente** — a lista dos registros sem
     vínculo, com os candidatos sugeridos — para o Mateus limpar o passivo (a NF da
     WK inclusive) em uma sessão, sem caçar registro por registro.
 
@@ -235,8 +254,19 @@ débito, conta). **A data que vale é sempre a da execução**, nunca a do
 planejamento — mesma disciplina de "contrato é previsão; extrato é fato" do
 parecer do terreno financiado.
 
-**Pergunta em aberto ao `contador`** (Gate Fiscal deste ticket fica reaberto
-neste ponto):
+**Pergunta em aberto ao `contador`** — ⚠️ **MIGRADA PARA O `CONTAI-019`.**
+O Gate Fiscal **deste** ticket está **FECHADO**: a diretriz D2 (pagamento
+previsto x executado) foi desmembrada pelo `po` em 2026-08-18 e virou ticket
+próprio, com as três perguntas abaixo junto. Nada aqui reabre o 018 — a trava
+de data futura de `validarPagamentoAvulso` permanece de pé, então nenhum
+pagamento agendado entra no custo hoje.
+
+<!-- A linha anterior dizia "Gate Fiscal deste ticket fica reaberto neste
+ponto". Ficou obsoleta quando a D2 virou o CONTAI-019 e ninguém apagou.
+Ticket que se declara com Gate Fiscal aberto não fecha, e quem auditar isso
+em 2027 pararia aqui. Corrigido no Gate 4 (po, 2026-08-18). -->
+
+As três perguntas, agora do `CONTAI-019`:
 
 1. O pagamento previsto e o executado são **um registro que muda de estado** ou
    **dois registros**? Se for um, o que impede a data planejada de virar a data
@@ -339,5 +369,9 @@ pode ser wireframe ASCII.
 
 - **Metas atendidas**: 1 (nenhum pagamento sem documento hábil) e 2 (relatórios
   anuais) — diretamente. É o ticket que faz a meta 1 existir.
-- Uma mão, com pressa: o seletor é o ponto de risco; o Gate 0 é o que protege.
+- ⚠️ **Este teste vale para a CAPTURA, não para o seletor** (correção do
+  `CLAUDE.md` de 2026-08-18). Conciliar é tela de **gestão**: em casa, sentado.
+  375px é **piso**, não alvo, e densidade a mais no seletor não é defeito. O que
+  continua valendo a régua de uma mão é registrar a nota/o pagamento que acabou
+  de acontecer.
 - **Veredito: APROVADO como P0, 1º da fila.**

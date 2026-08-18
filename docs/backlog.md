@@ -1609,21 +1609,30 @@ como ticket próprio. Estão aqui para o `po` priorizar.
    que é a direção segura. Como isso aparece na tela (junto das notas intocadas
    ou em linha separada) é **decisão do Mateus**.
 
-4. **D-018.4 [P3] — candidato 100% coberto some do seletor sem dizer por quê.**
-   Quem ligou o PIX à nota errada não o encontra na nota certa e não sabe que
-   precisa desligar antes. O critério 15 existe para corrigir vínculo não exigir
-   SQL; isto reintroduz meio beco sem saída. Uma frase resolve.
+4. **D-018.4 [P3] — ~~candidato oculto sem explicação~~ JÁ RESOLVIDO no Gate 2.**
+   `CANDIDATO_OCULTO_PAGAMENTO`/`CANDIDATO_OCULTO_DOCUMENTO` foram implementados
+   e são renderizados no seletor (correção C4). **Resíduo real, se houver**: a
+   frase explica que o candidato sumiu, mas não oferece o caminho de desligar
+   dali. Conferir no primeiro uso antes de virar ticket — não reimplementar o
+   que já existe.
 
-5. **D-018.5 [P3] — documento hábil sem valor comprova zero, silenciosamente.**
-   `valorDocumento()` faz `?? 0`: a nota sem valor reduz a cobertura e joga o
-   pagamento inteiro para "pago sem nota". O Mateus vê "pago sem nota" numa
-   despesa que ele ligou e não entende. A tela deve pedir o valor, na mesma
-   linha do §6 do parecer que já manda completar `numero`, `serie` e
-   `data_emissao`.
+5. **D-018.5 [P3] — nota sem valor: avisa, mas não deixa completar.**
+   `DOCUMENTO_SEM_VALOR` já foi implementado e aparece no seletor e na tela do
+   documento (correção C5 do Gate 2) — o silêncio acabou. **Resíduo real**: o
+   app diz que a nota sem valor não comprova nada e **não oferece o campo para
+   informar o valor ali**. É a mesma família do §6 do parecer, que manda
+   completar `numero`, `serie` e `data_emissao`.
 
-6. **D-018.6 [P2] — texto de prazo desatualizado em `_components/registrado.tsx`.**
-   Ainda diz *"fica disponível até a venda + 5 anos"*; o `CLAUDE.md` corrigiu o
-   prazo em 2026-08-16. Pré-existente, não é regressão do 018.
+6. **D-018.6 [P1 — reclassificado de P2 pelo `po` no Gate 4] — a confirmação de
+   TODO registro afirma um prazo de guarda falso.** `app/_components/registrado.tsx`
+   ainda diz *"fica disponível até a venda + 5 anos"*. O `CLAUDE.md` corrigiu
+   isso em 2026-08-16: o relógio é o do CTN art. 173, I — venda em 2028 →
+   **31/12/2034**, quase 7 anos, mais o **segundo relógio previdenciário** do
+   CNO, e obra não vendida = **prazo indefinido**. Palavras do `po`: é texto com
+   consequência fiscal, aparece na confirmação de **todo** registro, e **ensina
+   o Mateus a descartar acervo anos antes do prazo real** — a meta 3 do produto
+   inteira. Edição de uma linha, custo zero, dano potencial alto. É a doença do
+   critério 19 sobrevivendo em outra tela.
 
 7. **D-018.7 — o rótulo do rodapé do seletor mostra um DELTA sob um nome que na
    home nomeia um NÍVEL.** *"Custo confirmado se ligar agora: R$ 2.000,00"* pode
@@ -1631,3 +1640,19 @@ como ticket próprio. Estão aqui para o `po` priorizar.
    ou *"o custo confirmado sobe R$ X"* elimina a ambiguidade. O rótulo veio do
    **mock aprovado**, então a mudança é do `designer` com o Mateus — não é
    decisão de engenharia nem do `contador`.
+
+8. **D-018.8 [P2 — achado do `po` no Gate 4] — dois links seguidos com o mesmo
+   rótulo, e o primeiro não faz o que diz.** O cartão "pago sem nota" da home e o
+   botão da tela de detalhe do pagamento se chamam **ambos** *"Ligar a uma
+   nota"*; o primeiro não liga nada — leva ao detalhe. O próprio E2E clica duas
+   vezes no mesmo nome. Ou o cartão da home aponta direto para
+   `/pagamento/[id]/ligar`, ou muda de rótulo. É a disciplina do critério 19
+   (nenhuma tela promete o que não faz) aplicada a **botão**, não a frase.
+
+9. **D-018.9 — DÍVIDA DE ARQUIVO, e bloqueia o Gate 1 do `CONTAI-019`.** O Gate
+   Fiscal do 019 está *"fechado no mérito"*, mas o parecer do `contador` de
+   2026-08-18 **só existe em transcript de sessão**. É a violação exata que o
+   `CLAUDE.md` proíbe — *"parecer que só existe no transcript é a mesma falha que
+   a regra proíbe, com outro nome"*. Materializar em `docs/pareceres/` **antes**
+   de abrir o Gate 1 do 019. Recomendação do `po`: não abrir o 019 sem esse
+   arquivo no disco.
