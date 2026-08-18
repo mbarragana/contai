@@ -36,6 +36,12 @@ function doc(over: Partial<Documento> & { id: string }): Documento {
   };
 }
 
+/**
+ * O pagamento nasce `aguardando_nf` — é o estado real de TODO o parque de
+ * registros do Mateus, porque nenhuma tela gravava `conciliado`. Os cenários
+ * abaixo usam esse estado de propósito: se algum cálculo voltasse a depender
+ * de `status`, o custo aqui cairia a zero e o teste acusaria.
+ */
 function pag(over: Partial<Pagamento> & { id: string }): Pagamento {
   return {
     obraId: OBRA.id,
@@ -63,13 +69,12 @@ function resumo(over: Partial<EntradaResumo> = {}) {
 }
 
 describe("custo confirmado (regime de caixa)", () => {
-  it("conta o pagamento conciliado a documento hábil, pelo ano do pagamento", () => {
+  it("conta o pagamento vinculado a documento hábil, pelo ano do pagamento", () => {
     const r = resumo({
-      documentos: [doc({ id: "d1" })],
+      documentos: [doc({ id: "d1", valorCentavos: 500_000 })],
       pagamentos: [
         pag({
           id: "p1",
-          status: "conciliado",
           documentoIds: ["d1"],
           valorCentavos: 500_000,
           dataPagamento: "2026-03-01",
@@ -79,13 +84,25 @@ describe("custo confirmado (regime de caixa)", () => {
     expect(r.custoConfirmadoAnoCentavos).toBe(500_000);
   });
 
+  it("o custo é o MÍNIMO do conjunto: pagou mais do que a nota documenta", () => {
+    const r = resumo({
+      documentos: [doc({ id: "d1", valorCentavos: 300_000 })],
+      pagamentos: [
+        pag({ id: "p1", documentoIds: ["d1"], valorCentavos: 350_000 }),
+      ],
+    });
+    expect(r.custoConfirmadoAnoCentavos).toBe(300_000);
+    // O excedente não some: continua exposto como pago sem nota.
+    const exposicao = r.pendencias.find((p) => p.tipo === "pago_sem_nota");
+    expect(exposicao?.valorCentavos).toBe(50_000);
+  });
+
   it("ignora o pagamento do ano anterior no total do ano, mas soma no acumulado", () => {
     const r = resumo({
-      documentos: [doc({ id: "d1" })],
+      documentos: [doc({ id: "d1", valorCentavos: 300_000 })],
       pagamentos: [
         pag({
           id: "p1",
-          status: "conciliado",
           documentoIds: ["d1"],
           valorCentavos: 300_000,
           dataPagamento: "2025-12-31",
@@ -93,27 +110,20 @@ describe("custo confirmado (regime de caixa)", () => {
       ],
     });
     expect(r.custoConfirmadoAnoCentavos).toBe(0);
-    expect(r.acumuladoImovelCentavos).toBe(
-      OBRA.valorTerrenoCentavos + 300_000,
-    );
+    expect(r.acumuladoImovelCentavos).toBe(OBRA.valorTerrenoCentavos + 300_000);
   });
 
   it("não conta pagamento do ano seguinte no acumulado de 31/12", () => {
     const r = resumo({
       documentos: [doc({ id: "d1" })],
       pagamentos: [
-        pag({
-          id: "p1",
-          status: "conciliado",
-          documentoIds: ["d1"],
-          dataPagamento: "2027-01-02",
-        }),
+        pag({ id: "p1", documentoIds: ["d1"], dataPagamento: "2027-01-02" }),
       ],
     });
     expect(r.acumuladoImovelCentavos).toBe(OBRA.valorTerrenoCentavos);
   });
 
-  it("pagamento sem NF vinculada não sustenta custo", () => {
+  it("pagamento sem documento vinculado não sustenta custo", () => {
     const r = resumo({ pagamentos: [pag({ id: "p1", valorCentavos: 900_000 })] });
     expect(r.custoConfirmadoAnoCentavos).toBe(0);
     expect(r.acumuladoImovelCentavos).toBe(OBRA.valorTerrenoCentavos);
@@ -124,14 +134,12 @@ describe("custo confirmado (regime de caixa)", () => {
       documentos: [
         doc({ id: "d1", status: "quarentena", destinatarioCpfOk: false }),
       ],
-      pagamentos: [
-        pag({ id: "p1", status: "conciliado", documentoIds: ["d1"] }),
-      ],
+      pagamentos: [pag({ id: "p1", documentoIds: ["d1"] })],
     });
     expect(r.custoConfirmadoAnoCentavos).toBe(0);
   });
 
-  it("boleto não é documento hábil sozinho — pagamento conciliado só a ele não vira custo", () => {
+  it("boleto não é documento hábil sozinho — pagamento ligado só a ele não vira custo", () => {
     const r = resumo({
       documentos: [
         doc({
@@ -142,12 +150,7 @@ describe("custo confirmado (regime de caixa)", () => {
         }),
       ],
       pagamentos: [
-        pag({
-          id: "p1",
-          status: "conciliado",
-          documentoIds: ["d1"],
-          valorCentavos: 2_500_000,
-        }),
+        pag({ id: "p1", documentoIds: ["d1"], valorCentavos: 2_500_000 }),
       ],
     });
     expect(r.custoConfirmadoAnoCentavos).toBe(0);
@@ -157,16 +160,16 @@ describe("custo confirmado (regime de caixa)", () => {
   it("boleto + NF no mesmo pagamento: a NF é que sustenta o custo", () => {
     const r = resumo({
       documentos: [
-        doc({ id: "d1", tipo: "boleto", status: "aguardando_pagamento" }),
-        doc({ id: "d2", tipo: "nf_material" }),
-      ],
-      pagamentos: [
-        pag({
-          id: "p1",
-          status: "conciliado",
-          documentoIds: ["d1", "d2"],
+        doc({
+          id: "d1",
+          tipo: "boleto",
+          status: "aguardando_pagamento",
           valorCentavos: 2_500_000,
         }),
+        doc({ id: "d2", tipo: "nf_material", valorCentavos: 2_500_000 }),
+      ],
+      pagamentos: [
+        pag({ id: "p1", documentoIds: ["d1", "d2"], valorCentavos: 2_500_000 }),
       ],
     });
     expect(r.custoConfirmadoAnoCentavos).toBe(2_500_000);
@@ -177,8 +180,161 @@ describe("custo confirmado (regime de caixa)", () => {
   });
 });
 
+/**
+ * Critérios 4 e 7 — a trava que o parecer §2 derrubou. `status` deixou de
+ * decidir custo pelos DOIS lados: nem barra quem tem vínculo, nem libera quem
+ * não tem.
+ */
+describe("`status` do pagamento não decide custo", () => {
+  it("'aguardando_nf' com vínculo hábil SUSTENTA custo", () => {
+    const r = resumo({
+      documentos: [doc({ id: "d1", valorCentavos: 300_000 })],
+      pagamentos: [
+        pag({
+          id: "p1",
+          status: "aguardando_nf",
+          documentoIds: ["d1"],
+          valorCentavos: 300_000,
+        }),
+      ],
+    });
+    expect(r.custoConfirmadoAnoCentavos).toBe(300_000);
+  });
+
+  it("'conciliado' SEM vínculo NÃO sustenta custo", () => {
+    const r = resumo({
+      documentos: [doc({ id: "d1", valorCentavos: 300_000 })],
+      pagamentos: [
+        pag({ id: "p1", status: "conciliado", valorCentavos: 300_000 }),
+      ],
+    });
+    expect(r.custoConfirmadoAnoCentavos).toBe(0);
+    // E ele aparece como pago sem nota, que é a verdade do estado dele.
+    expect(
+      r.pendencias.find((p) => p.tipo === "pago_sem_nota")?.valorCentavos,
+    ).toBe(300_000);
+  });
+});
+
+describe("o terceiro estado — nota hábil sem pagamento (parecer §5.2)", () => {
+  it("aparece em lista própria e NÃO soma com o custo em pendência", () => {
+    const r = resumo({
+      documentos: [
+        doc({ id: "d1", tipo: "nf_servico", retencao11: true, valorCentavos: 300_000 }),
+      ],
+    });
+    expect(r.notasSemPagamentoCentavos).toBe(300_000);
+    expect(r.notasSemPagamento[0]).toMatchObject({
+      titulo: "NF de serviço sem pagamento ligado",
+      href: "/documento/d1",
+      valorCentavos: 300_000,
+    });
+    // A regra dura: este número não entra em nenhuma das duas somas.
+    expect(r.custoConfirmadoAnoCentavos).toBe(0);
+    expect(r.emPendenciaCentavos).toBe(0);
+    expect(r.pendencias).toEqual([]);
+  });
+
+  it("nota em quarentena não entra no terceiro número — ela é pendência", () => {
+    const r = resumo({
+      documentos: [
+        doc({
+          id: "d1",
+          status: "quarentena",
+          destinatarioCpfOk: false,
+          valorCentavos: 485_000,
+        }),
+      ],
+    });
+    expect(r.notasSemPagamento).toEqual([]);
+    expect(r.emPendenciaCentavos).toBe(485_000);
+  });
+
+  it("depois do vínculo a nota sai do terceiro número", () => {
+    const r = resumo({
+      documentos: [
+        doc({ id: "d1", tipo: "nf_servico", retencao11: true, valorCentavos: 300_000 }),
+      ],
+      pagamentos: [
+        pag({ id: "p1", documentoIds: ["d1"], valorCentavos: 300_000 }),
+      ],
+    });
+    expect(r.notasSemPagamento).toEqual([]);
+    expect(r.custoConfirmadoAnoCentavos).toBe(300_000);
+  });
+});
+
+/** Critério 13 — a palavra "duplicadas" do relato. */
+describe("a despesa vinculada aparece uma vez", () => {
+  it("o par vira UMA despesa comprovada, e não duas pendências", () => {
+    const r = resumo({
+      documentos: [
+        doc({
+          id: "d1",
+          tipo: "nf_servico",
+          retencao11: true,
+          valorCentavos: 300_000,
+          favorecidoNome: "WK Construções LTDA",
+        }),
+      ],
+      pagamentos: [
+        pag({
+          id: "p1",
+          documentoIds: ["d1"],
+          valorCentavos: 300_000,
+          dataPagamento: "2026-08-12",
+          favorecidoNome: "WK Construções LTDA",
+        }),
+      ],
+    });
+    expect(r.despesas).toHaveLength(1);
+    expect(r.despesas[0]).toMatchObject({
+      titulo: "WK Construções LTDA",
+      valorCentavos: 300_000,
+      noAnoCentavos: 300_000,
+      href: "/documento/d1",
+    });
+    expect(r.despesas[0].detalhe).toContain("uma despesa, não duas");
+    // Nem "pago sem nota", nem "nota sem pagamento": um item só na tela.
+    expect(r.pendencias).toEqual([]);
+    expect(r.notasSemPagamento).toEqual([]);
+  });
+
+  it("cinco PIX numa nota só formam UMA despesa, com o custo da nota", () => {
+    const r = resumo({
+      documentos: [doc({ id: "d1", valorCentavos: 300_000 })],
+      pagamentos: [1, 2, 3, 4, 5].map((n) =>
+        pag({
+          id: `p${n}`,
+          valorCentavos: 60_000,
+          dataPagamento: `2026-08-0${n}`,
+          documentoIds: ["d1"],
+        }),
+      ),
+    });
+    expect(r.despesas).toHaveLength(1);
+    expect(r.despesas[0].valorCentavos).toBe(300_000);
+    expect(r.custoConfirmadoAnoCentavos).toBe(300_000);
+  });
+
+  it("despesa que cruza anos mostra o total e a parte do ano em tela", () => {
+    const r = resumo({
+      documentos: [doc({ id: "d1", valorCentavos: 300_000 })],
+      pagamentos: [
+        pag({ id: "p1", valorCentavos: 100_000, dataPagamento: "2025-12-20", documentoIds: ["d1"] }),
+        pag({ id: "p2", valorCentavos: 200_000, dataPagamento: "2026-01-15", documentoIds: ["d1"] }),
+      ],
+    });
+    expect(r.despesas[0]).toMatchObject({
+      valorCentavos: 300_000,
+      noAnoCentavos: 200_000,
+    });
+    expect(r.custoConfirmadoAnoCentavos).toBe(200_000);
+  });
+});
+
 describe("pendências", () => {
-  it("documento em quarentena vira pendência vermelha com rota de detalhe", () => {
+  it("documento em quarentena vira pendência vermelha com a consequência", () => {
     const r = resumo({
       documentos: [
         doc({
@@ -212,6 +368,7 @@ describe("pendências", () => {
     // O documento está em `aguardando_pagamento` — o chip não pode dizer outra coisa.
     expect(p?.chip).toBe("Aguardando pagamento");
     expect(p?.valorCentavos).toBe(2_500_000);
+    expect(p?.href).toBe("/documento/d1");
   });
 
   it("agrupa 'pago sem nota' por favorecido com o acumulado", () => {
@@ -234,6 +391,25 @@ describe("pendências", () => {
     expect(aje?.titulo).toBe("3 PIX sem NF vinculada");
     expect(aje?.valorCentavos).toBe(4_500_000);
     expect(aje?.gravidade).toBe("red");
+    // Critério 3: cada pagamento tem porta para o seletor inverso.
+    expect(aje?.itens?.map((i) => i.href)).toEqual([
+      "/pagamento/p1",
+      "/pagamento/p2",
+      "/pagamento/p3",
+    ]);
+  });
+
+  it("pagamento coberto por inteiro sai da exposição 'pago sem nota'", () => {
+    const r = resumo({
+      documentos: [doc({ id: "d1", valorCentavos: 150_000 })],
+      pagamentos: [
+        pag({ id: "p1", valorCentavos: 150_000, documentoIds: ["d1"] }),
+        pag({ id: "p2", valorCentavos: 150_000 }),
+      ],
+    });
+    const p = r.pendencias.find((x) => x.tipo === "pago_sem_nota");
+    expect(p?.titulo).toBe("1 PIX sem NF vinculada");
+    expect(p?.valorCentavos).toBe(150_000);
   });
 
   it("favorecido PJ: a pendência cobra a NF", () => {
@@ -318,11 +494,25 @@ describe("pendências", () => {
   it("obra em dia: nenhuma pendência", () => {
     const r = resumo({
       documentos: [doc({ id: "d1" })],
-      pagamentos: [
-        pag({ id: "p1", status: "conciliado", documentoIds: ["d1"] }),
-      ],
+      pagamentos: [pag({ id: "p1", documentoIds: ["d1"] })],
     });
     expect(r.pendencias).toEqual([]);
     expect(r.emPendenciaCentavos).toBe(0);
+  });
+});
+
+/** Critério 14: o zero mudo é o defeito que este ticket veio matar. */
+describe("há registro na obra?", () => {
+  it("obra vazia: não há o que explicar", () => {
+    expect(resumo().temRegistro).toBe(false);
+  });
+
+  it("com registro e custo zero, a tela tem o que dizer", () => {
+    const r = resumo({
+      documentos: [doc({ id: "d1", valorCentavos: 300_000 })],
+      pagamentos: [pag({ id: "p1", valorCentavos: 300_000 })],
+    });
+    expect(r.temRegistro).toBe(true);
+    expect(r.custoConfirmadoAnoCentavos).toBe(0);
   });
 });
