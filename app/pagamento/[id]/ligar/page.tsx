@@ -157,21 +157,31 @@ export default function LigarDocumentos() {
         documentoId: c.item.id,
       })),
     });
-    const deAntes = antes.porPagamento.get(pronto.pagamento.id);
     const deDepois = depois.porPagamento.get(pronto.pagamento.id);
+    const acumuladoAntes = custoComprovadoAteOAno(antes, pronto.ano);
+    const acumuladoDepois = custoComprovadoAteOAno(depois, pronto.ano);
     return {
       anoAntes: custoComprovadoDoAno(antes, pronto.ano),
       anoDepois: custoComprovadoDoAno(depois, pronto.ano),
-      acumuladoAntes: custoComprovadoAteOAno(antes, pronto.ano),
-      acumuladoDepois: custoComprovadoAteOAno(depois, pronto.ano),
-      /** Parte DESTE pagamento comprovada depois de ligar. */
+      acumuladoAntes,
+      acumuladoDepois,
+      /** A fatia DESTE pagamento comprovada depois de ligar — só do cartão. */
       comprovadoDepois: deDepois?.comprovadoCentavos ?? 0,
       /**
-       * O acréscimo real DESTE pagamento — o número que a tela prometia
-       * inflado. Marcar uma nota já coberta acrescenta só o saldo dela.
+       * O número do rodapé, o MESMO da tela do documento: a variação do
+       * **custo de aquisição do imóvel**, que é um único total acumulado.
+       *
+       * ⚠️ Aqui estava a variação do comprovado DESTE pagamento, e as duas
+       * grandezas não são a mesma sob a repartição cronológica (adendo de
+       * 2026-08-18 do parecer): marcar um pagamento MAIS ANTIGO faz ele TOMAR
+       * a alocação de um posterior já coberto. NF de 3.000 já coberta por um
+       * PIX de 2.000 de 12/08; ligar nela um PIX de 3.000 de 01/07 move o
+       * total de 2.000 para 3.000 — acréscimo REAL de 1.000 —, mas a fatia
+       * deste pagamento vai de 0 a 3.000. A tela anunciava os 3.000,
+       * contradizendo o "acumulado 2.000 → 3.000" da linha de baixo e errando
+       * para cima (§4 do parecer: a direção perigosa).
        */
-      acrescimo:
-        (deDepois?.comprovadoCentavos ?? 0) - (deAntes?.comprovadoCentavos ?? 0),
+      acrescimo: acumuladoDepois - acumuladoAntes,
       faltaCobrirDepois:
         deDepois?.semNotaCentavos ?? pronto.pagamento.valorCentavos,
     };
@@ -271,10 +281,14 @@ export default function LigarDocumentos() {
               {formatarBRL(efeito?.faltaCobrirDepois ?? p.valorCentavos)}
             </span>
           </div>
+          {/* O cartão fala só DESTE pagamento; o efeito na obra é o do rodapé.
+              Misturar as duas grandezas na mesma frase foi o defeito do Gate 2:
+              a fatia de um pagamento pode subir 3.000 enquanto o custo da obra
+              sobe 1.000. */}
           <Dica>
             {marcadosDeVerdade.length === 0
               ? "Nada marcado ainda — o pagamento continua sem nota."
-              : `Com o que está marcado, ${formatarBRL(efeito?.acrescimo ?? 0)} deste pagamento passam a ser custo comprovado (total comprovado dele: ${formatarBRL(efeito?.comprovadoDepois ?? 0)}).`}
+              : `Com o que está marcado, ${formatarBRL(efeito?.comprovadoDepois ?? 0)} deste pagamento ficam cobertos por documento hábil. Essa é a fatia dele — o efeito no custo da obra é o do rodapé.`}
           </Dica>
         </Card>
 
@@ -368,9 +382,11 @@ export default function LigarDocumentos() {
       </Corpo>
 
       <Rodape>
-        {/* Mesmo rodapé do mock do outro seletor, com o número corrigido: o
-            ACRÉSCIMO real sobre o grafo, e não o valor cheio das notas
-            marcadas. O "antes → depois" acompanha nos dois números. */}
+        {/* Mesmo rodapé do mock do outro seletor, e agora com a MESMA
+            grandeza dele: "Custo confirmado se ligar agora" nomeia o custo de
+            aquisição do imóvel — um único total acumulado —, então o número é
+            sempre `acumuladoDepois - acumuladoAntes`, nunca a fatia deste
+            pagamento. O "antes → depois" acompanha nos dois números. */}
         <Dica>
           Custo confirmado se ligar agora:{" "}
           <span
