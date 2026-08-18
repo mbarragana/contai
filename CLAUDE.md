@@ -104,6 +104,14 @@ Como funciona (`e2e/`):
   inventada não passa pela RLS. O mesmo client autenticado é usado para montar o
   cenário e para conferir o estado gravado — nada de service key: o que a policy
   barra para o app tem que barrar para o teste.
+- **Exceção única e nomeada a essa regra** (2026-08-17): a limpeza entre testes
+  (`limpar`) e o "conta sem obra nenhuma" rodam por `docker exec … psql` como
+  administrador do banco, porque **APAGAM** — e a migration 0005 tirou o DELETE
+  do papel `authenticated` (o app não apaga nada; "excluir pagamento" está fora
+  de escopo pelo CONTAI-009, acervo append-only). Isso é montagem/desmontagem de
+  ambiente, não comportamento: cenário e verificação continuam passando pelo
+  client autenticado, sujeitos à mesma RLS do app. Manter o DELETE só para o
+  teste seria devolver ao banco local uma permissão que a produção não tem.
 - `fixtures.ts` — sessão + limpeza das linhas antes e depois de cada teste. A
   obra do seed permanece (é pré-requisito e não tem tela).
 - `workers: 1`: um banco, um usuário — paralelismo faria um teste ver as linhas
@@ -116,6 +124,28 @@ Como funciona (`e2e/`):
   `globalSetup`.
 - Única falsificação de rede que resta: no teste de estado de erro, um 503 do
   PostgREST. Derrubar o Postgres no meio da suíte não provaria mais nada.
+
+**Ponto cego estrutural do E2E local (incidente de 2026-08-17)**: rodar contra o
+Postgres local prova o COMPORTAMENTO, não a CONFIGURAÇÃO. O stack do CLI e o
+projeto remoto não são o mesmo banco: o local vem com `alter default privileges`
+ligado no schema `public` (toda tabela nova já nasce acessível a `anon` e
+`authenticated`), o remoto não. As migrations 0001-0004 não tinham um `GRANT`
+sequer — 30 testes verdes no local, e o app publicado devolvendo `permission
+denied for table obra` depois de um login bem-sucedido. É a **segunda** mordida
+de "passa local, quebra remoto" (a primeira foi `numeric(14,2)` voltando do
+PostgREST como number, não string). O padrão: divergência de CONFIGURAÇÃO entre
+os dois ambientes é invisível para teste de comportamento.
+Duas defesas, e só a segunda escala:
+1. A migration 0005 **revoga antes de conceder**, então para essas cinco tabelas
+   o banco local passou a ter exatamente os privilégios do remoto.
+2. `e2e/privilegios.spec.ts` compara o mapa de privilégios de `public` com o que
+   está declarado. **Tabela nova sem GRANT explícito deixa a suíte vermelha com
+   o nome dela.** Toda migration que criar tabela concede o privilégio no mesmo
+   diff e atualiza esse mapa — nunca por `all tables in schema public`, nunca por
+   `alter default privileges` (o motivo está por extenso em `0005_grants.sql`).
+Ao criar tabela, coluna com default do servidor, sequence, view ou função nova,
+a pergunta obrigatória é: *isto depende de algum default do stack local que o
+projeto remoto não tem?*
 
 **Regra de concorrência entre agentes**: um agente por vez escrevendo na árvore
 de trabalho. Dois agentes commitando no mesmo repo já causaram commit

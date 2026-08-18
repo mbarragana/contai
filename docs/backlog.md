@@ -1443,3 +1443,62 @@ o benefício é real — cada gate revisa um diff autocontido, e se o 007 atrasa
 migration do 004 não embarca coluna morta. A convenção do repo já é
 **1 migration ↔ 1 ticket** (0004 = CONTAI-003). **O argumento verdadeiro do
 "junto" nunca foi a migration: é o mock e o formulário**, e esse se mantém.
+
+## Incidente de produção — 2026-08-17 — `permission denied for table obra`
+
+**O que aconteceu.** App publicado, Mateus logou com sucesso e toda leitura
+devolveu `{"code":"42501","message":"permission denied for table obra"}`. Não
+era RLS — policy que nega devolve **lista vazia**; `permission denied for table`
+é o Postgres barrando **antes** da policy, por falta de `GRANT`. Confirmado no
+próprio projeto remoto: o PostgREST devolveu o diagnóstico na dica da resposta
+("Grant the required privileges to the current role").
+
+**Causa.** As migrations 0001-0004 criam tabela, índice e policy e **não
+concedem privilégio nenhum**. Quem concedia era o `alter default privileges` do
+schema `public`, que o stack local do CLI traz ligado e o projeto remoto (com
+"expose new tables" desligado no setup) não tem. Corrigido pela migration
+`0005_grants.sql`.
+
+### O achado de processo — a regra de E2E contra o Postgres local tem ponto cego
+
+A regra dura do projeto ("E2E roda contra o banco local em Docker, stub de
+backend é proibido") continua certa e **não** está em questão. O que ela prova é
+**comportamento**; o que ela não prova é **configuração**. O stack local do CLI e
+o projeto remoto não são o mesmo banco, e toda divergência de configuração entre
+os dois é invisível para teste de comportamento: os 30 E2E rodavam num banco
+mais permissivo que a produção e passavam por isso, não apesar disso.
+
+**É a segunda vez.** A primeira foi `numeric(14,2)` voltando do PostgREST como
+number e não como string — E2E verde em cima de um formato inventado. Mesmo
+padrão, sintoma diferente: o teste valida a suposição de quem escreveu o
+ambiente, não o ambiente de verdade.
+
+**O que se fez agora**, em ordem de valor:
+
+1. **A migration revoga antes de conceder.** Não é só somar `GRANT`: `revoke all
+   … from anon, authenticated` desfaz o que o default privileges do local havia
+   dado. Depois da 0005 o banco local tem **exatamente** os privilégios do
+   remoto para as cinco tabelas, e os 30 E2E existentes passaram a rodar sob o
+   modelo de privilégio de produção. Efeito colateral revelador: dois testes
+   alcançavam estado por `DELETE`, uma operação que o app **não pode** executar
+   em produção — viraram andaime de administrador (ver CLAUDE.md).
+2. **`e2e/privilegios.spec.ts`** compara o mapa de privilégios de `public` com o
+   declarado. Tabela nova sem GRANT explícito deixa a suíte vermelha com o nome
+   dela. É o que fecha o caso para as tabelas de amanhã.
+3. **`alter default privileges` foi recusado de propósito** — resolveria a
+   tabela futura e, ao resolvê-la em silêncio, recriaria a mesma classe de
+   decisão invisível que causou o incidente. O argumento inteiro está por
+   extenso em `supabase/migrations/0005_grants.sql`.
+
+**O que continua descoberto, e é decisão do Mateus/`cto-obra`:** só as cinco
+tabelas e o schema `public` foram normalizados. Auth, extensões, configuração do
+PostgREST (schemas expostos, limites), políticas de storage no remoto, e
+qualquer outro default do painel do Supabase seguem sem espelho no local. A
+pergunta a fazer em todo ticket que toque schema: *isto depende de algum default
+do stack local que o projeto remoto não tem?*
+
+**Pergunta em aberto (P):** vale um smoke test pós-deploy que autentique no
+projeto **remoto** com uma conta de verificação e faça um SELECT por tabela? É a
+única defesa que pega divergência de configuração que nenhum banco local espelha
+— e custa uma credencial de produção guardada em algum lugar, que é exatamente o
+tipo de coisa que este projeto evita. Não implementado; decisão do Mateus.

@@ -1,3 +1,5 @@
+import { execFileSync } from "node:child_process";
+
 import type { Page } from "@playwright/test";
 import { createServerClient } from "@supabase/ssr";
 import {
@@ -27,8 +29,99 @@ import {
 
 export type Db = SupabaseClient<Database>;
 
-/** Filtro obrigatório do PostgREST para DELETE; casa com todas as linhas. */
-const NENHUM_ID = "00000000-0000-0000-0000-000000000000";
+// ── Andaime: SQL de administrador no banco LOCAL ─────────────────────────
+// A regra do projeto — "nada de service key: o que a policy barra para o app
+// tem que barrar para o teste" — vale para o COMPORTAMENTO exercitado: cenário
+// e verificação continuam passando pelo `Db` autenticado, sujeitos à mesma RLS
+// do app. O que passa por aqui é outra coisa: montagem e desmontagem do
+// ambiente, que o app não faz e não pode fazer.
+//
+// A migration 0005 tirou o DELETE de `authenticated` (o app não apaga nada, e
+// "excluir pagamento" está fora de escopo pelo CONTAI-009 — acervo append-only).
+// A limpeza entre testes, que APAGA, deixou portanto de ser uma operação do
+// papel do app e passou a ser andaime. Manter o DELETE só para o teste seria
+// devolver ao banco local uma permissão que a produção não tem — exatamente o
+// ponto cego que a 0005 fechou.
+//
+// `docker exec ... psql` é o mesmo caminho que o `npm run db:demo` já usa; o
+// nome do container sai do `project_id` do supabase/config.toml.
+const CONTAINER_BANCO = "supabase_db_contai";
+
+function literalSql(valor: string | number | boolean): string {
+  return typeof valor === "string"
+    ? `'${valor.replace(/'/g, "''")}'`
+    : String(valor);
+}
+
+function sqlAdmin(sql: string, rotulo: string) {
+  try {
+    execFileSync(
+      "docker",
+      [
+        "exec",
+        "-i",
+        CONTAINER_BANCO,
+        "psql",
+        "-U",
+        "postgres",
+        "-d",
+        "postgres",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-q",
+        "-c",
+        sql,
+      ],
+      { stdio: ["ignore", "pipe", "pipe"] },
+    );
+  } catch (erro) {
+    const stderr = String(
+      (erro as { stderr?: Buffer | string }).stderr ?? "",
+    ).trim();
+    throw new Error(
+      `${rotulo} falhou via psql no container ${CONTAINER_BANCO}. ` +
+        "O stack local está de pé? `npm run db:start`" +
+        (stderr ? `\n${stderr}` : `\n${String(erro)}`),
+    );
+  }
+}
+
+/** Consulta administrativa; devolve as linhas já quebradas em colunas. */
+export function consultarAdmin(sql: string, rotulo: string): string[][] {
+  let saida = "";
+  try {
+    saida = execFileSync(
+      "docker",
+      [
+        "exec",
+        "-i",
+        CONTAINER_BANCO,
+        "psql",
+        "-U",
+        "postgres",
+        "-d",
+        "postgres",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-At",
+        "-F",
+        "|",
+        "-c",
+        sql,
+      ],
+      { encoding: "utf8" },
+    );
+  } catch (erro) {
+    const stderr = String(
+      (erro as { stderr?: Buffer | string }).stderr ?? "",
+    ).trim();
+    throw new Error(`${rotulo} falhou: ${stderr || String(erro)}`);
+  }
+  return saida
+    .split("\n")
+    .filter((linha) => linha.length > 0)
+    .map((linha) => linha.split("|"));
+}
 
 /**
  * Login de verdade no GoTrue local. Sessão em memória (`persistSession:
@@ -126,41 +219,55 @@ function conferir(rotulo: string, error: { message: string } | null) {
 }
 
 /**
+ * A obra do seed montada a partir da MESMA constante que os testes afirmam
+ * (`OBRA_SEED`), e não de um literal SQL paralelo que sairia do lugar no dia
+ * em que um campo mudasse. `user_id` explícito porque o psql roda fora de
+ * sessão e `auth.uid()` seria null.
+ */
+const OBRA_SEED_COM_DONO = { user_id: USER_ID_SEED, ...OBRA_SEED };
+const COLUNAS_SEED = Object.keys(OBRA_SEED_COM_DONO);
+
+const SQL_LIMPAR = [
+  "delete from pagamento_documento;",
+  "delete from pagamento;",
+  "delete from documento;",
+  "delete from favorecido;",
+  `delete from obra where id <> ${literalSql(OBRA_ID_SEED)};`,
+  `insert into obra (${COLUNAS_SEED.join(", ")}) values (` +
+    `${Object.values(OBRA_SEED_COM_DONO).map(literalSql).join(", ")})` +
+    ` on conflict (id) do update set ` +
+    COLUNAS_SEED.filter((c) => c !== "id")
+      .map((c) => `${c} = excluded.${c}`)
+      .join(", ") +
+    ";",
+].join("\n");
+
+/**
  * Estado conhecido antes (e depois) de cada teste: só a obra do seed, sem
  * documento, pagamento nem favorecido.
  *
  * As obras criadas por teste caem, e a do seed é RECRIADA se sumiu — o teste
  * do critério 12 (nenhuma obra cadastrada) precisa apagar todas, e sem esta
- * restauração ele deixaria o banco sem obra para o próximo.
+ * restauração ele deixaria o banco sem obra para o próximo. O `do update`
+ * existe porque há teste que EDITA a obra do seed.
  * `pagamento_documento` já cairia por cascade, mas apagar explícito deixa o
- * erro no lugar certo se a policy do vínculo mudar.
+ * erro no lugar certo se o vínculo mudar.
+ *
+ * Roda como administrador do banco, não como o app: ver a nota do `sqlAdmin`.
  */
-export async function limpar(db: Db) {
-  conferir(
-    "limpar pagamento_documento",
-    (await db.from("pagamento_documento").delete().neq("pagamento_id", NENHUM_ID))
-      .error,
-  );
-  conferir(
-    "limpar pagamento",
-    (await db.from("pagamento").delete().neq("id", NENHUM_ID)).error,
-  );
-  conferir(
-    "limpar documento",
-    (await db.from("documento").delete().neq("id", NENHUM_ID)).error,
-  );
-  conferir(
-    "limpar favorecido",
-    (await db.from("favorecido").delete().neq("id", NENHUM_ID)).error,
-  );
-  conferir(
-    "limpar obras de teste",
-    (await db.from("obra").delete().neq("id", OBRA_ID_SEED)).error,
-  );
-  conferir(
-    "restaurar obra do seed",
-    (await db.from("obra").upsert(OBRA_SEED, { onConflict: "id" })).error,
-  );
+export function limpar() {
+  sqlAdmin(SQL_LIMPAR, "limpar o banco entre testes");
+}
+
+/**
+ * Conta sem obra nenhuma — o estado do primeiro acesso (critério 12).
+ *
+ * Não passa pelo `Db` autenticado porque o papel do app não tem (nem deve ter)
+ * DELETE: chegar a este estado é montagem de cenário, não um caminho que o
+ * usuário percorre na tela.
+ */
+export function apagarTodasAsObras() {
+  sqlAdmin("delete from obra;", "apagar todas as obras");
 }
 
 /** Obra extra do cenário. Sem `cno` para o caso "obra sem CNO". */

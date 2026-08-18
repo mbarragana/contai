@@ -43,7 +43,7 @@ export const test = base.extend<Fixtures & Opcoes>({
       // Login por teste (e não por worker): cada um recebe o seu refresh
       // token, então a rotação de token de um não invalida a sessão do outro.
       const { db, sessao } = await entrar();
-      await limpar(db);
+      limpar();
       if (comSessao) await injetarSessao(page, sessao);
 
       if (obraAtiva !== null) {
@@ -62,7 +62,7 @@ export const test = base.extend<Fixtures & Opcoes>({
 
       await use(db);
 
-      await limpar(db);
+      limpar();
     },
     { auto: true },
   ],

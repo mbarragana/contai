@@ -104,7 +104,8 @@ function paraPagamento(
 /**
  * Todas as obras da conta, da mais antiga para a mais nova.
  *
- * Sem sessão a RLS devolve zero linhas, e "nenhuma obra cadastrada" seria
+ * Sem sessão o banco não devolve linha nenhuma (desde a migration 0005 o papel
+ * `anon` nem chega na policy: falta GRANT), e "nenhuma obra cadastrada" seria
  * diagnóstico errado para quem só não está logado — por isso a sessão é
  * exigida aqui, e a falta dela sobe como SemSessaoError (critério 5 do
  * CONTAI-002), não como lista vazia.

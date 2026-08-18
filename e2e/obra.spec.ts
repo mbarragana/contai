@@ -3,6 +3,7 @@ import type { Page } from "@playwright/test";
 import { hojeIso } from "../lib/hoje";
 import { OBRA_ID_SEED, USER_ID_SEED } from "./ambiente";
 import {
+  apagarTodasAsObras,
   criarObra,
   documentos,
   obras,
@@ -75,8 +76,12 @@ test.describe("primeiro acesso", () => {
   }) => {
     // `ObraAusenteError` era o fim da linha: nome, matrícula, CNO e valor do
     // terreno só entravam por SQL (dor D9).
-    const { error } = await db.from("obra").delete().eq("id", OBRA_ID_SEED);
-    expect(error).toBeNull();
+    //
+    // O cenário é montado por fora do app: desde a migration 0005 o papel
+    // `authenticated` não tem DELETE (o app não apaga nada, e o banco local
+    // passou a ter os mesmos privilégios do remoto). A verificação abaixo
+    // continua sendo do app: é o `db` autenticado que confirma o vazio.
+    apagarTodasAsObras();
     expect(await obras(db)).toHaveLength(0);
 
     await page.goto("/");

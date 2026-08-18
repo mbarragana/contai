@@ -283,13 +283,17 @@ test.describe("a RLS é a guarda do acervo", () => {
 
     for (const tabela of ["obra", "documento", "pagamento"] as const) {
       const { data, error } = await semSessao.from(tabela).select("*");
-      // A policy não devolve erro: devolve VAZIO. É por isso que o app trata
-      // ausência de sessão como erro explícito, e nunca como "nada cadastrado".
-      expect(error, `select em ${tabela} sem sessão`).toBeNull();
-      expect(data, `linhas de ${tabela} vazadas sem sessão`).toEqual([]);
+      // São DUAS barreiras, e esta é a de fora: sem GRANT para `anon`
+      // (migration 0005) o Postgres barra antes de a policy ser avaliada —
+      // 42501, "permission denied for table". Foi a AUSÊNCIA desta barreira no
+      // remoto que derrubou o app publicado em 2026-08-17, com o banco local
+      // verde por ser mais permissivo que a produção.
+      expect(error?.code, `select em ${tabela} sem sessão`).toBe("42501");
+      expect(data, `linhas de ${tabela} vazadas sem sessão`).toBeNull();
     }
 
-    // Escrever também não passa: a policy vale nos dois sentidos.
+    // Escrever também não passa. Aqui as duas barreiras diriam não: o `anon`
+    // não tem INSERT, e ainda que tivesse a policy exige `user_id = auth.uid()`.
     const { error: erroInsert } = await semSessao
       .from("obra")
       .insert({ nome: "Obra de estranho", data_inicio_obra: "2026-01-01" });
