@@ -42,7 +42,7 @@ Achou linha? A revisão falha.
 | Ordem | # | Ticket | P | Status | O que trava |
 |---|---|---|---|---|---|
 | **1** | **018** | **Vínculo pagamento↔nota** | P0 | 🔨 **`/develop` rodando** | nada — Gate 0 aprovado 18/08, Gate Fiscal fechado |
-| 2 | 019 | Pagamento agendado (previsto × executado) | P1 | 🔴 **sem arquivo** | escrever o ticket; reescreve a US-002 |
+| 2 | 019 | Pagamento agendado (compromisso × pagamento) | P1 | 🟡 | **mock (3 estados)** + **parecer do compromisso não está em arquivo**. Vira **P0** se ele tiver registrado com data de hoje |
 | 3 | 014 | Manifest de PWA + prova no aparelho | P1 | 🟢 | Gate 0 substituído por aprovação de ícone |
 | 4 | 004 | Nº do documento e data de emissão | P0 | 🟡 | **mock pendente** — mesmo passe do 007 |
 | 4 | 007 | CNO referenciado na NF de serviço | P0 | 🟡 | **mock pendente** + **6 pontos a reescrever** |
@@ -63,9 +63,9 @@ Achou linha? A revisão falha.
 |---|---|---|---|---|
 | 010 | Terreno financiado (Passo 1: captura) | P0 | 🟡 | Gate Fiscal reescrito em 17/08 — vira **lista de desembolsos**, S→M. Passo 2 espera CRC |
 | 011 | Export do acervo | P0 | 🟡 | Gate 0 aprovado 16/08; **P1 do CTO** (fonte do estado) pendente |
-| 016 | Tipo de empreitada na obra | P0 | 🔴 **sem arquivo** | decidido pelo `po` em 17/08 |
-| 017 | Lista de notas a cobrar (tela 14) | — | 🔴 **sem arquivo** | cortado do 007 pelo `po` |
-| 006 | Estados de rede lenta/indisponível | P1 | 🔴 **sem arquivo** | — |
+| 016 | Tipo de empreitada na obra | P0 | 🟡 | ramo `total` **bloqueado** — o texto do contador não está em arquivo. Não exige mock |
+| 017 | Lista de notas a cobrar (tela 14) | — | 🟡 | **cortado**, com condição de volta escrita. Depende de 004 + 007 |
+| 006 | Estados de rede lenta/indisponível | P1 | 🟢 | sem bloqueio. ⚠️ **rodar sozinho na árvore** — toca muitos arquivos |
 | 008 | Mover registro sem quebrar vínculo | P0 | 🟡 | gatilho é a US-003 |
 | 015 | Captcha no login | P2 | 🟡 | mock pendente. `po` recomendou cortar; Mateus manteve como ticket |
 
@@ -79,7 +79,12 @@ PF) · `US-008` (extração automática — **Gate Fiscal já fechado**, parecer
 
 ## Dívidas de escrituração
 
-1. **Quatro tickets decididos e não escritos**: `019`, `016`, `017`, `006`.
+1. ~~**Quatro tickets decididos e não escritos**~~ — **PAGA em 18/08**: `019`,
+   `016`, `017` e `006` escritos.
+   **No lugar dela, a dívida que os bloqueia**: ⚠️ **dois pareceres do `contador`
+   existem só em transcript** — o do **compromisso** (18/08, trava o Gate 1 do
+   019) e o de **empreitada total × parcial** (10/08, trava o ramo `total` do
+   016, e está em aberto há oito dias). Materializar em `docs/pareceres/`.
 2. ~~**CONTAI-003 sem Gates 3 e 4**~~ — **RECONCILIADO em 18/08**. O `cto-obra`
    cedeu à posição do `lead`, com emenda: *"Gate 3 não é pulado, é fechado por
    evidência registrada"*. Falta só o **commit de registro** dos dois passes.
