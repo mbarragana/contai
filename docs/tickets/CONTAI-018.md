@@ -176,37 +176,63 @@ pare de aparecer duas vezes.
     vínculo, com os candidatos sugeridos — para o Mateus limpar o passivo (a NF da
     WK inclusive) em uma sessão, sem caçar registro por registro.
 
-## Diretriz de desenho — a bifurcação de `/adicionar` some (Mateus, 2026-08-18)
+## Diretriz de desenho (Mateus, 2026-08-18)
 
-Relato dele, depois de usar a tela:
+**As duas entradas de `/adicionar` FICAM.** Documento e Pagamento continuam
+separados — a correção é de **rótulo e de escopo do formulário**, não de
+arquitetura de navegação.
 
-> "essa tela confunde porque ou eu subo uma nota fiscal não linkada a pagamento,
-> ou diz ali para registrar um pagamento sem nota fiscal, mas eu queria registrar
-> um pagamento COM nota fiscal"
+*(Registro de percurso: eu propus colapsar as duas numa porta única "registrar
+gasto". **Foi excesso meu** — ele pediu troca de texto. A diretriz abaixo é a
+dele.)*
 
-**O diagnóstico é dele e está certo: nenhuma das duas opções é o caso comum.**
-Uma é documento sem pagamento; a outra é pagamento sem documento. *Paguei e
-tenho a nota* — que é o fluxo normal da obra — **não tem porta**. A bifurcação
-obriga o usuário a escolher **metade da despesa** e depois não oferece como
-juntar a outra metade. É o defeito do vínculo aparecendo um passo antes.
+### D1 — o rótulo perde a negativa
 
-**Proposta dele**: uma entrada só, "registrar pagamento", com a nota opcional
-dentro.
+**"Pagamento — PIX sem nota"** vira **"Pagamento"**, e só.
 
-**Ajuste, porque a versão literal perde um caso**: documento que chega **antes**
-do pagamento — boleto a vencer, NF que chegou e será paga semana que vem — é o
-caso que sustenta a fila de boletos a pagar da US-002. Com "registrar pagamento"
-como única porta, ele fica de fora.
+O rótulo atual enquadra o caminho como exceção ("sem nota") e empurra para fora
+quem tem nota. A nota deixa de ser o que define a entrada e passa a ser **campo
+opcional dentro do registro de pagamento** — que é o vínculo deste ticket,
+oferecido no lugar certo.
 
-**Diretriz para o mock**: **uma porta só — "registrar gasto"** — com **documento
-e pagamento como campos dentro, qualquer um dos dois podendo ficar vazio**. O app
-**deduz o estado** (comprovado / documento sem desembolso / desembolso sem
-documento) em vez de exigir que o usuário declare de antemão qual metade tem.
+Some junto a frase *"Pagou e o documento ainda não existe? Registra agora; a NF
+vincula depois"* (critério 19): ela deixa de descrever o caminho quando a nota
+é opcional ali dentro.
 
-O designer resolve a forma; a diretriz é: **o usuário não escolhe entre duas
-naturezas de registro, ele registra um gasto.** Se o designer concluir que a
-porta única não cabe em 375px com uma mão, ele devolve ao PO com a alternativa —
-não reintroduz a bifurcação por conveniência de layout.
+### D2 — pagamento futuro é registro legítimo, e conta pela data de execução
+
+Palavras dele: *"o pagamento pode ser um registro para futuro ou já feito, isso
+será contabilizado pela data de execução"*.
+
+Consequência que o ticket tem de carregar, e ela **não é de interface**:
+
+⚠️ **Pagamento com data futura NÃO é dispêndio e NÃO pode compor custo até ser
+executado.** Regime de caixa — sem desembolso não há dispêndio (art. 17; e é a
+mesma regra que já mantém boleto fora do custo). Um pagamento agendado que
+componha custo confirmado é **custo inflado indo para a declaração**, que o
+`contador` classificou como o único erro que gera passivo tributário.
+
+Portanto o registro de pagamento passa a ter **dois estados e possivelmente duas
+datas**: *previsto* (data planejada, não conta) e *executado* (data real do
+débito, conta). **A data que vale é sempre a da execução**, nunca a do
+planejamento — mesma disciplina de "contrato é previsão; extrato é fato" do
+parecer do terreno financiado.
+
+**Pergunta em aberto ao `contador`** (Gate Fiscal deste ticket fica reaberto
+neste ponto):
+
+1. O pagamento previsto e o executado são **um registro que muda de estado** ou
+   **dois registros**? Se for um, o que impede a data planejada de virar a data
+   de custo por descuido?
+2. Quando a data prevista passa **sem confirmação**, qual é o comportamento — o
+   app pergunta, marca pendência, ou fica calado? Pagamento previsto e nunca
+   confirmado que some da tela é dinheiro que sai da obra sem registro.
+3. O comprovante continua **obrigatório na execução**? (Hoje é obrigatório no
+   registro; com previsão, não existe comprovante ainda.)
+
+**Isto se junta à US-002** (fila de boletos a pagar com lembrete) — que é
+exatamente "documento que chega antes do pagamento". Avaliar com o `po` se a
+US-002 ainda é ticket separado depois desta diretriz.
 
 ## Gate 0 — mock
 
