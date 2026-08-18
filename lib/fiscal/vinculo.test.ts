@@ -2,15 +2,17 @@ import { describe, expect, it } from "vitest";
 
 import {
   alocarCusto,
+  alocarSimulando,
+  custoComprovadoAteOAno,
   custoComprovadoDoAno,
   documentosCandidatos,
   documentosHabeisSemPagamento,
+  documentosOcultosPorCobertura,
   despesasComprovadas,
   MOTIVO_OBRA_DIFERENTE,
   pagamentosCandidatos,
+  pagamentosOcultosPorCobertura,
   podeVincular,
-  preverConjunto,
-  preverVinculo,
 } from "@/lib/fiscal/vinculo";
 import type { Documento, Pagamento } from "@/lib/types";
 
@@ -199,8 +201,15 @@ describe("regime de caixa entre anos-calendário", () => {
   });
 
   it("nota menor que a soma paga em dois anos: o mais antigo é coberto primeiro", () => {
-    // Decisão de implementação (ordem cronológica), pendente de ratificação
-    // fiscal — está anotada em vinculo.ts e vai ao contador no Gate 2.
+    // REGRA FISCAL RATIFICADA, não decisão de implementação: repartição
+    // CRONOLÓGICA, ratificada pelo `contador` no Gate 2 do CONTAI-018 e
+    // transcrita no adendo de 2026-08-18 do parecer
+    // `docs/pareceres/2026-08-17-vinculo-pagamento-documento.md`.
+    //
+    // Não troque por pro-rata "porque é mais justo": pro-rata daria R$ 1.500 a
+    // 2026 num caso em que o app já dissera R$ 2.000, contradizendo uma DAA
+    // entregue. Sob a cronológica, acrescentar um pagamento POSTERIOR nunca
+    // altera a alocação de um pagamento ANTERIOR — é o que este teste guarda.
     const a = alocar(
       [doc({ id: "d1", valorCentavos: 100_000 })],
       [
@@ -418,59 +427,156 @@ describe("sugestão ordena e rotula; nunca vincula (critério 10)", () => {
   });
 });
 
-describe("previsão do efeito no custo antes do toque", () => {
-  it("marca dois pagamentos numa nota menor: mostra comprovado e excedente", () => {
-    const previsao = preverVinculo(doc({ id: "d1", valorCentavos: 300_000 }), [
-      pag({ id: "p1", valorCentavos: 300_000 }),
-      pag({ id: "p2", valorCentavos: 50_000 }),
-    ]);
-    expect(previsao).toEqual({
-      custoComprovadoCentavos: 300_000,
-      excedentePagamentoCentavos: 50_000,
-      restanteNotaCentavos: 0,
-    });
-  });
-
-  it("nota em quarentena: o efeito previsto no custo confirmado é ZERO", () => {
-    const previsao = preverVinculo(
-      doc({ id: "d1", status: "quarentena", destinatarioCpfOk: false }),
-      [pag({ id: "p1" })],
-    );
-    expect(previsao.custoComprovadoCentavos).toBe(0);
-  });
-
-  it("caminho inverso: um pagamento marcado em duas notas hábeis", () => {
-    const previsao = preverConjunto(
-      [pag({ id: "p1", valorCentavos: 300_000 })],
-      [
-        doc({ id: "d1", valorCentavos: 200_000 }),
-        doc({ id: "d2", valorCentavos: 200_000 }),
-      ],
-    );
-    expect(previsao).toEqual({
-      custoComprovadoCentavos: 300_000,
-      excedentePagamentoCentavos: 0,
-      restanteNotaCentavos: 100_000,
-    });
-  });
-
-  it("caminho inverso: nota em quarentena não entra na soma hábil", () => {
-    const previsao = preverConjunto(
-      [pag({ id: "p1", valorCentavos: 300_000 })],
-      [
+/**
+ * O efeito no custo ANTES do toque, pela MESMA `alocarCusto` da home.
+ *
+ * Estes testes substituem os das duas funções de previsão isolada removidas no
+ * Gate 2 do CONTAI-018. Elas simulavam o conjunto marcado FORA do grafo, com
+ * os valores integrais, e por isso anunciavam custo MAIOR que o real — os dois
+ * primeiros casos abaixo são exatamente os números que o `contador` apontou.
+ */
+describe("simulação do vínculo sobre o painel real (critério 15)", () => {
+  it("pagamento já parcialmente coberto: o acréscimo é o real, não o valor cheio", () => {
+    // PIX de R$ 3.000 já ligado a uma NF de R$ 1.000. Marcá-lo numa NF de
+    // R$ 3.000 acrescenta R$ 2.000 — a previsão isolada dizia R$ 3.000.
+    const painel = {
+      documentos: [
         doc({ id: "d1", valorCentavos: 100_000 }),
-        doc({ id: "d2", valorCentavos: 200_000, status: "quarentena", destinatarioCpfOk: false }),
+        doc({ id: "d2", valorCentavos: 300_000 }),
       ],
-    );
-    expect(previsao.custoComprovadoCentavos).toBe(100_000);
-    expect(previsao.excedentePagamentoCentavos).toBe(200_000);
+      pagamentos: [
+        pag({ id: "p1", valorCentavos: 300_000, documentoIds: ["d1"] }),
+      ],
+    };
+    const antes = alocarCusto(painel);
+    const depois = alocarSimulando(painel, {
+      adicionar: [{ pagamentoId: "p1", documentoId: "d2" }],
+    });
+    expect(custoComprovadoDoAno(antes, 2026)).toBe(100_000);
+    expect(custoComprovadoDoAno(depois, 2026)).toBe(300_000);
+    expect(
+      depois.porPagamento.get("p1")!.comprovadoCentavos -
+        antes.porPagamento.get("p1")!.comprovadoCentavos,
+    ).toBe(200_000);
   });
 
-  it("nada marcado: previsão zerada e a nota inteira restante", () => {
-    expect(preverVinculo(doc({ id: "d1", valorCentavos: 300_000 }), [])).toEqual({
-      custoComprovadoCentavos: 0,
-      excedentePagamentoCentavos: 0,
-      restanteNotaCentavos: 300_000,
+  it("nota já parcialmente coberta: o pagamento marcado comprova só o saldo", () => {
+    // NF de R$ 3.000 já coberta em R$ 2.000. Marcar um PIX de R$ 3.000 nela
+    // comprova R$ 1.000 dele — a previsão isolada dizia R$ 3.000, o TRIPLO.
+    const painel = {
+      documentos: [doc({ id: "d1", valorCentavos: 300_000 })],
+      pagamentos: [
+        pag({
+          id: "p1",
+          valorCentavos: 200_000,
+          dataPagamento: "2026-07-01",
+          documentoIds: ["d1"],
+        }),
+        pag({ id: "p2", valorCentavos: 300_000, dataPagamento: "2026-08-12" }),
+      ],
+    };
+    const depois = alocarSimulando(painel, {
+      adicionar: [{ pagamentoId: "p2", documentoId: "d1" }],
     });
+    expect(depois.porPagamento.get("p2")).toMatchObject({
+      comprovadoCentavos: 100_000,
+      semNotaCentavos: 200_000,
+    });
+    // E a nota NÃO fica "coberta por inteiro" por engano: o saldo dela é zero
+    // porque o conjunto já a cobre, e o excedente está do lado do pagamento.
+    expect(depois.porDocumento.get("d1")!.excedenteNotaCentavos).toBe(0);
+  });
+
+  it("nota em quarentena: simular o vínculo não move o custo confirmado", () => {
+    const painel = {
+      documentos: [
+        doc({ id: "d1", status: "quarentena", destinatarioCpfOk: false }),
+      ],
+      pagamentos: [pag({ id: "p1" })],
+    };
+    const depois = alocarSimulando(painel, {
+      adicionar: [{ pagamentoId: "p1", documentoId: "d1" }],
+    });
+    expect(custoComprovadoDoAno(depois, 2026)).toBe(0);
+    expect(depois.porPagamento.get("p1")!.semNotaCentavos).toBe(300_000);
+  });
+
+  it("nada marcado: a simulação devolve exatamente a alocação de hoje", () => {
+    const painel = {
+      documentos: [doc({ id: "d1" })],
+      pagamentos: [pag({ id: "p1", documentoIds: ["d1"] })],
+    };
+    expect(custoComprovadoDoAno(alocarSimulando(painel, {}), 2026)).toBe(
+      custoComprovadoDoAno(alocarCusto(painel), 2026),
+    );
+  });
+
+  it("remover: é o mesmo caminho da tela de desligar, e o acumulado acompanha", () => {
+    // Pagamento de ANO ANTERIOR: o ano corrente não se mexe, o acumulado sim.
+    const painel = {
+      documentos: [doc({ id: "d1" })],
+      pagamentos: [
+        pag({ id: "p1", dataPagamento: "2025-11-10", documentoIds: ["d1"] }),
+      ],
+    };
+    const antes = alocarCusto(painel);
+    const depois = alocarSimulando(painel, {
+      remover: [{ pagamentoId: "p1", documentoId: "d1" }],
+    });
+    expect(custoComprovadoDoAno(antes, 2026)).toBe(0);
+    expect(custoComprovadoDoAno(depois, 2026)).toBe(0);
+    expect(custoComprovadoAteOAno(antes, 2026)).toBe(300_000);
+    expect(custoComprovadoAteOAno(depois, 2026)).toBe(0);
+  });
+
+  it("a simulação não altera a entrada — o painel carregado continua intacto", () => {
+    const pagamento = pag({ id: "p1" });
+    const painel = { documentos: [doc({ id: "d1" })], pagamentos: [pagamento] };
+    alocarSimulando(painel, {
+      adicionar: [{ pagamentoId: "p1", documentoId: "d1" }],
+    });
+    expect(pagamento.documentoIds).toEqual([]);
+  });
+});
+
+/**
+ * C4 do Gate 2: quem já está coberto por inteiro some do seletor, e o sumiço
+ * mudo faz quem ligou o PIX à nota errada não o achar na nota certa.
+ */
+describe("candidatos escondidos por já estarem cobertos", () => {
+  it("conta o pagamento coberto por inteiro por OUTRA nota", () => {
+    const alvo = doc({ id: "d2", valorCentavos: 300_000 });
+    const painel = {
+      documentos: [doc({ id: "d1" }), alvo],
+      pagamentos: [pag({ id: "p1", documentoIds: ["d1"] })],
+    };
+    const a = alocarCusto(painel);
+    expect(pagamentosCandidatos(alvo, painel.pagamentos, a)).toHaveLength(0);
+    expect(
+      pagamentosOcultosPorCobertura(alvo, painel.pagamentos, a).map((p) => p.id),
+    ).toEqual(["p1"]);
+  });
+
+  it("conta a nota coberta por inteiro por OUTRO pagamento", () => {
+    const alvo = pag({ id: "p2" });
+    const painel = {
+      documentos: [doc({ id: "d1" })],
+      pagamentos: [pag({ id: "p1", documentoIds: ["d1"] }), alvo],
+    };
+    const a = alocarCusto(painel);
+    expect(documentosCandidatos(alvo, painel.documentos, a)).toHaveLength(0);
+    expect(
+      documentosOcultosPorCobertura(alvo, painel.documentos, a).map((d) => d.id),
+    ).toEqual(["d1"]);
+  });
+
+  it("o já ligado a ESTE registro não conta como escondido por cobertura", () => {
+    const alvo = doc({ id: "d1" });
+    const painel = {
+      documentos: [alvo],
+      pagamentos: [pag({ id: "p1", documentoIds: ["d1"] })],
+    };
+    const a = alocarCusto(painel);
+    expect(pagamentosOcultosPorCobertura(alvo, painel.pagamentos, a)).toEqual([]);
   });
 });

@@ -70,6 +70,29 @@ export const VINCULO_BOLETO_NAO_GERA_CUSTO =
   "Boleto não é documento hábil. Ligar o pagamento registra que ele foi pago, " +
   "mas não gera custo confirmado — o custo só se sustenta com a NF.";
 
+/**
+ * Documento hábil SEM valor informado (`valor_centavos` nulo). Ele contribui
+ * zero para a soma hábil do conjunto, o que empurra o pagamento inteiro para
+ * "pago sem nota" — e isso não pode acontecer em silêncio.
+ */
+export const DOCUMENTO_SEM_VALOR =
+  "Esta nota está sem valor informado e por isso não comprova nada — complete " +
+  "o valor para ela entrar no custo confirmado.";
+
+/**
+ * Critério 15 / C4 do Gate 2: quem já cobriu o registro por inteiro some do
+ * seletor, e o sumiço mudo faz quem ligou o PIX à nota ERRADA não achá-lo na
+ * nota certa — sem saber que precisa desligar antes.
+ */
+export const CANDIDATO_OCULTO_PAGAMENTO =
+  "Pagamento já coberto por inteiro por outra nota não aparece nesta lista. Se " +
+  "algum deles é desta nota, abra a nota errada e desligue-o antes de ligar aqui.";
+
+export const CANDIDATO_OCULTO_DOCUMENTO =
+  "Nota já coberta por inteiro por outro pagamento não aparece nesta lista. Se " +
+  "alguma delas é deste pagamento, abra a nota e desligue o pagamento errado " +
+  "antes de ligar aqui.";
+
 /** Critério 11 — recusa com o motivo na tela, nunca em silêncio. */
 export const MOTIVO_OBRA_DIFERENTE =
   "Este pagamento e este documento estão em obras diferentes. Nada é somado " +
@@ -152,15 +175,25 @@ function valorDocumento(documento: Documento): number {
 /**
  * Ordem cronológica da alocação, com desempate estável por id.
  *
- * ⚠️ DECISÃO DE IMPLEMENTAÇÃO, NÃO REGRA DO PARECER — precisa de ratificação
- * fiscal no Gate 2. O parecer fixa o VALOR do custo comprovado (o mínimo do
- * conjunto) e fixa que o ano-calendário sai da data do pagamento (regime de
- * caixa), mas NÃO diz como repartir o custo comprovado entre os pagamentos
- * quando o conjunto tem mais pagamento do que nota. A repartição só muda o
- * número quando o componente cruza anos-calendário — e aí ela decide em qual
- * ano o custo cai. Escolhemos o mais antigo primeiro: é o desembolso que
- * aconteceu antes, e "pago sem nota" fica no que ainda pode ser coberto por
- * uma nota futura, que é o alerta que o parecer §4 quer vivo.
+ * ⚠️ REGRA FISCAL RATIFICADA — não é decisão de implementação, e não se troca
+ * por pro-rata "porque é mais justo". A repartição cronológica foi ratificada
+ * pelo `contador` no Gate 2 do CONTAI-018 e está transcrita no ADENDO de
+ * 2026-08-18 do parecer
+ * `docs/pareceres/2026-08-17-vinculo-pagamento-documento.md`:
+ *
+ *   Se um conjunto conexo tem custo comprovado C = min(Σ pagamentos,
+ *   Σ documentos hábeis) e Σ pagamentos > C, então C é atribuído aos
+ *   pagamentos do conjunto EM ORDEM CRESCENTE DE DATA DE PAGAMENTO, cada um
+ *   absorvendo até o seu valor integral; o excedente ("pago sem nota") recai
+ *   sobre os pagamentos mais recentes. Empate de data → ordem estável
+ *   arbitrária (sem efeito fiscal: mesma data, mesmo ano-calendário).
+ *
+ * O fundamento decisivo é a IMUTABILIDADE DO ANO JÁ DECLARADO [Certain]:
+ * sob esta regra, acrescentar um pagamento posterior NUNCA altera a alocação
+ * de um pagamento anterior. Pro-rata mudaria o número de um ano por causa de
+ * um fato de outro ano — contradizendo uma DAA já entregue. Ver o adendo para
+ * os outros dois argumentos (fotografia de 31/12 e "pago sem nota" no
+ * pagamento mais recente, o único ainda cobrável do empreiteiro, §4).
  */
 function cronologico(a: Pagamento, b: Pagamento): number {
   if (a.dataPagamento !== b.dataPagamento) {
@@ -376,6 +409,53 @@ function rotular(favorecidoIgual: boolean, valorIgual: boolean): string | null {
   return null;
 }
 
+/** Sobra parte deste pagamento sem nota? Só quem tem saldo é candidato. */
+function temSaldoSemNota(pagamento: Pagamento, alocacao: Alocacao): boolean {
+  return (
+    (alocacao.porPagamento.get(pagamento.id)?.semNotaCentavos ??
+      pagamento.valorCentavos) > 0
+  );
+}
+
+/** Sobra parte desta nota sem pagamento? Documento não hábil sempre sobra. */
+function temSaldoDescoberto(documento: Documento, alocacao: Alocacao): boolean {
+  const alocado = alocacao.porDocumento.get(documento.id);
+  if (!alocado || !alocado.habil) return true;
+  return alocado.excedenteNotaCentavos > 0;
+}
+
+/**
+ * Os que o filtro acima ESCONDEU por já estarem cobertos por inteiro — e não
+ * por serem de outra obra ou já estarem ligados a este registro. A tela conta
+ * quantos são e diz o motivo (C4): sumiço mudo faz quem ligou o PIX à nota
+ * errada não achá-lo na nota certa.
+ */
+export function pagamentosOcultosPorCobertura(
+  documento: Documento,
+  pagamentos: readonly Pagamento[],
+  alocacao: Alocacao,
+): Pagamento[] {
+  return pagamentos.filter(
+    (p) =>
+      podeVincular(p, documento).ok &&
+      !p.documentoIds.includes(documento.id) &&
+      !temSaldoSemNota(p, alocacao),
+  );
+}
+
+export function documentosOcultosPorCobertura(
+  pagamento: Pagamento,
+  documentos: readonly Documento[],
+  alocacao: Alocacao,
+): Documento[] {
+  return documentos.filter(
+    (d) =>
+      podeVincular(pagamento, d).ok &&
+      !pagamento.documentoIds.includes(d.id) &&
+      !temSaldoDescoberto(d, alocacao),
+  );
+}
+
 /**
  * Pagamentos que podem ser ligados a este documento, ordenados.
  *
@@ -400,7 +480,7 @@ export function pagamentosCandidatos(
   return pagamentos
     .filter((p) => podeVincular(p, documento).ok)
     .filter((p) => !p.documentoIds.includes(documento.id))
-    .filter((p) => (alocacao.porPagamento.get(p.id)?.semNotaCentavos ?? p.valorCentavos) > 0)
+    .filter((p) => temSaldoSemNota(p, alocacao))
     .map((p) => ({
       item: p,
       favorecidoIgual: mesmoFavorecido(p, documento),
@@ -433,11 +513,7 @@ export function documentosCandidatos(
   return documentos
     .filter((d) => podeVincular(pagamento, d).ok)
     .filter((d) => !pagamento.documentoIds.includes(d.id))
-    .filter((d) => {
-      const alocado = alocacao.porDocumento.get(d.id);
-      if (!alocado || !alocado.habil) return true;
-      return alocado.excedenteNotaCentavos > 0;
-    })
+    .filter((d) => temSaldoDescoberto(d, alocacao))
     .map((d) => ({
       item: d,
       favorecidoIgual: mesmoFavorecido(pagamento, d),
@@ -459,43 +535,58 @@ export function documentosCandidatos(
 
 // ── Simulação: o efeito no custo ANTES do toque ──────────────────────────
 
-export interface Previsao {
-  /** min(Σ pagamentos, Σ documentos hábeis) do conjunto simulado. */
-  custoComprovadoCentavos: number;
-  /** O que sobra do lado do pagamento — continua "pago sem nota". */
-  excedentePagamentoCentavos: number;
-  /** O que sobra do lado da nota — não vira custo (regime de caixa). */
-  restanteNotaCentavos: number;
+/** Um vínculo hipotético, do jeito que a tela o manipula antes de gravar. */
+export interface ParVinculo {
+  pagamentoId: string;
+  documentoId: string;
 }
 
 /**
- * O que aconteceria com o custo se estes pagamentos fossem ligados a este
- * documento. É o número que o seletor mostra ANTES do toque (mock s2) e a tela
- * de desvincular mostra como "de → para" (mock s9, critério 15).
+ * A MESMA `alocarCusto`, sobre o painel REAL da obra, com vínculos
+ * hipotéticos aplicados. É assim que as telas dizem o efeito no custo ANTES do
+ * toque (critério 15): comparando `alocarCusto(painel)` com
+ * `alocarSimulando(painel, ...)` e mostrando "antes → depois".
  *
- * Simula um conjunto simples (um documento e seus pagamentos), que é o que o
- * seletor manipula. O número autoritativo continua saindo de `alocarCusto`
- * sobre o grafo inteiro depois de gravado.
+ * ⚠️ Existiam aqui duas funções de PREVISÃO (removidas no Gate 2 loop 2 do
+ * CONTAI-018 — `git log` deste arquivo) que simulavam o documento e os
+ * pagamentos marcados ISOLADOS DO RESTO DO GRAFO, com os valores integrais. Era uma SEGUNDA implementação da regra fiscal central, e
+ * mais fraca que a primeira: ignorando que o candidato pode estar
+ * PARCIALMENTE COBERTO por outro vínculo, ela anunciava custo MAIOR que o
+ * real (pagamento de R$ 3.000 já coberto em R$ 1.000 anunciava R$ 3.000 de
+ * acréscimo quando o real era R$ 2.000). Superestimar custo é a direção
+ * perigosa do parecer §4 — a que gera passivo tributário. O `contador` mandou
+ * aposentá-las no Gate 2 do CONTAI-018: duas implementações da mesma regra
+ * divergem sempre, e a que fica é a que produz o número da home.
  */
-export function preverConjunto(
-  pagamentos: readonly Pagamento[],
-  documentos: readonly Documento[],
-): Previsao {
-  const somaPagamentos = pagamentos.reduce((s, p) => s + p.valorCentavos, 0);
-  const somaHabeis = documentos
-    .filter(ehDocumentoHabil)
-    .reduce((s, d) => s + valorDocumento(d), 0);
-  const comprovado = Math.min(somaPagamentos, somaHabeis);
-  return {
-    custoComprovadoCentavos: comprovado,
-    excedentePagamentoCentavos: somaPagamentos - comprovado,
-    restanteNotaCentavos: somaHabeis - comprovado,
-  };
-}
+export function alocarSimulando(
+  entrada: EntradaAlocacao,
+  mudanca: {
+    adicionar?: readonly ParVinculo[];
+    remover?: readonly ParVinculo[];
+  },
+): Alocacao {
+  const adicionar = mudanca.adicionar ?? [];
+  const remover = mudanca.remover ?? [];
+  if (adicionar.length === 0 && remover.length === 0) return alocarCusto(entrada);
 
-export function preverVinculo(
-  documento: Documento,
-  pagamentos: readonly Pagamento[],
-): Previsao {
-  return preverConjunto(pagamentos, [documento]);
+  const pagamentos = entrada.pagamentos.map((p) => {
+    const somar = adicionar
+      .filter((x) => x.pagamentoId === p.id)
+      .map((x) => x.documentoId);
+    const tirar = new Set(
+      remover.filter((x) => x.pagamentoId === p.id).map((x) => x.documentoId),
+    );
+    if (somar.length === 0 && tirar.size === 0) return p;
+    return {
+      ...p,
+      documentoIds: [
+        ...new Set([
+          ...p.documentoIds.filter((id) => !tirar.has(id)),
+          ...somar,
+        ]),
+      ],
+    };
+  });
+
+  return alocarCusto({ documentos: entrada.documentos, pagamentos });
 }

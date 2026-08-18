@@ -180,3 +180,53 @@ e é a razão pela qual a heurística é proibida.
 **Exige CRC**: o regime da empreitada e de quem é a responsabilidade
 previdenciária desta nota; a pergunta nº 1, ainda pendente; o percentual da multa
 de ofício em caso de custo inflado; e o texto que vai à declaração.
+
+---
+
+# ADENDO — 2026-08-18 · repartição cronológica do custo comprovado
+
+- **Origem**: ratificação do agente `contador` no **Gate 2 do CONTAI-018**
+  (item A1 do parecer de revisão), transcrita aqui porque **regra fiscal que só
+  existe em transcript é a falha que o `CLAUDE.md` proíbe**.
+- **Status**: **regra fiscal do projeto** — deixou de ser "decisão de
+  implementação pendente de ratificação", que era como o código a marcava.
+- **Normativo para**: `lib/fiscal/vinculo.ts` (função `cronologico` e o laço de
+  repartição de `alocarCusto`), e para qualquer cálculo futuro que reparta
+  custo comprovado entre pagamentos.
+
+## A regra
+
+> **Se** um conjunto conexo tem custo comprovado
+> **C = min(Σ pagamentos, Σ documentos hábeis)** e **Σ pagamentos > C**,
+> **então** C é atribuído aos pagamentos do conjunto **em ordem crescente de
+> data de pagamento**, cada um absorvendo até o seu valor integral, e o
+> excedente não coberto ("pago sem nota") recai sobre os **pagamentos mais
+> recentes**.
+>
+> Empate de data → ordem estável arbitrária (**sem efeito fiscal**: mesma data,
+> mesmo ano-calendário).
+
+Ela só muda algum número quando o conjunto **cruza anos-calendário** — e aí ela
+decide **em qual ano** o custo cai (regime de caixa, §1 e §3 deste parecer).
+
+## Por que cronológica, e não pro-rata
+
+1. **Imutabilidade do ano já declarado** `[Certain]` — é o argumento decisivo.
+   Qualquer regra não-cronológica faz o número de um ano mudar por causa de um
+   fato de **outro** ano: pro-rata daria R$ 1.500 a 2026 num caso em que o app
+   já dissera R$ 2.000, **contradizendo uma DAA entregue**. Sob a regra
+   cronológica, **acrescentar um pagamento posterior nunca altera a alocação de
+   um pagamento anterior**.
+2. **A fotografia de 31/12** `[Likely]` — o que a ficha Bens e Direitos
+   descreve naquela data é o que de fato estava **desembolsado e coberto**
+   naquela data.
+3. **O "pago sem nota" fica no pagamento mais recente** `[Certain]` — que é o
+   único ainda **cobrável do empreiteiro** (§4 deste parecer: o alerta só serve
+   se apontar para a nota que ainda dá para exigir).
+
+## Alcance da ratificação
+
+- A convenção **não exige CRC**.
+- **Continuam exigindo CRC**: o **texto da discriminação** que vai à
+  declaração; qualquer **retificadora**; e o caso de **venda entre os dois
+  anos-calendário** do conjunto.
