@@ -176,6 +176,38 @@ pare de aparecer duas vezes.
     vínculo, com os candidatos sugeridos — para o Mateus limpar o passivo (a NF da
     WK inclusive) em uma sessão, sem caçar registro por registro.
 
+## Diretriz de desenho — a bifurcação de `/adicionar` some (Mateus, 2026-08-18)
+
+Relato dele, depois de usar a tela:
+
+> "essa tela confunde porque ou eu subo uma nota fiscal não linkada a pagamento,
+> ou diz ali para registrar um pagamento sem nota fiscal, mas eu queria registrar
+> um pagamento COM nota fiscal"
+
+**O diagnóstico é dele e está certo: nenhuma das duas opções é o caso comum.**
+Uma é documento sem pagamento; a outra é pagamento sem documento. *Paguei e
+tenho a nota* — que é o fluxo normal da obra — **não tem porta**. A bifurcação
+obriga o usuário a escolher **metade da despesa** e depois não oferece como
+juntar a outra metade. É o defeito do vínculo aparecendo um passo antes.
+
+**Proposta dele**: uma entrada só, "registrar pagamento", com a nota opcional
+dentro.
+
+**Ajuste, porque a versão literal perde um caso**: documento que chega **antes**
+do pagamento — boleto a vencer, NF que chegou e será paga semana que vem — é o
+caso que sustenta a fila de boletos a pagar da US-002. Com "registrar pagamento"
+como única porta, ele fica de fora.
+
+**Diretriz para o mock**: **uma porta só — "registrar gasto"** — com **documento
+e pagamento como campos dentro, qualquer um dos dois podendo ficar vazio**. O app
+**deduz o estado** (comprovado / documento sem desembolso / desembolso sem
+documento) em vez de exigir que o usuário declare de antemão qual metade tem.
+
+O designer resolve a forma; a diretriz é: **o usuário não escolhe entre duas
+naturezas de registro, ele registra um gasto.** Se o designer concluir que a
+porta única não cabe em 375px com uma mão, ele devolve ao PO com a alternativa —
+não reintroduz a bifurcação por conveniência de layout.
+
 ## Gate 0 — mock
 
 **Obrigatório.** É formulário novo em tela de canteiro, e o seletor de candidatos
