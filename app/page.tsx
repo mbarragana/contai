@@ -21,6 +21,7 @@ import {
   Corpo,
   Dica,
   EstadoErro,
+  Passo,
 } from "@/app/_components/ui";
 import {
   carregarObras,
@@ -31,6 +32,10 @@ import {
 } from "@/lib/data";
 import { escolherObraAtiva } from "@/lib/fiscal/obra";
 import { calcularResumo, type Pendencia, type ResumoObra } from "@/lib/fiscal/resumo";
+import {
+  EXPLICACAO_CUSTO_ZERO,
+  EXPLICACAO_NOTAS_SEM_PAGAMENTO,
+} from "@/lib/fiscal/vinculo";
 import { hojeIso } from "@/lib/hoje";
 import { formatarBRL } from "@/lib/money";
 import { lerObraPreferida } from "@/lib/obra-ativa";
@@ -42,6 +47,7 @@ type Estado =
 
 const ACAO_POR_TIPO: Partial<Record<Pendencia["tipo"], string>> = {
   quarentena: "Resolver",
+  boleto_sem_nf: "Ver detalhes",
   servico_sem_retencao: "Ver detalhes",
 };
 
@@ -132,6 +138,26 @@ export default function Home() {
               <div className="mono text-[26px] font-bold tracking-tight">
                 {formatarBRL(estado.resumo.custoConfirmadoAnoCentavos)}
               </div>
+              {/* Critério 14: o zero NUNCA aparece mudo havendo registro na
+                  obra. O texto é cópia literal do parecer §5.1 — colapsar
+                  "não demonstrável" em "inexistente" é o defeito que este
+                  ticket veio matar. */}
+              {estado.resumo.custoConfirmadoAnoCentavos === 0 &&
+              estado.resumo.temRegistro ? (
+                <Consequencia cor="amb">
+                  {EXPLICACAO_CUSTO_ZERO} Ligue cada pagamento à sua nota nas
+                  seções abaixo.
+                </Consequencia>
+              ) : null}
+              {estado.resumo.despesas.length > 0 ? (
+                <Dica>
+                  {estado.resumo.despesas.length}{" "}
+                  {estado.resumo.despesas.length === 1
+                    ? "despesa comprovada"
+                    : "despesas comprovadas"}{" "}
+                  — nota + pagamento ligados
+                </Dica>
+              ) : null}
               <div className="mono mt-1 text-[14px] font-semibold">
                 Acumulado desta obra:{" "}
                 {formatarBRL(estado.resumo.acumuladoImovelCentavos)}
@@ -169,6 +195,78 @@ export default function Home() {
               />
             )}
 
+            {/* O TERCEIRO ESTADO (parecer §5.2). Seção PRÓPRIA, fora das
+                pendências de propósito: este número não soma com o custo
+                confirmado nem com o custo em risco. O mock s10 desenhou o
+                cartão dentro de "Pendências"; o parecer vence. */}
+            {estado.resumo.notasSemPagamento.length > 0 ? (
+              <>
+                <Passo>Notas hábeis sem pagamento vinculado</Passo>
+                <Card className="border-amb">
+                  <div className="mono text-[19px] font-bold">
+                    {formatarBRL(estado.resumo.notasSemPagamentoCentavos)}
+                  </div>
+                  <Consequencia cor="amb">
+                    {EXPLICACAO_NOTAS_SEM_PAGAMENTO}
+                  </Consequencia>
+                  <Dica>
+                    Não soma com o custo confirmado nem com o que está em
+                    pendência.
+                  </Dica>
+                </Card>
+                {estado.resumo.notasSemPagamento.map((n) => (
+                  <Card key={n.id}>
+                    <Chip cor="amb">Sem pagamento ligado</Chip>
+                    <div className="mt-1.5 font-semibold">{n.titulo}</div>
+                    <Dica>
+                      {n.detalhe} ·{" "}
+                      <span className="mono">{formatarBRL(n.valorCentavos)}</span>
+                    </Dica>
+                    <div className="mt-2.5">
+                      <BotaoLink href={`${n.href}/ligar`} variante="primary">
+                        Ligar a um pagamento
+                      </BotaoLink>
+                    </div>
+                  </Card>
+                ))}
+              </>
+            ) : null}
+
+            {/* Critério 13: o par vira UMA despesa — não a NF e o PIX lado a
+                lado, que é a palavra "duplicadas" do relato. */}
+            {estado.resumo.despesas.length > 0 ? (
+              <>
+                <Passo>Despesas comprovadas</Passo>
+                {estado.resumo.despesas.map((d) => (
+                  <Card key={d.id} className="border-grn">
+                    <Chip cor="grn">Custo comprovado</Chip>
+                    <div className="mt-1.5 font-semibold">
+                      {d.titulo} ·{" "}
+                      <span className="mono">{formatarBRL(d.valorCentavos)}</span>
+                    </div>
+                    <Dica>{d.detalhe}</Dica>
+                    {d.noAnoCentavos !== d.valorCentavos ? (
+                      <Dica>
+                        Em {estado.resumo.ano}:{" "}
+                        <span className="mono">
+                          {formatarBRL(d.noAnoCentavos)}
+                        </span>{" "}
+                        — o resto caiu no ano do pagamento que o gerou (regime
+                        de caixa).
+                      </Dica>
+                    ) : null}
+                    <div className="mt-2.5">
+                      <BotaoLink href={d.href}>Ver a despesa</BotaoLink>
+                    </div>
+                  </Card>
+                ))}
+              </>
+            ) : null}
+
+            {estado.resumo.pendencias.length > 0 ? (
+              <Passo>Pendências</Passo>
+            ) : null}
+
             {estado.resumo.pendencias.length === 0 ? (
               <Banner cor="grn" role="status">
                 <strong>Nenhuma pendência.</strong> Todo documento e pagamento
@@ -190,6 +288,16 @@ export default function Home() {
                     <BotaoLink href={p.href}>{ACAO_POR_TIPO[p.tipo]}</BotaoLink>
                   </div>
                 ) : null}
+                {/* Critério 3: o cartão "pago sem nota" leva ao seletor
+                    inverso — metade do parque de registros nasceu como PIX e
+                    não tinha porta nenhuma. */}
+                {p.itens?.map((item) => (
+                  <div key={item.id} className="mt-2.5">
+                    <BotaoLink href={item.href}>
+                      Ligar a uma nota — {item.rotulo}
+                    </BotaoLink>
+                  </div>
+                ))}
               </Card>
             ))}
 
