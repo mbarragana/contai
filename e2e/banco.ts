@@ -342,6 +342,22 @@ export async function criarPagamento(
   return data!.id;
 }
 
+/**
+ * Vínculo montado direto no banco, pelo MESMO client autenticado — cenário de
+ * "isto já estava ligado antes de o Mateus abrir a tela", não comportamento
+ * sob teste.
+ */
+export async function criarVinculo(
+  db: Db,
+  pagamentoId: string,
+  documentoId: string,
+): Promise<void> {
+  const { error } = await db
+    .from("pagamento_documento")
+    .insert({ pagamento_id: pagamentoId, documento_id: documentoId });
+  conferir("criar vínculo", error);
+}
+
 // ── Leituras de verificação ──────────────────────────────────────────────
 
 export async function documentos(db: Db) {

@@ -29,7 +29,13 @@ import type {
   TipoFavorecido,
 } from "@/lib/types";
 
-type ComFavorecido = { favorecido: { nome: string } | null };
+/**
+ * O emitente do documento, com o CNPJ/CPF junto: quem registra o pagamento a
+ * partir da nota precisa dos DOIS para não recriar o favorecido com typo.
+ */
+type ComFavorecido = {
+  favorecido: { nome: string; documento: string } | null;
+};
 /** Pagamento também precisa do tipo: PF espera recibo, PJ espera NF. */
 type ComFavorecidoTipado = {
   favorecido: { nome: string; tipo: TipoFavorecido } | null;
@@ -79,6 +85,7 @@ function paraDocumento(row: DocumentoRow & ComFavorecido): Documento {
     retencao11: row.retencao_11,
     motivoQuarentena: row.motivo_quarentena,
     favorecidoNome: row.favorecido?.nome ?? null,
+    favorecidoDocumento: row.favorecido?.documento ?? null,
     arquivoPath: row.arquivo_path,
   };
 }
@@ -226,7 +233,7 @@ export async function carregarPainel(obraId: string): Promise<PainelDados> {
   const [documentos, pagamentos, vinculos] = await Promise.all([
     supabase
       .from("documento")
-      .select("*, favorecido(nome)")
+      .select("*, favorecido(nome, documento)")
       .eq("obra_id", obra.id)
       .order("created_at", { ascending: false }),
     supabase
@@ -270,7 +277,7 @@ export async function carregarPaineis(): Promise<PainelDados[]> {
   const [documentos, pagamentos, vinculos] = await Promise.all([
     supabase
       .from("documento")
-      .select("*, favorecido(nome)")
+      .select("*, favorecido(nome, documento)")
       .order("created_at", { ascending: false }),
     supabase
       .from("pagamento")
@@ -301,7 +308,7 @@ export async function carregarPaineis(): Promise<PainelDados[]> {
 export async function carregarDocumento(id: string): Promise<Documento> {
   const { data, error } = await getSupabase()
     .from("documento")
-    .select("*, favorecido(nome)")
+    .select("*, favorecido(nome, documento)")
     .eq("id", id)
     .limit(1);
   if (error) throw error;

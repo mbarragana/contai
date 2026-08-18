@@ -31,6 +31,7 @@ function doc(over: Partial<Documento> & { id: string }): Documento {
     retencao11: null,
     motivoQuarentena: null,
     favorecidoNome: "Casa do Construtor",
+    favorecidoDocumento: "11444777000161",
     arquivoPath: "u/documento/a.pdf",
     ...over,
   };

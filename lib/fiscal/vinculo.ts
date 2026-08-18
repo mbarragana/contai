@@ -371,6 +371,35 @@ export function documentosHabeisSemPagamento(
   );
 }
 
+/**
+ * Quanto FALTA pagar desta nota, em centavos, ou `null` quando não dá para
+ * afirmar. É LEITURA DERIVADA de `alocarCusto` — de propósito não recalcula
+ * cobertura nenhuma: "quanto falta nesta nota" não pode ter duas fontes de
+ * verdade, e a que fica é a que produz o número da home (mesma lição do
+ * `alocarSimulando`).
+ *
+ * Serve para SUGERIR o valor de um pagamento que nasce ligado à nota: a
+ * empreiteira emite nota por medição e o pagamento costuma bater com ela. É
+ * sugestão em campo editável, nunca cálculo fiscal.
+ *
+ * Devolve `null` — campo vazio, que pergunta em vez de afirmar — quando:
+ * - a nota está sem valor informado (não há o que sugerir);
+ * - a nota NÃO é hábil (boleto, quarentena): `alocarCusto` mantém a cobertura
+ *   dela em zero por decisão fiscal, então "valor − coberto" devolveria o
+ *   valor CHEIO mesmo depois de paga — era por aí que a segunda parcela viria
+ *   com o total de novo e o custo entraria em dobro;
+ * - a nota já está coberta por inteiro (não falta nada a pagar).
+ */
+export function saldoDescobertoDaNota(
+  documento: Documento,
+  alocacao: Alocacao,
+): number | null {
+  if (documento.valorCentavos === null) return null;
+  const alocado = alocacao.porDocumento.get(documento.id);
+  if (!alocado || !alocado.habil) return null;
+  return alocado.excedenteNotaCentavos > 0 ? alocado.excedenteNotaCentavos : null;
+}
+
 /** Componentes que efetivamente comprovam custo — a "despesa comprovada" (critério 13). */
 export function despesasComprovadas(alocacao: Alocacao): Componente[] {
   return alocacao.componentes.filter((c) => c.custoComprovadoCentavos > 0);

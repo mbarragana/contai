@@ -32,6 +32,21 @@ export function formatarBRL(centavos: number): string {
   return FORMATADOR.format(centavos / 100);
 }
 
+const FORMATADOR_ENTRADA = new Intl.NumberFormat("pt-BR", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+/**
+ * centavos → o texto que o campo de valor aceita ("3.000,00"), sem "R$": é o
+ * mesmo formato que sai do dedo do Mateus, e volta por `parseValorInput` sem
+ * perda. Serve para SUGERIR valor num campo editável — nunca para exibir
+ * número fiscal pronto, que é papel do `formatarBRL`.
+ */
+export function centavosParaInput(centavos: number): string {
+  return FORMATADOR_ENTRADA.format(centavos / 100);
+}
+
 /**
  * Entrada digitada no celular ("4850", "4.850,00", "4850.00") → centavos.
  * `null` = não dá para interpretar; o formulário trata como erro, nunca

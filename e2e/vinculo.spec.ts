@@ -9,7 +9,9 @@ import {
   criarDocumento,
   criarFavorecido,
   criarPagamento,
+  criarVinculo,
   documentos,
+  favorecidos,
   pagamentos,
   vinculos,
   type Db,
@@ -426,15 +428,20 @@ test.describe("caminho A — vínculo no ato do registro", () => {
     await expect(
       page.getByRole("button", { name: "Desfazer o vínculo antes de salvar" }),
     ).toBeVisible();
-    // O favorecido veio da nota; o VALOR não vem — default em campo fiscal é
-    // proibido.
+
+    // Os TRÊS vêm da nota. O CNPJ é o que trava a regressão do relato de
+    // 2026-08-18: redigitado à mão, um dígito trocado criaria um segundo
+    // favorecido e a ficha Pagamentos Efetuados sairia com a WK em duas linhas.
     await expect(page.getByLabel("Favorecido", { exact: true })).toHaveValue(
       "WK Construções LTDA",
     );
-    await expect(page.getByLabel("Valor")).toHaveValue("");
+    await expect(page.getByLabel("CNPJ / CPF do favorecido")).toHaveValue(
+      CNPJ_WK,
+    );
+    // Nota sem pagamento nenhum ligado: falta ela inteira.
+    await expect(page.getByLabel("Valor")).toHaveValue("3.000,00");
+    await expect(page.getByText("Vem da nota — valor da nota.")).toBeVisible();
 
-    await page.getByLabel("CNPJ / CPF do favorecido").fill(CNPJ_WK);
-    await page.getByLabel("Valor").fill("3.000,00");
     await page.getByLabel("Comprovante").setInputFiles(png("pix-wk.png"));
 
     await page
@@ -444,9 +451,66 @@ test.describe("caminho A — vínculo no ato do registro", () => {
 
     const pagos = await pagamentos(db);
     expect(pagos).toHaveLength(1);
+    expect(Number(pagos[0].valor)).toBe(3000);
     expect(await vinculos(db)).toEqual([
       { pagamento_id: pagos[0].id, documento_id: documentoId },
     ]);
+    // Nada de favorecido novo: o CNPJ que voltou do banco é o mesmo que subiu.
+    expect(await favorecidos(db)).toHaveLength(1);
+  });
+
+  /**
+   * ⚠️ A regressão cara desta sugestão: a nota de medição já tem uma parcela
+   * paga. Se o campo trouxesse os R$ 3.000 cheios de novo, o Mateus salvaria
+   * sem reparar e o custo entraria em dobro — a única direção de erro que gera
+   * passivo tributário (parecer §4).
+   */
+  test("nota com parcela já paga: o valor sugerido é o que FALTA", async ({
+    page,
+    db,
+  }) => {
+    // O cenário traz a NF de R$ 3.000 e um PIX de R$ 3.000 SOLTO — ele fica
+    // solto de propósito: pagamento não ligado a esta nota não pode entrar no
+    // saldo dela.
+    const { wk, documentoId, pagamentoId: solto } = await cenarioWk(db);
+    const parcela = await criarPagamento(db, {
+      favorecido_id: wk,
+      valor: 1000,
+      data_pagamento: `${ANO}-07-10`,
+      meio: "pix",
+      status: "aguardando_nf",
+      comprovante_path: `${USER_ID_SEED}/comprovante/pix-wk-1.png`,
+    });
+    await criarVinculo(db, parcela, documentoId);
+
+    await page.goto(`/documento/${documentoId}`);
+    await page
+      .getByRole("link", { name: "Registrar o pagamento desta nota" })
+      .click();
+
+    await expect(page.getByLabel("Valor")).toHaveValue("2.000,00");
+    await expect(page.getByText("Vem da nota — falta desta nota.")).toBeVisible();
+    await expect(page.getByLabel("CNPJ / CPF do favorecido")).toHaveValue(
+      CNPJ_WK,
+    );
+
+    await page.getByLabel("Comprovante").setInputFiles(png("pix-wk-2.png"));
+    await page
+      .getByRole("button", { name: "Salvar pagamento e ligar à nota" })
+      .click();
+    await expect(page.getByRole("heading", { name: "Registrado ✓" })).toBeVisible();
+
+    // R$ 1.000 + R$ 2.000 = a nota, e não R$ 4.000.
+    const ligados = (await vinculos(db)).filter(
+      (v) => v.documento_id === documentoId,
+    );
+    expect(ligados).toHaveLength(2);
+    const pagos = await pagamentos(db);
+    const soma = ligados
+      .map((v) => Number(pagos.find((p) => p.id === v.pagamento_id)!.valor))
+      .reduce((a, b) => a + b, 0);
+    expect(soma).toBe(3000);
+    expect(ligados.map((v) => v.pagamento_id)).not.toContain(solto);
   });
 });
 

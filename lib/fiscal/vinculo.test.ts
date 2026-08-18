@@ -13,6 +13,7 @@ import {
   pagamentosCandidatos,
   pagamentosOcultosPorCobertura,
   podeVincular,
+  saldoDescobertoDaNota,
 } from "@/lib/fiscal/vinculo";
 import type { Documento, Pagamento } from "@/lib/types";
 
@@ -30,6 +31,7 @@ function doc(over: Partial<Documento> & { id: string }): Documento {
     retencao11: true,
     motivoQuarentena: null,
     favorecidoNome: "WK Construções LTDA",
+    favorecidoDocumento: "11222333000181",
     arquivoPath: "u/documento/nf.pdf",
     ...over,
   };
@@ -733,5 +735,62 @@ describe("candidatos escondidos por já estarem cobertos", () => {
     };
     const a = alocarCusto(painel);
     expect(pagamentosOcultosPorCobertura(alvo, painel.pagamentos, a)).toEqual([]);
+  });
+});
+
+/**
+ * O número que a tela de registrar o pagamento SUGERE no campo Valor quando o
+ * pagamento nasce ligado a uma nota (2026-08-18). É sugestão em campo
+ * editável, e ainda assim o erro caro mora aqui: sugerir o valor CHEIO na
+ * segunda parcela dobra o custo declarado.
+ */
+describe("saldo a pagar da nota (sugestão do campo Valor)", () => {
+  it("nota sem pagamento ligado: falta ela inteira", () => {
+    const nota = doc({ id: "d1", valorCentavos: 300_000 });
+    expect(saldoDescobertoDaNota(nota, alocar([nota], []))).toBe(300_000);
+  });
+
+  it("⚠️ nota com parcela já ligada: falta o RESTO, nunca o valor cheio", () => {
+    // A segunda medição da empreiteira. Se voltasse R$ 3.000 aqui, o Mateus
+    // salvaria sem reparar e o custo entraria em dobro — parecer §4.
+    const nota = doc({ id: "d1", valorCentavos: 300_000 });
+    const parcela = pag({ id: "p1", valorCentavos: 100_000, documentoIds: ["d1"] });
+    expect(saldoDescobertoDaNota(nota, alocar([nota], [parcela]))).toBe(200_000);
+  });
+
+  it("nota já coberta por inteiro não sugere nada", () => {
+    const nota = doc({ id: "d1", valorCentavos: 300_000 });
+    const pago = pag({ id: "p1", valorCentavos: 300_000, documentoIds: ["d1"] });
+    expect(saldoDescobertoDaNota(nota, alocar([nota], [pago]))).toBeNull();
+  });
+
+  it("nota sem valor informado não sugere nada", () => {
+    const nota = doc({ id: "d1", valorCentavos: null });
+    expect(saldoDescobertoDaNota(nota, alocar([nota], []))).toBeNull();
+  });
+
+  it("boleto e quarentena não sugerem: a alocação mantém a cobertura deles em zero", () => {
+    // "valor − coberto" devolveria o valor CHEIO mesmo depois de pago, que é
+    // exatamente o erro que o caso da parcela acima proíbe.
+    const boleto = doc({ id: "d1", tipo: "boleto", valorCentavos: 300_000 });
+    const quarentena = doc({
+      id: "d2",
+      status: "quarentena",
+      motivoQuarentena: "nota fora do CPF",
+      destinatarioCpfOk: false,
+      valorCentavos: 300_000,
+    });
+    const pagos = [
+      pag({ id: "p1", valorCentavos: 100_000, documentoIds: ["d1"] }),
+      pag({ id: "p2", valorCentavos: 100_000, documentoIds: ["d2"] }),
+    ];
+    const a = alocar([boleto, quarentena], pagos);
+    expect(saldoDescobertoDaNota(boleto, a)).toBeNull();
+    expect(saldoDescobertoDaNota(quarentena, a)).toBeNull();
+  });
+
+  it("documento fora da alocação não sugere nada", () => {
+    const nota = doc({ id: "d1", valorCentavos: 300_000 });
+    expect(saldoDescobertoDaNota(nota, alocar([], []))).toBeNull();
   });
 });

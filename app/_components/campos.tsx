@@ -22,6 +22,7 @@ export function CampoTexto({
   valor,
   onChange,
   erro,
+  ajuda,
   tipo = "text",
   placeholder,
   inputMode,
@@ -32,6 +33,12 @@ export function CampoTexto({
   valor: string;
   onChange: (v: string) => void;
   erro?: string;
+  /**
+   * De onde veio o que está no campo. Campo preenchido pelo app SEM dizer a
+   * origem lê como algo que o usuário digitou e conferiu — e não foi isso que
+   * aconteceu.
+   */
+  ajuda?: string;
   tipo?: "text" | "date" | "email" | "password";
   placeholder?: string;
   inputMode?: "text" | "numeric" | "decimal" | "email";
@@ -59,6 +66,7 @@ export function CampoTexto({
           erro ? "border-red" : "border-line"
         } ${classe}`}
       />
+      {ajuda ? <p className="text-[12px] text-mut">{ajuda}</p> : null}
       <ErroCampo mensagem={erro} />
     </div>
   );

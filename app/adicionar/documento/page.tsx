@@ -211,6 +211,7 @@ export default function RegistrarDocumento() {
       retencao11: null,
       motivoQuarentena: null,
       favorecidoNome: nome.trim() || null,
+      favorecidoDocumento: soDigitos(documento) || null,
       arquivoPath: "",
     };
     return pagamentosCandidatos(
@@ -218,7 +219,7 @@ export default function RegistrarDocumento() {
       painelDaObra.pagamentos,
       alocarCusto(painelDaObra),
     );
-  }, [painelDaObra, obra, tipo, notaNoCpf, valor, classificacao, nome]);
+  }, [painelDaObra, obra, tipo, notaNoCpf, valor, classificacao, nome, documento]);
 
   async function salvar() {
     const encontrados = validarDocumento(entrada);

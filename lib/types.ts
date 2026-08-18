@@ -66,6 +66,13 @@ export interface Documento {
   retencao11: boolean | null;
   motivoQuarentena: string | null;
   favorecidoNome: string | null;
+  /**
+   * CNPJ/CPF do emitente, só dígitos. Vem junto do nome porque a tela de
+   * registrar o pagamento da nota preenche os dois: fazer o Mateus redigitar o
+   * documento arrisca um favorecido duplicado por typo — e a dedup de
+   * `garantirFavorecido` é pelo DOCUMENTO, não pelo nome.
+   */
+  favorecidoDocumento: string | null;
   arquivoPath: string;
 }
 

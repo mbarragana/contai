@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  centavosParaInput,
   centavosParaNumeric,
   formatarBRL,
   numericParaCentavos,
@@ -74,5 +75,26 @@ describe("formatarBRL", () => {
     expect(normalizar(formatarBRL(485000))).toBe("R$ 4.850,00");
     expect(normalizar(formatarBRL(0))).toBe("R$ 0,00");
     expect(normalizar(formatarBRL(93240055))).toBe("R$ 932.400,55");
+  });
+});
+
+/**
+ * O formato que volta para o campo editável quando o app SUGERE um valor
+ * (pagamento que nasce ligado a uma nota). Tem de ser o mesmo texto que sai do
+ * dedo do Mateus: se `parseValorInput` não conseguisse ler de volta o que
+ * `centavosParaInput` escreveu, o campo sugerido reprovaria na validação.
+ */
+describe("centavosParaInput", () => {
+  it("escreve como o campo espera, sem R$", () => {
+    expect(centavosParaInput(300_000)).toBe("3.000,00");
+    expect(centavosParaInput(4_085_714)).toBe("40.857,14");
+    expect(centavosParaInput(1)).toBe("0,01");
+    expect(centavosParaInput(0)).toBe("0,00");
+  });
+
+  it("volta por parseValorInput sem perder centavo", () => {
+    for (const centavos of [1, 999, 300_000, 4_085_714, 123_456_789]) {
+      expect(parseValorInput(centavosParaInput(centavos))).toBe(centavos);
+    }
   });
 });

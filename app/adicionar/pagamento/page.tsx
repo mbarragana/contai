@@ -22,6 +22,7 @@ import {
 } from "@/app/_components/ui";
 import {
   carregarDocumento,
+  carregarPainel,
   classificarErro,
   criarPagamento,
   criarVinculos,
@@ -30,11 +31,17 @@ import {
   subirParaAcervo,
 } from "@/lib/data";
 import {
+  alocarCusto,
   ehDocumentoHabil,
   MOTIVO_OBRA_DIFERENTE,
   podeVincular,
+  saldoDescobertoDaNota,
 } from "@/lib/fiscal/vinculo";
-import { soDigitos, tipoPorDocumento } from "@/lib/fiscal/identificacao";
+import {
+  formatarDocumento,
+  soDigitos,
+  tipoPorDocumento,
+} from "@/lib/fiscal/identificacao";
 import {
   MEIO_PAGAMENTO_AVULSO,
   STATUS_PAGAMENTO_AVULSO,
@@ -45,7 +52,7 @@ import {
   type ErroCampoPagamento,
 } from "@/lib/fiscal/pagamento";
 import { hojeIso } from "@/lib/hoje";
-import { formatarBRL, parseValorInput } from "@/lib/money";
+import { centavosParaInput, formatarBRL, parseValorInput } from "@/lib/money";
 import type { Documento, TipoFavorecido } from "@/lib/types";
 
 type Fase =
@@ -71,6 +78,13 @@ type Fase =
        */
       motivoSemVinculo: string | null;
     };
+
+/**
+ * De onde saiu o número do campo Valor. Rótulo curto e literal — o campo
+ * preenchido pelo app sem dizer a origem lê como algo já conferido, e não foi.
+ */
+const ROTULO_VALOR_DA_NOTA = "valor da nota";
+const ROTULO_FALTA_DA_NOTA = "falta desta nota";
 
 function RegistrarPagamento() {
   // Mesma regra do documento: obra afirmada na tela, trocável aqui, e é ela
@@ -102,26 +116,82 @@ function RegistrarPagamento() {
   const [data, setData] = useState(hojeIso);
   const [comprovante, setComprovante] = useState<File | null>(null);
   const [erros, setErros] = useState<ErroCampoPagamento[]>([]);
+  /**
+   * O valor que veio da nota, guardado para a tela poder DIZER de onde ele
+   * saiu. A ajuda só aparece enquanto o campo continua com esse número: no
+   * instante em que o Mateus digita outro, o texto some — rótulo que sobrevive
+   * à edição vira mentira sobre a origem do número.
+   */
+  const [sugestaoValor, setSugestaoValor] = useState<{
+    texto: string;
+    rotulo: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!documentoDeOrigemId) return;
     let cancelado = false;
+
+    /**
+     * O VALOR também vem da nota, e vem como SALDO — o que ainda falta pagar
+     * dela, nunca o valor cheio de novo (decisão do Mateus, 2026-08-18: a
+     * empreiteira emite nota por medição, e o pagamento costuma bater com ela).
+     *
+     * Quem calcula é `saldoDescobertoDaNota`, LEITURA da mesma alocação que
+     * produz o número da home — não existe segunda conta de "quanto falta
+     * nesta nota". Repetir o valor cheio na segunda parcela dobraria o custo,
+     * que é a única direção de erro que gera passivo tributário (parecer §4).
+     *
+     * Nota sem valor, não hábil ou já coberta por inteiro não sugere nada:
+     * campo vazio pergunta, campo preenchido afirma.
+     */
+    async function preencherValorDaNota(nota: Documento) {
+      try {
+        // O painel é o da obra DA NOTA: o saldo dela sai dos pagamentos já
+        // ligados a ela, e nada soma entre obras.
+        const painel = await carregarPainel(nota.obraId);
+        if (cancelado) return;
+        const saldo = saldoDescobertoDaNota(nota, alocarCusto(painel));
+        if (saldo === null) return;
+        const texto = centavosParaInput(saldo);
+        setSugestaoValor({
+          texto,
+          rotulo:
+            saldo === nota.valorCentavos
+              ? ROTULO_VALOR_DA_NOTA
+              : ROTULO_FALTA_DA_NOTA,
+        });
+        setValor((atual) => atual || texto);
+      } catch {
+        // Painel que não carrega deixa o campo vazio, e nada além disso: o
+        // valor é digitável, e o registro do dispêndio não pode depender dele.
+      }
+    }
+
     void (async () => {
       try {
         const carregado = await carregarDocumento(documentoDeOrigemId);
         if (cancelado) return;
         setDocumentoDeOrigem(carregado);
-        // O nome do emitente vem da nota porque é a mesma pessoa e poupa
-        // digitação no canteiro. O VALOR não vem: default em campo fiscal é
-        // proibido, e "pagou exatamente o valor da nota" é suposição — o caso
-        // da parcela é o comum na obra.
+        // NOME e CNPJ/CPF vêm da nota porque é o MESMO favorecido, e ele já
+        // existe no banco com esse documento. Não é (só) para poupar
+        // digitação: a dedup de `garantirFavorecido` é pela chave
+        // (dono, DOCUMENTO), então um dígito trocado na redigitação cria um
+        // SEGUNDO favorecido, e a ficha Pagamentos Efetuados sairia com a
+        // mesma empresa em duas linhas. Nenhum dos dois sobrescreve o que já
+        // está no campo — o dedo do Mateus vence o carregamento.
         setNome((atual) => atual || (carregado.favorecidoNome ?? ""));
+        setDocumento(
+          (atual) =>
+            atual || formatarDocumento(carregado.favorecidoDocumento ?? ""),
+        );
+        await preencherValorDaNota(carregado);
       } catch {
         // Documento que não abre não pode travar o registro do pagamento: o
         // dispêndio é o fato, e ele tem de entrar. O vínculo se faz depois.
         if (!cancelado) setDocumentoDeOrigemId(null);
       }
     })();
+
     return () => {
       cancelado = true;
     };
@@ -280,6 +350,12 @@ function RegistrarPagamento() {
 
   const rotulos = rotulosPagoSemNota(tipoFavorecido);
 
+  // Só enquanto o campo mostra o número que veio da nota (ver `sugestaoValor`).
+  const ajudaValor =
+    sugestaoValor && valor === sugestaoValor.texto
+      ? `Vem da nota — ${sugestaoValor.rotulo}. Dá para trocar.`
+      : undefined;
+
   // Tela 12 — troca sem sair do fluxo.
   if (trocando && obra) {
     return (
@@ -392,6 +468,7 @@ function RegistrarPagamento() {
                 onChange={setValor}
                 inputMode="decimal"
                 placeholder="0,00"
+                ajuda={ajudaValor}
                 erro={erroDe("valorCentavos")}
               />
               <CampoTexto
