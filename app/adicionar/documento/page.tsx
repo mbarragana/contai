@@ -58,6 +58,7 @@ import {
   alocarCusto,
   ehDocumentoHabil,
   pagamentosCandidatos,
+  VINCULO_QUARENTENA_NAO_GERA_CUSTO,
   type Candidato,
 } from "@/lib/fiscal/vinculo";
 import { hojeIso } from "@/lib/hoje";
@@ -247,14 +248,18 @@ export default function RegistrarDocumento() {
         motivo_quarentena: motivoQuarentena(notaNoCpf),
       });
 
-      // Documento fora do CPF: a consequência tem que aparecer na hora.
-      if (status === "quarentena") {
-        router.push(`/documento/${id}`);
-        return;
-      }
       // Caminho A: o vínculo vem depois do documento e em outra chamada — não
       // há transação entre tabelas no PostgREST. Falhando, o documento fica
       // salvo e a tela DIZ que ele ficou sem vínculo (critério 1).
+      //
+      // ⚠️ QUARENTENA TAMBÉM LIGA (critério 8). A navegação para a tela do
+      // documento acontecia ANTES daqui, e os pagamentos marcados eram
+      // descartados sem uma palavra. O parecer diz o contrário: vincular
+      // quarentena é permitido e útil — é o que impede a mesma despesa de
+      // contar duas vezes —, com o texto de VINCULO_QUARENTENA_NAO_GERA_CUSTO
+      // dito na hora, que os dois seletores já mostram. O vínculo entra com
+      // `documentoHabil: false`: ele não gera custo confirmado, e o pagamento
+      // NÃO vira `conciliado`.
       const paraLigar = candidatos.filter((c) => marcados.includes(c.item.id));
       let vinculoFalhou = false;
       if (paraLigar.length > 0) {
@@ -274,6 +279,13 @@ export default function RegistrarDocumento() {
         } catch {
           vinculoFalhou = true;
         }
+      }
+
+      // Documento fora do CPF: a consequência tem que aparecer na hora — e
+      // agora com os vínculos já gravados.
+      if (status === "quarentena") {
+        router.push(`/documento/${id}`);
+        return;
       }
 
       setFase({
@@ -523,6 +535,15 @@ export default function RegistrarDocumento() {
                     Marque os pagamentos já registrados que correspondem a esta
                     nota. Nada vem marcado — o vínculo é você que afirma.
                   </Dica>
+
+                  {/* Critério 8: quarentena PODE ser ligada — é o que impede a
+                      mesma despesa de contar duas vezes —, e o texto do parecer
+                      é dito na hora, como nos dois seletores. */}
+                  {notaNoCpf === "nao" ? (
+                    <Banner cor="red" role="status">
+                      {VINCULO_QUARENTENA_NAO_GERA_CUSTO}
+                    </Banner>
+                  ) : null}
 
                   {erroCandidatos ? (
                     <Banner cor="red" role="alert">
