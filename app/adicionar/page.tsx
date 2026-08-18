@@ -1,6 +1,19 @@
 import { AppBar, BotaoLink, Corpo, Dica, Rodape } from "@/app/_components/ui";
 
-/** Tela 2 do mock: as duas portas de entrada. */
+/**
+ * Tela 2 do mock: as duas portas de entrada.
+ *
+ * Diretriz D1 do CONTAI-018 (Mateus, 2026-08-18): as duas entradas FICAM
+ * separadas, e o rótulo do pagamento perde a negativa. "Pagamento — PIX sem
+ * nota" enquadrava como exceção justamente o caminho que ele mais usa (a nota
+ * costuma existir; ele é que não tinha onde dizer isso), e empurrava para
+ * fora quem tem nota.
+ *
+ * Critério 19: nenhuma frase daqui promete comportamento que não existe. A
+ * frase "Pagou e o documento ainda não existe? Registra agora; a NF vincula
+ * depois" saiu — ela ensinava a confiar num mecanismo inexistente, e o
+ * passivo de registros soltos crescia com o consentimento do usuário.
+ */
 export default function Adicionar() {
   return (
     <>
@@ -15,11 +28,11 @@ export default function Adicionar() {
         </Dica>
 
         <BotaoLink href="/adicionar/pagamento" variante="primary">
-          💸 Pagamento — PIX sem nota
+          💸 Pagamento
         </BotaoLink>
         <Dica>
-          Pagou e o documento ainda não existe? Registra agora; a NF vincula
-          depois.
+          O dinheiro que saiu da conta — PIX com comprovante. A data do
+          pagamento é o que define o ano do custo (regime de caixa).
         </Dica>
       </Corpo>
       <Rodape>

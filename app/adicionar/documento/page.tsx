@@ -200,12 +200,7 @@ export default function RegistrarDocumento() {
         ano={Number(hojeIso().slice(0, 4))}
         obraNome={fase.obraNome}
         hrefCorrigirObra={`/documento/${fase.id}/obra`}
-        proximoPasso={
-          <>
-            registrar o pagamento quando ele acontecer{" "}
-            <span className="text-[12px] text-mut">(em breve — US-003)</span>
-          </>
-        }
+        proximoPasso={<>registrar o pagamento quando ele acontecer</>}
         custo="soma quando o pagamento for registrado"
       />
     );

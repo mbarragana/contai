@@ -381,7 +381,7 @@ test.describe("registrar pagamento avulso", () => {
   async function irParaFormulario(page: Page) {
     await page.goto("/");
     await page.getByRole("link", { name: "+ Adicionar" }).click();
-    await page.getByRole("link", { name: /Pagamento — PIX sem nota/ }).click();
+    await page.getByRole("link", { name: "💸 Pagamento" }).click();
     await expect(
       page.getByRole("heading", { name: "Registrar pagamento" }),
     ).toBeVisible();

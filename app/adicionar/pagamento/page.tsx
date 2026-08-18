@@ -148,12 +148,7 @@ export default function RegistrarPagamento() {
         ano={fase.ano}
         obraNome={fase.obraNome}
         hrefCorrigirObra={`/pagamento/${fase.id}/obra`}
-        proximoPasso={
-          <>
-            vincular {salvos.documento} quando chegar{" "}
-            <span className="text-[12px] text-mut">(em breve — US-003)</span>
-          </>
-        }
+        proximoPasso={<>vincular {salvos.documento} quando chegar</>}
         custo={`só conta depois de vincular ${salvos.documento}`}
       />
     );
@@ -180,7 +175,7 @@ export default function RegistrarPagamento() {
     <>
       <AppBar
         titulo="Registrar pagamento"
-        sub="Interação 2 de 3 — PIX sem documento"
+        sub="Interação 2 de 3 — comprovante obrigatório"
       />
 
       <Corpo>
@@ -263,9 +258,8 @@ export default function RegistrarPagamento() {
                 </>
               ) : tipoFavorecido === "pj" ? (
                 <>
-                  Quando a nota chegar (mensal ou consolidada), você vincula
-                  este e outros pagamentos a ela — o custo só conta no IR com a
-                  nota junto.
+                  O custo só conta no IR com a nota hábil junto: sem ela, este
+                  pagamento fica como pago sem nota.
                 </>
               ) : (
                 <>
