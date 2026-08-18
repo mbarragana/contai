@@ -27,7 +27,13 @@ import {
   type ErroDeTela,
 } from "@/lib/data";
 import { formatarDataBR } from "@/lib/fiscal/obra";
-import { alocarCusto, custoComprovadoDoAno, ehDocumentoHabil } from "@/lib/fiscal/vinculo";
+import {
+  alocarCusto,
+  alocarSimulando,
+  custoComprovadoAteOAno,
+  custoComprovadoDoAno,
+  ehDocumentoHabil,
+} from "@/lib/fiscal/vinculo";
 import { hojeIso } from "@/lib/hoje";
 import { formatarBRL } from "@/lib/money";
 import type { Documento, Pagamento } from "@/lib/types";
@@ -42,6 +48,14 @@ type Estado =
       ano: number;
       custoAntesCentavos: number;
       custoDepoisCentavos: number;
+      /**
+       * O acumulado da ficha Bens e Direitos. Sem ele, desligar um pagamento
+       * de ANO ANTERIOR mostrava "R$ X → R$ X" — efeito zero aparente — e o
+       * Mateus confirmaria achando que nada muda, quando o acumulado do imóvel
+       * cai.
+       */
+      acumuladoAntesCentavos: number;
+      acumuladoDepoisCentavos: number;
       /** Sobra documento hábil ligado a este pagamento depois de desligar? */
       seguemHabeis: boolean;
     };
@@ -86,13 +100,8 @@ function DesligarPagamento() {
         const antes = alocarCusto(painel);
         // O "depois" é calculado sobre a MESMA função que produz o número da
         // home: o valor prometido na confirmação é o valor que vai aparecer.
-        const depois = alocarCusto({
-          documentos: painel.documentos,
-          pagamentos: painel.pagamentos.map((p) =>
-            p.id === pagamentoId
-              ? { ...p, documentoIds: p.documentoIds.filter((x) => x !== id) }
-              : p,
-          ),
+        const depois = alocarSimulando(painel, {
+          remover: [{ pagamentoId, documentoId: id }],
         });
 
         const restantes = pagamento.documentoIds
@@ -107,6 +116,8 @@ function DesligarPagamento() {
           ano,
           custoAntesCentavos: custoComprovadoDoAno(antes, ano),
           custoDepoisCentavos: custoComprovadoDoAno(depois, ano),
+          acumuladoAntesCentavos: custoComprovadoAteOAno(antes, ano),
+          acumuladoDepoisCentavos: custoComprovadoAteOAno(depois, ano),
           seguemHabeis: restantes.some(ehDocumentoHabil),
         });
       } catch (erro) {
@@ -188,6 +199,17 @@ function DesligarPagamento() {
               {formatarBRL(pronto.custoAntesCentavos)} →{" "}
               <span className="font-semibold text-red">
                 {formatarBRL(pronto.custoDepoisCentavos)}
+              </span>
+            </span>
+          </Linha>
+          {/* Pagamento de ano anterior não move o número do ano corrente, mas
+              move o acumulado do imóvel — sem esta linha o efeito pareceria
+              zero e a confirmação viraria uma aposta. */}
+          <Linha rotulo={`Acumulado até ${pronto.ano}`}>
+            <span className="mono">
+              {formatarBRL(pronto.acumuladoAntesCentavos)} →{" "}
+              <span className="font-semibold text-red">
+                {formatarBRL(pronto.acumuladoDepoisCentavos)}
               </span>
             </span>
           </Linha>
