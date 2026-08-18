@@ -469,17 +469,26 @@ export interface VinculoNovo {
 /**
  * Cria os vínculos em UMA chamada.
  *
- * Um `insert` com array é UMA statement no Postgres: ou entram todas as
- * linhas, ou nenhuma. É o que sustenta a promessa da tela de erro (mock s3e):
- * "nada foi ligado — a nota continua como estava". Não existe transação
- * multi-statement pelo PostgREST, então a atomicidade que se pode prometer é
- * exatamente esta, e é por isso que a inserção não é dividida em um loop.
+ * A gravação com array é UMA statement no Postgres: ou entram todas as linhas,
+ * ou nenhuma. É o que sustenta a promessa da tela de erro (mock s3e): "nada foi
+ * ligado — a nota continua como estava". Não existe transação multi-statement
+ * pelo PostgREST, então a atomicidade que se pode prometer é exatamente esta, e
+ * é por isso que a gravação não é dividida em um loop.
  *
  * Ligar de novo o que já está ligado não é erro — é o mesmo fato afirmado
- * duas vezes —, e por isso a violação da PK composta (23505) é engolida. Não
- * se usa `upsert` aqui de propósito: ele pediria também o privilégio de
- * UPDATE nesta tabela, e a migration 0006 concede exatamente os dois verbos
- * que o app executa (insert e delete).
+ * duas vezes. Mas engolir o 23505 do `insert` puro seria ENGOLIR A FALHA: sem
+ * `on conflict`, a violação da PK composta ABORTA A STATEMENT INTEIRA. Marcando
+ * [A, já ligado em outra aba] + [B, novo], o Postgres devolve 23505, e B NÃO
+ * ENTRA — a tela navegaria como sucesso e o `status = 'conciliado'` seria
+ * gravado sem vínculo nenhum por trás.
+ *
+ * Por isso o `upsert` com `ignoreDuplicates`: ele manda
+ * `Prefer: resolution=ignore-duplicates`, que o PostgREST traduz em
+ * `on conflict do nothing`. Isso NÃO exige o privilégio de UPDATE (não há
+ * `do update set`) — a migration 0006 continua concedendo só `insert` e
+ * `delete`, que são os verbos que o app executa. A linha já existente é
+ * ignorada, a nova entra, e qualquer outro erro sobe: dele a tela sabe falar
+ * ("nada foi ligado").
  */
 export async function criarVinculos(vinculos: VinculoNovo[]): Promise<void> {
   if (vinculos.length === 0) return;
@@ -494,13 +503,14 @@ export async function criarVinculos(vinculos: VinculoNovo[]): Promise<void> {
 
   const { error } = await getSupabase()
     .from("pagamento_documento")
-    .insert(
+    .upsert(
       vinculos.map((v) => ({
         pagamento_id: v.pagamentoId,
         documento_id: v.documentoId,
       })),
+      { onConflict: "pagamento_id,documento_id", ignoreDuplicates: true },
     );
-  if (error && error.code !== "23505") throw error;
+  if (error) throw error;
 
   // `status = 'conciliado'` é gravado como CONSEQUÊNCIA do vínculo (critério
   // 7) e não é lido por cálculo fiscal nenhum — quem calcula custo é
