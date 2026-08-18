@@ -30,13 +30,19 @@ import {
 import { formatarDataBR } from "@/lib/fiscal/obra";
 import {
   alocarCusto,
+  alocarSimulando,
+  CANDIDATO_OCULTO_PAGAMENTO,
+  custoComprovadoAteOAno,
+  custoComprovadoDoAno,
+  DOCUMENTO_SEM_VALOR,
   ehDocumentoHabil,
   pagamentosCandidatos,
-  preverVinculo,
+  pagamentosOcultosPorCobertura,
   VINCULO_BOLETO_NAO_GERA_CUSTO,
   VINCULO_QUARENTENA_NAO_GERA_CUSTO,
   type Candidato,
 } from "@/lib/fiscal/vinculo";
+import { hojeIso } from "@/lib/hoje";
 import { formatarBRL } from "@/lib/money";
 import type { Documento, Pagamento } from "@/lib/types";
 
@@ -50,7 +56,9 @@ type Estado =
       candidatos: Candidato<Pagamento>[];
       /** Pagamentos já ligados: entram na conta do saldo, não na lista. */
       jaLigados: Pagamento[];
-      faltaInicialCentavos: number;
+      /** C4: quantos sumiram da lista por já estarem cobertos por inteiro. */
+      ocultosPorCobertura: number;
+      ano: number;
     };
 
 /**
@@ -83,9 +91,6 @@ export default function LigarPagamentos() {
 
         const alocacao = alocarCusto(painel);
         const alocado = alocacao.porDocumento.get(documento.id);
-        const jaLigados = alocado?.pagamentos ?? [];
-        const habil = ehDocumentoHabil(documento);
-        const pagos = jaLigados.reduce((s, p) => s + p.valorCentavos, 0);
 
         setEstado({
           fase: "pronto",
@@ -94,10 +99,13 @@ export default function LigarPagamentos() {
           // Só pagamentos DESTA obra e ainda não cobertos por inteiro; a
           // filtragem e a ordenação são do módulo puro.
           candidatos: pagamentosCandidatos(documento, painel.pagamentos, alocacao),
-          jaLigados,
-          faltaInicialCentavos: habil
-            ? (alocado?.excedenteNotaCentavos ?? documento.valorCentavos ?? 0)
-            : Math.max(0, (documento.valorCentavos ?? 0) - pagos),
+          jaLigados: alocado?.pagamentos ?? [],
+          ocultosPorCobertura: pagamentosOcultosPorCobertura(
+            documento,
+            painel.pagamentos,
+            alocacao,
+          ).length,
+          ano: Number(hojeIso().slice(0, 4)),
         });
       } catch (erro) {
         if (!cancelado) setEstado({ fase: "erro", erro: classificarErro(erro) });
@@ -135,21 +143,52 @@ export default function LigarPagamentos() {
     0,
   );
 
-  // O efeito no custo ANTES do toque (Gate 0, estado 2): o que a nota passará
-  // a comprovar se estes pagamentos forem ligados agora.
-  const previsao = pronto
-    ? preverVinculo(pronto.documento, [
-        ...pronto.jaLigados,
-        ...marcadosDeVerdade.map((c) => c.item),
-      ])
-    : null;
+  /**
+   * O efeito no custo ANTES do toque (critério 15, Gate 0 estado 2).
+   *
+   * É a MESMA `alocarCusto` que produz o número da home, rodada DUAS VEZES
+   * sobre o painel real — com e sem os vínculos marcados. A previsão isolada
+   * que existia aqui simulava o documento e os pagamentos marcados fora do
+   * grafo, com os valores integrais, e por isso anunciava custo MAIOR que o
+   * real quando o candidato já estava parcialmente coberto por outro vínculo
+   * (pagamento de R$ 3.000 já ligado a uma NF de R$ 1.000 anunciava R$ 3.000
+   * de acréscimo, quando o real é R$ 2.000). Superestimar custo é a direção
+   * perigosa do parecer §4.
+   */
+  const efeito = useMemo(() => {
+    if (!pronto) return null;
+    const antes = alocarCusto(pronto.painel);
+    const depois = alocarSimulando(pronto.painel, {
+      adicionar: marcadosDeVerdade.map((c) => ({
+        pagamentoId: c.item.id,
+        documentoId: pronto.documento.id,
+      })),
+    });
 
-  const restante = pronto
-    ? Math.max(0, pronto.faltaInicialCentavos - somaMarcados)
-    : 0;
-  const excedente = pronto
-    ? Math.max(0, somaMarcados - pronto.faltaInicialCentavos)
-    : 0;
+    const valor = pronto.documento.valorCentavos ?? 0;
+    const habil = ehDocumentoHabil(pronto.documento);
+    // Documento não hábil não tem "excedente" na alocação (contribui zero),
+    // então o saldo dele é aritmética simples sobre os pagamentos ligados.
+    const pagosDepois =
+      pronto.jaLigados.reduce((t, x) => t + x.valorCentavos, 0) + somaMarcados;
+
+    return {
+      anoAntes: custoComprovadoDoAno(antes, pronto.ano),
+      anoDepois: custoComprovadoDoAno(depois, pronto.ano),
+      acumuladoAntes: custoComprovadoAteOAno(antes, pronto.ano),
+      acumuladoDepois: custoComprovadoAteOAno(depois, pronto.ano),
+      faltaDepois: habil
+        ? (depois.porDocumento.get(pronto.documento.id)?.excedenteNotaCentavos ??
+          valor)
+        : Math.max(0, valor - pagosDepois),
+      // Quanto DESTES pagamentos continua sem nota depois de ligar — pela
+      // alocação real, não pela subtração ingênua.
+      excedenteMarcados: marcadosDeVerdade.reduce(
+        (t, c) => t + (depois.porPagamento.get(c.item.id)?.semNotaCentavos ?? 0),
+        0,
+      ),
+    };
+  }, [pronto, marcadosDeVerdade, somaMarcados]);
 
   async function ligar() {
     if (!pronto || marcadosDeVerdade.length === 0) return;
@@ -230,19 +269,27 @@ export default function LigarPagamentos() {
               Falta ligar desta nota
             </span>
             <span className="mono text-[22px] font-bold tracking-tight">
-              {formatarBRL(restante)}
+              {formatarBRL(efeito?.faltaDepois ?? 0)}
             </span>
           </div>
           <Dica>
             {marcadosDeVerdade.length === 0
               ? "Nada marcado ainda — a nota continua sem cobertura."
-              : excedente > 0
-                ? `Nota coberta. Excedente do pagamento: ${formatarBRL(excedente)} — continua como pago sem nota.`
-                : restante === 0
-                  ? "Nota coberta por inteiro."
-                  : `Marcado ${formatarBRL(somaMarcados)} de ${formatarBRL(pronto.faltaInicialCentavos)} — o restante da nota não vira custo enquanto não for pago.`}
+              : efeito && efeito.faltaDepois === 0
+                ? efeito.excedenteMarcados > 0
+                  ? `Nota coberta por inteiro. Excedente ${formatarBRL(efeito.excedenteMarcados)} destes pagamentos continua como pago sem nota.`
+                  : "Nota coberta por inteiro."
+                : `Marcado ${formatarBRL(somaMarcados)} — ainda faltam ${formatarBRL(efeito?.faltaDepois ?? 0)} desta nota, que não viram custo enquanto não forem pagos.`}
           </Dica>
         </Card>
+
+        {/* C5: nota hábil sem valor informado comprova ZERO, e em silêncio ela
+            empurraria o pagamento inteiro para "pago sem nota". */}
+        {habil && d.valorCentavos === null ? (
+          <Banner cor="red" role="alert">
+            {DOCUMENTO_SEM_VALOR}
+          </Banner>
+        ) : null}
 
         {habil ? null : (
           <Banner cor="red" role="status">
@@ -325,6 +372,10 @@ export default function LigarPagamentos() {
           </>
         )}
 
+        {pronto.ocultosPorCobertura > 0 ? (
+          <Dica>{CANDIDATO_OCULTO_PAGAMENTO}</Dica>
+        ) : null}
+
         <Dica>Não achou o pagamento? Ele pode ainda não estar registrado.</Dica>
         <BotaoLink href={`/adicionar/pagamento?documento=${d.id}`}>
           Registrar o pagamento agora
@@ -332,21 +383,22 @@ export default function LigarPagamentos() {
       </Corpo>
 
       <Rodape>
+        {/* Critério 15: o efeito no custo dito ANTES do toque, no formato
+            "antes → depois" da tela de desligar, e nos DOIS números — ligar um
+            pagamento de ano anterior não mexe no ano corrente, mas mexe no
+            acumulado da ficha Bens e Direitos. */}
         <Dica>
-          Custo confirmado se ligar agora:{" "}
+          Custo confirmado {pronto.ano}:{" "}
           <span className="mono font-semibold">
-            {formatarBRL(previsao?.custoComprovadoCentavos ?? 0)}
+            {formatarBRL(efeito?.anoAntes ?? 0)} →{" "}
+            {formatarBRL(efeito?.anoDepois ?? 0)}
           </span>
-          {previsao && previsao.excedentePagamentoCentavos > 0 ? (
-            <>
-              {" "}
-              · excedente{" "}
-              <span className="mono">
-                {formatarBRL(previsao.excedentePagamentoCentavos)}
-              </span>{" "}
-              como pago sem nota
-            </>
-          ) : null}
+          <br />
+          Acumulado até {pronto.ano}:{" "}
+          <span className="mono font-semibold">
+            {formatarBRL(efeito?.acumuladoAntes ?? 0)} →{" "}
+            {formatarBRL(efeito?.acumuladoDepois ?? 0)}
+          </span>
         </Dica>
         <Botao
           variante="primary"

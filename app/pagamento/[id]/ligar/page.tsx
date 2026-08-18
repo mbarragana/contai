@@ -28,13 +28,19 @@ import {
 } from "@/lib/data";
 import {
   alocarCusto,
+  alocarSimulando,
+  CANDIDATO_OCULTO_DOCUMENTO,
+  custoComprovadoAteOAno,
+  custoComprovadoDoAno,
   documentosCandidatos,
+  documentosOcultosPorCobertura,
+  DOCUMENTO_SEM_VALOR,
   ehDocumentoHabil,
-  preverConjunto,
   VINCULO_BOLETO_NAO_GERA_CUSTO,
   VINCULO_QUARENTENA_NAO_GERA_CUSTO,
   type Candidato,
 } from "@/lib/fiscal/vinculo";
+import { hojeIso } from "@/lib/hoje";
 import { formatarBRL } from "@/lib/money";
 import type { Documento, Pagamento } from "@/lib/types";
 
@@ -53,7 +59,9 @@ type Estado =
       painel: PainelDados;
       candidatos: Candidato<Documento>[];
       jaLigados: Documento[];
-      faltaCobrirCentavos: number;
+      /** C4: quantos sumiram da lista por já estarem cobertos por inteiro. */
+      ocultosPorCobertura: number;
+      ano: number;
     };
 
 /**
@@ -91,9 +99,12 @@ export default function LigarDocumentos() {
           jaLigados: painel.documentos.filter((d) =>
             pagamento.documentoIds.includes(d.id),
           ),
-          faltaCobrirCentavos:
-            alocacao.porPagamento.get(pagamento.id)?.semNotaCentavos ??
-            pagamento.valorCentavos,
+          ocultosPorCobertura: documentosOcultosPorCobertura(
+            pagamento,
+            painel.documentos,
+            alocacao,
+          ).length,
+          ano: Number(hojeIso().slice(0, 4)),
         });
       } catch (erro) {
         if (!cancelado) setEstado({ fase: "erro", erro: classificarErro(erro) });
@@ -126,12 +137,47 @@ export default function LigarDocumentos() {
     [pronto, marcados],
   );
 
-  const previsao = pronto
-    ? preverConjunto(
-        [pronto.pagamento],
-        [...pronto.jaLigados, ...marcadosDeVerdade.map((c) => c.item)],
-      )
-    : null;
+  /**
+   * O efeito no custo ANTES do toque (critério 15), pela MESMA `alocarCusto`
+   * da home, rodada com e sem os vínculos marcados sobre o painel real.
+   *
+   * A previsão isolada que existia aqui somava os valores INTEGRAIS das notas
+   * marcadas, ignorando que uma delas pode já estar parcialmente coberta por
+   * outro pagamento: um PIX de R$ 3.000 marcado numa NF de R$ 3.000 já coberta
+   * em R$ 2.000 fazia a tela prometer R$ 3.000 de custo comprovado quando o
+   * certo é R$ 1.000 — três vezes o real, na direção que o parecer §4 chama de
+   * perigosa.
+   */
+  const efeito = useMemo(() => {
+    if (!pronto) return null;
+    const antes = alocarCusto(pronto.painel);
+    const depois = alocarSimulando(pronto.painel, {
+      adicionar: marcadosDeVerdade.map((c) => ({
+        pagamentoId: pronto.pagamento.id,
+        documentoId: c.item.id,
+      })),
+    });
+    const deAntes = antes.porPagamento.get(pronto.pagamento.id);
+    const deDepois = depois.porPagamento.get(pronto.pagamento.id);
+    return {
+      anoAntes: custoComprovadoDoAno(antes, pronto.ano),
+      anoDepois: custoComprovadoDoAno(depois, pronto.ano),
+      acumuladoAntes: custoComprovadoAteOAno(antes, pronto.ano),
+      acumuladoDepois: custoComprovadoAteOAno(depois, pronto.ano),
+      /** Parte DESTE pagamento comprovada depois de ligar. */
+      comprovadoDepois: deDepois?.comprovadoCentavos ?? 0,
+      /** O acréscimo real — o número que a tela prometia inflado. */
+      acrescimo:
+        (deDepois?.comprovadoCentavos ?? 0) - (deAntes?.comprovadoCentavos ?? 0),
+      faltaCobrirDepois:
+        deDepois?.semNotaCentavos ?? pronto.pagamento.valorCentavos,
+    };
+  }, [pronto, marcadosDeVerdade]);
+
+  /** C5: nota hábil sem valor informado comprova ZERO — e não em silêncio. */
+  const marcouSemValor = marcadosDeVerdade.some(
+    (c) => ehDocumentoHabil(c.item) && c.item.valorCentavos === null,
+  );
 
   // Critérios 8 e 9: o aviso é do TIPO que está marcado, não um texto só.
   const marcouQuarentena = marcadosDeVerdade.some(
@@ -214,20 +260,21 @@ export default function LigarDocumentos() {
               Falta cobrir deste pagamento
             </span>
             <span className="mono text-[22px] font-bold tracking-tight">
-              {formatarBRL(
-                Math.max(
-                  0,
-                  p.valorCentavos - (previsao?.custoComprovadoCentavos ?? 0),
-                ),
-              )}
+              {formatarBRL(efeito?.faltaCobrirDepois ?? p.valorCentavos)}
             </span>
           </div>
           <Dica>
             {marcadosDeVerdade.length === 0
               ? "Nada marcado ainda — o pagamento continua sem nota."
-              : `Com o que está marcado, ${formatarBRL(previsao?.custoComprovadoCentavos ?? 0)} deste pagamento passam a ser custo comprovado.`}
+              : `Com o que está marcado, ${formatarBRL(efeito?.acrescimo ?? 0)} deste pagamento passam a ser custo comprovado (total comprovado dele: ${formatarBRL(efeito?.comprovadoDepois ?? 0)}).`}
           </Dica>
         </Card>
+
+        {marcouSemValor ? (
+          <Banner cor="red" role="alert">
+            {DOCUMENTO_SEM_VALOR}
+          </Banner>
+        ) : null}
 
         {marcouQuarentena ? (
           <Banner cor="red" role="status">
@@ -307,13 +354,26 @@ export default function LigarDocumentos() {
             })}
           </>
         )}
+        {pronto.ocultosPorCobertura > 0 ? (
+          <Dica>{CANDIDATO_OCULTO_DOCUMENTO}</Dica>
+        ) : null}
       </Corpo>
 
       <Rodape>
+        {/* Critério 15: "antes → depois", o mesmo formato da tela de desligar,
+            nos dois números — pagamento de ano anterior não move o ano
+            corrente, mas move o acumulado da ficha Bens e Direitos. */}
         <Dica>
-          Custo confirmado se ligar agora:{" "}
+          Custo confirmado {pronto.ano}:{" "}
           <span className="mono font-semibold">
-            {formatarBRL(previsao?.custoComprovadoCentavos ?? 0)}
+            {formatarBRL(efeito?.anoAntes ?? 0)} →{" "}
+            {formatarBRL(efeito?.anoDepois ?? 0)}
+          </span>
+          <br />
+          Acumulado até {pronto.ano}:{" "}
+          <span className="mono font-semibold">
+            {formatarBRL(efeito?.acumuladoAntes ?? 0)} →{" "}
+            {formatarBRL(efeito?.acumuladoDepois ?? 0)}
           </span>
         </Dica>
         <Botao
