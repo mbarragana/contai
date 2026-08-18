@@ -222,3 +222,414 @@ pagamentos você consegue enxergar com data marcada ao mesmo tempo** — 2, 5 ou
 mais de 10? É o que decide entre lista na home e tela própria (pergunta 2 do
 CONTAI-019; as perguntas 1 e 3 do ticket **já estão respondidas** no
 `docs/backlog.md` e na memória do projeto).
+
+---
+
+# ADENDO — 2026-08-18 · quatro pontos do CONTAI-019 que o parecer deixou implícitos
+
+- **Origem**: consulta do agente `po` fechando as pendências do `CONTAI-019`
+  para virar critério de aceite. Transcrito aqui porque **regra fiscal que só
+  existe em transcript é a falha que o `CLAUDE.md` proíbe**.
+- **Normativo para**: `CONTAI-019` (critérios 13, 21 e os novos de cartão e de
+  sugestão de quitação), `US-004` (o bloqueio anual), `CONTAI-011` (a exportação).
+
+## A. Escopo do bloqueio anual — a data prevista NÃO recorta o bloqueio
+
+**Decisão** `[Certain]`: **qualquer compromisso vencido sem resposta bloqueia a
+geração de qualquer relatório anual**, e não apenas o do ano em que cai a data
+prevista. A leitura do mock ("daquele ano" = data prevista dentro do ano do
+relatório) está **errada** e infla o risco exatamente onde ele é mais caro.
+
+**O porquê fiscal, em uma linha**: a data prevista é uma previsão, e **previsão
+não decide nada fiscal** — é a espinha deste parecer inteiro (§3: "a data
+prevista é descartada na gravação"). Deixar a previsão recortar o bloqueio é
+devolver à previsão um efeito fiscal, com outro rosto.
+
+**O caso real prova a regra**: compromisso previsto para 28/12/2025, pago de fato
+em 05/01/2026. Enquanto ele estiver **sem resposta**, ninguém sabe se aquele
+desembolso pertence a 2025 ou a 2026 — as duas hipóteses estão vivas ao mesmo
+tempo. Sob a leitura do mock, o relatório de 2026 seria gerado **liberado**, com
+um desembolso possivelmente seu, não registrado, e sem ninguém perguntar nada. É
+o buraco que o critério 21 existe para tapar.
+
+Corolários, todos testáveis:
+
+1. **Não vencido não bloqueia nada** (data prevista ≥ hoje): não há incógnita
+   ainda, há futuro.
+2. **Respostas que desbloqueiam**: *saiu* (cria pagamento), *não saiu* (cancela,
+   com motivo), *mudou a data* (nova data prevista futura). Sempre existe uma
+   resposta disponível — o bloqueio nunca é uma prisão.
+3. **Compromisso sem data prevista definida não é vencido e não bloqueia** — mas
+   continua na agenda. Esse estado é alcançável **só** pelo saldo de uma quitação
+   parcial (ver §D), nunca na criação.
+4. O "não, é outro pagamento" da sugestão do §C **não** é resposta ao vencido e
+   **não** desbloqueia.
+5. Sobre-bloqueio consciente: gerar o relatório de 2025 em 2027 com um
+   compromisso de 2026 vencido e sem resposta também trava. É deliberado — o
+   custo é um toque, e a resposta é justamente o dado que decide o ano.
+
+**Texto copiável (critérios)**
+
+- [ ] ⚠️ **Qualquer compromisso vencido sem resposta bloqueia a geração de
+  qualquer relatório anual** — não só o do ano da data prevista — com a lista do
+  que falta responder. Unitário: compromisso previsto para 28/12/2025 sem
+  resposta bloqueia **também** o relatório de 2026.
+- [ ] **Compromisso com data prevista ≥ hoje não bloqueia relatório nenhum.**
+- [ ] **Compromisso sem data prevista definida não é vencido e não bloqueia**, e
+  continua listado na agenda. Esse estado só existe como saldo de quitação
+  parcial.
+- [ ] **Desbloqueiam**: *saiu*, *não saiu*, *mudou a data*. **Não desbloqueia**: o
+  "não, é outro pagamento" da sugestão de quitação.
+
+## B. Cartão de crédito — a compra nasce compromisso
+
+O ticket não tem critério nenhum sobre cartão, e o `meio = cartao` já existe no
+enum, com `data_compra` na tabela. Sem regra, o custo entra no mês (e no ano)
+errado sem ninguém notar. Fecho os quatro pontos.
+
+**(a) Qual data o app grava** `[Certain, dentro da Q4]`: `data_pagamento` = a
+data em que a **fatura foi paga**. `data_compra` = a data da compra,
+**obrigatória** quando `meio = cartao`, **e que não decide ano nenhum** — existe
+como dado probatório (liga a nota à fatura) e para a revisão de CRC da ressalva
+da Q4. Nenhuma função de apuração lê `data_compra`.
+
+**(c) Sim — a compra no cartão nasce compromisso** `[Certain]`, e o encaixe é
+exato, não analógico: no instante da compra **não houve desembolso do
+declarante**; falha a condição 1 do §1 do parecer de 17/08. É fiscalmente o mesmo
+estado do boleto emitido e não pago. A previsão vira fato quando a fatura é paga.
+
+⚠️ **Consequência que corrige a diretriz de desenho do ticket**: *"data ≤ hoje →
+pagamento"* **não vale para cartão**. A data da compra é passada e mesmo assim
+não há pagamento. O que decide o branch é **"a fatura que contém esta compra já
+foi paga?"** — nunca a data da compra.
+
+**(b) O que o app pergunta, e quando** — dois momentos, e é o desenho inteiro:
+
+1. **Na compra**: favorecido, valor, data da compra, nota, e a **data de
+   vencimento da fatura** que vai conter a compra → essa é a **data prevista** do
+   compromisso.
+2. **No pagamento da fatura**: a data em que a fatura foi efetivamente paga. Cada
+   compra daquela fatura é confirmada, uma a uma, gerando **um pagamento por
+   compra** — **nunca um pagamento único pela fatura**. A fatura não é documento
+   hábil e não tem favorecido próprio: o custo se atribui por compra, cada uma
+   com seu favorecido, sua nota e sua classificação material × serviço.
+
+**(d) Fatura cruzando o ano-calendário** `[Certain, dentro da Q4]`: compra em
+20/12/2026 com fatura paga em 10/01/2027 → **custo de 2027**. Em 31/12/2026 o
+dinheiro não tinha saído, e a ficha Bens e Direitos descreve a situação naquela
+data. A compra não aparece em número nenhum de 2026 — só na **agenda de
+compromissos**, no arquivo separado do critério 23. A nota, se emitida em 2026,
+conta no **terceiro número** ("notas hábeis sem pagamento vinculado"), como
+documento, que não soma.
+
+**Ressalva que viaja junto** `[Certain que a ressalva existe]`: a Q4 é tese
+defensável, não pacífica. **Exige confirmação de contador humano (CRC) antes da
+primeira declaração que a use.**
+
+**Texto copiável (critérios)**
+
+- [ ] **Cartão: a compra nasce compromisso.** Registro com `meio = cartao` cria
+  **compromisso**, nunca pagamento, mesmo com data da compra no passado. A data
+  prevista é o **vencimento da fatura** que contém a compra. E2E: compra de
+  ontem no cartão → uma linha em `compromisso`, **zero** em `pagamento`.
+- [ ] ⚠️ **A diretriz "data ≤ hoje → pagamento" não vale para cartão.** O branch é
+  decidido por *"a fatura que contém esta compra já foi paga?"*, nunca pela data
+  da compra. Unitário nomeando a exceção.
+- [ ] **`data_compra` é obrigatória quando `meio = cartao` e não decide ano
+  nenhum.** Nenhuma função de apuração a recebe — a tipagem impede, não a
+  disciplina.
+- [ ] **Confirmar a fatura paga grava `data_pagamento` = data do pagamento da
+  fatura**, em cada compra daquela fatura. **Um pagamento por compra, nunca um
+  pagamento único pela fatura.** E2E: fatura com 3 compras paga em 10/01 → 3
+  pagamentos com `data_pagamento = 10/01`, cada um com seu favorecido.
+- [ ] **O favorecido é o lojista/prestador, nunca a administradora do cartão nem
+  o banco** — cartão é instrumento de pagamento (adendo de 18/08 ao parecer de
+  17/08, §1).
+- [ ] ⚠️ **Fatura cruzando o ano**: compra em 20/12/2026 com fatura paga em
+  10/01/2027 → custo de **2027**. Unitário com essas duas datas, afirmando
+  **R$ 0,00** dessa compra em 2026.
+- [ ] **Encargos do cartão ficam fora do custo** — juros de rotativo, juros de
+  parcelamento de fatura, IOF, anuidade e multa. Mesma separação principal ×
+  encargos dos critérios 13 e 14.
+- [ ] **Fatura paga parcialmente (rotativo) não quita compromisso nenhum
+  automaticamente** — vai para revisão humana. Só a fatura paga integralmente
+  segue o caminho automático.
+- [ ] **Compra parcelada gera um compromisso por parcela**, cada um com a data
+  prevista da sua fatura; cada parcela entra no ano da **sua** fatura paga (Q4).
+  *Se o ticket não comportar, cartão parcelado é **recusado na entrada** com
+  mensagem explícita — nunca aceito como se fosse à vista.*
+- [ ] **O relatório anual que contiver custo vindo de cartão exibe a ressalva da
+  Q4**: tese do ano do pagamento da fatura, **a confirmar com contador humano
+  (CRC) antes da primeira declaração que a use**.
+
+## C. Sugestão de quitação — gatilho exato, e por que ele é estreito
+
+**(a) Gatilho, cumulativo** — as três condições ao mesmo tempo:
+
+1. **Mesmo favorecido, exato**: mesmo `favorecido_id`, cuja chave é o CNPJ/CPF.
+   `[Certain]` **Proibido casar por nome** — nome não é identidade (adendo de
+   18/08, §2: "CNPJ errado não é typo, é outro favorecido").
+2. **Valor dentro da faixa**: `|valor pago − valor previsto| ≤ 20% do previsto`
+   **ou** `≤ R$ 500,00`, o que for maior. `[Likely]` — convenção de produto para
+   ser testável, **sem consequência fiscal**, porque a sugestão nunca cria
+   vínculo. Faixa e não valor exato **de propósito**: divergir é o normal (juros,
+   multa, desconto — §3); exigir igualdade perderia justamente os casos que
+   interessam. Pagamento muito abaixo do previsto **não** dispara: quitação
+   parcial é ato deliberado, feito a partir do compromisso.
+3. **Janela de datas**: data do pagamento entre **30 dias antes** e **60 dias
+   depois** da data prevista. `[Likely]`, mesma natureza de convenção. Assimétrica
+   porque atraso é mais comum que antecipação. ⚠️ **Sem recorte de
+   ano-calendário** — o par 28/12 → 05/01 é exatamente onde a duplicidade custa
+   mais caro (custo no ano errado).
+
+**Mais de um compromisso elegível → lista todos.** `[Certain]` **Proibido
+escolher o mais próximo**: escolher é heurística decidindo vínculo (§5.5 de
+17/08).
+
+**A sugestão aparece depois do pagamento gravado e nunca bloqueia a gravação** —
+*nunca recuse o registro de um fato consumado* (§4).
+
+**(b) Texto na tela** — literal, para copiar e não reescrever:
+
+> **Este pagamento quita o compromisso de 15/09?**
+> WK Construções — previsto R$ 25.000,00 para 15/09
+> [ Sim, quita este compromisso ]  [ Não, é outro pagamento ]
+> Se não quitar, o compromisso continua em aberto e este pagamento fica
+> registrado sozinho.
+
+**(c) Se ele ignora ou responde "não"** `[Certain]`: exatamente o que você
+escreveu — o pagamento avulso **fica como está**, o compromisso **segue aberto**,
+e **nenhum número muda**. O compromisso aberto continua contando para o bloqueio
+anual do §A, que é onde a cobrança acontece de verdade.
+
+**(d) Confirmações pedidas** `[Certain]`:
+
+- A sugestão **nunca cria vínculo sozinha**. Não pode existir caminho de código
+  que grave a quitação sem ato humano explícito.
+- O **"não" é registrado**, por par (pagamento, compromisso): o app não pergunta
+  de novo **daquele par** — perguntar de novo ensina a dispensar sem ler — e
+  continua livre para sugerir outros pares.
+- O "não" **não** é resposta ao vencido e **não** desbloqueia o relatório anual
+  (§A, corolário 4).
+
+**Texto copiável (critérios)**
+
+- [ ] **Gatilho cumulativo**: mesmo `favorecido_id` (nunca por nome);
+  `|pago − previsto| ≤ 20% do previsto ou ≤ R$ 500,00, o que for maior`; data do
+  pagamento entre 30 dias antes e 60 dias depois da data prevista, **sem recorte
+  de ano**. Unitários nos dois lados de cada limite.
+- [ ] **Vários elegíveis → lista todos.** Proibido escolher o mais próximo.
+- [ ] **A sugestão aparece depois do pagamento gravado e nunca bloqueia a
+  gravação.**
+- [ ] **Texto literal do parecer**, não reescrito (bloco acima).
+- [ ] **"Não" é registrado por par**, não repergunta daquele par, e **não**
+  desbloqueia o relatório anual.
+- [ ] **Ignorar ou recusar não altera número nenhum**: pagamento fica como está,
+  compromisso segue aberto. Unitário sobre os totais antes e depois.
+- [ ] ⚠️ **Nenhum caminho de código cria vínculo de quitação sem ato humano.**
+
+## D. Valor MENOR — desconto × parcial
+
+**Confirmado, na frase que você pediu** `[Certain]`: **desconto** → o custo é o
+valor **pago** (o menor), o compromisso é **quitado**, e não sobra resíduo em
+lugar nenhum — nem saldo, nem "pago sem nota", nem pendência; **parcial** → cria
+pagamento pelo **valor pago**, o compromisso **segue com saldo**, e **o saldo não
+é custo de nada** — não é custo deste ano, não é custo de ano nenhum, e só vira
+custo se e quando for pago.
+
+**Sem default, e concordo com sua posição** `[Certain]`. Três razões, em ordem:
+
+1. É **fato do mundo que só ele conhece** — a mesma razão pela qual inferir
+   vínculo é proibido (§5.5 de 17/08). Default aqui é o app **afirmando** um fato
+   que não tem como saber, contra a regra do `CLAUDE.md` ("campo vazio pergunta,
+   campo preenchido afirma").
+2. **Nenhum dos dois erros é mais barato**, então não há default "seguro" para
+   onde cair: assumir desconto fecha um compromisso ainda devido e **mata o
+   alerta**; assumir parcial deixa um saldo fantasma que polui a agenda e trava o
+   relatório anual (§A).
+3. Os dois botões saem com **o mesmo peso visual** e **nenhum pré-selecionado**.
+
+**Melhoria que evita uma pergunta impossível**: rotule pelo **resultado**, não
+pela causa — *"Quita o compromisso"* × *"Falta pagar o resto"*. Assim ele não
+precisa caracterizar juridicamente se houve desconto, erro de previsão ou
+abatimento; e para o custo os dois primeiros casos são idênticos de qualquer
+forma.
+
+**Interação com o teto do mínimo** `[Certain]`: no desconto, se a nota foi
+emitida pelo valor cheio, `Σ documentos > Σ pagamentos` e o custo comprovado já é
+o **mínimo** = o pago (§3 de 17/08). Não há tratamento especial a escrever — a
+regra que já existe acerta sozinha.
+
+⚠️ **Buraco do fluxo parcial, que o ticket não cobre**: quitação parcial **precisa
+pedir a nova data prevista do saldo**. Sem isso, o saldo nasce imediatamente
+vencido e sem resposta e trava o relatório anual para sempre. Opção legítima:
+**"sem data definida"** — o compromisso continua aberto e visível na agenda e,
+pelo corolário 3 do §A, **não bloqueia**, porque incerteza declarada não é
+silêncio.
+
+**Texto copiável (critérios)**
+
+- [ ] **Valor menor exige escolha humana explícita entre "quita o compromisso" e
+  "falta pagar o resto".** **Sem default e sem pré-seleção**, com os dois botões
+  no mesmo peso.
+- [ ] **Quita**: custo = valor pago, compromisso quitado, **nenhum resíduo** —
+  sem saldo, sem pendência, sem "pago sem nota" pela diferença. Unitário:
+  previsto R$ 10.000, pago R$ 9.500 → custo R$ 9.500 e zero resíduo.
+- [ ] **Falta pagar o resto**: pagamento de R$ 9.500, compromisso aberto com
+  saldo de R$ 500, e **o saldo não entra em custo nenhum**, de ano nenhum.
+- [ ] **Quitação parcial pede a nova data prevista do saldo**, com a opção
+  explícita **"sem data definida"** — que mantém o compromisso aberto e visível e
+  **não** bloqueia o relatório anual.
+
+## E. Automático × humano (deste adendo)
+
+**Sistema sozinho** `[Certain]`: bloquear o relatório anual por compromisso
+vencido sem resposta, sem recortar por ano; manter compra no cartão fora de todo
+custo até a fatura ser paga; gravar `data_pagamento` = data da fatura paga;
+disparar a sugestão de quitação pelo gatilho do §C; recusar default no valor
+menor.
+
+**Só o Mateus**: dizer se o pagamento quitou aquele compromisso; dizer se o valor
+menor foi desconto ou parcial; dizer quanto do pago foi encargo.
+
+**Exige CRC** `[Certain]`: a tese da Q4 (ano do pagamento da fatura) antes da
+primeira declaração que a use; qualquer divergência de valor não explicada por
+encargo; e retificadora decorrente de compromisso respondido tarde, com data de
+pagamento em ano já declarado.
+
+---
+
+# ADENDO 2 — 2026-08-18 · o comprovante de pagamento é exigência fiscal ou disciplina de produto?
+
+- **Origem**: pergunta direta do Mateus sobre o mock do `CONTAI-019` —
+  *"por que o comprovante é obrigatório? isso tem algo fiscal incluído?"*
+- **Normativo para**: `CONTAI-019` (o bloqueio de gravação do formulário de
+  pagamento), `CONTAI-011` (acervo), e a leitura da premissa *"anexo obrigatório
+  no ato do registro"* do `CLAUDE.md`.
+
+## 1. A resposta não é uma só — depende de quem recebeu
+
+**Pagamento a PF (recibo)**: o comprovante é **exigência fiscal**, e é
+**constitutivo**, não acessório. `[Certain]` A definição de documentação hábil
+deste projeto sempre foi *"recibo de autônomo com nome, CPF completo e descrição
+do serviço **+ comprovante de transferência da conta dele**"*. Recibo é papel
+unilateral, escrito por quem tem interesse no valor; sozinho ele não prova nada.
+Sem o rastro bancário **não existe condição 3** (§1 do parecer de 17/08) — não é
+custo mal documentado, é custo inexistente para efeito de prova.
+
+**Pagamento a PJ (NF)**: o comprovante é **disciplina de produto com lastro
+fiscal parcial**. `[Likely]` A NF sustenta *o que* foi adquirido, por quanto e em
+nome de quem — condição 3, inteira. O que ela **não** sustenta é a condição 1:
+que houve desembolso, **quando** e **por ele**. Em glosa de custo de aquisição a
+prova de pagamento é rotineiramente pedida quando o valor é relevante ou a nota é
+parcelada — **confirmar na legislação e na jurisprudência do ano**; não afirmo
+como pacífico.
+
+**Conclusão em uma linha**: a obrigatoriedade **não é dogma nosso**, mas também
+não é uniforme. Ela é fiscal e inegociável no caminho PF, e é reforço probatório
+forte (não constitutivo) no caminho PJ.
+
+## 2. O que o comprovante prova que a nota não prova
+
+A leitura do Mateus está certa e é incompleta. `[Certain]` O comprovante prova
+**quatro** coisas, e nenhuma delas está na nota:
+
+1. **A data do desembolso** — a chave do regime de caixa, que decide o
+   **ano-calendário** do custo. A data da nota não decide ano nenhum.
+2. **Que o dinheiro saiu** — nota emitida e não paga não é custo (§1 deste
+   parecer). A nota não distingue emitida de quitada.
+3. **Que saiu da conta DELE** — a nota tem destinatário, não pagador. Nota no CPF
+   dele paga pela conta de terceiro não é dispêndio dele.
+4. **Quanto saiu, de fato** — em obra por medição, com parcelas, desconto e
+   encargo, a nota diz o previsto e o comprovante diz o executado. É o insumo do
+   teto do mínimo (§3 de 17/08) e da separação principal × encargos (§3).
+
+## 3. Fiscalização de ganho de capital — o que é efetivamente exigido
+
+`[Likely]`, com o número/procedimento a **confirmar na legislação e no roteiro
+vigente do ano**:
+
+- **PJ com NF**: a nota é o documento central. Prova de pagamento costuma ser
+  pedida como corroboração — mais provável quanto maior o valor e quanto mais
+  parcelado o pagamento. Nota sem pagamento comprovado é glosa defensável pelo
+  Fisco, não glosa automática.
+- **PF com recibo**: aqui não há "pedem ou não". `[Certain]` O recibo isolado é
+  prova frágil por natureza e a exigência do rastro bancário é o padrão. **O
+  comprovante não é opcional neste caminho.**
+- Agravante do caminho PF: o mesmo desembolso alimenta a ficha **Pagamentos
+  Efetuados**, CPF por CPF. Um lançamento lá sem lastro bancário expõe **duas**
+  frentes, não uma.
+
+## 4. O custo real de torná-lo opcional — e é aqui que mora o buraco
+
+`[Certain]` O prazo de guarda deste projeto é o do parecer de 16/08: venda em
+2028 → **31/12/2034**, quase sete anos, com o relógio previdenciário do CNO
+correndo por fora e prazo **indefinido** se a obra não for vendida.
+
+`[Likely, confirmar]` A retenção bancária obrigatória é de **cinco anos**, e o
+comprovante de PIX some da timeline do app do banco bem antes disso. **Os dois
+relógios não coincidem**: existe uma janela real em que a fiscalização é
+possível e o documento já não é recuperável — ou só é a custo alto, por pedido
+formal ao banco.
+
+Isso é **exatamente** a meta 3, e é o argumento decisivo: o comprovante é o
+documento **mais perecível** do acervo e o **único** que o app pode capturar de
+graça no instante em que existe. Tornar opcional o único documento que expira
+sozinho é o pior recorte possível de flexibilização.
+
+## 5. Recomendação — obrigatório com escape nomeado, e o escape já existe
+
+**Não é "opcional com aviso", e não é bloqueio duro.** `[Certain]` A regra correta
+é a que este parecer já fixou no §4 e que o mock aplica **só no caminho da
+confirmação de compromisso**:
+
+> *Nunca recuse o registro de um fato consumado.* Grava sem comprovante, **não
+> entra no custo confirmado**, e vira a pendência **"pago sem comprovante"**.
+
+⚠️ **Defeito no mock, a corrigir**: no formulário de pagamento direto
+(`design/mocks/CONTAI-019.html`, `btnGravar.disabled = !fAnexo.checked`, e o
+rótulo *"Anexe o comprovante para salvar"*) a gravação está **bloqueada**. Isso
+contradiz o caminho da confirmação, para o **mesmo fato do mundo**. Dois pesos
+para o mesmo pagamento ensinam que a regra é do app, não do fisco — e o atrito
+empurra para não registrar, que é a falha da meta 1. **O botão grava sempre; o
+que muda é o estado que nasce.**
+
+**Diferença por favorecido** `[Certain]`:
+
+| Caminho | Estado sem comprovante | Texto da pendência |
+|---|---|---|
+| **PJ com NF** | pendência **amarela**; não compõe custo confirmado até anexar | *"pago sem comprovante — o custo existe, ainda não está demonstrável"* |
+| **PF com recibo** | pendência **vermelha**, no mesmo peso de "pago sem nota" | *"sem o comprovante da transferência, este recibo não sustenta custo nenhum"* |
+
+**Diferença por meio de pagamento** `[Certain]`:
+
+- **PIX**: exigir no ato — é o mais perecível (§4). Comprovante do app do banco.
+- **Boleto**: o comprovante é o **pago**, nunca o boleto emitido. Boleto não é
+  documento hábil nem depois de pago (§4) — anexá-lo não satisfaz a exigência.
+- **Cartão**: ⚠️ **a compra não tem comprovante e nunca terá.** Pelo §B, a compra
+  nasce compromisso; o pagamento só existe quando a **fatura** é paga, e o
+  comprovante é o **da fatura** — **um documento para N pagamentos**. O modelo
+  "um anexo por pagamento" quebra aqui. Exigir comprovante por compra no cartão é
+  pedir um papel que não existe, e é falha de modelagem, não do usuário.
+
+## 6. Relação com o `CLAUDE.md`
+
+A premissa *"anexo obrigatório no ato do registro"* **sobrevive**, com o mesmo
+recorte do §4: obrigatória para **fato consumado**, com **escape nomeado que
+grava em pendência**. Ela nunca foi bloqueio de gravação — foi lida assim no
+mock. Se o `CLAUDE.md` for tocado, que a linha diga *"anexo exigido no ato do
+registro; ausência grava como pendência fiscal explícita, nunca recusa o
+registro"*.
+
+## 7. Automático × humano
+
+**Sistema sozinho** `[Certain]`: gravar sempre; classificar o estado por tipo de
+favorecido; manter pagamento sem comprovante fora do custo confirmado; cobrar o
+anexo faltante na revisão anual; tratar o comprovante da fatura de cartão como
+compartilhado.
+
+**Só o Mateus**: anexar o que só ele tem acesso, enquanto o banco ainda mostra.
+
+**Exige CRC** `[Certain]`: o peso probatório de nota de PJ sem comprovante de
+pagamento em glosa de custo de aquisição; e a suficiência do extrato bancário
+como substituto do comprovante avulso.
