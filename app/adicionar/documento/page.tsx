@@ -36,6 +36,7 @@ import {
 import {
   avisaInss,
   classificacaoProposta,
+  CONSEQUENCIA_QUARENTENA,
   CONSEQUENCIA_SEM_RETENCAO,
   exigeRetencao,
   motivoQuarentena,
@@ -102,6 +103,12 @@ type Fase =
        * ficou SEM VÍNCULO, em vez de dar um sucesso mentiroso.
        */
       vinculoFalhou: boolean;
+      /**
+       * A nota entrou em quarentena. Só chega a esta confirmação quando o
+       * vínculo TAMBÉM falhou: no caminho normal quem diz a consequência é a
+       * tela do documento, e a navegação acontece antes daqui.
+       */
+      quarentena: boolean;
     };
 
 export default function RegistrarDocumento() {
@@ -283,7 +290,14 @@ export default function RegistrarDocumento() {
 
       // Documento fora do CPF: a consequência tem que aparecer na hora — e
       // agora com os vínculos já gravados.
-      if (status === "quarentena") {
+      //
+      // ⚠️ Só navega quando o vínculo NÃO falhou. Empurrar para a tela do
+      // documento com o vínculo quebrado engolia o aviso do critério 1
+      // exatamente no ramo em que ele mais importa: a nota em quarentena não
+      // sustenta custo, o pagamento marcado continua "pago sem nota", e a
+      // despesa segue contada duas vezes — que é a dor de origem do ticket.
+      // Falhando, a confirmação fica AQUI e diz as duas coisas.
+      if (status === "quarentena" && !vinculoFalhou) {
         router.push(`/documento/${id}`);
         return;
       }
@@ -294,6 +308,7 @@ export default function RegistrarDocumento() {
         obraNome: obra.nome,
         ligados: vinculoFalhou ? 0 : paraLigar.length,
         vinculoFalhou,
+        quarentena: status === "quarentena",
       });
     } catch (erro) {
       setFase({ nome: "formulario" });
@@ -322,6 +337,15 @@ export default function RegistrarDocumento() {
               os pagamentos que você marcou. Ele está no acervo e ainda não
               compõe custo confirmado — abra o documento e use &quot;Ligar a um
               pagamento&quot;.
+              {fase.quarentena ? (
+                <>
+                  {" "}
+                  E esta nota está em <strong>quarentena</strong>:{" "}
+                  {CONSEQUENCIA_QUARENTENA} Ligar o pagamento continua valendo a
+                  pena — é o que impede a mesma despesa de ser contada duas
+                  vezes.
+                </>
+              ) : null}
             </>
           ) : undefined
         }

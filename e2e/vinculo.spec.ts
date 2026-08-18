@@ -1,6 +1,10 @@
 import type { Page } from "@playwright/test";
 
-import { OBRA_ID_SEED, USER_ID_SEED } from "./ambiente";
+import {
+  OBRA_ID_SEED,
+  URL_SUPABASE_LOCAL,
+  USER_ID_SEED,
+} from "./ambiente";
 import {
   criarDocumento,
   criarFavorecido,
@@ -314,6 +318,84 @@ test.describe("caminho A — vínculo no ato do registro", () => {
     expect(await vinculos(db)).toEqual([
       { pagamento_id: pagamentoId, documento_id: docs[0].id },
     ]);
+    const pagos = await pagamentos(db);
+    expect(pagos[0].status).toBe("aguardando_nf");
+  });
+
+  test("quarentena com vínculo que falha NÃO é sucesso mudo (critério 1)", async ({
+    page,
+    db,
+  }) => {
+    // O ramo que ficava calado: a nota ia para quarentena, a navegação para a
+    // tela do documento acontecia mesmo com o vínculo quebrado, e o aviso do
+    // critério 1 nunca aparecia — justo onde ele mais importa, porque a nota
+    // em quarentena não sustenta custo e o pagamento marcado continua "pago
+    // sem nota", com a despesa contada duas vezes.
+    const deposito = await criarFavorecido(db, {
+      nome: "Depósito Cachoeira ME",
+      documento: CNPJ_DEPOSITO_DIGITOS,
+      tipo: "pj",
+    });
+    await criarPagamento(db, {
+      favorecido_id: deposito,
+      valor: 800,
+      data_pagamento: `${ANO}-08-05`,
+      meio: "pix",
+      status: "aguardando_nf",
+      comprovante_path: `${USER_ID_SEED}/comprovante/pix-deposito.png`,
+    });
+
+    // Falsificação de rede restrita ao INSERT do vínculo: o documento tem de
+    // entrar de verdade para o caso existir. Derrubar o PostgREST inteiro
+    // testaria outra coisa.
+    await page.route(
+      `${URL_SUPABASE_LOCAL}/rest/v1/pagamento_documento*`,
+      (rota) =>
+        rota.request().method() === "POST"
+          ? rota.fulfill({
+              status: 503,
+              contentType: "application/json",
+              body: JSON.stringify({
+                code: "PGRST000",
+                message: "could not connect to server",
+              }),
+            })
+          : rota.fallback(),
+    );
+
+    await page.goto("/adicionar/documento");
+    await page.getByLabel("Arquivo").setInputFiles(pdf("NF-DEPOSITO.pdf"));
+    await escolher(page, "Tipo", "NF material");
+    await page
+      .getByLabel("Emitente", { exact: true })
+      .fill("Depósito Cachoeira ME");
+    await page.getByLabel("CNPJ / CPF do emitente").fill("11.444.777/0001-61");
+    await page.getByLabel("Valor").fill("800,00");
+    await escolher(page, "A nota está no seu CPF?", "Não");
+
+    await page.getByRole("checkbox", { name: "Já paguei esta nota" }).check();
+    const candidato = page
+      .getByRole("checkbox")
+      .filter({ hasNotText: "Já paguei" })
+      .last();
+    await expect(candidato).not.toBeChecked();
+    await candidato.check();
+
+    await page.getByRole("button", { name: "Salvar registro" }).click();
+
+    // NÃO navegou para a tela de quarentena: a confirmação fica aqui e diz as
+    // DUAS consequências.
+    await expect(page.getByText(/ficou SEM VÍNCULO/)).toBeVisible();
+    await expect(page.getByText(/está em/)).toContainText(/quarentena/);
+    await expect(
+      page.getByRole("heading", { name: "Quarentena" }),
+    ).toHaveCount(0);
+
+    // O documento entrou; o vínculo não. Nada de "conciliado" fantasma.
+    const docs = await documentos(db);
+    expect(docs).toHaveLength(1);
+    expect(docs[0].status).toBe("quarentena");
+    expect(await vinculos(db)).toEqual([]);
     const pagos = await pagamentos(db);
     expect(pagos[0].status).toBe("aguardando_nf");
   });
