@@ -1568,3 +1568,66 @@ Os dois defeitos que mais importam **não vieram de análise, vieram de uso**:
 E um terceiro, de processo: **o app promete por escrito o que não cumpre** —
 *"a NF vincula depois"* na tela `/adicionar`. Virou o critério 19 do 018, com a
 frase saindo **antes** do ticket fechar.
+
+### Dores levantadas no Gate 2 do CONTAI-018 (2026-08-18)
+
+Saíram do review fiscal (`contador`) e técnico (`cto-obra`) do vínculo
+pagamento↔nota. **Nenhuma bloqueou o 018** — todas foram classificadas por eles
+como ticket próprio. Estão aqui para o `po` priorizar.
+
+1. **D-018.1 [P1] — o headline soma duas apurações que nunca se tocam.**
+   `emPendenciaCentavos` (`lib/fiscal/resumo.ts`) soma, num único número em
+   reais, exposição de **IRPF** (pago sem nota, quarentena) e exposição de
+   **INSS** (NF de serviço sem retenção, pelo valor cheio da nota). Depois do
+   018, a NF da WK conciliada mostra na home *"Custo confirmado R$ 3.000"*,
+   *"Despesa comprovada R$ 3.000"* **e** *"Em pendência: R$ 3.000"*. Palavras do
+   `contador`: somar as duas *"ensina exatamente o modelo mental errado que o §0
+   do parecer existe para desfazer"*. É **pré-existente**, ficou mais visível.
+   Separar `emRiscoIrpfCentavos` de `exposicaoInssCentavos`, com rótulo dizendo
+   a qual conta cada um pertence. O `contador` escreve os dois textos.
+
+2. **D-018.2 [P1] — vínculo novo pode mudar um ano JÁ DECLARADO, em silêncio.**
+   Consequência direta da repartição cronológica ratificada (adendo de
+   2026-08-18 ao parecer). Caso que vai acontecer: PIX de R$ 3.000 em dez/2026
+   sem nota; DAA 2026 entregue em abril/2027; a NF chega em maio/2027 e é
+   ligada. O custo de 2026 sobe R$ 3.000 — e a resposta certa é **retificar a
+   DAA de 2026**, não jogar o custo em 2027. Hoje o app faz a conta certa e
+   **não diz nada**: nenhuma tela distingue "ano em curso" de "ano já
+   declarado". A ressalva do adendo (registro **retroativo** redistribui o
+   conjunto) é a forma geral disso. ⚠️ **Retificadora exige CRC** — o app
+   detecta e avisa; não decide nem redige. Primeira janela de dano: abril/2027.
+   Ganhou superfície nova no 018: o rodapé do seletor pode mostrar um acréscimo
+   **inteiramente de ano anterior** (`acumulado` sobe, `2026: R$ 0 → R$ 0`).
+
+3. **D-018.3 [P2] — o saldo da nota parcialmente paga some da home.**
+   NF de R$ 3.000 com R$ 1.000 pago e ligado: R$ 1.000 vira custo confirmado e
+   os R$ 2.000 restantes não aparecem em lugar nenhum (não estão no terceiro
+   número, que filtra notas **sem nenhum** pagamento; não são pendência; não são
+   custo). **Regra do `contador`**: o terceiro número deve ser **Σ dos saldos
+   não cobertos de documentos hábeis**, não Σ dos valores cheios de documentos
+   sem pagamento — uma fórmula cobre os dois casos. O erro atual **subestima**,
+   que é a direção segura. Como isso aparece na tela (junto das notas intocadas
+   ou em linha separada) é **decisão do Mateus**.
+
+4. **D-018.4 [P3] — candidato 100% coberto some do seletor sem dizer por quê.**
+   Quem ligou o PIX à nota errada não o encontra na nota certa e não sabe que
+   precisa desligar antes. O critério 15 existe para corrigir vínculo não exigir
+   SQL; isto reintroduz meio beco sem saída. Uma frase resolve.
+
+5. **D-018.5 [P3] — documento hábil sem valor comprova zero, silenciosamente.**
+   `valorDocumento()` faz `?? 0`: a nota sem valor reduz a cobertura e joga o
+   pagamento inteiro para "pago sem nota". O Mateus vê "pago sem nota" numa
+   despesa que ele ligou e não entende. A tela deve pedir o valor, na mesma
+   linha do §6 do parecer que já manda completar `numero`, `serie` e
+   `data_emissao`.
+
+6. **D-018.6 [P2] — texto de prazo desatualizado em `_components/registrado.tsx`.**
+   Ainda diz *"fica disponível até a venda + 5 anos"*; o `CLAUDE.md` corrigiu o
+   prazo em 2026-08-16. Pré-existente, não é regressão do 018.
+
+7. **D-018.7 — o rótulo do rodapé do seletor mostra um DELTA sob um nome que na
+   home nomeia um NÍVEL.** *"Custo confirmado se ligar agora: R$ 2.000,00"* pode
+   ser lido como *"meu custo confirmado passa a ser R$ 2.000"*. Um `+` na frente
+   ou *"o custo confirmado sobe R$ X"* elimina a ambiguidade. O rótulo veio do
+   **mock aprovado**, então a mudança é do `designer` com o Mateus — não é
+   decisão de engenharia nem do `contador`.
