@@ -539,6 +539,161 @@ describe("simulação do vínculo sobre o painel real (critério 15)", () => {
   });
 });
 
+/** Todos os subconjuntos, na ordem estável dos itens. */
+function subconjuntos<T>(itens: readonly T[]): T[][] {
+  return itens.reduce<T[][]>(
+    (acc, x) => [...acc, ...acc.map((s) => [...s, x])],
+    [[]],
+  );
+}
+
+/**
+ * O que os dois rodapés "Custo confirmado se ligar agora" prometem — a CLASSE,
+ * não mais um exemplo (exigência do `contador` no 2º Gate 2 do CONTAI-018).
+ *
+ * O rótulo nomeia o **custo de aquisição do imóvel**, que é UM ÚNICO TOTAL
+ * ACUMULADO. A grandeza é sempre
+ * `custoComprovadoAteOAno(depois) − custoComprovadoAteOAno(antes)`, e nada
+ * mais: é a única imune à realocação INTERNA do conjunto. A fatia de um
+ * pagamento não serve — sob a repartição cronológica (adendo de 2026-08-18 do
+ * parecer), um pagamento mais antigo que entra no conjunto TOMA a alocação de
+ * um posterior já coberto, e a fatia dele sobe muito mais que o custo da obra.
+ */
+describe("o número do rodapé é a variação do TOTAL, não a fatia de um pagamento", () => {
+  it("marcar o pagamento MAIS ANTIGO numa nota já coberta: obra +1.000, fatia dele +3.000", () => {
+    // NF de 3.000 já coberta por um PIX de 2.000 de 12/08; entra um PIX de
+    // 3.000 de 01/07. Foi o caso que o rodapé anunciava como 3.000.
+    const painel = {
+      documentos: [doc({ id: "d1", valorCentavos: 300_000 })],
+      pagamentos: [
+        pag({
+          id: "p-novo",
+          valorCentavos: 200_000,
+          dataPagamento: "2026-08-12",
+          documentoIds: ["d1"],
+        }),
+        pag({
+          id: "p-antigo",
+          valorCentavos: 300_000,
+          dataPagamento: "2026-07-01",
+        }),
+      ],
+    };
+    const antes = alocarCusto(painel);
+    const depois = alocarSimulando(painel, {
+      adicionar: [{ pagamentoId: "p-antigo", documentoId: "d1" }],
+    });
+
+    // O custo da obra: 2.000 → 3.000. É o número do rodapé, e é 1.000.
+    expect(custoComprovadoAteOAno(antes, 2026)).toBe(200_000);
+    expect(custoComprovadoAteOAno(depois, 2026)).toBe(300_000);
+    expect(
+      custoComprovadoAteOAno(depois, 2026) - custoComprovadoAteOAno(antes, 2026),
+    ).toBe(100_000);
+
+    // A fatia do mais antigo sobe 3.000 porque ele TOMA a alocação do outro —
+    // que devolve 2.000 para "pago sem nota". Três grandezas diferentes.
+    expect(depois.porPagamento.get("p-antigo")!.comprovadoCentavos).toBe(300_000);
+    expect(antes.porPagamento.get("p-antigo")!.comprovadoCentavos).toBe(0);
+    expect(depois.porPagamento.get("p-novo")).toMatchObject({
+      comprovadoCentavos: 0,
+      semNotaCentavos: 200_000,
+    });
+  });
+
+  it("Σ variação por pagamento = variação do total — qualquer conjunto, qualquer marcação", () => {
+    const ANO_TETO = 2026; // ≥ todas as datas: o acumulado pega o conjunto todo.
+    const datas = ["2025-11-10", "2026-07-01", "2026-08-12"];
+    const permutacoes = [
+      [0, 1, 2],
+      [0, 2, 1],
+      [1, 0, 2],
+      [1, 2, 0],
+      [2, 0, 1],
+      [2, 1, 0],
+    ];
+    const valoresPagamento = [300_000, 200_000, 100_000];
+    // d1 hábil (comprova) e d2 em quarentena (conecta e não comprova).
+    const pares = [
+      { pagamentoId: "p1", documentoId: "d1" },
+      { pagamentoId: "p2", documentoId: "d1" },
+      { pagamentoId: "p3", documentoId: "d1" },
+      { pagamentoId: "p3", documentoId: "d2" },
+    ];
+    const combinacoes = subconjuntos(pares);
+
+    let casos = 0;
+    let divergiu = 0;
+    for (const valorNota of [100_000, 300_000, 500_000]) {
+      for (const ordem of permutacoes) {
+        for (const jaLigados of combinacoes) {
+          for (const marcados of combinacoes) {
+            const painel = {
+              documentos: [
+                doc({ id: "d1", valorCentavos: valorNota }),
+                doc({
+                  id: "d2",
+                  valorCentavos: 200_000,
+                  status: "quarentena" as const,
+                  destinatarioCpfOk: false,
+                }),
+              ],
+              pagamentos: valoresPagamento.map((valor, i) =>
+                pag({
+                  id: `p${i + 1}`,
+                  valorCentavos: valor,
+                  dataPagamento: datas[ordem[i]],
+                  documentoIds: jaLigados
+                    .filter((x) => x.pagamentoId === `p${i + 1}`)
+                    .map((x) => x.documentoId),
+                }),
+              ),
+            };
+            const antes = alocarCusto(painel);
+            const depois = alocarSimulando(painel, { adicionar: marcados });
+
+            const somaVariacoes = painel.pagamentos.reduce(
+              (t, p) =>
+                t +
+                depois.porPagamento.get(p.id)!.comprovadoCentavos -
+                antes.porPagamento.get(p.id)!.comprovadoCentavos,
+              0,
+            );
+            // A expressão do rodapé das duas telas, literalmente.
+            const variacaoDoTotal =
+              custoComprovadoAteOAno(depois, ANO_TETO) -
+              custoComprovadoAteOAno(antes, ANO_TETO);
+
+            const caso = JSON.stringify({ valorNota, ordem, jaLigados, marcados });
+            expect(somaVariacoes, caso).toBe(variacaoDoTotal);
+            // E o total nunca cai por ACRESCENTAR vínculo: o rodapé de um
+            // seletor de ligar não pode prometer custo negativo.
+            expect(variacaoDoTotal, caso).toBeGreaterThanOrEqual(0);
+
+            casos += 1;
+            // A fatia de UM pagamento marcado divergir do total é o defeito
+            // que este invariante fecha — e ele acontece de verdade.
+            if (
+              marcados.some(
+                (m) =>
+                  depois.porPagamento.get(m.pagamentoId)!.comprovadoCentavos -
+                    antes.porPagamento.get(m.pagamentoId)!.comprovadoCentavos !==
+                  variacaoDoTotal,
+              )
+            ) {
+              divergiu += 1;
+            }
+          }
+        }
+      }
+    }
+
+    expect(casos).toBe(3 * 6 * 16 * 16);
+    // Sem isto o invariante poderia estar passando por vacuidade.
+    expect(divergiu).toBeGreaterThan(0);
+  });
+});
+
 /**
  * C4 do Gate 2: quem já está coberto por inteiro some do seletor, e o sumiço
  * mudo faz quem ligou o PIX à nota errada não o achar na nota certa.
