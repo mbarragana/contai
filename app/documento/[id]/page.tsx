@@ -1,7 +1,7 @@
 "use client";
 
-import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 
 import {
   AppBar,
@@ -212,20 +212,17 @@ function valorSemNota(alocado: DocumentoAlocado | undefined): number {
   return Math.max(0, pagos - documentado);
 }
 
-export default function DetalheDocumento() {
+function DetalheDocumento() {
   const params = useParams<{ id: string }>();
   const id = params.id;
   const [estado, setEstado] = useState<Estado>({ fase: "carregando" });
   const [tentativa, setTentativa] = useState(0);
 
-  // Mesma leitura de `app/entrar/page.tsx`: o app é todo client-side e
-  // `useSearchParams` obrigaria uma fronteira de Suspense só para ler um
-  // parâmetro de confirmação.
-  const [ligado] = useState(() =>
-    typeof window === "undefined"
-      ? false
-      : new URLSearchParams(window.location.search).get("ligado") === "1",
-  );
+  // `useSearchParams`, e NÃO `window.location` lido no primeiro render: em
+  // navegação do lado do cliente (`router.push` do seletor) o `location` ainda
+  // não tinha a query no render de montagem, e a confirmação simplesmente não
+  // aparecia. É o que a fronteira de Suspense abaixo paga.
+  const ligado = useSearchParams().get("ligado") === "1";
 
   useEffect(() => {
     let cancelado = false;
@@ -424,5 +421,17 @@ export default function DetalheDocumento() {
         }
       />
     </>
+  );
+}
+
+/**
+ * A fronteira que `useSearchParams` exige (Next 16): sem ela o build reclama
+ * de "URL data in a Client Component outside of Suspense".
+ */
+export default function Pagina() {
+  return (
+    <Suspense fallback={<Carregando rotulo="Carregando o documento" />}>
+      <DetalheDocumento />
+    </Suspense>
   );
 }

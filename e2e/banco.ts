@@ -362,6 +362,21 @@ export async function pagamentos(db: Db) {
   return data!;
 }
 
+/**
+ * As linhas de vínculo, pelo MESMO client autenticado do app (critério 16): a
+ * policy `dono_vinculo` da migration 0001 tem de valer para o teste também.
+ * Se ela barrasse, a lista voltaria vazia e o teste acusaria — que é
+ * exatamente o que se quer provar sobre o estado gravado.
+ */
+export async function vinculos(db: Db) {
+  const { data, error } = await db
+    .from("pagamento_documento")
+    .select("*")
+    .order("documento_id", { ascending: true });
+  conferir("ler vínculo", error);
+  return data!;
+}
+
 export async function favorecidos(db: Db) {
   const { data, error } = await db
     .from("favorecido")

@@ -1,7 +1,7 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 
 import { useSessao } from "@/app/_components/sessao";
 import {
@@ -57,7 +57,7 @@ type Estado =
  * A confirmação diz o efeito no custo ANTES do toque. Sem isso, desligar é uma
  * aposta: o número muda depois, sozinho, e ninguém liga uma coisa à outra.
  */
-export default function DesligarPagamento() {
+function DesligarPagamento() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { pedirReautenticacao } = useSessao();
@@ -66,11 +66,9 @@ export default function DesligarPagamento() {
   const [salvando, setSalvando] = useState(false);
   const [erroSalvar, setErroSalvar] = useState<string | null>(null);
 
-  const [pagamentoId] = useState(() =>
-    typeof window === "undefined"
-      ? null
-      : new URLSearchParams(window.location.search).get("pagamento"),
-  );
+  // Ver a nota em `app/documento/[id]/page.tsx`: em navegação client-side o
+  // `window.location` do primeiro render ainda não tem a query.
+  const pagamentoId = useSearchParams().get("pagamento");
 
   useEffect(() => {
     let cancelado = false;
@@ -217,5 +215,13 @@ export default function DesligarPagamento() {
         <BotaoLink href={`/documento/${id}`}>Cancelar</BotaoLink>
       </Rodape>
     </>
+  );
+}
+
+export default function Pagina() {
+  return (
+    <Suspense fallback={<Carregando rotulo="Carregando o vínculo" />}>
+      <DesligarPagamento />
+    </Suspense>
   );
 }

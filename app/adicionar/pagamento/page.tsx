@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
 
 import { CampoArquivo, CampoTexto } from "@/app/_components/campos";
 import { AfirmacaoObra, TelaTrocarObra } from "@/app/_components/obra";
@@ -61,7 +62,7 @@ type Fase =
       documentoDeOrigemId: string | null;
     };
 
-export default function RegistrarPagamento() {
+function RegistrarPagamento() {
   // Mesma regra do documento: obra afirmada na tela, trocável aqui, e é ela
   // que grava o `obra_id` (critérios 6, 7 e 16).
   const registro = useObraDoRegistro();
@@ -73,13 +74,13 @@ export default function RegistrarPagamento() {
 
   // Mock s3b — "registrar o pagamento agora, já ligado": o documento de origem
   // vem na query string de quem mandou para cá (a tela da nota ou o seletor).
-  // Lido uma vez, como em `app/entrar/page.tsx`, para não obrigar uma
-  // fronteira de Suspense só por um parâmetro.
+  // `useSearchParams` e não `window.location` no primeiro render: chegando por
+  // navegação client-side, o `location` ainda não tem a query e o vínculo
+  // desapareceria sem aviso — que é a classe de silêncio que este ticket veio
+  // matar. O custo é a fronteira de Suspense no fim do arquivo.
+  const documentoNaUrl = useSearchParams().get("documento");
   const [documentoDeOrigemId, setDocumentoDeOrigemId] = useState<string | null>(
-    () =>
-      typeof window === "undefined"
-        ? null
-        : new URLSearchParams(window.location.search).get("documento"),
+    documentoNaUrl,
   );
   const [documentoDeOrigem, setDocumentoDeOrigem] = useState<Documento | null>(
     null,
@@ -426,5 +427,13 @@ export default function RegistrarPagamento() {
         </Rodape>
       )}
     </>
+  );
+}
+
+export default function Pagina() {
+  return (
+    <Suspense fallback={<Carregando rotulo="Carregando a obra" />}>
+      <RegistrarPagamento />
+    </Suspense>
   );
 }
