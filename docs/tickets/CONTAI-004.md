@@ -153,12 +153,36 @@ humana**: recibo de PF com `data_emissao` em ano diferente do pagamento.
 
 - **Extração automática do número e da data** do PDF/XML — é a **US-008**;
   registro é manual-first por decisão do Mateus (2026-08-07)
-- **Chave de acesso da NF-e (44 dígitos), série e modelo** — 44 dígitos digitados
-  com uma mão no canteiro é o oposto da meta. **Ressalva R6 do contador**:
-  capturar `serie` em campo próprio (nunca concatenada no número) e o
-  identificador de autenticidade (chave de 44 dígitos na NF-e, código de
-  verificação na NFS-e) é o que permitiria validar a nota no portal daqui a sete
-  anos — fica como nota de Gate 2, não como escopo
+- **DIGITAR a chave de acesso da NF-e (44 dígitos)** — com uma mão no canteiro é
+  o oposto da meta. **Mas a chave em si deixa de ser "nota de Gate 2" e vira
+  candidata a campo** (apuração de 2026-08-17, ver abaixo).
+  **Ressalva R6 do contador**: capturar `serie` em campo próprio, nunca
+  concatenada no número.
+
+### A chave de acesso — por que ela vale campo, mesmo sem extração
+
+[Likely — confirmar a composição no manual da NF-e 4.00]
+
+A chave de 44 dígitos **contém CNPJ do emitente, modelo, série, número, UF e
+ano-mês de emissão, com DV próprio**. Três consequências, apuradas em
+2026-08-17:
+
+1. **Ela valida os campos deste ticket de graça, por máquina.** Divergência entre
+   `numero`/`serie`/CNPJ e a chave não é "dúvida de leitura" — é **arquivo
+   suspeito**, e vira revisão humana com essa palavra.
+2. **Ela é a identidade única da nota**, e resolve a detecção de duplicidade
+   (R7) **sem depender de normalização** — o XML devolve `1042`, o DANFE imprime
+   `000.001.042`, e a comparação por chave não se importa.
+3. ⚠️ **Ela é o que torna o XML recuperável no futuro.** Hoje o Mateus é PF sem
+   certificado digital, e [Likely] baixar o XML completo no Portal Nacional
+   **exige e-CPF/e-CNPJ** — a chave **valida**, não **recupera**. Mas com a chave
+   guardada, no dia em que houver certificado a recuperação em lote de todos os
+   XMLs passa a ser possível. **Sem a chave guardada, não passa.**
+
+**Como capturar sem digitar 44 dígitos**: a chave vem impressa no DANFE que
+chega por e-mail/WhatsApp (Q1 do backlog). É extração, não digitação — logo o
+campo nasce **opcional e nullable** aqui, e é preenchido pela US-008 quando ela
+existir. **Este ticket cria a coluna; não cria o trabalho de preenchê-la.**
 - **Linha digitável / nosso-número do boleto** — não serve nenhuma das três metas
 - **Validar o número contra a SEFAZ** — fora do alcance do produto
 - **Editar número ou data de documento já salvo** — mesma trava do CONTAI-009: só
