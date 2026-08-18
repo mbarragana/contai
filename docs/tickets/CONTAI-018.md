@@ -7,9 +7,11 @@ feature (fiscal + usabilidade) — **P0**. **Posição: 1º da fila da R1.**
 É a US-003 do backlog, promovida a bloqueador da meta 1. Prioridade alta pedida
 pelo Mateus em 2026-08-18.
 
-- **Gate 0 (mock)**: **OBRIGATÓRIO — PENDENTE.** Ver seção própria.
-- **Gate Fiscal**: **FECHADO** — parecer do `contador` de 2026-08-16 (as regras
-  estão transcritas abaixo e são normativas para a implementação).
+- **Gate 0 (mock)**: **APROVADO pelo Mateus em 2026-08-18** — `design/mocks/CONTAI-018.html`, v1, 5 estados ★.
+  ⚠️ A aprovação é do **desenho e do fluxo**; não fecha as 6 perguntas em aberto do mock.
+- **Gate Fiscal**: **FECHADO** — parecer transcrito em
+  `docs/pareceres/2026-08-17-vinculo-pagamento-documento.md`. As regras abaixo
+  são cópia dele e são normativas.
 
 ## Dor de Origem
 
