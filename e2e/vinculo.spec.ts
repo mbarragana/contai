@@ -456,6 +456,87 @@ test.describe("caminho a partir do pagamento (critério 3)", () => {
       { pagamento_id: pagamentoId, documento_id: documentoId },
     ]);
   });
+
+  /**
+   * P0 do 2º Gate 2: o rodapé deste seletor mostrava a variação da fatia DESTE
+   * pagamento, e não a do custo da obra. Sob a repartição cronológica, marcar
+   * um pagamento MAIS ANTIGO numa nota já coberta faz ele TOMAR a alocação do
+   * posterior — a fatia dele sobe 3.000, o custo da obra sobe 1.000, e a tela
+   * anunciava 3.000 contradizendo o "acumulado" da própria linha de baixo.
+   *
+   * Cenário: NF de 3.000 coberta por um PIX de 2.000 de 12/08, e um PIX de
+   * 3.000 de 01/07 a ligar — vínculos FORA da ordem das datas.
+   */
+  test("nota sobrecoberta: o rodapé mostra o efeito na OBRA, não a fatia do pagamento", async ({
+    page,
+    db,
+  }) => {
+    const wk = await criarFavorecido(db, {
+      nome: "WK Construções LTDA",
+      documento: CNPJ_WK_DIGITOS,
+      tipo: "pj",
+    });
+    const documentoId = await criarDocumento(db, {
+      favorecido_id: wk,
+      tipo: "nf_servico",
+      classificacao: "mao_obra",
+      valor: 3000,
+      retencao_11: true,
+      destinatario_cpf_ok: true,
+      status: "registrado",
+    });
+    const pagamentoNovo = await criarPagamento(db, {
+      favorecido_id: wk,
+      valor: 2000,
+      data_pagamento: `${ANO}-08-12`,
+      meio: "pix",
+      status: "aguardando_nf",
+      comprovante_path: `${USER_ID_SEED}/comprovante/pix-novo.png`,
+    });
+    const pagamentoAntigo = await criarPagamento(db, {
+      favorecido_id: wk,
+      valor: 3000,
+      data_pagamento: `${ANO}-07-01`,
+      meio: "pix",
+      status: "aguardando_nf",
+      comprovante_path: `${USER_ID_SEED}/comprovante/pix-antigo.png`,
+    });
+    const { error } = await db
+      .from("pagamento_documento")
+      .insert({ pagamento_id: pagamentoNovo, documento_id: documentoId });
+    expect(error).toBeNull();
+
+    await page.goto(`/pagamento/${pagamentoAntigo}/ligar`);
+    const candidato = page.getByRole("checkbox").first();
+    await expect(candidato).not.toBeChecked();
+    await candidato.check();
+
+    // As DUAS grandezas na tela, cada uma com o seu rótulo. O cartão fala da
+    // fatia deste pagamento: ele passa a absorver os 3.000 do conjunto.
+    await expect(page.getByText(/Com o que está marcado/)).toContainText(
+      "R$ 3.000,00 deste pagamento",
+    );
+    // O rodapé fala do custo de aquisição do imóvel: 2.000 → 3.000.
+    const rodape = page.getByText(/Custo confirmado se ligar agora/);
+    await expect(rodape).toContainText(
+      // `\s` também entre "R$" e o número: o Intl pt-BR usa NBSP, e regex
+      // (ao contrário de string) não passa pela normalização do Playwright.
+      /Custo confirmado se ligar agora:\s*R\$\s*1\.000,00/,
+    );
+    await expect(rodape).toContainText(`${ANO}: R$ 2.000,00 → R$ 3.000,00`);
+    await expect(rodape).toContainText("acumulado: R$ 2.000,00 → R$ 3.000,00");
+
+    await page.getByRole("button", { name: "Ligar 1 documento" }).click();
+    await expect(page).toHaveURL(new RegExp(`/pagamento/${pagamentoAntigo}$`));
+
+    // A promessa do rodapé conferida contra o número da home: o custo da obra
+    // é 3.000, e não os 5.000 que a soma dos dois PIX sugeriria.
+    expect(await vinculos(db)).toHaveLength(2);
+    await page.goto("/");
+    await expect(
+      page.getByText(/Custo confirmado em/).locator(".."),
+    ).toContainText("3.000,00");
+  });
 });
 
 /**
