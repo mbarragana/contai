@@ -7,6 +7,26 @@ a fonte do escopo.*
 **Legenda**: ✅ done · 🔨 em desenvolvimento · 🟢 pronto para `/develop`
 · 🟡 bloqueado por gate · 🔴 sem arquivo (só backlog)
 
+## ⚠️ Regra de formato — ✅ sem lastro é impossível por construção
+
+*Criada pelo `cto-obra` em 2026-08-18, depois de o ✅ do CONTAI-003 sobreviver a
+**cinco revisões de fila** sem nenhum gate registrado.*
+
+> **Um ticket só exibe ✅ se a linha citar os quatro hashes de gate —
+> `G1:x G2:y G3:z G4:w`. Sem os quatro, o status é ⚠️.**
+
+Não é questão de atenção, é questão de formato: *"verde era uma afirmação sem
+referente; com hash obrigatório, a afirmação carrega a própria prova ou não se
+escreve"*.
+
+**Verificação mecânica**, a rodar no passo de revisão de fila do `/develop`:
+
+```sh
+grep -n '✅' docs/tickets/README.md | grep -v 'G1:.*G2:.*G3:.*G4:'
+```
+
+Achou linha? A revisão falha.
+
 ---
 
 ## Em produção — o que já está no ar
@@ -15,7 +35,7 @@ a fonte do escopo.*
 |---|---|---|---|
 | 001 | Ingestão de NF/boleto | ✅ DONE com ressalvas | critério 7 (≤3 interações) transferido à US-008 |
 | 002 | Autenticação | ✅ DONE com ressalva **aberta** | R2 (prova no aparelho real) **transferida ao 014**, não resolvida. **Método trocado para e-mail+senha em 18/08** — reabre a validação de tela |
-| 003 | Cadastro de obra e obra ativa | ⚠️ **Gates 3 e 4 SEM REGISTRO** | schema na `main` e funcionando; falta validação de **comportamento**. O ✅ da fila era otimista |
+| 003 | Cadastro de obra e obra ativa | ⚠️ `G1:5550d11 G2:e72bf35 G3:papel G4:papel` | **Desempatado em 18/08**: o `cto-obra` adotou a posição do `lead`. G3 fecha por **evidência transitiva** (o quality do CONTAI-002 rodou sobre árvore que já continha o 003 — hash no ticket), G4 vira **passe de papel em paralelo**. Vira ✅ só **junto com o commit de registro** |
 
 ## Fila de implementação
 
@@ -60,12 +80,19 @@ PF) · `US-008` (extração automática — **Gate Fiscal já fechado**, parecer
 ## Dívidas de escrituração
 
 1. **Quatro tickets decididos e não escritos**: `019`, `016`, `017`, `006`.
-2. **CONTAI-003 sem Gates 3 e 4.** O `cto-obra` decidiu fechá-los antes do par
-   004+007; o `lead-engineer` discordou e propôs Gate 4 como passe de papel em
-   paralelo. **Não reconciliado.**
+2. ~~**CONTAI-003 sem Gates 3 e 4**~~ — **RECONCILIADO em 18/08**. O `cto-obra`
+   cedeu à posição do `lead`, com emenda: *"Gate 3 não é pulado, é fechado por
+   evidência registrada"*. Falta só o **commit de registro** dos dois passes.
+   O gatilho de reabertura é único e está escrito: se o Gate 4 achar coisa que
+   41 testes + produção não cobrem **e** que não cai no par 004+007.
 3. **CONTAI-007 precisa de revisão de Passo 1** — seis pontos, incluindo uma
    contradição interna (declara que não precisa de mock e condiciona a própria
    aprovação a um).
-4. **Decisões de 17–18/08 tomadas sob a premissa errada de cenário de uso**
-   ("uma mão, com pressa" como veto) — reavaliar **caso a caso**. Primeira
-   candidata: o corte do Google Calendar.
+4. **Decisões tomadas sob a régua velha de cenário** — as três mais afetadas,
+   nomeadas pelo `cto-obra` em 18/08, **a reavaliar caso a caso**:
+   1. **corte do Google Calendar** — o veto era *"não abre agenda no canteiro"*;
+   2. **CONTAI-015 (captcha)** — o `po` recomendou cortar por fricção com uma
+      mão; **em casa a objeção enfraquece**;
+   3. **a contradição do CONTAI-007 sobre precisar de mock** — o *"não precisa,
+      a tela é mínima para o polegar"* **perde o fundamento**. A revisão de
+      Passo 1 do 007 deve reabrir este ponto primeiro.
