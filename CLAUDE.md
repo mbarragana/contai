@@ -66,6 +66,26 @@ Regras fiscais vêm do agente `contador` — nunca de memória, nunca inventadas
     preenchido afirma), a proibição de default em campo fiscal, e o anexo
     obrigatório no ato do registro.
 
+## Fato da obra não se pergunta: se consulta
+
+Antes de perguntar ao Mateus **qualquer fato sobre a obra** — como as notas
+chegam, meios de pagamento, quem são os prestadores, valores já registrados,
+qual nota é qual — **procure primeiro**, nesta ordem:
+
+1. `docs/backlog.md`, seção de perguntas respondidas
+2. `docs/pareceres/` — o caso real que originou o parecer costuma estar no topo
+3. `docs/tickets/` — a "Dor de Origem" cita o relato
+
+Só pergunte o que a busca não achar, **em uma linha, antes** de gastar rodada de
+agente. Já aconteceu três vezes de uma repergunta invalidar análise pronta —
+e uma delas foi reperguntar um fato que estava em três arquivos já lidos na
+mesma sessão. Custa 5 segundos de `grep` e queima a paciência dele quando não é
+feito.
+
+⚠️ Fato específico da obra (CNO, CPF, valores, nomes de prestadores) **não entra
+neste arquivo** — o repositório é público. Fica no backlog, nos pareceres e na
+memória da sessão.
+
 ## Time de agentes (`.claude/agents/`)
 
 | Agente | Modelo | Papel |
