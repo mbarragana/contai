@@ -405,3 +405,86 @@ tamanho do CONTAI-010.**
 
 Junto dela, três dados baratos que ninguém tem: **valor e data da entrada; valor
 da parcela e nº de parcelas; saldo devedor hoje.**
+
+---
+
+# ADENDO — 2026-08-18 · verificação do dispositivo dos juros
+
+Provocado por: o Mateus fechou o escopo (**o financiamento é SÓ DO TERRENO** —
+não cobre construção, não há liberação por medição) e pediu confirmação da
+leitura do item 2d.
+
+**Este adendo atualiza os itens 2d, 5 e 7 acima.**
+
+## 1. Escopo fechado torna a leitura MAIS forte
+
+Terreno é bem imóvel, e o art. 17, **I** trata de "bens imóveis" sem distinguir
+terreno de construído. O financiamento ser só do terreno **elimina a zona
+cinzenta** que o parecer havia deixado aberta: não há juros de financiamento de
+**construção** (que seriam encargo de financiar execução, não aquisição), não há
+liberação por medição, não há rateio. São juros pagos para adquirir o imóvel, no
+sentido literal da norma. **Terreno não tem tratamento próprio — tem o caso mais
+limpo da alínea.**
+
+Some também a pergunta 3 do bloco "Exige CRC" (liberações por medição). E a
+aferição do INSS não é tocada por nada disso.
+
+## 2. Dispositivo localizado
+
+**IN SRF 84/2001, art. 17, I, "g"** — *"os juros e demais acréscimos pagos para
+a aquisição do imóvel"*.
+
+`[Certain]` quanto ao **texto** e quanto a ser inciso de **bens imóveis**.
+Confirmado em duas transcrições integrais independentes; a ordem das alíneas é
+e) imposto de transmissão · f) contribuição de melhoria · **g) juros** ·
+h) laudêmio.
+
+⚠️ **Ressalva de citação**: um artigo de prática cita a mesma expressão como
+alínea **"f"** — provavelmente compilação com alíneas renumeradas. **Numa
+intimação, citar o texto e o inciso I; a letra é secundária e checável no ato
+publicado no site da RFB.**
+
+**Correção de uma frase do parecer original**: *"juros e demais acréscimos
+pagos"* aparece **duas vezes** no art. 17 — em I/g (imóveis) e no inciso II
+(outros bens). A que vale aqui é a de **imóveis**.
+
+## 3. NÃO vira `[Certain]` — e o CRC continua necessário
+
+O que subiu para `[Certain]` foi a **existência e a redação do dispositivo**, não
+a subsunção *"juros bancários = juros pagos para a aquisição"*. A norma diz "para
+a aquisição do imóvel", não diz "de financiamento", e não foi localizado
+pronunciamento vinculante da RFB especificamente sobre juros bancários.
+
+**A pergunta ao CRC encolheu**: de *"os juros entram?"* para *"confirma a alínea
+g e o tratamento de seguros e tarifas?"* — conversa de dez minutos com o
+dispositivo na mão, não pedido de parecer.
+
+## 4. Erro de inclusão é mais barato — desde que NOMEADO
+
+- **Incluir indevidamente**: glosa da parcela de juros → IR diferencial + multa
+  + Selic. **Se os juros foram nomeados na discriminação, é divergência de
+  interpretação declarada, não omissão** — não abre espaço para agravamento por
+  ocultação.
+- **Excluir indevidamente**: em financiamento longo os juros podem se aproximar
+  do principal; a 15%+ isso é dinheiro grande. Recuperável só por retificação
+  dentro de 5 anos, **e só se os números tiverem sido guardados**.
+- **Assimetria decisiva**: o erro de inclusão é corrigível pelo fisco; o erro de
+  **não capturar é irreversível**.
+
+### Mudança de regra, e ela altera o item 2e acima
+
+**Os juros SAEM da marca "revisão humana"** (que trava a soma) e **passam a somar
+no custo, nomeados em linha própria na discriminação**.
+
+**Seguros MIP/DFI, tarifas e IOF continuam** em "revisão humana" e **fora da
+soma** — para eles não há alínea nominal, e imprensa dizendo "seguros e taxas
+também entram" não é fonte.
+
+## 5. Recomendação operacional: inalterada e reforçada
+
+Guardar **amortização, juros, correção, seguros e tarifas separados, todo mês**;
+decidir a composição na saída.
+
+Ao pedir o extrato analítico ao banco, pedir **retroativo à data do contrato** e
+junto o **informe anual de pagamentos** — é a peça única que sustenta o ano
+inteiro se o analítico mensal se perder.
