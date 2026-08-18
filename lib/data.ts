@@ -6,6 +6,7 @@
  * fora daqui.
  */
 
+import { podeVincular } from "@/lib/fiscal/vinculo";
 import { numericParaCentavos, centavosParaNumeric } from "@/lib/money";
 import {
   BUCKET_ACERVO,
@@ -436,6 +437,115 @@ export async function criarPagamento(
     .single();
   if (error) throw error;
   return (data as { id: string }).id;
+}
+
+/**
+ * Tentativa de ligar registros de obras diferentes (critério 11 do
+ * CONTAI-018). É erro de regra, não de rede: a tela mostra o motivo, e o
+ * `mensagemDeErro` abaixo já o repassa por ser um `Error` com mensagem.
+ */
+export class VinculoEntreObrasError extends Error {
+  constructor(motivo: string) {
+    super(motivo);
+    this.name = "VinculoEntreObrasError";
+  }
+}
+
+/**
+ * Um vínculo a criar. As obras viajam junto porque a guarda do critério 11 é
+ * do CÓDIGO: `pagamento_documento` não tem `obra_id` nem check, e a policy
+ * `dono_vinculo` só exige mesmo DONO — ela deixaria passar um vínculo entre
+ * duas obras do próprio Mateus, que somaria custo entre matrículas.
+ */
+export interface VinculoNovo {
+  pagamentoId: string;
+  documentoId: string;
+  obraDoPagamentoId: string;
+  obraDoDocumentoId: string;
+  /** Decide o `status` derivado do pagamento — nunca o cálculo do custo. */
+  documentoHabil: boolean;
+}
+
+/**
+ * Cria os vínculos em UMA chamada.
+ *
+ * Um `insert` com array é UMA statement no Postgres: ou entram todas as
+ * linhas, ou nenhuma. É o que sustenta a promessa da tela de erro (mock s3e):
+ * "nada foi ligado — a nota continua como estava". Não existe transação
+ * multi-statement pelo PostgREST, então a atomicidade que se pode prometer é
+ * exatamente esta, e é por isso que a inserção não é dividida em um loop.
+ *
+ * Ligar de novo o que já está ligado não é erro — é o mesmo fato afirmado
+ * duas vezes —, e por isso a violação da PK composta (23505) é engolida. Não
+ * se usa `upsert` aqui de propósito: ele pediria também o privilégio de
+ * UPDATE nesta tabela, e a migration 0006 concede exatamente os dois verbos
+ * que o app executa (insert e delete).
+ */
+export async function criarVinculos(vinculos: VinculoNovo[]): Promise<void> {
+  if (vinculos.length === 0) return;
+
+  for (const v of vinculos) {
+    const permissao = podeVincular(
+      { obraId: v.obraDoPagamentoId },
+      { obraId: v.obraDoDocumentoId },
+    );
+    if (!permissao.ok) throw new VinculoEntreObrasError(permissao.motivo);
+  }
+
+  const { error } = await getSupabase()
+    .from("pagamento_documento")
+    .insert(
+      vinculos.map((v) => ({
+        pagamento_id: v.pagamentoId,
+        documento_id: v.documentoId,
+      })),
+    );
+  if (error && error.code !== "23505") throw error;
+
+  // `status = 'conciliado'` é gravado como CONSEQUÊNCIA do vínculo (critério
+  // 7) e não é lido por cálculo fiscal nenhum — quem calcula custo é
+  // `lib/fiscal/vinculo.ts`, a partir das linhas acima. Por isso a falha desta
+  // gravação NÃO invalida o vínculo e não pode virar erro de tela: o vínculo,
+  // que é o fato, já está no banco.
+  const comHabil = [
+    ...new Set(vinculos.filter((v) => v.documentoHabil).map((v) => v.pagamentoId)),
+  ];
+  if (comHabil.length > 0) {
+    await getSupabase()
+      .from("pagamento")
+      .update({ status: "conciliado" })
+      .in("id", comHabil);
+  }
+}
+
+/**
+ * Desfaz um vínculo (critério 15). Nada é apagado além dele: a nota e o
+ * pagamento continuam registrados, com os arquivos no acervo.
+ *
+ * O DELETE existe no papel `authenticated` desde a migration 0006, e a
+ * justificativa está lá: vínculo errado infla o custo de aquisição que vai
+ * para a declaração, e correção que exige SQL é a dor D9 de volta.
+ */
+export async function apagarVinculo(
+  pagamentoId: string,
+  documentoId: string,
+  /** Sobra algum documento hábil ligado a este pagamento depois de desligar? */
+  seguemDocumentosHabeis: boolean,
+): Promise<void> {
+  const { error } = await getSupabase()
+    .from("pagamento_documento")
+    .delete()
+    .eq("pagamento_id", pagamentoId)
+    .eq("documento_id", documentoId);
+  if (error) throw error;
+
+  if (!seguemDocumentosHabeis) {
+    // Mesma nota do `criarVinculos`: consequência, não pré-requisito.
+    await getSupabase()
+      .from("pagamento")
+      .update({ status: "aguardando_nf" })
+      .eq("id", pagamentoId);
+  }
 }
 
 /**
