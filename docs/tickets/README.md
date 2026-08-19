@@ -89,7 +89,7 @@ disser que a home não basta. Não reutilizar o ID.
 
 | # | Ticket | P | Status | Nota |
 |---|---|---|---|---|
-| 010 | Terreno financiado (Passo 1: captura) | P0 | 🟡 | **Reescrito em 18/08** — corrigido **erro fiscal** no corpo do ticket (juros e correção **entram** no custo: R$ 43.051,23 só em 2025). Gate Fiscal **fechado**; a peça é o **informe anual** que o Mateus baixa sozinho, **1 lançamento/ano**, não 12. **Gate 0 pendente: rodar `/design`** (formulário novo). CTO: **M pequeno**, fatiado em dois S — Passo 2 vai junto da US-004 |
+| 010 | Terreno financiado (Passo 1: captura) | P0 | ✅ `G1:ebe0bfc G2:be31bc4 G3:f54751c G4:960578c` | **DONE em 19/08 — os cinco gates, com o log no corpo do ticket.** Migration **0008** (a primeira destrutiva do projeto: as tres colunas de terreno morrem, **sem backfill** — descarte autorizado pelo Mateus em 19/08). O Gate 2 deu **REQUEST CHANGES** nos dois: os bloqueadores eram o mesmo defeito **D34** em dois lugares — numero menor que a realidade **sem dizer que era menor**. ⚠️ **Ressalva viva, e nao e de software**: a obra esta com terreno **R$ 0,00** ate o Mateus redigitar os tres desembolsos com as datas e lancar o informe de 2025 — e o ano-base 2025 **ja foi declarado com o terreno dentro**. Seguros seguem **em aberto** (ADENDO 4). Passo 2 (criterios 17 e 20) foi para a **US-004** no backlog |
 | 011 | Export do acervo | P0 | 🟡 | Gate 0 aprovado 16/08; **P1 do CTO** (fonte do estado) pendente |
 | 016 | Tipo de empreitada na obra | P0 | 🟡 | ramo `total` **bloqueado** — o texto do contador não está em arquivo. Não exige mock |
 | 017 | Lista de notas a cobrar (tela 14) | — | 🟡 | **cortado**, com condição de volta escrita. Depende de 004 + 007 |
@@ -98,6 +98,9 @@ disser que a home não basta. Não reutilizar o ID.
 | 015 | Captcha no login | P2 | 🟡 | mock pendente. `po` recomendou cortar; Mateus manteve como ticket |
 | 022 | Cartão de crédito (compra → fatura) | P0 | 🔴 | **reservado em 18/08**, sem arquivo. Bloqueado pelo 019; regra fiscal pronta (adendo §B) |
 | 023 | Tirar "regime de caixa" das 4 telas restantes | P2 | 🟢 | **criado no Gate 4 do 019** (18/08), da dor **D31**. Sem mock e sem Gate Fiscal — texto já ratificado no §F.5. **S.** Dos primeiros a ceder se a fila apertar |
+| 024 | Corrigir informe/contrato do financiamento, **com rastro** | P1 | 🔴 | **criado no Gate 2 do 010** (19/08). O Gate 2 **tirou o `grant update`** de `financiamento` e `financiamento_informe`: grant sem tela nao entrega o remedio que promete — informe com **duas rubricas trocadas entre si** fecha a soma, entao nem a trava nem o CHECK acusam, e o `unique` trava o ano-base **para sempre**. Grant volta no mesmo diff que a tela e o historico. Inclui `previsto` -> `pago` |
+| 025 | *"Paguei, mas nao sei a data"* — o terceiro estado | P1 | 🔴 | **criado no Gate 2 do 010** (19/08). O estado `(pago, sem data)` **ja e representavel e ja foi testado**, mas ficou inalcancavel depois do descarte do backfill. O formulario, diante de quem nao lembra o dia, **convida a inventar uma data**. Desempatar o criterio 3 do 010 contra o *"nao bloqueie quando o fato ja aconteceu"* do 019 e de `po` + `contador` |
+| 026 | Terreno recebido (heranca, doacao, permuta) | P2 | 🔴 | **criado no Gate 2 do 010** (19/08). A natureza e oferecida e a tela explica que ha **data de aquisicao sem desembolso**, mas nao ha onde registrar o valor: quem escolher fica com **custo zero**. Nao afeta o Mateus (financiado) |
 
 ## Stories ainda sem ticket
 
