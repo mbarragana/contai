@@ -13,7 +13,9 @@ digitação da obra, e é exatamente quando typo acontece. **A partir do instant
 em que uma nota for registrada errada, isto é P0**, porque hoje não existe
 desfazer — nome de favorecido gravado errado é **permanente** desde `b807901`.
 
-- **Gate 0 (mock)**: **OBRIGATÓRIO — PENDENTE: rodar `/design`.** Ver critério 1.
+- **Gate 0 (mock)**: **v1 APROVADA pelo Mateus em 19/08**
+  (`design/mocks/CONTAI-021.html`). Restam **duas superfícies** para a v2, já
+  decididas: desfecho da pendência (critério 21) e o botão do critério 19.
 - **Gate Fiscal**: `docs/pareceres/2026-08-18-correcao-de-documento-registrado.md`
   — **APROVADO**. O parecer é normativo; este ticket **transcreve, não
   reinterpreta**.
@@ -62,8 +64,8 @@ descreve: *inventar dado no campo que sobrou*.
 
 ## Critérios de Aceite
 
-1. [ ] **Mock aprovado pelo Mateus** antes do desenvolvimento — **não existe
-   mock**. `PENDENTE: rodar /design`. ⚠️ **Régua corrigida em 2026-08-18**:
+1. [ ] **Mock aprovado pelo Mateus** antes do desenvolvimento — **v1 aprovada em
+   19/08**; falta a v2 com as duas superfícies dos critérios 19 e 21. ⚠️ **Régua corrigida em 2026-08-18**:
    corrigir nota registrada errada é **gestão em casa, sentado, com calma** —
    cenário **principal**. Avaliar esta tela com "uma mão, com pressa" é medir a
    coisa errada. **375px é piso, não alvo**: pode ter mais campos, mais
@@ -79,7 +81,7 @@ descreve: *inventar dado no campo que sobrou*.
    anterior; se a DAA daquele ano já foi entregue, avalie retificadora com seu
    contador"* — que **não some ao fechar a tela** (§6 do parecer: aviso que só
    existe no clique é aviso que não existiu). **O app não decide nem redige
-   retificadora — CRC.**
+   retificadora — CRC.** Agregação e baixa: critérios **20 e 21**.
 5. [ ] **Corrigir a classificação** (material ↔ mão de obra) — sem trava.
    Muda a composição da discriminação, não o total; a tela diz isso.
 6. [ ] **Corrigir o nome do emitente** — grava em `favorecido.nome`, **com
@@ -124,6 +126,67 @@ descreve: *inventar dado no campo que sobrou*.
     o valor novo, (ii) a linha de rastro, (iii) o custo por ano recalculado, e
     (iv) que o rastro **não** aceita update nem delete.
 
+### Decisões do `po` — 2026-08-19 (as cinco perguntas do mock v1)
+
+Mock `design/mocks/CONTAI-021.html` **v1 aprovado pelo Mateus em 19/08**; os
+cinco blocos âmbar eram perguntas em aberto. Decididas pelo `po` por delegação
+explícita do Mateus. **v2 do mock precisa desenhar só duas coisas** — a escolha
+de desfecho do critério 21 e o botão do critério 19; o resto já está no v1.
+
+16. [ ] **O histórico de correções é EXIBIDO na rodada 1** — card read-only no
+    detalhe do documento (`/documento/[id]`), uma linha por correção: quando,
+    quem, campo, antes→depois, motivo e anos afetados; vazio diz *"Nenhuma
+    correção neste registro."* **Não é tela nova**: é um `select` na tabela do
+    critério 7, dentro de tela que já existe. Rastro que só o banco vê não
+    cumpre a **meta 3** — quem vai ler isso em 2034 é o Mateus, não o Postgres.
+17. [ ] **Formulário de pagamento pela metade: aviso, não rascunho.** Sair por
+    "Corrigir na nota" com qualquer campo preenchido abre confirmação de dois
+    botões nomeados — *"Continuar o pagamento"* (padrão) e *"Sair e corrigir a
+    nota — perco o que digitei"* — e o texto dá a saída barata: **o nome do
+    emitente pode ser corrigido depois**, porque o pagamento aponta para o
+    favorecido, não para o texto do nome; corrigir antes ou depois grava o mesmo
+    dado. **Rascunho fica fora**: persistir formulário fiscal pela metade é
+    escopo novo (o **anexo já escolhido não sobrevive à navegação em hipótese
+    nenhuma**) e devolve dias depois um formulário sem contexto — o oposto de
+    *campo vazio pergunta, campo preenchido afirma*.
+18. [ ] **Nota substitutiva entra como ANEXO ADICIONAL do mesmo registro**, no
+    mesmo ato da correção de valor, com `motivo = emitente_corrigiu_a_nota`.
+    **Não abre registro novo na rodada 1**: o app não tem estado "cancelada" e o
+    §1 do parecer proíbe editar `status` — dois documentos vivos para o mesmo
+    fato dobrariam `Σ documentos` e inflariam o custo, que é o passivo da **D25**
+    com outro nome. Um registro, dois papéis anexados, o rastro dizendo qual
+    valor veio de qual. **Decisão reversível**: quando o `CONTAI-004` trouxer
+    número/série e a anotação da D25 existir, a substitutiva pode virar registro
+    próprio *"substitui o documento X"* — sem reabrir gate fiscal.
+19. [ ] **A tela de CNPJ errado oferece UMA ação hoje**: *"Marcar: o CNPJ deste
+    registro está errado — tratar"*, que abre pendência do mesmo mecanismo do
+    critério 4 (tipo `emitente_errado`), **uma por documento** (idempotente),
+    **sem campo editável, sem tocar `status` nem quarentena**. Motivo de
+    produto, não fiscal: o §4.4 proíbe impasse mudo, e o risco concreto é ele dar
+    vazão à intenção **trocando o nome do favorecido** — que é exatamente o que a
+    tela pede para não fazer, hoje sem oferecer nada em troca. Baixa pelo
+    critério 21, ou **automática** quando a rodada 2 repontar `favorecido_id`.
+20. [ ] **A pendência de retificadora é por ANO-CALENDÁRIO, não por correção.**
+    Havendo pendência aberta para 2025, toda correção seguinte que mexa em 2025
+    **acumula nela**: a lista de correções que a compõem cresce e o delta exibido
+    é o **acumulado do ano** (primeiro `antes` → último `depois`). Cinco
+    correções não viram cinco linhas em "O que está faltando" — alarme que se
+    multiplica é o mesmo defeito do alarme que não desliga.
+21. [ ] **Só o Mateus baixa a pendência, em ato nomeado, e a baixa não apaga.**
+    Botão *"Marcar como tratada"* na tela da pendência, que **exige escolher um
+    desfecho** — nunca ao fechar a tela, nunca em lote, nunca automático, nunca
+    sugerido pelo app:
+    - *"Retifiquei a DAA de {ano}"* + data
+    - *"Meu contador avaliou e não é preciso retificar"* + data
+    - *"A DAA de {ano} ainda não foi entregue"* — não é retificadora: a correção
+      entra na declaração normal
+    O desfecho é **INSERT, não update** (mesma disciplina do critério 8): a
+    pendência **sai da lista** e fica no histórico do ano, com quem, quando e
+    qual desfecho, legível em 2034. **Correção nova depois da baixa abre
+    pendência NOVA** — baixa não silencia delta futuro. **E2E**: abrir, acumular
+    segunda correção no mesmo ano, baixar com desfecho, e provar que uma terceira
+    correção reabre como pendência nova.
+
 ## Out of Scope — cortado da rodada 1, com o porquê
 
 - **`destinatario_cpf_ok`, `tipo` e `vencimento`** — corrigíveis segundo o §1 do
@@ -144,6 +207,12 @@ descreve: *inventar dado no campo que sobrou*.
   pelo `contador`. Não é edição de campo, é anotação. Dor **D25**.
 - **Apagar documento ou pagamento** — segue fora de escopo (CONTAI-009, acervo
   append-only). Correção não é remoção.
+- **Rascunho do formulário de pagamento** — critério 17. Volta se o aviso não
+  resolver na prática (sinal: ele reclamar de digitação perdida), não antes.
+- **Nota substitutiva como registro próprio** — critério 18. Depende do
+  `CONTAI-004` (número/série) e da anotação da D25 para não gerar duplicidade.
+- **Texto livre no desfecho da pendência** — critério 21 fecha em três opções.
+  Campo livre em registro fiscal vira lugar de guardar o que ninguém relê.
 
 ## Gate Fiscal (Contador)
 
@@ -195,7 +264,13 @@ O que este ticket **não pode** contrariar:
   reconceder em seguida é churn de duas migrations e dois `db push`.
   **Se** o critério 6 for cortado no `/design`, o fallback é comentar a exceção
   no `ESPERADO` apontando para este ticket — **nunca revogação especulativa**.
-- **Arquivos**: `supabase/migrations/0007_*.sql` (tabela + RLS + GRANT +
+- **Impacto das decisões 16-21** (forma é do `cto-obra`; comportamento está nos
+  critérios): o critério 4 já exigia **pendência persistente** — os critérios
+  19-21 dizem que ela tem **tipo** (`retificadora_possivel`, `emitente_errado`),
+  **chave por ano-calendário** no primeiro caso e **desfecho gravado por INSERT**,
+  nunca update. O critério 16 não pede nada novo do modelo: é `select` na
+  `revisao`.
+- **Arquivos**: `supabase/migrations/0009_*.sql` (0007 e 0008 já existem) (tabela + RLS + GRANT +
   função) · `e2e/privilegios.spec.ts` (`revisao: "INSERT,SELECT"`) ·
   `app/documento/[id]/corrigir/**` · `app/documento/[id]/page.tsx` (entradas) ·
   `app/documento/[id]/obra/page.tsx` (retrofit) ·
@@ -216,6 +291,9 @@ O que este ticket **não pode** contrariar:
   vezes, o Mateus vê dois avisos diferentes para o mesmo evento fiscal.
 
 ## Perguntas Abertas (só o Mateus responde)
+
+> As **cinco perguntas do `designer`** não estão aqui: foram decididas pelo `po`
+> em 19/08 (critérios 16-21). As três abaixo continuam sendo do Mateus.
 
 1. Corrigir **o nome do emitente** (critério 6) entra na rodada 1, ou eu corto e
    o nome errado segue permanente até a rodada 2?

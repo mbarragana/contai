@@ -1719,6 +1719,27 @@ privilégio (`update` em `favorecido` concedido e não executado desde `b807901`
 **morre por uso** no critério 6 do 021, sem migration de revogação. Revogar
 agora para reconceder depois é churn de duas migrations e dois `db push`.
 
+**Cinco decisões de escopo do `po` — 2026-08-19**, por delegação explícita do
+Mateus, fechando os blocos âmbar do mock v1 do `CONTAI-021` (critérios 16-21 do
+ticket). Em uma linha cada:
+
+1. **Histórico de correções é exibido** no detalhe do documento — rastro que só
+   o banco vê não cumpre a meta 3, e é `select` em tela que já existe.
+2. **Formulário de pagamento pela metade: aviso, não rascunho** — com a saída
+   barata dita na tela (o nome do emitente pode ser corrigido depois, e o
+   pagamento aponta para o favorecido, não para o texto do nome).
+3. **Nota substitutiva = anexo adicional do mesmo registro** na rodada 1 —
+   registro novo sem estado "cancelada" dobraria `Σ documentos`. Vira registro
+   próprio quando o `CONTAI-004` e a anotação da **D25** existirem.
+4. **CNPJ errado ganha uma ação hoje**: marcar *"CNPJ errado — tratar"* como
+   pendência, sem campo e sem mexer em status — porque impasse mudo empurra para
+   trocar o nome, que é o dano que a tela existe para evitar.
+5. **A pendência de retificadora é por ano, acumula correções, e só o Mateus a
+   baixa** escolhendo um desfecho (retifiquei / contador avaliou / DAA ainda não
+   entregue), gravado por INSERT; correção nova depois da baixa abre pendência
+   nova. É a resposta ao "alarme que não desliga" recusado em 10/08 **sem** virar
+   alarme que se apaga sozinho.
+
 ⚠️ **Dívida de processo, aberta aqui**: `.claude/agents/po.md` e
 `.claude/agents/designer.md` ainda carregam as **duas premissas já corrigidas no
 `CLAUDE.md`** — *"venda + 5 anos"* (corrigido em 16/08) e *"majoritariamente de
