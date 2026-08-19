@@ -721,3 +721,94 @@ discriminação, guardar o extrato.
 **Exige CRC**: a inclusão dos R$ 43 mil de juros e **qualquer retificadora**.
 **Confirmar**: natureza da "Diferença Teórico / Pago" (com a CAIXA) e a alínea
 do art. 17 na IN vigente.
+
+---
+
+# Adendo 3 de 2026-08-18 — por que juros entram e seguro não
+
+**Mantenho a exclusão do seguro, e o Mateus está certo na economia.** Reexaminei
+e não mudo: a distinção não é arbitrária, mas **também não é a que ele espera**.
+
+## 1. Obrigatoriedade não é o critério — e é aí que o argumento cede
+
+[Certain] Se bastasse ser obrigatório, **IPTU, condomínio e taxa de lixo
+entrariam** — são compulsórios e estão fora por decisão expressa (§ "Fora do
+custo de aquisição"). A norma não mede **inescapabilidade**; mede **destino do
+pagamento**.
+
+**A cadeia causal "sem seguro não há financiamento, sem financiamento não há
+aquisição" é verdadeira e insuficiente.** Ela também vale para a conta de luz do
+canteiro e para o IPTU do terreno durante a obra. Causa remota não é custo.
+
+## 2. O critério material — lidero com ele, é o melhor
+
+**Juros remuneram o capital que pagou o imóvel. O prêmio de seguro compra
+cobertura de risco.** São contraprestações de coisas diferentes, para
+**contrapartes diferentes** (credor × seguradora), em **contratos diferentes**
+(o seguro é acessório, coligado, não é parcela do preço).
+
+A prova estrutural está no próprio MIP: **em caso de sinistro, ele quita a
+dívida sem desembolso do adquirente.** Se o prêmio fosse parcela do preço, o
+imóvel ficaria com custo de aquisição sem que o principal tivesse sido pago por
+ele. O prêmio não compra imóvel — **compra a transferência de um risco**.
+
+⚠️ **Consequência prática disso, e vale registrar**: valor de dívida quitada
+pelo MIP **não é custo de aquisição**, porque não houve dispêndio do adquirente.
+[Certain no princípio do art. 17 — dispêndio *pago pelo proprietário*.]
+
+## 3. O critério positivo — e ele é o que decide na prática
+
+[Likely — **confirmar o texto vigente**] O art. 17 da IN SRF 84/2001 é uma
+**lista fechada de alíneas**. Os juros estão nomeados (*"os juros e demais
+acréscimos pagos para a aquisição do imóvel"* — **na listagem do Perguntas e
+Respostas IRPF aparece como alínea "i", não "g"; corrijo a referência dos
+adendos anteriores e mando confirmar na IN vigente**). **Seguro não está.**
+
+*"Demais acréscimos"* não é porta larga: acompanha "juros" e puxa **encargo
+financeiro**, não prêmio de seguro. Alargá-lo para cobrir seguro é
+**interpretação extensiva de norma de dedução** — o terreno mais fácil de
+glosar.
+
+**Dito com todas as letras**: nesta parte a distinção é **de direito positivo**.
+Economicamente o Mateus tem razão — é dinheiro que ele foi obrigado a gastar
+para adquirir. **A norma simplesmente não enumerou.**
+
+## 4. A frase para a tela (ele reencontra isso todo ano)
+
+> **Juros pagam o dinheiro que comprou o imóvel — entram no custo.
+> O seguro paga a cobertura de um risco (morte, invalidez, dano ao imóvel), não
+> o imóvel — não entra, mesmo sendo obrigatório.**
+
+## 5. DFI × MIP: muda algo? Só num evento específico
+
+- **MIP** (morte/invalidez): prêmio **fora**, sempre. Se houver sinistro, a
+  **quitação pelo seguro não vira custo** (§2).
+- **DFI** (danos físicos ao imóvel): prêmio **fora** pela mesma razão. Mas o
+  **sinistro** abre um caso que nenhum parecer meu cobriu:
+  **reparo custeado por indenização não é dispêndio dele** — quem pagou foi a
+  seguradora. **Não soma no custo.** Se somasse, o custo subiria sem saída de
+  caixa: é a mesma moeda do double-count do CONTAI-005.
+  [Confirmar na legislação] o tratamento da **indenização recebida em dinheiro**
+  (isenta até o valor do dano × ganho de capital sobre o excedente) — **não
+  tenho o dispositivo e não vou supor**. Cenário remoto; a regra operacional
+  acima já protege o caso comum.
+
+## 6. Taxas × FCVS: **tratamento distinto entre si**
+
+- **Taxa de administração / tarifas**: **fora**, mesma lógica do seguro —
+  remuneram **serviço de gestão do contrato**, não o capital nem o preço.
+  [Certain no raciocínio]
+- **FCVS**: **não trato como seguro, e não fecho hoje.** Contribuição a fundo que
+  cobre **saldo residual do próprio financiamento** — tem cara de **encargo
+  financeiro do contrato**, e portanto de *"demais acréscimos pagos para a
+  aquisição"*. [Guessing — **confirmar se há alínea/menção expressa a FCVS na IN
+  vigente e no Perguntas e Respostas**.] Enquanto não confirmar: **fora da soma,
+  revisão humana, sinalizado como candidato a inclusão** — diferente do seguro,
+  que é exclusão firme.
+
+## 7. Ordem de grandeza, para ele decidir com o número na mão
+
+Seguro de **R$ 499,56/ano** por ~20 anos ≈ **R$ 10 mil**; a 15%, ≈ **R$ 1,5 mil**
+de imposto. **Não é irrelevante** — mas é o pior lugar para brigar: sem alínea
+nominal **e** com o argumento material contra. Os R$ 43 mil/ano de **juros** são
+onde o dinheiro está, e esses eu **incluo**, nomeados.
