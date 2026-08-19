@@ -38,6 +38,7 @@ import {
   INSUMO_PARA_REVISAO_CRC,
   NOME_DA_NATUREZA,
   NOME_DO_DESEMBOLSO,
+  PRECO_CONTRATADO_NAO_E_CUSTO,
   PREVISTO_NAO_E_PAGO,
   SALDO_DEVEDOR_INFORMATIVO,
   TERRENO_ZERO_NAO_E_NADA_PAGO,
@@ -213,6 +214,13 @@ export default function PainelDoTerreno() {
                 {formatarBRL(financiamento.precoContratadoCentavos)}
               </span>
             </Linha>
+            {/* ⚠️ A ADJACÊNCIA É O RISCO, e ela piorou com o conserto do B2:
+                logo acima o painel mostra "Já desembolsado — R$ 0,00" com o
+                aviso de que nada foi registrado, e aqui embaixo fica o único
+                número grande e VERDADEIRO da tela. É exatamente onde alguém
+                pega o número errado para a declaração. A constante já existia
+                e só faltava ser colada aqui (ressalva do `contador`, Gate 2). */}
+            <Consequencia cor="amb">{PRECO_CONTRATADO_NAO_E_CUSTO}</Consequencia>
             {financiamento.numeroParcelas ? (
               <Linha rotulo="Parcelas">{financiamento.numeroParcelas}</Linha>
             ) : null}

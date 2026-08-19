@@ -384,10 +384,32 @@ export const PRECO_CONTRATADO_NAO_E_CUSTO =
   "sem lastro de renda — e, na venda, custo de aquisição maior que o " +
   "desembolso comprovado.";
 
-/** Critério 15 — cópia do parecer §2c e do adendo 2 §2. */
+/**
+ * Critério 15 — cópia do parecer §2c e do adendo 2 §2.
+ *
+ * ⚠️ **A frase "não vai para a declaração" foi RETIRADA daqui no Gate 2**, e a
+ * retirada é a mesma disciplina aplicada aos seguros: **onde a fonte se
+ * contradiz, a tela cala.**
+ *
+ * O parecer diz as duas coisas, em lugares diferentes:
+ * - §4, regra 2 (texto da discriminação): o saldo devedor **aparece** e é
+ *   rotulado *"não incluído por não ter sido pago"* — *"fecha a conta na
+ *   cabeça de quem lê (pago + saldo = preço)"*;
+ * - adendo 2 §4: *"Saldo devedor **não entra na discriminação** do bem"*.
+ *
+ * Achado do `cto-obra` no reveredito do Gate 2, e ele estava vazando: esta
+ * constante herdou um lado e `SALDO_DEVEDOR_OBRIGATORIO` herdou o outro — as
+ * duas na MESMA tela, uma dizendo que o saldo fecha a conta de quem lê a
+ * declaração e a outra dizendo que ele não vai para a declaração.
+ *
+ * O que sobra aqui é só o que é `[Certain]` e não está em disputa: **não é
+ * custo, nunca soma, nunca vira campo de dívida.** Onde ele aparece no TEXTO
+ * da discriminação é decisão do Passo 2 (US-004) e depende de um adendo do
+ * `contador` — está registrado como pré-requisito dela, não como detalhe.
+ */
 export const SALDO_DEVEDOR_INFORMATIVO =
   "Saldo devedor não é custo de nada. Guardar como informativo, nunca somar, " +
-  "nunca virar campo de 'dívida' no custo. Não vai para a declaração.";
+  "nunca virar campo de 'dívida' no custo.";
 
 /** Critério 10 — sem o extrato, o lançamento não grava. */
 export const INFORME_EXIGE_ANEXO =

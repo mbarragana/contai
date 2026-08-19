@@ -52,6 +52,14 @@ export const OBRA_SEED = {
   cno_registrado_em: "2025-11-20",
   unidades_autonomas: 1,
   origem_desmembramento_loteamento: false,
+  /**
+   * ⚠️ Explicitamente NULL, e a explicitação é o que importa: sem esta chave a
+   * coluna some do `on conflict do update` do `limpar`, e a natureza que um
+   * teste gravou VAZA para o próximo. Foi assim que o teste da lista cheia de
+   * tipos de desembolso viu a lista filtrada de "financiado" do teste anterior.
+   * Toda coluna da obra que um teste possa escrever tem de estar aqui.
+   */
+  natureza_aquisicao_terreno: null,
 } as const;
 
 export const BUCKET_ACERVO = "acervo";

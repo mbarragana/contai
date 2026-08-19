@@ -309,37 +309,6 @@ export default function InformeAnual() {
     );
   }
 
-  // ── Ano-base no futuro: o exercício ainda não existe ───────────────────
-  //
-  // O CHECK do banco só limita 1990-2999, e a rota é digitável: `/informe/2031`
-  // gravaria custo de aquisição de um ano que ainda não aconteceu. A tela é a
-  // única barreira aqui, e a régua é a mesma do desembolso com data futura —
-  // o app não registra fato que ainda não ocorreu.
-  if (anoBase > anoCorrente) {
-    return (
-      <>
-        <AppBar titulo={`Informe anual de ${anoBase}`} sub={obra.nome} />
-        <Corpo>
-          <Banner cor="red" role="alert">
-            {anoBase} ainda não aconteceu. Não existe extrato de um exercício
-            que não fechou, e o app não grava custo de aquisição em ano que
-            ainda não existe. O ano-base mais recente com extrato publicado é{" "}
-            {anoCorrente - 1}.
-          </Banner>
-        </Corpo>
-        <Rodape>
-          <BotaoLink
-            href={`/obras/${id}/terreno/informe/${anoCorrente - 1}`}
-            variante="primary"
-          >
-            Registrar informe de {anoCorrente - 1}
-          </BotaoLink>
-          <BotaoLink href={`/obras/${id}/terreno`}>Voltar ao terreno</BotaoLink>
-        </Rodape>
-      </>
-    );
-  }
-
   // ── Sem contrato não há informe ────────────────────────────────────────
   if (!financiamento) {
     return (
@@ -363,6 +332,57 @@ export default function InformeAnual() {
       </>
     );
   }
+
+  // ── Ano-base fora da vida do contrato ──────────────────────────────────
+  //
+  // O CHECK do banco só limita 1990-2999, e a rota é DIGITÁVEL. São três
+  // buracos, e o Gate 2 fechou só o primeiro na primeira passada:
+  //
+  // 1. `/informe/2031` — ano que ainda não aconteceu. Não existe extrato de
+  //    exercício que não fechou.
+  // 2. `/informe/2010` com contrato de 2024 — ano ANTERIOR ao contrato. Este é
+  //    o pior dos três e passava batido: `custoTerrenoAteOAno` soma todo
+  //    informe com `anoBase <= ano`, então um informe de 2010 sobe o acumulado
+  //    de TODOS os anos, inclusive os já declarados. Custo inflado em Bens e
+  //    Direitos é redução indevida de ganho de capital, cobrada com multa — é
+  //    o texto do próprio `UM_INFORME_POR_ANO`.
+  // 3. `/informe/abc` — `Number("abc")` é `NaN`, e `NaN > anoCorrente` é
+  //    `false`: atravessava o guarda e caía no formulário.
+  //
+  // Por isso o guarda mora DEPOIS do `if (!financiamento)`: o piso é a data do
+  // contrato, e sem contrato não há piso que se possa afirmar.
+  const anoDoContrato = Number(financiamento.dataContrato.slice(0, 4));
+  if (
+    !Number.isInteger(anoBase) ||
+    anoBase > anoCorrente ||
+    anoBase < anoDoContrato
+  ) {
+    return (
+      <>
+        <AppBar titulo={`Informe anual de ${anoBase}`} sub={obra.nome} />
+        <Corpo>
+          <Banner cor="red" role="alert">
+            {!Number.isInteger(anoBase)
+              ? "Ano-base inválido no endereço."
+              : anoBase > anoCorrente
+                ? `${anoBase} ainda não aconteceu — não existe extrato de um exercício que não fechou.`
+                : `${anoBase} é anterior ao contrato, que é de ${anoDoContrato}. Não houve financiamento para pagar naquele ano.`}{" "}
+            O app não grava custo de aquisição em ano-base fora da vida do
+            contrato. Os anos válidos vão de {anoDoContrato} a {anoCorrente}.
+          </Banner>
+        </Corpo>
+        <Rodape>
+          <BotaoLink
+            href={`/obras/${id}/terreno`}
+            variante="primary"
+          >
+            Ver o terreno ano a ano
+          </BotaoLink>
+        </Rodape>
+      </>
+    );
+  }
+
 
   // ── Já registrado: a trava da dupla contagem, antes de digitar nada ────
   if (jaExiste && fase.nome !== "gravado") {

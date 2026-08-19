@@ -237,7 +237,7 @@ export interface ResumoObra {
 }
 
 /**
- * ⚠️ **Quatro campos, e nenhum deles é compromisso** — nem virá a ser
+ * ⚠️ **Sete campos, e nenhum deles é compromisso** — nem virá a ser
  * (critério 3). A agenda de compromissos é montada em outra estrutura, por
  * `lib/fiscal/compromisso.ts`, e nunca se encontra com estes números.
  */

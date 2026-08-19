@@ -181,9 +181,17 @@ export default function Home() {
                 Acumulado desta obra:{" "}
                 {formatarBRL(estado.resumo.acumuladoImovelCentavos)}
               </div>
-              <Dica>
-                = situação em 31/12 na ficha Bens e Direitos (terreno + obra)
-              </Dica>
+              {/* ⚠️ A MOLDURA CAI JUNTO COM O NÚMERO. Sem terreno registrado,
+                  chamar isto de "situação em 31/12 na ficha Bens e Direitos" é
+                  afirmar que o número serve para a declaração — e ele não
+                  serve. O painel do terreno já substituía a moldura pelo
+                  aviso; a home fazia as duas coisas no mesmo card, o que é
+                  contradição visível (ressalva do `contador`, Gate 2). */}
+              {estado.resumo.terrenoSemRegistro === null ? (
+                <Dica>
+                  = situação em 31/12 na ficha Bens e Direitos (terreno + obra)
+                </Dica>
+              ) : null}
               {/* ⚠️ O R$ 0,00 do terreno NÃO é apuração — é a ausência dela.
                   A parte do terreno aparece nomeada logo abaixo do acumulado
                   para o "R$ 0,00 aqui" do aviso apontar para um número

@@ -392,7 +392,7 @@ grant select, insert, update on table terreno_desembolso to authenticated;
 --
 -- A resposta certa é **tela + rastro + grant no mesmo diff** — a correção de
 -- informe/contrato registrando o que mudou, quem mudou e quando, como o
--- `compromisso_data_historico` já faz. Isso é **ticket a abrir**, e até ele
--- existir estas duas tabelas são append-only de verdade.
+-- `compromisso_data_historico` já faz. É o **CONTAI-024**; até ele entrar,
+-- estas duas tabelas são append-only de verdade.
 grant select, insert on table financiamento to authenticated;
 grant select, insert on table financiamento_informe to authenticated;

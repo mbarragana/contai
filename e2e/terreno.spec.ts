@@ -808,11 +808,15 @@ test.describe("o saldo devedor é exigido, e nada o confere além da pergunta", 
     // Tudo certo, MENOS o saldo devedor. A trava da soma fecha.
     await preencherRubricas(page, { saldo: "" });
 
+    // Scoped em `main`: o mesmo texto também aparece na dica do rodapé, que
+    // explica por que o botão está desligado. Aqui a asserção é sobre o ERRO
+    // colado no campo.
     await expect(
-      page.getByText(
-        "Informe o saldo devedor em 31/12 — ele está no extrato",
-        { exact: false },
-      ),
+      page
+        .getByRole("main")
+        .getByText("Informe o saldo devedor em 31/12 — ele está no extrato", {
+          exact: false,
+        }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Conferir e gravar", exact: true }),
@@ -855,8 +859,8 @@ test.describe("em aberto e penalidade nunca vão no mesmo balde (critério 13)",
     await page
       .getByRole("button", { name: "Continuar para os números", exact: true })
       .click();
-    // Seguros 499,56 + diferença 167,43 = 667,00 em aberto; mora 200,00 +
-    // multa 100,00 = 300,00 de penalidade. O total pago absorve as duas.
+    // Seguros 499,56 + taxas 0 + diferença 167,43 = 666,99 em aberto (é a cifra
+    // exata do ADENDO 4); mora 200,00 + multa 100,00 = 300,00 de penalidade.
     await preencherRubricas(page, {
       mora: "200,00",
       multa: "100,00",
@@ -883,10 +887,10 @@ test.describe("em aberto e penalidade nunca vão no mesmo balde (critério 13)",
     });
     await expect(emAberto).toBeVisible();
     await expect(penalidade).toBeVisible();
-    await expect(page.getByText("667,00", { exact: false })).toBeVisible();
+    await expect(page.getByText("666,99", { exact: false })).toBeVisible();
     await expect(page.getByText("300,00", { exact: false })).toBeVisible();
-    // E a soma dos dois NÃO aparece como número único.
-    await expect(page.getByText("967,00", { exact: false })).toHaveCount(0);
+    // E a soma dos dois NÃO aparece como número único — era o balde de antes.
+    await expect(page.getByText("966,99", { exact: false })).toHaveCount(0);
   });
 });
 

@@ -78,7 +78,7 @@ const ESPERADO: Record<string, string> = {
   // remédio que prometia (o conserto de um informe com rubricas trocadas
   // continuaria sendo SQL à mão), e comprava a superfície de reescrever
   // registro fiscal sem rastro. O remédio de verdade é tela + rastro + grant no
-  // mesmo diff, em ticket a abrir. Ver a justificativa por extenso na 0008.
+  // mesmo diff — CONTAI-024. Ver a justificativa por extenso na 0008.
   financiamento: "INSERT,SELECT",
   financiamento_informe: "INSERT,SELECT",
 };

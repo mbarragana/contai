@@ -1000,11 +1000,14 @@ describe("terreno e financiamento fora das pendências (critério 21)", () => {
         precoContratadoCentavos: CONTRATO.precoContratadoCentavos * 2,
       },
     });
-    expect(dobrado.acumuladoImovelCentavos).toBe(normal.acumuladoImovelCentavos);
-    expect(dobrado.custoConfirmadoAnoCentavos).toBe(
-      normal.custoConfirmadoAnoCentavos,
-    );
-    expect(dobrado.emPendenciaCentavos).toBe(normal.emPendenciaCentavos);
+    // ⚠️ O RESUMO INTEIRO, e não uma lista de campos — exigência nomeada do
+    // `contador` no reveredito do Gate 2. A barreira que existia antes era
+    // ESTRUTURAL (o tipo não carregava o preço contratado); ela morreu quando o
+    // contrato entrou em `EntradaResumo` para a home poder falar. O que a
+    // substituiu não pode ser uma lista manual de três dos onze campos de
+    // `ResumoObra`: lista manual é exatamente o que este projeto já viu
+    // descolar duas vezes. `toEqual` cobre todo campo que nascer amanhã.
+    expect(dobrado).toEqual(normal);
   });
 
   // ════════════════════════════════════════════════════════════════════════
@@ -1134,19 +1137,32 @@ describe("terreno e financiamento fora das pendências (critério 21)", () => {
   // ════════════════════════════════════════════════════════════════════════
 
   describe("a estimativa não tem caminho para saída nenhuma", () => {
-    it("nenhum módulo de `lib/fiscal/` além de quem a produz a nomeia", () => {
+    it("nenhum módulo de `lib/` além de quem a produz a nomeia", () => {
       // `terreno.ts` a calcula, `resumo.ts` a repassa para a tela. Qualquer
       // outro módulo — inclusive os de saída da US-004, quando nascerem —
       // deixa este teste vermelho COM O NOME DO ARQUIVO, antes de qualquer
       // número errado ir para uma declaração.
-      const dir = "lib/fiscal";
-      const produtores = new Set(["terreno.ts", "resumo.ts"]);
-      const proibidos = readdirSync(dir).filter(
-        (f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && !produtores.has(f),
-      );
+      //
+      // ⚠️ O guarda varre `lib/` INTEIRO, recursivamente, e não só
+      // `lib/fiscal/` — ressalva do `contador` no reveredito do Gate 2: a
+      // versão anterior assumia que o gerador da discriminação nasceria em
+      // `lib/fiscal/`. Se ele nascer em `lib/relatorio/` ou `lib/saidas/`, o
+      // teste continuaria verde protegendo nada. Ancorar no diretório errado
+      // custa zero hoje; descobrir isso com uma estimativa dentro de um texto
+      // de declaração custa o ticket inteiro.
+      const produtores = new Set(["lib/fiscal/terreno.ts", "lib/fiscal/resumo.ts"]);
+      const varrer = (dir: string): string[] =>
+        readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+          e.isDirectory()
+            ? varrer(`${dir}/${e.name}`)
+            : e.name.endsWith(".ts") && !e.name.endsWith(".test.ts")
+              ? [`${dir}/${e.name}`]
+              : [],
+        );
+      const proibidos = varrer("lib").filter((f) => !produtores.has(f));
       expect(proibidos.length).toBeGreaterThan(3); // o teste vale alguma coisa
       for (const arquivo of proibidos) {
-        const fonte = readFileSync(`${dir}/${arquivo}`, "utf-8");
+        const fonte = readFileSync(arquivo, "utf-8");
         expect(
           /estimativa/i.test(fonte),
           `${arquivo} passou a conhecer a estimativa — ela é ordem de grandeza, não apuração`,

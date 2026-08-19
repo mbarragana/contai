@@ -47,7 +47,8 @@ export type Db = SupabaseClient<Database>;
 // nome do container sai do `project_id` do supabase/config.toml.
 const CONTAINER_BANCO = "supabase_db_contai";
 
-function literalSql(valor: string | number | boolean): string {
+function literalSql(valor: string | number | boolean | null): string {
+  if (valor === null) return "null";
   return typeof valor === "string"
     ? `'${valor.replace(/'/g, "''")}'`
     : String(valor);
