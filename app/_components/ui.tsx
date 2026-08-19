@@ -82,15 +82,24 @@ export function Passo({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * `...resto` existe por um motivo específico, e não por generalidade: atributos
+ * `data-*` em JSX **não são checados pelo TypeScript** (nome com hífen passa
+ * sempre). Sem o spread, um `data-agendado` escrito aqui compilaria e sumiria
+ * no runtime — e o E2E que procura por ele falharia sem explicação, do jeito
+ * mais caro: parecendo bug da tela.
+ */
 export function Card({
   children,
   className = "",
+  ...resto
 }: {
   children: ReactNode;
   className?: string;
-}) {
+} & React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
+      {...resto}
       className={`rounded-[10px] border border-line bg-white px-[14px] py-3 ${className}`}
     >
       {children}
@@ -104,16 +113,35 @@ const CORES_CHIP = {
   grn: "text-grn bg-grn-bg",
 } as const;
 
+const CORES_CHIP_VAZADO = {
+  red: "text-red bg-transparent border border-red",
+  amb: "text-amb bg-transparent border border-amb",
+  grn: "text-grn bg-transparent border border-grn",
+} as const;
+
 export function Chip({
   cor,
+  vazado = false,
   children,
 }: {
   cor: keyof typeof CORES_CHIP;
+  /**
+   * Chip VAZADO — CONTAI-019, critério 8b: agendado aberto usa âmbar vazado e
+   * o vencido usa âmbar PREENCHIDO.
+   *
+   * ⚠️ O preenchimento é o QUARTO canal de distinção, não o primeiro (decisão 2
+   * do fechamento de 18/08): "sozinho é um canal só e falha no sol". O peso
+   * está no texto do chip e em as três respostas existirem só no vencido. Aqui
+   * ele é reforço.
+   */
+  vazado?: boolean;
   children: ReactNode;
 }) {
   return (
     <span
-      className={`inline-block rounded-full px-[9px] py-0.5 text-[11px] font-semibold ${CORES_CHIP[cor]}`}
+      className={`inline-block rounded-full px-[9px] py-0.5 text-[11px] font-semibold ${
+        vazado ? CORES_CHIP_VAZADO[cor] : CORES_CHIP[cor]
+      }`}
     >
       {children}
     </span>

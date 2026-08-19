@@ -579,6 +579,50 @@ describe("pendência 'pago sem comprovante' (critérios 46-47)", () => {
     expect(r.emPendenciaCentavos).toBe(1_000_000);
   });
 
+  describe("⚠️ reclassificação quando o CNPJ/CPF chega depois (ADENDO 3 §G.3)", () => {
+    // "Vermelho por desconhecimento é PROVISÓRIO, e não pode virar vermelho
+    // permanente de uma pendência que era amarela." A reclassificação não é um
+    // job nem uma migração de dados: `calcularResumo` DERIVA a gravidade do
+    // tipo do favorecido a cada leitura, e não guarda cor nenhuma.
+    const semComprovante = (favorecidoTipo: "pj" | "pf" | null) =>
+      resumo({
+        pagamentos: [
+          pag({
+            id: "p1",
+            comprovantePath: null,
+            favorecidoTipo,
+            favorecidoId: favorecidoTipo === null ? null : "fav-1",
+            valorCentavos: 1_000_000,
+          }),
+        ],
+      }).pendencias.find((p) => p.tipo === "pago_sem_comprovante");
+
+    it("antes: tipo desconhecido → VERMELHO, com o texto que não afirma regime", () => {
+      const antes = semComprovante(null);
+      expect(antes?.gravidade).toBe("red");
+      expect(antes?.consequencia).toContain("não dá para dizer");
+    });
+
+    it("caminho 1 — informou CNPJ de PJ: vermelho vira AMARELO", () => {
+      const depois = semComprovante("pj");
+      expect(depois?.gravidade).toBe("amb");
+      expect(depois?.consequencia).toBe(
+        "pago sem comprovante — o custo existe, ainda não está demonstrável",
+      );
+      // O valor e o chip não mudam: o fato é o mesmo, muda a consequência.
+      expect(depois?.valorCentavos).toBe(1_000_000);
+      expect(depois?.chip).toBe("Pago sem comprovante");
+    });
+
+    it("caminho 2 — informou CPF de PF: continua vermelho, com o texto do PF", () => {
+      const depois = semComprovante("pf");
+      expect(depois?.gravidade).toBe("red");
+      expect(depois?.consequencia).toBe(
+        "sem o comprovante da transferência, este recibo não sustenta custo nenhum",
+      );
+    });
+  });
+
   it("com comprovante, a pendência não existe", () => {
     const r = resumo({
       documentos: [doc({ id: "d1", valorCentavos: 1_000_000 })],

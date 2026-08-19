@@ -161,12 +161,32 @@ describe("pago sem comprovante — o peso muda com o favorecido (crit. 47)", () 
     );
   });
 
-  it("tipo desconhecido não assume PJ: cai no lado seguro e pede o CNPJ/CPF", () => {
-    // O parecer não tem linha para este caso (a tabela do §5 tem duas). Nada
-    // aqui inventa consequência fiscal: o texto diz que não dá para dizer.
+  it("tipo desconhecido: VERMELHO ratificado, texto literal do ADENDO 3 §G.3", () => {
     const r = rotulosPagoSemComprovante(null);
     expect(r.gravidade).toBe("red");
-    expect(r.consequencia).toContain("CNPJ/CPF");
+    expect(r.consequencia).toBe(
+      "sem o comprovante não dá para dizer o quanto este pagamento sustenta — " +
+        "informe o CNPJ/CPF do favorecido: para PF o comprovante da transferência " +
+        "é o que constitui o custo",
+    );
+  });
+
+  it("o chip é o MESMO nas três linhas — o fato é o mesmo, muda a consequência", () => {
+    // §G.3: "o chip nomeia o fato, que é o mesmo; o que muda é a consequência."
+    for (const tipo of ["pj", "pf", null] as const) {
+      expect(rotulosPagoSemComprovante(tipo).chip).toBe("Pago sem comprovante");
+    }
+  });
+
+  it("⚠️ o texto do desconhecido NÃO afirma qual regime se aplica", () => {
+    // §G.3: "afirmar qual dos dois regimes se aplica, sem saber o tipo, seria
+    // inventar fato. Ele nomeia a incerteza e pede o dado que a resolve."
+    const r = rotulosPagoSemComprovante(null).consequencia;
+    expect(r).toContain("não dá para dizer");
+    expect(r).toContain("CNPJ/CPF");
+    // Não afirma a consequência de nenhum dos dois caminhos como se fosse este.
+    expect(r).not.toContain("o custo existe");
+    expect(r).not.toContain("não sustenta custo nenhum");
   });
 });
 

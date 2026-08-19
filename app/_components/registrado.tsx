@@ -25,6 +25,7 @@ export function Registrado({
   obraNome,
   hrefCorrigirObra,
   aviso,
+  extra,
 }: {
   proximoPasso: ReactNode;
   custo: ReactNode;
@@ -38,6 +39,13 @@ export function Registrado({
    * registro solto é justamente o passivo que este ticket veio reduzir.
    */
   aviso?: ReactNode;
+  /**
+   * Bloco que entra DEPOIS da confirmação — hoje, a sugestão de quitação do
+   * CONTAI-019 (critério 37). Fica aqui, e não antes do "Salvar", porque a
+   * pergunta **nunca bloqueia a gravação**: o fato consumado já está no banco
+   * quando ela aparece.
+   */
+  extra?: ReactNode;
 }) {
   return (
     <>
@@ -57,6 +65,7 @@ export function Registrado({
           <Linha rotulo="Próximo passo">{proximoPasso}</Linha>
           <Linha rotulo={`Custo ${ano}`}>{custo}</Linha>
         </Card>
+        {extra}
         <Card>
           <Dica>Salvou na obra errada?</Dica>
           <div className="mt-2">

@@ -4,11 +4,15 @@ import { describe, expect, it } from "vitest";
 
 import {
   CABECALHO_AGENDA_COMPROMISSOS,
+  chipDoAgendado,
   compromissosElegiveisParaQuitacao,
   compromissosQueBloqueiam,
   decidirRegistro,
   ehVencidoSemResposta,
   exportarAgendaCompromissos,
+  montarAgendaDaHome,
+  PERGUNTA_QUITACAO,
+  preposicaoDeTempo,
   perguntaQuitacao,
   podeGerarRelatorioAnual,
   podeQuitar,
@@ -16,8 +20,10 @@ import {
   QUITACAO_NAO,
   QUITACAO_SIM,
   RECUSA_CARTAO,
+  resumoDoAgendamento,
   saldoDoCompromisso,
 } from "@/lib/fiscal/compromisso";
+import { formatarBRL } from "@/lib/money";
 import type { Compromisso, CompromissoRow, Pagamento } from "@/lib/types";
 
 const OBRA = "obra-1";
@@ -460,19 +466,65 @@ describe("sugestão de quitação — gatilho cumulativo", () => {
   });
 });
 
-describe("textos da sugestão — literais do adendo §C(b), critério 38", () => {
-  it("a pergunta traz a data prevista, no formato do parecer", () => {
+describe("textos da sugestão — literais do ADENDO 3 §G.1, critério 38", () => {
+  it("⚠️ a pergunta traz a data com ANO — dd/MM/aaaa (§G.2)", () => {
     expect(perguntaQuitacao("2026-09-15")).toBe(
-      "Este pagamento quita o compromisso de 15/09?",
+      "Este pagamento quita o agendamento de 15/09/2026?",
     );
   });
 
-  it("os três textos são os do parecer, não reescritos", () => {
-    expect(QUITACAO_SIM).toBe("Sim, quita este compromisso");
+  it("⚠️ o par 28/12/2025 → 05/01/2026: a tela de janeiro mostra o ano", () => {
+    // §G.2: "perguntar 'quita o agendamento de 28/12?' na tela de janeiro é
+    // esconder do usuário exatamente o dado que ele precisa para responder".
+    expect(perguntaQuitacao("2025-12-28")).toContain("28/12/2025");
+  });
+
+  it("as QUATRO linhas do bloco falam 'agendamento' — meia troca deixa bilíngue", () => {
+    expect(PERGUNTA_QUITACAO).toContain("agendamento");
+    expect(QUITACAO_SIM).toBe("Sim, quita este agendamento");
     expect(QUITACAO_NAO).toBe("Não, é outro pagamento");
     expect(QUITACAO_CONSEQUENCIA_DO_NAO).toBe(
-      "Se não quitar, o compromisso continua em aberto e este pagamento fica registrado sozinho.",
+      "Se não quitar, o agendamento continua em aberto e este pagamento fica registrado sozinho.",
     );
+    // Nenhuma das quatro pode ter sobrado com a palavra antiga.
+    const bloco = [
+      perguntaQuitacao("2026-09-15"),
+      QUITACAO_SIM,
+      QUITACAO_NAO,
+      QUITACAO_CONSEQUENCIA_DO_NAO,
+    ].join(" ");
+    expect(bloco.toLowerCase()).not.toContain("compromisso");
+  });
+
+  it("a 2ª linha diz quem, quanto (previsto) e para quando, com ano", () => {
+    expect(
+      resumoDoAgendamento(
+        comp({
+          id: "c1",
+          favorecidoNome: "WK Construções",
+          valorPrevistoCentavos: 2_500_000,
+          dataPrevista: "2026-09-15",
+        }),
+      ),
+    ).toBe(`WK Construções — previsto ${formatarBRL(2_500_000)} para 15/09/2026`);
+  });
+
+  it("sem data definida a 2ª linha diz isso, e não inventa data", () => {
+    expect(
+      resumoDoAgendamento(comp({ id: "c1", dataPrevista: null })),
+    ).toContain("sem data definida");
+  });
+
+  it("⚠️ o MODELO DE DADOS continua dizendo 'compromisso' — não se traduz schema", () => {
+    // §G.1: "mantém-se 'compromisso' no parecer, no modelo de dados e nos
+    // nomes de código. Termo de domínio e termo de tela não precisam
+    // coincidir."
+    const migration = readFileSync(
+      "supabase/migrations/0007_compromisso.sql",
+      "utf-8",
+    );
+    expect(migration).toContain("create table compromisso (");
+    expect(migration).not.toContain("create table agendamento");
   });
 
   it("o texto nunca diz 'previsto/efetivado' nem 'regime de caixa' (critério 7)", () => {
@@ -486,5 +538,127 @@ describe("textos da sugestão — literais do adendo §C(b), critério 38", () =
     ].join(" ");
     expect(tudo.toLowerCase()).not.toContain("regime de caixa");
     expect(tudo.toLowerCase()).not.toContain("efetivado");
+  });
+});
+
+
+// ══ As quatro marcas e o bloco da home (8, 8b, 42, 43) ══════════════════
+
+describe("preposição de tempo — a 4ª marca (critério 8)", () => {
+  it("aberto diz 'para', vencido diz 'era para' — e as duas com ANO", () => {
+    expect(preposicaoDeTempo(comp({ id: "c1", dataPrevista: "2026-09-15" }), HOJE)).toBe(
+      "para 15/09/2026",
+    );
+    expect(preposicaoDeTempo(comp({ id: "c1", dataPrevista: "2026-08-10" }), HOJE)).toBe(
+      "era para 10/08/2026",
+    );
+  });
+
+  it("sem data definida não inventa data nem preposição", () => {
+    expect(preposicaoDeTempo(comp({ id: "c1", dataPrevista: null }), HOJE)).toBe(
+      "sem data definida",
+    );
+  });
+});
+
+describe("chip — o eixo do critério 8b", () => {
+  it("aberto: 'Agendado', vazado", () => {
+    expect(chipDoAgendado(comp({ id: "c1", dataPrevista: "2026-09-15" }), HOJE)).toEqual({
+      texto: "Agendado",
+      forte: false,
+    });
+  });
+
+  it("vencido: nomeia o vencimento E o silêncio, preenchido", () => {
+    expect(chipDoAgendado(comp({ id: "c1", dataPrevista: "2026-08-10" }), HOJE)).toEqual({
+      texto: "Venceu em 10/08/2026 · 8 dias sem resposta",
+      forte: true,
+    });
+  });
+
+  it("um dia de silêncio fala no singular", () => {
+    expect(
+      chipDoAgendado(comp({ id: "c1", dataPrevista: "2026-08-17" }), HOJE).texto,
+    ).toContain("1 dia sem resposta");
+  });
+});
+
+describe("bloco de agendados da home (critérios 42 e 43)", () => {
+  const cenario = (n: number, base: string) =>
+    Array.from({ length: n }, (_, i) =>
+      comp({ id: `${base}-${i}`, dataPrevista: `${base}-${String(i + 1).padStart(2, "0")}` }),
+    );
+
+  it("⚠️ 1 vencido + 5 abertos → todos os vencidos, 3 abertos, total 5", () => {
+    const agenda = montarAgendaDaHome(
+      [comp({ id: "v1", dataPrevista: "2026-08-10" }), ...cenario(5, "2026-09")],
+      HOJE,
+    );
+    expect(agenda.vencidos).toHaveLength(1);
+    expect(agenda.abertos).toHaveLength(3);
+    expect(agenda.abertosTotal).toBe(5);
+  });
+
+  it("⚠️ vencido NUNCA é truncado — 7 vencidos aparecem os 7", () => {
+    // Truncar vencido é o sumiço silencioso que o parecer §3 proíbe.
+    const agenda = montarAgendaDaHome(cenario(7, "2026-05"), HOJE);
+    expect(agenda.vencidos).toHaveLength(7);
+  });
+
+  it("abertos saem por data prevista CRESCENTE", () => {
+    const agenda = montarAgendaDaHome(
+      [
+        comp({ id: "c-dez", dataPrevista: "2026-12-01" }),
+        comp({ id: "c-set", dataPrevista: "2026-09-01" }),
+        comp({ id: "c-out", dataPrevista: "2026-10-01" }),
+      ],
+      HOJE,
+    );
+    expect(agenda.abertos.map((c) => c.id)).toEqual(["c-set", "c-out", "c-dez"]);
+  });
+
+  it("⚠️ a contagem é de ITENS, e não existe soma de valores", () => {
+    const agenda = montarAgendaDaHome(
+      [comp({ id: "v1", dataPrevista: "2026-08-10" }), ...cenario(3, "2026-09")],
+      HOJE,
+    );
+    expect(agenda.contagem).toBe("3 ainda não pagos, 1 já venceu");
+    // Nenhum campo do bloco carrega dinheiro: previsão de fluxo de caixa é
+    // fora de escopo declarado, e número em reais ao lado do custo confirmado
+    // vira "quanto a obra tem marcado" (critério 42).
+    expect(Object.keys(agenda).sort()).toEqual([
+      "abertos",
+      "abertosTotal",
+      "contagem",
+      "vazia",
+      "vencidos",
+    ]);
+    expect(JSON.stringify(agenda)).not.toContain("R$");
+  });
+
+  it("⚠️ a tela /compromisso não corta: `Infinity` mostra todos os abertos", () => {
+    // O corte de 3 é da HOME. Cortar de novo no destino do "ver todos (N)"
+    // seria esconder duas vezes.
+    const agenda = montarAgendaDaHome(cenario(9, "2026-09"), HOJE, Infinity);
+    expect(agenda.abertos).toHaveLength(9);
+    expect(agenda.abertosTotal).toBe(9);
+  });
+
+  it("quitado e cancelado saem da lista assim que respondidos", () => {
+    const agenda = montarAgendaDaHome(
+      [
+        comp({ id: "q", dataPrevista: "2026-08-10", situacao: "quitado" }),
+        comp({ id: "x", dataPrevista: "2026-08-10", situacao: "cancelado", motivoCancelamento: "m" }),
+      ],
+      HOJE,
+    );
+    expect(agenda.vazia).toBe(true);
+    expect(agenda.contagem).toBe("");
+  });
+
+  it("sem data definida continua na agenda, e não conta como vencido", () => {
+    const agenda = montarAgendaDaHome([comp({ id: "c1", dataPrevista: null })], HOJE);
+    expect(agenda.vencidos).toHaveLength(0);
+    expect(agenda.abertos.map((c) => c.id)).toEqual(["c1"]);
   });
 });

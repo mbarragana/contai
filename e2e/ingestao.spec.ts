@@ -391,21 +391,91 @@ test.describe("registrar pagamento avulso", () => {
     ).toBeVisible();
   }
 
-  test("sem comprovante não salva", async ({ page, db }) => {
+  /**
+   * ⚠️ ESTE TESTE FOI INVERTIDO NO CONTAI-019 (critério 46), e o nome mudou
+   * junto: ele afirmava "sem comprovante não salva", que passou a ser o
+   * contrário do produto.
+   *
+   * O `contador` derrubou o bloqueio no ADENDO 2 §5 e o Mateus reprovou o
+   * botão lendo o mock, no mesmo dia: *"o botão grava sempre; o que muda é o
+   * estado que nasce"*; parecer §4: *nunca recuse o registro de um fato
+   * consumado.* O bloqueio aplicava dois pesos ao mesmo fato do mundo — a
+   * confirmação de agendamento já gravava sem comprovante — e o mais duro dos
+   * dois é o que empurra para NÃO registrar, que é a falha da meta 1 pelo lado
+   * de fora.
+   *
+   * A cobertura não foi apagada: ela passou a afirmar o ESTADO QUE NASCE.
+   */
+  test("sem comprovante GRAVA — e nasce como pendência PJ, amarela", async ({
+    page,
+    db,
+  }) => {
     await irParaFormulario(page);
 
     await page.getByLabel("Favorecido", { exact: true }).fill("AJE Construções");
     await page.getByLabel("CNPJ / CPF do favorecido").fill(CNPJ_AJE);
     await page.getByLabel("Valor").fill("15.000,00");
 
-    await page.getByRole("button", { name: "Salvar — aguardando NF" }).click();
-
+    // A consequência é dita ANTES do toque, com o texto literal do ADENDO 2 §5.
     await expect(
-      page.getByText("Anexe o comprovante do PIX — sem ele o pagamento não é aceito."),
+      page.getByText("pago sem comprovante — o custo existe, ainda não está demonstrável"),
     ).toBeVisible();
 
-    expect(await pagamentos(db)).toHaveLength(0);
-    expect(await favorecidos(db)).toHaveLength(0);
+    await page.getByRole("button", { name: "Salvar — aguardando NF" }).click();
+    await expect(page.getByRole("heading", { name: "Registrado ✓" })).toBeVisible();
+
+    // O ESTADO GRAVADO: o pagamento existe, e sem comprovante.
+    const gravados = await pagamentos(db);
+    expect(gravados).toHaveLength(1);
+    expect(gravados[0]).toMatchObject({ valor: 15000, comprovante_path: null });
+    expect(await favorecidos(db)).toHaveLength(1);
+
+    // E na home ele aparece como pendência AMARELA (PJ com NF): o custo
+    // existe, ainda não está demonstrável.
+    await page.goto("/");
+    const pendencia = page
+      .locator("div")
+      .filter({ hasText: /^Pago sem comprovante/ })
+      .first();
+    await expect(
+      page.getByText("pago sem comprovante — o custo existe, ainda não está demonstrável"),
+    ).toBeVisible();
+    await expect(pendencia).toBeVisible();
+  });
+
+  /**
+   * Critério 47 — **a mesma ausência, outro peso**. Para PF o comprovante é
+   * CONSTITUTIVO: "sem o rastro bancário não existe condição 3 — não é custo
+   * mal documentado, é custo inexistente para efeito de prova" (ADENDO 2 §1).
+   * A cor não é estética.
+   */
+  test("sem comprovante para PF nasce VERMELHA — o comprovante é constitutivo", async ({
+    page,
+    db,
+  }) => {
+    await irParaFormulario(page);
+
+    await page.getByLabel("Favorecido", { exact: true }).fill("José da Silva");
+    await page.getByLabel("CNPJ / CPF do favorecido").fill(CPF_JOSE);
+    await page.getByLabel("Valor").fill("2.800,00");
+
+    await expect(
+      page.getByText(
+        "sem o comprovante da transferência, este recibo não sustenta custo nenhum",
+      ),
+    ).toBeVisible();
+
+    await page.getByRole("button", { name: /^Salvar — aguardando/ }).click();
+    await expect(page.getByRole("heading", { name: "Registrado ✓" })).toBeVisible();
+
+    expect(await pagamentos(db)).toHaveLength(1);
+
+    await page.goto("/");
+    await expect(
+      page.getByText(
+        "sem o comprovante da transferência, este recibo não sustenta custo nenhum",
+      ),
+    ).toBeVisible();
   });
 
   test("nasce aguardando NF, com o comprovante no acervo", async ({

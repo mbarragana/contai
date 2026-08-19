@@ -228,6 +228,14 @@ const OBRA_SEED_COM_DONO = { user_id: USER_ID_SEED, ...OBRA_SEED };
 const COLUNAS_SEED = Object.keys(OBRA_SEED_COM_DONO);
 
 const SQL_LIMPAR = [
+  // CONTAI-019 — as cinco tabelas novas caem ANTES das que elas referenciam.
+  // `on delete cascade` já daria conta, mas apagar explícito deixa o erro no
+  // lugar certo se uma FK mudar.
+  "delete from quitacao_recusada;",
+  "delete from compromisso_data_historico;",
+  "delete from compromisso_pagamento;",
+  "delete from compromisso;",
+  "delete from pagamento_diferenca;",
   "delete from pagamento_documento;",
   "delete from pagamento;",
   "delete from documento;",
@@ -358,6 +366,21 @@ export async function criarVinculo(
   conferir("criar vínculo", error);
 }
 
+/** Agendamento montado direto no banco, pelo MESMO client autenticado. */
+export async function criarCompromisso(
+  db: Db,
+  linha: Omit<TablesInsert<"compromisso">, "obra_id"> &
+    Partial<Pick<TablesInsert<"compromisso">, "obra_id">>,
+): Promise<string> {
+  const { data, error } = await db
+    .from("compromisso")
+    .insert({ obra_id: OBRA_ID_SEED, ...linha })
+    .select("id")
+    .single();
+  conferir("criar compromisso", error);
+  return data!.id;
+}
+
 // ── Leituras de verificação ──────────────────────────────────────────────
 
 export async function documentos(db: Db) {
@@ -390,6 +413,39 @@ export async function vinculos(db: Db) {
     .select("*")
     .order("documento_id", { ascending: true });
   conferir("ler vínculo", error);
+  return data!;
+}
+
+export async function compromissos(db: Db) {
+  const { data, error } = await db
+    .from("compromisso")
+    .select("*")
+    .order("created_at", { ascending: true });
+  conferir("ler compromisso", error);
+  return data!;
+}
+
+export async function vinculosDeQuitacao(db: Db) {
+  const { data, error } = await db
+    .from("compromisso_pagamento")
+    .select("*")
+    .order("pagamento_id", { ascending: true });
+  conferir("ler vínculo de quitação", error);
+  return data!;
+}
+
+export async function historicoDeData(db: Db) {
+  const { data, error } = await db
+    .from("compromisso_data_historico")
+    .select("*")
+    .order("registrado_em", { ascending: true });
+  conferir("ler histórico de data", error);
+  return data!;
+}
+
+export async function diferencas(db: Db) {
+  const { data, error } = await db.from("pagamento_diferenca").select("*");
+  conferir("ler diferença", error);
   return data!;
 }
 

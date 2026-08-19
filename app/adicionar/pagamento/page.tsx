@@ -6,9 +6,11 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import {
   CampoArquivo,
   CampoTexto,
+  Escolha,
   ErroCampo,
   Rotulo,
 } from "@/app/_components/campos";
+import { SugestaoQuitacao } from "@/app/_components/quitacao";
 import { AfirmacaoObra, TelaTrocarObra } from "@/app/_components/obra";
 import { Registrado } from "@/app/_components/registrado";
 import { useSessao } from "@/app/_components/sessao";
@@ -21,20 +23,29 @@ import {
   Card,
   Carregando,
   Corpo,
+  Dica,
   EstadoErro,
+  Linha,
   Passo,
   Rodape,
 } from "@/app/_components/ui";
 import {
   carregarDocumento,
+  carregarPagamento,
   carregarPainel,
   classificarErro,
+  criarCompromisso,
   criarPagamento,
   criarVinculos,
   garantirFavorecido,
   mensagemDeErro,
   subirParaAcervo,
 } from "@/lib/data";
+import {
+  decidirRegistro,
+  RECUSA_CARTAO,
+  RECUSA_CARTAO_ONDE_REGISTRAR,
+} from "@/lib/fiscal/compromisso";
 import {
   alocarCusto,
   ehDocumentoHabil,
@@ -48,17 +59,24 @@ import {
   tipoPorDocumento,
 } from "@/lib/fiscal/identificacao";
 import {
-  MEIO_PAGAMENTO_AVULSO,
+  DATA_QUE_VALE_PARA_O_CUSTO,
   STATUS_PAGAMENTO_AVULSO,
   anoCalendario,
+  rotulosPagoSemComprovante,
   rotulosPagoSemNota,
   validarPagamentoAvulso,
   type EntradaPagamento,
   type ErroCampoPagamento,
 } from "@/lib/fiscal/pagamento";
+import { formatarDataBR } from "@/lib/fiscal/obra";
 import { hojeIso } from "@/lib/hoje";
 import { centavosParaInput, formatarBRL, parseValorInput } from "@/lib/money";
-import type { Documento, TipoFavorecido } from "@/lib/types";
+import type {
+  Documento,
+  MeioPagamento,
+  Pagamento,
+  TipoFavorecido,
+} from "@/lib/types";
 
 type Fase =
   | { nome: "formulario" }
@@ -82,6 +100,24 @@ type Fase =
        * `catch` cru engolia isso e a tela dizia só "ficou SEM VÍNCULO".
        */
       motivoSemVinculo: string | null;
+      /**
+       * O pagamento recém-gravado, para a SUGESTÃO DE QUITAÇÃO — que aparece
+       * DEPOIS da gravação e nunca antes (critério 37).
+       */
+      pagamento: Pagamento | null;
+    }
+  /**
+   * CONTAI-019, critério 6: data futura cria COMPROMISSO, não pagamento. Fase
+   * própria porque a confirmação é outra — não há custo, não há ano, não há
+   * "próximo passo: vincular a nota". Reaproveitar a tela do pagamento aqui
+   * seria dizer ao Mateus que aconteceu a mesma coisa.
+   */
+  | {
+      nome: "agendado";
+      id: string;
+      obraNome: string;
+      dataPrevista: string;
+      valorPrevistoCentavos: number;
     };
 
 const NOME_TIPO = {
@@ -125,6 +161,12 @@ function RegistrarPagamento() {
   const [documento, setDocumento] = useState("");
   const [valor, setValor] = useState("");
   const [data, setData] = useState(hojeIso);
+  /**
+   * ⚠️ O MEIO entra no formulário por causa dos critérios 25-27: sem ele o
+   * `meio = cartao` não teria como chegar aqui, e a guarda que impede o custo
+   * de cair no ano errado seria código inalcançável.
+   */
+  const [meio, setMeio] = useState<MeioPagamento>("pix");
   const [comprovante, setComprovante] = useState<File | null>(null);
   const [erros, setErros] = useState<ErroCampoPagamento[]>([]);
   /**
@@ -223,6 +265,16 @@ function RegistrarPagamento() {
     erros.find((e) => e.campo === campo)?.mensagem;
 
   /**
+   * ⚠️ **A DATA É O CONTROLE** (diretriz de desenho 1) — e o cartão é a
+   * exceção nomeada (critério 27, adendo §B). Toda a mudança de comportamento
+   * desta tela sai desta única linha; não existe segmented control
+   * "já paguei / vou pagar", que seria um toque a mais no caminho de 95%.
+   */
+  const destino = decidirRegistro({ meio, data }, hojeIso());
+  const vaiAgendar = destino.tipo === "compromisso";
+  const cartaoRecusado = destino.tipo === "recusado";
+
+  /**
    * Critério 11 conferido ANTES do salvar, e não no `catch`: chegando por
    * `?documento=` de uma nota da obra B com a preferência do aparelho na obra
    * A, o vínculo é impossível — e o Mateus tem de saber disso enquanto ainda
@@ -242,16 +294,37 @@ function RegistrarPagamento() {
   );
 
   async function salvar() {
+    setErroSalvar(null);
+    if (!obra || cartaoRecusado) return;
+
+    // ⚠️ AGENDAMENTO: a validação de pagamento NÃO se aplica. Ela recusa data
+    // futura (e a recusa fica, literalmente — critério 2), que é exatamente o
+    // caso aqui. Compromisso é outra entidade, com outras condições: nem
+    // desembolso, nem comprovante.
+    if (vaiAgendar) {
+      const faltando = validarAgendamento();
+      setErros(faltando);
+      if (faltando.length > 0) return;
+      await salvarAgendamento();
+      return;
+    }
+
     const encontrados = validarPagamentoAvulso(entrada, hojeIso());
     setErros(encontrados);
-    setErroSalvar(null);
-    if (encontrados.length > 0 || !obra || !comprovante) return;
+    if (encontrados.length > 0) return;
 
     setFase({ nome: "salvando" });
     try {
       if (tipoFavorecido === null) throw new Error("CNPJ/CPF inválido.");
 
-      const comprovantePath = await subirParaAcervo(comprovante, "comprovante");
+      // ⚠️ SEM COMPROVANTE O BOTÃO GRAVA ASSIM MESMO (critério 46, ADENDO 2
+      // §5): "o botão grava sempre; o que muda é o estado que nasce".
+      // *Nunca recuse o registro de um fato consumado.* O pagamento nasce sem
+      // `comprovante_path`, fora do custo confirmado, e vira a pendência
+      // "pago sem comprovante" — com o peso do favorecido (critério 47).
+      const comprovantePath = comprovante
+        ? await subirParaAcervo(comprovante, "comprovante")
+        : null;
       const favorecidoId = await garantirFavorecido({
         nome: nome.trim(),
         documento: soDigitos(documento),
@@ -264,9 +337,9 @@ function RegistrarPagamento() {
         favorecido_id: favorecidoId,
         valorCentavos: entrada.valorCentavos as number,
         data_pagamento: data,
-        meio: MEIO_PAGAMENTO_AVULSO,
-        // Cartão dependeria da Q4 (ano da compra vs. ano da fatura); PIX tem
-        // uma data só.
+        meio,
+        // `data_compra` só existe para cartão, e cartão não chega aqui
+        // (critério 25). PIX e boleto têm uma data só.
         data_compra: null,
         comprovante_path: comprovantePath,
         status: STATUS_PAGAMENTO_AVULSO,
@@ -299,6 +372,17 @@ function RegistrarPagamento() {
         }
       }
 
+      // Recarregado do banco (e não montado a partir do formulário) porque é
+      // ele que alimenta a SUGESTÃO DE QUITAÇÃO: o gatilho casa por
+      // `favorecido_id`, que só existe depois do `garantirFavorecido`.
+      // Falha aqui não estraga o sucesso — o pagamento está gravado.
+      let pagamento: Pagamento | null = null;
+      try {
+        pagamento = await carregarPagamento(id);
+      } catch {
+        pagamento = null;
+      }
+
       setFase({
         nome: "salvo",
         ano: anoCalendario(data),
@@ -308,6 +392,7 @@ function RegistrarPagamento() {
         vinculoFalhou,
         documentoDeOrigemId: documentoDeOrigem?.id ?? null,
         motivoSemVinculo,
+        pagamento,
       });
     } catch (erro) {
       setFase({ nome: "formulario" });
@@ -321,6 +406,120 @@ function RegistrarPagamento() {
       }
       setErroSalvar(mensagemDeErro(erro));
     }
+  }
+
+  /**
+   * O agendamento tem TRÊS campos obrigatórios e nenhum a mais: favorecido,
+   * CNPJ/CPF e valor previsto. **Comprovante não entra** — "compromisso não
+   * exige anexo" é a exceção nomeada do parecer §4, e é exceção por não
+   * afirmar fato nenhum. Exigir anexo aqui "produziria o pior resultado
+   * possível: atrito que faz ele não registrar, e a previsão volta para a
+   * memória".
+   */
+  function validarAgendamento(): ErroCampoPagamento[] {
+    const faltando: ErroCampoPagamento[] = [];
+    if (nome.trim().length < 2) {
+      faltando.push({
+        campo: "favorecidoNome",
+        mensagem: "Informe o nome do favorecido.",
+      });
+    }
+    if (tipoPorDocumento(documento) === null) {
+      faltando.push({
+        campo: "favorecidoDocumento",
+        mensagem: "CNPJ/CPF inválido — confira os dígitos.",
+      });
+    }
+    if (entrada.valorCentavos === null || entrada.valorCentavos <= 0) {
+      faltando.push({
+        campo: "valorCentavos",
+        mensagem: "Informe o valor previsto.",
+      });
+    }
+    return faltando;
+  }
+
+  async function salvarAgendamento() {
+    if (!obra) return;
+    setFase({ nome: "salvando" });
+    try {
+      const tipo = tipoPorDocumento(documento);
+      if (tipo === null) throw new Error("CNPJ/CPF inválido.");
+      const favorecidoId = await garantirFavorecido({
+        nome: nome.trim(),
+        documento: soDigitos(documento),
+        tipo,
+      });
+      const id = await criarCompromisso({
+        obraId: obra.id,
+        favorecidoId,
+        valorPrevistoCentavos: entrada.valorCentavos as number,
+        dataPrevista: data,
+        // Boleto e PIX previsto são fiscalmente IDÊNTICOS: zero (Gate Fiscal
+        // 7). A origem é campo probatório, nunca bifurcação de regra.
+        origem: meio === "cartao" ? "cartao" : meio,
+        documentoOrigemId: documentoDeOrigem?.id ?? null,
+        dataCompra: null,
+      });
+      setFase({
+        nome: "agendado",
+        id,
+        obraNome: obra.nome,
+        dataPrevista: data,
+        valorPrevistoCentavos: entrada.valorCentavos as number,
+      });
+    } catch (erro) {
+      setFase({ nome: "formulario" });
+      if (classificarErro(erro).tipo === "sem_sessao") {
+        pedirReautenticacao();
+        return;
+      }
+      setErroSalvar(mensagemDeErro(erro));
+    }
+  }
+
+  /**
+   * A confirmação do AGENDAMENTO é outra tela, e diz outra coisa: **zero**.
+   * Nenhum número desta tela soma com custo nenhum (parecer §2).
+   */
+  if (fase.nome === "agendado") {
+    return (
+      <>
+        <AppBar titulo="Agendado ✓" sub={fase.obraNome} />
+        <Corpo>
+          <Banner cor="amb" role="status">
+            <strong>Agendado.</strong> Nada saiu da conta — este valor{" "}
+            <strong>não entra no custo de aquisição</strong> e não aparece em
+            total nenhum até o dinheiro sair.
+          </Banner>
+          <Card className="border-dashed border-amb">
+            <Linha rotulo="Valor previsto">
+              <span className="mono text-mut">
+                ~ {formatarBRL(fase.valorPrevistoCentavos)}
+              </span>
+            </Linha>
+            <Linha rotulo="Quando">
+              <strong>para {formatarDataBR(fase.dataPrevista)}</strong>
+            </Linha>
+            <Linha rotulo={`Custo ${anoCalendario(fase.dataPrevista)}`}>
+              <span className="mono">{formatarBRL(0)}</span>
+            </Linha>
+          </Card>
+          <Dica>
+            Quando o dinheiro sair, abra este agendamento e registre o
+            pagamento — é a data de lá que decide o ano do custo.
+          </Dica>
+        </Corpo>
+        <Rodape>
+          <BotaoLink href={`/compromisso/${fase.id}`}>
+            Ver o agendamento
+          </BotaoLink>
+          <BotaoLink href="/" variante="primary">
+            Voltar ao início
+          </BotaoLink>
+        </Rodape>
+      </>
+    );
   }
 
   if (fase.nome === "salvo") {
@@ -351,9 +550,18 @@ function RegistrarPagamento() {
           )
         }
         custo={
+          // Item (f) do Gate 1b: "regime de caixa" sai desta tela (critério 7)
+          // — é o NOME da regra, não a regra, e não ensina nada a um usuário
+          // de uma pessoa só. A regra em linguagem de tela está no campo de
+          // data, com o exemplo (§F.5).
           ligou
-            ? "conta pela data deste pagamento — regime de caixa"
+            ? "conta pelo ano em que este pagamento saiu"
             : `só conta depois de vincular ${salvos.documento}`
+        }
+        extra={
+          fase.pagamento ? (
+            <SugestaoQuitacao pagamento={fase.pagamento} />
+          ) : undefined
         }
       />
     );
@@ -389,7 +597,9 @@ function RegistrarPagamento() {
         sub={
           documentoDeOrigem && !obraDivergente
             ? `Já nasce ligado a ${formatarBRL(documentoDeOrigem.valorCentavos ?? 0)}`
-            : "Interação 2 de 3 — comprovante obrigatório"
+            : vaiAgendar
+              ? "Data no futuro — vai virar agendamento"
+              : `hoje é ${formatarDataBR(hojeIso())}`
         }
       />
 
@@ -457,6 +667,30 @@ function RegistrarPagamento() {
               </Card>
             ) : null}
 
+            {/* ⚠️ MEIO — e a guarda do cartão (critérios 25-27). */}
+            <Card className="flex flex-col gap-3.5">
+              <Escolha
+                rotulo="Como foi pago"
+                opcoes={[
+                  { valor: "pix", texto: "PIX" },
+                  { valor: "boleto", texto: "Boleto" },
+                  { valor: "cartao", texto: "Cartão" },
+                ]}
+                valor={meio}
+                onChange={setMeio}
+              />
+              {cartaoRecusado ? (
+                // ⚠️ A recusa NUNCA é muda: diz por que e diz o que fazer no
+                // lugar (critério 25). E ela vem ANTES do teste da data — uma
+                // compra de ontem no cartão não pode virar pagamento por
+                // caminho nenhum (critério 27).
+                <Banner cor="red" role="alert">
+                  <strong>{RECUSA_CARTAO}.</strong>{" "}
+                  {RECUSA_CARTAO_ONDE_REGISTRAR}
+                </Banner>
+              ) : null}
+            </Card>
+
             <Card className="flex flex-col gap-3.5">
               {documentoDeOrigemId ? (
                 documentoDeOrigem ? (
@@ -489,8 +723,35 @@ function RegistrarPagamento() {
                   />
                 </>
               )}
+              {/* MUDANÇA 1 DAS TRÊS: o aviso vem COLADO no campo de data, e
+                  não num banner no topo — quem digitou a data está olhando
+                  aqui. */}
+              <div className="flex flex-col gap-1.5">
+                <CampoTexto
+                  rotulo={vaiAgendar ? "Data prevista" : "Data do pagamento"}
+                  tipo="date"
+                  valor={data}
+                  onChange={setData}
+                  ajuda={vaiAgendar ? undefined : DATA_QUE_VALE_PARA_O_CUSTO}
+                  erro={erroDe("dataPagamento")}
+                />
+                {vaiAgendar ? (
+                  <Banner cor="amb" role="status">
+                    <strong data-aviso="data-futura">
+                      {formatarDataBR(data)} ainda não aconteceu.
+                    </strong>{" "}
+                    Isto vai ser gravado como <strong>agendamento</strong>: não
+                    entra no custo de aquisição e não aparece em nenhum total
+                    até o dinheiro sair.
+                  </Banner>
+                ) : null}
+              </div>
+
+              {/* Critério 11: o campo se chama VALOR PREVISTO quando é
+                  previsão. O nome é parte da proteção — "valor" convida à
+                  soma mista. */}
               <CampoTexto
-                rotulo="Valor"
+                rotulo={vaiAgendar ? "Valor previsto" : "Valor"}
                 valor={valor}
                 onChange={setValor}
                 inputMode="decimal"
@@ -498,22 +759,45 @@ function RegistrarPagamento() {
                 ajuda={ajudaValor}
                 erro={erroDe("valorCentavos")}
               />
-              <CampoTexto
-                rotulo="Data do pagamento"
-                tipo="date"
-                valor={data}
-                onChange={setData}
-                erro={erroDe("dataPagamento")}
-              />
-              <CampoArquivo
-                rotulo="Comprovante"
-                ajuda="Anexe o comprovante do PIX — obrigatório."
-                accept=".pdf,image/*"
-                arquivo={comprovante}
-                onChange={setComprovante}
-                erro={erroDe("temComprovante")}
-              />
+
+              {/* MUDANÇA 2 DAS TRÊS: no agendamento o comprovante DESAPARECE.
+                  "Compromisso não exige anexo" (parecer §4) — é a única
+                  entidade do app que nasce sem ele, e é exceção por não
+                  afirmar fato nenhum. */}
+              {vaiAgendar ? (
+                <Dica>
+                  <strong>Aqui o anexo não é exigido.</strong> Agendamento é a
+                  única coisa no app que nasce sem anexo obrigatório — ele não
+                  compõe custo nenhum, logo não há o que sustentar. Anexar o
+                  boleto é útil e recomendado, jamais bloqueante.
+                </Dica>
+              ) : (
+                <CampoArquivo
+                  rotulo="Comprovante"
+                  ajuda="Anexe o comprovante do PIX. O botão salva mesmo sem ele — o que muda é o estado que nasce."
+                  accept=".pdf,image/*"
+                  arquivo={comprovante}
+                  onChange={setComprovante}
+                />
+              )}
             </Card>
+
+            {/* ⚠️ CRITÉRIO 46: o botão grava sempre; o que muda é o ESTADO.
+                A consequência é dita ANTES, e muda de peso com o favorecido
+                (critério 47, ADENDO 2 §5 — para PF o comprovante é
+                CONSTITUTIVO, não acessório). */}
+            {!vaiAgendar && comprovante === null ? (
+              <Banner
+                cor={rotulosPagoSemComprovante(tipoFavorecido).gravidade}
+                role="status"
+              >
+                <strong>Vai salvar assim mesmo.</strong> Fica como{" "}
+                <strong>
+                  {rotulosPagoSemComprovante(tipoFavorecido).consequencia}
+                </strong>
+                .
+              </Banner>
+            ) : null}
 
             {documentoDeOrigem ? (
               <Banner cor="amb" role="status">
@@ -523,6 +807,7 @@ function RegistrarPagamento() {
               </Banner>
             ) : null}
 
+            {vaiAgendar ? null : (
             <Banner cor="amb" role="status">
               Vai nascer como{" "}
               <strong>aguardando {rotulos.documento}</strong>.{" "}
@@ -545,25 +830,34 @@ function RegistrarPagamento() {
                 </>
               )}
             </Banner>
+            )}
           </>
         ) : null}
       </Corpo>
 
       {registro.fase === "pronta" ? (
         <Rodape>
-          <Passo>Interação 3 de 3 ↓</Passo>
+          <Passo>{vaiAgendar ? "Nada sai da conta hoje ↓" : "Interação 3 de 3 ↓"}</Passo>
+          {/* MUDANÇA 3 DAS TRÊS: o botão troca de VERBO e de PESO. "Salvar
+              pagamento" (primary) vira "Agendar" (ghost) — o agendamento não
+              é o ato de peso da tela, e o verbo diferente é a última chance de
+              perceber que a data está no futuro. */}
           <Botao
-            variante="primary"
+            variante={vaiAgendar ? "ghost" : "primary"}
             onClick={salvar}
-            disabled={fase.nome === "salvando"}
+            disabled={fase.nome === "salvando" || cartaoRecusado}
           >
             {fase.nome === "salvando"
               ? "Salvando…"
-              : documentoDeOrigem
-                ? obraDivergente
-                  ? "Salvar sem ligar à nota"
-                  : "Salvar pagamento e ligar à nota"
-                : `Salvar — aguardando ${rotulos.documento}`}
+              : cartaoRecusado
+                ? "Cartão ainda não tem fluxo neste app"
+                : vaiAgendar
+                  ? "Agendar — não entra no custo"
+                  : documentoDeOrigem
+                    ? obraDivergente
+                      ? "Salvar sem ligar à nota"
+                      : "Salvar pagamento e ligar à nota"
+                    : `Salvar — aguardando ${rotulos.documento}`}
           </Botao>
           <BotaoLink href="/adicionar">Voltar</BotaoLink>
         </Rodape>

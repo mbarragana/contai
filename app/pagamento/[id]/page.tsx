@@ -7,6 +7,7 @@ import {
   AppBar,
   Banner,
   BarraAdicionar,
+  Botao,
   BotaoLink,
   Card,
   Carregando,
@@ -16,19 +17,73 @@ import {
   Dica,
   EstadoErro,
   Linha,
+  Passo,
 } from "@/app/_components/ui";
+import { SugestaoQuitacao } from "@/app/_components/quitacao";
 import {
   carregarPagamento,
   carregarPainel,
   classificarErro,
+  mensagemDeErro,
+  resolverDiferenca,
   type ErroDeTela,
   type PainelDados,
 } from "@/lib/data";
 import { formatarDataBR } from "@/lib/fiscal/obra";
-import { rotulosPagoSemNota } from "@/lib/fiscal/pagamento";
+import {
+  DATA_QUE_VALE_PARA_O_CUSTO,
+  rotulosPagoSemComprovante,
+  rotulosPagoSemNota,
+  textoDiferencaSemExplicacao,
+} from "@/lib/fiscal/pagamento";
 import { alocarCusto, type PagamentoAlocado } from "@/lib/fiscal/vinculo";
 import { formatarBRL } from "@/lib/money";
-import type { Documento, Pagamento } from "@/lib/types";
+import type { Documento, Pagamento, ResolucaoDiferenca } from "@/lib/types";
+
+/**
+ * O CONJUNTO FECHADO DE RESOLUÇÕES (§F.2), rotulado pelo **resultado, nunca
+ * pela causa** — ele não tem de caracterizar juridicamente nada.
+ *
+ * ⚠️ **"Não sei ainda" é estado permitido e é o único que pode ser inicial**,
+ * porque é o único que não afirma nada. "Forçar classificação ensina a
+ * inventar dado no campo que sobrou." Por isso não há opção "não sei" na
+ * lista: ela É o estado de partida, e a lista só oferece saídas.
+ */
+const RESOLUCOES: {
+  valor: ResolucaoDiferenca;
+  rotulo: string;
+  efeito: string;
+}[] = [
+  {
+    valor: "nao_compoe_custo",
+    rotulo: "Não compõe custo da obra",
+    efeito:
+      "Juros, multa, taxa ou item que não foi incorporado ao imóvel. Fica fora do custo definitivamente, registrado — e sem pendência: não há o que cobrar.",
+  },
+  {
+    valor: "falta_documento",
+    // ⚠️ Critério 31d: esta opção FICA, e a tela NÃO promete aumento no ato.
+    // Tirar o botão é o mais caro dos dois erros: encargo fica fora para
+    // sempre e sem pendência, enquanto principal sem nota é custo real que
+    // vira "pago sem nota" — cobrança a fazer enquanto ainda há parcela a
+    // liberar (§F.1).
+    rotulo: "É da obra e falta o documento",
+    efeito:
+      "O número não se move hoje — quem limita o custo é a nota. Ele passa a contar como pago sem nota, e entra no custo quando houver nota no seu CPF que o cubra.",
+  },
+  {
+    valor: "multiplos_documentos",
+    rotulo: "O pagamento cobriu mais de um documento",
+    efeito:
+      "É o único caminho que aumenta o custo no ato, e ele se resolve por vínculo, não por classificação: ligue a outra nota a este pagamento.",
+  },
+  {
+    valor: "erro_digitacao",
+    rotulo: "Errei o valor digitado",
+    efeito:
+      "Isto não é classificação fiscal, é correção do registro com rastro — e a correção ainda não existe no app (CONTAI-021). Até lá a diferença continua fora do custo.",
+  },
+];
 
 const NOME_TIPO: Record<Documento["tipo"], string> = {
   nf_material: "NF de material",
@@ -58,6 +113,8 @@ export default function DetalhePagamento() {
   const { id } = useParams<{ id: string }>();
   const [estado, setEstado] = useState<Estado>({ fase: "carregando" });
   const [tentativa, setTentativa] = useState(0);
+  const [resolvendo, setResolvendo] = useState(false);
+  const [erroResolver, setErroResolver] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelado = false;
@@ -89,6 +146,28 @@ export default function DetalhePagamento() {
     setEstado({ fase: "carregando" });
     setTentativa((t) => t + 1);
   }, []);
+
+  /**
+   * A resolução é ato do Mateus, e **resolver NÃO apaga o registro da
+   * diferença** (critério 32, acervo append-only do CONTAI-009): os valores
+   * continuam gravados; o que entra é a classificação, com a data dela.
+   */
+  const resolver = useCallback(
+    async (pagamentoId: string, resolucao: ResolucaoDiferenca) => {
+      setResolvendo(true);
+      setErroResolver(null);
+      try {
+        await resolverDiferenca(pagamentoId, resolucao);
+        setEstado({ fase: "carregando" });
+        setTentativa((t) => t + 1);
+      } catch (e) {
+        setErroResolver(mensagemDeErro(e));
+      } finally {
+        setResolvendo(false);
+      }
+    },
+    [],
+  );
 
   if (estado.fase !== "pronto") {
     return (
@@ -135,10 +214,10 @@ export default function DetalhePagamento() {
               <span className="font-semibold text-red">sem comprovante</span>
             )}
           </Linha>
-          <Dica>
-            A data que vale para o custo é a do <strong>pagamento</strong>, não
-            a da nota — regime de caixa.
-          </Dica>
+          {/* Item (f) do Gate 1b + decisão 10 de 18/08: "regime de caixa" sai
+              da tela (critério 7) e entra a frase do §F.5, COM o exemplo — é
+              ele que ensina, e a sentença abstrata sozinha é esquecível. */}
+          <Dica>{DATA_QUE_VALE_PARA_O_CUSTO}</Dica>
         </Card>
 
         {comprovado > 0 ? (
@@ -200,6 +279,113 @@ export default function DetalhePagamento() {
             </Banner>
           ) : null}
         </Card>
+
+        {/* ⚠️ PAGO SEM COMPROVANTE (critérios 46-47). O peso muda com o
+            favorecido, e a diferença é fiscal: para PF o comprovante é
+            CONSTITUTIVO do custo. */}
+        {p.comprovantePath === null ? (
+          <Card
+            className={
+              rotulosPagoSemComprovante(p.favorecidoTipo).gravidade === "red"
+                ? "border-red"
+                : "border-amb"
+            }
+          >
+            <Chip cor={rotulosPagoSemComprovante(p.favorecidoTipo).gravidade}>
+              {rotulosPagoSemComprovante(p.favorecidoTipo).chip}
+            </Chip>
+            <Consequencia
+              cor={rotulosPagoSemComprovante(p.favorecidoTipo).gravidade}
+            >
+              {rotulosPagoSemComprovante(p.favorecidoTipo).consequencia}
+            </Consequencia>
+            <Dica>
+              O pagamento está registrado — o botão nunca recusa um fato
+              consumado. O que falta é a prova, e ela é o documento mais
+              perecível do acervo.
+            </Dica>
+          </Card>
+        ) : null}
+
+        {/* ⚠️ A DIFERENÇA, e as QUATRO resoluções do §F.2. */}
+        {p.naoExplicadoCentavos > 0 || p.encargosCentavos > 0 ? (
+          <Card
+            className={
+              p.naoExplicadoCentavos > 0 &&
+              (p.resolucaoDiferenca === null ||
+                p.resolucaoDiferenca === "erro_digitacao")
+                ? "border-red"
+                : ""
+            }
+          >
+            <Passo>Composição deste desembolso</Passo>
+            {p.encargosCentavos > 0 ? (
+              <Linha rotulo="Juros e multa — fora do custo">
+                <span className="mono">{formatarBRL(p.encargosCentavos)}</span>
+              </Linha>
+            ) : null}
+            {p.naoExplicadoCentavos > 0 ? (
+              <Linha rotulo="Diferença registrada">
+                <span className="mono">
+                  {formatarBRL(p.naoExplicadoCentavos)}
+                </span>
+              </Linha>
+            ) : null}
+
+            {p.naoExplicadoCentavos > 0 &&
+            (p.resolucaoDiferenca === null ||
+              p.resolucaoDiferenca === "erro_digitacao") ? (
+              <>
+                {/* Texto LITERAL do §F.4 (critério 31e). */}
+                <Consequencia cor="red">
+                  {textoDiferencaSemExplicacao(p.naoExplicadoCentavos)}
+                </Consequencia>
+                {erroResolver ? (
+                  <Banner cor="red" role="alert">
+                    {erroResolver}
+                  </Banner>
+                ) : null}
+                <Dica>
+                  Enquanto você não souber, deixe como está —{" "}
+                  <strong>&quot;não sei ainda&quot; é resposta válida</strong>,
+                  e é a única que não afirma nada.
+                </Dica>
+                <div className="mt-2 flex flex-col gap-3">
+                  {RESOLUCOES.map((r) => (
+                    <div key={r.valor}>
+                      <Botao
+                        variante="ghost"
+                        disabled={resolvendo}
+                        onClick={() => void resolver(p.id, r.valor)}
+                      >
+                        {r.rotulo}
+                      </Botao>
+                      <Dica>{r.efeito}</Dica>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : null}
+
+            {p.resolucaoDiferenca !== null &&
+            p.resolucaoDiferenca !== "erro_digitacao" ? (
+              <Dica>
+                Resolvida como{" "}
+                <strong>
+                  {
+                    RESOLUCOES.find((r) => r.valor === p.resolucaoDiferenca)
+                      ?.rotulo
+                  }
+                </strong>
+                . O registro da diferença continua aqui — resolver não apaga.
+              </Dica>
+            ) : null}
+          </Card>
+        ) : null}
+
+        {/* Sugestão de quitação: DEPOIS do pagamento gravado, e ela nunca
+            bloqueou nada (critério 37). */}
+        <SugestaoQuitacao pagamento={p} onQuitou={tentarDeNovo} />
 
         <Card>
           <Linha rotulo="Obra">{estado.painel.obra.nome}</Linha>

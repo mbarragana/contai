@@ -23,13 +23,16 @@ import {
   EstadoErro,
   Passo,
 } from "@/app/_components/ui";
+import { BlocoAgendados } from "@/app/_components/agendado";
 import {
+  carregarCompromissos,
   carregarObras,
   carregarPainel,
   classificarErro,
   type ErroDeTela,
   type PainelDados,
 } from "@/lib/data";
+import { montarAgendaDaHome, type AgendaHome } from "@/lib/fiscal/compromisso";
 import { escolherObraAtiva } from "@/lib/fiscal/obra";
 import { calcularResumo, type Pendencia, type ResumoObra } from "@/lib/fiscal/resumo";
 import {
@@ -43,12 +46,26 @@ import { lerObraPreferida } from "@/lib/obra-ativa";
 type Estado =
   | { fase: "carregando" }
   | { fase: "erro"; erro: ErroDeTela }
-  | { fase: "pronto"; dados: PainelDados; resumo: ResumoObra };
+  | {
+      fase: "pronto";
+      dados: PainelDados;
+      resumo: ResumoObra;
+      /**
+       * ⚠️ A agenda vem em CAMPO SEPARADO, e não dentro de `dados`. `dados`
+       * é o que entra em `calcularResumo({ ...dados, ano })`: um compromisso
+       * ali viajaria pelo spread até a porta do cálculo de custo (critério 3).
+       */
+      agenda: AgendaHome;
+    };
 
 const ACAO_POR_TIPO: Partial<Record<Pendencia["tipo"], string>> = {
   quarentena: "Resolver",
   boleto_sem_nf: "Ver detalhes",
   servico_sem_retencao: "Ver detalhes",
+  // CONTAI-019: as duas se resolvem no detalhe do pagamento — a diferença
+  // pelas quatro resoluções do §F.2, o comprovante pelo anexo.
+  diferenca_sem_explicacao: "Explicar a diferença",
+  pago_sem_comprovante: "Anexar o comprovante",
 };
 
 export default function Home() {
@@ -73,12 +90,14 @@ export default function Home() {
         }
 
         const dados = await carregarPainel(ativa.id);
+        const compromissos = await carregarCompromissos(ativa.id);
         const ano = Number(hojeIso().slice(0, 4));
         if (cancelado) return;
         setEstado({
           fase: "pronto",
           dados,
           resumo: calcularResumo({ ...dados, ano }),
+          agenda: montarAgendaDaHome(compromissos, hojeIso()),
         });
       } catch (erro) {
         if (cancelado) return;
@@ -251,8 +270,7 @@ export default function Home() {
                         <span className="mono">
                           {formatarBRL(d.noAnoCentavos)}
                         </span>{" "}
-                        — o resto caiu no ano do pagamento que o gerou (regime
-                        de caixa).
+                        — o resto caiu no ano do pagamento que o gerou.
                       </Dica>
                     ) : null}
                     <div className="mt-2.5">
@@ -300,6 +318,13 @@ export default function Home() {
                 ))}
               </Card>
             ))}
+
+            {/* ⚠️ BLOCO SEPARADO, RÓTULO PRÓPRIO, LONGE DO CUSTO (critério
+                10). Ele fica DEPOIS das pendências fiscais de propósito:
+                agendado não é pendência fiscal — nada saiu da conta, logo não
+                há risco fiscal ainda (critério 19). E não há soma nenhuma
+                aqui, só contagem (critério 42). */}
+            <BlocoAgendados agenda={estado.agenda} hoje={hoje} />
 
             <Dica>
               <Link href={`/obras/${obra.id}`} className="underline">

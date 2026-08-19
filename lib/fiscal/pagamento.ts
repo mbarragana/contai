@@ -95,6 +95,13 @@ export interface EntradaPagamento {
   valorCentavos: number | null;
   /** ISO (yyyy-mm-dd). */
   dataPagamento: string | null;
+  /**
+   * ⚠️ **NÃO É MAIS VALIDADO** (CONTAI-019, critério 46): a ausência do
+   * comprovante deixou de recusar a gravação. O campo continua na entrada
+   * porque o FORMULÁRIO precisa dele para dizer, antes do toque, qual estado
+   * vai nascer — e porque tirá-lo do tipo apagaria a única pista de que a
+   * decisão foi deliberada. Ver a nota no fim de `validarPagamentoAvulso`.
+   */
   temComprovante: boolean;
 }
 
@@ -220,19 +227,30 @@ const SEM_COMPROVANTE_PF: RotulosPagoSemComprovante = {
 /**
  * Favorecido de tipo desconhecido (pagamento sem `favorecido_id`).
  *
- * ⚠️ O parecer NÃO tem linha para este caso — a tabela do §5 tem duas linhas,
- * PJ e PF. Nada aqui inventa consequência fiscal: o texto **diz que não dá
- * para dizer** e pede o dado que resolve, exatamente como o `DESCONHECIDO` de
- * `rotulosPagoSemNota` (definido pelo `contador` no Gate 2 do CONTAI-001).
- * A gravidade cai no lado VERMELHO por ser a direção segura: sem saber o tipo,
- * não dá para descartar o caminho PF, em que o comprovante é constitutivo, e
- * subestimar o peso de uma pendência é o erro que faz ela não ser resolvida.
- * **Ponto registrado para o Gate 2.**
+ * ⚠️ **RATIFICADO pelo `contador` no ADENDO 3 §G.3**, `[Certain]`, e o texto
+ * abaixo é a **terceira linha da tabela do ADENDO 2 §5** — literal, não
+ * reescrito. A pergunta subiu no Gate 1a porque o parecer só tinha duas
+ * linhas, PJ e PF.
+ *
+ * **Vermelho**, pelo motivo aceito: "sem saber o tipo, não dá para DESCARTAR o
+ * caminho PF, em que o comprovante é constitutivo do custo. Subestimar o peso
+ * de uma pendência é o erro que faz ela não ser resolvida; superestimar custa
+ * um anexo a mais."
+ *
+ * O texto **não afirma consequência fiscal**, e está certo que não afirme:
+ * "afirmar qual dos dois regimes se aplica, sem saber o tipo, seria inventar
+ * fato. Ele nomeia a incerteza e pede o dado que a resolve."
+ *
+ * ⚠️ **O vermelho aqui é PROVISÓRIO.** Informado o CNPJ/CPF, a pendência é
+ * RECLASSIFICADA para a linha PJ (amarela) ou PF (vermelha) — "vermelho por
+ * desconhecimento não pode virar vermelho permanente de uma pendência que era
+ * amarela". A reclassificação acontece sozinha: `calcularResumo` deriva a
+ * gravidade do `favorecidoTipo` a cada leitura, e não guarda cor nenhuma.
  */
 const SEM_COMPROVANTE_DESCONHECIDO: RotulosPagoSemComprovante = {
   chip: "Pago sem comprovante",
   consequencia:
-    "Sem o comprovante não dá para dizer o quanto este pagamento sustenta. Informe o CNPJ/CPF do favorecido: para PF o comprovante da transferência é o que constitui o custo.",
+    "sem o comprovante não dá para dizer o quanto este pagamento sustenta — informe o CNPJ/CPF do favorecido: para PF o comprovante da transferência é o que constitui o custo",
   gravidade: "red",
 };
 

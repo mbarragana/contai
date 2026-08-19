@@ -1703,3 +1703,52 @@ celular, no canteiro… julgado nesse cenário primeiro"* (corrigido em 18/08).
 Os briefs reinjetam a régua velha em toda execução — inclusive no `/design`
 deste ticket, que é justamente uma tela de **gestão**. Corrigir os dois arquivos
 é decisão do Mateus (é configuração do time), não de agente.
+
+---
+
+## D24 — "regime de caixa" ainda em quatro telas que o CONTAI-019 não tocou
+
+*Aberta pelo `lead-engineer` no Gate 1b do `CONTAI-019`, 2026-08-18. **Não é
+ticket**: é dor registrada para o `po` decidir se a varredura vale trabalho
+próprio.*
+
+O **critério 7 do CONTAI-019 proíbe "regime de caixa" em tela**, e a **decisão
+10** do fechamento de 18/08 fixou a frase substituta, ratificada pelo `contador`
+em §F.5:
+
+> **A data que vale para o custo é a do pagamento, não a da nota. Nota de
+> dezembro paga em janeiro é custo do ano seguinte.**
+
+**O que o Gate 1b trocou** — e só isto, porque a decisão 10 nasceu de um
+conflito entre dois mocks **na mesma superfície**, e não autoriza varredura em
+tela que ninguém revisou nesta rodada:
+
+- `app/page.tsx` — o parêntese saiu da linha das despesas comprovadas;
+- `app/pagamento/[id]/page.tsx` — passou a exibir a frase do §F.5, com o exemplo;
+- `app/adicionar/pagamento/page.tsx` — o rótulo do custo deixou de nomear a
+  regra, e a frase do §F.5 entrou no campo de data.
+
+**O que FICOU, e onde** — quatro ocorrências, em três telas que este ticket não
+abriu:
+
+| Arquivo | Linha | Texto |
+|---|---|---|
+| `app/adicionar/page.tsx` | 35 | *"…pagamento é o que define o ano do custo (regime de caixa)."* |
+| `app/adicionar/documento/page.tsx` | 365 | *"conta pela data do pagamento ligado — regime de caixa"* |
+| `app/documento/[id]/page.tsx` | 139 | *"— regime de caixa"* |
+| `app/documento/[id]/page.tsx` | 157 | *"Este pedaço da nota não vira custo: regime de…"* |
+
+⚠️ **A lista original do Gate 1b tinha CINCO itens e estava incompleta em dois
+pontos** — o `grep` de linha única não pega a frase quebrada pelo formatador.
+As duas que faltavam: `app/page.tsx:254-255` (já trocada) e
+`app/documento/[id]/page.tsx:157` (na tabela acima). Quem varrer isto tem de
+buscar por `de caixa`, nunca por `regime de caixa`.
+
+**Por que não é urgente**: o dano é de vocabulário, não fiscal — *"regime de
+caixa"* é o **nome** da regra, e a regra continua certa nas quatro. O argumento
+do critério 7 é que o nome **não ensina nada a um usuário de uma pessoa só**, e
+esse argumento não expira.
+
+**Por que também não é zero**: as três telas restantes são de **documento**, e é
+exatamente ali que a confusão entre data da nota e data do pagamento nasce.
+Trocar lá tem mais valor didático do que teve na tela do pagamento.

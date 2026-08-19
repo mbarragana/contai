@@ -36,22 +36,29 @@ import type {
   MeioPagamento,
   Pagamento,
 } from "@/lib/types";
-import { centavosParaInput } from "@/lib/money";
+import { centavosParaInput, formatarBRL } from "@/lib/money";
 import type { Permissao } from "./vinculo";
 
 // ── Data: utilitários locais (ISO yyyy-mm-dd compara lexicograficamente) ──
 
 const MS_DIA = 24 * 60 * 60 * 1000;
 
+/**
+ * ⚠️ **dd/MM/aaaa, sempre** — ADENDO 3 §G.2, `[Certain]`, e vale para TODO
+ * texto de tela deste parecer que exiba data:
+ *
+ *     "A razão não é estética: o invariante central do produto é regime de
+ *     caixa — a data do pagamento DECIDE O EXERCÍCIO. Data sem ano num sistema
+ *     assim é defeito onde quer que apareça [...] Perguntar 'quita o
+ *     agendamento de 28/12?' na tela de janeiro é esconder do usuário
+ *     exatamente o dado que ele precisa para responder."
+ *
+ * Não existe helper de dd/MM neste módulo, e é de propósito: para voltar a
+ * omitir o ano seria preciso escrever um.
+ */
 function dataBR(iso: string): string {
   const [ano, mes, dia] = iso.split("-");
   return `${dia}/${mes}/${ano}`;
-}
-
-/** dd/MM — o formato do texto literal do parecer ("o compromisso de 15/09"). */
-function diaMes(iso: string): string {
-  const [, mes, dia] = iso.split("-");
-  return `${dia}/${mes}`;
 }
 
 /** Dias de `a` até `b` (positivo quando `b` é depois). */
@@ -201,6 +208,137 @@ export function podeGerarRelatorioAnual(
   void ano; // ver acima: existe para ser PROVADAMENTE ignorado.
   const faltamResponder = compromissosQueBloqueiam(cs, hojeIso);
   return faltamResponder.length === 0 ? { ok: true } : { ok: false, faltamResponder };
+}
+
+// ── As quatro marcas e o bloco da home (critérios 8, 8b, 42, 43) ─────────
+
+/**
+ * A PREPOSIÇÃO DE TEMPO — a quarta das quatro marcas do critério 8, e a única
+ * que é texto.
+ *
+ * Diretriz de desenho 3: **a preposição carrega o tempo**. *"pago em 05/08/2026"*
+ * (fato) × *"para 15/09/2026"* (previsão) × *"era para 10/08/2026"* (previsão
+ * que não se cumpriu). É ela que impede o cartão de um agendado ser lido como
+ * pagamento — e ler agendado como pago é o que faz o Mateus registrar o mesmo
+ * PIX duas vezes.
+ *
+ * Data com ANO, sempre (ADENDO 3 §G.2).
+ */
+export function preposicaoDeTempo(c: Compromisso, hojeIso: string): string {
+  if (c.dataPrevista === null) return "sem data definida";
+  return ehVencidoSemResposta(c, hojeIso)
+    ? `era para ${dataBR(c.dataPrevista)}`
+    : `para ${dataBR(c.dataPrevista)}`;
+}
+
+/** Há quantos dias venceu sem resposta. Zero para o que não venceu. */
+export function diasSemResposta(c: Compromisso, hojeIso: string): number {
+  if (!ehVencidoSemResposta(c, hojeIso)) return 0;
+  return diasEntre(c.dataPrevista!, hojeIso);
+}
+
+/**
+ * O CHIP — a segunda das quatro marcas, e o eixo do critério 8b.
+ *
+ * ⚠️ **Vencido NÃO se distingue de aberto pela borda** (decisão 2 do
+ * fechamento de 18/08): a tracejada fica nos DOIS. Distinguem três outras
+ * coisas ao mesmo tempo, e esta função entrega duas delas:
+ * 1. `forte` — chip âmbar **preenchido** contra âmbar **vazado**;
+ * 2. o texto **nomeia o vencimento e o silêncio**, contra um "Agendado" mudo.
+ * A terceira é estrutural e mora na tela: as três respostas existem DENTRO do
+ * cartão do vencido e **não existem** no aberto.
+ *
+ * "Precisando de mais peso, engrossa-se a tracejada, nunca se troca o estilo."
+ */
+export function chipDoAgendado(
+  c: Compromisso,
+  hojeIso: string,
+): { texto: string; forte: boolean } {
+  if (!ehVencidoSemResposta(c, hojeIso)) {
+    return { texto: "Agendado", forte: false };
+  }
+  const dias = diasSemResposta(c, hojeIso);
+  return {
+    texto:
+      `Venceu em ${dataBR(c.dataPrevista!)} · ` +
+      `${dias} ${dias === 1 ? "dia" : "dias"} sem resposta`,
+    forte: true,
+  };
+}
+
+/** Critério 43 — no máximo 3 abertos na home. Vencido não tem teto. */
+export const MAX_ABERTOS_NA_HOME = 3;
+
+export interface AgendaHome {
+  /** ⚠️ TODOS, sem truncar nunca — truncar vencido é o sumiço que o §3 proíbe. */
+  vencidos: Compromisso[];
+  /** No máximo `MAX_ABERTOS_NA_HOME`, por data prevista crescente. */
+  abertos: Compromisso[];
+  /** Quantos abertos existem ao todo — o N de "ver todos (N)". */
+  abertosTotal: number;
+  /** ⚠️ CONTAGEM, nunca soma de valores (critério 42). */
+  contagem: string;
+  vazia: boolean;
+}
+
+function porDataPrevista(a: Compromisso, b: Compromisso): number {
+  if (a.dataPrevista !== b.dataPrevista) {
+    if (a.dataPrevista === null) return 1; // sem data definida por último
+    if (b.dataPrevista === null) return -1;
+    return a.dataPrevista < b.dataPrevista ? -1 : 1;
+  }
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+/**
+ * O bloco de agendados da home.
+ *
+ * Só entra `situacao === 'aberto'`: quitado e cancelado **saem da lista**
+ * assim que respondidos (parecer §5, defesa 3) — continuar mostrando o que já
+ * foi respondido é o ruído que faz parar de olhar.
+ *
+ * ⚠️ **A contagem NÃO é acompanhada de soma, sob rótulo nenhum** (critério 42).
+ * Número em reais a centímetros do custo confirmado vira "quanto a obra tem
+ * marcado" — previsão de fluxo de caixa, fora de escopo declarado. E somar
+ * previsto ao lado de realizado é a soma mista que o §2, item 8, proíbe.
+ */
+export function montarAgendaDaHome(
+  cs: readonly Compromisso[],
+  hojeIso: string,
+  /**
+   * O corte dos abertos. `Infinity` é a tela `/compromisso` — o destino do
+   * "ver todos (N)", que é justamente onde o corte da home deixa de valer.
+   * Vencido nunca tem teto, aqui ou lá.
+   */
+  limiteAbertos: number = MAX_ABERTOS_NA_HOME,
+): AgendaHome {
+  const abertosTodos = cs.filter((c) => c.situacao === "aberto");
+  const vencidos = abertosTodos
+    .filter((c) => ehVencidoSemResposta(c, hojeIso))
+    .sort(porDataPrevista);
+  const naoVencidos = abertosTodos
+    .filter((c) => !ehVencidoSemResposta(c, hojeIso))
+    .sort(porDataPrevista);
+
+  const partes: string[] = [];
+  if (naoVencidos.length > 0) {
+    partes.push(
+      `${naoVencidos.length} ainda não ${naoVencidos.length === 1 ? "pago" : "pagos"}`,
+    );
+  }
+  if (vencidos.length > 0) {
+    partes.push(
+      `${vencidos.length} já ${vencidos.length === 1 ? "venceu" : "venceram"}`,
+    );
+  }
+
+  return {
+    vencidos,
+    abertos: naoVencidos.slice(0, limiteAbertos),
+    abertosTotal: naoVencidos.length,
+    contagem: partes.join(", "),
+    vazia: abertosTodos.length === 0,
+  };
 }
 
 // ── Saldo (critérios 15, 29 e 30) ────────────────────────────────────────
@@ -454,17 +592,44 @@ export function podeQuitar(
   return { ok: true };
 }
 
-// ── Textos da sugestão — literais do adendo §C(b), critério 38 ────────────
-// Copiados do parecer, não reescritos. O `{data}` do template é dd/MM, como no
-// exemplo do próprio parecer ("o compromisso de 15/09").
+// ── Textos da sugestão — literais do ADENDO 3 §G.1, critério 38 ──────────
+//
+// ⚠️ ESTE BLOCO SUBSTITUI o do §C(b). A troca "compromisso" → "agendamento" na
+// tela foi AUTORIZADA pelo `contador` no ADENDO 3 §G.1, `[Certain]`:
+//
+//     "É vocabulário de interface, não substância: as duas palavras nomeiam a
+//     mesma entidade [...] Uma palavra que aparece NUM ÚNICO LUGAR do produto
+//     não ensina, ela confunde: o usuário não sabe se 'compromisso' é outra
+//     coisa que ele não conhece."
+//
+// A literalidade continua valendo — o que mudou foi a redação oficial, não a
+// licença para reescrever. **A troca vale para as QUATRO linhas do bloco**,
+// inclusive os rótulos dos botões e a consequência: meia troca deixa a tela
+// bilíngue dentro do mesmo card.
+//
+// ⚠️ E NÃO SE TRADUZ O MODELO DE DADOS: "compromisso" continua no parecer, na
+// tabela, nos tipos e nos nomes de função deste arquivo. Termo de domínio e
+// termo de tela não precisam coincidir.
 
-export const PERGUNTA_QUITACAO = "Este pagamento quita o compromisso de {data}?";
+export const PERGUNTA_QUITACAO = "Este pagamento quita o agendamento de {data}?";
 
 export function perguntaQuitacao(dataPrevistaIso: string): string {
-  return PERGUNTA_QUITACAO.replace("{data}", diaMes(dataPrevistaIso));
+  return PERGUNTA_QUITACAO.replace("{data}", dataBR(dataPrevistaIso));
 }
 
-export const QUITACAO_SIM = "Sim, quita este compromisso";
+/**
+ * A segunda linha do bloco: quem, quanto e para quando. O valor sai marcado
+ * como **previsto**, nunca como "valor" (Gate Fiscal 6.3).
+ */
+export function resumoDoAgendamento(c: Compromisso): string {
+  const quando =
+    c.dataPrevista === null ? "sem data definida" : `para ${dataBR(c.dataPrevista)}`;
+  return `${c.favorecidoNome ?? "Favorecido não informado"} — previsto ${formatarBRL(
+    c.valorPrevistoCentavos,
+  )} ${quando}`;
+}
+
+export const QUITACAO_SIM = "Sim, quita este agendamento";
 export const QUITACAO_NAO = "Não, é outro pagamento";
 
 /**
@@ -472,4 +637,4 @@ export const QUITACAO_NAO = "Não, é outro pagamento";
  * silenciosa é a que ele repete sem ler.
  */
 export const QUITACAO_CONSEQUENCIA_DO_NAO =
-  "Se não quitar, o compromisso continua em aberto e este pagamento fica registrado sozinho.";
+  "Se não quitar, o agendamento continua em aberto e este pagamento fica registrado sozinho.";
