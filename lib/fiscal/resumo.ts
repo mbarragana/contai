@@ -36,6 +36,7 @@ import {
 import { custoTerrenoCentavos } from "./obra";
 import {
   anoCalendario,
+  consequenciaPagoSemComprovante,
   rotulosPagoSemComprovante,
   rotulosPagoSemNota,
   textoDiferencaSemExplicacao,
@@ -314,14 +315,25 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
     const bloqueado = valorBloqueadoPorComprovante(p);
     if (bloqueado <= 0) continue;
     const rotulos = rotulosPagoSemComprovante(p.favorecidoTipo);
+    // Falta SÓ o comprovante, ou faltam os dois? A pendência tem de nomear os
+    // dois buracos quando os dois existem — senão anexar o comprovante faz
+    // nascer um vermelho novo, e o app parece mudar de exigência.
+    const temDocumentoHabil = documentos.some(
+      (d) => p.documentoIds.includes(d.id) && ehDocumentoHabil(d),
+    );
     pendencias.push({
       id: `sem-comprovante:${p.id}`,
       tipo: "pago_sem_comprovante",
       chip: rotulos.chip,
-      titulo: "Pagamento sem comprovante anexado",
+      titulo: temDocumentoHabil
+        ? "Pagamento sem comprovante anexado"
+        : "Pagamento sem comprovante e sem nota",
       detalhe: p.favorecidoNome ?? SEM_FAVORECIDO,
       valorCentavos: bloqueado,
-      consequencia: rotulos.consequencia,
+      consequencia: consequenciaPagoSemComprovante(
+        p.favorecidoTipo,
+        temDocumentoHabil,
+      ),
       gravidade: rotulos.gravidade,
       href: `/pagamento/${p.id}`,
     });

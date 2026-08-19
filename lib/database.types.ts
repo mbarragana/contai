@@ -1,7 +1,6 @@
 // Tipos GERADOS a partir do banco — não edite à mão.
 // Fonte: `npx supabase gen types typescript --local` com as migrations 0001 a
 // 0007 aplicadas (`npm run db:reset`). Regerar sempre que uma migration entrar.
-
 export type Json =
   | string
   | number
@@ -485,6 +484,7 @@ export type Database = {
         | "falta_documento"
         | "multiplos_documentos"
         | "erro_digitacao"
+        | "previsao_errada"
       situacao_compromisso: "aberto" | "quitado" | "cancelado"
       status_documento: "registrado" | "quarentena" | "aguardando_pagamento"
       status_pagamento: "aguardando_nf" | "conciliado"
@@ -628,6 +628,7 @@ export const Constants = {
         "falta_documento",
         "multiplos_documentos",
         "erro_digitacao",
+        "previsao_errada",
       ],
       situacao_compromisso: ["aberto", "quitado", "cancelado"],
       status_documento: ["registrado", "quarentena", "aguardando_pagamento"],

@@ -92,7 +92,24 @@ export default function CancelarAgendamento() {
           <Carregando rotulo="Carregando o agendamento" />
         ) : null}
 
-        {compromisso ? (
+        {/* ⚠️ Guarda de SITUAÇÃO: por URL direta dava para cancelar um agendamento
+            já quitado ou já cancelado. Nenhum dos dois é reversível pela tela,
+            e o parecer §3 reserva 'cancelado' à previsão que NÃO se realizou —
+            cancelar o que já foi pago poluiria o sinal de auditoria. */}
+        {compromisso && compromisso.situacao !== "aberto" ? (
+          <Banner cor="amb" role="status">
+            <strong>
+              Este agendamento já foi respondido
+              {compromisso.situacao === "quitado"
+                ? " — ele foi pago"
+                : " — foi marcado como não vai ser pago"}
+              .
+            </strong>{" "}
+            Não há o que cancelar aqui.
+          </Banner>
+        ) : null}
+
+        {compromisso && compromisso.situacao === "aberto" ? (
           <>
             <Banner cor="amb" role="status">
               <strong>O registro fica, com o motivo — nada é apagado.</strong>{" "}
@@ -145,7 +162,11 @@ export default function CancelarAgendamento() {
         <Botao
           variante="primary"
           onClick={salvar}
-          disabled={salvando || motivo.trim().length < 3}
+          disabled={
+            salvando ||
+            motivo.trim().length < 3 ||
+            compromisso?.situacao !== "aberto"
+          }
         >
           {salvando ? "Salvando…" : "Marcar que não vai ser pago"}
         </Botao>

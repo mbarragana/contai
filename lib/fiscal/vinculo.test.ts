@@ -13,6 +13,7 @@ import {
   pagamentosCandidatos,
   pagamentosOcultosPorCobertura,
   podeVincular,
+  baseDocumentavel,
   saldoDescobertoDaNota,
   valorBloqueadoPorComprovante,
   valorElegivelDoPagamento,
@@ -985,6 +986,147 @@ describe("diferença não explicada — quais resoluções voltam ao custo (§F.
         pag({ id: "p1", ...base, resolucaoDiferenca: "erro_digitacao" }),
       ),
     ).toBe(1_000_000);
+  });
+});
+
+describe("⚠️ B1 — a PREVISÃO não pode virar teto do custo (Gate 2, §2)", () => {
+  /**
+   * O caso que o Gate 2 achou, e que nenhum teste anterior pegava porque todos
+   * usavam previsto = nota:
+   *
+   *   previsto R$ 9.000 · nota hábil R$ 10.000 · pago R$ 10.000 · sem encargo
+   *
+   * A tela de confirmação grava a sobra sobre o PREVISTO como "não explicado".
+   * Com a resolução em `null`, a aritmética colapsa:
+   *
+   *   elegível = pago − encargos − (pago − previsto − encargos) = PREVISTO
+   *
+   * Quem limita o custo passaria a ser a previsão — o §2 inteiro violado por
+   * dentro da fórmula que o §F.3 protege.
+   */
+  const NOTA = 1_000_000; // R$ 10.000,00
+  const PAGO = 1_000_000; // R$ 10.000,00
+  const SOBRA_SOBRE_O_PREVISTO = 100_000; // R$ 1.000,00 — previsto era R$ 9.000
+
+  const cenario = (resolucao: Pagamento["resolucaoDiferenca"]) =>
+    alocar(
+      [doc({ id: "d1", valorCentavos: NOTA })],
+      [
+        pag({
+          id: "p1",
+          valorCentavos: PAGO,
+          encargosCentavos: 0,
+          naoExplicadoCentavos: SOBRA_SOBRE_O_PREVISTO,
+          resolucaoDiferenca: resolucao,
+          documentoIds: ["d1"],
+        }),
+      ],
+    );
+
+  it("sem resposta, o custo fica preso no previsto — é o estado seguro, e ele DÓI", () => {
+    // Registrado para que a correção não pareça gratuita: a direção é segura
+    // (subestima), mas o número é a PREVISÃO, e é por isso que a resolução 5
+    // precisa existir.
+    const a = cenario(null);
+    expect(a.componentes[0].custoComprovadoCentavos).toBe(900_000);
+    expect(a.porPagamento.get("p1")?.elegivelCentavos).toBe(900_000);
+  });
+
+  it("⚠️ 'a previsão é que estava errada' devolve o pago, e o TETO volta a ser a nota", () => {
+    const a = cenario("previsao_errada");
+    expect(a.porPagamento.get("p1")?.elegivelCentavos).toBe(PAGO);
+    expect(
+      a.componentes[0].custoComprovadoCentavos,
+      "quem limita o custo é o DOCUMENTO HÁBIL, nunca a previsão",
+    ).toBe(Math.min(PAGO, NOTA));
+    expect(a.componentes[0].custoComprovadoCentavos).toBe(1_000_000);
+  });
+
+  it("e não sobra resíduo nenhum: sem 'pago sem nota' pela diferença", () => {
+    const a = cenario("previsao_errada");
+    expect(a.porPagamento.get("p1")?.semNotaCentavos).toBe(0);
+  });
+
+  it("a resolução 5 NÃO fura o teto: com nota de R$ 9.500, o custo é R$ 9.500", () => {
+    // A prova de que ela devolve o pago ao ELEGÍVEL e não ao custo: o mínimo
+    // continua mandando.
+    const a = alocar(
+      [doc({ id: "d1", valorCentavos: 950_000 })],
+      [
+        pag({
+          id: "p1",
+          valorCentavos: PAGO,
+          naoExplicadoCentavos: SOBRA_SOBRE_O_PREVISTO,
+          resolucaoDiferenca: "previsao_errada",
+          documentoIds: ["d1"],
+        }),
+      ],
+    );
+    expect(a.componentes[0].custoComprovadoCentavos).toBe(950_000);
+  });
+});
+
+describe("base documentável — o que ainda pode receber uma nota", () => {
+  it("encargo sai: ninguém procura a nota de um juro", () => {
+    expect(
+      baseDocumentavel(pag({ id: "p1", valorCentavos: 1_032_000, encargosCentavos: 32_000 })),
+    ).toBe(1_000_000);
+  });
+
+  it("⚠️ diferença já classificada como 'não compõe custo' sai também", () => {
+    // Achado do `contador` no Gate 2: ela já foi respondida como algo que não
+    // é da obra — cobrar documento para ela é ruído eterno no seletor.
+    expect(
+      baseDocumentavel(
+        pag({
+          id: "p1",
+          valorCentavos: 1_050_000,
+          naoExplicadoCentavos: 50_000,
+          resolucaoDiferenca: "nao_compoe_custo",
+        }),
+      ),
+    ).toBe(1_000_000);
+  });
+
+  it("diferença sem resposta FICA: ligar a nota é como ela se explica", () => {
+    expect(
+      baseDocumentavel(
+        pag({ id: "p1", valorCentavos: 1_050_000, naoExplicadoCentavos: 50_000 }),
+      ),
+    ).toBe(1_050_000);
+  });
+
+  it("'previsão errada' FICA: é custo real, e precisa de documento hábil", () => {
+    expect(
+      baseDocumentavel(
+        pag({
+          id: "p1",
+          valorCentavos: 1_050_000,
+          naoExplicadoCentavos: 50_000,
+          resolucaoDiferenca: "previsao_errada",
+        }),
+      ),
+    ).toBe(1_050_000);
+  });
+
+  it("o comprovante não entra nesta conta — ele decide o custo, não o vínculo", () => {
+    expect(
+      baseDocumentavel(pag({ id: "p1", valorCentavos: 1_000_000, comprovantePath: null })),
+    ).toBe(1_000_000);
+  });
+
+  it("pagamento com encargo resolvido some do seletor quando já coberto", () => {
+    const documento = doc({ id: "d1", valorCentavos: 1_000_000 });
+    const pagamento = pag({
+      id: "p1",
+      valorCentavos: 1_050_000,
+      naoExplicadoCentavos: 50_000,
+      resolucaoDiferenca: "nao_compoe_custo",
+      documentoIds: ["d1"],
+    });
+    const a = alocar([documento], [pagamento]);
+    const outra = doc({ id: "d2", valorCentavos: 500_000 });
+    expect(pagamentosCandidatos(outra, [pagamento], a).map((c) => c.item.id)).toEqual([]);
   });
 });
 

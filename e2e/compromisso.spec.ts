@@ -1,4 +1,4 @@
-import { OBRA_ID_SEED } from "./ambiente";
+import { OBRA_ID_SEED, URL_SUPABASE_LOCAL } from "./ambiente";
 import {
   compromissos,
   criarCompromisso,
@@ -460,6 +460,76 @@ test.describe("confirmar o pagamento de um agendamento", () => {
     await expect(
       page.getByText(/ficam fora para sempre — e não há o que cobrar/),
     ).toBeVisible();
+  });
+  /**
+   * ⚠️ **B4 do Gate 2 — o retry RETOMA, nunca recomeça.**
+   *
+   * A gravação são quatro chamadas (não há transação multi-statement pelo
+   * PostgREST). Antes da correção, uma falha no vínculo devolvia ao mesmo botão
+   * e o toque seguinte **re-executava `criarPagamento`**: nascia um segundo
+   * pagamento REAL e o primeiro ficava órfão como pendência vermelha para
+   * sempre — o acervo é append-only e a correção do CONTAI-021 não existe. Com
+   * favorecido PF o dano sai do app: o desembolso duplicado entra na ficha
+   * Pagamentos Efetuados, CPF por CPF.
+   *
+   * O 503 é falsificado só na rota do VÍNCULO, e é o mesmo status que o
+   * PostgREST devolve quando não alcança o banco.
+   */
+  test("⚠️ falha no vínculo: o retry não cria um SEGUNDO pagamento", async ({
+    page,
+    db,
+  }) => {
+    const id = await agendamento(db, { data_prevista: maisDias(-3) });
+
+    await page.goto(`/compromisso/${id}/confirmar`);
+    await page.getByLabel("Data em que o dinheiro saiu").fill(hoje());
+
+    // Só o vínculo cai. O pagamento entra normalmente.
+    await page.route(`${URL_SUPABASE_LOCAL}/rest/v1/compromisso_pagamento*`, (rota) =>
+      rota.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({
+          code: "PGRST000",
+          message: "could not connect to server",
+        }),
+      }),
+    );
+
+    await page.getByRole("button", { name: "Salvar pagamento" }).click();
+
+    // Timeout folgado: o postgrest-js repete 503 três vezes com backoff
+    // (1s+2s+4s) antes de desistir.
+    // Escopado em `main`: o Next mantém um `role="alert"` vazio no
+    // route-announcer, e `getByRole("alert")` sozinho viola o strict mode.
+    await expect(page.getByRole("main").getByRole("alert")).toContainText(
+      "O pagamento já está salvo",
+      { timeout: 20_000 },
+    );
+
+    // Meio do caminho: pagamento gravado, vínculo não.
+    expect(await pagamentos(db)).toHaveLength(1);
+    expect(await vinculosDeQuitacao(db)).toHaveLength(0);
+
+    // Os campos do que já foi gravado congelam — o botão não corrige valor
+    // nem data, e o acervo não apaga.
+    await expect(page.getByLabel("Data em que o dinheiro saiu")).toBeDisabled();
+    await expect(page.getByLabel("Valor efetivamente pago")).toBeDisabled();
+
+    await page.unroute(`${URL_SUPABASE_LOCAL}/rest/v1/compromisso_pagamento*`);
+    await page
+      .getByRole("button", { name: "Tentar de novo — só falta ligar ao agendamento" })
+      .click();
+    await page.waitForURL(/\/pagamento\/[0-9a-f-]+$/);
+
+    // ⚠️ A ASSERÇÃO QUE VALE: continua UM pagamento, não dois.
+    const pagos = await pagamentos(db);
+    expect(
+      pagos,
+      "o retry re-executando criarPagamento duplicaria dinheiro num acervo sem DELETE",
+    ).toHaveLength(1);
+    expect(await vinculosDeQuitacao(db)).toHaveLength(1);
+    expect((await compromissos(db))[0].situacao).toBe("quitado");
   });
 });
 

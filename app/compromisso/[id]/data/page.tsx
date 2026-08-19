@@ -99,7 +99,24 @@ export default function MudarData() {
           <Carregando rotulo="Carregando o agendamento" />
         ) : null}
 
-        {compromisso ? (
+        {/* ⚠️ Guarda de SITUAÇÃO: por URL direta dava para mudar a data de um agendamento
+            já quitado ou já cancelado. Nenhum dos dois é reversível pela tela,
+            e o parecer §3 reserva 'cancelado' à previsão que NÃO se realizou —
+            cancelar o que já foi pago poluiria o sinal de auditoria. */}
+        {compromisso && compromisso.situacao !== "aberto" ? (
+          <Banner cor="amb" role="status">
+            <strong>
+              Este agendamento já foi respondido
+              {compromisso.situacao === "quitado"
+                ? " — ele foi pago"
+                : " — foi marcado como não vai ser pago"}
+              .
+            </strong>{" "}
+            Não há o que mudar a data de aqui.
+          </Banner>
+        ) : null}
+
+        {compromisso && compromisso.situacao === "aberto" ? (
           <>
             <Card className="border-dashed border-amb">
               <Linha rotulo="Valor previsto">
@@ -159,7 +176,7 @@ export default function MudarData() {
         <Botao
           variante="primary"
           onClick={salvar}
-          disabled={salvando || !podeSalvar}
+          disabled={salvando || !podeSalvar || compromisso?.situacao !== "aberto"}
         >
           {salvando ? "Salvando…" : "Salvar a nova data"}
         </Botao>

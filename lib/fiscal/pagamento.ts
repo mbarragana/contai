@@ -262,6 +262,37 @@ export function rotulosPagoSemComprovante(
   return SEM_COMPROVANTE_DESCONHECIDO;
 }
 
+/**
+ * ⚠️ **OS DOIS BURACOS DE UMA VEZ** (achado do `contador` no Gate 2, ponto 3).
+ *
+ * Um pagamento sem comprovante **e** sem documento hábil ligado tem DUAS
+ * coisas faltando, e a tela nomeava só uma. O efeito prático é o pior possível
+ * para quem obedece: ele anexa o comprovante, resolve a pendência que a tela
+ * pediu — e **nasce um vermelho novo** cobrando a nota. Lê-se como o app
+ * mudando de exigência depois de cumprida, que é a forma mais rápida de ensinar
+ * a ignorar o alerta.
+ *
+ * A frase do parecer **não é reescrita**: ela é a primeira metade, literal, e
+ * a segunda apenas nomeia o outro buraco, que também já é regra conhecida
+ * (parecer de 17/08, §1, condições 1 e 3 — as duas falham ao mesmo tempo aqui).
+ */
+export function consequenciaPagoSemComprovante(
+  tipo: TipoFavorecido | null,
+  temDocumentoHabil: boolean,
+): string {
+  const base = rotulosPagoSemComprovante(tipo).consequencia;
+  if (temDocumentoHabil) return base;
+  // Artigo explícito por tipo, e não montado a partir do nome: "a NF" e
+  // "o recibo" têm gêneros diferentes, e concordância errada num texto fiscal
+  // lê como texto gerado — que é como se perde a confiança no aviso.
+  const oQueFalta =
+    tipo === "pj" ? "a NF" : tipo === "pf" ? "o recibo assinado" : "o documento hábil";
+  return (
+    `${base}. E também falta ${oQueFalta}: anexar o comprovante resolve ` +
+    "metade — os dois são necessários para o custo se sustentar"
+  );
+}
+
 // ── Diferença não explicada (CONTAI-019, §F.4) ───────────────────────────
 
 /**

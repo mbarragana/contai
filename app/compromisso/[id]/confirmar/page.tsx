@@ -48,6 +48,7 @@ import {
 } from "@/app/_components/ui";
 import {
   carregarCompromisso,
+  carregarFavorecido,
   carregarPainel,
   classificarErro,
   criarPagamento,
@@ -100,6 +101,33 @@ export default function ConfirmarPagamento() {
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
+  /**
+   * ⚠️ **O RETRY RETOMA, NUNCA RECOMEÇA** (Gate 2 do CONTAI-019, B4).
+   *
+   * A gravação são quatro passos em quatro chamadas — não existe transação
+   * multi-statement pelo PostgREST. Antes disto, uma falha em qualquer um
+   * deles devolvia ao mesmo botão, e o toque seguinte **re-executava
+   * `criarPagamento`**: nascia um SEGUNDO pagamento real e o primeiro ficava
+   * órfão, como pendência vermelha, **para sempre** — o app não apaga nada
+   * (acervo append-only, CONTAI-009) e a correção do CONTAI-021 não existe.
+   * Com favorecido PF o dano sai do app: o desembolso duplicado entra na ficha
+   * **Pagamentos Efetuados**, CPF por CPF.
+   *
+   * Cada passo bem-sucedido fica registrado aqui, e o retry pula o que já
+   * passou.
+   */
+  const [progresso, setProgresso] = useState<{
+    comprovanteEnviado: boolean;
+    comprovantePath: string | null;
+    pagamentoId: string | null;
+    diferencaGravada: boolean;
+  }>({
+    comprovanteEnviado: false,
+    comprovantePath: null,
+    pagamentoId: null,
+    diferencaGravada: false,
+  });
+
   useEffect(() => {
     let cancelado = false;
     void (async () => {
@@ -109,9 +137,15 @@ export default function ConfirmarPagamento() {
         if (cancelado) return;
         setCompromisso(c);
         setPagamentos(painel.pagamentos.filter((p) => c.pagamentoIds.includes(p.id)));
+        // ⚠️ O tipo vem da TABELA `favorecido`, não de outros pagamentos dele.
+        // Derivar de pagamentos errava exatamente no PRIMEIRO pagamento a um
+        // PJ: caía em `null` e a tela saía VERMELHA pedindo um CNPJ que já
+        // estava cadastrado. O §G.3 reserva o vermelho ao favorecido **não
+        // identificado** — este está identificado.
         setTipoFavorecido(
-          painel.pagamentos.find((p) => p.favorecidoId === c.favorecidoId)
-            ?.favorecidoTipo ?? null,
+          c.favorecidoId === null
+            ? null
+            : ((await carregarFavorecido(c.favorecidoId))?.tipo ?? null),
         );
         // ⚠️ O VALOR vem pré-preenchido — o documento afirma o valor. A DATA
         // não: ver o cabeçalho. São os dois campos obrigatórios do critério 45.
@@ -169,51 +203,86 @@ export default function ConfirmarPagamento() {
     if (!compromisso || !podeSalvar || pagoCentavos === null) return;
     setSalvando(true);
     setErro(null);
+
+    // Cópia local porque `setProgresso` é assíncrono: os passos seguintes
+    // deste mesmo `salvar` precisam enxergar o que o anterior acabou de fazer.
+    let feito = progresso;
+    const avancar = (parcial: Partial<typeof progresso>) => {
+      feito = { ...feito, ...parcial };
+      setProgresso(feito);
+    };
+
     try {
-      // Comprovante NÃO bloqueia (critério 16): *nunca recuse o registro de um
-      // fato consumado.* Sem ele o pagamento grava, não entra no custo
-      // confirmado e vira a pendência "pago sem comprovante".
-      const comprovantePath = comprovante
-        ? await subirParaAcervo(comprovante, "comprovante")
-        : null;
-
-      // Confirmar CRIA UM PAGAMENTO (critério 12) — não converte o
-      // agendamento. Dois registros distintos com vínculo (parecer §3).
-      const pagamentoId = await criarPagamento({
-        obra_id: compromisso.obraId,
-        favorecido_id: compromisso.favorecidoId,
-        valorCentavos: pagoCentavos,
-        // ⚠️ A DATA QUE VAI PARA O BANCO É A DIGITADA. A prevista é descartada
-        // na gravação — não há caminho de código que a grave.
-        data_pagamento: data,
-        meio: compromisso.origem === "cartao" ? "cartao" : compromisso.origem,
-        data_compra: null,
-        comprovante_path: comprovantePath,
-        status: STATUS_PAGAMENTO_AVULSO,
-      });
-
-      // A composição do desembolso, quando existe. Gravada UMA vez; só a
-      // resolução muda depois (critério 32).
-      if ((encargosCentavos ?? 0) > 0 || naoExplicadoCentavos > 0) {
-        await registrarDiferenca({
-          pagamentoId,
-          encargosCentavos: encargosCentavos ?? 0,
-          naoExplicadoCentavos,
+      // PASSO 1 · o comprovante NÃO bloqueia (critério 16): *nunca recuse o
+      // registro de um fato consumado.* Sem ele o pagamento grava, não entra
+      // no custo confirmado e vira a pendência "pago sem comprovante".
+      if (!feito.comprovanteEnviado) {
+        avancar({
+          comprovanteEnviado: true,
+          comprovantePath: comprovante
+            ? await subirParaAcervo(comprovante, "comprovante")
+            : null,
         });
       }
 
-      // ⚠️ `quitaIntegralmente` é DECISÃO HUMANA, nunca cálculo. Pagou igual ou
-      // mais: quita. Pagou menos: é o que ele escolheu, sem default.
+      // PASSO 2 · confirmar CRIA UM PAGAMENTO (critério 12) — não converte o
+      // agendamento. Dois registros distintos com vínculo (parecer §3).
+      //
+      // ⚠️ A guarda `=== null` é o coração do B4: este é o passo que, repetido,
+      // duplica dinheiro num acervo que não apaga.
+      if (feito.pagamentoId === null) {
+        avancar({
+          pagamentoId: await criarPagamento({
+            obra_id: compromisso.obraId,
+            favorecido_id: compromisso.favorecidoId,
+            valorCentavos: pagoCentavos,
+            // ⚠️ A DATA QUE VAI PARA O BANCO É A DIGITADA. A prevista é
+            // descartada na gravação — não há caminho de código que a grave.
+            data_pagamento: data,
+            // `origem` e `meio` são enums distintos com os mesmos três
+            // valores, e este ramo é no-op HOJE: `origem = 'cartao'` não é
+            // alcançável, porque a compra no cartão é recusada na entrada
+            // (critérios 25-27). Quando o `CONTAI-022` abrir o fluxo da
+            // fatura, é aqui que `data_compra` deixa de ser `null` — a linha
+            // fica como marcação do ponto, não como conversão.
+            meio: compromisso.origem === "cartao" ? "cartao" : compromisso.origem,
+            data_compra: null,
+            comprovante_path: feito.comprovantePath,
+            status: STATUS_PAGAMENTO_AVULSO,
+          }),
+        });
+      }
+
+      // PASSO 3 · a composição do desembolso, quando existe. Gravada UMA vez;
+      // só a resolução muda depois (critério 32). `pagamento_diferenca` tem o
+      // `pagamento_id` como PK, então repetir aqui daria 23505 — o `feito`
+      // evita transformar isso em erro de tela.
+      if (
+        !feito.diferencaGravada &&
+        ((encargosCentavos ?? 0) > 0 || naoExplicadoCentavos > 0)
+      ) {
+        await registrarDiferenca({
+          pagamentoId: feito.pagamentoId!,
+          encargosCentavos: encargosCentavos ?? 0,
+          naoExplicadoCentavos,
+        });
+        avancar({ diferencaGravada: true });
+      }
+
+      // PASSO 4 · ⚠️ `quitaIntegralmente` é DECISÃO HUMANA, nunca cálculo.
+      // Pagou igual ou mais: quita. Pagou menos: é o que ele escolheu, sem
+      // default. É idempotente por construção — o vínculo é upsert com
+      // `ignoreDuplicates` e o `update` da situação é o mesmo valor.
       await quitarCompromisso({
         compromisso,
-        pagamento: { id: pagamentoId, obraId: compromisso.obraId },
+        pagamento: { id: feito.pagamentoId!, obraId: compromisso.obraId },
         quitaIntegralmente: !pagouMenos || escolhaMenor === "quita",
         ...(pagouMenos && escolhaMenor === "falta"
           ? { novaDataPrevista: saldoSemData ? null : dataSaldo }
           : {}),
       });
 
-      router.push(`/pagamento/${pagamentoId}`);
+      router.push(`/pagamento/${feito.pagamentoId!}`);
     } catch (e) {
       setErro(mensagemDeErro(e));
       setSalvando(false);
@@ -250,6 +319,17 @@ export default function ConfirmarPagamento() {
         {erro ? (
           <Banner cor="red" role="alert">
             {erro}
+            {progresso.pagamentoId !== null ? (
+              <>
+                {" "}
+                <strong>
+                  O pagamento já está salvo — tocar de novo NÃO grava um
+                  segundo.
+                </strong>{" "}
+                Falta só ligá-lo a este agendamento, e é isso que o botão faz
+                agora.
+              </>
+            ) : null}
           </Banner>
         ) : null}
 
@@ -277,6 +357,10 @@ export default function ConfirmarPagamento() {
             tipo="date"
             valor={data}
             onChange={setData}
+            // ⚠️ Congela depois que o pagamento entrou no banco: o retry só
+            // completa o que falta, e um campo editável aqui ofereceria uma
+            // correção que este botão não faz (o acervo não apaga).
+            desabilitado={progresso.pagamentoId !== null}
             ajuda={DATA_QUE_VALE_PARA_O_CUSTO}
             erro={
               dataNoFuturo
@@ -292,6 +376,7 @@ export default function ConfirmarPagamento() {
             onChange={setValor}
             inputMode="decimal"
             placeholder="0,00"
+            desabilitado={progresso.pagamentoId !== null}
           />
 
           {/* ⚠️ A densidade cresce com a complicação fiscal, NÃO antes dela
@@ -299,12 +384,21 @@ export default function ConfirmarPagamento() {
               campos e um botão, e nada mais aparece. */}
           {pagouMais ? (
             <div className="flex flex-col gap-2">
+              {/* ⚠️ Este banner era a PORTA DE ENTRADA do erro do Gate 2: ele
+                  perguntava só "quanto foi juros?", e o que sobrasse virava
+                  "sem explicação" — fazendo a PREVISÃO virar o teto do custo
+                  quando a previsão é que estava baixa. A pergunta agora tem as
+                  duas saídas, e a segunda é dita aqui, antes do campo. */}
               <Banner cor="amb" role="status">
                 <strong>
                   Você pagou {formatarBRL(diferenca)} a mais que o previsto.
                 </strong>{" "}
                 Quanto disso foi juros e multa por atraso? Juros e multa de mora{" "}
-                <strong>não compõem custo de aquisição</strong>.
+                <strong>não compõem custo de aquisição</strong>. Se não houve
+                atraso, deixe em zero:{" "}
+                <strong>a previsão estar errada é resposta legítima</strong>, e
+                você a registra no detalhe do pagamento — o valor pago entra
+                inteiro no custo, e quem limita é a nota.
               </Banner>
               <CampoTexto
                 rotulo="Juros e multa por atraso"
@@ -431,11 +525,13 @@ export default function ConfirmarPagamento() {
         <Botao variante="primary" onClick={salvar} disabled={salvando || !podeSalvar}>
           {salvando
             ? "Salvando…"
-            : data === ""
-              ? "Informe a data em que o dinheiro saiu"
-              : pagouMenos && escolhaMenor === null
-                ? "Diga se quita ou se falta o resto"
-                : "Salvar pagamento"}
+            : progresso.pagamentoId !== null
+              ? "Tentar de novo — só falta ligar ao agendamento"
+              : data === ""
+                ? "Informe a data em que o dinheiro saiu"
+                : pagouMenos && escolhaMenor === null
+                  ? "Diga se quita ou se falta o resto"
+                  : "Salvar pagamento"}
         </Botao>
         {/* Critério 44: sair sem gravar não altera nada e não deixa rascunho. */}
         <BotaoLink href={`/compromisso/${compromisso.id}`}>

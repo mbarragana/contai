@@ -542,9 +542,13 @@ describe("pendência 'pago sem comprovante' (critérios 46-47)", () => {
     const pend = r.pendencias.find((p) => p.tipo === "pago_sem_comprovante");
     expect(pend?.gravidade).toBe("amb");
     expect(pend?.valorCentavos).toBe(1_000_000);
-    expect(pend?.consequencia).toBe(
+    // O literal do parecer é PREFIXO — o cenário não tem nota ligada, então a
+    // pendência nomeia os DOIS buracos (Gate 2, ponto 3 do `contador`).
+    expect(pend?.consequencia).toContain(
       "pago sem comprovante — o custo existe, ainda não está demonstrável",
     );
+    expect(pend?.consequencia).toContain("E também falta a NF");
+    expect(pend?.titulo).toBe("Pagamento sem comprovante e sem nota");
   });
 
   it("PF: VERMELHA — o comprovante é constitutivo, não acessório", () => {
@@ -561,9 +565,10 @@ describe("pendência 'pago sem comprovante' (critérios 46-47)", () => {
     });
     const pend = r.pendencias.find((p) => p.tipo === "pago_sem_comprovante");
     expect(pend?.gravidade).toBe("red");
-    expect(pend?.consequencia).toBe(
+    expect(pend?.consequencia).toContain(
       "sem o comprovante da transferência, este recibo não sustenta custo nenhum",
     );
+    expect(pend?.consequencia).toContain("E também falta o recibo assinado");
   });
 
   it("⚠️ não entra no custo confirmado, e não vira TAMBÉM 'pago sem nota'", () => {
@@ -606,7 +611,7 @@ describe("pendência 'pago sem comprovante' (critérios 46-47)", () => {
     it("caminho 1 — informou CNPJ de PJ: vermelho vira AMARELO", () => {
       const depois = semComprovante("pj");
       expect(depois?.gravidade).toBe("amb");
-      expect(depois?.consequencia).toBe(
+      expect(depois?.consequencia).toContain(
         "pago sem comprovante — o custo existe, ainda não está demonstrável",
       );
       // O valor e o chip não mudam: o fato é o mesmo, muda a consequência.
@@ -617,10 +622,29 @@ describe("pendência 'pago sem comprovante' (critérios 46-47)", () => {
     it("caminho 2 — informou CPF de PF: continua vermelho, com o texto do PF", () => {
       const depois = semComprovante("pf");
       expect(depois?.gravidade).toBe("red");
-      expect(depois?.consequencia).toBe(
+      expect(depois?.consequencia).toContain(
         "sem o comprovante da transferência, este recibo não sustenta custo nenhum",
       );
     });
+  });
+
+  it("⚠️ com nota hábil ligada, a pendência nomeia UM buraco só", () => {
+    // O outro lado do ponto 3 do `contador`: nomear a nota que já existe seria
+    // pedir o que já foi entregue.
+    const r = resumo({
+      documentos: [doc({ id: "d1", valorCentavos: 1_000_000 })],
+      pagamentos: [
+        pag({
+          id: "p1",
+          comprovantePath: null,
+          valorCentavos: 1_000_000,
+          documentoIds: ["d1"],
+        }),
+      ],
+    });
+    const pend = r.pendencias.find((p) => p.tipo === "pago_sem_comprovante");
+    expect(pend?.titulo).toBe("Pagamento sem comprovante anexado");
+    expect(pend?.consequencia).not.toContain("E também falta");
   });
 
   it("com comprovante, a pendência não existe", () => {

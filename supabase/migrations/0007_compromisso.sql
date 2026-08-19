@@ -53,12 +53,44 @@ create type situacao_compromisso as enum ('aberto', 'quitado', 'cancelado');
 
 -- O conjunto FECHADO de resoluções da diferença não explicada (§F.2), rotulado
 -- pelo RESULTADO e nunca pela causa: ele não tem de caracterizar juridicamente
--- nada. Quatro valores, e o `null` é o quinto estado — ver a tabela abaixo.
+-- nada. Cinco valores, e o `null` é o sexto estado — ver a tabela abaixo.
+--
+-- ⚠️ POR QUE ESTE ARQUIVO FOI EDITADO NO LUGAR, e não sucedido por uma 0008
+-- (Gate 2 do CONTAI-019): esta migration NUNCA SAIU DO REPO. Não houve
+-- `npx supabase db push` no projeto remoto nem `git push`, e o banco local é
+-- recriado do zero por `npm run db:reset` a cada rodada do E2E. Não existe,
+-- em lugar nenhum do mundo, um banco com a versão anterior deste enum — logo
+-- não há nada a migrar. Uma 0008 com `alter type ... add value` deixaria no
+-- repo o registro de uma correção que nunca precisou existir, e `alter type`
+-- não roda dentro de transação, o que é dívida de verdade em troca de nada.
+-- **A partir do primeiro `db push`, esta liberdade acaba.**
 create type resolucao_diferenca as enum (
   'nao_compoe_custo',      -- 1. mora, taxa, item não incorporado → fora DEFINITIVAMENTE, sem pendência
   'falta_documento',       -- 2. é da obra e falta o documento → "pago sem nota" pelo valor da diferença
   'multiplos_documentos',  -- 3. o pagamento cobriu mais de um documento → resolve por VÍNCULO
-  'erro_digitacao'         -- 4. errei o valor digitado → NÃO é classificação fiscal; correção é o CONTAI-021
+  'erro_digitacao',        -- 4. errei o valor digitado → NÃO é classificação fiscal; correção é o CONTAI-021
+  -- 5. A PREVISÃO é que estava errada, e o valor pago é o certo.
+  --
+  -- ⚠️ Acrescentada pelo `contador` no Gate 2 do CONTAI-019, `[Certain]`,
+  -- fechando uma lacuna do próprio parecer. Sem ela, a aritmética da tela de
+  -- confirmação fazia o ELEGÍVEL COLAPSAR NO VALOR PREVISTO:
+  --
+  --     elegível = pago − encargos − (pago − previsto − encargos) = previsto
+  --
+  -- ou seja, a PREVISÃO passava a ser o teto do custo — exatamente o que o §2
+  -- do parecer existe para impedir, acontecendo por dentro da fórmula que o
+  -- §F.3 protege. Quem limita o custo é o DOCUMENTO HÁBIL, nunca a previsão.
+  --
+  -- Caso que dói: previsto R$ 9.000, nota hábil R$ 10.000, pago R$ 10.000, sem
+  -- encargo. Antes disto, o app gravava R$ 1.000 "sem explicação", derrubava o
+  -- custo para R$ 9.000 e subia pendência VERMELHA — sem que houvesse
+  -- diferença nenhuma e sem que nenhuma das quatro resoluções fosse
+  -- verdadeira. Vermelho sem resposta correta é o alarme que se aprende a
+  -- ignorar.
+  --
+  -- Efeito: ENTRA no custo, e quem volta a limitar é o documento hábil.
+  -- Resíduo: NENHUM, sem pendência.
+  'previsao_errada'
 );
 
 -- ── Compromisso (previsão; não é custo, e não é custo "ainda pequeno") ───

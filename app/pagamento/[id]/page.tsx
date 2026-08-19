@@ -36,7 +36,11 @@ import {
   rotulosPagoSemNota,
   textoDiferencaSemExplicacao,
 } from "@/lib/fiscal/pagamento";
-import { alocarCusto, type PagamentoAlocado } from "@/lib/fiscal/vinculo";
+import {
+  alocarCusto,
+  baseDocumentavel,
+  type PagamentoAlocado,
+} from "@/lib/fiscal/vinculo";
 import { formatarBRL } from "@/lib/money";
 import type { Documento, Pagamento, ResolucaoDiferenca } from "@/lib/types";
 
@@ -76,6 +80,20 @@ const RESOLUCOES: {
     rotulo: "O pagamento cobriu mais de um documento",
     efeito:
       "É o único caminho que aumenta o custo no ato, e ele se resolve por vínculo, não por classificação: ligue a outra nota a este pagamento.",
+  },
+  {
+    // ⚠️ QUINTA RESOLUÇÃO — acrescentada pelo `contador` no Gate 2 do
+    // CONTAI-019, `[Certain]`, fechando uma lacuna do próprio parecer.
+    //
+    // Sem ela, um pagamento maior que o PREVISTO e sem encargo nenhum não
+    // tinha resposta verdadeira: nenhuma das quatro anteriores descrevia
+    // "o previsto é que estava errado". O custo ficava preso no valor
+    // previsto e subia uma pendência vermelha sem saída — e vermelho sem
+    // resposta correta é o alarme que se aprende a ignorar.
+    valor: "previsao_errada",
+    rotulo: "A previsão é que estava errada — o valor pago é o certo",
+    efeito:
+      "O valor pago entra inteiro no custo, e quem volta a limitar é a nota — nunca a previsão. Não fica resíduo nem pendência.",
   },
   {
     valor: "erro_digitacao",
@@ -189,7 +207,17 @@ export default function DetalhePagamento() {
 
   const p = estado.pagamento;
   const comprovado = estado.alocado?.comprovadoCentavos ?? 0;
+  /** A EXPOSIÇÃO fiscal: quanto saiu e não está no custo. */
   const semNota = estado.alocado?.semNotaCentavos ?? p.valorCentavos;
+  /**
+   * ⚠️ Quanto deste pagamento ainda PODE receber uma nota — pergunta
+   * DOCUMENTAL, não fiscal, e as duas divergem exatamente no caso que o Gate 2
+   * pegou: **sem comprovante, o elegível é 0 por construção**, logo `semNota`
+   * é 0, e o botão "Ligar a uma nota" desaparecia. O pagamento sem comprovante
+   * E sem nota mostrava "nenhum documento ligado" e nenhuma ação para ligar —
+   * a home levava até aqui e a tela não tinha saída.
+   */
+  const descoberto = Math.max(0, baseDocumentavel(p) - comprovado);
   const rotulos = rotulosPagoSemNota(p.favorecidoTipo);
 
   return (
@@ -272,7 +300,22 @@ export default function DetalhePagamento() {
               </div>
             ))
           )}
-          {semNota === 0 && estado.ligados.length > 0 ? (
+          {/* ⚠️ A PORTA QUE FALTAVA. Quando a exposição é 0 mas ainda cabe
+              nota — o caso do pagamento sem comprovante —, a cobrança da nota
+              precisa continuar tendo botão. `semNota > 0` já traz o seu no
+              cartão vermelho acima; aqui fica o caso que ele não cobre. */}
+          {semNota === 0 && descoberto > 0 ? (
+            <div className="mt-2.5">
+              <BotaoLink href={`/pagamento/${p.id}/ligar`} variante="primary">
+                Ligar a uma nota
+              </BotaoLink>
+            </div>
+          ) : null}
+
+          {/* `descoberto`, e não `semNota`: um pagamento sem comprovante ligado
+              só a um boleto tem exposição 0 (elegível 0) e NÃO está coberto por
+              documento hábil nenhum — o verde ali seria mentira. */}
+          {descoberto === 0 && estado.ligados.length > 0 ? (
             <Banner cor="grn" role="status">
               Este pagamento está coberto por documento hábil — ele e a nota são{" "}
               <strong>uma despesa só</strong>.

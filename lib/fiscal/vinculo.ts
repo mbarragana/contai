@@ -150,11 +150,23 @@ type ComposicaoPagamento = Pick<
  *   exatamente como "não sei ainda": fora, até a correção com rastro do
  *   CONTAI-021 acontecer. Deixá-lo "dentro" seria dar efeito fiscal a uma
  *   resposta que só diz "o registro está errado".
+ * - `previsao_errada` — **dentro**, e é a resolução que o `contador`
+ *   acrescentou no Gate 2 do CONTAI-019, `[Certain]`. Sem ela a aritmética da
+ *   confirmação fazia o elegível COLAPSAR NO VALOR PREVISTO —
+ *   `pago − encargos − (pago − previsto − encargos) = previsto` — e a
+ *   **previsão virava o teto do custo**, que é o §2 inteiro sendo violado por
+ *   dentro da fórmula que o §F.3 protege. Dizendo que a previsão é que estava
+ *   errada, o valor pago volta inteiro para o elegível e **quem limita o custo
+ *   volta a ser o documento hábil**, como sempre deveria ter sido.
  */
 function diferencaContaComoCusto(
   resolucao: ResolucaoDiferenca | null,
 ): boolean {
-  return resolucao === "falta_documento" || resolucao === "multiplos_documentos";
+  return (
+    resolucao === "falta_documento" ||
+    resolucao === "multiplos_documentos" ||
+    resolucao === "previsao_errada"
+  );
 }
 
 /** Encargos + a diferença que hoje não compõe custo. */
@@ -197,6 +209,41 @@ export function valorElegivelDoPagamento(p: ComposicaoPagamento): number {
 export function valorBloqueadoPorComprovante(p: ComposicaoPagamento): number {
   if (p.comprovantePath !== null) return 0;
   return Math.max(0, p.valorCentavos - parteForaDoCusto(p));
+}
+
+/**
+ * A parte deste pagamento que **ainda pode receber um documento** — a régua
+ * das listas de candidatos e do botão "Ligar a uma nota".
+ *
+ * ⚠️ É pergunta DOCUMENTAL ("cabe ligar uma nota a isto?"), não fiscal
+ * ("quanto está exposto?"), e as duas divergem em dois pontos:
+ *
+ * 1. **Encargos saem.** Juros e multa de mora nunca terão documento, e o §F.1
+ *    é explícito em que ficam fora "para sempre e SEM PENDÊNCIA — não há o que
+ *    cobrar". Mantê-los aqui deixaria um pagamento com R$ 320 de mora para
+ *    sempre na lista de candidatos, mandando o Mateus procurar a nota de um
+ *    juro.
+ * 2. **A diferença resolvida como `nao_compoe_custo` sai também**, pela mesma
+ *    razão e um degrau adiante (achado do `contador` no Gate 2): ela já foi
+ *    classificada como algo que não é da obra, então cobrar documento para ela
+ *    é ruído eterno no seletor.
+ *
+ * O que **FICA**: a diferença sem resposta, a `falta_documento`, a
+ * `multiplos_documentos` e a `previsao_errada` — ligar uma nota é exatamente
+ * como as três primeiras se explicam, e a quarta é custo real que precisa de
+ * documento hábil para se sustentar.
+ *
+ * O **comprovante não entra nesta conta**: ele decide o CUSTO, não o vínculo.
+ * Pagamento gravado sem comprovante tem elegível 0 e continua candidato a
+ * receber a NF que já existe — ligar é sempre permitido.
+ */
+export function baseDocumentavel(p: ComposicaoPagamento): number {
+  const jaClassificadoForaDaObra =
+    p.resolucaoDiferenca === "nao_compoe_custo" ? p.naoExplicadoCentavos : 0;
+  return Math.max(
+    0,
+    p.valorCentavos - p.encargosCentavos - jaClassificadoForaDaObra,
+  );
 }
 
 // ── Guarda do critério 11 ────────────────────────────────────────────────
@@ -579,18 +626,7 @@ function rotular(favorecidoIgual: boolean, valorIgual: boolean): string | null {
  */
 function temSaldoSemNota(pagamento: Pagamento, alocacao: Alocacao): boolean {
   const comprovado = alocacao.porPagamento.get(pagamento.id)?.comprovadoCentavos ?? 0;
-  // Base DOCUMENTÁVEL: o que deste pagamento ainda pode receber uma nota.
-  // - **encargos saem**: juros e multa de mora nunca terão documento, e o §F.1
-  //   é explícito em que eles ficam fora "para sempre e SEM PENDÊNCIA — não há
-  //   o que cobrar". Somá-los aqui manteria um pagamento com R$ 320 de mora
-  //   para sempre na lista de candidatos, mandando o Mateus procurar a nota de
-  //   um juro. Foi o furo da primeira versão desta função.
-  // - **a diferença sem explicação FICA**: ligar uma nota é exatamente como
-  //   ela se explica (§F.2, resoluções 2 e 3 — "o pagamento cobriu mais de um
-  //   documento" só se resolve por vínculo).
-  // - **o comprovante NÃO entra na conta**: ele decide o CUSTO, não o vínculo.
-  const baseDocumentavel = pagamento.valorCentavos - pagamento.encargosCentavos;
-  return baseDocumentavel - comprovado > 0;
+  return baseDocumentavel(pagamento) - comprovado > 0;
 }
 
 /** Sobra parte desta nota sem pagamento? Documento não hábil sempre sobra. */

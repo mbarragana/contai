@@ -27,6 +27,7 @@ export function CampoTexto({
   placeholder,
   inputMode,
   autoComplete,
+  desabilitado = false,
   classe = "",
 }: {
   rotulo: string;
@@ -44,6 +45,13 @@ export function CampoTexto({
   inputMode?: "text" | "numeric" | "decimal" | "email";
   /** `current-password` faz o gerenciador do iPhone preencher (CONTAI-002). */
   autoComplete?: string;
+  /**
+   * Campo cujo valor JÁ FOI GRAVADO e não pode mais ser editado nesta tela.
+   * Existe para o retry parcial do CONTAI-019 (Gate 2, B4): depois que o
+   * pagamento entrou no banco, deixar o valor editável ofereceria uma correção
+   * que o botão não faz — e o acervo é append-only, sem DELETE.
+   */
+  desabilitado?: boolean;
   /** Ajuste pontual de aparência. */
   classe?: string;
 }) {
@@ -61,8 +69,9 @@ export function CampoTexto({
         placeholder={placeholder}
         autoComplete={autoComplete}
         onChange={(e) => onChange(e.target.value)}
+        disabled={desabilitado}
         aria-invalid={erro ? true : undefined}
-        className={`min-h-[44px] rounded-lg border bg-white px-3 text-[15px] ${
+        className={`min-h-[44px] rounded-lg border bg-white px-3 text-[15px] disabled:bg-soft disabled:text-mut ${
           erro ? "border-red" : "border-line"
         } ${classe}`}
       />

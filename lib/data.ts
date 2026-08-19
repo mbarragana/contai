@@ -510,6 +510,29 @@ export async function garantirFavorecido(entrada: {
   return row.id;
 }
 
+/**
+ * O favorecido pela identidade. Existe porque a tela de confirmação precisa do
+ * TIPO (PJ × PF) para dizer o peso da pendência "pago sem comprovante", e
+ * derivá-lo de outros pagamentos do mesmo favorecido erra justamente no
+ * PRIMEIRO pagamento a ele — que é quando não há de onde derivar. O §G.3
+ * reserva o vermelho ao favorecido **não identificado**; aqui ele está
+ * identificado, e o tipo está na tabela.
+ */
+export async function carregarFavorecido(
+  id: string,
+): Promise<{ id: string; nome: string; tipo: TipoFavorecido } | null> {
+  const { data, error } = await getSupabase()
+    .from("favorecido")
+    .select("id, nome, tipo")
+    .eq("id", id)
+    .limit(1);
+  if (error) throw error;
+  return (
+    (data as { id: string; nome: string; tipo: TipoFavorecido }[] | null)?.[0] ??
+    null
+  );
+}
+
 export async function criarDocumento(
   insert: Omit<DocumentoInsert, "valor"> & { valorCentavos: number },
 ): Promise<string> {
