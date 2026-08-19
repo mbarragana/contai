@@ -1,0 +1,1473 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>contai — Mock CONTAI-010 · Informe anual do financiamento</title>
+<style>
+  :root{
+    --bd-bg:#d8d5cd; --bd-ink:#3a382f; --bd-mut:#6f6b60;
+    --paper:#faf9f6; --ink:#23221d; --mut:#716c61; --line:#e6e3da; --soft:#f1efe9;
+    --red:#b91c1c; --red-bg:#fbecec; --amb:#92600a; --amb-bg:#fdf3df; --grn:#15803d; --grn-bg:#e9f5ed;
+    --blu:#1d4ed8; --blu-bg:#eaeffb;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bd-bg:#211f1b; --bd-ink:#e8e5dc; --bd-mut:#9b968a; }
+  }
+  :root[data-theme="dark"]{ --bd-bg:#211f1b; --bd-ink:#e8e5dc; --bd-mut:#9b968a; }
+  :root[data-theme="light"]{ --bd-bg:#d8d5cd; --bd-ink:#3a382f; --bd-mut:#6f6b60; }
+
+  *{box-sizing:border-box; margin:0}
+  body{background:var(--bd-bg); color:var(--bd-ink);
+    font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:24px 12px 48px; gap:16px}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-variant-numeric:tabular-nums}
+
+  /* ── barra de avaliação ─────────────────────────── */
+  .evalbar{max-width:860px; width:100%}
+  .evalbar h1{font-size:15px; font-weight:600; text-align:center}
+  .evalbar p{font-size:12.5px; color:var(--bd-mut); margin-top:4px; text-align:center}
+  .grupo{font-size:11px; color:var(--bd-mut); text-transform:uppercase; letter-spacing:.08em;
+    width:100%; text-align:left; margin:10px 0 -2px}
+  .tabs{display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-start; margin-top:4px}
+  .tab{border:1px solid color-mix(in srgb, var(--bd-ink) 25%, transparent); background:transparent;
+    color:var(--bd-ink); border-radius:999px; padding:4px 10px; font-size:12px; cursor:pointer; font-family:inherit}
+  .tab:hover{background:color-mix(in srgb, var(--bd-ink) 8%, transparent)}
+  .tab.on{background:var(--bd-ink); color:var(--bd-bg); border-color:var(--bd-ink)}
+  .tab:focus-visible,.btn:focus-visible,.inp:focus-visible,.lnk:focus-visible{outline:2px solid var(--bd-ink); outline-offset:2px}
+  .larg{display:flex; gap:6px; align-items:center; justify-content:center; margin-top:10px;
+    font-size:11.5px; color:var(--bd-mut); flex-wrap:wrap}
+
+  /* ── APROVAÇÃO ──────────────────────────────────── */
+  .aprov{max-width:860px; width:100%; border-radius:10px; padding:10px 14px; font-size:12.5px;
+    text-align:center; font-weight:600}
+  .aprov.nao{background:var(--amb-bg); color:var(--amb); border:1px dashed var(--amb)}
+  .aprov.sim{background:var(--grn-bg); color:var(--grn); border:1px solid var(--grn)}
+
+  /* ── CONTROLES DE SIMULAÇÃO — FORA do quadro da tela ────────────────────
+     Nada aqui é componente do app. Existe só para o mock ser navegável.
+     Lição de 2026-08-18 (mock do 019): recurso de simulação não ocupa o
+     lugar do componente real. O anexo abaixo é <input type="file"> de
+     verdade; o que NÃO dá para produzir de verdade (uma falha de upload)
+     mora aqui fora, rotulado.                                            */
+  .simbar{max-width:860px; width:100%; border:2px dashed var(--bd-mut); border-radius:12px;
+    padding:11px 14px; display:flex; flex-wrap:wrap; gap:14px; align-items:center;
+    background:color-mix(in srgb, var(--bd-ink) 5%, transparent)}
+  .simbar .selo{font-size:10.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--bd-mut); flex:none; width:100%}
+  .simgrupo{display:flex; gap:6px; align-items:center; flex-wrap:wrap}
+  .simgrupo > span{font-size:11.5px; color:var(--bd-mut)}
+
+  /* ── celular / mesa ─────────────────────────────── */
+  .phone{width:375px; max-width:100%; height:800px; background:var(--paper); color:var(--ink);
+    border-radius:30px; border:6px solid #16150f; overflow:hidden; display:flex; flex-direction:column;
+    box-shadow:0 18px 40px rgba(0,0,0,.28)}
+  .phone.mesa{width:760px; height:880px; border-radius:14px; border-width:4px}
+  .screen{display:none; flex-direction:column; height:100%}
+  .screen.on{display:flex}
+  .appbar{padding:14px 18px 10px; border-bottom:1px solid var(--line); flex:none}
+  .appbar .brand{font-weight:700; font-size:16px; letter-spacing:-.01em}
+  .appbar .sub{font-size:11.5px; color:var(--mut); margin-top:1px}
+  .body{flex:1; overflow-y:auto; padding:16px 18px; display:flex; flex-direction:column; gap:12px}
+  .foot{flex:none; padding:12px 18px 18px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:8px}
+  .phone.mesa .body{padding:22px 0; align-items:stretch}
+  .phone.mesa .body > *{max-width:620px; width:100%; margin-left:auto; margin-right:auto}
+  .phone.mesa .foot{padding:14px calc(50% - 310px) 20px}
+
+  .card{border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:#fff}
+  .card.grn{border-color:var(--grn)}
+  .card.amb{border-color:var(--amb)}
+  .chip{display:inline-block; font-size:11px; font-weight:600; border-radius:999px; padding:2px 9px}
+  .chip.red{color:var(--red); background:var(--red-bg)}
+  .chip.amb{color:var(--amb); background:var(--amb-bg)}
+  .chip.grn{color:var(--grn); background:var(--grn-bg)}
+  .chip.blu{color:var(--blu); background:var(--blu-bg)}
+  .chip.mud{color:var(--mut); background:var(--soft)}
+
+  .btn{display:block; width:100%; text-align:center; border-radius:10px; padding:13px 14px;
+    font-size:14.5px; font-weight:600; cursor:pointer; border:1px solid transparent; font-family:inherit}
+  .btn.primary{background:var(--ink); color:var(--paper)}
+  .btn.ghost{background:transparent; color:var(--ink); border-color:var(--line)}
+  .btn.danger{background:var(--red); color:#fff}
+  .btn:hover{filter:brightness(1.12)}
+  .btn[disabled]{opacity:.40; cursor:not-allowed; filter:none}
+  .btn.mini{padding:9px 10px; font-size:13px}
+  .lnk{background:none; border:none; padding:0; font:inherit; font-size:12.5px; color:var(--blu);
+    text-decoration:underline; cursor:pointer; text-align:left}
+
+  .row{display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:9px 0; border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:none}
+  .row .lbl{font-size:12.5px; color:var(--mut)}
+  .row .val{font-size:13.5px; text-align:right; overflow-wrap:anywhere; flex:none}
+  .ok{color:var(--grn); font-weight:600}
+  .warn{color:var(--amb); font-weight:600}
+  .bad{color:var(--red); font-weight:600}
+
+  .hint{font-size:12px; color:var(--mut)}
+  .banner{border-radius:10px; padding:12px 14px; font-size:13.5px}
+  .banner.red{background:var(--red-bg); color:var(--red)}
+  .banner.amb{background:var(--amb-bg); color:var(--amb)}
+  .banner.grn{background:var(--grn-bg); color:var(--grn)}
+  .banner.blu{background:var(--blu-bg); color:var(--blu)}
+  .banner.mud{background:var(--soft); color:var(--mut)}
+  .big{font-size:26px; font-weight:700; letter-spacing:-.02em}
+  .parecer{font-size:10.5px; color:var(--mut); margin-top:6px; font-style:italic; line-height:1.4}
+  .secao{font-size:11px; color:var(--mut); text-transform:uppercase; letter-spacing:.07em; margin-top:4px}
+
+  /* PERGUNTA EM ABERTO — tracejado âmbar. Não é tela: é lacuna que volta ao po. */
+  .aberto{border:1px dashed var(--amb); background:var(--amb-bg); color:var(--amb);
+    border-radius:9px; padding:10px 12px; font-size:12.5px}
+  .aberto b{display:block; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; margin-bottom:4px}
+
+  /* ── formulário ─────────────────────────────────── */
+  .lab{display:block; font-size:13px; font-weight:600; margin-bottom:2px}
+  .subl{display:block; font-size:11.5px; color:var(--mut); margin-bottom:6px}
+  .inp{width:100%; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-variant-numeric:tabular-nums;
+    font-size:16px; padding:11px 12px; border:1px solid var(--line);
+    border-radius:9px; background:#fff; color:var(--ink); text-align:right}
+  .inp.erro{border-color:var(--red); background:var(--red-bg)}
+  .oculto{display:none !important}
+
+  /* linha de rubrica: rótulo + o que é + destino + campo */
+  .rub{border:1px solid var(--line); border-radius:10px; padding:10px 12px; background:#fff;
+    display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap}
+  .rub .esq{flex:1; min-width:170px}
+  .rub .dir{flex:none; width:150px}
+  .rub.entra{border-left:4px solid var(--grn)}
+  .rub.nao{border-left:4px solid var(--mut)}
+  .rub.duvida{border-left:4px solid var(--amb)}
+  .destino{font-size:11px; font-weight:700; margin-top:5px; display:inline-block}
+  .destino.entra{color:var(--grn)}
+  .destino.nao{color:var(--mut)}
+  .destino.duvida{color:var(--amb)}
+
+  /* ── ANEXO — componente REAL, três estados ──────────────────────────────
+     <input type="file"> de verdade (arquivo e câmera). Não é checkbox.    */
+  .anexo{border:1px dashed var(--mut); border-radius:10px; padding:12px; background:#fff}
+  .anexo[data-estado="anexado"]{border-style:solid; border-color:var(--grn); background:var(--grn-bg)}
+  .anexo[data-estado="falha"]{border-style:solid; border-color:var(--red); background:var(--red-bg)}
+  .anexo[data-estado="vazio"] .anx-cheio,
+  .anexo[data-estado="vazio"] .anx-falha,
+  .anexo[data-estado="anexado"] .anx-vazio,
+  .anexo[data-estado="anexado"] .anx-falha,
+  .anexo[data-estado="falha"] .anx-vazio,
+  .anexo[data-estado="falha"] .anx-cheio{display:none}
+  .anx-tit{font-size:13.5px; font-weight:600}
+  .anx-sub{font-size:11.5px; color:var(--mut); margin-top:2px}
+  .anx-bts{display:flex; gap:6px; margin-top:10px}
+  .anx-bts .btn{flex:1; min-width:0; padding:11px 6px; font-size:13px}
+  .anx-cheio{display:flex; gap:10px; align-items:center}
+  .anx-thumb{width:46px; height:58px; flex:none; border-radius:6px; border:1px solid var(--grn);
+    background:#fff; display:flex; align-items:center; justify-content:center; overflow:hidden;
+    font-size:10px; font-weight:700; color:var(--grn); font-family:ui-monospace,Menlo,monospace}
+  .anx-thumb img{width:100%; height:100%; object-fit:cover}
+  .anx-info{flex:1; min-width:0}
+  .anx-nome{font-size:13px; font-weight:600; overflow-wrap:anywhere}
+  .anx-links{display:flex; flex-direction:column; gap:5px; flex:none; text-align:right}
+  .fileoculto{position:absolute; width:1px; height:1px; opacity:0; pointer-events:none}
+
+  .ascii{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; line-height:1.5;
+    white-space:pre; overflow-x:auto; background:#fff; border:1px solid var(--line); border-radius:8px; padding:12px}
+  .lista{list-style:none; font-size:12.5px}
+  .lista li{padding:7px 0; border-bottom:1px dotted var(--line); display:flex; gap:8px}
+  .lista li:last-child{border-bottom:none}
+  .lista .n{flex:none; font-weight:700; color:var(--red)}
+  .ano{display:flex; justify-content:space-between; align-items:center; gap:10px}
+</style>
+
+<div class="evalbar">
+  <h1>Mock CONTAI-010 — Informe anual do financiamento do terreno · v1</h1>
+  <p><strong>Cenário: gestão, em casa, sentado.</strong> Acontece <strong>uma vez por ano</strong>,
+     em jan/fev, quando a instituição publica o extrato. <strong>375&nbsp;px é piso</strong> —
+     nenhuma tela pode quebrar lá — <strong>não é o alvo</strong>: a régua padrão aqui é a mesa.
+     O Teste do Canteiro não se aplica a esta tela.<br>
+     Todo texto com consequência fiscal é <strong>cópia</strong> de
+     <code>2026-08-17-terreno-financiado.md</code> (adendos 1, 2 e 3 de 18/08) — a origem
+     aparece na própria tela, em itálico.<br>
+     Valores: os do extrato real do exercício 2026 / ano-base 2025.
+     <strong>Nenhum identificador</strong> (CPF, contrato, agência, endereço) entra neste
+     arquivo — o repositório é público. A instituição aparece como
+     <em>Banco Litoral</em>, nome evidentemente fictício.<br>
+     Blocos <strong>tracejados âmbar</strong> dentro da tela são
+     <strong>perguntas em aberto</strong> — lacuna que volta ao <code>po</code>, não decisão minha.
+     <strong>Hoje no mock: 18/08/2026.</strong></p>
+</div>
+
+<!-- ╔═══════════════════════════════════════════════════════════════════════╗
+     ║  APROVAÇÃO — para virar: troque a classe "nao" por "sim" e o texto.   ║
+     ║  Fazer o mesmo no card deste mock em design/mocks/index.html.         ║
+     ╚═══════════════════════════════════════════════════════════════════════╝ -->
+<div class="aprov nao" id="barraAprovacao">
+  Mock APROVADO pelo Mateus em 2026-08-19 (v1).
+</div>
+
+<div class="evalbar">
+  <div class="grupo">0 · O fluxo inteiro, antes de qualquer tela</div>
+  <div class="tabs" id="g0"></div>
+  <div class="grupo">1 · Onde isto vive</div>
+  <div class="tabs" id="g1"></div>
+  <div class="grupo">2 · Registrar o informe — o caminho de jan/fev</div>
+  <div class="tabs" id="g2"></div>
+  <div class="grupo">3 · As três rubricas que precisam de resposta na tela</div>
+  <div class="tabs" id="g3"></div>
+  <div class="grupo">4 · As travas e as exceções</div>
+  <div class="tabs" id="g4"></div>
+  <div class="grupo">5 · O que eu não decidi sozinho</div>
+  <div class="tabs" id="g5"></div>
+
+  <div class="larg">
+    <span>Largura:</span>
+    <button class="tab" id="w375">375 px (piso — não pode quebrar)</button>
+    <button class="tab on" id="w760">760 px (mesa — a régua desta tela)</button>
+  </div>
+</div>
+
+<!-- ╔═══════════════════════════════════════════════════════════════════════╗
+     ║  SIMULAÇÃO — fora do quadro de propósito. Nada aqui é tela do app.    ║
+     ║  O anexo DENTRO da tela é <input type="file"> real: escolher arquivo  ║
+     ║  ou usar a câmera funciona de verdade e mostra o nome do arquivo.     ║
+     ║  Só o que não dá para produzir de verdade (falha de upload) e os      ║
+     ║  atalhos de preenchimento moram aqui.                                 ║
+     ╚═══════════════════════════════════════════════════════════════════════╝ -->
+<div class="simbar">
+  <span class="selo">⚙ Controles de simulação — não fazem parte da tela</span>
+  <div class="simgrupo">
+    <span>Upload do extrato:</span>
+    <button class="tab on" data-rede="ok">rede normal</button>
+    <button class="tab" data-rede="falha">forçar falha de envio</button>
+  </div>
+  <div class="simgrupo">
+    <span>Preencher rubricas:</span>
+    <button class="tab" data-preset="real">como no extrato de 2025</button>
+    <button class="tab" data-preset="quebrado">esquecendo uma linha</button>
+    <button class="tab" data-preset="zero">em branco</button>
+  </div>
+</div>
+
+<div class="phone mesa" id="phone">
+
+  <!-- ══════════════════ 0 · FLUXO ══════════════════ -->
+  <section class="screen on" id="s0">
+    <div class="appbar">
+      <div class="brand">Fluxo — o financiamento do terreno</div>
+      <div class="sub">Acordar isto antes de discutir tela</div>
+    </div>
+    <div class="body">
+      <div class="banner mud"><strong>A frase que resume o ticket:</strong> o financiamento
+        do terreno entra no app <strong>uma vez por ano</strong>, por um documento que
+        o Mateus <strong>baixa sozinho</strong> no site do banco. Pedidos ao gerente: zero.</div>
+
+      <div class="secao">O ano inteiro, em três momentos</div>
+      <div class="ascii">JAN/FEV                      O ANO TODO                    ANO DA VENDA
+   │                             │                            │
+   │ o banco publica o           │ nada a fazer               │ o informe do ano
+   │ "Extrato do Imposto         │                            │ NÃO chega a tempo
+   │  de Renda" do ano-base      │ o painel mostra            │
+   │  anterior                   │ "aguardando informe"       │ extrato do período
+   │                             │ e diz que o custo do       │ + termo de quitação
+   ▼                             │ ano corrente está          ▼
+ registrar 1 lançamento          │ SUBESTIMADO             1x na vida
+   │                             │ (nunca em silêncio)
+   ▼                             ▼</div>
+
+      <div class="secao">O caminho de registro, passo a passo</div>
+      <div class="ascii">┌─ painel de custo do terreno ────────────────────────────────┐
+│ 2024 ✓ registrado   2025 ⚠ informe disponível, não lançado  │
+│ 2026 ⏳ aguardando informe (chega em jan/fev de 2027)        │
+└───────────────┬─────────────────────────────────────────────┘
+                │ "Registrar informe de 2025"
+                ▼
+        ┌─ TRAVA 2: dupla contagem ───────────────────────┐
+        │ este ano+contrato já tem parcelas lançadas?     │
+        │   sim ──► RECUSA. escolher um dos dois          │
+        │   não ──► segue                                 │
+        └───────────────┬─────────────────────────────────┘
+                        ▼
+              PASSO 1 · anexar o extrato        ◄── obrigatório: sem ele
+                        │                            não grava (critério 10)
+                        │  vazio → anexado → falha (e volta)
+                        ▼
+              PASSO 2 · transcrever as rubricas
+                        │
+                        │  soma das 7 rubricas  ==  Total Pago no Exercício ?
+                        │
+                        ├── NÃO ──► RECUSA, dizendo a diferença exata.
+                        │           "existe rubrica que o app não conhece"
+                        │           NUNCA soma o resto e segue
+                        │
+                        └── SIM ──► PASSO 3 · conferência
+                                        │
+                                        │  entra no custo:  amortização + juros/correção
+                                        │  guardado fora:   seguros · taxas/FCVS · mora
+                                        │                   multa · diferença teórico/pago
+                                        │  informativo:     saldo devedor em 31/12
+                                        ▼
+                                    GRAVADO
+                                        │
+                                        ├──► custo de aquisição do ano (IRPF)
+                                        ├──► discriminação: juros em LINHA NOMEADA
+                                        └──► NÃO vai para: Pagamentos Efetuados,
+                                             aferição do INSS, "custo em risco"</div>
+
+      <div class="secao">Os quatro pontos de decisão</div>
+      <ul class="lista">
+        <li><span class="n">1</span><span><strong>Natureza da aquisição</strong> — à vista /
+          financiado / parcelado com o vendedor / recebido. É ela que decide qual regra roda.
+          Sem esse campo o app respondeu errado sozinho.</span></li>
+        <li><span class="n">2</span><span><strong>Informe OU parcelas</strong>, por ano+contrato.
+          Nunca os dois. Dupla contagem infla o custo em Bens e Direitos, que é redução
+          indevida de ganho de capital.</span></li>
+        <li><span class="n">3</span><span><strong>A soma fecha?</strong> Não fechou, não grava.
+          Não existe "somar o resto".</span></li>
+        <li><span class="n">4</span><span><strong>É o ano da venda?</strong> Aí o informe não
+          serve — chega tarde demais para o ganho de capital.</span></li>
+      </ul>
+
+      <div class="banner amb"><strong>O que este fluxo NÃO faz, e é decisão:</strong> não pede
+        parcela nenhuma durante o ano. Doze lançamentos por ano davam rastreabilidade e
+        <strong>zero</strong> diferença de imposto.
+        <div class="parecer">Parecer, adendo 1 §2: "A exigência 'todo mês' era medo de perder o
+          dado. Com o informe, o dado não se perde — ele é reemitido pelo banco todo ano.
+          Rastreabilidade que custa 12 interações por ano e não muda um centavo de imposto
+          cede à realidade do usuário."</div></div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" data-ir="s1">Ver o painel →</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 1a · PAINEL ══════════════════ -->
+  <section class="screen" id="s1">
+    <div class="appbar">
+      <div class="brand">Terreno — custo por ano</div>
+      <div class="sub">Casa em Cachoeira do Bom Jesus/SC · financiamento só do terreno</div>
+    </div>
+    <div class="body">
+
+      <div class="card">
+        <div class="row"><span class="lbl">Como o terreno foi adquirido</span>
+          <span class="val">Financiado com instituição</span></div>
+        <div class="row"><span class="lbl">Instituição credora</span>
+          <span class="val">Banco Litoral <span class="hint">(fictício)</span></span></div>
+        <div class="row"><span class="lbl">Prazo</span><span class="val">~20 anos</span></div>
+        <div class="row"><span class="lbl">Saldo devedor em 31/12/2025</span>
+          <span class="val mono">R$ 585.815,19</span></div>
+        <div class="banner mud" style="margin-top:8px">O saldo devedor <strong>não é custo de
+          nada</strong> e não entra na declaração do bem. Está aqui só para você conferir a
+          conta: <strong>pago + saldo = preço contratado</strong>.
+          <div class="parecer">Parecer §2c e adendo 2 §2: "Saldo devedor não é custo de nada.
+            Guardar como informativo, nunca somar, nunca virar campo de 'dívida' no custo."</div></div>
+      </div>
+
+      <div class="secao">Ano a ano — o que já tem lastro documental</div>
+
+      <div class="card grn">
+        <div class="ano"><div><strong>2024</strong> · informe anual registrado
+            <div class="hint">extrato do exercício 2025 anexado em 12/02/2025</div></div>
+          <span class="chip grn">✓ completo</span></div>
+        <div class="row" style="margin-top:8px"><span class="lbl">Entrou no custo de 2024</span>
+          <span class="val mono ok">R$ 57.402,10</span></div>
+        <div class="hint">Wireframe: valor ilustrativo. O de 2025 é o do extrato real.</div>
+      </div>
+
+      <div class="card amb">
+        <div class="ano"><div><strong>2025</strong> · informe disponível, ainda não registrado
+            <div class="hint">o banco publicou em fev/2026 — está no site, é download</div></div>
+          <span class="chip amb">⚠ falta lançar</span></div>
+        <div class="banner amb" style="margin-top:8px">Sem este lançamento, o custo de aquisição
+          de 2025 <strong>não existe no sistema</strong>. Custo pago e não discriminado na
+          declaração <strong>não existe na hora da venda</strong>.
+          <div class="parecer">Parecer, adendo 2 §3: "o art. 17 exige o dispêndio discriminado na
+            DAA. Custo pago e não discriminado não existe na venda."</div></div>
+        <button class="btn primary mini" style="margin-top:10px" data-ir="s3">Registrar informe de 2025</button>
+      </div>
+
+      <div class="card">
+        <div class="ano"><div><strong>2026</strong> · ano corrente
+            <div class="hint">aguardando informe anual — o banco publica em jan/fev de 2027</div></div>
+          <span class="chip blu">⏳ aguardando</span></div>
+        <div class="banner blu" style="margin-top:8px"><strong>O custo de 2026 nesta tela está
+          menor do que a realidade.</strong> Você vem pagando parcelas o ano todo e o documento
+          que as comprova só é publicado depois do fim do ano. A diferença é da ordem de
+          <strong>R$ 60 mil</strong> — o tamanho do informe do ano passado.</div>
+        <button class="btn ghost mini" style="margin-top:10px" data-ir="s12">O que isso significa →</button>
+      </div>
+
+      <div class="secao">Os componentes que não são financiamento</div>
+      <div class="card">
+        <div class="row"><span class="lbl">Entrada paga <span class="warn">— falta a data</span></span>
+          <span class="val mono">R$ —</span></div>
+        <div class="row"><span class="lbl">ITBI <span class="warn">— falta a data</span></span>
+          <span class="val mono">R$ —</span></div>
+        <div class="row"><span class="lbl">Escritura e registro <span class="warn">— falta a data</span></span>
+          <span class="val mono">R$ —</span></div>
+        <div class="banner amb" style="margin-top:8px">Sem a data, este valor não tem
+          ano-calendário e a discriminação não pode ser gerada. <strong>Não bloqueia o app</strong> —
+          fica como pendência até você preencher.</div>
+        <button class="btn ghost mini" style="margin-top:10px" data-ir="s2">Completar o cadastro do terreno →</button>
+      </div>
+
+      <div class="aberto"><b>Pergunta em aberto nº 1 — para o po</b>
+        Quem decide <strong>quais anos aparecem nesta lista</strong>? O natural é
+        "todo ano-calendário entre a data do contrato e hoje". Mas isso significa que, se o
+        contrato for de 2021, a tela abre com <strong>cinco</strong> pendências vermelhas de
+        uma vez. Enumero todos, ou só a partir de um ano que ele escolhe?</div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" data-ir="s0">← Fluxo</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 1b · NATUREZA DA AQUISIÇÃO ══════════════════ -->
+  <section class="screen" id="s2">
+    <div class="appbar">
+      <div class="brand">Como você adquiriu o terreno</div>
+      <div class="sub">Uma vez na vida · é este campo que decide o resto da tela</div>
+    </div>
+    <div class="body">
+      <div class="banner blu">Esta pergunta não existia no app. Sem ela, o sistema
+        <strong>presumiu compra à vista</strong> e tratou o terreno como um valor só, sem data —
+        que é exatamente o defeito que este ticket conserta.</div>
+
+      <div class="secao">Natureza da aquisição</div>
+      <button class="btn ghost" style="text-align:left">À vista<br>
+        <span class="hint">um pagamento só, com uma data</span></button>
+      <button class="btn primary" style="text-align:left">Financiado com instituição ✓<br>
+        <span style="font-size:11.5px; opacity:.75">banco ou financeira · desembolso todo ano ·
+        o extrato anual é o documento</span></button>
+      <button class="btn ghost" style="text-align:left">Parcelado direto com o vendedor<br>
+        <span class="hint">sem banco no meio · cada parcela tem a sua data</span></button>
+      <button class="btn ghost" style="text-align:left">Recebido — herança, doação ou permuta<br>
+        <span class="hint">há data de aquisição sem desembolso</span></button>
+
+      <div class="banner mud">Escolhendo <strong>recebido</strong>, a tela muda de assunto: não há
+        dinheiro que saiu, e o custo é o valor que constava na declaração de quem doou ou
+        faleceu. A regra "valor sem data não grava" <strong>não se aplica</strong> nesse caso.
+        <div class="parecer">Parecer §5, pergunta 3: "há data de aquisição sem desembolso; o custo
+          é o valor constante na declaração do doador/de cujus. Logo o critério 'valor sem data é
+          ingravável' só vale para aquisição onerosa."</div></div>
+
+      <div class="secao">O contrato — uma vez na vida</div>
+      <div class="card">
+        <label class="lab">Instituição credora</label>
+        <span class="subl">quem emprestou o dinheiro</span>
+        <input class="inp" style="text-align:left" value="Banco Litoral (fictício)">
+        <div class="row" style="margin-top:10px"><span class="lbl">Nº do contrato</span><span class="val">—</span></div>
+        <div class="row"><span class="lbl">Data do contrato</span><span class="val">—</span></div>
+        <div class="row"><span class="lbl">Preço contratado (o da escritura)</span><span class="val">—</span></div>
+        <div class="row"><span class="lbl">Nº de parcelas</span><span class="val">—</span></div>
+        <div class="banner amb" style="margin-top:8px"><strong>O preço contratado nunca vai para
+          o custo.</strong> Ele existe para o texto da declaração e para fechar a conta na sua
+          cabeça: <strong>pago + saldo devedor = preço</strong>. Declarar o imóvel pelo preço
+          cheio sem declarar a dívida produz evolução de patrimônio sem renda que a explique.
+          <div class="parecer">Parecer §1: "Declarar o bem pelo preço integral sem declarar a
+            dívida correspondente produz evolução patrimonial sem lastro de renda — e, na venda,
+            custo de aquisição maior que o desembolso comprovado."</div></div>
+      </div>
+
+      <div class="secao">Entrada — o único desembolso que não vem no extrato anual</div>
+      <div class="card">
+        <div class="row"><span class="lbl">Valor da entrada</span><span class="val">—</span></div>
+        <div class="row"><span class="lbl">Data em que foi paga</span><span class="val bad">obrigatória</span></div>
+        <div class="row"><span class="lbl">De onde saiu o dinheiro</span>
+          <span class="val">recurso próprio / FGTS</span></div>
+        <div class="hint" style="margin-top:6px"><strong>FGTS usado na entrada entra no custo</strong> —
+          é dinheiro seu, não do banco.</div>
+      </div>
+
+      <div class="aberto"><b>Pergunta em aberto nº 2 — para o po</b>
+        Esta tela é <strong>a mesma</strong> do cadastro de obra do CONTAI-003, ou uma tela
+        própria de "terreno" alcançável a partir dela? São dois formulários bem diferentes de
+        tamanho, e o CONTAI-003 já está em produção.</div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" data-ir="s1">← Painel</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 2a · PASSO 1 · ANEXO ══════════════════ -->
+  <section class="screen" id="s3">
+    <div class="appbar">
+      <div class="brand">Informe anual de 2025 — passo 1 de 3</div>
+      <div class="sub">Banco Litoral · o extrato antes dos números</div>
+    </div>
+    <div class="body">
+      <div class="banner mud"><strong>O documento vem primeiro de propósito.</strong> Você vai
+        transcrever números dele no próximo passo — tê-lo aberto na tela ao lado é o jeito de
+        não errar. E sem ele o lançamento não grava.</div>
+
+      <div class="secao">Onde achar</div>
+      <div class="card">
+        <div class="hint">No site ou app da instituição, procure por
+          <strong>"Extrato do Imposto de Renda"</strong> ou <strong>"Informe de rendimentos /
+          pagamentos"</strong>, exercício <strong>2026</strong>, ano-base <strong>2025</strong>.
+          É publicação automática do banco para o IR — <strong>não precisa pedir a ninguém</strong>,
+          é download.</div>
+      </div>
+
+      <div class="secao">Extrato do exercício 2026 (ano-base 2025)</div>
+
+      <!-- ── COMPONENTE REAL DE ARQUIVO ─────────────────────────────────────
+           <input type="file"> de verdade, dois caminhos: arquivo e câmera.
+           Escolher um arquivo aqui mostra o NOME e o TAMANHO reais dele.   -->
+      <div class="anexo" data-estado="vazio" id="anexo">
+        <input type="file" class="fileoculto" id="fArq" accept="application/pdf,image/*">
+        <input type="file" class="fileoculto" id="fCam" accept="image/*" capture="environment">
+
+        <div class="anx-vazio">
+          <div class="anx-tit">Nenhum arquivo anexado</div>
+          <div class="anx-sub">PDF baixado do banco, ou foto da folha impressa.</div>
+          <div class="anx-bts">
+            <button class="btn ghost" id="btArq">📄 Escolher arquivo</button>
+            <button class="btn ghost" id="btCam">📷 Usar a câmera</button>
+          </div>
+          <div class="banner red" style="margin-top:10px; font-size:12.5px">
+            <strong>Sem o extrato anexado, este lançamento não grava.</strong> São dezenas de
+            milhares de reais de custo de aquisição: o número sem o documento que o sustenta
+            não serve para nada no dia da venda.</div>
+        </div>
+
+        <div class="anx-cheio">
+          <div class="anx-thumb" id="anxThumb">PDF</div>
+          <div class="anx-info">
+            <div class="anx-nome" id="anxNome">—</div>
+            <div class="anx-sub" id="anxMeta">—</div>
+          </div>
+          <div class="anx-links">
+            <button class="lnk" id="btTrocar">trocar</button>
+            <button class="lnk" id="btRemover">remover</button>
+          </div>
+        </div>
+
+        <div class="anx-falha">
+          <div class="anx-tit">Não consegui enviar o arquivo</div>
+          <div class="anx-sub" id="anxFalhaMeta">—</div>
+          <div class="anx-sub" style="margin-top:6px">O arquivo continua no seu aparelho.
+            Nada foi perdido e nada foi gravado pela metade.</div>
+          <div class="anx-bts">
+            <button class="btn danger" id="btTentar">Tentar enviar de novo</button>
+            <button class="btn ghost" id="btOutro">Escolher outro</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="hint">O extrato fica no acervo pelo prazo de guarda do imóvel — e o prazo
+        deste contrato é longo: <strong>obra não vendida = prazo indefinido</strong>.</div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" id="btPasso2" disabled data-ir="s4">Continuar para os números →</button>
+      <div class="hint" id="hintPasso2" style="text-align:center">Anexe o extrato para continuar.</div>
+      <button class="btn ghost mini" data-ir="s1">← Voltar ao painel</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 2b · PASSO 2 · RUBRICAS ══════════════════ -->
+  <section class="screen" id="s4">
+    <div class="appbar">
+      <div class="brand">Informe anual de 2025 — passo 2 de 3</div>
+      <div class="sub">Copie cada linha do extrato · a tela confere a soma sozinha</div>
+    </div>
+    <div class="body">
+      <div class="banner mud"><strong>Um lançamento por ano, não doze.</strong> Copie as linhas
+        exatamente como estão no extrato, inclusive as zeradas — é a soma delas que prova que
+        nenhuma linha ficou de fora.</div>
+
+      <div class="secao">Entram no custo de aquisição</div>
+
+      <div class="rub entra">
+        <div class="esq">
+          <label class="lab" for="iAmort">Amortização</label>
+          <span class="subl">a parte da parcela que abate o preço do terreno — é preço do imóvel</span>
+          <span class="destino entra">▲ soma no custo</span>
+        </div>
+        <div class="dir"><input class="inp" id="iAmort" type="number" step="0.01" placeholder="0,00"></div>
+      </div>
+
+      <div class="rub entra">
+        <div class="esq">
+          <label class="lab" for="iJuros">Juros / Correção Monetária</label>
+          <span class="subl">o que você pagou ao banco pelo dinheiro emprestado, mais a correção do saldo</span>
+          <span class="destino entra">▲ soma no custo — em linha nomeada na declaração</span>
+          <button class="lnk" style="display:block; margin-top:6px" data-ir="s8">Por que juros entram e seguro não? →</button>
+        </div>
+        <div class="dir"><input class="inp" id="iJuros" type="number" step="0.01" placeholder="0,00"></div>
+      </div>
+
+      <div class="secao">Não entram — ficam guardadas, fora da soma</div>
+
+      <div class="rub nao">
+        <div class="esq">
+          <label class="lab" for="iSeg">Seguros (MIP e DFI)</label>
+          <span class="subl">MIP cobre morte e invalidez; DFI cobre dano físico ao imóvel</span>
+          <span class="destino nao">✕ não entra no custo — decisão firme</span>
+          <button class="lnk" style="display:block; margin-top:6px" data-ir="s8">Mas é obrigatório. Por que não entra? →</button>
+        </div>
+        <div class="dir"><input class="inp" id="iSeg" type="number" step="0.01" placeholder="0,00"></div>
+      </div>
+
+      <div class="rub duvida">
+        <div class="esq">
+          <label class="lab" for="iTaxas">Taxas + FCVS</label>
+          <span class="subl">taxa de administração do contrato, somada ao FCVS — Fundo de
+            Compensação de Variações Salariais, que cobre saldo residual do próprio financiamento</span>
+          <span class="destino duvida">◆ não soma hoje — o FCVS ainda pode vir a entrar</span>
+          <button class="lnk" style="display:block; margin-top:6px" data-ir="s10">Por que estas duas estão na mesma linha? →</button>
+        </div>
+        <div class="dir"><input class="inp" id="iTaxas" type="number" step="0.01" placeholder="0,00"></div>
+      </div>
+      <div class="aberto oculto" id="abertoFcvs"><b>Pergunta em aberto nº 3 — para o po e o contador</b>
+        O extrato traz <strong>"Taxas + FCVS" numa linha só</strong>, e o critério 13 do ticket
+        exige tratamento <strong>diferente</strong> para cada um: taxa é exclusão firme, FCVS é
+        candidato a inclusão. Enquanto a linha for R$ 0,00 não há o que separar — <strong>e é o
+        caso de 2025</strong>. No dia em que vier valor, de onde sai a separação?
+        Só a instituição sabe. <strong>Não preenchi essa lacuna sozinho.</strong></div>
+
+      <div class="rub nao">
+        <div class="esq">
+          <label class="lab" for="iMora">Mora</label>
+          <span class="subl">juros cobrados por parcela paga em atraso</span>
+          <span class="destino nao">✕ penalidade nunca é custo</span>
+        </div>
+        <div class="dir"><input class="inp" id="iMora" type="number" step="0.01" placeholder="0,00"></div>
+      </div>
+
+      <div class="rub nao">
+        <div class="esq">
+          <label class="lab" for="iMulta">Multa</label>
+          <span class="subl">penalidade por atraso</span>
+          <span class="destino nao">✕ penalidade nunca é custo</span>
+        </div>
+        <div class="dir"><input class="inp" id="iMulta" type="number" step="0.01" placeholder="0,00"></div>
+      </div>
+
+      <div class="secao">Esta o contador não sabe o que é</div>
+
+      <div class="rub duvida">
+        <div class="esq">
+          <label class="lab" for="iDif">Diferença Teórico / Pago</label>
+          <span class="subl">é o nome que o banco dá a esta linha. <strong>Ninguém aqui sabe o
+            que ela representa</strong> — e não vamos supor.</span>
+          <span class="destino duvida">◆ fica guardada, fora da soma, até a instituição explicar</span>
+          <button class="lnk" style="display:block; margin-top:6px" data-ir="s9">O que fazer com ela →</button>
+        </div>
+        <div class="dir"><input class="inp" id="iDif" type="number" step="0.01" placeholder="0,00"></div>
+      </div>
+
+      <div class="secao">A trava — o número que confere tudo</div>
+
+      <div class="rub">
+        <div class="esq">
+          <label class="lab" for="iTotal">Total Pago no Exercício</label>
+          <span class="subl">o total que o extrato fecha. É contra ele que as linhas acima têm
+            de bater</span>
+        </div>
+        <div class="dir"><input class="inp" id="iTotal" type="number" step="0.01" placeholder="0,00"></div>
+      </div>
+
+      <div class="card" id="caixaTrava">
+        <div class="row"><span class="lbl">Soma das linhas que você digitou</span>
+          <span class="val mono" id="tSoma">R$ 0,00</span></div>
+        <div class="row"><span class="lbl">Total pago no exercício</span>
+          <span class="val mono" id="tTotal">R$ 0,00</span></div>
+        <div class="row"><span class="lbl"><strong>Diferença</strong></span>
+          <span class="val mono" id="tDif">R$ 0,00</span></div>
+        <div id="travaMsg"></div>
+      </div>
+
+      <div class="secao">Informativo — não é custo</div>
+      <div class="rub">
+        <div class="esq">
+          <label class="lab" for="iSaldo">Saldo Devedor em 31/12/2025</label>
+          <span class="subl">o que ainda falta pagar ao banco. Fica fora de tudo: não soma, não
+            subtrai, não vira dívida na declaração</span>
+        </div>
+        <div class="dir"><input class="inp" id="iSaldo" type="number" step="0.01" placeholder="0,00"></div>
+      </div>
+
+      <div class="card" id="caixaCusto">
+        <div class="hint">Se fechar, o custo de aquisição de 2025 será</div>
+        <div class="big mono" id="tCusto">R$ 0,00</div>
+        <div class="hint" id="tCustoDetalhe">amortização + juros/correção</div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" id="btPasso3" disabled data-ir="s6">Conferir e gravar →</button>
+      <div class="hint" id="hintPasso3" style="text-align:center">Preencha as linhas do extrato.</div>
+      <button class="btn ghost mini" data-ir="s3">← Voltar ao anexo</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 2c · PASSO 3 · CONFERÊNCIA ══════════════════ -->
+  <section class="screen" id="s6">
+    <div class="appbar">
+      <div class="brand">Informe anual de 2025 — passo 3 de 3</div>
+      <div class="sub">Confira antes de gravar</div>
+    </div>
+    <div class="body">
+      <div class="banner grn">✓ A soma das sete linhas fecha com o total pago no exercício:
+        <strong class="mono">R$ 60.601,74</strong>. Nenhuma linha do seu extrato ficou de fora.</div>
+
+      <div class="secao">Vai para o custo de aquisição de 2025</div>
+      <div class="card grn">
+        <div class="row"><span class="lbl">Amortização</span><span class="val mono">R$ 16.883,52</span></div>
+        <div class="row"><span class="lbl">Juros / Correção Monetária</span><span class="val mono">R$ 43.051,23</span></div>
+        <div class="row"><span class="lbl"><strong>Custo de aquisição de 2025</strong></span>
+          <span class="val mono ok"><strong>R$ 59.934,75</strong></span></div>
+        <div class="banner amb" style="margin-top:8px">
+          <strong>R$ 43.051,23 — 72% deste desembolso — são juros</strong>, e a inclusão deles
+          apoia-se na leitura de um dispositivo que ainda não foi confirmado por contador com
+          registro. O app <strong>soma e nomeia em linha própria na declaração</strong>; quem
+          assume a posição é humano.
+          <div class="parecer">Parecer, adendo 2 §2: "nesta ordem de grandeza a inclusão exige
+            assinatura de contador com CRC, não decisão de app. O app soma e nomeia em linha
+            própria; quem assume a posição na declaração é humano."</div></div>
+      </div>
+
+      <div class="secao">Fica guardado, fora da soma</div>
+      <div class="card">
+        <div class="row"><span class="lbl">Seguros (MIP e DFI) <span class="chip mud">não entra</span></span>
+          <span class="val mono">R$ 499,56</span></div>
+        <div class="row"><span class="lbl">Taxas + FCVS <span class="chip amb">FCVS pode vir a entrar</span></span>
+          <span class="val mono">R$ 0,00</span></div>
+        <div class="row"><span class="lbl">Mora <span class="chip mud">não entra</span></span>
+          <span class="val mono">R$ 0,00</span></div>
+        <div class="row"><span class="lbl">Multa <span class="chip mud">não entra</span></span>
+          <span class="val mono">R$ 0,00</span></div>
+        <div class="row"><span class="lbl">Diferença Teórico / Pago <span class="chip amb">natureza desconhecida</span></span>
+          <span class="val mono">R$ 167,43</span></div>
+        <div class="row"><span class="lbl"><strong>Total guardado, fora do custo</strong></span>
+          <span class="val mono"><strong>R$ 666,99</strong></span></div>
+        <div class="hint" style="margin-top:8px">Guardado não é descartado. Se a instituição
+          explicar a "Diferença Teórico / Pago", ou se o FCVS for confirmado, o número já está
+          aqui e pode entrar depois — <strong>o erro irreversível seria não ter capturado</strong>.</div>
+      </div>
+
+      <div class="secao">Informativo</div>
+      <div class="card">
+        <div class="row"><span class="lbl">Saldo devedor em 31/12/2025</span>
+          <span class="val mono">R$ 585.815,19</span></div>
+        <div class="hint">Não é custo, não é dívida na declaração, não soma nem subtrai de
+          nada. Serve para conferência.</div>
+      </div>
+
+      <div class="secao">Documento</div>
+      <div class="anexo" data-estado="anexado">
+        <div class="anx-cheio">
+          <div class="anx-thumb">PDF</div>
+          <div class="anx-info">
+            <div class="anx-nome" id="confNome">extrato-ir-2025.pdf</div>
+            <div class="anx-sub">Extrato do Imposto de Renda · exercício 2026 · ano-base 2025</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="aberto"><b>Pergunta em aberto nº 4 — para o po</b>
+        O ano-base <strong>2025 já foi declarado</strong> (prazo do exercício 2026 encerrou em
+        30/04/2026). Gravar aqui pode significar que a declaração entregue está diferente do
+        que o app passa a mostrar. A tela deveria avisar isso — mas o app
+        <strong>não sabe quais anos já foram declarados</strong> (dor D24 do backlog).
+        Aviso agora com base numa pergunta ao Mateus, ou espero a D24?</div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" data-ir="s7">Gravar informe de 2025</button>
+      <button class="btn ghost mini" data-ir="s4">← Voltar aos números</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 2d · GRAVADO ══════════════════ -->
+  <section class="screen" id="s7">
+    <div class="appbar">
+      <div class="brand">2025 fechado</div>
+      <div class="sub">Informe anual registrado com o extrato em anexo</div>
+    </div>
+    <div class="body">
+      <div class="banner grn">✓ Informe de 2025 gravado. O custo de aquisição de 2025 passa a
+        existir no sistema com o documento que o sustenta.</div>
+
+      <div class="card grn">
+        <div class="ano"><div><strong>2025</strong> · informe anual registrado
+          <div class="hint">extrato anexado hoje</div></div><span class="chip grn">✓ completo</span></div>
+        <div class="row" style="margin-top:8px"><span class="lbl">Custo de aquisição de 2025</span>
+          <span class="val mono ok">R$ 59.934,75</span></div>
+        <div class="row"><span class="lbl">Guardado, fora da soma</span>
+          <span class="val mono">R$ 666,99</span></div>
+        <div class="row"><span class="lbl">Saldo devedor em 31/12/2025</span>
+          <span class="val mono">R$ 585.815,19</span></div>
+      </div>
+
+      <div class="secao">O texto que isto produz na declaração</div>
+      <div class="card">
+        <div class="ascii">...declarado pelo valor efetivamente pago, conforme
+regime de caixa: [...] e R$ 59.934,75 pagos no
+financiamento em 2025, dos quais R$ 16.883,52 de
+amortização e R$ 43.051,23 a título de juros e
+correção monetária, conforme extrato anual da
+instituição credora. Saldo devedor do financiamento
+em 31/12/2025: R$ 585.815,19, não incluído por não
+ter sido pago.</div>
+        <div class="banner amb" style="margin-top:8px"><strong>Os juros vão nomeados, sempre.</strong>
+          Nunca diluídos dentro de um total. Um item que pode ser questionado, incluído em
+          silêncio, é o pior dos mundos; incluído com nome, é posição declarada.
+          <div class="parecer">Parecer §4, regra 3: "Os juros vão nomeados ou não vão. Proibido
+            incluir juros dentro de um total sem dizer." Adendo, §4: "Se os juros foram nomeados
+            na discriminação, é divergência de interpretação declarada, não omissão."</div></div>
+        <div class="hint">Wireframe: o texto completo é da US-004, que ainda não existe.</div>
+      </div>
+
+      <div class="secao">Onde este lançamento NÃO aparece — e é de propósito</div>
+      <div class="card">
+        <div class="row"><span class="lbl">Pagamentos Efetuados (CPF por CPF)</span><span class="val">não</span></div>
+        <div class="row"><span class="lbl">Base de aferição do INSS (CNO/SERO)</span><span class="val">não</span></div>
+        <div class="row"><span class="lbl">"Custo em risco" da home</span><span class="val">não</span></div>
+        <div class="hint" style="margin-top:6px">O favorecido é um banco, e o documento hábil é
+          contrato + extrato — não nota fiscal. Se isto entrasse na fila de pendências, viraria
+          um "pago sem nota" vermelho todo ano, para sempre, sem nada de errado acontecendo.
+          <div class="parecer">Parecer §5: "Cairia como 'pago sem nota' todo mês. [...] inflaria o
+            headline de 'custo em risco'."</div></div>
+      </div>
+
+      <div class="aberto"><b>Pergunta em aberto nº 5 — para o po</b>
+        O custo do financiamento <strong>entra no total de custo da obra</strong> que a home
+        mostra? Terreno e casa são um item só na declaração (mesma matrícula), então
+        fiscalmente sim. Mas hoje aquele número é lido como "quanto já gastei construindo", e
+        somar R$ 59 mil de terreno nele muda o que a home significa. Não decidi.</div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" data-ir="s1">Voltar ao painel</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 3a · SEGURO ══════════════════ -->
+  <section class="screen" id="s8">
+    <div class="appbar">
+      <div class="brand">Por que juros entram e seguro não</div>
+      <div class="sub">A pergunta que volta todo ano — a tela responde sozinha</div>
+    </div>
+    <div class="body">
+      <div class="banner blu" style="font-size:15px; line-height:1.5">
+        <strong>Juros pagam o dinheiro que comprou o imóvel — entram no custo.
+        O seguro paga a cobertura de um risco (morte, invalidez, dano ao imóvel), não o imóvel —
+        não entra, mesmo sendo obrigatório.</strong>
+        <div class="parecer">Texto literal do parecer, adendo 3 §4 — escrito para esta tela.</div></div>
+
+      <div class="secao">Ser obrigatório não é o critério</div>
+      <div class="card">
+        <div class="hint">Se bastasse ser obrigatório, <strong>IPTU, condomínio e taxa de lixo
+          entrariam</strong> — todos são compulsórios e todos estão fora. A regra não mede se
+          você podia escapar; mede <strong>para que serviu o pagamento</strong>.</div>
+        <div class="hint" style="margin-top:8px">"Sem seguro não há financiamento, sem
+          financiamento não há compra" é verdade — e insuficiente. Vale igual para a conta de luz
+          do canteiro. <strong>Causa remota não é custo.</strong></div>
+      </div>
+
+      <div class="secao">A prova de que o prêmio não compra o imóvel</div>
+      <div class="card">
+        <div class="hint">Em caso de morte ou invalidez, o seguro <strong>quita a dívida sem você
+          desembolsar nada</strong>. Se o prêmio fosse parcela do preço, o imóvel ficaria com
+          custo de aquisição sem que o principal tivesse sido pago por você. O prêmio não compra
+          imóvel — <strong>compra a transferência de um risco</strong>.
+          <div class="parecer">Parecer, adendo 3 §2.</div></div>
+      </div>
+
+      <div class="secao">Quanto isso custa — para você decidir com o número na mão</div>
+      <div class="card">
+        <div class="row"><span class="lbl">Seguro por ano</span><span class="val mono">R$ 499,56</span></div>
+        <div class="row"><span class="lbl">Em ~20 anos de contrato</span><span class="val mono">≈ R$ 10.000</span></div>
+        <div class="row"><span class="lbl">Efeito no imposto, a 15%</span><span class="val mono">≈ R$ 1.500</span></div>
+        <div class="banner mud" style="margin-top:8px">Não é irrelevante — mas é o pior lugar para
+          brigar: a norma lista os juros pelo nome e <strong>não lista o seguro</strong>, e o
+          argumento material também é contra. Os <strong>R$ 43 mil por ano de juros</strong> são
+          onde o dinheiro está, e esses o app inclui, nomeados.
+          <div class="parecer">Parecer, adendo 3 §3 e §7. A referência é a IN SRF 84/2001,
+            art. 17, inciso I (bens imóveis); a letra da alínea está em conferência e por isso
+            não é afirmada aqui como fato.</div></div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" data-ir="s4">← Voltar ao formulário</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 3b · DIFERENÇA TEÓRICO/PAGO ══════════════════ -->
+  <section class="screen" id="s9">
+    <div class="appbar">
+      <div class="brand">Diferença Teórico / Pago</div>
+      <div class="sub">R$ 167,43 no extrato de 2025</div>
+    </div>
+    <div class="body">
+      <div class="banner amb" style="font-size:14px"><strong>Não sabemos o que esta linha é.</strong>
+        Ela aparece no seu extrato, está dentro do total pago, e nenhum parecer deste projeto a
+        previu. Enquanto ninguém confirmar a natureza dela, ela <strong>não soma no custo</strong>.
+        <div class="parecer">Parecer, adendo 2 §1: "Nenhum parecer meu previu essa linha [...]
+          Não tenho certeza de qual é o lançamento no contrato dele — e a natureza é o que decide,
+          não o nome."</div></div>
+
+      <div class="secao">O que a tela faz com ela</div>
+      <div class="card">
+        <div class="row"><span class="lbl">Conta na trava da soma?</span><span class="val ok">sim</span></div>
+        <div class="row"><span class="lbl">Soma no custo de aquisição?</span><span class="val bad">não</span></div>
+        <div class="row"><span class="lbl">É guardada separada?</span><span class="val ok">sim</span></div>
+        <div class="hint" style="margin-top:8px">São duas coisas diferentes e a tela não as
+          confunde: ela <strong>participa da conferência</strong> — sem ela o extrato não fecha —
+          e <strong>não participa do custo</strong>.</div>
+      </div>
+
+      <div class="secao">Por que isso não custa caro</div>
+      <div class="card">
+        <div class="hint">São <strong>R$ 167,43</strong>. A 15%, cerca de <strong>R$ 25</strong> de
+          imposto. E como o número fica guardado, se a instituição confirmar que é juros ou
+          correção, ele entra depois, por retificação, sem perda.
+          <strong>O erro irreversível seria não ter capturado.</strong></div>
+      </div>
+
+      <div class="secao">O que resolve isto de vez</div>
+      <div class="card">
+        <div class="hint">Um chamado à instituição, perguntando a natureza da rubrica.
+          <strong>Uma vez</strong> — a resposta vale para todos os anos do contrato.</div>
+        <div class="aberto" style="margin-top:10px"><b>Pergunta em aberto nº 6 — para o po</b>
+          O app deveria <strong>lembrar</strong> de fazer essa pergunta ao banco (uma pendência
+          com prazo, um lembrete no Google Calendar), ou isso é vida fora do software? Ele já
+          tem lembretes de agenda no CONTAI-019 — o mecanismo existe.</div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" data-ir="s4">← Voltar ao formulário</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 3c · FCVS ══════════════════ -->
+  <section class="screen" id="s10">
+    <div class="appbar">
+      <div class="brand">Taxas e FCVS</div>
+      <div class="sub">Duas coisas na mesma linha do extrato, com destinos diferentes</div>
+    </div>
+    <div class="body">
+      <div class="card">
+        <div class="lab">Taxa de administração do contrato</div>
+        <span class="destino nao">✕ não entra — decisão firme</span>
+        <div class="hint" style="margin-top:6px">Remunera o <strong>serviço de gerir o
+          contrato</strong>, não o capital emprestado e não o preço do terreno. Mesma lógica do
+          seguro.</div>
+      </div>
+
+      <div class="card amb">
+        <div class="lab">FCVS — Fundo de Compensação de Variações Salariais</div>
+        <span class="destino duvida">◆ não soma hoje, mas é <strong>candidato a entrar</strong></span>
+        <div class="hint" style="margin-top:6px">É contribuição a um fundo que cobre
+          <strong>saldo residual do próprio financiamento</strong>. Isso lhe dá cara de encargo
+          do contrato — e encargo do contrato é justamente a família que a norma inclui.
+          <strong>Ninguém confirmou ainda</strong>, então ele fica de fora da soma, guardado e
+          marcado.
+          <div class="parecer">Parecer, adendo 3 §6: "não trato como seguro, e não fecho hoje.
+            [...] Enquanto não confirmar: fora da soma, revisão humana, sinalizado como candidato
+            a inclusão — diferente do seguro, que é exclusão firme."</div></div>
+      </div>
+
+      <div class="banner mud"><strong>As duas marcas não podem virar o mesmo rótulo.</strong>
+        Seguro é <em>não entra</em> e ponto. FCVS é <em>ainda não entra</em>. Se os dois
+        virarem "excluído", no dia em que o FCVS for confirmado ninguém vai lembrar de voltar
+        aqui.</div>
+
+      <div class="aberto"><b>Volta à pergunta nº 3</b>
+        No extrato de 2025 esta linha é <strong>R$ 0,00</strong>, então a separação não faz falta
+        hoje. No dia em que vier valor, o app precisa de dois números e o documento só dá um.</div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" data-ir="s4">← Voltar ao formulário</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 4a · TRAVA DA DUPLA CONTAGEM ══════════════════ -->
+  <section class="screen" id="s11">
+    <div class="appbar">
+      <div class="brand">2024 — já tem parcelas lançadas</div>
+      <div class="sub">Ou o informe, ou as parcelas. Nunca os dois</div>
+    </div>
+    <div class="body">
+      <div class="banner red"><strong>Não dá para registrar o informe de 2024.</strong>
+        Este ano já tem <strong>4 parcelas</strong> deste contrato lançadas uma a uma, somando
+        <strong class="mono">R$ 19.800,00</strong>. Se o informe entrasse por cima, os mesmos
+        pagamentos contariam duas vezes.</div>
+
+      <div class="secao">Por que o app recusa em vez de avisar</div>
+      <div class="card">
+        <div class="hint">Custo contado em dobro em Bens e Direitos vira
+          <strong>redução indevida de ganho de capital</strong> no dia da venda — e isso é
+          cobrado com multa. É o mesmo erro que o app já impede em outro lugar, com outro nome.
+          <div class="parecer">Parecer, adendo 1 §6: "por ano+contrato é o informe OU as parcelas,
+            nunca os dois. Dupla contagem aqui é custo inflado em Bens e Direitos = redução
+            indevida de ganho de capital."</div></div>
+      </div>
+
+      <div class="secao">Escolha um dos dois para 2024</div>
+
+      <div class="card">
+        <div class="lab">Manter as 4 parcelas lançadas</div>
+        <div class="hint">Some <span class="mono">R$ 19.800,00</span> no custo de 2024.
+          O informe de 2024 fica só no acervo, como documento, sem virar lançamento.</div>
+        <button class="btn ghost mini" style="margin-top:8px">Manter as parcelas</button>
+      </div>
+
+      <div class="card">
+        <div class="lab">Trocar pelas rubricas do informe</div>
+        <div class="hint">O informe cobre <strong>o ano inteiro</strong>, inclusive parcelas que
+          você não lançou, e separa juros de amortização — que as parcelas avulsas não separam.
+          As 4 parcelas saem do custo de 2024.</div>
+        <button class="btn primary mini" style="margin-top:8px">Ver as 4 parcelas antes de decidir</button>
+      </div>
+
+      <div class="aberto"><b>Pergunta em aberto nº 7 — para o po</b>
+        O ticket corta a captura mensal de parcelas do escopo — então
+        <strong>de onde viriam essas parcelas?</strong> Duas hipóteses, e elas pedem telas
+        diferentes: <strong>(a)</strong> ele lançou as parcelas do banco como pagamento comum
+        do app, porque não havia outro lugar — e aí a trava tem de reconhecer um
+        <em>pagamento</em> como conflito, não uma "parcela de financiamento" que não existe;
+        <strong>(b)</strong> lançamento de parcela vai existir mesmo, para quem parcela direto
+        com o vendedor. <strong>Desenhei (a).</strong> Se for (b), esta tela muda.</div>
+
+      <div class="aberto"><b>Pergunta em aberto nº 8 — para o po</b>
+        Trocar parcelas pelo informe significa <strong>tirar do custo</strong> pagamentos já
+        gravados. O CONTAI-009 fixou o acervo como <em>append-only</em> — nada se apaga. Então
+        "trocar" é desvincular do custo mantendo o registro, ou é outra coisa? Isto toca o
+        parecer de correção de documento registrado e eu não decido sozinho.</div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" data-ir="s1">← Painel</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 4b · AGUARDANDO INFORME ══════════════════ -->
+  <section class="screen" id="s12">
+    <div class="appbar">
+      <div class="brand">2026 — aguardando informe anual</div>
+      <div class="sub">O ponto mais importante desta tela inteira</div>
+    </div>
+    <div class="body">
+      <div class="banner blu" style="font-size:14px"><strong>O custo de 2026 que o app mostra
+        está menor do que a realidade — e vai ficar assim o ano todo.</strong>
+        Você paga parcela todo mês, mas o documento que comprova essas parcelas
+        <strong>só é publicado em jan/fev de 2027</strong>. Até lá, o financiamento de 2026
+        aparece como zero.</div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Financiamento já registrado em 2026</span>
+          <span class="val mono">R$ 0,00</span></div>
+        <div class="row"><span class="lbl">Ordem de grandeza do que falta</span>
+          <span class="val mono warn">≈ R$ 60 mil</span></div>
+        <div class="row"><span class="lbl">Quando isso se resolve</span>
+          <span class="val">jan/fev de 2027</span></div>
+        <div class="hint" style="margin-top:8px">A estimativa vem do informe do ano anterior.
+          É <strong>ordem de grandeza</strong>, não um número apurado — por isso não soma em
+          lugar nenhum e aparece em cinza, fora de qualquer total.</div>
+      </div>
+
+      <div class="banner amb"><strong>Isto não é um defeito, é o calendário do banco.</strong>
+        E não afeta declaração nenhuma: a ficha Bens e Direitos é preenchida entre janeiro e
+        abril, com o informe já na mão. Afeta só o número que você vê durante o ano.
+        <div class="parecer">Parecer, adendo 1 §6: "durante o ano corrente o painel de custo
+          subestima o financiamento, porque o informe ainda não existe. [...] Tem que ser nomeado
+          na interface [...] e nunca silenciado, senão vira o defeito do CONTAI-005 ao contrário."</div></div>
+
+      <div class="secao">Por que isto ocupa espaço na tela</div>
+      <div class="card">
+        <div class="hint">Um número menor que a realidade, <strong>sem aviso</strong>, é o que faz
+          alguém declarar errado confiando na tela. O app prefere ser chato o ano inteiro a estar
+          silenciosamente errado uma vez.</div>
+      </div>
+
+      <div class="aberto"><b>Pergunta em aberto nº 9 — para o po</b>
+        Mostrar a estimativa (<em>"≈ R$ 60 mil"</em>) ajuda ou atrapalha? Ela dá noção do buraco,
+        mas é um número inventado a partir do ano passado numa tela cuja disciplina é
+        <strong>não afirmar o que não se sabe</strong>. A alternativa é dizer só
+        <em>"não registrado ainda"</em>, sem cifra. Inclinação minha: manter, porque "zero" sem
+        tamanho não comunica risco — <strong>mas é decisão de produto</strong>.</div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" data-ir="s1">← Painel</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 4c · ANO DA VENDA ══════════════════ -->
+  <section class="screen" id="s13">
+    <div class="appbar">
+      <div class="brand">Ano da venda — o informe não serve</div>
+      <div class="sub">1x na vida · a única exceção do modelo anual</div>
+    </div>
+    <div class="body">
+      <div class="banner amb"><strong>Vendendo o imóvel, o informe daquele ano só chega no ano
+        seguinte</strong> — e o imposto sobre o ganho de capital é apurado antes disso, no mês
+        seguinte ao da venda. Então neste ano os documentos são outros.</div>
+
+      <div class="secao">O que a tela pede, só neste ano</div>
+      <div class="card">
+        <div class="lab">1 · Extrato do período</div>
+        <div class="hint">Do dia 1º de janeiro até a data da quitação — cobre as parcelas pagas
+          no ano da venda, que o informe anual ainda não cobre.</div>
+      </div>
+      <div class="card">
+        <div class="lab">2 · Termo de quitação do financiamento</div>
+        <div class="hint">O documento que prova que a dívida acabou, e por quanto.</div>
+      </div>
+
+      <div class="secao">A parte contraintuitiva, e ela vale dinheiro</div>
+      <div class="card">
+        <div class="hint"><strong>Quitar o saldo devedor com o dinheiro da venda é dispêndio
+          pago, e integra o custo no ano da venda.</strong> Financiar não amputa o custo — só
+          desloca o momento em que ele aparece.
+          <div class="parecer">Parecer §6.</div></div>
+        <div class="hint" style="margin-top:8px"><strong>Multa ou tarifa de quitação antecipada
+          fica fora</strong> do custo.</div>
+      </div>
+
+      <div class="banner red"><strong>O preço de venda é o bruto da escritura</strong> — nunca o
+        líquido depois de descontado o saldo devedor. Se o banco do comprador quita o seu
+        financiamento direto, aquele valor foi recebido por você na forma de extinção de dívida.
+        <div class="parecer">Parecer §6: "Subtrair o saldo é subdeclarar alienação, e o valor da
+          escritura está no cruzamento da RFB via DOI do cartório."</div></div>
+
+      <div class="hint">Wireframe: a tela de venda é da US-004, que ainda não existe. Aqui só
+        registro o que o CONTAI-010 tem de deixar pronto para ela.</div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" data-ir="s1">← Painel</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 5 · PERGUNTAS EM ABERTO ══════════════════ -->
+  <section class="screen" id="s14">
+    <div class="appbar">
+      <div class="brand">O que eu não decidi sozinho</div>
+      <div class="sub">9 lacunas de requisito · voltam ao po, não viram design</div>
+    </div>
+    <div class="body">
+      <div class="banner mud">Cada uma destas aparece <strong>tracejada em âmbar dentro da tela
+        onde importa</strong>. Nenhuma foi preenchida com palpite meu.</div>
+
+      <ul class="lista">
+        <li><span class="n">1</span><span><strong>Quais anos entram na lista do painel.</strong>
+          Todo ano entre o contrato e hoje? Contrato antigo abre a tela com cinco pendências de
+          uma vez. <em>(tela: painel)</em></span></li>
+        <li><span class="n">2</span><span><strong>Onde mora o cadastro do contrato.</strong>
+          Dentro do formulário de obra do CONTAI-003, que já está em produção, ou tela própria?
+          <em>(tela: como você adquiriu o terreno)</em></span></li>
+        <li><span class="n">3</span><span><strong>"Taxas + FCVS" vem numa linha só no extrato</strong>
+          e o critério 13 exige tratamento diferente para cada um. Como separar quando vier
+          valor? <em>(tela: formulário e FCVS)</em></span></li>
+        <li><span class="n">4</span><span><strong>Ano já declarado.</strong> Gravar 2025 mexe em
+          exercício cujo prazo encerrou. A tela avisa, e com base em quê, se a D24 não existe?
+          <em>(tela: conferência)</em></span></li>
+        <li><span class="n">5</span><span><strong>O custo do financiamento entra no total da
+          home?</strong> Fiscalmente terreno e casa são um item só; na leitura do dia a dia
+          aquele número é "quanto gastei construindo". <em>(tela: gravado)</em></span></li>
+        <li><span class="n">6</span><span><strong>O app lembra de perguntar ao banco</strong> a
+          natureza da "Diferença Teórico / Pago", ou isso é vida fora do software?
+          <em>(tela: diferença teórico/pago)</em></span></li>
+        <li><span class="n">7</span><span><strong>Contra o que a trava de dupla contagem
+          bate?</strong> A captura mensal saiu do escopo, então o conflito só pode vir de
+          pagamentos comuns lançados sem lugar melhor. Desenhei assim.
+          <em>(tela: dupla contagem)</em></span></li>
+        <li><span class="n">8</span><span><strong>"Trocar parcelas pelo informe" em acervo
+          append-only.</strong> Desvincular do custo mantendo o registro, ou outra coisa?
+          <em>(tela: dupla contagem)</em></span></li>
+        <li><span class="n">9</span><span><strong>Mostrar a estimativa do ano corrente</strong>
+          (<em>≈ R$ 60 mil</em>) numa tela cuja disciplina é não afirmar o que não sabe?
+          <em>(tela: aguardando informe)</em></span></li>
+      </ul>
+
+      <div class="secao">Duas coisas que eu decidi, e quero que sejam olhadas</div>
+      <div class="card">
+        <div class="lab">A trava da soma exige igualdade exata</div>
+        <div class="hint">Zero centavo de tolerância. Documento de banco arredonda, e um
+          descasamento de R$ 0,01 vai travar o lançamento inteiro. Achei melhor travar e
+          reclamar do que abrir uma folga que ninguém sabe medir — mas se o Mateus preferir
+          tolerância, é uma linha.</div>
+      </div>
+      <div class="card">
+        <div class="lab">O botão de gravar fica bloqueado sem anexo e sem soma fechada</div>
+        <div class="hint">É o oposto do que foi decidido no CONTAI-019, onde bloquear por falta
+          de comprovante foi reprovado. A diferença: lá o parecer nomeava a exceção; aqui os
+          critérios 10 e 11 mandam <strong>recusar</strong>, com essas palavras. Se a régua for a
+          mesma dos dois lados, esta tela está errada e eu preciso saber.</div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" data-ir="s0">← Fluxo</button>
+    </div>
+  </section>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ══ ABAS ═══════════════════════════════════════════ */
+  var TELAS = [
+    { g:"g0", id:"s0",  rot:"Fluxo — antes de qualquer tela" },
+
+    { g:"g1", id:"s1",  rot:"★ Painel — custo do terreno por ano" },
+    { g:"g1", id:"s2",  rot:"Como você adquiriu o terreno" },
+
+    { g:"g2", id:"s3",  rot:"★ Passo 1 · anexar o extrato" },
+    { g:"g2", id:"s4",  rot:"★ Passo 2 · rubricas (soma fecha)", preset:"real" },
+    { g:"g2", id:"s4",  rot:"★ Passo 2 · a soma NÃO fecha", preset:"quebrado" },
+    { g:"g2", id:"s4",  rot:"Passo 2 · em branco", preset:"zero" },
+    { g:"g2", id:"s6",  rot:"★ Passo 3 · conferência" },
+    { g:"g2", id:"s7",  rot:"★ Gravado — e o que isso produz" },
+
+    { g:"g3", id:"s8",  rot:"★ Por que juros entram e seguro não" },
+    { g:"g3", id:"s9",  rot:"★ Diferença Teórico / Pago" },
+    { g:"g3", id:"s10", rot:"Taxas e FCVS" },
+
+    { g:"g4", id:"s11", rot:"★ Trava — informe OU parcelas" },
+    { g:"g4", id:"s12", rot:"★ Aguardando informe (ano corrente)" },
+    { g:"g4", id:"s13", rot:"Ano da venda — a exceção" },
+
+    { g:"g5", id:"s14", rot:"9 perguntas em aberto" }
+  ];
+
+  var abas = [];
+  TELAS.forEach(function (t) {
+    var b = document.createElement("button");
+    b.className = "tab";
+    b.textContent = t.rot;
+    b.onclick = function () { if (t.preset) aplicarPreset(t.preset); mostrar(t.id, b); };
+    document.getElementById(t.g).appendChild(b);
+    abas.push(b);
+  });
+
+  function mostrar(id, botao) {
+    document.querySelectorAll(".screen").forEach(function (s) { s.classList.toggle("on", s.id === id); });
+    abas.forEach(function (b) { b.classList.remove("on"); });
+    if (botao) { botao.classList.add("on"); }
+    else {
+      /* navegação por botão dentro da tela: acende a primeira aba daquela tela */
+      for (var i = 0; i < TELAS.length; i++) { if (TELAS[i].id === id) { abas[i].classList.add("on"); break; } }
+    }
+    var el = document.getElementById(id).querySelector(".body");
+    if (el) el.scrollTop = 0;
+  }
+
+  document.addEventListener("click", function (e) {
+    var alvo = e.target.closest("[data-ir]");
+    if (alvo && !alvo.disabled) mostrar(alvo.getAttribute("data-ir"));
+  });
+
+  abas[0].classList.add("on");
+
+  /* ══ LARGURA — 375 é piso, 760 é a régua desta tela ══ */
+  var phone = document.getElementById("phone");
+  var w375 = document.getElementById("w375");
+  var w760 = document.getElementById("w760");
+  w375.onclick = function () { phone.classList.remove("mesa"); w375.classList.add("on"); w760.classList.remove("on"); };
+  w760.onclick = function () { phone.classList.add("mesa"); w760.classList.add("on"); w375.classList.remove("on"); };
+
+  /* ══ utilitários ════════════════════════════════════ */
+  function brl(n) {
+    return "R$ " + n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function num(el) { var v = parseFloat(el.value); return isNaN(v) ? 0 : v; }
+  function vazio(el) { return el.value.trim() === ""; }
+  function ver(el, mostra) { el.classList.toggle("oculto", !mostra); }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     ANEXO — componente REAL. O <input type="file"> abaixo é de verdade:
+     escolher um arquivo mostra o nome e o tamanho DELE. O único pedaço
+     falso é a falha de envio, e o interruptor dela mora fora do quadro.
+     ══════════════════════════════════════════════════════════════════════ */
+  var rede = "ok";
+  document.querySelectorAll("[data-rede]").forEach(function (b) {
+    b.onclick = function () {
+      rede = b.getAttribute("data-rede");
+      document.querySelectorAll("[data-rede]").forEach(function (o) { o.classList.toggle("on", o === b); });
+    };
+  });
+
+  var anexo    = document.getElementById("anexo");
+  var fArq     = document.getElementById("fArq");
+  var fCam     = document.getElementById("fCam");
+  var anxThumb = document.getElementById("anxThumb");
+  var anxNome  = document.getElementById("anxNome");
+  var anxMeta  = document.getElementById("anxMeta");
+  var anxFalhaMeta = document.getElementById("anxFalhaMeta");
+  var btPasso2 = document.getElementById("btPasso2");
+  var hintPasso2 = document.getElementById("hintPasso2");
+  var confNome = document.getElementById("confNome");
+  var arquivoAtual = null;
+
+  function kb(bytes) {
+    if (bytes >= 1048576) return (bytes / 1048576).toFixed(1).replace(".", ",") + " MB";
+    return Math.max(1, Math.round(bytes / 1024)) + " KB";
+  }
+
+  function pintarAnexo(estado) {
+    anexo.setAttribute("data-estado", estado);
+    if (estado === "anexado" && arquivoAtual) {
+      anxNome.textContent = arquivoAtual.name;
+      anxMeta.textContent = kb(arquivoAtual.size) + " · enviado agora";
+      if (confNome) confNome.textContent = arquivoAtual.name;
+      if (arquivoAtual.type.indexOf("image/") === 0) {
+        anxThumb.innerHTML = "";
+        var img = document.createElement("img");
+        img.src = URL.createObjectURL(arquivoAtual);
+        img.alt = "";
+        anxThumb.appendChild(img);
+      } else {
+        anxThumb.textContent = (arquivoAtual.name.split(".").pop() || "DOC").toUpperCase().slice(0, 4);
+      }
+    }
+    if (estado === "falha" && arquivoAtual) {
+      anxFalhaMeta.textContent = arquivoAtual.name + " · " + kb(arquivoAtual.size);
+    }
+    btPasso2.disabled = estado !== "anexado";
+    hintPasso2.textContent = estado === "anexado"
+      ? "Extrato anexado. Tenha o documento à vista no próximo passo."
+      : "Anexe o extrato para continuar. Sem ele, este lançamento não grava.";
+  }
+
+  function receber(input) {
+    if (!input.files || !input.files[0]) return;
+    arquivoAtual = input.files[0];
+    pintarAnexo(rede === "falha" ? "falha" : "anexado");
+  }
+  fArq.onchange = function () { receber(fArq); };
+  fCam.onchange = function () { receber(fCam); };
+
+  document.getElementById("btArq").onclick    = function () { fArq.click(); };
+  document.getElementById("btCam").onclick    = function () { fCam.click(); };
+  document.getElementById("btTrocar").onclick = function () { fArq.click(); };
+  document.getElementById("btOutro").onclick  = function () { fArq.click(); };
+  document.getElementById("btTentar").onclick = function () {
+    pintarAnexo(rede === "falha" ? "falha" : "anexado");
+  };
+  document.getElementById("btRemover").onclick = function () {
+    arquivoAtual = null; fArq.value = ""; fCam.value = "";
+    anxThumb.innerHTML = "PDF";
+    pintarAnexo("vazio");
+  };
+  pintarAnexo("vazio");
+
+  /* ══════════════════════════════════════════════════════════════════════
+     TRAVA DA SOMA — ao vivo. Sete rubricas contra o total pago.
+     A "diferença teórico/pago" CONTA aqui e NÃO conta no custo:
+     são coisas distintas e a tela não as confunde.
+     ══════════════════════════════════════════════════════════════════════ */
+  var iAmort = document.getElementById("iAmort");
+  var iJuros = document.getElementById("iJuros");
+  var iSeg   = document.getElementById("iSeg");
+  var iTaxas = document.getElementById("iTaxas");
+  var iMora  = document.getElementById("iMora");
+  var iMulta = document.getElementById("iMulta");
+  var iDif   = document.getElementById("iDif");
+  var iTotal = document.getElementById("iTotal");
+  var iSaldo = document.getElementById("iSaldo");
+  var RUBRICAS = [iAmort, iJuros, iSeg, iTaxas, iMora, iMulta, iDif];
+  var TODOS = RUBRICAS.concat([iTotal, iSaldo]);
+
+  var tSoma = document.getElementById("tSoma");
+  var tTotal = document.getElementById("tTotal");
+  var tDif = document.getElementById("tDif");
+  var travaMsg = document.getElementById("travaMsg");
+  var caixaTrava = document.getElementById("caixaTrava");
+  var caixaCusto = document.getElementById("caixaCusto");
+  var tCusto = document.getElementById("tCusto");
+  var tCustoDetalhe = document.getElementById("tCustoDetalhe");
+  var btPasso3 = document.getElementById("btPasso3");
+  var hintPasso3 = document.getElementById("hintPasso3");
+  var abertoFcvs = document.getElementById("abertoFcvs");
+
+  function conferir() {
+    var soma = 0;
+    RUBRICAS.forEach(function (el) { soma += num(el); });
+    var total = num(iTotal);
+    var falta = Math.round((total - soma) * 100) / 100;
+    var custo = num(iAmort) + num(iJuros);
+
+    var algumPreenchido = TODOS.some(function (el) { return !vazio(el); });
+    var totalPreenchido = !vazio(iTotal);
+
+    tSoma.textContent = brl(soma);
+    tTotal.textContent = brl(total);
+    tDif.textContent = brl(Math.abs(falta));
+    tCusto.textContent = brl(custo);
+    tCustoDetalhe.textContent = "amortização " + brl(num(iAmort)) + " + juros/correção " + brl(num(iJuros));
+
+    ver(abertoFcvs, num(iTaxas) > 0);
+    iTotal.classList.remove("erro");
+
+    if (!algumPreenchido || !totalPreenchido) {
+      caixaTrava.className = "card";
+      tDif.className = "val mono";
+      travaMsg.innerHTML = '<div class="hint" style="margin-top:8px">Copie as linhas do extrato, '
+        + 'inclusive as zeradas — e por último o <strong>Total Pago no Exercício</strong>. '
+        + 'A conferência acontece sozinha.</div>';
+      btPasso3.disabled = true;
+      hintPasso3.textContent = "Preencha as linhas do extrato.";
+      caixaCusto.className = "card";
+      return;
+    }
+
+    if (Math.abs(falta) < 0.005) {
+      caixaTrava.className = "card grn";
+      tDif.className = "val mono ok";
+      travaMsg.innerHTML = '<div class="banner grn" style="margin-top:8px">'
+        + '<strong>✓ Fecha.</strong> As sete linhas somam exatamente o total pago no exercício. '
+        + 'Nenhuma rubrica do seu extrato ficou de fora.</div>';
+      btPasso3.disabled = false;
+      hintPasso3.textContent = "Você ainda vai conferir tudo antes de gravar.";
+      caixaCusto.className = "card grn";
+    } else {
+      caixaTrava.className = "card";
+      caixaTrava.style.borderColor = "";
+      tDif.className = "val mono bad";
+      iTotal.classList.add("erro");
+      var direcao = falta > 0
+        ? "<strong>Faltam " + brl(Math.abs(falta)) + "</strong> para chegar ao total pago."
+        : "<strong>Sobram " + brl(Math.abs(falta)) + "</strong> além do total pago.";
+      travaMsg.innerHTML = '<div class="banner red" style="margin-top:8px">'
+        + '<strong>Não fecha — e por isso este lançamento não grava.</strong><br>' + direcao
+        + '<br><br>' + (falta > 0
+          ? 'Ou uma linha ficou em branco, ou o seu extrato tem uma rubrica que este app ainda '
+            + 'não conhece. Nos dois casos, somar o que está aqui e seguir produziria um custo '
+            + 'de aquisição errado, com aparência de certo.'
+          : 'Alguma linha foi digitada a mais, ou o total pago está menor do que deveria. '
+            + 'Confira o documento.')
+        + '</div>'
+        + '<div class="parecer">Parecer, adendo 2 §4: "Se não fechar, é rubrica que o app não '
+        + 'conhece — recusar e pedir revisão humana, nunca somar o resto e seguir."</div>';
+      btPasso3.disabled = true;
+      hintPasso3.textContent = "A soma precisa fechar com o total pago. Diferença de " + brl(Math.abs(falta)) + ".";
+      caixaCusto.className = "card";
+    }
+  }
+
+  TODOS.forEach(function (el) { el.addEventListener("input", conferir); });
+
+  /* ══ PRESETS — atalho de simulação, fora do quadro ══ */
+  var PRESETS = {
+    real:     { amort:16883.52, juros:43051.23, seg:499.56, taxas:0, mora:0, multa:0, dif:167.43, total:60601.74, saldo:585815.19 },
+    quebrado: { amort:16883.52, juros:43051.23, seg:499.56, taxas:0, mora:0, multa:0, dif:null,   total:60601.74, saldo:585815.19 },
+    zero:     { amort:null, juros:null, seg:null, taxas:null, mora:null, multa:null, dif:null, total:null, saldo:null }
+  };
+  function por(el, v) { el.value = (v === null || v === undefined) ? "" : String(v); }
+  function aplicarPreset(nome) {
+    var p = PRESETS[nome]; if (!p) return;
+    por(iAmort, p.amort); por(iJuros, p.juros); por(iSeg, p.seg); por(iTaxas, p.taxas);
+    por(iMora, p.mora); por(iMulta, p.multa); por(iDif, p.dif);
+    por(iTotal, p.total); por(iSaldo, p.saldo);
+    document.querySelectorAll("[data-preset]").forEach(function (o) {
+      o.classList.toggle("on", o.getAttribute("data-preset") === nome);
+    });
+    conferir();
+  }
+  document.querySelectorAll("[data-preset]").forEach(function (b) {
+    b.onclick = function () {
+      var nome = b.getAttribute("data-preset");
+      aplicarPreset(nome);
+      /* acende a aba correspondente, não só a primeira aba do s4 */
+      var alvo = null;
+      for (var i = 0; i < TELAS.length; i++) { if (TELAS[i].id === "s4" && TELAS[i].preset === nome) { alvo = abas[i]; break; } }
+      mostrar("s4", alvo);
+    };
+  });
+
+  conferir();
+})();
+</script>
