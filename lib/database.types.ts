@@ -1,6 +1,6 @@
 // Tipos GERADOS a partir do banco — não edite à mão.
 // Fonte: `npx supabase gen types typescript --local` com as migrations 0001 a
-// 0004 aplicadas (`npm run db:reset`). Regerar sempre que uma migration entrar.
+// 0007 aplicadas (`npm run db:reset`). Regerar sempre que uma migration entrar.
 
 export type Json =
   | string
@@ -38,6 +38,135 @@ export type Database = {
   }
   public: {
     Tables: {
+      compromisso: {
+        Row: {
+          created_at: string
+          data_compra: string | null
+          data_prevista: string | null
+          documento_origem_id: string | null
+          favorecido_id: string | null
+          id: string
+          motivo_cancelamento: string | null
+          obra_id: string
+          origem: Database["public"]["Enums"]["origem_compromisso"]
+          situacao: Database["public"]["Enums"]["situacao_compromisso"]
+          user_id: string
+          valor_previsto: number
+        }
+        Insert: {
+          created_at?: string
+          data_compra?: string | null
+          data_prevista?: string | null
+          documento_origem_id?: string | null
+          favorecido_id?: string | null
+          id?: string
+          motivo_cancelamento?: string | null
+          obra_id: string
+          origem: Database["public"]["Enums"]["origem_compromisso"]
+          situacao?: Database["public"]["Enums"]["situacao_compromisso"]
+          user_id?: string
+          valor_previsto: number
+        }
+        Update: {
+          created_at?: string
+          data_compra?: string | null
+          data_prevista?: string | null
+          documento_origem_id?: string | null
+          favorecido_id?: string | null
+          id?: string
+          motivo_cancelamento?: string | null
+          obra_id?: string
+          origem?: Database["public"]["Enums"]["origem_compromisso"]
+          situacao?: Database["public"]["Enums"]["situacao_compromisso"]
+          user_id?: string
+          valor_previsto?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compromisso_documento_origem_id_fkey"
+            columns: ["documento_origem_id"]
+            isOneToOne: false
+            referencedRelation: "documento"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compromisso_favorecido_id_fkey"
+            columns: ["favorecido_id"]
+            isOneToOne: false
+            referencedRelation: "favorecido"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compromisso_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obra"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      compromisso_data_historico: {
+        Row: {
+          compromisso_id: string
+          data_anterior: string | null
+          data_nova: string | null
+          id: string
+          registrado_em: string
+        }
+        Insert: {
+          compromisso_id: string
+          data_anterior?: string | null
+          data_nova?: string | null
+          id?: string
+          registrado_em?: string
+        }
+        Update: {
+          compromisso_id?: string
+          data_anterior?: string | null
+          data_nova?: string | null
+          id?: string
+          registrado_em?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compromisso_data_historico_compromisso_id_fkey"
+            columns: ["compromisso_id"]
+            isOneToOne: false
+            referencedRelation: "compromisso"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      compromisso_pagamento: {
+        Row: {
+          compromisso_id: string
+          pagamento_id: string
+        }
+        Insert: {
+          compromisso_id: string
+          pagamento_id: string
+        }
+        Update: {
+          compromisso_id?: string
+          pagamento_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compromisso_pagamento_compromisso_id_fkey"
+            columns: ["compromisso_id"]
+            isOneToOne: false
+            referencedRelation: "compromisso"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compromisso_pagamento_pagamento_id_fkey"
+            columns: ["pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "pagamento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documento: {
         Row: {
           arquivo_path: string
@@ -245,6 +374,38 @@ export type Database = {
           },
         ]
       }
+      pagamento_diferenca: {
+        Row: {
+          encargos: number
+          nao_explicado: number
+          pagamento_id: string
+          resolucao: Database["public"]["Enums"]["resolucao_diferenca"] | null
+          resolvido_em: string | null
+        }
+        Insert: {
+          encargos?: number
+          nao_explicado?: number
+          pagamento_id: string
+          resolucao?: Database["public"]["Enums"]["resolucao_diferenca"] | null
+          resolvido_em?: string | null
+        }
+        Update: {
+          encargos?: number
+          nao_explicado?: number
+          pagamento_id?: string
+          resolucao?: Database["public"]["Enums"]["resolucao_diferenca"] | null
+          resolvido_em?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pagamento_diferenca_pagamento_id_fkey"
+            columns: ["pagamento_id"]
+            isOneToOne: true
+            referencedRelation: "pagamento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pagamento_documento: {
         Row: {
           documento_id: string
@@ -275,6 +436,39 @@ export type Database = {
           },
         ]
       }
+      quitacao_recusada: {
+        Row: {
+          compromisso_id: string
+          pagamento_id: string
+          recusado_em: string
+        }
+        Insert: {
+          compromisso_id: string
+          pagamento_id: string
+          recusado_em?: string
+        }
+        Update: {
+          compromisso_id?: string
+          pagamento_id?: string
+          recusado_em?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quitacao_recusada_compromisso_id_fkey"
+            columns: ["compromisso_id"]
+            isOneToOne: false
+            referencedRelation: "compromisso"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quitacao_recusada_pagamento_id_fkey"
+            columns: ["pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "pagamento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -285,6 +479,13 @@ export type Database = {
     Enums: {
       classificacao: "material" | "mao_obra"
       meio_pagamento: "pix" | "boleto" | "cartao"
+      origem_compromisso: "boleto" | "pix" | "cartao"
+      resolucao_diferenca:
+        | "nao_compoe_custo"
+        | "falta_documento"
+        | "multiplos_documentos"
+        | "erro_digitacao"
+      situacao_compromisso: "aberto" | "quitado" | "cancelado"
       status_documento: "registrado" | "quarentena" | "aguardando_pagamento"
       status_pagamento: "aguardando_nf" | "conciliado"
       tipo_documento: "nf_material" | "nf_servico" | "boleto"
@@ -421,6 +622,14 @@ export const Constants = {
     Enums: {
       classificacao: ["material", "mao_obra"],
       meio_pagamento: ["pix", "boleto", "cartao"],
+      origem_compromisso: ["boleto", "pix", "cartao"],
+      resolucao_diferenca: [
+        "nao_compoe_custo",
+        "falta_documento",
+        "multiplos_documentos",
+        "erro_digitacao",
+      ],
+      situacao_compromisso: ["aberto", "quitado", "cancelado"],
       status_documento: ["registrado", "quarentena", "aguardando_pagamento"],
       status_pagamento: ["aguardando_nf", "conciliado"],
       tipo_documento: ["nf_material", "nf_servico", "boleto"],

@@ -14,6 +14,8 @@ import {
   pagamentosOcultosPorCobertura,
   podeVincular,
   saldoDescobertoDaNota,
+  valorBloqueadoPorComprovante,
+  valorElegivelDoPagamento,
 } from "@/lib/fiscal/vinculo";
 import type { Documento, Pagamento } from "@/lib/types";
 
@@ -52,6 +54,12 @@ function pag(over: Partial<Pagamento> & { id: string }): Pagamento {
     favorecidoTipo: "pj",
     comprovantePath: "u/comprovante/pix.png",
     documentoIds: [],
+    // CONTAI-019: a esmagadora maioria dos pagamentos NÃO tem linha em
+    // `pagamento_diferenca` — sem encargo, sem diferença, sem resolução. É o
+    // caso normal, e é por isso que ele é o default do fixture.
+    encargosCentavos: 0,
+    naoExplicadoCentavos: 0,
+    resolucaoDiferenca: null,
     ...over,
   };
 }
@@ -792,5 +800,291 @@ describe("saldo a pagar da nota (sugestão do campo Valor)", () => {
   it("documento fora da alocação não sugere nada", () => {
     const nota = doc({ id: "d1", valorCentavos: 300_000 });
     expect(saldoDescobertoDaNota(nota, alocar([], []))).toBeNull();
+  });
+});
+
+
+// ══════════════════════════════════════════════════════════════════════════
+// CONTAI-019 · A ORDEM DO CÁLCULO (§F.3) — o item mais perigoso do ticket
+// ══════════════════════════════════════════════════════════════════════════
+
+describe("⚠️ critério 14b — o encargo sai ANTES do teto do mínimo", () => {
+  it("nota 10.400, pago 10.500 com 500 de mora → min(10.000; 10.400) = 10.000", () => {
+    // Os números são do parecer §F.3, `[Certain]`, e não são ilustrativos:
+    // são a prova de que a ordem não é cosmética.
+    const NOTA = 1_040_000; // R$ 10.400,00
+    const PAGO = 1_050_000; // R$ 10.500,00
+    const MORA = 50_000; //    R$    500,00
+
+    const a = alocar(
+      [doc({ id: "d1", valorCentavos: NOTA })],
+      [
+        pag({
+          id: "p1",
+          valorCentavos: PAGO,
+          encargosCentavos: MORA,
+          documentoIds: ["d1"],
+        }),
+      ],
+    );
+
+    const componente = a.componentes[0];
+    expect(componente.somaPagamentosCentavos, "Σ ELEGÍVEIS, não Σ pagos").toBe(
+      1_000_000,
+    );
+    expect(componente.custoComprovadoCentavos).toBe(1_000_000);
+
+    // ⚠️ A ASSERÇÃO QUE NOMEIA O BUG. Na ordem invertida — teto primeiro,
+    // encargo depois — o mínimo seria min(10.500; 10.400) = 10.400, e
+    // R$ 400,00 DE MORA ENTRARIAM COMO OBRA. É o risco nº 1 do pre-mortem
+    // acontecendo dentro da fórmula, e é a única classe de erro que gera
+    // passivo tributário (parecer de 17/08, §4).
+    const ordemInvertida = Math.min(PAGO, NOTA);
+    expect(ordemInvertida).toBe(1_040_000);
+    expect(
+      componente.custoComprovadoCentavos,
+      "ordem invertida daria min(10.500; 10.400) = 10.400, com R$ 400,00 de mora entrando como obra",
+    ).not.toBe(ordemInvertida);
+    expect(
+      ordemInvertida - componente.custoComprovadoCentavos,
+      "a diferença entre as duas ordens É a mora que teria virado custo de aquisição",
+    ).toBe(40_000);
+  });
+
+  it("critério 14 — 10.000 confirmado com 10.320: custo 10.000, os 320 fora", () => {
+    const a = alocar(
+      [doc({ id: "d1", valorCentavos: 1_000_000 })],
+      [
+        pag({
+          id: "p1",
+          valorCentavos: 1_032_000,
+          encargosCentavos: 32_000,
+          documentoIds: ["d1"],
+        }),
+      ],
+    );
+    expect(a.componentes[0].custoComprovadoCentavos).toBe(1_000_000);
+    expect(custoComprovadoDoAno(a, 2026)).toBe(1_000_000);
+
+    // "Registrados e FORA": os R$ 320 não viram custo e também NÃO viram
+    // "pago sem nota" — encargo fica fora para sempre e **sem pendência**,
+    // porque não há o que cobrar (§F.1). Cobrar a nota de um juro de mora
+    // seria cobrar um documento que não existe.
+    expect(a.porPagamento.get("p1")).toMatchObject({
+      elegivelCentavos: 1_000_000,
+      comprovadoCentavos: 1_000_000,
+      semNotaCentavos: 0,
+    });
+  });
+
+  it("o encargo sai mesmo sem nota nenhuma ligada — não vira 'pago sem nota'", () => {
+    const a = alocar([], [pag({ id: "p1", valorCentavos: 1_032_000, encargosCentavos: 32_000 })]);
+    expect(a.porPagamento.get("p1")).toMatchObject({
+      elegivelCentavos: 1_000_000,
+      comprovadoCentavos: 0,
+      semNotaCentavos: 1_000_000,
+    });
+  });
+});
+
+describe("valor MENOR que o previsto (critérios 28 e 29, adendo §D)", () => {
+  it("28 — 'quita': custo = R$ 9.500 (o pago) e ZERO resíduo", () => {
+    // A nota foi emitida pelo valor cheio (R$ 10.000). O teto do mínimo já
+    // acerta sozinho: Σ documentos > Σ pagamentos, e o custo é o pago.
+    // "Não há tratamento especial a escrever" (adendo §D).
+    const a = alocar(
+      [doc({ id: "d1", valorCentavos: 1_000_000 })],
+      [pag({ id: "p1", valorCentavos: 950_000, documentoIds: ["d1"] })],
+    );
+    expect(a.componentes[0].custoComprovadoCentavos).toBe(950_000);
+    expect(a.porPagamento.get("p1")?.semNotaCentavos, "sem resíduo").toBe(0);
+    // A sobra da NOTA não é custo (regime de caixa) e não é pendência fiscal.
+    expect(a.porDocumento.get("d1")?.excedenteNotaCentavos).toBe(50_000);
+  });
+
+  it("29 — 'falta pagar o resto': o saldo não é custo de ano NENHUM", () => {
+    const a = alocar(
+      [doc({ id: "d1", valorCentavos: 1_000_000 })],
+      [pag({ id: "p1", valorCentavos: 950_000, dataPagamento: "2026-08-12", documentoIds: ["d1"] })],
+    );
+    expect(custoComprovadoDoAno(a, 2026)).toBe(950_000);
+    for (const ano of [2025, 2027, 2028]) {
+      expect(custoComprovadoDoAno(a, ano), `saldo virando custo em ${ano}`).toBe(0);
+    }
+    // E o acumulado até o fim de qualquer ano também para nos R$ 9.500: o
+    // saldo "só vira custo se e quando sair da conta".
+    expect(custoComprovadoAteOAno(a, 2030)).toBe(950_000);
+  });
+});
+
+describe("diferença não explicada — quais resoluções voltam ao custo (§F.2)", () => {
+  const base = {
+    valorCentavos: 1_050_000, // pago
+    encargosCentavos: 20_000, // R$ 200 de encargo identificado
+    naoExplicadoCentavos: 30_000, // R$ 300 sem explicação
+  };
+
+  it("'não sei ainda' (null) deixa a diferença FORA — direção segura", () => {
+    expect(
+      valorElegivelDoPagamento(pag({ id: "p1", ...base, resolucaoDiferenca: null })),
+    ).toBe(1_000_000);
+  });
+
+  it("'não compõe custo da obra' deixa fora, definitivamente", () => {
+    expect(
+      valorElegivelDoPagamento(
+        pag({ id: "p1", ...base, resolucaoDiferenca: "nao_compoe_custo" }),
+      ),
+    ).toBe(1_000_000);
+  });
+
+  it("'é da obra e falta o documento' devolve ao elegível — vira 'pago sem nota'", () => {
+    const p = pag({ id: "p1", ...base, resolucaoDiferenca: "falta_documento" });
+    expect(valorElegivelDoPagamento(p)).toBe(1_030_000);
+    // §F.1: com nota de R$ 10.000 o custo NÃO se move hoje — o teto é a nota —
+    // mas os R$ 300 passam a ser risco REGISTRADO e cobrança a fazer.
+    const a = alocar([doc({ id: "d1", valorCentavos: 1_000_000 })], [
+      { ...p, documentoIds: ["d1"] },
+    ]);
+    expect(a.componentes[0].custoComprovadoCentavos).toBe(1_000_000);
+    expect(a.porPagamento.get("p1")?.semNotaCentavos).toBe(30_000);
+  });
+
+  it("§F.1 — chegando a nota do aditivo de R$ 300, o teto vira min(10.300; 10.300)", () => {
+    const p = pag({
+      id: "p1",
+      ...base,
+      resolucaoDiferenca: "falta_documento",
+      documentoIds: ["d1", "d2"],
+    });
+    const a = alocar(
+      [
+        doc({ id: "d1", valorCentavos: 1_000_000 }),
+        doc({ id: "d2", valorCentavos: 30_000 }),
+      ],
+      [p],
+    );
+    expect(a.componentes[0].custoComprovadoCentavos).toBe(1_030_000);
+    expect(a.porPagamento.get("p1")?.semNotaCentavos).toBe(0);
+  });
+
+  it("'o pagamento cobriu mais de um documento' devolve ao elegível", () => {
+    expect(
+      valorElegivelDoPagamento(
+        pag({ id: "p1", ...base, resolucaoDiferenca: "multiplos_documentos" }),
+      ),
+    ).toBe(1_030_000);
+  });
+
+  it("⚠️ 'errei o valor digitado' NÃO é classificação fiscal: fica fora", () => {
+    // §F.2, item 4: é correção do registro com rastro (CONTAI-021). Tratá-la
+    // como resolvida faria o dinheiro voltar ao custo sem que nada tivesse
+    // mudado no mundo.
+    expect(
+      valorElegivelDoPagamento(
+        pag({ id: "p1", ...base, resolucaoDiferenca: "erro_digitacao" }),
+      ),
+    ).toBe(1_000_000);
+  });
+});
+
+describe("pagamento sem comprovante (critérios 46-47)", () => {
+  it("elegível é ZERO — grava, mas não entra no custo confirmado", () => {
+    const p = pag({ id: "p1", comprovantePath: null, valorCentavos: 1_000_000 });
+    expect(valorElegivelDoPagamento(p)).toBe(0);
+  });
+
+  it("⚠️ o mesmo dinheiro NÃO aparece em duas pendências", () => {
+    // Como o elegível é 0, `semNotaCentavos` também é 0: a exposição desse
+    // pagamento é "pago sem comprovante", e só ela. Sem isto, um PIX de
+    // R$ 10.000 sem comprovante e sem nota apareceria como R$ 20.000.
+    const a = alocar([], [pag({ id: "p1", comprovantePath: null, valorCentavos: 1_000_000 })]);
+    expect(a.porPagamento.get("p1")).toMatchObject({
+      elegivelCentavos: 0,
+      comprovadoCentavos: 0,
+      semNotaCentavos: 0,
+    });
+    expect(valorBloqueadoPorComprovante(a.componentes[0].pagamentos[0])).toBe(1_000_000);
+  });
+
+  it("com comprovante, nada fica bloqueado por ele", () => {
+    expect(valorBloqueadoPorComprovante(pag({ id: "p1" }))).toBe(0);
+  });
+
+  it("o bloqueado desconta encargo e diferença — as parcelas particionam o pago", () => {
+    const p = pag({
+      id: "p1",
+      comprovantePath: null,
+      valorCentavos: 1_050_000,
+      encargosCentavos: 20_000,
+      naoExplicadoCentavos: 30_000,
+    });
+    expect(valorBloqueadoPorComprovante(p)).toBe(1_000_000);
+    expect(valorElegivelDoPagamento(p)).toBe(0);
+  });
+
+  it("sem comprovante o pagamento CONTINUA candidato a receber uma nota", () => {
+    // Ligar a nota é sempre permitido; o que o comprovante decide é o custo,
+    // não o vínculo. Se o seletor lesse a exposição fiscal, o pagamento sumiria
+    // da lista e o app ficaria calado sobre o motivo.
+    const documento = doc({ id: "d1", valorCentavos: 1_000_000 });
+    const pagamento = pag({ id: "p1", comprovantePath: null, valorCentavos: 1_000_000 });
+    const a = alocar([documento], [pagamento]);
+    expect(
+      pagamentosCandidatos(documento, [pagamento], a).map((c) => c.item.id),
+    ).toEqual(["p1"]);
+  });
+
+  it("pagamento conciliado COM encargo some do seletor, como qualquer coberto", () => {
+    // A base do seletor é o valor cheio MENOS os encargos: juros e multa nunca
+    // terão documento (§F.1), e mantê-los aqui mandaria o Mateus procurar a
+    // nota de um juro para sempre.
+    const documento = doc({ id: "d1", valorCentavos: 1_000_000 });
+    const pagamento = pag({
+      id: "p1",
+      valorCentavos: 1_032_000,
+      encargosCentavos: 32_000,
+      documentoIds: ["d1"],
+    });
+    const a = alocar([documento], [pagamento]);
+    const outra = doc({ id: "d2", valorCentavos: 500_000 });
+    expect(
+      pagamentosCandidatos(outra, [pagamento], a).map((c) => c.item.id),
+      "pagamento coberto por inteiro não é candidato a nada (CONTAI-018, crit. 15)",
+    ).toEqual([]);
+  });
+});
+
+describe("⚠️ o grafo de alocarCusto não tem nó de compromisso (§2, item 7)", () => {
+  it("a entrada tem DOIS campos, e nenhum deles é compromisso", () => {
+    const documentos = [doc({ id: "d1" })];
+    const pagamentos = [pag({ id: "p1", documentoIds: ["d1"] })];
+
+    // Prova de tipo: passar compromisso não compila. Se alguém acrescentar o
+    // campo a `EntradaAlocacao`, este `@ts-expect-error` vira erro de
+    // "unused directive" e o typecheck acusa — a proteção é de TIPO, não de
+    // atenção (parecer §2; critério 3).
+    alocarCusto({
+      documentos,
+      pagamentos,
+      // @ts-expect-error compromisso não é nó do grafo de custo
+      compromissos: [],
+    });
+
+    const a = alocarCusto({ documentos, pagamentos });
+    expect(Object.keys(a).sort()).toEqual([
+      "componentes",
+      "porDocumento",
+      "porPagamento",
+    ]);
+    // O componente só conhece pagamento e documento — não há terceira lista.
+    expect(Object.keys(a.componentes[0]).sort()).toEqual([
+      "custoComprovadoCentavos",
+      "documentos",
+      "id",
+      "pagamentos",
+      "somaDocumentosHabeisCentavos",
+      "somaPagamentosCentavos",
+    ]);
   });
 });

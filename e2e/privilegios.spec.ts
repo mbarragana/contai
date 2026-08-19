@@ -36,6 +36,31 @@ const ESPERADO: Record<string, string> = {
   // custo de aquisição que vai para a declaração. `documento` e `pagamento`
   // continuam sem DELETE.
   pagamento_documento: "DELETE,INSERT,SELECT",
+
+  // ── CONTAI-019 (migration 0007) ────────────────────────────────────────
+  // As cinco nascem aqui, e as cinco precisaram de `revoke` ANTES do `grant`:
+  // tabela criada no stack local do CLI sai com tudo liberado para `anon` e
+  // `authenticated` pelo `alter default privileges`, e no remoto sai com nada.
+  // Sem o revoke, este teste passaria verde num banco mais permissivo que a
+  // produção — que é exatamente o incidente de 2026-08-17.
+  //
+  // UPDATE serve a três atos: quitar/cancelar (`situacao`), "mudou a data"
+  // (`data_prevista`) e `motivo_cancelamento`. Sem DELETE: previsão que não se
+  // realizou vira 'cancelado' COM MOTIVO, nunca apagada (parecer §3).
+  compromisso: "INSERT,SELECT,UPDATE",
+  // Só leitura e escrita: desfazer uma quitação é ticket com parecer, e
+  // privilégio sem caminho na interface é superfície à toa.
+  compromisso_pagamento: "INSERT,SELECT",
+  // O rastro de "mudou a data". Sem UPDATE e sem DELETE — apagar rastro é o
+  // oposto do que ele existe para fazer.
+  compromisso_data_historico: "INSERT,SELECT",
+  // UPDATE é da RESOLUÇÃO da diferença (`resolucao` + `resolvido_em`), que
+  // muda com o tempo. O VALOR da diferença nunca muda (critério 32) e o DELETE
+  // não existe: "resolver não apaga o registro da diferença".
+  pagamento_diferenca: "INSERT,SELECT,UPDATE",
+  // O "não" da sugestão de quitação, por par. Registrado para não ser
+  // reperguntado — logo, nunca apagado.
+  quitacao_recusada: "INSERT,SELECT",
 };
 
 test.describe("privilégios do schema public", () => {

@@ -1,5 +1,8 @@
+import { readdirSync, readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
+import { podeGerarRelatorioAnual } from "@/lib/fiscal/compromisso";
 import { calcularResumo, type EntradaResumo } from "@/lib/fiscal/resumo";
 import type { Documento, Obra, Pagamento } from "@/lib/types";
 
@@ -54,6 +57,12 @@ function pag(over: Partial<Pagamento> & { id: string }): Pagamento {
     favorecidoNome: "AJE Construções",
     favorecidoTipo: "pj",
     comprovantePath: "u/comprovante/a.pdf",
+    // CONTAI-019: a esmagadora maioria dos pagamentos NÃO tem linha em
+    // `pagamento_diferenca` — sem encargo, sem diferença, sem resolução. É o
+    // caso normal, e é por isso que ele é o default do fixture.
+    encargosCentavos: 0,
+    naoExplicadoCentavos: 0,
+    resolucaoDiferenca: null,
     documentoIds: [],
     ...over,
   };
@@ -515,5 +524,244 @@ describe("há registro na obra?", () => {
     });
     expect(r.temRegistro).toBe(true);
     expect(r.custoConfirmadoAnoCentavos).toBe(0);
+  });
+});
+
+
+// ══════════════════════════════════════════════════════════════════════════
+// CONTAI-019 · as pendências novas
+// ══════════════════════════════════════════════════════════════════════════
+
+describe("pendência 'pago sem comprovante' (critérios 46-47)", () => {
+  it("PJ: âmbar, com o texto literal do ADENDO 2 §5", () => {
+    const r = resumo({
+      pagamentos: [
+        pag({ id: "p1", comprovantePath: null, valorCentavos: 1_000_000 }),
+      ],
+    });
+    const pend = r.pendencias.find((p) => p.tipo === "pago_sem_comprovante");
+    expect(pend?.gravidade).toBe("amb");
+    expect(pend?.valorCentavos).toBe(1_000_000);
+    expect(pend?.consequencia).toBe(
+      "pago sem comprovante — o custo existe, ainda não está demonstrável",
+    );
+  });
+
+  it("PF: VERMELHA — o comprovante é constitutivo, não acessório", () => {
+    const r = resumo({
+      pagamentos: [
+        pag({
+          id: "p1",
+          comprovantePath: null,
+          favorecidoTipo: "pf",
+          favorecidoNome: "João da Silva",
+          valorCentavos: 280_000,
+        }),
+      ],
+    });
+    const pend = r.pendencias.find((p) => p.tipo === "pago_sem_comprovante");
+    expect(pend?.gravidade).toBe("red");
+    expect(pend?.consequencia).toBe(
+      "sem o comprovante da transferência, este recibo não sustenta custo nenhum",
+    );
+  });
+
+  it("⚠️ não entra no custo confirmado, e não vira TAMBÉM 'pago sem nota'", () => {
+    const r = resumo({
+      pagamentos: [
+        pag({ id: "p1", comprovantePath: null, valorCentavos: 1_000_000 }),
+      ],
+    });
+    expect(r.custoConfirmadoAnoCentavos).toBe(0);
+    expect(r.pendencias.filter((p) => p.tipo === "pago_sem_nota")).toEqual([]);
+    // O mesmo dinheiro em UMA pendência só: a exposição é R$ 10.000, não
+    // R$ 20.000.
+    expect(r.emPendenciaCentavos).toBe(1_000_000);
+  });
+
+  it("com comprovante, a pendência não existe", () => {
+    const r = resumo({
+      documentos: [doc({ id: "d1", valorCentavos: 1_000_000 })],
+      pagamentos: [pag({ id: "p1", valorCentavos: 1_000_000, documentoIds: ["d1"] })],
+    });
+    expect(r.pendencias.filter((p) => p.tipo === "pago_sem_comprovante")).toEqual([]);
+    expect(r.custoConfirmadoAnoCentavos).toBe(1_000_000);
+  });
+});
+
+describe("pendência 'Diferença sem explicação' (critérios 31, 31c, 31e)", () => {
+  /** O cenário do critério 31: R$ 10.500 pagos, R$ 200 de encargo, R$ 300 sem explicação. */
+  const cenario = (over: Partial<Parameters<typeof pag>[0]> = {}) =>
+    resumo({
+      documentos: [doc({ id: "d1", valorCentavos: 1_000_000 })],
+      pagamentos: [
+        pag({
+          id: "p1",
+          valorCentavos: 1_050_000,
+          encargosCentavos: 20_000,
+          naoExplicadoCentavos: 30_000,
+          documentoIds: ["d1"],
+          ...over,
+        }),
+      ],
+    });
+
+  it("⚠️ aparece no BLOCO DE PENDÊNCIAS FISCAIS, em vermelho, com R$ 300,00", () => {
+    // Critério 31: o dinheiro JÁ SAIU. O que o parecer §2.5 mantém fora deste
+    // bloco é o COMPROMISSO, porque nada saiu. Regra de cor mono-semântica:
+    // vermelho = dinheiro que saiu e não está no custo; âmbar = nada saiu ainda.
+    const r = cenario();
+    const pend = r.pendencias.find((p) => p.tipo === "diferenca_sem_explicacao");
+    expect(pend?.gravidade).toBe("red");
+    expect(pend?.valorCentavos).toBe(30_000);
+    expect(pend?.chip).toBe("Diferença sem explicação");
+  });
+
+  it("a consequência é o texto LITERAL do §F.4, com o valor interpolado", () => {
+    const pend = cenario().pendencias.find(
+      (p) => p.tipo === "diferenca_sem_explicacao",
+    );
+    expect(pend?.consequencia).toContain("do que você pagou ainda estão sem explicação.");
+    expect(pend?.consequencia).toContain("ficam fora para sempre — e não há o que cobrar");
+    expect(pend?.consequencia).toContain("contam como pago sem nota");
+    // ⚠️ NÃO ancora no previsto: previsão não decide custo nenhum.
+    expect(pend?.consequencia).not.toContain("previsto");
+  });
+
+  it("resolvida como 'não compõe custo' some da home — não há o que cobrar", () => {
+    const r = cenario({ resolucaoDiferenca: "nao_compoe_custo" });
+    expect(r.pendencias.filter((p) => p.tipo === "diferenca_sem_explicacao")).toEqual([]);
+    expect(r.custoConfirmadoAnoCentavos).toBe(1_000_000);
+  });
+
+  it("resolvida como 'falta o documento' vira 'pago sem nota' pelo valor da diferença", () => {
+    const r = cenario({ resolucaoDiferenca: "falta_documento" });
+    expect(r.pendencias.filter((p) => p.tipo === "diferenca_sem_explicacao")).toEqual([]);
+    const semNota = r.pendencias.find((p) => p.tipo === "pago_sem_nota");
+    expect(semNota?.valorCentavos).toBe(30_000);
+    // §F.1: o número do custo NÃO se move hoje — o teto é a nota de R$ 10.000.
+    expect(r.custoConfirmadoAnoCentavos).toBe(1_000_000);
+  });
+
+  it("⚠️ 'errei o valor digitado' NÃO resolve: a pendência continua de pé", () => {
+    // §F.2, item 4: não é classificação fiscal, é correção de registro com
+    // rastro (CONTAI-021). Sumir com o alerta sem que nada mudou no mundo é o
+    // oposto do que ele existe para fazer.
+    const r = cenario({ resolucaoDiferenca: "erro_digitacao" });
+    expect(
+      r.pendencias.find((p) => p.tipo === "diferenca_sem_explicacao")?.valorCentavos,
+    ).toBe(30_000);
+  });
+
+  it("⚠️ 31b — diferença sem resposta NÃO bloqueia o relatório anual", () => {
+    // Ao contrário do compromisso vencido (critério 21): aqui o fato consumado
+    // já está registrado e o único erro possível SUBESTIMA o custo. Ela entra
+    // na lista de revisão pré-declaração, não no bloqueio.
+    const r = cenario();
+    expect(r.pendencias.some((p) => p.tipo === "diferenca_sem_explicacao")).toBe(true);
+    expect(
+      podeGerarRelatorioAnual([], "2026-08-18", 2026),
+      "o bloqueio anual só conhece COMPROMISSO — pagamento com diferença não entra nele",
+    ).toEqual({ ok: true });
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// ⚠️ OS OITO LUGARES onde compromisso NÃO pode aparecer (parecer §2)
+//
+// "Não pode aparecer, em nenhuma hipótese" `[Certain]`. A proteção é de TIPO,
+// não de atenção (critério 3): o que estes testes provam não é que o número
+// deu zero — é que NÃO EXISTE CAMINHO de código para o compromisso chegar lá.
+// ══════════════════════════════════════════════════════════════════════════
+
+describe("os oito lugares (parecer §2, itens 1 a 8)", () => {
+  const painel = {
+    documentos: [doc({ id: "d1", valorCentavos: 1_000_000 })],
+    pagamentos: [pag({ id: "p1", valorCentavos: 1_000_000, documentoIds: ["d1"] })],
+  };
+
+  it("1 · custo confirmado e acumulado: `EntradaResumo` não tem compromisso", () => {
+    const r = calcularResumo({
+      obra: OBRA,
+      ...painel,
+      ano: 2026,
+      // @ts-expect-error compromisso não entra em cálculo de custo nenhum
+      compromissos: [],
+    });
+    expect(r.custoConfirmadoAnoCentavos).toBe(1_000_000);
+    expect(r.acumuladoImovelCentavos).toBe(
+      OBRA.valorTerrenoCentavos + 1_000_000,
+    );
+  });
+
+  it("2, 3 e 4 · discriminação, Pagamentos Efetuados e aferição INSS", () => {
+    // ⚠️ AS TRÊS FUNÇÕES AINDA NÃO EXISTEM (US-004 e o SERO são tickets
+    // futuros). O que este teste tranca é a AUSÊNCIA DE CAMINHO: nenhum módulo
+    // de `lib/fiscal/` além do próprio `compromisso.ts` sequer NOMEIA o tipo
+    // `Compromisso`. No dia em que a discriminação de Bens e Direitos nascer,
+    // ela só conseguirá receber um compromisso importando o tipo — e este
+    // teste fica vermelho com o nome do arquivo, ANTES de qualquer número
+    // errado ir para uma declaração.
+    const dir = "lib/fiscal";
+    const proibidos = readdirSync(dir).filter(
+      (f) =>
+        f.endsWith(".ts") && !f.endsWith(".test.ts") && f !== "compromisso.ts",
+    );
+    expect(proibidos.length).toBeGreaterThan(3); // o teste vale alguma coisa
+    for (const arquivo of proibidos) {
+      const fonte = readFileSync(`${dir}/${arquivo}`, "utf-8");
+      expect(
+        /\bCompromisso\b/.test(fonte),
+        `${arquivo} passou a conhecer o tipo Compromisso — parecer §2, itens 2, 3 e 4`,
+      ).toBe(false);
+    }
+  });
+
+  it("5 · 'pago sem nota' e qualquer pendência fiscal só olham pagamento", () => {
+    const r = calcularResumo({ obra: OBRA, ...painel, ano: 2026 });
+    for (const p of r.pendencias) {
+      expect(p.id.startsWith("compromisso")).toBe(false);
+    }
+    // Não há fato consumado num compromisso, logo não há risco fiscal — o
+    // vencido é ÂMBAR e mora no bloco de agendados, fora daqui (critério 19).
+    expect(r.pendencias.map((p) => p.tipo)).not.toContain("compromisso_vencido");
+  });
+
+  it("6 · o TERCEIRO NÚMERO é composto por documentos, não por previsões", () => {
+    const r = calcularResumo({
+      obra: OBRA,
+      documentos: [doc({ id: "d1", valorCentavos: 300_000 })],
+      pagamentos: [],
+      ano: 2026,
+    });
+    expect(r.notasSemPagamentoCentavos).toBe(300_000);
+    for (const n of r.notasSemPagamento) {
+      expect(n.href.startsWith("/documento/")).toBe(true);
+    }
+  });
+
+  it("7 · o grafo de `alocarCusto` não tem nó de compromisso", () => {
+    // A prova está em `vinculo.test.ts` (`@ts-expect-error` na entrada de
+    // `alocarCusto` + a forma do componente). Aqui fica o elo: o resumo inteiro
+    // vem daquele grafo, então o que não entra lá não entra em número nenhum.
+    const r = calcularResumo({ obra: OBRA, ...painel, ano: 2026 });
+    expect(Object.keys(r.alocacao).sort()).toEqual([
+      "componentes",
+      "porDocumento",
+      "porPagamento",
+    ]);
+  });
+
+  it("8 · qualquer soma mista: nem `resumo.ts` nem `vinculo.ts` importam compromisso", () => {
+    // "Não existe 'total previsto + realizado' em lugar nenhum do app."
+    // A dependência é de mão única — compromisso pode olhar pagamento; cálculo
+    // de custo não olha compromisso.
+    for (const arquivo of ["resumo.ts", "vinculo.ts"]) {
+      const fonte = readFileSync(`lib/fiscal/${arquivo}`, "utf-8");
+      expect(
+        /from ["']\.\/compromisso["']/.test(fonte),
+        `${arquivo} passou a importar lib/fiscal/compromisso — é assim que nasce a soma mista`,
+      ).toBe(false);
+    }
   });
 });

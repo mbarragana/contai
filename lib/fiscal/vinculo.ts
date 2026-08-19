@@ -25,7 +25,7 @@
  * como a única direção de erro que produz passivo tributário.
  */
 
-import type { Documento, Pagamento } from "@/lib/types";
+import type { Documento, Pagamento, ResolucaoDiferenca } from "@/lib/types";
 import { anoCalendario } from "./pagamento";
 
 /**
@@ -99,6 +99,106 @@ export const MOTIVO_OBRA_DIFERENTE =
   "entre obras — cada matrícula é um item da declaração. Corrija a obra de um " +
   "dos dois antes de ligar.";
 
+// ── O valor ELEGÍVEL do pagamento (CONTAI-019, §F.3) ─────────────────────
+
+/**
+ * O que o pagamento tem de "obra" antes de encontrar qualquer documento.
+ *
+ * Este pedaço de código é o item 14b do CONTAI-019 e, nas palavras do próprio
+ * ticket, "o único que passa por todos os testes de comportamento estando
+ * errado". A regra, `[Certain]` no parecer §F.3:
+ *
+ *     pagamento elegível = pago − encargos − (diferença que não compõe custo)
+ *     custo comprovado do conjunto = min(Σ elegíveis, Σ documentos hábeis)
+ *
+ * ⚠️ **O ENCARGO SAI DO PAGAMENTO ANTES DO TETO DO MÍNIMO, NUNCA DEPOIS.**
+ * Prova de que a ordem não é cosmética (§F.3, com estes números): nota de
+ * R$ 10.400, pago R$ 10.500 com R$ 500 de mora. Na ordem certa,
+ * `min(10.000; 10.400) = 10.000`. Na ordem invertida,
+ * `min(10.500; 10.400) = 10.400` — **R$ 400 de mora entrando como obra**, que
+ * é o risco nº 1 do pre-mortem acontecendo dentro da fórmula.
+ *
+ * Por isso a subtração mora AQUI, na entrada de `alocarCusto`, e não numa
+ * correção depois: não existe caminho em que a soma do componente veja o valor
+ * cheio.
+ */
+type ComposicaoPagamento = Pick<
+  Pagamento,
+  | "valorCentavos"
+  | "encargosCentavos"
+  | "naoExplicadoCentavos"
+  | "resolucaoDiferenca"
+  | "comprovantePath"
+>;
+
+/**
+ * A diferença não explicada volta a contar como custo (ainda não comprovado)?
+ *
+ * Mapa do §F.2, e ele é fechado:
+ * - `null` — "não sei ainda": **fora**. É o único estado inicial permitido, e
+ *   a direção segura é subestimar.
+ * - `nao_compoe_custo` — mora, taxa, item não incorporado: **fora
+ *   definitivamente**, e sem pendência: não há o que cobrar.
+ * - `falta_documento` — é da obra e falta o documento: **dentro**, e o teto do
+ *   mínimo a empurra para "pago sem nota", que é pendência acionável enquanto
+ *   ainda há parcela a liberar (§F.1).
+ * - `multiplos_documentos` — o pagamento cobriu mais de um documento:
+ *   **dentro**. É o único caminho que aumenta o custo no ato, e ele se resolve
+ *   por VÍNCULO: contando aqui, o custo sobe assim que o segundo documento
+ *   hábil entra no conjunto conexo.
+ * - `erro_digitacao` — **não é classificação fiscal** (§F.2, item 4). Tratado
+ *   exatamente como "não sei ainda": fora, até a correção com rastro do
+ *   CONTAI-021 acontecer. Deixá-lo "dentro" seria dar efeito fiscal a uma
+ *   resposta que só diz "o registro está errado".
+ */
+function diferencaContaComoCusto(
+  resolucao: ResolucaoDiferenca | null,
+): boolean {
+  return resolucao === "falta_documento" || resolucao === "multiplos_documentos";
+}
+
+/** Encargos + a diferença que hoje não compõe custo. */
+function parteForaDoCusto(p: ComposicaoPagamento): number {
+  const diferencaFora = diferencaContaComoCusto(p.resolucaoDiferenca)
+    ? 0
+    : p.naoExplicadoCentavos;
+  return p.encargosCentavos + diferencaFora;
+}
+
+/**
+ * ⚠️ **Sem comprovante, o elegível é ZERO** (critérios 46-47 do CONTAI-019 e
+ * ADENDO 2 do parecer). O pagamento GRAVA — *nunca recuse o registro de um
+ * fato consumado* — mas **não entra no custo confirmado** até o comprovante
+ * existir.
+ *
+ * Consequência intencional, e ela é o motivo de o zero ser aqui e não numa
+ * pendência à parte: como o elegível é 0, `semNotaCentavos` também é 0, e
+ * **o mesmo dinheiro não aparece em duas pendências**. A exposição desse
+ * pagamento é "pago sem comprovante" (com o peso do §5 do ADENDO 2: âmbar para
+ * PJ, vermelho para PF, onde o comprovante é constitutivo) — e só ela. Sem
+ * isso, um PIX de R$ 10.000 sem comprovante e sem nota apareceria como
+ * R$ 20.000 de exposição.
+ */
+export function valorElegivelDoPagamento(p: ComposicaoPagamento): number {
+  if (p.comprovantePath === null) return 0;
+  return Math.max(0, p.valorCentavos - parteForaDoCusto(p));
+}
+
+/**
+ * O que ESTE pagamento colocaria no custo se o comprovante existisse — e que
+ * hoje está fora só por causa dele. É o valor da pendência "pago sem
+ * comprovante".
+ *
+ * Note que ele NÃO é o valor cheio do pagamento: encargos e diferença sem
+ * explicação continuam fora por seus próprios motivos, e cada um aparece na
+ * sua própria linha. As três parcelas particionam o pagamento exatamente, sem
+ * somar o mesmo dinheiro duas vezes.
+ */
+export function valorBloqueadoPorComprovante(p: ComposicaoPagamento): number {
+  if (p.comprovantePath !== null) return 0;
+  return Math.max(0, p.valorCentavos - parteForaDoCusto(p));
+}
+
 // ── Guarda do critério 11 ────────────────────────────────────────────────
 
 export type Permissao = { ok: true } | { ok: false; motivo: string };
@@ -125,9 +225,22 @@ export function podeVincular(
 
 export interface PagamentoAlocado {
   pagamento: Pagamento;
+  /**
+   * O que deste pagamento pode virar custo: pago − encargos − diferença fora,
+   * e ZERO sem comprovante. É este número, nunca `valorCentavos`, que entra na
+   * soma do componente (§F.3 — a ordem é critério).
+   */
+  elegivelCentavos: number;
   /** Parte deste pagamento coberta por documento hábil — vira custo. */
   comprovadoCentavos: number;
-  /** O que sobra: exposição "pago sem nota" (parecer §3). */
+  /**
+   * O que sobra DO ELEGÍVEL: exposição "pago sem nota" (parecer §3).
+   *
+   * Sai do elegível, e não do valor cheio, de propósito: encargo não é "pago
+   * sem nota" — é dinheiro que fica fora do custo PARA SEMPRE e **sem
+   * pendência**, porque não há o que cobrar (§F.1). Cobrar nota de juros de
+   * mora seria cobrar um documento que não existe.
+   */
   semNotaCentavos: number;
 }
 
@@ -150,6 +263,7 @@ export interface Componente {
   id: string;
   pagamentos: Pagamento[];
   documentos: Documento[];
+  /** Σ dos valores ELEGÍVEIS (§F.3), nunca dos valores cheios. */
   somaPagamentosCentavos: number;
   /** Só documentos HÁBEIS somam aqui. */
   somaDocumentosHabeisCentavos: number;
@@ -268,7 +382,12 @@ export function alocarCusto(entrada: EntradaAlocacao): Alocacao {
 
   for (const [id, { pagamentos: pags, documentos: docs }] of grupos) {
     const ordenados = [...pags].sort(cronologico);
-    const somaPagamentos = ordenados.reduce((s, p) => s + p.valorCentavos, 0);
+    // ⚠️ ELEGÍVEL, não `valorCentavos` — a subtração dos encargos acontece
+    // ANTES do `Math.min` lá embaixo, e é isso que o critério 14b exige.
+    const somaPagamentos = ordenados.reduce(
+      (s, p) => s + valorElegivelDoPagamento(p),
+      0,
+    );
     const habeis = docs.filter(ehDocumentoHabil);
     const somaHabeis = habeis.reduce((s, d) => s + valorDocumento(d), 0);
     const custoComprovado = Math.min(somaPagamentos, somaHabeis);
@@ -285,14 +404,19 @@ export function alocarCusto(entrada: EntradaAlocacao): Alocacao {
     // Reparte o custo comprovado entre os pagamentos, do mais antigo para o
     // mais novo. É o que faz o custo cair no ano certo quando o componente
     // cruza anos-calendário (regime de caixa).
+    //
+    // A repartição também é pelo ELEGÍVEL: um pagamento com encargo absorve
+    // até o principal dele, nunca até o valor cheio.
     let aDistribuir = custoComprovado;
     for (const p of ordenados) {
-      const comprovado = Math.min(p.valorCentavos, aDistribuir);
+      const elegivel = valorElegivelDoPagamento(p);
+      const comprovado = Math.min(elegivel, aDistribuir);
       aDistribuir -= comprovado;
       porPagamento.set(p.id, {
         pagamento: p,
+        elegivelCentavos: elegivel,
         comprovadoCentavos: comprovado,
-        semNotaCentavos: p.valorCentavos - comprovado,
+        semNotaCentavos: elegivel - comprovado,
       });
     }
 
@@ -438,12 +562,35 @@ function rotular(favorecidoIgual: boolean, valorIgual: boolean): string | null {
   return null;
 }
 
-/** Sobra parte deste pagamento sem nota? Só quem tem saldo é candidato. */
+/**
+ * Sobra parte deste pagamento sem nota? Só quem tem saldo é candidato.
+ *
+ * ⚠️ Aqui a conta NÃO é sobre `semNotaCentavos`, que sai do elegível: é sobre
+ * a base DOCUMENTÁVEL (ver abaixo) menos o comprovado. A pergunta desta função é
+ * DOCUMENTAL ("ainda cabe ligar uma nota a este pagamento?"), não fiscal
+ * ("quanto dele está exposto?").
+ *
+ * A diferença aparece exatamente no caso do CONTAI-019: pagamento gravado SEM
+ * comprovante tem elegível 0 e, portanto, `semNotaCentavos` 0. Se o seletor
+ * lesse a exposição, ele sumiria da lista de candidatos — e o Mateus não
+ * conseguiria ligar a NF que já tem enquanto não achasse o comprovante do PIX,
+ * com o app calado sobre o motivo. Ligar a nota é sempre permitido; o que o
+ * comprovante decide é o custo, não o vínculo.
+ */
 function temSaldoSemNota(pagamento: Pagamento, alocacao: Alocacao): boolean {
-  return (
-    (alocacao.porPagamento.get(pagamento.id)?.semNotaCentavos ??
-      pagamento.valorCentavos) > 0
-  );
+  const comprovado = alocacao.porPagamento.get(pagamento.id)?.comprovadoCentavos ?? 0;
+  // Base DOCUMENTÁVEL: o que deste pagamento ainda pode receber uma nota.
+  // - **encargos saem**: juros e multa de mora nunca terão documento, e o §F.1
+  //   é explícito em que eles ficam fora "para sempre e SEM PENDÊNCIA — não há
+  //   o que cobrar". Somá-los aqui manteria um pagamento com R$ 320 de mora
+  //   para sempre na lista de candidatos, mandando o Mateus procurar a nota de
+  //   um juro. Foi o furo da primeira versão desta função.
+  // - **a diferença sem explicação FICA**: ligar uma nota é exatamente como
+  //   ela se explica (§F.2, resoluções 2 e 3 — "o pagamento cobriu mais de um
+  //   documento" só se resolve por vínculo).
+  // - **o comprovante NÃO entra na conta**: ele decide o CUSTO, não o vínculo.
+  const baseDocumentavel = pagamento.valorCentavos - pagamento.encargosCentavos;
+  return baseDocumentavel - comprovado > 0;
 }
 
 /** Sobra parte desta nota sem pagamento? Documento não hábil sempre sobra. */

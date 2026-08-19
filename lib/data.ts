@@ -6,6 +6,7 @@
  * fora daqui.
  */
 
+import { podeQuitar } from "@/lib/fiscal/compromisso";
 import { podeVincular } from "@/lib/fiscal/vinculo";
 import { numericParaCentavos, centavosParaNumeric } from "@/lib/money";
 import {
@@ -15,6 +16,11 @@ import {
   SemSessaoError,
 } from "@/lib/supabase";
 import type {
+  Compromisso,
+  CompromissoDataHistoricoRow,
+  CompromissoInsert,
+  CompromissoPagamentoRow,
+  CompromissoRow,
   Documento,
   DocumentoInsert,
   DocumentoRow,
@@ -22,10 +28,14 @@ import type {
   Obra,
   ObraInsert,
   ObraRow,
+  OrigemCompromisso,
   Pagamento,
+  PagamentoDiferencaRow,
   PagamentoDocumentoRow,
   PagamentoInsert,
   PagamentoRow,
+  QuitacaoRecusadaRow,
+  ResolucaoDiferenca,
   TipoFavorecido,
 } from "@/lib/types";
 
@@ -40,6 +50,12 @@ type ComFavorecido = {
 type ComFavorecidoTipado = {
   favorecido: { nome: string; tipo: TipoFavorecido } | null;
 };
+/**
+ * Compromisso só precisa do NOME para a agenda. O `favorecido_id` continua
+ * sendo a identidade — o casamento da sugestão de quitação é por ele, nunca
+ * por nome (adendo §C: "CNPJ errado não é typo, é outro favorecido").
+ */
+type ComFavorecidoSimples = { favorecido: { nome: string } | null };
 
 /**
  * Obra pedida por id que não existe (link velho, obra apagada em outro
@@ -90,11 +106,32 @@ function paraDocumento(row: DocumentoRow & ComFavorecido): Documento {
   };
 }
 
+/**
+ * A composição do desembolso vem da tabela `pagamento_diferenca` (1:1), e não
+ * de colunas de `pagamento` — critério 2 do CONTAI-019. Quem não tem linha lá
+ * chega aqui com 0/0/null, que é o caso da esmagadora maioria dos pagamentos.
+ */
+const SEM_DIFERENCA = {
+  encargosCentavos: 0,
+  naoExplicadoCentavos: 0,
+  resolucaoDiferenca: null,
+} as const;
+
+function paraDiferenca(row: PagamentoDiferencaRow) {
+  return {
+    encargosCentavos: numericParaCentavos(row.encargos) ?? 0,
+    naoExplicadoCentavos: numericParaCentavos(row.nao_explicado) ?? 0,
+    resolucaoDiferenca: row.resolucao,
+  };
+}
+
 function paraPagamento(
   row: PagamentoRow & ComFavorecidoTipado,
   documentoIds: string[],
+  diferenca: PagamentoDiferencaRow | undefined,
 ): Pagamento {
   return {
+    ...(diferenca ? paraDiferenca(diferenca) : SEM_DIFERENCA),
     id: row.id,
     obraId: row.obra_id,
     valorCentavos: numericParaCentavos(row.valor) ?? 0,
@@ -210,6 +247,12 @@ export interface PainelDados {
   pagamentos: Pagamento[];
 }
 
+function indexarDiferencas(
+  linhas: PagamentoDiferencaRow[],
+): Map<string, PagamentoDiferencaRow> {
+  return new Map(linhas.map((d) => [d.pagamento_id, d]));
+}
+
 function agruparVinculos(linhas: PagamentoDocumentoRow[]): Map<string, string[]> {
   const docsPorPagamento = new Map<string, string[]>();
   for (const v of linhas) {
@@ -230,7 +273,7 @@ export async function carregarPainel(obraId: string): Promise<PainelDados> {
   const supabase = getSupabase();
   const obra = await carregarObra(obraId);
 
-  const [documentos, pagamentos, vinculos] = await Promise.all([
+  const [documentos, pagamentos, vinculos, diferencas] = await Promise.all([
     supabase
       .from("documento")
       .select("*, favorecido(nome, documento)")
@@ -242,14 +285,19 @@ export async function carregarPainel(obraId: string): Promise<PainelDados> {
       .eq("obra_id", obra.id)
       .order("data_pagamento", { ascending: false }),
     supabase.from("pagamento_documento").select("*"),
+    supabase.from("pagamento_diferenca").select("*"),
   ]);
 
   if (documentos.error) throw documentos.error;
   if (pagamentos.error) throw pagamentos.error;
   if (vinculos.error) throw vinculos.error;
+  if (diferencas.error) throw diferencas.error;
 
   const docsPorPagamento = agruparVinculos(
     (vinculos.data ?? []) as PagamentoDocumentoRow[],
+  );
+  const porPagamento = indexarDiferencas(
+    (diferencas.data ?? []) as PagamentoDiferencaRow[],
   );
 
   return {
@@ -259,7 +307,9 @@ export async function carregarPainel(obraId: string): Promise<PainelDados> {
     ),
     pagamentos: (
       (pagamentos.data ?? []) as (PagamentoRow & ComFavorecidoTipado)[]
-    ).map((row) => paraPagamento(row, docsPorPagamento.get(row.id) ?? [])),
+    ).map((row) =>
+      paraPagamento(row, docsPorPagamento.get(row.id) ?? [], porPagamento.get(row.id)),
+    ),
   };
 }
 
@@ -274,7 +324,7 @@ export async function carregarPaineis(): Promise<PainelDados[]> {
   const obras = await carregarObras();
   if (obras.length === 0) return [];
 
-  const [documentos, pagamentos, vinculos] = await Promise.all([
+  const [documentos, pagamentos, vinculos, diferencas] = await Promise.all([
     supabase
       .from("documento")
       .select("*, favorecido(nome, documento)")
@@ -284,14 +334,19 @@ export async function carregarPaineis(): Promise<PainelDados[]> {
       .select("*, favorecido(nome, tipo)")
       .order("data_pagamento", { ascending: false }),
     supabase.from("pagamento_documento").select("*"),
+    supabase.from("pagamento_diferenca").select("*"),
   ]);
 
   if (documentos.error) throw documentos.error;
   if (pagamentos.error) throw pagamentos.error;
   if (vinculos.error) throw vinculos.error;
+  if (diferencas.error) throw diferencas.error;
 
   const docsPorPagamento = agruparVinculos(
     (vinculos.data ?? []) as PagamentoDocumentoRow[],
+  );
+  const porPagamento = indexarDiferencas(
+    (diferencas.data ?? []) as PagamentoDiferencaRow[],
   );
 
   return obras.map((obra) => ({
@@ -301,7 +356,9 @@ export async function carregarPaineis(): Promise<PainelDados[]> {
       .map(paraDocumento),
     pagamentos: ((pagamentos.data ?? []) as (PagamentoRow & ComFavorecidoTipado)[])
       .filter((row) => row.obra_id === obra.id)
-      .map((row) => paraPagamento(row, docsPorPagamento.get(row.id) ?? [])),
+      .map((row) =>
+        paraPagamento(row, docsPorPagamento.get(row.id) ?? [], porPagamento.get(row.id)),
+      ),
   }));
 }
 
@@ -319,22 +376,25 @@ export async function carregarDocumento(id: string): Promise<Documento> {
 
 export async function carregarPagamento(id: string): Promise<Pagamento> {
   const supabase = getSupabase();
-  const [pagamento, vinculos] = await Promise.all([
+  const [pagamento, vinculos, diferenca] = await Promise.all([
     supabase
       .from("pagamento")
       .select("*, favorecido(nome, tipo)")
       .eq("id", id)
       .limit(1),
     supabase.from("pagamento_documento").select("*").eq("pagamento_id", id),
+    supabase.from("pagamento_diferenca").select("*").eq("pagamento_id", id).limit(1),
   ]);
   if (pagamento.error) throw pagamento.error;
   if (vinculos.error) throw vinculos.error;
+  if (diferenca.error) throw diferenca.error;
 
   const row = (pagamento.data as (PagamentoRow & ComFavorecidoTipado)[] | null)?.[0];
   if (!row) throw new Error("Pagamento não encontrado.");
   return paraPagamento(
     row,
     ((vinculos.data ?? []) as PagamentoDocumentoRow[]).map((v) => v.documento_id),
+    ((diferenca.data ?? []) as PagamentoDiferencaRow[])[0],
   );
 }
 
@@ -601,6 +661,327 @@ export async function apagarVinculo(
       .update({ status: "aguardando_nf" })
       .eq("id", pagamentoId);
   }
+}
+
+// ══ CONTAI-019 · compromisso, quitação e diferença ══════════════════════
+//
+// ⚠️ Nada daqui entra em `PainelDados`, e a omissão é deliberada. `app/page.tsx`
+// faz `calcularResumo({ ...dados, ano })`: um campo `compromissos` no painel
+// viajaria por esse spread até a porta do cálculo de custo. A agenda tem
+// carregador PRÓPRIO — o compromisso e os números da declaração nunca chegam
+// juntos na mesma variável (critério 3; parecer §2).
+
+function paraCompromisso(
+  row: CompromissoRow & ComFavorecidoSimples,
+  pagamentoIds: string[],
+  adiamentos: number,
+): Compromisso {
+  return {
+    id: row.id,
+    obraId: row.obra_id,
+    favorecidoId: row.favorecido_id,
+    favorecidoNome: row.favorecido?.nome ?? null,
+    valorPrevistoCentavos: numericParaCentavos(row.valor_previsto) ?? 0,
+    dataPrevista: row.data_prevista,
+    origem: row.origem,
+    documentoOrigemId: row.documento_origem_id,
+    situacao: row.situacao,
+    motivoCancelamento: row.motivo_cancelamento,
+    dataCompra: row.data_compra,
+    pagamentoIds,
+    adiamentos,
+  };
+}
+
+/**
+ * A agenda de UMA obra. Sem sessão, `getUsuarioId` já falha explicitamente —
+ * "nenhum agendamento" seria diagnóstico errado para quem só não está logado.
+ */
+export async function carregarCompromissos(
+  obraId: string,
+): Promise<Compromisso[]> {
+  await getUsuarioId();
+  const supabase = getSupabase();
+
+  const [compromissos, vinculos, historico] = await Promise.all([
+    supabase
+      .from("compromisso")
+      .select("*, favorecido(nome)")
+      .eq("obra_id", obraId)
+      .order("data_prevista", { ascending: true, nullsFirst: false }),
+    supabase.from("compromisso_pagamento").select("*"),
+    supabase.from("compromisso_data_historico").select("*"),
+  ]);
+  if (compromissos.error) throw compromissos.error;
+  if (vinculos.error) throw vinculos.error;
+  if (historico.error) throw historico.error;
+
+  const pagamentosPorCompromisso = new Map<string, string[]>();
+  for (const v of (vinculos.data ?? []) as CompromissoPagamentoRow[]) {
+    const lista = pagamentosPorCompromisso.get(v.compromisso_id) ?? [];
+    lista.push(v.pagamento_id);
+    pagamentosPorCompromisso.set(v.compromisso_id, lista);
+  }
+
+  // "adiado N×" (critério 34): a contagem é de LINHAS de histórico, porque
+  // append-only garante que cada mudança deixou exatamente uma.
+  const adiamentos = new Map<string, number>();
+  for (const h of (historico.data ?? []) as CompromissoDataHistoricoRow[]) {
+    adiamentos.set(h.compromisso_id, (adiamentos.get(h.compromisso_id) ?? 0) + 1);
+  }
+
+  return ((compromissos.data ?? []) as (CompromissoRow & ComFavorecidoSimples)[]).map(
+    (row) =>
+      paraCompromisso(
+        row,
+        pagamentosPorCompromisso.get(row.id) ?? [],
+        adiamentos.get(row.id) ?? 0,
+      ),
+  );
+}
+
+export async function carregarCompromisso(id: string): Promise<Compromisso> {
+  await getUsuarioId();
+  const supabase = getSupabase();
+  const [compromisso, vinculos, historico] = await Promise.all([
+    supabase.from("compromisso").select("*, favorecido(nome)").eq("id", id).limit(1),
+    supabase.from("compromisso_pagamento").select("*").eq("compromisso_id", id),
+    supabase.from("compromisso_data_historico").select("*").eq("compromisso_id", id),
+  ]);
+  if (compromisso.error) throw compromisso.error;
+  if (vinculos.error) throw vinculos.error;
+  if (historico.error) throw historico.error;
+
+  const row = (compromisso.data as (CompromissoRow & ComFavorecidoSimples)[] | null)?.[0];
+  if (!row) throw new Error("Agendamento não encontrado.");
+  return paraCompromisso(
+    row,
+    ((vinculos.data ?? []) as CompromissoPagamentoRow[]).map((v) => v.pagamento_id),
+    ((historico.data ?? []) as CompromissoDataHistoricoRow[]).length,
+  );
+}
+
+/** O histórico completo da data prevista, do mais antigo ao mais novo. */
+export async function carregarHistoricoDeData(
+  compromissoId: string,
+): Promise<CompromissoDataHistoricoRow[]> {
+  const { data, error } = await getSupabase()
+    .from("compromisso_data_historico")
+    .select("*")
+    .eq("compromisso_id", compromissoId)
+    .order("registrado_em", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as CompromissoDataHistoricoRow[];
+}
+
+export interface EntradaCompromisso {
+  obraId: string;
+  favorecidoId: string | null;
+  /** O campo se chama **valor previsto**, nunca "valor" (Gate Fiscal 6.3). */
+  valorPrevistoCentavos: number;
+  /** `null` só é alcançável pelo saldo de quitação parcial, nunca na criação. */
+  dataPrevista: string | null;
+  origem: OrigemCompromisso;
+  documentoOrigemId: string | null;
+  dataCompra: string | null;
+}
+
+export async function criarCompromisso(
+  entrada: EntradaCompromisso,
+): Promise<string> {
+  const linha: CompromissoInsert = {
+    obra_id: entrada.obraId,
+    favorecido_id: entrada.favorecidoId,
+    valor_previsto: centavosParaNumeric(entrada.valorPrevistoCentavos),
+    data_prevista: entrada.dataPrevista,
+    origem: entrada.origem,
+    documento_origem_id: entrada.documentoOrigemId,
+    data_compra: entrada.dataCompra,
+  };
+  const { data, error } = await getSupabase()
+    .from("compromisso")
+    .insert(linha)
+    .select("id")
+    .single();
+  if (error) throw error;
+  return (data as { id: string }).id;
+}
+
+/**
+ * "Não saiu" — critério 22. **Não apaga**: fica registrado como cancelado, com
+ * o motivo (parecer §3). O check `compromisso_cancelado_exige_motivo` recusa a
+ * gravação sem motivo, então a exigência não depende só da tela.
+ */
+export async function cancelarCompromisso(
+  id: string,
+  motivo: string,
+): Promise<void> {
+  const { error } = await getSupabase()
+    .from("compromisso")
+    .update({ situacao: "cancelado", motivo_cancelamento: motivo })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+/**
+ * "Mudou a data" — critério 33. **O MESMO compromisso**: mesmo id, mesmos
+ * vínculos, mesmo saldo. Não cancela e não cria compromisso novo.
+ *
+ * A linha de histórico entra ANTES do update, e é de propósito: se o update
+ * falhar, sobra um registro de tentativa (ruído legível); se o histórico
+ * falhasse depois de um update bem-sucedido, a data anterior teria sido
+ * DESTRUÍDA sem rastro, que é o que o append-only proíbe. Não há transação
+ * multi-statement pelo PostgREST — então a ordem é a garantia possível, e ela
+ * erra para o lado de preservar o fato.
+ *
+ * Data nova no passado é aceita (é correção legítima) e o item fica vencido na
+ * hora — critério 34.
+ */
+export async function mudarDataPrevista(
+  id: string,
+  dataAnterior: string | null,
+  dataNova: string | null,
+): Promise<void> {
+  const supabase = getSupabase();
+  const historico = await supabase
+    .from("compromisso_data_historico")
+    .insert({ compromisso_id: id, data_anterior: dataAnterior, data_nova: dataNova });
+  if (historico.error) throw historico.error;
+
+  const { error } = await supabase
+    .from("compromisso")
+    .update({ data_prevista: dataNova })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+/**
+ * Liga um pagamento já gravado a um compromisso e, quando é o caso, fecha o
+ * compromisso.
+ *
+ * ⚠️ **`quitaIntegralmente` é decisão HUMANA, nunca cálculo** (critério 13 e
+ * adendo §D): valor menor exige escolha explícita entre "quita o compromisso"
+ * e "falta pagar o resto", sem default e sem pré-seleção. O app não infere a
+ * partir do valor porque **nenhum dos dois erros é mais barato**: assumir
+ * desconto fecha um compromisso ainda devido e mata o alerta; assumir parcial
+ * deixa um saldo fantasma que trava o relatório anual.
+ *
+ * ⚠️ **Este é o único caminho que cria vínculo de quitação, e ele só é chamado
+ * a partir de um toque** (critério 41).
+ */
+export async function quitarCompromisso(entrada: {
+  compromisso: Pick<Compromisso, "id" | "obraId" | "dataPrevista">;
+  pagamento: Pick<Pagamento, "id" | "obraId">;
+  quitaIntegralmente: boolean;
+  /** Quando fica saldo: a nova data prevista, ou `null` = "sem data definida". */
+  novaDataPrevista?: string | null;
+}): Promise<void> {
+  const permissao = podeQuitar(entrada.compromisso, entrada.pagamento);
+  if (!permissao.ok) throw new VinculoEntreObrasError(permissao.motivo);
+
+  const supabase = getSupabase();
+  const vinculo = await supabase.from("compromisso_pagamento").upsert(
+    { compromisso_id: entrada.compromisso.id, pagamento_id: entrada.pagamento.id },
+    { onConflict: "compromisso_id,pagamento_id", ignoreDuplicates: true },
+  );
+  if (vinculo.error) throw vinculo.error;
+
+  if (entrada.quitaIntegralmente) {
+    const { error } = await supabase
+      .from("compromisso")
+      .update({ situacao: "quitado" })
+      .eq("id", entrada.compromisso.id);
+    if (error) throw error;
+    return;
+  }
+
+  // Quitação parcial: o compromisso SEGUE ABERTO com saldo, e o saldo **não é
+  // custo de nada** (critério 29). A nova data prevista é pedida na tela —
+  // sem ela o saldo nasceria vencido-sem-resposta e travaria o relatório anual
+  // para sempre (adendo §D). `null` é "sem data definida", que é resposta.
+  if (entrada.novaDataPrevista !== undefined) {
+    // A data ANTERIOR é a que o compromisso tinha — passar `null` aqui
+    // apagaria do rastro justamente o dado que o critério 34 exibe
+    // ("para 25/08 (era 10/08)").
+    await mudarDataPrevista(
+      entrada.compromisso.id,
+      entrada.compromisso.dataPrevista,
+      entrada.novaDataPrevista,
+    );
+  }
+}
+
+/**
+ * A composição do desembolso, gravada UMA vez, no ato da confirmação.
+ *
+ * ⚠️ Só `resolucao`/`resolvido_em` mudam depois (critério 32): **o valor da
+ * diferença nunca muda**. É por isso que esta função e `resolverDiferenca`
+ * são separadas, e é por isso que a segunda não aceita valor nenhum — o
+ * privilégio de UPDATE existe na tabela, e a guarda de o que ele toca é aqui.
+ */
+export async function registrarDiferenca(entrada: {
+  pagamentoId: string;
+  encargosCentavos: number;
+  naoExplicadoCentavos: number;
+}): Promise<void> {
+  const { error } = await getSupabase().from("pagamento_diferenca").insert({
+    pagamento_id: entrada.pagamentoId,
+    encargos: centavosParaNumeric(entrada.encargosCentavos),
+    nao_explicado: centavosParaNumeric(entrada.naoExplicadoCentavos),
+    // `resolucao` nasce NULL — o "não sei ainda" do §F.2, o único estado
+    // inicial permitido, porque é o único que não afirma nada.
+  });
+  if (error) throw error;
+}
+
+/**
+ * A resolução da diferença (§F.2), que é ato do Mateus e não do app.
+ *
+ * **Resolver não apaga o registro da diferença** (critério 32, acervo
+ * append-only do CONTAI-009): os valores continuam lá, e o que entra é a
+ * classificação com a data em que ela foi feita.
+ */
+export async function resolverDiferenca(
+  pagamentoId: string,
+  resolucao: ResolucaoDiferenca,
+): Promise<void> {
+  const { error } = await getSupabase()
+    .from("pagamento_diferenca")
+    .update({ resolucao, resolvido_em: new Date().toISOString() })
+    .eq("pagamento_id", pagamentoId);
+  if (error) throw error;
+}
+
+/**
+ * O "não" da sugestão de quitação, registrado POR PAR (critério 39).
+ *
+ * O app não repergunta daquele par — repetir ensina a dispensar sem ler — e
+ * segue livre para sugerir outros pares. ⚠️ Isto **não** é resposta ao vencido
+ * e **não** desbloqueia o relatório anual (adendo §A, corolário 4): recusar um
+ * par não diz nada sobre o compromisso.
+ */
+export async function recusarQuitacao(
+  pagamentoId: string,
+  compromissoId: string,
+): Promise<void> {
+  const { error } = await getSupabase()
+    .from("quitacao_recusada")
+    .upsert(
+      { pagamento_id: pagamentoId, compromisso_id: compromissoId },
+      { onConflict: "pagamento_id,compromisso_id", ignoreDuplicates: true },
+    );
+  if (error) throw error;
+}
+
+export async function carregarRecusasQuitacao(): Promise<
+  { pagamentoId: string; compromissoId: string }[]
+> {
+  const { data, error } = await getSupabase().from("quitacao_recusada").select("*");
+  if (error) throw error;
+  return ((data ?? []) as QuitacaoRecusadaRow[]).map((r) => ({
+    pagamentoId: r.pagamento_id,
+    compromissoId: r.compromisso_id,
+  }));
 }
 
 /**
