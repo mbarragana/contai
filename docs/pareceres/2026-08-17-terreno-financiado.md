@@ -613,3 +613,111 @@ no app do banco dele** — não são legislação, são prática de instituiçã
 **Pergunta única ao Mateus**: o informe anual do seu financiamento separa
 amortização, juros, seguros e tarifas, ou vem um total só? (Se não souber, o
 plano acima não muda — só ganha um download a mais no primeiro ano.)
+
+---
+
+# Adendo 2 de 2026-08-18 — o documento real: Extrato do IR da CAIXA
+
+Chegou o **"Extrato do Imposto de Renda"** da CAIXA, **exercício 2026 / ano-base
+2025 / referência 31/12/2025**, baixado pelo próprio Mateus no site, sem pedido
+ao banco. Sem identificadores aqui (repositório público): **só rubricas e
+valores**.
+
+**Confirmado em uma linha cada**: a decomposição **existe** e é **anual** ·
+ele **obtém sozinho, 1x/ano** · traz **saldo devedor em 31/12** · o pedido
+retroativo segue **cancelado**. O Adendo 1 vale como está.
+
+## 1. ⚠️ "Diferença Teórico / Pago" — R$ 167,43: **não sei o que é. Confirmar.**
+
+Nenhum parecer meu previu essa linha, e ela **está dentro** do total pago
+(16.883,52 + 43.051,23 + 499,56 + 167,43 = 60.601,74).
+
+[Guessing — **não use isto como fato**] Em contrato SFH com plano de reajuste
+vinculado a renda, a CAIXA registra a diferença entre a **prestação teórica**
+(a que o sistema de amortização exigiria) e a **efetivamente paga**, com o
+resíduo historicamente ligado ao **FCVS**. **Não tenho certeza de qual é o
+lançamento no contrato dele** — e a natureza é o que decide, não o nome.
+
+**Tratamento enquanto não se confirma**: **fica FORA da soma**, marcada como
+**revisão humana** — mesma regra já aplicada a seguros e tarifas (§4 acima),
+pelo mesmo motivo: **não há alínea nominal que a sustente**.
+
+**Por que isso não custa nada**: são **R$ 167,43** — a 15%, ~R$ 25 de imposto.
+E como o app **guarda o número separado**, se a CAIXA confirmar que é
+juros/correção, entra por **retificadora**, sem perda. O erro irreversível é
+**não capturar**; capturar e não somar é reversível.
+**Ação**: perguntar à CAIXA a natureza dessa rubrica. Custa um chamado, **uma
+vez** — vale para todos os anos do contrato.
+
+## 2. Dos R$ 60.601,74, quanto é custo de aquisição de 2025
+
+| Rubrica | R$ | Entra? |
+|---|---|---|
+| Amortização | 16.883,52 | **Sim** [Certain] — é preço do imóvel |
+| Juros / Correção Monetária | 43.051,23 | **Sim** — IN SRF 84/2001, art. 17 (juros e demais acréscimos pagos na aquisição); decidido no §4 acima. **Confirmar a alínea na IN vigente** |
+| Seguros (MIP/DFI) | 499,56 | **Não** — cobertura de risco, não preço. Fica em revisão humana |
+| Taxas + FCVS | 0,00 | **Não**, quando houver — administração do contrato ≠ aquisição; FCVS é fundo, não preço |
+| Mora / Multa | 0,00 | **Não** [Certain] — penalidade nunca é custo |
+| Diferença Teórico / Pago | 167,43 | **Suspenso** (§1) |
+| **Custo de aquisição de 2025** | **59.934,75** | |
+
+⚠️ **A parte desconfortável**: **R$ 43.051,23 de 72% do desembolso do ano
+dependem da tese dos juros.** Não é rubrica marginal — é a maior do extrato. A
+tese é sólida e está no §4, mas nesta ordem de grandeza a inclusão **exige
+assinatura de contador com CRC**, não decisão de app. O app soma e **nomeia em
+linha própria**; quem assume a posição na declaração é humano.
+
+**Saldo devedor (585.815,19) não é custo de nada.** Guardar como informativo,
+nunca somar, nunca virar campo de "dívida" no custo (§1 acima, item 3).
+
+## 3. Ano-base 2025 já está inteiro fora do sistema
+
+**Fato**: R$ 59.934,75 de custo de 2025 que o app não tem. E o ano-base 2025 foi
+declarado na DAA do **exercício 2026**, cujo prazo **encerrou em 30/04/2026**
+[confirmar o prazo do ano] — ou seja, **já passou**.
+
+**Não pergunto se ele declarou** — a lacuna já está registrada como **D24** no
+`docs/backlog.md` (*"o app não sabe qual ano-calendário já foi declarado"*). O
+que muda é que agora ela tem **valor e urgência**, não é mais hipótese.
+
+Dois caminhos, e o dele é um dos dois:
+- **DAA entregue com o terreno pelo preço de escritura** (o defeito do §1 acima)
+  → **retificadora** da DAA do exercício 2026, dentro de **5 anos**. Sem multa
+  quando não altera imposto a pagar [confirmar]. **Exige CRC** — o backlog já
+  diz isso (linha 1597).
+- **DAA entregue já com o desembolso correto** → nada a retificar; **só
+  registrar no app** o lançamento de 2025 com a data certa, para o acervo
+  sustentar o número lá na frente.
+
+**Não há prazo curto correndo**, mas há prazo: o art. 17 exige o dispêndio
+**discriminado na DAA**. Custo pago e não discriminado **não existe** na venda.
+
+## 4. Um lançamento anual basta? **Sim — com estes campos**
+
+**Um lançamento por exercício, por contrato**, contendo:
+`exercício/ano-base` · as **sete rubricas separadas** · `saldo devedor em 31/12`
+(informativo) · `total pago` (para bater a soma) · **extrato em anexo**.
+
+**Trava obrigatória**: `amortização + juros + seguros + taxas + mora + multa +
+diferença` **tem que fechar** com o total pago. Fechou (60.601,74). Se não
+fechar, é rubrica que o app não conhece — **recusar e pedir revisão humana**,
+nunca somar o resto e seguir.
+
+**Efeito no `valor_terreno`**: sem quebra. Ele continua sendo *total
+desembolsado até 31/12 do ano declarado*, e passa a receber **uma linha por
+ano** do financiamento (aqui: +59.934,75 em 2025), além de entrada, ITBI e
+escritura. Confirma o Adendo 1: CONTAI-010 volta de **M** para perto de **S**.
+
+**Efeito na discriminação de Bens e Direitos**: **juros em linha nomeada
+própria** (§4 acima) — no texto do ano, algo como *"amortização R$ X e juros e
+correção monetária R$ Y de financiamento imobiliário, conforme extrato anual da
+instituição credora"*. Seguros, taxas e a diferença **não aparecem na soma**;
+ficam no acervo. Saldo devedor **não entra na discriminação** do bem.
+
+## 5. Limite
+
+**Apuração automática**: somar as rubricas, fechar o total, montar a
+discriminação, guardar o extrato.
+**Exige CRC**: a inclusão dos R$ 43 mil de juros e **qualquer retificadora**.
+**Confirmar**: natureza da "Diferença Teórico / Pago" (com a CAIXA) e a alínea
+do art. 17 na IN vigente.
