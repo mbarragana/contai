@@ -66,6 +66,9 @@
   .appbar .brand{font-weight:700; font-size:16px; letter-spacing:-.01em}
   .appbar .sub{font-size:11.5px; color:var(--mut); margin-top:1px}
   .body{flex:1; overflow-y:auto; padding:16px 18px; display:flex; flex-direction:column; gap:12px}
+  /* filho de flex-column encolhe por padrão: sem isto o bloco ASCII e os cards
+     altos aparecem esmagados em vez de rolarem. O .body é quem rola. */
+  .body > *{flex:none}
   .foot{flex:none; padding:12px 18px 18px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:8px}
   .phone.mesa .body{padding:22px 0; align-items:stretch}
   .phone.mesa .body > *{max-width:620px; width:100%; margin-left:auto; margin-right:auto}
@@ -96,6 +99,10 @@
   .row:last-child{border-bottom:none}
   .row .lbl{font-size:12.5px; color:var(--mut)}
   .row .val{font-size:13.5px; text-align:right; overflow-wrap:anywhere; flex:none}
+  /* linha cujo VALOR é prosa, não número: empilha e alinha à esquerda.
+     Sem isto, o flex:none acima estoura a caixa em 375 px — que é PISO. */
+  .row.longa{flex-direction:column; align-items:stretch; gap:3px}
+  .row.longa .val{text-align:left; flex:auto}
   .ok{color:var(--grn); font-weight:600}
   .warn{color:var(--amb); font-weight:600}
   .bad{color:var(--red); font-weight:600}
@@ -173,7 +180,7 @@
 </style>
 
 <div class="evalbar">
-  <h1>Mock CONTAI-010 — Informe anual do financiamento do terreno · v1</h1>
+  <h1>Mock CONTAI-010 — Da compra do terreno ao informe anual · v2</h1>
   <p><strong>Cenário: gestão, em casa, sentado.</strong> Acontece <strong>uma vez por ano</strong>,
      em jan/fev, quando a instituição publica o extrato. <strong>375&nbsp;px é piso</strong> —
      nenhuma tela pode quebrar lá — <strong>não é o alvo</strong>: a régua padrão aqui é a mesa.
@@ -186,7 +193,15 @@
      arquivo — o repositório é público. A instituição aparece como
      <em>Banco Litoral</em>, nome evidentemente fictício.<br>
      Blocos <strong>tracejados âmbar</strong> dentro da tela são
-     <strong>perguntas em aberto</strong> — lacuna que volta ao <code>po</code>, não decisão minha.
+     <strong>perguntas em aberto</strong> — vão ao <code>contador</code> (fiscais) ou ao
+     <code>po</code> (escopo), nunca ao Mateus.<br>
+     <strong>v2 — o fluxo é do Mateus, e ele consertou duas coisas que a v1 tinha errado.</strong>
+     <strong>1)</strong> o <strong>tipo de compra</strong> virou a <strong>bifurcação</strong>, no
+     passo 1: à vista e financiado são caminhos diferentes desde o primeiro campo, e o app hoje
+     assume um caso só. <strong>2)</strong> a trava da dupla contagem deixou de ser uma recusa
+     tardia e virou o <strong>"ou" do passo 3</strong> — uma escolha por ano, feita no ato.
+     Acrescentei o que faltava na espinha dele: <strong>ITBI e escritura/registro</strong>, com
+     datas próprias, que é a razão de este ticket existir.
      <strong>Hoje no mock: 18/08/2026.</strong><br>
      <em>Artefato de mock, não proposta:</em> os campos de valor usam o controle numérico cru do
      navegador e por isso aparecem como <code>60601.74</code>, com ponto. Na tela real são campos
@@ -198,22 +213,26 @@
      ║  Fazer o mesmo no card deste mock em design/mocks/index.html.         ║
      ╚═══════════════════════════════════════════════════════════════════════╝ -->
 <div class="aprov nao" id="barraAprovacao">
-  Mock NÃO aprovado — aguardando leitura do Mateus (v1, 2026-08-19)
+  Mock NÃO aprovado — v2 refeita sobre o fluxo do Mateus (2026-08-19)
 </div>
 
 <div class="evalbar">
   <div class="grupo">0 · O fluxo inteiro, antes de qualquer tela</div>
   <div class="tabs" id="g0"></div>
-  <div class="grupo">1 · Onde isto vive</div>
+  <div class="grupo">1 · Passo 1 — a compra, e a bifurcação que ela abre</div>
   <div class="tabs" id="g1"></div>
-  <div class="grupo">2 · Registrar o informe — o caminho de jan/fev</div>
+  <div class="grupo">2 · Passo 2 — o que saiu do bolso fora do banco</div>
   <div class="tabs" id="g2"></div>
-  <div class="grupo">3 · As três rubricas que precisam de resposta na tela</div>
+  <div class="grupo">3 · Passos 3 e 4 — o que passou pelo banco, ano a ano</div>
   <div class="tabs" id="g3"></div>
-  <div class="grupo">4 · As travas e as exceções</div>
+  <div class="grupo">4 · O painel — onde tudo isso aparece junto</div>
   <div class="tabs" id="g4"></div>
-  <div class="grupo">5 · O que eu não decidi sozinho</div>
+  <div class="grupo">5 · As três rubricas que precisam de resposta na tela</div>
   <div class="tabs" id="g5"></div>
+  <div class="grupo">6 · Trocar de ramo, e as duas exceções</div>
+  <div class="tabs" id="g6"></div>
+  <div class="grupo">7 · Perguntas em aberto e decisões fechadas</div>
+  <div class="tabs" id="g7"></div>
 
   <div class="larg">
     <span>Largura:</span>
@@ -249,90 +268,98 @@
   <!-- ══════════════════ 0 · FLUXO ══════════════════ -->
   <section class="screen on" id="s0">
     <div class="appbar">
-      <div class="brand">Fluxo — o financiamento do terreno</div>
-      <div class="sub">Acordar isto antes de discutir tela</div>
+      <div class="brand">Fluxo — da compra do terreno ao informe anual</div>
+      <div class="sub">Espinha definida pelo Mateus em 19/08 · acordar isto antes de discutir tela</div>
     </div>
     <div class="body">
-      <div class="banner mud"><strong>A frase que resume o ticket:</strong> o financiamento
-        do terreno entra no app <strong>uma vez por ano</strong>, por um documento que
-        o Mateus <strong>baixa sozinho</strong> no site do banco. Pedidos ao gerente: zero.</div>
+      <div class="banner blu"><strong>O fluxo em quatro passos, nas palavras dele:</strong>
+        <div style="margin-top:6px">1 · registro da compra + <strong>tipo de compra</strong> (à vista
+        ou parcelado/financiamento) · 2 · entrada · 3 · registro anual do IR do financiamento
+        <strong>ou</strong> de cada parcela · 4 · quando financiamento:
+        <strong>valor pago no ano e saldo devedor</strong>.</div></div>
 
-      <div class="secao">O ano inteiro, em três momentos</div>
-      <div class="ascii">JAN/FEV                      O ANO TODO                    ANO DA VENDA
-   │                             │                            │
-   │ o banco publica o           │ nada a fazer               │ o informe do ano
-   │ "Extrato do Imposto         │                            │ NÃO chega a tempo
-   │  de Renda" do ano-base      │ o painel mostra            │
-   │  anterior                   │ "aguardando informe"       │ extrato do período
-   │                             │ e diz que o custo do       │ + termo de quitação
-   ▼                             │ ano corrente está          ▼
- registrar 1 lançamento          │ SUBESTIMADO             1x na vida
-   │                             │ (nunca em silêncio)
-   ▼                             ▼</div>
+      <div class="secao">A espinha, e onde ela se parte</div>
+      <div class="ascii">PASSO 1 · A COMPRA                                    ◄── uma vez na vida
+   │  quando comprou · por quanto
+   │
+   │  ┌───────────────────────────────────────────────────────┐
+   │  │  TIPO DE COMPRA — é AQUI que o fluxo se parte em dois  │
+   │  └────────────────┬──────────────────┬───────────────────-┘
+   │                   │                  │
+   │              À VISTA          PARCELADO / FINANCIADO
+   │                   │                  │
+   ▼                   ▼                  ▼
+PASSO 2 · O QUE   um desembolso      entrada: valor + data + comprovante
+SAIU DO BOLSO     com uma data              │
+   │                   │                    │
+   │  + ITBI ··················· data própria
+   │  + escritura e registro ···· data própria     ◄── acrescentado ao fluxo
+   │                   │                    │          dele. Ver abaixo.
+   │                   └─────────┬──────────┘
+   ▼                             ▼
+PASSO 3 · O QUE PASSOU PELO BANCO, ANO A ANO      (só no ramo financiado)
+   │
+   │   ┌─ escolha, por ano-base + contrato ───────────────────┐
+   │   │   ○ informe anual do IR      ○ parcela a parcela     │
+   │   │        UM  OU  OUTRO — o app não deixa os dois       │
+   │   └──────────────────┬───────────────────────────────────┘
+   ▼                      ▼
+PASSO 4 · O ANO FECHA COM DOIS NÚMEROS
+          VALOR PAGO NO ANO ────► vira custo (só amortização + juros)
+          SALDO DEVEDOR 31/12 ──► nunca vira custo, nunca vira dívida</div>
 
-      <div class="secao">O caminho de registro, passo a passo</div>
-      <div class="ascii">┌─ painel de custo do terreno ────────────────────────────────┐
-│ 2024 ✓ registrado   2025 ⚠ informe disponível, não lançado  │
-│ 2026 ⏳ aguardando informe (chega em jan/fev de 2027)        │
-└───────────────┬─────────────────────────────────────────────┘
-                │ "Registrar informe de 2025"
-                ▼
-        ┌─ TRAVA 2: dupla contagem ───────────────────────┐
-        │ este ano+contrato já tem parcelas lançadas?     │
-        │   sim ──► RECUSA. escolher um dos dois          │
-        │   não ──► segue                                 │
-        └───────────────┬─────────────────────────────────┘
-                        ▼
-              PASSO 1 · anexar o extrato        ◄── obrigatório: sem ele
-                        │                            não grava (critério 10)
-                        │  vazio → anexado → falha (e volta)
-                        ▼
-              PASSO 2 · transcrever as rubricas
-                        │
-                        │  soma das 7 rubricas  ==  Total Pago no Exercício ?
-                        │
-                        ├── NÃO ──► RECUSA, dizendo a diferença exata.
-                        │           "existe rubrica que o app não conhece"
-                        │           NUNCA soma o resto e segue
-                        │
-                        └── SIM ──► PASSO 3 · conferência
-                                        │
-                                        │  entra no custo:  amortização + juros/correção
-                                        │  guardado fora:   seguros · taxas/FCVS · mora
-                                        │                   multa · diferença teórico/pago
-                                        │  informativo:     saldo devedor em 31/12
-                                        ▼
-                                    GRAVADO
-                                        │
-                                        ├──► custo de aquisição do ano (IRPF)
-                                        ├──► discriminação: juros em LINHA NOMEADA
-                                        └──► NÃO vai para: Pagamentos Efetuados,
-                                             aferição do INSS, "custo em risco"</div>
+      <div class="secao">O "ou" do passo 3 não é preferência — é a trava</div>
+      <div class="card">
+        <div class="hint">Registrar o informe <strong>e</strong> as parcelas do mesmo ano seria
+          contar os mesmos pagamentos duas vezes. Custo inflado em Bens e Direitos vira
+          <strong>redução indevida de ganho de capital</strong> no dia da venda, e isso é cobrado
+          com multa. Por isso a escolha acontece <strong>no ato</strong>, uma vez por ano, em vez
+          de virar uma recusa depois que o estrago já está gravado.
+          <div class="parecer">Parecer, adendo 1 §6: "por ano+contrato é o informe OU as parcelas,
+            nunca os dois. Dupla contagem aqui é custo inflado em Bens e Direitos = redução
+            indevida de ganho de capital."</div></div>
+      </div>
+
+      <div class="secao">O que acrescentei à espinha dele, e por quê</div>
+      <div class="card amb">
+        <div class="lab">ITBI e escritura/registro, cada um com a sua data</div>
+        <div class="hint" style="margin-top:4px">O fluxo dele não os menciona, e eles são
+          <strong>a razão de este ticket existir</strong>. São desembolsos separados da compra e
+          podem cair em <strong>ano diferente</strong>: terreno pago em 2024, ITBI recolhido em
+          2025. Com uma data só, a situação de 31/12/2024 sai inflada por um imposto que ainda
+          não tinha sido pago, e a de 2025 sai sem ele —
+          <strong>declarada a maior num ano e a menor no outro</strong>.</div>
+        <div class="hint" style="margin-top:8px">Regra que a tela tem de deixar visível:
+          <strong>é a data de cada componente que decide o ano dele</strong>. Não a data da
+          escritura, não a da matrícula, não a da posse.</div>
+      </div>
 
       <div class="secao">Os quatro pontos de decisão</div>
       <ul class="lista">
-        <li><span class="n">1</span><span><strong>Natureza da aquisição</strong> — à vista /
-          financiado / parcelado com o vendedor / recebido. É ela que decide qual regra roda.
-          Sem esse campo o app respondeu errado sozinho.</span></li>
-        <li><span class="n">2</span><span><strong>Informe OU parcelas</strong>, por ano+contrato.
-          Nunca os dois. Dupla contagem infla o custo em Bens e Direitos, que é redução
-          indevida de ganho de capital.</span></li>
-        <li><span class="n">3</span><span><strong>A soma fecha?</strong> Não fechou, não grava.
-          Não existe "somar o resto".</span></li>
-        <li><span class="n">4</span><span><strong>É o ano da venda?</strong> Aí o informe não
-          serve — chega tarde demais para o ganho de capital.</span></li>
+        <li><span class="n">1</span><span><strong>Tipo de compra</strong> — à vista, financiado,
+          parcelado com o vendedor ou recebido. É a bifurcação: muda os campos, os documentos e
+          o que acontece todo ano. Hoje o app não pergunta, e por isso respondeu errado
+          sozinho.</span></li>
+        <li><span class="n">2</span><span><strong>Cada componente tem data?</strong> Valor sem
+          data não tem ano-calendário. Previsto e ainda não pago não entra em ano
+          nenhum — nem no corrente.</span></li>
+        <li><span class="n">3</span><span><strong>Informe ou parcelas</strong>, por ano+contrato.
+          Escolhido no ato, nunca os dois.</span></li>
+        <li><span class="n">4</span><span><strong>A soma fecha com o total pago?</strong> Não
+          fechou, não grava. Não existe "somar o resto e seguir".</span></li>
       </ul>
 
-      <div class="banner amb"><strong>O que este fluxo NÃO faz, e é decisão:</strong> não pede
-        parcela nenhuma durante o ano. Doze lançamentos por ano davam rastreabilidade e
-        <strong>zero</strong> diferença de imposto.
+      <div class="banner amb"><strong>O que este fluxo NÃO faz, e é decisão:</strong> no ramo do
+        informe anual, não pede parcela nenhuma durante o ano. Doze lançamentos davam
+        rastreabilidade e <strong>zero</strong> diferença de imposto.
         <div class="parecer">Parecer, adendo 1 §2: "A exigência 'todo mês' era medo de perder o
           dado. Com o informe, o dado não se perde — ele é reemitido pelo banco todo ano.
           Rastreabilidade que custa 12 interações por ano e não muda um centavo de imposto
           cede à realidade do usuário."</div></div>
     </div>
     <div class="foot">
-      <button class="btn primary" data-ir="s1">Ver o painel →</button>
+      <button class="btn primary" data-ir="s2">Começar pelo passo 1 →</button>
+      <button class="btn ghost mini" data-ir="s1">Ver o painel</button>
     </div>
   </section>
 
@@ -393,21 +420,24 @@
         <button class="btn ghost mini" style="margin-top:10px" data-ir="s12">O que isso significa →</button>
       </div>
 
-      <div class="secao">Os componentes que não são financiamento</div>
+      <div class="secao">O que saiu do bolso fora do banco — cada um no seu ano</div>
       <div class="card">
-        <div class="row"><span class="lbl">Entrada paga <span class="warn">— falta a data</span></span>
+        <div class="row"><span class="lbl">Entrada <span class="warn">— falta a data</span></span>
           <span class="val mono">R$ —</span></div>
         <div class="row"><span class="lbl">ITBI <span class="warn">— falta a data</span></span>
           <span class="val mono">R$ —</span></div>
         <div class="row"><span class="lbl">Escritura e registro <span class="warn">— falta a data</span></span>
           <span class="val mono">R$ —</span></div>
-        <div class="banner amb" style="margin-top:8px">Sem a data, este valor não tem
-          ano-calendário e a discriminação não pode ser gerada. <strong>Não bloqueia o app</strong> —
-          fica como pendência até você preencher.</div>
-        <button class="btn ghost mini" style="margin-top:10px" data-ir="s2">Completar o cadastro do terreno →</button>
+        <div class="banner amb" style="margin-top:8px"><strong>Sem a data, este valor não tem
+          ano-calendário e a discriminação não pode ser gerada.</strong> <strong>Não bloqueia o
+          app</strong> — fica como pendência até você preencher.</div>
+        <div class="hint" style="margin-top:8px">Estes três não caem necessariamente no ano da
+          compra: <strong>é a data de cada um que decide o ano dele</strong>. ITBI recolhido em
+          fevereiro do ano seguinte é custo do ano seguinte, não do ano da escritura.</div>
+        <button class="btn ghost mini" style="margin-top:10px" data-ir="s16">Completar as três datas →</button>
       </div>
 
-      <div class="aberto"><b>Pergunta em aberto nº 1 — para o po</b>
+      <div class="aberto"><b>Pergunta em aberto nº 2 — para o <code>po</code></b>
         Quem decide <strong>quais anos aparecem nesta lista</strong>? O natural é
         "todo ano-calendário entre a data do contrato e hoje". Mas isso significa que, se o
         contrato for de 2021, a tela abre com <strong>cinco</strong> pendências vermelhas de
@@ -418,46 +448,21 @@
     </div>
   </section>
 
-  <!-- ══════════════════ 1b · NATUREZA DA AQUISIÇÃO ══════════════════ -->
+  <!-- ══════════════════ 1 · PASSO 1 · A COMPRA (BIFURCAÇÃO) ══════════════════ -->
   <section class="screen" id="s2">
     <div class="appbar">
-      <div class="brand">Como você adquiriu o terreno</div>
-      <div class="sub">Uma vez na vida · é este campo que decide o resto da tela</div>
+      <div class="brand">Passo 1 · a compra do terreno</div>
+      <div class="sub">Uma vez na vida · a última pergunta desta tela decide todas as outras</div>
     </div>
     <div class="body">
-      <div class="banner blu">Esta pergunta não existia no app. Sem ela, o sistema
-        <strong>presumiu compra à vista</strong> e tratou o terreno como um valor só, sem data —
-        que é exatamente o defeito que este ticket conserta.</div>
-
-      <div class="secao">Natureza da aquisição</div>
-      <button class="btn ghost" style="text-align:left">À vista<br>
-        <span class="hint">um pagamento só, com uma data</span></button>
-      <button class="btn primary" style="text-align:left">Financiado com instituição ✓<br>
-        <span style="font-size:11.5px; opacity:.75">banco ou financeira · desembolso todo ano ·
-        o extrato anual é o documento</span></button>
-      <button class="btn ghost" style="text-align:left">Parcelado direto com o vendedor<br>
-        <span class="hint">sem banco no meio · cada parcela tem a sua data</span></button>
-      <button class="btn ghost" style="text-align:left">Recebido — herança, doação ou permuta<br>
-        <span class="hint">há data de aquisição sem desembolso</span></button>
-
-      <div class="banner mud">Escolhendo <strong>recebido</strong>, a tela muda de assunto: não há
-        dinheiro que saiu, e o custo é o valor que constava na declaração de quem doou ou
-        faleceu. A regra "valor sem data não grava" <strong>não se aplica</strong> nesse caso.
-        <div class="parecer">Parecer §5, pergunta 3: "há data de aquisição sem desembolso; o custo
-          é o valor constante na declaração do doador/de cujus. Logo o critério 'valor sem data é
-          ingravável' só vale para aquisição onerosa."</div></div>
-
-      <div class="secao">O contrato — uma vez na vida</div>
       <div class="card">
-        <label class="lab">Instituição credora</label>
-        <span class="subl">quem emprestou o dinheiro</span>
-        <input class="inp" style="text-align:left" value="Banco Litoral (fictício)">
-        <div class="row" style="margin-top:10px"><span class="lbl">Nº do contrato</span><span class="val">—</span></div>
-        <div class="row"><span class="lbl">Data do contrato</span><span class="val">—</span></div>
-        <div class="row"><span class="lbl">Preço contratado (o da escritura)</span><span class="val">—</span></div>
-        <div class="row"><span class="lbl">Nº de parcelas</span><span class="val">—</span></div>
-        <div class="banner amb" style="margin-top:8px"><strong>O preço contratado nunca vai para
-          o custo.</strong> Ele existe para o texto da declaração e para fechar a conta na sua
+        <label class="lab" for="cData">Quando você comprou</label>
+        <span class="subl">a data do contrato ou da escritura — é o marco da aquisição</span>
+        <input class="inp" id="cData" type="date" style="text-align:left">
+        <div class="row" style="margin-top:12px"><span class="lbl">Preço contratado</span>
+          <span class="val">—</span></div>
+        <div class="banner amb" style="margin-top:8px"><strong>O preço contratado nunca vai para o
+          custo.</strong> Ele existe para o texto da declaração e para fechar a conta na sua
           cabeça: <strong>pago + saldo devedor = preço</strong>. Declarar o imóvel pelo preço
           cheio sem declarar a dívida produz evolução de patrimônio sem renda que a explique.
           <div class="parecer">Parecer §1: "Declarar o bem pelo preço integral sem declarar a
@@ -465,23 +470,194 @@
             custo de aquisição maior que o desembolso comprovado."</div></div>
       </div>
 
-      <div class="secao">Entrada — o único desembolso que não vem no extrato anual</div>
+      <div class="secao">Tipo de compra — daqui para baixo, a tela muda</div>
+      <div class="banner blu">Esta pergunta não existia no app. Sem ela, o sistema
+        <strong>presumiu compra à vista</strong> e tratou o terreno como um valor só, sem data —
+        que é exatamente o defeito que este ticket conserta.</div>
+
+      <button class="btn ghost" style="text-align:left" data-ir="s15">À vista<br>
+        <span class="hint">paguei tudo de uma vez · um desembolso, uma data</span></button>
+      <button class="btn primary" style="text-align:left" data-ir="s16">Financiado com um banco ✓<br>
+        <span style="font-size:11.5px; opacity:.78">entrada + parcelas ao banco · desembolso todo
+        ano · o extrato anual é o documento</span></button>
+      <button class="btn ghost" style="text-align:left">Parcelado direto com o vendedor<br>
+        <span class="hint">sem banco no meio · cada parcela tem a sua data e o seu recibo</span></button>
+      <button class="btn ghost" style="text-align:left">Recebido — herança, doação ou permuta<br>
+        <span class="hint">não houve dinheiro saindo do seu bolso</span></button>
+
+      <div class="secao">O que cada resposta muda</div>
       <div class="card">
-        <div class="row"><span class="lbl">Valor da entrada</span><span class="val">—</span></div>
+        <div class="row longa"><span class="lbl"><strong>À vista</strong></span>
+          <span class="val">um desembolso datado. Sem juros, sem saldo devedor, sem informe anual</span></div>
+        <div class="row longa"><span class="lbl"><strong>Financiado com um banco</strong></span>
+          <span class="val">entrada + um lançamento por ano, com o extrato do banco</span></div>
+        <div class="row longa"><span class="lbl"><strong>Parcelado com o vendedor</strong></span>
+          <span class="val">entrada + cada parcela com a sua data e o seu recibo</span></div>
+        <div class="row longa"><span class="lbl"><strong>Recebido</strong></span>
+          <span class="val">há data de aquisição <strong>sem desembolso</strong>; o custo é o
+            valor que constava na declaração de quem doou ou faleceu</span></div>
+        <div class="hint" style="margin-top:8px">Escolhendo <strong>recebido</strong>, a regra
+          "valor sem data não grava" <strong>não se aplica</strong> — não há pagamento para datar.
+          <div class="parecer">Parecer §5, pergunta 3: "há data de aquisição sem desembolso; o
+            custo é o valor constante na declaração do doador/de cujus. Logo o critério 'valor sem
+            data é ingravável' só vale para aquisição onerosa."</div></div>
+      </div>
+
+      <div class="aberto"><b>Pergunta em aberto nº 1 — para o <code>po</code></b>
+        Esta tela é <strong>a mesma</strong> do cadastro de obra do CONTAI-003, que já está em
+        produção, ou uma tela de "terreno" alcançável a partir dela? São dois formulários bem
+        diferentes de tamanho, e o tipo de compra <strong>não pode</strong> ficar escondido num
+        canto: ele é a bifurcação.</div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" data-ir="s0">← Fluxo</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 1b · RAMO À VISTA ══════════════════ -->
+  <section class="screen" id="s15">
+    <div class="appbar">
+      <div class="brand">Comprei à vista</div>
+      <div class="sub">O ramo curto — e ele é o mesmo modelo, com uma linha só</div>
+    </div>
+    <div class="body">
+      <div class="banner grn">Escolhendo à vista, <strong>o passo 3 inteiro desaparece</strong>:
+        não há informe anual, não há parcelas, não há juros, não há saldo devedor. Sobra um
+        desembolso com uma data.</div>
+
+      <div class="card">
+        <div class="lab">Pagamento do terreno</div>
+        <div class="row" style="margin-top:6px"><span class="lbl">Valor pago</span><span class="val">—</span></div>
+        <div class="row"><span class="lbl">Data em que saiu da conta</span>
+          <span class="val bad">obrigatória</span></div>
+        <div class="row"><span class="lbl">Comprovante</span><span class="val">obrigatório</span></div>
+        <div class="hint" style="margin-top:6px">A data que vale é a do <strong>débito no
+          extrato</strong> — não a do contrato, não a da escritura, não a do vencimento.</div>
+      </div>
+
+      <div class="banner mud">O passo 2 continua valendo igual: <strong>ITBI e escritura/registro
+        têm datas próprias</strong> e podem cair em outro ano.</div>
+
+      <div class="hint">Isto não é uma tela paralela mantida à parte: à vista é o
+        <strong>caso simples do mesmo modelo</strong> — um desembolso em vez de vários.
+        <div class="parecer">Parecer §5: "O caso à vista vira caso degenerado do mesmo modelo (um
+          desembolso) — isso resolve o CONTAI-010 inteiro em vez de duas vezes."</div></div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" data-ir="s16">Ir para o passo 2 →</button>
+      <button class="btn ghost mini" data-ir="s2">← Passo 1</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 2 · PASSO 2 · O QUE SAIU DO BOLSO ══════════════════ -->
+  <section class="screen" id="s16">
+    <div class="appbar">
+      <div class="brand">Passo 2 · o que saiu do seu bolso</div>
+      <div class="sub">Entrada, ITBI e escritura · cada um com a sua data</div>
+    </div>
+    <div class="body">
+      <div class="banner blu" style="font-size:14px"><strong>É a data de cada um que decide em
+        que ano ele entra</strong> — não a data da compra. Eles quase nunca acontecem todos no
+        mesmo ano, e é por isso que este ticket existe.</div>
+
+      <div class="secao">Entrada</div>
+      <div class="card">
+        <div class="row"><span class="lbl">Valor</span><span class="val">—</span></div>
         <div class="row"><span class="lbl">Data em que foi paga</span><span class="val bad">obrigatória</span></div>
         <div class="row"><span class="lbl">De onde saiu o dinheiro</span>
           <span class="val">recurso próprio / FGTS</span></div>
+        <div class="row"><span class="lbl">Comprovante</span><span class="val">obrigatório</span></div>
         <div class="hint" style="margin-top:6px"><strong>FGTS usado na entrada entra no custo</strong> —
           é dinheiro seu, não do banco.</div>
       </div>
 
-      <div class="aberto"><b>Pergunta em aberto nº 2 — para o po</b>
-        Esta tela é <strong>a mesma</strong> do cadastro de obra do CONTAI-003, ou uma tela
-        própria de "terreno" alcançável a partir dela? São dois formulários bem diferentes de
-        tamanho, e o CONTAI-003 já está em produção.</div>
+      <div class="secao">ITBI — imposto sobre a transmissão do imóvel</div>
+      <div class="card">
+        <div class="row"><span class="lbl">Valor recolhido</span><span class="val">—</span></div>
+        <div class="row"><span class="lbl">Data do recolhimento</span><span class="val bad">obrigatória</span></div>
+      </div>
+
+      <div class="secao">Escritura e registro em cartório</div>
+      <div class="card">
+        <div class="row"><span class="lbl">Valor pago</span><span class="val">—</span></div>
+        <div class="row"><span class="lbl">Data do pagamento</span><span class="val bad">obrigatória</span></div>
+        <div class="hint" style="margin-top:6px">Inclui o registro da alienação fiduciária, quando
+          há financiamento.</div>
+      </div>
+
+      <div class="secao">Por que a data de cada um, e não uma data só</div>
+      <div class="card amb">
+        <div class="ascii">terreno pago .......... 12/09/2024  ──►  custo de 2024
+ITBI recolhido ........ 03/02/2025  ──►  custo de 2025
+escritura e registro .. 03/02/2025  ──►  custo de 2025</div>
+        <div class="hint" style="margin-top:8px">Com uma data só, a situação declarada em
+          31/12/2024 sairia <strong>inflada por um imposto que ainda não tinha sido pago</strong>,
+          e a de 2025 sairia sem ele. <strong>A maior num ano e a menor no outro</strong>, nos
+          dois casos sem lastro de desembolso.</div>
+      </div>
+
+      <div class="secao">Ainda não paguei este</div>
+      <div class="card">
+        <div class="hint">ITBI a recolher ou escritura a lavrar podem ser registrados com
+          <strong>valor previsto e sem data</strong>. Nesse caso eles
+          <strong>não entram em ano nenhum</strong> — nem no corrente.
+          <strong>Previsto não é pago.</strong></div>
+        <div class="banner amb" style="margin-top:8px">O app <strong>nunca inventa a data</strong>:
+          nem a de hoje, nem a do cadastro. Data ausente continua ausente e visível —
+          <strong>campo vazio pergunta, data de memória afirma</strong>.</div>
+      </div>
     </div>
     <div class="foot">
-      <button class="btn ghost" data-ir="s1">← Painel</button>
+      <button class="btn primary" data-ir="s17">Ir para o passo 3 →</button>
+      <button class="btn ghost mini" data-ir="s2">← Passo 1</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 3 · PASSO 3 · A ESCOLHA (a trava, no ato) ══════════════════ -->
+  <section class="screen" id="s17">
+    <div class="appbar">
+      <div class="brand">Passo 3 · como registrar 2025</div>
+      <div class="sub">Uma escolha por ano · é ela que impede a contagem dobrada</div>
+    </div>
+    <div class="body">
+      <div class="banner mud">Você pagou parcelas ao banco o ano inteiro de 2025. Há
+        <strong>dois jeitos</strong> de trazer isso para o app, e eles cobrem o mesmo dinheiro.
+        <strong>Escolha um.</strong></div>
+
+      <div class="card grn">
+        <div class="ano"><div class="lab">Informe anual do IR</div><span class="chip grn">recomendado</span></div>
+        <div class="hint" style="margin-top:6px"><strong>Um lançamento</strong>, feito em jan/fev,
+          com o extrato que o banco publica sozinho. Cobre o ano inteiro, inclusive parcelas que
+          você esqueceria de lançar, e <strong>separa juros de amortização</strong> — que é o que
+          a declaração precisa.</div>
+        <div class="row" style="margin-top:8px"><span class="lbl">Quantas vezes por ano</span>
+          <span class="val">1</span></div>
+        <div class="row"><span class="lbl">Pedidos ao gerente</span><span class="val">nenhum — é download</span></div>
+        <button class="btn primary mini" style="margin-top:10px" data-ir="s3">Registrar pelo informe anual</button>
+      </div>
+
+      <div class="card">
+        <div class="lab">Parcela a parcela</div>
+        <div class="hint" style="margin-top:6px">Doze lançamentos por ano, cada um com a data do
+          débito. Faz sentido quando <strong>não existe informe</strong> — parcelamento direto com
+          o vendedor, por exemplo, onde quem recebe é uma pessoa e não um banco.</div>
+        <div class="row" style="margin-top:8px"><span class="lbl">Quantas vezes por ano</span>
+          <span class="val">12</span></div>
+        <div class="row longa"><span class="lbl">Separa juros de amortização?</span>
+          <span class="val warn">só se o seu comprovante separar</span></div>
+        <button class="btn ghost mini" style="margin-top:10px" data-ir="s11">Registrar parcela a parcela</button>
+      </div>
+
+      <div class="banner red"><strong>Escolher um fecha o outro para 2025.</strong> Registrar os
+        dois contaria os mesmos pagamentos duas vezes, e custo inflado em Bens e Direitos é
+        <strong>redução indevida de ganho de capital</strong> — cobrada com multa na venda.
+        Dá para trocar de ideia depois, mas nunca somar os dois.</div>
+
+      <div class="hint">A escolha vale <strong>por ano</strong>: nada impede 2024 pelas parcelas e
+        2025 pelo informe.</div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" data-ir="s16">← Passo 2</button>
     </div>
   </section>
 
@@ -615,12 +791,20 @@
         </div>
         <div class="dir"><input class="inp" id="iTaxas" type="number" step="0.01" placeholder="0,00"></div>
       </div>
-      <div class="aberto oculto" id="abertoFcvs"><b>Pergunta em aberto nº 3 — para o po e o contador</b>
-        O extrato traz <strong>"Taxas + FCVS" numa linha só</strong>, e o critério 13 do ticket
-        exige tratamento <strong>diferente</strong> para cada um: taxa é exclusão firme, FCVS é
-        candidato a inclusão. Enquanto a linha for R$ 0,00 não há o que separar — <strong>e é o
-        caso de 2025</strong>. No dia em que vier valor, de onde sai a separação?
-        Só a instituição sabe. <strong>Não preenchi essa lacuna sozinho.</strong></div>
+      <div class="banner amb oculto" id="abertoFcvs" style="margin-top:-4px">
+        <strong>Esta linha veio com valor, e ela junta duas coisas que têm destinos
+        diferentes.</strong> Taxa de administração <strong>não entra</strong> no custo; o FCVS
+        <strong>ainda pode vir a entrar</strong>. Como o extrato não separa, o app
+        <strong>não adivinha a divisão</strong>: guarda o valor cheio fora da soma e marca o ano
+        como <strong>pendente de revisão humana</strong>, até você confirmar a divisão com a
+        instituição.
+        <div class="hint" style="margin-top:6px; color:inherit">Nada trava por causa disto — o
+          lançamento grava normalmente. O que fica marcado é que <strong>uma parte pode estar
+          sendo deixada de fora do custo indevidamente</strong>.</div>
+        <div class="parecer">Pergunta nº 3 ao <code>contador</code>: dividir errado e somar é pior
+          que não somar? Desenhei assumindo que sim — o parecer diz que o erro de inclusão é
+          corrigível e o de não capturar é irreversível, mas aqui capturar está garantido dos
+          dois jeitos.</div></div>
 
       <div class="rub nao">
         <div class="esq">
@@ -761,7 +945,7 @@
         </div>
       </div>
 
-      <div class="aberto"><b>Pergunta em aberto nº 4 — para o po</b>
+      <div class="aberto"><b>Pergunta em aberto nº 4 — para o <code>po</code></b>
         O ano-base <strong>2025 já foi declarado</strong> (prazo do exercício 2026 encerrou em
         30/04/2026). Gravar aqui pode significar que a declaração entregue está diferente do
         que o app passa a mostrar. A tela deveria avisar isso — mas o app
@@ -826,7 +1010,7 @@ ter sido pago.</div>
             headline de 'custo em risco'."</div></div>
       </div>
 
-      <div class="aberto"><b>Pergunta em aberto nº 5 — para o po</b>
+      <div class="aberto"><b>Pergunta em aberto nº 6 — para o <code>po</code></b>
         O custo do financiamento <strong>entra no total de custo da obra</strong> que a home
         mostra? Terreno e casa são um item só na declaração (mesma matrícula), então
         fiscalmente sim. Mas hoje aquele número é lido como "quanto já gastei construindo", e
@@ -924,7 +1108,7 @@ ter sido pago.</div>
       <div class="card">
         <div class="hint">Um chamado à instituição, perguntando a natureza da rubrica.
           <strong>Uma vez</strong> — a resposta vale para todos os anos do contrato.</div>
-        <div class="aberto" style="margin-top:10px"><b>Pergunta em aberto nº 6 — para o po</b>
+        <div class="aberto" style="margin-top:10px"><b>Pergunta em aberto nº 7 — para o <code>po</code></b>
           O app deveria <strong>lembrar</strong> de fazer essa pergunta ao banco (uma pendência
           com prazo, um lembrete no Google Calendar), ou isso é vida fora do software? Ele já
           tem lembretes de agenda no CONTAI-019 — o mecanismo existe.</div>
@@ -968,71 +1152,75 @@ ter sido pago.</div>
         virarem "excluído", no dia em que o FCVS for confirmado ninguém vai lembrar de voltar
         aqui.</div>
 
-      <div class="aberto"><b>Volta à pergunta nº 3</b>
+      <div class="aberto"><b>Pergunta em aberto nº 3 — para o <code>contador</code></b>
         No extrato de 2025 esta linha é <strong>R$ 0,00</strong>, então a separação não faz falta
-        hoje. No dia em que vier valor, o app precisa de dois números e o documento só dá um.</div>
+        hoje. No dia em que vier valor, o app precisa de <strong>dois números e o documento dá
+        um</strong> — e só a instituição resolve.
+        <strong>O que desenhei</strong>: o app não adivinha a divisão, guarda o valor cheio fora
+        da soma e marca o ano como <em>pendente de revisão humana</em>, sem travar a gravação.
+        Confirma que deixar tudo fora é o conservador certo, ou isso perde FCVS demais ao longo
+        de 20 anos?</div>
     </div>
     <div class="foot">
       <button class="btn ghost" data-ir="s4">← Voltar ao formulário</button>
     </div>
   </section>
 
-  <!-- ══════════════════ 4a · TRAVA DA DUPLA CONTAGEM ══════════════════ -->
+  <!-- ══════════════════ 4a · TROCAR DE RAMO (a trava, quando já há escolha) ══════════════════ -->
   <section class="screen" id="s11">
     <div class="appbar">
-      <div class="brand">2024 — já tem parcelas lançadas</div>
-      <div class="sub">Ou o informe, ou as parcelas. Nunca os dois</div>
+      <div class="brand">2024 — você já escolheu "parcela a parcela"</div>
+      <div class="sub">Trocar pelo informe é possível · somar os dois, não</div>
     </div>
     <div class="body">
-      <div class="banner red"><strong>Não dá para registrar o informe de 2024.</strong>
-        Este ano já tem <strong>4 parcelas</strong> deste contrato lançadas uma a uma, somando
-        <strong class="mono">R$ 19.800,00</strong>. Se o informe entrasse por cima, os mesmos
-        pagamentos contariam duas vezes.</div>
+      <div class="banner amb"><strong>2024 já está registrado pelo outro caminho.</strong>
+        Há <strong>4 parcelas</strong> deste contrato lançadas uma a uma, somando
+        <strong class="mono">R$ 19.800,00</strong> no custo de 2024. Se o informe entrasse por
+        cima, os mesmos pagamentos contariam duas vezes.</div>
 
-      <div class="secao">Por que o app recusa em vez de avisar</div>
+      <div class="secao">O que está registrado hoje em 2024</div>
       <div class="card">
-        <div class="hint">Custo contado em dobro em Bens e Direitos vira
-          <strong>redução indevida de ganho de capital</strong> no dia da venda — e isso é
-          cobrado com multa. É o mesmo erro que o app já impede em outro lugar, com outro nome.
-          <div class="parecer">Parecer, adendo 1 §6: "por ano+contrato é o informe OU as parcelas,
-            nunca os dois. Dupla contagem aqui é custo inflado em Bens e Direitos = redução
-            indevida de ganho de capital."</div></div>
+        <div class="row"><span class="lbl">05/03/2024 · parcela</span><span class="val mono">R$ 4.950,00</span></div>
+        <div class="row"><span class="lbl">05/04/2024 · parcela</span><span class="val mono">R$ 4.950,00</span></div>
+        <div class="row"><span class="lbl">05/05/2024 · parcela</span><span class="val mono">R$ 4.950,00</span></div>
+        <div class="row"><span class="lbl">05/06/2024 · parcela</span><span class="val mono">R$ 4.950,00</span></div>
+        <div class="row"><span class="lbl"><strong>No custo de 2024</strong></span>
+          <span class="val mono"><strong>R$ 19.800,00</strong></span></div>
+        <div class="banner amb" style="margin-top:8px">Repare: <strong>faltam 8 meses</strong>, e
+          nenhuma destas linhas separa juros de amortização. É o que o informe anual resolve
+          de uma vez.</div>
       </div>
 
-      <div class="secao">Escolha um dos dois para 2024</div>
+      <div class="secao">Escolha um caminho para 2024</div>
 
       <div class="card">
-        <div class="lab">Manter as 4 parcelas lançadas</div>
-        <div class="hint">Some <span class="mono">R$ 19.800,00</span> no custo de 2024.
-          O informe de 2024 fica só no acervo, como documento, sem virar lançamento.</div>
-        <button class="btn ghost mini" style="margin-top:8px">Manter as parcelas</button>
+        <div class="lab">Manter as parcelas</div>
+        <div class="hint">2024 continua valendo <span class="mono">R$ 19.800,00</span>. O informe
+          de 2024 pode ser anexado ao acervo como documento, <strong>sem virar lançamento</strong>.</div>
+        <button class="btn ghost mini" style="margin-top:8px">Manter as 4 parcelas</button>
       </div>
 
-      <div class="card">
-        <div class="lab">Trocar pelas rubricas do informe</div>
-        <div class="hint">O informe cobre <strong>o ano inteiro</strong>, inclusive parcelas que
-          você não lançou, e separa juros de amortização — que as parcelas avulsas não separam.
-          As 4 parcelas saem do custo de 2024.</div>
-        <button class="btn primary mini" style="margin-top:8px">Ver as 4 parcelas antes de decidir</button>
+      <div class="card grn">
+        <div class="lab">Trocar pelo informe anual de 2024</div>
+        <div class="hint">As 4 parcelas <strong>saem do custo</strong> e o ano passa a valer o que
+          o informe disser — ano inteiro, com juros e amortização separados.</div>
+        <div class="banner blu" style="margin-top:8px"><strong>Trocar não apaga nada.</strong>
+          As 4 parcelas continuam no acervo, com os comprovantes, marcadas como
+          <em>"substituídas pelo informe anual de 2024"</em>. O que muda é só de onde o custo do
+          ano é calculado. O acervo deste app <strong>não apaga registro</strong>.</div>
+        <button class="btn primary mini" style="margin-top:8px">Trocar pelo informe de 2024</button>
       </div>
 
-      <div class="aberto"><b>Pergunta em aberto nº 7 — para o po</b>
-        O ticket corta a captura mensal de parcelas do escopo — então
-        <strong>de onde viriam essas parcelas?</strong> Duas hipóteses, e elas pedem telas
-        diferentes: <strong>(a)</strong> ele lançou as parcelas do banco como pagamento comum
-        do app, porque não havia outro lugar — e aí a trava tem de reconhecer um
-        <em>pagamento</em> como conflito, não uma "parcela de financiamento" que não existe;
-        <strong>(b)</strong> lançamento de parcela vai existir mesmo, para quem parcela direto
-        com o vendedor. <strong>Desenhei (a).</strong> Se for (b), esta tela muda.</div>
-
-      <div class="aberto"><b>Pergunta em aberto nº 8 — para o po</b>
-        Trocar parcelas pelo informe significa <strong>tirar do custo</strong> pagamentos já
-        gravados. O CONTAI-009 fixou o acervo como <em>append-only</em> — nada se apaga. Então
-        "trocar" é desvincular do custo mantendo o registro, ou é outra coisa? Isto toca o
-        parecer de correção de documento registrado e eu não decido sozinho.</div>
+      <div class="aberto"><b>Pergunta em aberto nº 5 — para o <code>contador</code></b>
+        "Desvincular mantendo o registro" é o tratamento certo para acervo append-only, na mesma
+        forma do vínculo do CONTAI-018? Desenhei assim. O que preciso confirmar é
+        <strong>fiscal, não técnico</strong>: um pagamento comprovado que sai do custo porque foi
+        absorvido por um documento mais completo <strong>continua sendo dispêndio discriminável</strong>
+        se a Receita pedir? Ou some da vista e vira problema numa intimação?</div>
     </div>
     <div class="foot">
-      <button class="btn ghost" data-ir="s1">← Painel</button>
+      <button class="btn ghost" data-ir="s17">← Voltar à escolha</button>
+      <button class="btn ghost mini" data-ir="s1">Painel</button>
     </div>
   </section>
 
@@ -1075,7 +1263,7 @@ ter sido pago.</div>
           silenciosamente errado uma vez.</div>
       </div>
 
-      <div class="aberto"><b>Pergunta em aberto nº 9 — para o po</b>
+      <div class="aberto"><b>Pergunta em aberto nº 8 — para o <code>po</code></b>
         Mostrar a estimativa (<em>"≈ R$ 60 mil"</em>) ajuda ou atrapalha? Ela dá noção do buraco,
         mas é um número inventado a partir do ano passado numa tela cuja disciplina é
         <strong>não afirmar o que não se sabe</strong>. A alternativa é dizer só
@@ -1133,68 +1321,87 @@ ter sido pago.</div>
     </div>
   </section>
 
-  <!-- ══════════════════ 5 · PERGUNTAS EM ABERTO ══════════════════ -->
+  <!-- ══════════════════ 6 · PERGUNTAS E DECISÕES ══════════════════ -->
   <section class="screen" id="s14">
     <div class="appbar">
-      <div class="brand">O que eu não decidi sozinho</div>
-      <div class="sub">9 lacunas de requisito · voltam ao po, não viram design</div>
+      <div class="brand">O que ficou decidido e o que não</div>
+      <div class="sub">8 lacunas · nenhuma vai ao Mateus, e nenhuma virou palpite meu</div>
     </div>
     <div class="body">
-      <div class="banner mud">Cada uma destas aparece <strong>tracejada em âmbar dentro da tela
-        onde importa</strong>. Nenhuma foi preenchida com palpite meu.</div>
+      <div class="banner mud">Cada pergunta aparece <strong>tracejada em âmbar dentro da tela onde
+        importa</strong>. As fiscais vão ao <code>contador</code>, as de escopo ao <code>po</code>.</div>
 
+      <div class="secao">Para o contador — fiscais</div>
       <ul class="lista">
-        <li><span class="n">1</span><span><strong>Quais anos entram na lista do painel.</strong>
-          Todo ano entre o contrato e hoje? Contrato antigo abre a tela com cinco pendências de
-          uma vez. <em>(tela: painel)</em></span></li>
-        <li><span class="n">2</span><span><strong>Onde mora o cadastro do contrato.</strong>
-          Dentro do formulário de obra do CONTAI-003, que já está em produção, ou tela própria?
-          <em>(tela: como você adquiriu o terreno)</em></span></li>
         <li><span class="n">3</span><span><strong>"Taxas + FCVS" vem numa linha só no extrato</strong>
-          e o critério 13 exige tratamento diferente para cada um. Como separar quando vier
-          valor? <em>(tela: formulário e FCVS)</em></span></li>
-        <li><span class="n">4</span><span><strong>Ano já declarado.</strong> Gravar 2025 mexe em
-          exercício cujo prazo encerrou. A tela avisa, e com base em quê, se a D24 não existe?
-          <em>(tela: conferência)</em></span></li>
-        <li><span class="n">5</span><span><strong>O custo do financiamento entra no total da
-          home?</strong> Fiscalmente terreno e casa são um item só; na leitura do dia a dia
-          aquele número é "quanto gastei construindo". <em>(tela: gravado)</em></span></li>
-        <li><span class="n">6</span><span><strong>O app lembra de perguntar ao banco</strong> a
-          natureza da "Diferença Teórico / Pago", ou isso é vida fora do software?
-          <em>(tela: diferença teórico/pago)</em></span></li>
-        <li><span class="n">7</span><span><strong>Contra o que a trava de dupla contagem
-          bate?</strong> A captura mensal saiu do escopo, então o conflito só pode vir de
-          pagamentos comuns lançados sem lugar melhor. Desenhei assim.
-          <em>(tela: dupla contagem)</em></span></li>
-        <li><span class="n">8</span><span><strong>"Trocar parcelas pelo informe" em acervo
-          append-only.</strong> Desvincular do custo mantendo o registro, ou outra coisa?
-          <em>(tela: dupla contagem)</em></span></li>
-        <li><span class="n">9</span><span><strong>Mostrar a estimativa do ano corrente</strong>
-          (<em>≈ R$ 60 mil</em>) numa tela cuja disciplina é não afirmar o que não sabe?
-          <em>(tela: aguardando informe)</em></span></li>
+          e cada metade tem destino diferente. Desenhei: o app não adivinha a divisão, guarda o
+          valor cheio fora da soma e marca o ano como <em>pendente de revisão humana</em>, sem
+          travar a gravação. Deixar tudo fora é o conservador certo, ou perde FCVS demais em 20
+          anos? <em>(telas: formulário · taxas e FCVS)</em></span></li>
+        <li><span class="n">5</span><span><strong>Trocar parcelas pelo informe em acervo
+          append-only.</strong> Desenhei "desvincular mantendo o registro", como o vínculo do
+          CONTAI-018. A dúvida é fiscal: pagamento comprovado que sai do custo porque foi
+          absorvido por documento mais completo <strong>continua discriminável</strong> numa
+          intimação? <em>(tela: trocar de ramo)</em></span></li>
       </ul>
 
-      <div class="secao">Duas coisas que eu decidi, e quero que sejam olhadas</div>
+      <div class="secao">Para o po — escopo e navegação</div>
+      <ul class="lista">
+        <li><span class="n">1</span><span><strong>Onde mora o passo 1.</strong> Dentro do
+          formulário de obra do CONTAI-003, que já está em produção, ou tela própria? O tipo de
+          compra é a bifurcação e não pode ficar escondido num canto.</span></li>
+        <li><span class="n">2</span><span><strong>Quais anos entram na lista do painel.</strong>
+          Todo ano entre a compra e hoje? Compra antiga abre a tela com cinco pendências de uma
+          vez.</span></li>
+        <li><span class="n">4</span><span><strong>Ano já declarado.</strong> Gravar 2025 mexe em
+          exercício cujo prazo encerrou. A tela avisa, e com base em quê, se a
+          <strong>D24</strong> (o app não sabe qual ano já foi declarado) não existe?</span></li>
+        <li><span class="n">6</span><span><strong>O custo do financiamento entra no total da
+          home?</strong> Fiscalmente terreno e casa são um item só; na leitura do dia a dia
+          aquele número é "quanto gastei construindo".</span></li>
+        <li><span class="n">7</span><span><strong>O app lembra de perguntar à instituição</strong>
+          a natureza da "Diferença Teórico / Pago", ou isso é vida fora do software?</span></li>
+        <li><span class="n">8</span><span><strong>Mostrar a estimativa do ano corrente</strong>
+          (<em>≈ R$ 60 mil</em>) numa tela cuja disciplina é não afirmar o que não sabe?</span></li>
+      </ul>
+
+      <div class="secao">Respondida — sai da lista</div>
       <div class="card">
-        <div class="lab">A trava da soma exige igualdade exata</div>
-        <div class="hint">Zero centavo de tolerância. Documento de banco arredonda, e um
-          descasamento de R$ 0,01 vai travar o lançamento inteiro. Achei melhor travar e
-          reclamar do que abrir uma folga que ninguém sabe medir — mas se o Mateus preferir
-          tolerância, é uma linha.</div>
+        <div class="lab">Contra o que a trava da dupla contagem bate?</div>
+        <div class="hint" style="margin-top:4px">Respondida pelo fluxo do Mateus: bate contra
+          <strong>o outro ramo do passo 3</strong>, escolhido no ato. Não é uma recusa que aparece
+          depois — é uma bifurcação que só deixa seguir por um lado.</div>
       </div>
-      <div class="card">
-        <div class="lab">O botão de gravar fica bloqueado sem anexo e sem soma fechada</div>
-        <div class="hint">É o oposto do que foi decidido no CONTAI-019, onde bloquear por falta
-          de comprovante foi reprovado. A diferença: lá o parecer nomeava a exceção; aqui os
-          critérios 10 e 11 mandam <strong>recusar</strong>, com essas palavras. Se a régua for a
-          mesma dos dois lados, esta tela está errada e eu preciso saber.</div>
+
+      <div class="secao">Decidido — não reabrir a cada rodada</div>
+
+      <div class="card grn">
+        <div class="lab">Por que aqui o botão bloqueia, se no CONTAI-019 bloquear foi reprovado</div>
+        <div class="hint" style="margin-top:4px">A régua não é <em>"nunca bloqueie"</em>. É
+          <strong>"não bloqueie quando o fato do mundo já aconteceu"</strong>.</div>
+        <div class="row longa" style="margin-top:8px"><span class="lbl">CONTAI-019 — pagamento sem comprovante</span>
+          <span class="val">o dinheiro <strong>saiu da conta</strong>. Recusar apagaria um fato
+            real, e o app perderia o registro de algo que existe. <strong>Grava.</strong></span></div>
+        <div class="row longa"><span class="lbl">Aqui — soma que não fecha</span>
+          <span class="val">nenhum fato novo aconteceu: <strong>o dado está errado</strong>.
+            Gravar produziria um número falso no custo de aquisição, com aparência de certo.
+            <strong>Recusa.</strong></span></div>
+        <div class="hint" style="margin-top:8px">Por isso os critérios 10 e 11 usam a palavra
+          <strong>recusar</strong>, e o 019 não usava.</div>
+      </div>
+
+      <div class="card grn">
+        <div class="lab">A trava exige igualdade exata — zero centavo de tolerância</div>
+        <div class="hint" style="margin-top:4px">Documento de banco arredonda, e um descasamento
+          de R$ 0,01 vai travar o lançamento inteiro. Mesmo assim fica:
+          <strong>travar e reclamar mostra o problema; folga silenciosa esconde.</strong>
+          Se aparecer descasamento de centavo na vida real, decide-se com o caso na mão.</div>
       </div>
     </div>
     <div class="foot">
       <button class="btn ghost" data-ir="s0">← Fluxo</button>
     </div>
   </section>
-
 </div>
 
 <script>
@@ -1203,27 +1410,32 @@ ter sido pago.</div>
 
   /* ══ ABAS ═══════════════════════════════════════════ */
   var TELAS = [
-    { g:"g0", id:"s0",  rot:"Fluxo — antes de qualquer tela" },
+    { g:"g0", id:"s0",  rot:"Fluxo — os 4 passos, antes de qualquer tela" },
 
-    { g:"g1", id:"s1",  rot:"★ Painel — custo do terreno por ano" },
-    { g:"g1", id:"s2",  rot:"Como você adquiriu o terreno" },
+    { g:"g1", id:"s2",  rot:"★ Passo 1 · a compra e o TIPO DE COMPRA" },
+    { g:"g1", id:"s15", rot:"Ramo à vista — o caso curto" },
 
-    { g:"g2", id:"s3",  rot:"★ Passo 1 · anexar o extrato" },
-    { g:"g2", id:"s4",  rot:"★ Passo 2 · rubricas (soma fecha)", preset:"real" },
-    { g:"g2", id:"s4",  rot:"★ Passo 2 · a soma NÃO fecha", preset:"quebrado" },
-    { g:"g2", id:"s4",  rot:"Passo 2 · em branco", preset:"zero" },
-    { g:"g2", id:"s6",  rot:"★ Passo 3 · conferência" },
-    { g:"g2", id:"s7",  rot:"★ Gravado — e o que isso produz" },
+    { g:"g2", id:"s16", rot:"★ Passo 2 · entrada, ITBI e escritura (datas próprias)" },
 
-    { g:"g3", id:"s8",  rot:"★ Por que juros entram e seguro não" },
-    { g:"g3", id:"s9",  rot:"★ Diferença Teórico / Pago" },
-    { g:"g3", id:"s10", rot:"Taxas e FCVS" },
+    { g:"g3", id:"s17", rot:"★ Passo 3 · a escolha: informe OU parcelas" },
+    { g:"g3", id:"s3",  rot:"★ Passo 4 · anexar o extrato" },
+    { g:"g3", id:"s4",  rot:"★ Passo 4 · rubricas (a soma fecha)", preset:"real" },
+    { g:"g3", id:"s4",  rot:"★ Passo 4 · a soma NÃO fecha", preset:"quebrado" },
+    { g:"g3", id:"s4",  rot:"Passo 4 · em branco", preset:"zero" },
+    { g:"g3", id:"s6",  rot:"★ Passo 4 · conferência" },
+    { g:"g3", id:"s7",  rot:"★ Gravado — e o que isso produz" },
 
-    { g:"g4", id:"s11", rot:"★ Trava — informe OU parcelas" },
-    { g:"g4", id:"s12", rot:"★ Aguardando informe (ano corrente)" },
-    { g:"g4", id:"s13", rot:"Ano da venda — a exceção" },
+    { g:"g4", id:"s1",  rot:"★ Painel — custo do terreno por ano" },
 
-    { g:"g5", id:"s14", rot:"9 perguntas em aberto" }
+    { g:"g5", id:"s8",  rot:"★ Por que juros entram e seguro não" },
+    { g:"g5", id:"s9",  rot:"★ Diferença Teórico / Pago" },
+    { g:"g5", id:"s10", rot:"Taxas e FCVS" },
+
+    { g:"g6", id:"s11", rot:"★ Trocar de ramo — informe no lugar das parcelas" },
+    { g:"g6", id:"s12", rot:"★ Aguardando informe (ano corrente)" },
+    { g:"g6", id:"s13", rot:"Ano da venda — a exceção" },
+
+    { g:"g7", id:"s14", rot:"8 perguntas + 2 decisões fechadas" }
   ];
 
   var abas = [];
