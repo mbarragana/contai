@@ -201,3 +201,127 @@ abate na aferição é o efetivamente declarado, e conferir isso não é do app.
 Documento registrado **em duplicidade** não se resolve editando campo: precisa
 de *"marcar como duplicata de X"*, que é **anotação, não delete**. O CONTAI-004
 só **avisa no registro**; depois do registro não há saída nenhuma.
+
+---
+
+# ADENDO — 2026-08-19 · as cinco perguntas do `designer` no mock do CONTAI-021
+
+- **Origem**: `design/mocks/CONTAI-021.html` v1, aprovada pelo Mateus em 19/08 —
+  os cinco blocos tracejados âmbar endereçados ao `contador`.
+- **Autoridade**: decisão minha, delegada pelo Mateus. **Não volta para ele.**
+- **Status**: **estende** o §4.3 e **completa** o §7 deste parecer. Não contradiz
+  nada anterior.
+- **Regra nova que atravessa as cinco**: **pendência persistente só nasce quando
+  a correção muda um NÚMERO que foi ou será declarado.** Correção que muda
+  identificação, composição ou arquivamento gera **rastro e aviso no ato**, nunca
+  pendência. Alarme que ninguém sabe baixar é o carimbo recusado em 10/08.
+
+## 1. Sair sem corrigir porque o erro é do papel → **NÃO gera linha de rastro**
+
+`revisao` grava **antes→depois de um fato do acervo**. Aqui não houve antes nem
+depois: o app está certo, o papel é que está errado, e não há divergência
+app↔papel a registrar. "Consultei e não corrigi" é ruído que, repetido, torna
+ilegível em 2034 exatamente a linha que importa.
+
+`[Likely]` A data em que o erro foi identificado **não faz correr prazo nenhum
+do contribuinte**. O prazo que corre é o do emitente para cancelar/substituir, e
+é do município (NFS-e) ou do Ajuste SINIEF 07/05 (NF-e) — **confirmar na
+legislação municipal**. Gravar essa data no app fingiria uma relevância que ela
+não tem.
+
+O rastro nasce quando o documento novo chegar — anexo adicional com
+`motivo = emitente_corrigiu_a_nota` (§5).
+
+Texto literal do botão de saída:
+
+> **Voltar ao documento — deixar como está**
+>
+> Nada foi alterado. O documento continua no acervo com o valor que está no papel
+> que você anexou. Quando o emitente mandar a nota substitutiva ou a carta de
+> correção, volte aqui e anexe: é nesse momento que a correção fica registrada.
+
+## 2. Marcenaria fixa **não aparece** como opção nem como alarme
+
+Não é uma terceira classificação. `classificacao` responde *material × mão de
+obra* (composição da discriminação); marcenaria fixa é dúvida de **dentro ou fora
+do custo de aquisição** — outra pergunta, que nenhuma das duas opções desta tela
+expressa. Alarme ao escolher "Material" dispararia em quase todo caso que não é
+marcenaria: alarme que não desliga.
+
+Fica como **rodapé passivo**, texto literal:
+
+> Esta escolha muda só a composição do que você declara (material × mão de obra).
+> **Não muda o total e não tira nada do custo.** Se a sua dúvida é se o gasto
+> entra no custo do imóvel — é o caso de **marcenaria fixa e planejados** —, isso
+> não se decide aqui: leve ao seu contador.
+
+O gatilho certo é a **descrição do documento no registro**, não a correção. Fora
+do CONTAI-021.
+
+## 3. Corrigir só o nome: a afirmação **fica**. Não é atrito inventado
+
+⚠️ **Isto estende o §4.3 deste parecer**, que amarrava a afirmação à troca do
+ponteiro. A regra correta é mais larga:
+
+> **Todo ato que altere a identificação de um favorecido já gravado exige, no
+> mesmo ato, afirmação explícita de que o CNPJ/CPF gravado é o impresso no
+> anexo.** Trocar o ponteiro e corrigir o nome são dois desses atos.
+
+O motivo é o caminho que o próprio `designer` nomeou: renomear "WK" para o nome
+da empresa certa mantendo o CNPJ errado faz o registro mentir duas vezes, com
+aparência de certo — e nenhuma tela teria pedido nada. Esta afirmação é o único
+instante em que o CNPJ gravado é lido lado a lado com o papel. Custo: um toque,
+numa tela de **gestão em casa**.
+
+Texto literal (o do mock serve; mantenha a segunda linha):
+
+> ✓ O CNPJ impresso na nota é **12.345.678/0001-99** — só o nome está diferente.
+>
+> **Não é esse o CNPJ do papel?** Então não é o nome que está errado. → *O CNPJ/CPF
+> do emitente está errado*
+
+## 4. Nome corrigido com pagamento em ano anterior → **aviso + rastro. Não abre pendência**
+
+É o mecanismo que faltava no §7. Fundamento: **o custo não muda um centavo**, e a
+ficha Pagamentos Efetuados identifica o beneficiário pelo **CPF/CNPJ** — o nome
+acompanha. `[Likely] — confirmar com CRC no caso concreto` retificar DAA entregue
+só por grafia de nome, com CNPJ correto, é imaterial.
+
+E o caso grave já está barrado antes: se não for grafia, mas **outra empresa**,
+não é correção de nome — é troca de ponteiro, rodada 2, e a tela do §4 recusa.
+Pelo funil, o que chega nesta tela é sempre grafia. Grafia não abre pendência.
+
+Texto literal do aviso:
+
+> Um dos pagamentos deste favorecido é de **2025**. Se você já entregou a
+> declaração daquele ano, o nome que saiu nela continua diferente do que o app
+> mostra a partir de agora. O **CPF/CNPJ**, que é o que identifica o favorecido
+> na declaração, **não mudou**.
+>
+> Esta correção fica registrada no histórico, com a data. Se o seu contador
+> precisar dela, está lá — **o app não decide se isso pede retificadora**.
+
+## 5. Corrigir a obra: **não pergunta o motivo**
+
+O `designer` está certo, e não é default em campo fiscal: `motivo` é metadado do
+ato, não dado do documento, e a taxonomia do §5 não se aplica aqui —
+`emitente_corrigiu_a_nota` é impossível num campo que **não existe no papel**.
+Perguntar o que só tem uma resposta ensina a clicar sem ler.
+
+O rastro grava sozinho: campo `obra`, antes→depois, e motivo próprio
+**`arquivamento_corrigido`**. Não gravar *"arquivado na obra errada"*: isso é
+inferência sobre a causa; o rastro registra fato.
+
+⚠️ **Mas esta tela deve ganhar o que o mock não mostra.** Mover documento entre
+obras **muda custo dos dois lados** — sai de uma, entra na outra. Se houver
+pagamento vinculado, **é o mesmo detector do critério 4**, e ele deve rodar aqui:
+delta por ano-calendário **das duas obras** antes de gravar, e **pendência
+persistente** se algum ano anterior mudar — porque aqui muda número. É a única
+das cinco respostas que **abre** pendência.
+
+## Fecho
+
+- **Automático**: as cinco decisões acima. Nenhuma exige julgamento novo.
+- **Só o Mateus**: a afirmação do §3 deste adendo.
+- **CRC**: se a correção de grafia de nome em ano declarado pede retificadora
+  (§4 acima) — o app informa e guarda, não decide.
