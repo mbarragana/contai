@@ -4,7 +4,13 @@ import { describe, expect, it } from "vitest";
 
 import { podeGerarRelatorioAnual } from "@/lib/fiscal/compromisso";
 import { calcularResumo, type EntradaResumo } from "@/lib/fiscal/resumo";
-import type { Documento, Obra, Pagamento } from "@/lib/types";
+import type {
+  Documento,
+  FinanciamentoInforme,
+  Obra,
+  Pagamento,
+  TerrenoDesembolso,
+} from "@/lib/types";
 
 const OBRA: Obra = {
   id: "obra-1",
@@ -13,14 +19,29 @@ const OBRA: Obra = {
   matricula: "38.104",
   cartorio: "1º Ofício de Registro de Imóveis",
   municipio: "Florianópolis",
-  valorTerrenoCentavos: 80_000_000, // R$ 800.000,00
-  valorItbiCentavos: 0,
-  valorEscrituraRegistroCentavos: 0,
+  naturezaAquisicaoTerreno: "financiado",
   dataInicioObra: "2025-11-04",
   cnoRegistradoEm: "2025-11-20",
   unidadesAutonomas: 1,
   origemDesmembramentoLoteamento: false,
 };
+
+/**
+ * CONTAI-010 — o terreno saiu das colunas da obra e virou desembolso DATADO.
+ * R$ 800.000,00 pagos em 2025, que é o que a obra do seed sempre significou.
+ */
+const TERRENO: TerrenoDesembolso = {
+  id: "t1",
+  obraId: "obra-1",
+  tipo: "pagamento_terreno",
+  valorCentavos: 80_000_000,
+  dataPagamento: "2025-06-10",
+  estado: "pago",
+  origemRecurso: null,
+  arquivoPath: "u/terreno/escritura.pdf",
+};
+
+const TERRENO_CENTAVOS = TERRENO.valorCentavos;
 
 function doc(over: Partial<Documento> & { id: string }): Documento {
   return {
@@ -73,6 +94,8 @@ function resumo(over: Partial<EntradaResumo> = {}) {
     obra: OBRA,
     documentos: [],
     pagamentos: [],
+    desembolsosTerreno: [TERRENO],
+    informesFinanciamento: [],
     ano: 2026,
     ...over,
   });
@@ -120,7 +143,7 @@ describe("custo confirmado (regime de caixa)", () => {
       ],
     });
     expect(r.custoConfirmadoAnoCentavos).toBe(0);
-    expect(r.acumuladoImovelCentavos).toBe(OBRA.valorTerrenoCentavos + 300_000);
+    expect(r.acumuladoImovelCentavos).toBe(TERRENO_CENTAVOS + 300_000);
   });
 
   it("não conta pagamento do ano seguinte no acumulado de 31/12", () => {
@@ -130,13 +153,13 @@ describe("custo confirmado (regime de caixa)", () => {
         pag({ id: "p1", documentoIds: ["d1"], dataPagamento: "2027-01-02" }),
       ],
     });
-    expect(r.acumuladoImovelCentavos).toBe(OBRA.valorTerrenoCentavos);
+    expect(r.acumuladoImovelCentavos).toBe(TERRENO_CENTAVOS);
   });
 
   it("pagamento sem documento vinculado não sustenta custo", () => {
     const r = resumo({ pagamentos: [pag({ id: "p1", valorCentavos: 900_000 })] });
     expect(r.custoConfirmadoAnoCentavos).toBe(0);
-    expect(r.acumuladoImovelCentavos).toBe(OBRA.valorTerrenoCentavos);
+    expect(r.acumuladoImovelCentavos).toBe(TERRENO_CENTAVOS);
   });
 
   it("documento em quarentena não é documento hábil", () => {
@@ -164,7 +187,7 @@ describe("custo confirmado (regime de caixa)", () => {
       ],
     });
     expect(r.custoConfirmadoAnoCentavos).toBe(0);
-    expect(r.acumuladoImovelCentavos).toBe(OBRA.valorTerrenoCentavos);
+    expect(r.acumuladoImovelCentavos).toBe(TERRENO_CENTAVOS);
   });
 
   it("boleto + NF no mesmo pagamento: a NF é que sustenta o custo", () => {
@@ -186,7 +209,7 @@ describe("custo confirmado (regime de caixa)", () => {
   });
 
   it("acumulado começa no terreno mesmo sem obra lançada", () => {
-    expect(resumo().acumuladoImovelCentavos).toBe(OBRA.valorTerrenoCentavos);
+    expect(resumo().acumuladoImovelCentavos).toBe(TERRENO_CENTAVOS);
   });
 });
 
@@ -746,6 +769,8 @@ describe("os oito lugares (parecer §2, itens 1 a 8)", () => {
   const painel = {
     documentos: [doc({ id: "d1", valorCentavos: 1_000_000 })],
     pagamentos: [pag({ id: "p1", valorCentavos: 1_000_000, documentoIds: ["d1"] })],
+    desembolsosTerreno: [TERRENO],
+    informesFinanciamento: [] as FinanciamentoInforme[],
   };
 
   it("1 · custo confirmado e acumulado: `EntradaResumo` não tem compromisso", () => {
@@ -758,7 +783,7 @@ describe("os oito lugares (parecer §2, itens 1 a 8)", () => {
     });
     expect(r.custoConfirmadoAnoCentavos).toBe(1_000_000);
     expect(r.acumuladoImovelCentavos).toBe(
-      OBRA.valorTerrenoCentavos + 1_000_000,
+      TERRENO_CENTAVOS + 1_000_000,
     );
   });
 
@@ -800,6 +825,8 @@ describe("os oito lugares (parecer §2, itens 1 a 8)", () => {
       obra: OBRA,
       documentos: [doc({ id: "d1", valorCentavos: 300_000 })],
       pagamentos: [],
+      desembolsosTerreno: [TERRENO],
+      informesFinanciamento: [],
       ano: 2026,
     });
     expect(r.notasSemPagamentoCentavos).toBe(300_000);
@@ -831,5 +858,120 @@ describe("os oito lugares (parecer §2, itens 1 a 8)", () => {
         `${arquivo} passou a importar lib/fiscal/compromisso — é assim que nasce a soma mista`,
       ).toBe(false);
     }
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// ⚠️ CONTAI-010, critério 21 — o lançamento do financiamento NÃO É PAGAMENTO
+//
+// "não entra em Pagamentos Efetuados, não entra na base de aferição do INSS, e
+// não entra no headline de 'custo em risco' do CONTAI-005 (o favorecido é o
+// banco; o documento hábil é contrato + informe, não NF)".
+//
+// É o teste que o ticket manda o CONTAI-005 ganhar: ele NÃO muda de código, e
+// ganha a afirmação de que nada disto aparece em pendência nenhuma.
+// ══════════════════════════════════════════════════════════════════════════
+
+describe("terreno e financiamento fora das pendências (critério 21)", () => {
+  const INFORME: FinanciamentoInforme = {
+    id: "inf-2025",
+    financiamentoId: "fin-1",
+    anoBase: 2025,
+    amortizacaoCentavos: 1_688_352,
+    jurosCorrecaoCentavos: 4_305_123,
+    segurosCentavos: 49_956,
+    taxasFcvsCentavos: 0,
+    moraCentavos: 0,
+    multaCentavos: 0,
+    diferencaTeoricoPagoCentavos: 16_743,
+    totalPagoCentavos: 6_060_174,
+    saldoDevedorCentavos: 58_581_519,
+    arquivoPath: "u/informe/extrato-2025.pdf",
+  };
+
+  const SEM_DATA: TerrenoDesembolso = {
+    id: "t-sem-data",
+    obraId: "obra-1",
+    tipo: "itbi",
+    valorCentavos: 1_260_000,
+    // O desembolso gravado como pago e sem data conhecida (critério 23).
+    dataPagamento: null,
+    estado: "pago",
+    origemRecurso: null,
+    arquivoPath: null,
+  };
+
+  const completo = () =>
+    resumo({
+      desembolsosTerreno: [TERRENO, SEM_DATA],
+      informesFinanciamento: [INFORME],
+    });
+
+  it("informe e desembolso NÃO viram pendência e NÃO entram no custo em risco", () => {
+    const r = completo();
+    for (const p of r.pendencias) {
+      expect(p.id.startsWith("terreno")).toBe(false);
+      expect(p.id.startsWith("informe")).toBe(false);
+      expect(p.id.startsWith("financiamento")).toBe(false);
+    }
+    expect(r.pendencias).toHaveLength(0);
+    expect(r.emPendenciaCentavos).toBe(0);
+  });
+
+  it("não entram em `custoConfirmadoAnoCentavos`", () => {
+    // O custo confirmado do ano é a apuração de NOTA + PAGAMENTO. O terreno tem
+    // outra natureza e outro documento hábil; ele compõe o ACUMULADO do imóvel.
+    expect(completo().custoConfirmadoAnoCentavos).toBe(0);
+  });
+
+  it("não entram em `notasSemPagamento` nem em `despesas`", () => {
+    const r = completo();
+    expect(r.notasSemPagamento).toHaveLength(0);
+    expect(r.notasSemPagamentoCentavos).toBe(0);
+    expect(r.despesas).toHaveLength(0);
+  });
+
+  it("o valor SEM DATA fica visível, fora de toda soma", () => {
+    const r = completo();
+    expect(r.terrenoSemData).toHaveLength(1);
+    expect(r.terrenoSemData[0].valorCentavos).toBe(1_260_000);
+    expect(r.terrenoSemData[0].consequencia).toContain(
+      "não tem ano-calendário",
+    );
+    // Não somou em lugar nenhum: o acumulado de 2026 é terreno datado + informe.
+    expect(r.acumuladoImovelCentavos).toBe(TERRENO_CENTAVOS + 5_993_475);
+    expect(r.emPendenciaCentavos).toBe(0);
+  });
+
+  it("o ano corrente sem informe é NOMEADO, com a estimativa fora da soma", () => {
+    const r = completo(); // ano 2026, informe só de 2025
+    const aguardando = r.financiamentoAguardandoInforme!;
+    expect(aguardando.ano).toBe(2026);
+    expect(aguardando.estimativaCentavos).toBe(5_993_475);
+    expect(aguardando.aviso).toContain("menor do que a realidade");
+    // ⚠️ E ela NÃO entra em número nenhum do resumo.
+    expect(r.acumuladoImovelCentavos).toBe(TERRENO_CENTAVOS + 5_993_475);
+    expect(r.custoConfirmadoAnoCentavos).toBe(0);
+    expect(r.emPendenciaCentavos).toBe(0);
+  });
+
+  it("com o informe do ano em tela, não há 'aguardando informe'", () => {
+    const r = resumo({
+      informesFinanciamento: [{ ...INFORME, anoBase: 2026 }],
+    });
+    expect(r.financiamentoAguardandoInforme).toBeNull();
+  });
+
+  it("saldo devedor e preço contratado não chegam ao resumo por caminho nenhum", () => {
+    // `EntradaResumo` não tem campo de `Financiamento`: o PREÇO CONTRATADO
+    // (critério 8) não tem como entrar. O saldo devedor viaja no informe e não
+    // é somado — dobrá-lo não muda número nenhum.
+    const dobrado = resumo({
+      informesFinanciamento: [
+        { ...INFORME, saldoDevedorCentavos: INFORME.saldoDevedorCentavos * 2 },
+      ],
+    });
+    const normal = resumo({ informesFinanciamento: [INFORME] });
+    expect(dobrado.acumuladoImovelCentavos).toBe(normal.acumuladoImovelCentavos);
   });
 });

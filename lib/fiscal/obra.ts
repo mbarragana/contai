@@ -1,6 +1,7 @@
 /**
- * Regras da obra: prazo do CNO, custo do terreno, escolha da obra ativa e a
- * revalidação de CNO na correção de obra de um registro (CONTAI-003).
+ * Regras da obra: prazo do CNO, escolha da obra ativa e a revalidação de CNO na
+ * correção de obra de um registro (CONTAI-003). O custo do TERRENO saiu daqui
+ * no CONTAI-010 e mora em `lib/fiscal/terreno.ts` — ver a nota abaixo.
  * Módulo puro: nada de rede, nada de UI, nada de `Date.now()` — a data de
  * hoje entra por parâmetro para o teste não depender do dia em que roda.
  *
@@ -13,7 +14,11 @@
  * mexer neles: passe pelo `contador`, não reescreva aqui.
  */
 
-import type { Obra, TipoDocumento } from "@/lib/types";
+import type {
+  NaturezaAquisicaoTerreno,
+  Obra,
+  TipoDocumento,
+} from "@/lib/types";
 import { ehDataValida } from "./pagamento";
 
 // ── Datas (aritmética em UTC, para o fuso não mexer no dia) ──────────────
@@ -205,24 +210,17 @@ export function exigeAvisoEquiparacao(obra: {
   return obra.unidadesAutonomas > 1 || obra.origemDesmembramentoLoteamento;
 }
 
-// ── Custo do terreno (critério 4) ────────────────────────────────────────
-
-/**
- * ITBI e despesas de escritura/registro integram o custo de aquisição
- * (IN SRF 84/2001, art. 17). Lançar só o preço pago ao vendedor subestimaria
- * o custo e aumentaria o ganho de capital na venda.
- */
-export function custoTerrenoCentavos(obra: {
-  valorTerrenoCentavos: number;
-  valorItbiCentavos: number;
-  valorEscrituraRegistroCentavos: number;
-}): number {
-  return (
-    obra.valorTerrenoCentavos +
-    obra.valorItbiCentavos +
-    obra.valorEscrituraRegistroCentavos
-  );
-}
+// ── Custo do terreno: MUDOU DE ARQUIVO no CONTAI-010 ────────────────────
+//
+// ⚠️ `custoTerrenoCentavos(obra)` MORREU aqui, junto com as colunas
+// `valor_terreno`, `valor_itbi` e `valor_escritura_registro` (migration 0008).
+// Ele somava três escalares SEM DATA e o resultado era injetado inteiro em TODO
+// ano — mas custo de aquisição é regime de caixa: cada componente cai no ano da
+// SUA data de pagamento.
+//
+// O substituto é `custoTerrenoAteOAno(desembolsos, informes, ano)`, em
+// `lib/fiscal/terreno.ts`. A troca não era adiável: dropar as colunas quebra o
+// build sem ela, e ela É a correção fiscal que motivou o CONTAI-010.
 
 // ── Obra ativa (critério 6) ──────────────────────────────────────────────
 
@@ -321,9 +319,16 @@ export interface EntradaObra {
   temCno: RespostaCno | null;
   cno: string;
   cnoRegistradoEm: string;
-  valorTerrenoCentavos: number | null;
-  valorItbiCentavos: number | null;
-  valorEscrituraRegistroCentavos: number | null;
+  /**
+   * CONTAI-010, critério 2 — a bifurcação: é ela que decide qual regra roda.
+   *
+   * ⚠️ `null` é estado ACEITO e não gera erro em `validarObra` (critério 23): a
+   * obra que já existe vira pendência de COMPLEMENTO, nunca bloqueio. Exigir a
+   * resposta aqui travaria a edição de toda obra cadastrada antes do ticket —
+   * e o app não pode devolver o Mateus para a planilha por causa de um campo
+   * que ele ainda não tinha como ter respondido.
+   */
+  naturezaAquisicaoTerreno: NaturezaAquisicaoTerreno | null;
   unidadesAutonomas: number | null;
   origemDesmembramentoLoteamento: boolean | null;
 }
@@ -392,23 +397,11 @@ export function validarObra(
     }
   }
 
-  if (entrada.valorTerrenoCentavos === null) {
-    erros.push({
-      campo: "valorTerrenoCentavos",
-      mensagem: "Informe o valor pago pelo terreno.",
-    });
-  }
-
-  for (const campo of [
-    "valorItbiCentavos",
-    "valorEscrituraRegistroCentavos",
-  ] as const) {
-    // Opcionais (o ITBI costuma ser pago depois), mas texto ilegível não vira
-    // zero em silêncio: um custo perdido aqui vira ganho de capital na venda.
-    if (entrada[campo] === null) {
-      erros.push({ campo, mensagem: "Valor não reconhecido — use 0,00 se não houve." });
-    }
-  }
+  // ⚠️ `naturezaAquisicaoTerreno` NÃO é validada aqui, e a ausência da
+  // validação é a decisão (critério 23): obra sem a resposta é pendência de
+  // complemento, visível na tela do terreno, e continua salvável. Os valores do
+  // terreno também saíram daqui — eles agora são desembolsos DATADOS, cada um
+  // com a sua tela e a sua data (migration 0008).
 
   if (entrada.unidadesAutonomas === null || entrada.unidadesAutonomas < 1) {
     erros.push({

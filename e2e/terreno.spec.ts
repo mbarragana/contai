@@ -1,0 +1,588 @@
+import type { Page } from "@playwright/test";
+
+import { OBRA_ID_SEED } from "./ambiente";
+import {
+  criarDesembolsoTerreno,
+  criarFinanciamento,
+  criarInforme,
+  desembolsosTerreno,
+  informes,
+  type Db,
+} from "./banco";
+import { expect, test } from "./fixtures";
+
+/**
+ * CONTAI-010 contra o Postgres LOCAL: contrato, desembolsos datados e o informe
+ * anual de verdade, com RLS ligada, e as asserções olhando o **ESTADO GRAVADO**
+ * pelo MESMO client autenticado que o app usa.
+ *
+ * A pergunta que estes testes respondem não é "a tela mostra?" — é **"o que
+ * entrou no banco?"**. É o estado gravado que vira situação em 31/12 na ficha
+ * Bens e Direitos, e o risco central deste ticket é um número de custo existir
+ * sem data ou sem o documento que o sustenta.
+ *
+ * ⚠️ **`getByRole(..., { name })` sem `exact: true` casa por SUBSTRING** — dívida
+ * conhecida da suíte. Todo locator novo aqui usa `exact: true`.
+ *
+ * ⚠️ Nenhum identificador real (CPF, nº de contrato, agência, endereço): o
+ * repositório é público. A instituição é **Banco Litoral**, fictícia.
+ */
+
+const INSTITUICAO = "Banco Litoral";
+
+/** ISO de hoje no fuso do aparelho — o mesmo `hojeIso()` que o app usa. */
+function hoje(): string {
+  const agora = new Date();
+  const local = new Date(agora.getTime() - agora.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
+const ANO_CORRENTE = Number(hoje().slice(0, 4));
+/** O ano-base do informe é sempre o ANTERIOR: o do ano corrente ainda não saiu. */
+const ANO_BASE = ANO_CORRENTE - 1;
+
+function pdf(nome: string) {
+  return {
+    name: nome,
+    mimeType: "application/pdf",
+    buffer: Buffer.from(`%PDF-1.4 ${nome}`),
+  };
+}
+
+/** Contrato do cenário — cadastrado uma vez na vida, antes de qualquer informe. */
+async function contrato(db: Db) {
+  return criarFinanciamento(db, {
+    instituicao: INSTITUICAO,
+    data_contrato: `${ANO_BASE - 1}-03-20`,
+    preco_contratado: 650000,
+    numero_parcelas: 240,
+  });
+}
+
+/** As sete rubricas do extrato real do ano-base 2025 — a soma fecha. */
+const EXTRATO = {
+  amortizacao: "16.883,52",
+  juros: "43.051,23",
+  seguros: "499,56",
+  taxas: "0,00",
+  mora: "0,00",
+  multa: "0,00",
+  diferenca: "167,43",
+  total: "60.601,74",
+  saldo: "585.815,19",
+};
+
+async function preencherRubricas(
+  page: Page,
+  over: Partial<typeof EXTRATO> = {},
+) {
+  const v = { ...EXTRATO, ...over };
+  await page.getByLabel("Amortização", { exact: true }).fill(v.amortizacao);
+  await page
+    .getByLabel("Juros / Correção Monetária", { exact: true })
+    .fill(v.juros);
+  await page.getByLabel("Seguros (MIP e DFI)", { exact: true }).fill(v.seguros);
+  await page.getByLabel("Taxas + FCVS", { exact: true }).fill(v.taxas);
+  await page.getByLabel("Mora", { exact: true }).fill(v.mora);
+  await page.getByLabel("Multa", { exact: true }).fill(v.multa);
+  await page
+    .getByLabel("Diferença Teórico / Pago", { exact: true })
+    .fill(v.diferenca);
+  await page.getByLabel("Total Pago no Exercício", { exact: true }).fill(v.total);
+  await page
+    .getByLabel(`Saldo Devedor em 31/12/${ANO_BASE}`, { exact: true })
+    .fill(v.saldo);
+}
+
+async function irParaOInforme(page: Page) {
+  await page.goto(`/obras/${OBRA_ID_SEED}/terreno/informe/${ANO_BASE}`);
+  await expect(
+    page.getByRole("heading", {
+      name: `Informe anual de ${ANO_BASE} — passo 1 de 3`,
+      exact: true,
+    }),
+  ).toBeVisible();
+}
+
+// ══ O informe anual ═════════════════════════════════════════════════════
+
+test.describe("informe anual do financiamento", () => {
+  test("grava, e o ESTADO GRAVADO tem as sete rubricas separadas", async ({
+    page,
+    db,
+  }) => {
+    await contrato(db);
+    await irParaOInforme(page);
+
+    // Passo 1 — o documento vem ANTES dos números (critério 10).
+    await page
+      .getByLabel("Extrato do exercício", { exact: true })
+      .setInputFiles(pdf("extrato-ir.pdf"));
+    await page
+      .getByRole("button", { name: "Continuar para os números", exact: true })
+      .click();
+
+    // Passo 2 — a trava confere ao vivo.
+    await preencherRubricas(page);
+    await expect(
+      page.getByText(
+        "A soma das sete linhas fecha com o total pago no exercício",
+        { exact: false },
+      ),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Conferir e gravar", exact: true })
+      .click();
+
+    // Passo 3 — conferência, e só então grava.
+    await expect(
+      page.getByRole("heading", {
+        name: `Informe anual de ${ANO_BASE} — passo 3 de 3`,
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: `Gravar informe de ${ANO_BASE}`, exact: true })
+      .click();
+
+    await expect(
+      page.getByRole("heading", { name: `${ANO_BASE} fechado`, exact: true }),
+    ).toBeVisible();
+
+    // ── O que interessa: o que entrou no banco ──────────────────────────
+    const gravados = await informes(db);
+    expect(gravados).toHaveLength(1);
+    expect(gravados[0]).toMatchObject({
+      ano_base: ANO_BASE,
+      amortizacao: 16883.52,
+      juros_correcao: 43051.23,
+      // As sete SEPARADAS, sempre — é isso que permite recompor o custo sob
+      // qualquer entendimento sem redigitar nada (critério 12).
+      seguros: 499.56,
+      taxas_fcvs: 0,
+      mora: 0,
+      multa: 0,
+      diferenca_teorico_pago: 167.43,
+      total_pago: 60601.74,
+      saldo_devedor: 585815.19,
+    });
+    // O extrato foi para o acervo: número sem documento não serve na venda.
+    expect(gravados[0].arquivo_path).toContain("/informe/");
+  });
+
+  test("soma que NÃO fecha é recusada, com a diferença em tela e NADA gravado", async ({
+    page,
+    db,
+  }) => {
+    await contrato(db);
+    await irParaOInforme(page);
+    await page
+      .getByLabel("Extrato do exercício", { exact: true })
+      .setInputFiles(pdf("extrato-ir.pdf"));
+    await page
+      .getByRole("button", { name: "Continuar para os números", exact: true })
+      .click();
+
+    // Esquecendo a linha de seguros: faltam R$ 499,56 para fechar.
+    await preencherRubricas(page, { seguros: "0,00" });
+
+    // Quem recusa é a caixa da trava (mock s4, `caixaTrava`), e a recusa NOMEIA
+    // a diferença exata: sem o número, são sete linhas no escuro.
+    //
+    // ⚠️ Dois asserts precisos, e não um `getByText("499,56")` solto: a tela
+    // mostra a diferença de propósito em DOIS lugares — a frase da recusa e a
+    // linha "Diferença", em destaque. Um locator ambíguo não diria qual dos
+    // dois sumiu no dia em que um deles sumir.
+    const caixaTrava = page.locator('[data-trava="nao-fecha"]');
+    await expect(
+      caixaTrava.getByText(
+        "A soma das sete linhas não fecha com o total pago no exercício: " +
+          "faltam R$ 499,56.",
+        { exact: false },
+      ),
+    ).toBeVisible();
+    // O mesmo número em destaque, com o sinal que diz a direção da diferença.
+    await expect(
+      caixaTrava.getByText("-R$ 499,56", { exact: true }),
+    ).toBeVisible();
+
+    // E não deixa seguir: nada de "somar o resto e seguir".
+    await expect(
+      page.getByRole("button", { name: "Conferir e gravar", exact: true }),
+    ).toBeDisabled();
+
+    expect(await informes(db)).toHaveLength(0);
+  });
+
+  test("sem o extrato anexado, não passa do passo 1 e nada grava", async ({
+    page,
+    db,
+  }) => {
+    await contrato(db);
+    await irParaOInforme(page);
+
+    await expect(
+      page.getByText("Sem o extrato anexado, este lançamento não grava", {
+        exact: false,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Continuar para os números", exact: true }),
+    ).toBeDisabled();
+
+    expect(await informes(db)).toHaveLength(0);
+  });
+
+  test("segundo informe do MESMO ano-base é recusado — dupla contagem", async ({
+    page,
+    db,
+  }) => {
+    const financiamentoId = await contrato(db);
+    await criarInforme(db, {
+      financiamento_id: financiamentoId,
+      ano_base: ANO_BASE,
+      amortizacao: 16883.52,
+      juros_correcao: 43051.23,
+      seguros: 499.56,
+      taxas_fcvs: 0,
+      mora: 0,
+      multa: 0,
+      diferenca_teorico_pago: 167.43,
+      total_pago: 60601.74,
+      saldo_devedor: 585815.19,
+      arquivo_path: "u/informe/ja-existe.pdf",
+    });
+
+    await page.goto(`/obras/${OBRA_ID_SEED}/terreno/informe/${ANO_BASE}`);
+    await expect(
+      page.getByText("Já existe um informe registrado para este ano-base", {
+        exact: false,
+      }),
+    ).toBeVisible();
+    // O motivo por extenso, não o código do banco.
+    await expect(
+      page.getByText("redução indevida de ganho de capital", { exact: false }),
+    ).toBeVisible();
+
+    // Continua um só.
+    expect(await informes(db)).toHaveLength(1);
+  });
+
+  test("o banco recusa o segundo informe mesmo por fora da tela", async ({
+    db,
+  }) => {
+    // A trava é ESTRUTURAL — `unique (financiamento_id, ano_base)`. Se ela
+    // dependesse só da tela, um retry de rede duplicaria o custo do ano.
+    const financiamentoId = await contrato(db);
+    const linha = {
+      financiamento_id: financiamentoId,
+      ano_base: ANO_BASE,
+      amortizacao: 100,
+      juros_correcao: 200,
+      seguros: 0,
+      taxas_fcvs: 0,
+      mora: 0,
+      multa: 0,
+      diferenca_teorico_pago: 0,
+      total_pago: 300,
+      saldo_devedor: 0,
+      arquivo_path: "u/informe/a.pdf",
+    };
+    await criarInforme(db, linha);
+    const repetido = await db
+      .from("financiamento_informe")
+      .insert(linha)
+      .select("id");
+    expect(repetido.error?.code).toBe("23505");
+    expect(await informes(db)).toHaveLength(1);
+  });
+
+  test("o banco recusa informe cuja soma não fecha — o backstop do CHECK", async ({
+    db,
+  }) => {
+    const financiamentoId = await contrato(db);
+    const naoFecha = await db.from("financiamento_informe").insert({
+      financiamento_id: financiamentoId,
+      ano_base: ANO_BASE,
+      amortizacao: 100,
+      juros_correcao: 200,
+      seguros: 0,
+      taxas_fcvs: 0,
+      mora: 0,
+      multa: 0,
+      diferenca_teorico_pago: 0,
+      // Um centavo a mais: tolerância ZERO.
+      total_pago: 300.01,
+      saldo_devedor: 0,
+      arquivo_path: "u/informe/a.pdf",
+    });
+    expect(naoFecha.error?.code).toBe("23514");
+    expect(await informes(db)).toHaveLength(0);
+  });
+});
+
+// ══ Desembolsos do terreno ══════════════════════════════════════════════
+
+test.describe("desembolsos do terreno", () => {
+  test("registra com data própria, e o ano gravado é o da DATA", async ({
+    page,
+    db,
+  }) => {
+    await page.goto(`/obras/${OBRA_ID_SEED}/terreno/desembolsos`);
+
+    await page
+      .getByRole("group", { name: "O que é este desembolso?" })
+      .getByText("ITBI", { exact: true })
+      .click();
+    await page.getByLabel("Valor", { exact: true }).fill("12.600,00");
+    await page
+      .getByRole("group", { name: "Este valor já foi pago?" })
+      .getByText("Já paguei", { exact: true })
+      .click();
+    await page
+      .getByLabel("Data em que saiu da conta", { exact: true })
+      .fill(`${ANO_BASE}-02-03`);
+    await page
+      .getByLabel("Comprovante", { exact: true })
+      .setInputFiles(pdf("guia-itbi.pdf"));
+    await page
+      .getByRole("button", { name: "Registrar desembolso", exact: true })
+      .click();
+
+    await expect(
+      page.getByText("registrado no custo de", { exact: false }),
+    ).toBeVisible();
+
+    const gravados = await desembolsosTerreno(db);
+    expect(gravados).toHaveLength(1);
+    expect(gravados[0]).toMatchObject({
+      obra_id: OBRA_ID_SEED,
+      tipo: "itbi",
+      valor: 12600,
+      data_pagamento: `${ANO_BASE}-02-03`,
+      estado: "pago",
+    });
+  });
+
+  test("desembolso PAGO sem data é recusado pela tela — a data é o ano", async ({
+    page,
+    db,
+  }) => {
+    await page.goto(`/obras/${OBRA_ID_SEED}/terreno/desembolsos`);
+    await page
+      .getByRole("group", { name: "O que é este desembolso?" })
+      .getByText("ITBI", { exact: true })
+      .click();
+    await page.getByLabel("Valor", { exact: true }).fill("12.600,00");
+    await page
+      .getByRole("group", { name: "Este valor já foi pago?" })
+      .getByText("Já paguei", { exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Registrar desembolso", exact: true })
+      .click();
+
+    await expect(
+      page.getByText("não tem ano-calendário", { exact: false }),
+    ).toBeVisible();
+    expect(await desembolsosTerreno(db)).toHaveLength(0);
+  });
+
+  test("o previsto grava SEM data — previsto não é pago", async ({
+    page,
+    db,
+  }) => {
+    await page.goto(`/obras/${OBRA_ID_SEED}/terreno/desembolsos`);
+    await page
+      .getByRole("group", { name: "O que é este desembolso?" })
+      .getByText("ITBI", { exact: true })
+      .click();
+    await page.getByLabel("Valor", { exact: true }).fill("12.600,00");
+    await page
+      .getByRole("group", { name: "Este valor já foi pago?" })
+      .getByText("Ainda não paguei", { exact: true })
+      .click();
+    await expect(
+      page.getByText("não entra em ano nenhum", { exact: false }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Registrar desembolso", exact: true })
+      .click();
+
+    // Espera o efeito OBSERVÁVEL da gravação antes de olhar o Postgres — sem
+    // isto o teste lê o banco com o insert ainda em voo. O teste de cima (o do
+    // valor pago sem data) só passava porque a recusa aparece em tela.
+    await expect(
+      page.getByText("registrado como previsto — não entra em ano nenhum", {
+        exact: false,
+      }),
+    ).toBeVisible();
+
+    const gravados = await desembolsosTerreno(db);
+    expect(gravados).toHaveLength(1);
+    expect(gravados[0]).toMatchObject({
+      estado: "previsto",
+      data_pagamento: null,
+    });
+  });
+
+  test("desembolso pago sem data é completado pela tela", async ({
+    page,
+    db,
+  }) => {
+    // É exatamente o que a migration 0008 produz a partir das colunas mortas:
+    // valor real, sem data e sem comprovante. Critério 23.
+    await criarDesembolsoTerreno(db, {
+      tipo: "pagamento_terreno",
+      valor: 800000,
+      estado: "pago",
+      data_pagamento: null,
+    });
+
+    await page.goto(`/obras/${OBRA_ID_SEED}/terreno/desembolsos`);
+    await expect(
+      page.getByText("sem a data, este valor não tem ano-calendário", {
+        exact: false,
+      }),
+    ).toBeVisible();
+
+    // ⚠️ Abrir o formulário e submetê-lo têm o MESMO rótulo. Eles nunca
+    // coexistem (é um ternário no cartão), mas o teste não pode depender disso
+    // sem dizer: esperar o campo de data aparecer entre os dois cliques é o que
+    // garante que o segundo acerta o botão do formulário ABERTO.
+    const cartao = page.locator('[data-sem-data="pagamento_terreno"]');
+    await cartao
+      .getByRole("button", { name: "Informar a data", exact: true })
+      .click();
+    const campoData = cartao.getByLabel("Data em que saiu da conta", {
+      exact: true,
+    });
+    await expect(campoData).toBeVisible();
+    await campoData.fill(`${ANO_BASE}-09-12`);
+    await cartao
+      .getByRole("button", { name: "Informar a data", exact: true })
+      .click();
+
+    // O efeito observável da gravação, antes de olhar o banco.
+    await expect(
+      page.getByText(
+        `Data informada — o valor passa a compor o custo de ${ANO_BASE}.`,
+        { exact: false },
+      ),
+    ).toBeVisible();
+
+    const gravados = await desembolsosTerreno(db);
+    expect(gravados).toHaveLength(1);
+    expect(gravados[0].data_pagamento).toBe(`${ANO_BASE}-09-12`);
+    // O VALOR não foi tocado: o que faltava era a data, não o dinheiro.
+    expect(gravados[0].valor).toBe(800000);
+  });
+});
+
+// ══ O painel e a home ═══════════════════════════════════════════════════
+
+test.describe("painel do terreno", () => {
+  test("valor sem data é pendência de COMPLEMENTO no painel, e NÃO pendência fiscal na home", async ({
+    page,
+    db,
+  }) => {
+    // Critério 21: o terreno não entra no headline de "custo em risco" do
+    // CONTAI-005 — o favorecido não é prestador e o documento hábil não é NF.
+    await criarDesembolsoTerreno(db, {
+      tipo: "pagamento_terreno",
+      valor: 800000,
+      estado: "pago",
+      data_pagamento: null,
+    });
+
+    await page.goto(`/obras/${OBRA_ID_SEED}/terreno`);
+    await expect(
+      page.getByText("sem a data, este valor não tem ano-calendário", {
+        exact: false,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Não bloqueia o app", { exact: false }),
+    ).toBeVisible();
+
+    await page.goto("/");
+    // O bloco de PENDÊNCIAS FISCAIS continua vazio: nada de vermelho.
+    await expect(
+      page.getByText("Nenhuma pendência.", { exact: false }),
+    ).toBeVisible();
+    // E o valor sem data aparece, em bloco próprio.
+    await expect(
+      page.getByText("Terreno — valores sem data", { exact: true }),
+    ).toBeVisible();
+  });
+
+  test("o ano corrente aparece como 'aguardando informe', nunca em silêncio", async ({
+    page,
+    db,
+  }) => {
+    const financiamentoId = await contrato(db);
+    await criarInforme(db, {
+      financiamento_id: financiamentoId,
+      ano_base: ANO_BASE,
+      amortizacao: 16883.52,
+      juros_correcao: 43051.23,
+      seguros: 499.56,
+      taxas_fcvs: 0,
+      mora: 0,
+      multa: 0,
+      diferenca_teorico_pago: 167.43,
+      total_pago: 60601.74,
+      saldo_devedor: 585815.19,
+      arquivo_path: "u/informe/extrato.pdf",
+    });
+
+    await page.goto(`/obras/${OBRA_ID_SEED}/terreno`);
+
+    const corrente = page.locator(`[data-ano="${ANO_CORRENTE}"]`);
+    await expect(corrente).toHaveAttribute("data-situacao", "aguardando_informe");
+    await expect(
+      corrente.getByText("aguardando informe", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("menor do que a realidade", { exact: false }),
+    ).toBeVisible();
+    // A estimativa é ordem de grandeza, rotulada e FORA de toda soma.
+    await expect(
+      page.getByText("não soma em lugar nenhum", { exact: false }),
+    ).toBeVisible();
+
+    // O ano-base registrado aparece com o custo do informe: 16.883,52 + 43.051,23.
+    const registrado = page.locator(`[data-ano="${ANO_BASE}"]`);
+    await expect(registrado).toHaveAttribute("data-situacao", "registrado");
+    await expect(registrado.getByText("59.934,75", { exact: false })).toBeVisible();
+  });
+
+  test("o saldo devedor aparece rotulado como fora da declaração", async ({
+    page,
+    db,
+  }) => {
+    const financiamentoId = await contrato(db);
+    await criarInforme(db, {
+      financiamento_id: financiamentoId,
+      ano_base: ANO_BASE,
+      amortizacao: 100,
+      juros_correcao: 200,
+      seguros: 0,
+      taxas_fcvs: 0,
+      mora: 0,
+      multa: 0,
+      diferenca_teorico_pago: 0,
+      total_pago: 300,
+      saldo_devedor: 585815.19,
+      arquivo_path: "u/informe/extrato.pdf",
+    });
+
+    await page.goto(`/obras/${OBRA_ID_SEED}/terreno`);
+    await expect(page.getByText("585.815,19", { exact: false })).toBeVisible();
+    await expect(
+      page.getByText("nunca somar, nunca virar campo de 'dívida'", {
+        exact: false,
+      }),
+    ).toBeVisible();
+  });
+});

@@ -26,14 +26,17 @@ export const EMAIL_SEED = "mateus@contai.local";
 export const SENHA_SEED = "contai-local-123";
 export const USER_ID_SEED = "11111111-1111-4111-8111-111111111111";
 export const OBRA_ID_SEED = "22222222-2222-4222-8222-222222222222";
-/** valor_terreno da obra do seed, em centavos. */
-export const TERRENO_SEED_CENTAVOS = 80_000_000;
 
 /**
  * A obra do seed, campo a campo — o `limpar` de cada teste recria esta linha
  * quando um teste a apaga (o caso "nenhuma obra cadastrada", critério 12).
  * Tem de bater com supabase/seed.sql; se divergir, o teste que confere o
  * acumulado do imóvel acusa.
+ *
+ * ⚠️ CONTAI-010: `valor_terreno`, `valor_itbi` e `valor_escritura_registro`
+ * MORRERAM na migration 0008 (as três viraram `terreno_desembolso`, cada um com
+ * a sua data), e `natureza_aquisicao_terreno` nasce NULL — pendência de
+ * complemento, que é o estado real da obra do Mateus depois da migration.
  */
 export const OBRA_SEED = {
   id: OBRA_ID_SEED,
@@ -42,9 +45,6 @@ export const OBRA_SEED = {
   matricula: "38.104",
   cartorio: "1º Ofício de Registro de Imóveis",
   municipio: "Florianópolis",
-  valor_terreno: 800000,
-  valor_itbi: 0,
-  valor_escritura_registro: 0,
   data_inicio_obra: "2025-11-04",
   cno_registrado_em: "2025-11-20",
   unidades_autonomas: 1,

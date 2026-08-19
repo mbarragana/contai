@@ -22,6 +22,11 @@ export type StatusPagamento = Enums<"status_pagamento">;
 export type OrigemCompromisso = Enums<"origem_compromisso">;
 export type SituacaoCompromisso = Enums<"situacao_compromisso">;
 export type ResolucaoDiferenca = Enums<"resolucao_diferenca">;
+// ── CONTAI-010 ────────────────────────────────────────────────────────────
+export type NaturezaAquisicaoTerreno = Enums<"natureza_aquisicao_terreno">;
+export type TipoDesembolsoTerreno = Enums<"tipo_desembolso_terreno">;
+export type EstadoDesembolsoTerreno = Enums<"estado_desembolso_terreno">;
+export type OrigemRecursoEntrada = Enums<"origem_recurso_entrada">;
 
 // ── Rows (PostgREST) ─────────────────────────────────────────────────────
 export type ObraRow = Tables<"obra">;
@@ -34,6 +39,9 @@ export type CompromissoPagamentoRow = Tables<"compromisso_pagamento">;
 export type CompromissoDataHistoricoRow = Tables<"compromisso_data_historico">;
 export type PagamentoDiferencaRow = Tables<"pagamento_diferenca">;
 export type QuitacaoRecusadaRow = Tables<"quitacao_recusada">;
+export type TerrenoDesembolsoRow = Tables<"terreno_desembolso">;
+export type FinanciamentoRow = Tables<"financiamento">;
+export type FinanciamentoInformeRow = Tables<"financiamento_informe">;
 
 // ── Inserts ──────────────────────────────────────────────────────────────
 export type ObraInsert = TablesInsert<"obra">;
@@ -41,6 +49,9 @@ export type FavorecidoInsert = TablesInsert<"favorecido">;
 export type DocumentoInsert = TablesInsert<"documento">;
 export type PagamentoInsert = TablesInsert<"pagamento">;
 export type CompromissoInsert = TablesInsert<"compromisso">;
+export type TerrenoDesembolsoInsert = TablesInsert<"terreno_desembolso">;
+export type FinanciamentoInsert = TablesInsert<"financiamento">;
+export type FinanciamentoInformeInsert = TablesInsert<"financiamento_informe">;
 
 // ── Domínio (centavos) ───────────────────────────────────────────────────
 export interface Obra {
@@ -50,10 +61,16 @@ export interface Obra {
   matricula: string | null;
   cartorio: string | null;
   municipio: string | null;
-  /** Preço pago ao vendedor. O custo do terreno é a soma dos três valores. */
-  valorTerrenoCentavos: number;
-  valorItbiCentavos: number;
-  valorEscrituraRegistroCentavos: number;
+  /**
+   * A bifurcação do CONTAI-010: é ela que decide qual regra roda. `null` é a
+   * obra cadastrada antes do ticket — pendência de COMPLEMENTO, nunca bloqueio.
+   * O app não inventa fato, nem fato que "todo mundo sabe".
+   *
+   * ⚠️ O custo do terreno NÃO é mais atributo da obra: ele saiu daqui e virou
+   * `terreno_desembolso` + `financiamento_informe`, porque é um número POR ANO
+   * (regime de caixa) e nunca coube numa coluna.
+   */
+  naturezaAquisicaoTerreno: NaturezaAquisicaoTerreno | null;
   /** Obrigatória: ancora o prazo de 30 dias do CNO e o período da aferição. */
   dataInicioObra: string;
   /** Quando o CNO saiu; do início até aqui é a janela das notas sem CNO. */
@@ -155,4 +172,79 @@ export interface Compromisso {
   pagamentoIds: string[];
   /** Quantas vezes a data prevista já mudou — o "adiado N×" do critério 34. */
   adiamentos: number;
+}
+
+// ── CONTAI-010 · terreno e financiamento (centavos) ──────────────────────
+
+/**
+ * Um desembolso do terreno, com a SUA data. O caso à vista é o caso degenerado
+ * — um desembolso (parecer §5).
+ *
+ * ⚠️ **Não é `Pagamento`, e o tipo separado é decisão fiscal** (parecer §5, "A
+ * parcela é um `pagamento` comum do app? NÃO"): não entra em Pagamentos
+ * Efetuados, não entra na base de aferição do INSS e não entra no headline de
+ * "custo em risco" do CONTAI-005. O favorecido é o banco ou o cartório; o
+ * documento hábil é contrato/guia, não NF. A proteção é de TIPO.
+ */
+export interface TerrenoDesembolso {
+  id: string;
+  obraId: string;
+  tipo: TipoDesembolsoTerreno;
+  valorCentavos: number;
+  /**
+   * `null` = a data não é conhecida. **Nunca inventada** (critério 22): nem
+   * `created_at`, nem hoje. Sem ela o valor não tem ano-calendário — vira
+   * pendência de complemento, visível e sem bloquear nada.
+   */
+  dataPagamento: string | null;
+  /** `previsto` não entra em ano nenhum, nem no corrente (critério 5). */
+  estado: EstadoDesembolsoTerreno;
+  /** FGTS na entrada é desembolso dele e ENTRA no custo (parecer §2a). */
+  origemRecurso: OrigemRecursoEntrada | null;
+  /**
+   * `null` em duas situações, e elas NÃO são a mesma coisa em tela:
+   * `previsto` (ainda não pagou — critério 5) e `pago` sem data conhecida
+   * (pendência de complemento — critério 23). Nenhuma das duas entra em ano
+   * nenhum: o custo é regime de caixa e sem data não há ano-calendário.
+   */
+  arquivoPath: string | null;
+}
+
+/** O contrato, 1x na vida (critério 7). Um por obra. */
+export interface Financiamento {
+  id: string;
+  obraId: string;
+  instituicao: string;
+  numeroContrato: string | null;
+  dataContrato: string;
+  /**
+   * ⚠️ **NUNCA vai para o custo** (critério 8). Existe para o texto da
+   * discriminação e para fechar a conta de quem lê (pago + saldo = preço).
+   */
+  precoContratadoCentavos: number;
+  numeroParcelas: number | null;
+}
+
+/**
+ * O informe anual — um por contrato + ano-base (critério 9). As SETE rubricas
+ * ficam guardadas SEPARADAS, sempre: é isso que permite recompor o custo sob
+ * qualquer entendimento sem redigitar nada.
+ */
+export interface FinanciamentoInforme {
+  id: string;
+  financiamentoId: string;
+  /** O exercício é DERIVADO (`anoBase + 1`) — duas colunas descolariam. */
+  anoBase: number;
+  amortizacaoCentavos: number;
+  jurosCorrecaoCentavos: number;
+  segurosCentavos: number;
+  taxasFcvsCentavos: number;
+  moraCentavos: number;
+  multaCentavos: number;
+  diferencaTeoricoPagoCentavos: number;
+  /** A trava: é contra ele que as sete linhas têm de bater (critério 11). */
+  totalPagoCentavos: number;
+  /** Informativo. Nunca somado, nunca subtraído (critério 15). */
+  saldoDevedorCentavos: number;
+  arquivoPath: string;
 }

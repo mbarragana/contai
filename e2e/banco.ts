@@ -228,6 +228,10 @@ const OBRA_SEED_COM_DONO = { user_id: USER_ID_SEED, ...OBRA_SEED };
 const COLUNAS_SEED = Object.keys(OBRA_SEED_COM_DONO);
 
 const SQL_LIMPAR = [
+  // CONTAI-010 — o informe cai antes do contrato, que cai antes da obra.
+  "delete from financiamento_informe;",
+  "delete from financiamento;",
+  "delete from terreno_desembolso;",
   // CONTAI-019 — as cinco tabelas novas caem ANTES das que elas referenciam.
   // `on delete cascade` já daria conta, mas apagar explícito deixa o erro no
   // lugar certo se uma FK mudar.
@@ -366,6 +370,81 @@ export async function criarVinculo(
   conferir("criar vínculo", error);
 }
 
+// ── CONTAI-010 · terreno e financiamento ─────────────────────────────────
+
+/**
+ * Desembolso do terreno montado direto no banco. Serve ao cenário "isto já
+ * estava lá quando o Mateus abriu a tela" — inclusive a linha SEM DATA, que é o
+ * que a migration 0008 produz a partir das colunas mortas.
+ */
+export async function criarDesembolsoTerreno(
+  db: Db,
+  linha: Omit<TablesInsert<"terreno_desembolso">, "obra_id"> &
+    Partial<Pick<TablesInsert<"terreno_desembolso">, "obra_id">>,
+): Promise<string> {
+  const { data, error } = await db
+    .from("terreno_desembolso")
+    .insert({ obra_id: OBRA_ID_SEED, ...linha })
+    .select("id")
+    .single();
+  conferir("criar desembolso do terreno", error);
+  return data!.id;
+}
+
+export async function criarFinanciamento(
+  db: Db,
+  linha: Omit<TablesInsert<"financiamento">, "obra_id"> &
+    Partial<Pick<TablesInsert<"financiamento">, "obra_id">>,
+): Promise<string> {
+  const { data, error } = await db
+    .from("financiamento")
+    .insert({ obra_id: OBRA_ID_SEED, ...linha })
+    .select("id")
+    .single();
+  conferir("criar financiamento", error);
+  return data!.id;
+}
+
+export async function criarInforme(
+  db: Db,
+  linha: TablesInsert<"financiamento_informe">,
+): Promise<string> {
+  const { data, error } = await db
+    .from("financiamento_informe")
+    .insert(linha)
+    .select("id")
+    .single();
+  conferir("criar informe", error);
+  return data!.id;
+}
+
+export async function desembolsosTerreno(db: Db) {
+  const { data, error } = await db
+    .from("terreno_desembolso")
+    .select("*")
+    .order("created_at", { ascending: true });
+  conferir("ler desembolso do terreno", error);
+  return data!;
+}
+
+export async function financiamentos(db: Db) {
+  const { data, error } = await db
+    .from("financiamento")
+    .select("*")
+    .order("created_at", { ascending: true });
+  conferir("ler financiamento", error);
+  return data!;
+}
+
+export async function informes(db: Db) {
+  const { data, error } = await db
+    .from("financiamento_informe")
+    .select("*")
+    .order("ano_base", { ascending: true });
+  conferir("ler informe", error);
+  return data!;
+}
+
 /** Agendamento montado direto no banco, pelo MESMO client autenticado. */
 export async function criarCompromisso(
   db: Db,
@@ -464,7 +543,7 @@ export async function favorecidos(db: Db) {
  */
 export async function arquivosNoAcervo(
   db: Db,
-  pasta: "documento" | "comprovante",
+  pasta: "documento" | "comprovante" | "terreno" | "informe",
 ): Promise<string[]> {
   const { data, error } = await db.storage
     .from(BUCKET_ACERVO)

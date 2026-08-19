@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, Consequencia, Dica } from "@/app/_components/ui";
+import { Banner, Card, Consequencia, Dica } from "@/app/_components/ui";
 import { CampoTexto, Escolha } from "@/app/_components/campos";
 import { JanelaSemCno, PendenciaCno } from "@/app/_components/obra";
 import {
@@ -9,9 +9,9 @@ import {
   type ErroCampoObra,
   type RespostaCno,
 } from "@/lib/fiscal/obra";
+import { O_QUE_CADA_NATUREZA_MUDA } from "@/lib/fiscal/terreno";
 import type { EntradaObraBanco } from "@/lib/data";
-import { parseValorInput } from "@/lib/money";
-import type { Obra } from "@/lib/types";
+import type { NaturezaAquisicaoTerreno, Obra } from "@/lib/types";
 
 /**
  * Campos do cadastro/edição de obra (mock CONTAI-003, telas 4 a 9). Os mesmos
@@ -29,9 +29,8 @@ export interface EstadoObra {
   temCno: RespostaCno | null;
   cno: string;
   cnoRegistradoEm: string;
-  valorTerreno: string;
-  valorItbi: string;
-  valorEscrituraRegistro: string;
+  /** CONTAI-010 — a bifurcação. `null` = ainda não respondida. */
+  naturezaAquisicaoTerreno: NaturezaAquisicaoTerreno | null;
   unidadesAutonomas: string;
   origemDesmembramento: "sim" | "nao" | null;
 }
@@ -45,18 +44,14 @@ export const ESTADO_VAZIO: EstadoObra = {
   temCno: null,
   cno: "",
   cnoRegistradoEm: "",
-  valorTerreno: "",
-  valorItbi: "",
-  valorEscrituraRegistro: "",
+  // ⚠️ SEM DEFAULT, e é proibição do CLAUDE.md: campo fiscal não tem default.
+  // Foi presumindo compra à vista que o app respondeu errado sozinho.
+  naturezaAquisicaoTerreno: null,
   // Uma unidade autônoma é o caso do produto; mais de uma dispara o aviso de
   // equiparação (critério 11), nunca em silêncio.
   unidadesAutonomas: "1",
   origemDesmembramento: null,
 };
-
-function centavosParaCampo(centavos: number): string {
-  return (centavos / 100).toFixed(2).replace(".", ",");
-}
 
 export function estadoDaObra(obra: Obra): EstadoObra {
   return {
@@ -68,17 +63,10 @@ export function estadoDaObra(obra: Obra): EstadoObra {
     temCno: obra.cno ? "sim" : "nao",
     cno: obra.cno ?? "",
     cnoRegistradoEm: obra.cnoRegistradoEm ?? "",
-    valorTerreno: centavosParaCampo(obra.valorTerrenoCentavos),
-    valorItbi: centavosParaCampo(obra.valorItbiCentavos),
-    valorEscrituraRegistro: centavosParaCampo(obra.valorEscrituraRegistroCentavos),
+    naturezaAquisicaoTerreno: obra.naturezaAquisicaoTerreno,
     unidadesAutonomas: String(obra.unidadesAutonomas),
     origemDesmembramento: obra.origemDesmembramentoLoteamento ? "sim" : "nao",
   };
-}
-
-/** Campo vazio de valor opcional é zero; texto ilegível é erro, nunca zero. */
-function valorOpcional(texto: string): number | null {
-  return texto.trim() === "" ? 0 : parseValorInput(texto);
 }
 
 export function paraEntrada(estado: EstadoObra): EntradaObra {
@@ -91,9 +79,7 @@ export function paraEntrada(estado: EstadoObra): EntradaObra {
     temCno: estado.temCno,
     cno: estado.cno,
     cnoRegistradoEm: estado.cnoRegistradoEm,
-    valorTerrenoCentavos: parseValorInput(estado.valorTerreno),
-    valorItbiCentavos: valorOpcional(estado.valorItbi),
-    valorEscrituraRegistroCentavos: valorOpcional(estado.valorEscrituraRegistro),
+    naturezaAquisicaoTerreno: estado.naturezaAquisicaoTerreno,
     unidadesAutonomas: /^\d+$/.test(estado.unidadesAutonomas.trim())
       ? Number(estado.unidadesAutonomas)
       : null,
@@ -121,10 +107,9 @@ export function paraBanco(entrada: EntradaObra): EntradaObraBanco {
     // resposta virou "ainda não tenho", a data cai junto.
     cnoRegistradoEm: semCno ? null : entrada.cnoRegistradoEm,
     dataInicioObra: entrada.dataInicioObra,
-    valorTerrenoCentavos: entrada.valorTerrenoCentavos as number,
-    valorItbiCentavos: entrada.valorItbiCentavos as number,
-    valorEscrituraRegistroCentavos:
-      entrada.valorEscrituraRegistroCentavos as number,
+    // `null` viaja até o banco de propósito: é "ainda não respondida", e o
+    // banco guarda a ausência em vez de um palpite.
+    naturezaAquisicaoTerreno: entrada.naturezaAquisicaoTerreno,
     unidadesAutonomas: entrada.unidadesAutonomas as number,
     origemDesmembramentoLoteamento:
       entrada.origemDesmembramentoLoteamento === true,
@@ -281,64 +266,69 @@ export function CamposCno({
   );
 }
 
-/** Tela 8 — composição do custo do terreno, fixada pelo contador. */
-export function CamposTerreno({ estado, atualizar, erroDe }: PropsCampos) {
-  const total =
-    (parseValorInput(estado.valorTerreno) ?? 0) +
-    (valorOpcional(estado.valorItbi) ?? 0) +
-    (valorOpcional(estado.valorEscrituraRegistro) ?? 0);
+const NATUREZAS = [
+  { valor: "a_vista", texto: "À vista" },
+  { valor: "financiado", texto: "Financiado com um banco" },
+  { valor: "parcelado_vendedor", texto: "Parcelado com o vendedor" },
+  { valor: "recebido", texto: "Recebido (herança, doação, permuta)" },
+] as const satisfies readonly {
+  valor: NaturezaAquisicaoTerreno;
+  texto: string;
+}[];
 
+/**
+ * Tela 8 — a BIFURCAÇÃO do CONTAI-010 (mock s2, critério 2).
+ *
+ * Os três campos de valor que moravam aqui MORRERAM com as colunas (migration
+ * 0008): terreno, ITBI e escritura viraram desembolsos DATADOS, cada um com a
+ * sua data, porque cada um cai no ano da SUA quitação. Eles são registrados em
+ * `/obras/[id]/terreno/desembolsos`.
+ *
+ * O que fica aqui é a pergunta que decide qual regra roda — e ela não pode
+ * ficar escondida num canto (mock, pergunta 1). Sem ela, o app PRESUMIU COMPRA
+ * À VISTA e tratou o terreno como um valor só, sem data: é exatamente o defeito
+ * que este ticket conserta.
+ */
+export function CamposTerreno({ estado, atualizar }: PropsCampos) {
   return (
     <>
+      <Banner cor="amb" role="status">
+        Esta pergunta não existia no app. Sem ela, o sistema{" "}
+        <strong>presumiu compra à vista</strong> e tratou o terreno como um valor
+        só, sem data — que é o defeito que esta versão conserta.
+      </Banner>
       <Card className="flex flex-col gap-3.5">
+        <Escolha
+          destaque
+          rotulo="Como você adquiriu o terreno?"
+          opcoes={NATUREZAS}
+          valor={estado.naturezaAquisicaoTerreno}
+          onChange={(v) => atualizar("naturezaAquisicaoTerreno", v)}
+        />
         <Dica>
-          Este valor abre o custo de aquisição do imóvel na ficha Bens e
-          Direitos. Ele não é só o preço pago ao vendedor.
+          Pode ser respondida depois — nada aqui bloqueia o cadastro. Enquanto
+          ficar em branco, ela aparece como pendência de complemento no painel do
+          terreno.
         </Dica>
-        <CampoTexto
-          rotulo="Valor pago pelo terreno"
-          valor={estado.valorTerreno}
-          onChange={(v) => atualizar("valorTerreno", v)}
-          inputMode="decimal"
-          placeholder="0,00"
-          erro={erroDe("valorTerrenoCentavos")}
-        />
-        <CampoTexto
-          rotulo="ITBI"
-          valor={estado.valorItbi}
-          onChange={(v) => atualizar("valorItbi", v)}
-          inputMode="decimal"
-          placeholder="0,00"
-          erro={erroDe("valorItbiCentavos")}
-        />
-        <CampoTexto
-          rotulo="Escritura e registro"
-          valor={estado.valorEscrituraRegistro}
-          onChange={(v) => atualizar("valorEscrituraRegistro", v)}
-          inputMode="decimal"
-          placeholder="0,00"
-          erro={erroDe("valorEscrituraRegistroCentavos")}
-        />
       </Card>
       <Card>
-        <div className="flex items-baseline justify-between gap-3">
-          <span className="text-[12px] text-mut">Custo do terreno</span>
-          <span className="mono text-[13.5px] font-bold">
-            {new Intl.NumberFormat("pt-BR", {
-              style: "currency",
-              currency: "BRL",
-            }).format(total / 100)}
-          </span>
-        </div>
-        <Dica>
-          ITBI e despesas de escritura/registro integram o custo de aquisição
-          (IN SRF 84/2001, art. 17). Lançar só o preço do terreno subestimaria o
-          custo e aumentaria o ganho de capital na venda.
-        </Dica>
+        <Dica>O que cada resposta muda</Dica>
+        {NATUREZAS.map((n) => (
+          <div
+            key={n.valor}
+            className="flex flex-col gap-0.5 border-b border-line py-[9px] last:border-b-0"
+          >
+            <span className="text-[13px] font-semibold">{n.texto}</span>
+            <span className="text-[12px] text-mut">
+              {O_QUE_CADA_NATUREZA_MUDA[n.valor]}
+            </span>
+          </div>
+        ))}
       </Card>
       <Dica>
-        Cada item pode ser preenchido depois — o ITBI costuma ser pago em outra
-        data.
+        Os valores — pagamento do terreno, entrada, ITBI, escritura e registro —
+        são registrados um a um, <strong>cada um com a sua data</strong>, na tela
+        do terreno. É a data de cada um que decide o ano dele.
       </Dica>
     </>
   );

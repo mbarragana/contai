@@ -162,6 +162,9 @@ export default function DadosDaObra() {
         <CamposIdentidade {...props} />
         <CamposCno {...props} hoje={hoje} obraParaPendencia={obra} />
         <CamposTerreno {...props} />
+        <BotaoLink href={`/obras/${id}/terreno`}>
+          Terreno — desembolsos, contrato e informes
+        </BotaoLink>
         <CamposPremissas {...props} />
 
         <Dica>

@@ -61,6 +61,26 @@ const ESPERADO: Record<string, string> = {
   // O "não" da sugestão de quitação, por par. Registrado para não ser
   // reperguntado — logo, nunca apagado.
   quitacao_recusada: "INSERT,SELECT",
+
+  // ── CONTAI-010 (migration 0008) ────────────────────────────────────────
+  // As três nascem aqui e as três precisaram de `revoke` ANTES do `grant`:
+  // tabela criada no stack local do CLI sai com tudo liberado para `anon` e
+  // `authenticated` pelo `alter default privileges`, e no remoto sai com nada.
+  //
+  // UPDATE serve a UM ato: COMPLETAR a data de pagamento (e o comprovante) de
+  // um desembolso que ficou sem ela — critério 23. Sem ele, a pendência de
+  // complemento não teria como ser resolvida pela tela, e correção que exige
+  // SQL é a dor D9 de volta. Sem DELETE: acervo append-only.
+  terreno_desembolso: "INSERT,SELECT,UPDATE",
+  // UPDATE serve à correção do cadastro do contrato (instituição, número, nº
+  // de parcelas), digitado à mão uma vez na vida.
+  financiamento: "INSERT,SELECT,UPDATE",
+  // ⚠️ UPDATE aqui é o grant mais discutível do lote, e está justificado por
+  // extenso na 0008: sem ele, um informe com duas rubricas TROCADAS ENTRE SI (a
+  // soma fecha do mesmo jeito, então nem a trava nem o CHECK acusam) trava o
+  // ano-base PARA SEMPRE por causa do `unique (financiamento_id, ano_base)`, e
+  // o único conserto seria SQL à mão em produção.
+  financiamento_informe: "INSERT,SELECT,UPDATE",
 };
 
 test.describe("privilégios do schema public", () => {

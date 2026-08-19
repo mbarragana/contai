@@ -10,8 +10,12 @@
  * - `pagamento.status` NÃO é consultado por decisão de custo nenhuma
  *   (parecer §2; critérios 4 e 7 do CONTAI-018). O cálculo inteiro vem de
  *   `lib/fiscal/vinculo.ts`.
- * - Acumulado = situação em 31/12 na ficha Bens e Direitos = terreno + obra,
- *   e o terreno é preço + ITBI + escritura/registro (IN SRF 84/2001 art. 17).
+ * - Acumulado = situação em 31/12 na ficha Bens e Direitos = terreno + obra.
+ *   ⚠️ Mudou no CONTAI-010: o terreno deixou de ser três escalares somados
+ *   inteiros em TODO ano e passou a ser `custoTerrenoAteOAno` — desembolsos
+ *   DATADOS com ano ≤ o declarado, mais amortização + juros/correção dos
+ *   informes anuais do financiamento. Regime de caixa também vale para o
+ *   terreno: ITBI recolhido em 2025 não é custo de 2024.
  * - Nada é somado entre obras: a entrada é de UMA obra (CONTAI-003, crit. 9).
  *
  * ⚠️ **COMPROMISSO NÃO ENTRA AQUI POR CAMINHO NENHUM** (CONTAI-019, critério
@@ -27,13 +31,27 @@
  * compromisso viver em outra tabela, com outro tipo.
  */
 
-import type { Documento, Obra, Pagamento, TipoFavorecido } from "@/lib/types";
+import type {
+  Documento,
+  FinanciamentoInforme,
+  Obra,
+  Pagamento,
+  TerrenoDesembolso,
+  TipoFavorecido,
+} from "@/lib/types";
 import {
   CONSEQUENCIA_BOLETO,
   CONSEQUENCIA_QUARENTENA,
   CONSEQUENCIA_SEM_RETENCAO,
 } from "./documento";
-import { custoTerrenoCentavos } from "./obra";
+import {
+  AGUARDANDO_INFORME,
+  custoDoInformeCentavos,
+  custoTerrenoAteOAno,
+  DESEMBOLSO_SEM_DATA,
+  ESTIMATIVA_NAO_E_APURACAO,
+  NOME_DO_DESEMBOLSO,
+} from "./terreno";
 import {
   anoCalendario,
   consequenciaPagoSemComprovante,
@@ -117,12 +135,56 @@ export interface DespesaComprovada {
   href: string;
 }
 
+/**
+ * Desembolso do terreno **pago** cuja data não se conhece — a linha herdada do
+ * sem data de pagamento conhecida (critério 23).
+ *
+ * ⚠️ Campo PRÓPRIO, fora de `pendencias` e fora de todas as somas (critério
+ * 21). Não é `Pendencia` porque a lista de pendências alimenta
+ * `emPendenciaCentavos`, que é o headline de "custo em risco" do CONTAI-005 —
+ * e o CONTAI-005 **não muda de código** neste ticket. É pendência de
+ * COMPLEMENTO, não de risco fiscal: **não é bloqueio**.
+ */
+export interface TerrenoSemData {
+  id: string;
+  titulo: string;
+  valorCentavos: number;
+  /** Cópia literal do critério 23. */
+  consequencia: string;
+  href: string;
+}
+
+/**
+ * O ano corrente sem informe anual (critério 16). Nomeado, **nunca em
+ * silêncio**: o painel subestima o financiamento entre janeiro e a chegada do
+ * informe, e isso é fato conhecido, não bug.
+ *
+ * ⚠️ Fora de todas as somas, como o anterior. A `estimativaCentavos` é ordem de
+ * grandeza tirada do informe do ano anterior — **não é apuração e não soma em
+ * lugar nenhum**.
+ */
+export interface FinanciamentoAguardandoInforme {
+  ano: number;
+  estimativaCentavos: number | null;
+  aviso: string;
+  sobreAEstimativa: string;
+  href: string;
+}
+
 export interface ResumoObra {
   ano: number;
   custoConfirmadoAnoCentavos: number;
   acumuladoImovelCentavos: number;
   emPendenciaCentavos: number;
   pendencias: Pendencia[];
+  /**
+   * ⚠️ Os DOIS estados do terreno ficam aqui, em campo próprio, e **não** em
+   * `pendencias`, **não** em `emPendenciaCentavos`, **não** em
+   * `custoConfirmadoAnoCentavos`, **não** em `notasSemPagamento` e **não** em
+   * `despesas` (critério 21). Há teste afirmando cada um desses "não".
+   */
+  terrenoSemData: TerrenoSemData[];
+  financiamentoAguardandoInforme: FinanciamentoAguardandoInforme | null;
   /** Terceiro número em tela (parecer §5.2) — fora das duas somas. */
   notasSemPagamento: NotaSemPagamento[];
   notasSemPagamentoCentavos: number;
@@ -142,6 +204,14 @@ export interface EntradaResumo {
   obra: Obra;
   documentos: Documento[];
   pagamentos: Pagamento[];
+  /**
+   * CONTAI-010 — os desembolsos DATADOS do terreno. Obrigatório e não
+   * opcional de propósito: `obra` não carrega mais valor de terreno nenhum, e
+   * um campo opcional faria o custo do terreno sumir em silêncio de qualquer
+   * chamador que esquecesse de passá-lo.
+   */
+  desembolsosTerreno: TerrenoDesembolso[];
+  informesFinanciamento: FinanciamentoInforme[];
   ano: number;
 }
 
@@ -159,7 +229,14 @@ function dataBR(iso: string): string {
 }
 
 export function calcularResumo(entrada: EntradaResumo): ResumoObra {
-  const { obra, documentos, pagamentos, ano } = entrada;
+  const {
+    obra,
+    documentos,
+    pagamentos,
+    desembolsosTerreno,
+    informesFinanciamento,
+    ano,
+  } = entrada;
 
   // TODO o cálculo de custo sai daqui — e nenhuma linha dele olha `status`.
   const alocacao = alocarCusto({ documentos, pagamentos });
@@ -405,12 +482,64 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
       };
     });
 
+  // ── CONTAI-010 · os dois estados do terreno, FORA de toda soma ─────────
+  //
+  // Ficam depois do `emPendencia` de propósito: nenhum dos dois participa
+  // daquela soma. O primeiro é pendência de COMPLEMENTO (falta um dado que só
+  // o Mateus tem); o segundo é o calendário do banco. Nenhum é risco fiscal.
+  const terrenoSemData: TerrenoSemData[] = desembolsosTerreno
+    .filter((d) => d.estado === "pago" && d.dataPagamento === null)
+    .map((d) => ({
+      id: `terreno-sem-data:${d.id}`,
+      titulo: `${NOME_DO_DESEMBOLSO[d.tipo]} — falta a data`,
+      valorCentavos: d.valorCentavos,
+      consequencia: DESEMBOLSO_SEM_DATA,
+      href: `/obras/${obra.id}/terreno/desembolsos`,
+    }));
+
+  // Só o ANO EM TELA: "aguardando informe" fala do ano que ainda não fechou.
+  // Ano passado sem informe é "falta lançar", e mora no painel do terreno
+  // (`anosDoFinanciamento`), que é onde existe o contrato para saber desde
+  // quando enumerar.
+  //
+  // ⚠️ LIMITE CONHECIDO: a existência do financiamento é inferida de HAVER
+  // INFORME de algum ano, porque `EntradaResumo` não recebe o contrato. No
+  // PRIMEIRO ano de um contrato — nenhum informe ainda — a home fica calada.
+  // O critério 16 continua atendido pelo painel do terreno, que lê
+  // `financiamento.data_contrato` e enumera os anos a partir dele; aqui a
+  // alternativa seria `informesFinanciamento.length === 0` disparar o aviso
+  // para TODA obra, inclusive a comprada à vista, que nunca terá informe —
+  // afirmar "aguardando informe" onde não há financiamento é pior que calar.
+  const temInformeDoAno = informesFinanciamento.some((i) => i.anoBase === ano);
+  const informeAnterior = informesFinanciamento.find(
+    (i) => i.anoBase === ano - 1,
+  );
+  const financiamentoAguardandoInforme: FinanciamentoAguardandoInforme | null =
+    informesFinanciamento.length > 0 && !temInformeDoAno
+      ? {
+          ano,
+          // ⚠️ Ordem de grandeza, NUNCA somada — ver `ESTIMATIVA_NAO_E_APURACAO`.
+          estimativaCentavos: informeAnterior
+            ? custoDoInformeCentavos(informeAnterior)
+            : null,
+          aviso: AGUARDANDO_INFORME,
+          sobreAEstimativa: ESTIMATIVA_NAO_E_APURACAO,
+          href: `/obras/${obra.id}/terreno`,
+        }
+      : null;
+
   return {
     ano,
     custoConfirmadoAnoCentavos: custoAno,
-    acumuladoImovelCentavos: custoTerrenoCentavos(obra) + custoAteFimDoAno,
+    // Conserta de carona o defeito original (terreno inteiro em todo ano): só
+    // o que foi efetivamente desembolsado até 31/12 deste ano entra.
+    acumuladoImovelCentavos:
+      custoTerrenoAteOAno(desembolsosTerreno, informesFinanciamento, ano) +
+      custoAteFimDoAno,
     emPendenciaCentavos: emPendencia,
     pendencias,
+    terrenoSemData,
+    financiamentoAguardandoInforme,
     notasSemPagamento,
     notasSemPagamentoCentavos: notasSemPagamento.reduce(
       (s, n) => s + n.valorCentavos,

@@ -33,13 +33,12 @@ import {
 } from "@/app/obras/_campos";
 import { criarObra, mensagemDeErro } from "@/lib/data";
 import {
-  custoTerrenoCentavos,
   formatarDataBR,
   validarObra,
   type ErroCampoObra,
 } from "@/lib/fiscal/obra";
+import { NOME_DA_NATUREZA } from "@/lib/fiscal/terreno";
 import { hojeIso } from "@/lib/hoje";
-import { formatarBRL } from "@/lib/money";
 import { gravarObraPreferida } from "@/lib/obra-ativa";
 import type { Obra } from "@/lib/types";
 
@@ -51,18 +50,16 @@ import type { Obra } from "@/lib/types";
 const CAMPOS_DO_PASSO: Record<number, ErroCampoObra["campo"][]> = {
   1: ["nome", "municipio", "dataInicioObra"],
   2: ["temCno", "cno", "cnoRegistradoEm"],
-  3: [
-    "valorTerrenoCentavos",
-    "valorItbiCentavos",
-    "valorEscrituraRegistroCentavos",
-  ],
+  // O passo 3 não tem campo validável: `naturezaAquisicaoTerreno` é aceita em
+  // branco (critério 23 — pendência de complemento, nunca bloqueio).
+  3: [],
   4: ["unidadesAutonomas", "origemDesmembramentoLoteamento"],
 };
 
 const TITULO_DO_PASSO: Record<number, string> = {
   1: "Passo 1 de 4 — identificação",
   2: "Passo 2 de 4 — CNO",
-  3: "Passo 3 de 4 — custo do terreno",
+  3: "Passo 3 de 4 — como o terreno foi adquirido",
   4: "Passo 4 de 4 — como o imóvel está registrado",
 };
 
@@ -105,9 +102,7 @@ export default function NovaObra() {
       matricula: null,
       cartorio: null,
       municipio: estado.municipio,
-      valorTerrenoCentavos: 0,
-      valorItbiCentavos: 0,
-      valorEscrituraRegistroCentavos: 0,
+      naturezaAquisicaoTerreno: null,
       dataInicioObra: estado.dataInicioObra,
       cnoRegistradoEm: null,
       unidadesAutonomas: 1,
@@ -158,9 +153,7 @@ export default function NovaObra() {
           matricula: dados.matricula,
           cartorio: dados.cartorio,
           municipio: dados.municipio,
-          valorTerrenoCentavos: dados.valorTerrenoCentavos,
-          valorItbiCentavos: dados.valorItbiCentavos,
-          valorEscrituraRegistroCentavos: dados.valorEscrituraRegistroCentavos,
+          naturezaAquisicaoTerreno: dados.naturezaAquisicaoTerreno,
           dataInicioObra: dados.dataInicioObra,
           cnoRegistradoEm: dados.cnoRegistradoEm,
           unidadesAutonomas: dados.unidadesAutonomas,
@@ -196,10 +189,14 @@ export default function NovaObra() {
                 </span>
               )}
             </Linha>
-            <Linha rotulo="Custo do terreno">
-              <span className="mono">
-                {formatarBRL(custoTerrenoCentavos(obra))}
-              </span>
+            <Linha rotulo="Terreno">
+              {obra.naturezaAquisicaoTerreno ? (
+                NOME_DA_NATUREZA[obra.naturezaAquisicaoTerreno]
+              ) : (
+                <span className="font-semibold text-amb">
+                  falta dizer como foi adquirido
+                </span>
+              )}
             </Linha>
             <Linha rotulo="Unidades">
               {obra.unidadesAutonomas} ·{" "}
@@ -221,7 +218,10 @@ export default function NovaObra() {
           </Dica>
         </Corpo>
         <Rodape>
-          <BotaoLink href="/adicionar/documento" variante="primary">
+          <BotaoLink href={`/obras/${obra.id}/terreno`} variante="primary">
+            Registrar o custo do terreno
+          </BotaoLink>
+          <BotaoLink href="/adicionar/documento">
             Registrar o primeiro documento
           </BotaoLink>
           <BotaoLink href="/obras">Ver minhas obras</BotaoLink>

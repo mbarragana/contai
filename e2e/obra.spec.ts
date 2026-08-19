@@ -51,7 +51,6 @@ async function criarCasaDoMorro(db: Db) {
     municipio: "Florianópolis",
     cno: null,
     data_inicio_obra: "2026-03-15",
-    valor_terreno: 420000,
   });
 }
 
@@ -121,12 +120,13 @@ test.describe("primeiro acesso", () => {
     ).toBeVisible();
     await page.getByRole("button", { name: "Continuar sem CNO" }).click();
 
-    // Passo 3 — composição do custo do terreno.
-    await page.getByLabel("Valor pago pelo terreno").fill("420.000,00");
-    await page.getByLabel("ITBI").fill("12.600,00");
-    await page.getByLabel("Escritura e registro").fill("8.400,00");
-    await expect(page.getByText("R$ 441.000,00")).toBeVisible();
-    await page.getByRole("button", { name: "Continuar" }).click();
+    // Passo 3 — a natureza da aquisição (CONTAI-010). Os três campos de VALOR
+    // morreram com as colunas: terreno, ITBI e escritura viraram desembolsos
+    // DATADOS, cada um no ano da sua quitação. O que fica aqui é a bifurcação,
+    // e ela é OPCIONAL — em branco vira pendência de complemento, nunca
+    // bloqueio (critério 23).
+    await escolher(page, "Como você adquiriu o terreno?", "Financiado com um banco");
+    await page.getByRole("button", { name: "Continuar", exact: true }).click();
 
     // Passo 4 — premissas do produto. Sem resposta não cria: a equiparação a
     // empresa (critério 11) é decidida por fato declarado, não por omissão.
@@ -149,9 +149,7 @@ test.describe("primeiro acesso", () => {
       cno: null,
       cno_registrado_em: null,
       data_inicio_obra: "2026-03-15",
-      valor_terreno: 420000,
-      valor_itbi: 12600,
-      valor_escritura_registro: 8400,
+      natureza_aquisicao_terreno: "financiado",
       unidades_autonomas: 1,
       origem_desmembramento_loteamento: false,
     });
@@ -451,11 +449,18 @@ test.describe("sem obra ativa persistida", () => {
     await expect(page.getByRole("heading", { name: "Suas obras" })).toBeVisible();
     await expect(page.getByText(/O app não escolhe por você/)).toBeVisible();
 
-    // Critério 14 — asserção NEGATIVA, e ela é o critério: as duas obras têm
-    // terreno gravado (R$ 800.000,00 e R$ 420.000,00) e nenhum dos dois pode
-    // aparecer aqui. Bens e Direitos não soma entre matrículas e a aferição não
-    // soma entre CNOs: dois valores lado a lado estão a uma soma mental de
-    // virar um número que não existe em declaração nenhuma.
+    // Critério 14 — asserção NEGATIVA, e ela é o critério: valor de obra
+    // nenhuma pode aparecer nesta lista. Bens e Direitos não soma entre
+    // matrículas e a aferição não soma entre CNOs: dois valores lado a lado
+    // estão a uma soma mental de virar um número que não existe em declaração
+    // nenhuma.
+    //
+    // ⚠️ Desde o CONTAI-010 nenhuma das duas obras tem valor de terreno
+    // gravado (as três colunas morreram na 0008 e ninguém montou desembolso
+    // aqui), então a asserção perdeu força: ela ainda cobre o que a TELA
+    // desenha, mas não prova mais que um valor EXISTENTE fica de fora.
+    // Devolver a força pede um `criarDesembolsoTerreno` por obra — fora do
+    // escopo do retrabalho do CONTAI-010.
     await expect(page.getByRole("button", { name: /Casa do Morro/ })).toBeVisible();
     const lista = page.getByRole("main");
     await expect(lista).not.toContainText("R$");

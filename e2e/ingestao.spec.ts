@@ -3,6 +3,7 @@ import type { Page } from "@playwright/test";
 import { OBRA_ID_SEED, URL_SUPABASE_LOCAL, USER_ID_SEED } from "./ambiente";
 import {
   arquivosNoAcervo,
+  criarDesembolsoTerreno,
   criarDocumento,
   criarFavorecido,
   criarPagamento,
@@ -111,10 +112,28 @@ test.describe("home de pendências", () => {
       });
     }
 
+    // O terreno, no modelo novo: um desembolso pago e DATADO dentro do ano em
+    // teste — é a data que o põe na situação de 31/12 deste ano.
+    await criarDesembolsoTerreno(db, {
+      tipo: "pagamento_terreno",
+      valor: 800000,
+      estado: "pago",
+      data_pagamento: `${ANO}-01-15`,
+    });
+
     await page.goto("/");
 
-    // Acumulado da obra = terreno (preço + ITBI + escritura) + obra
-    // confirmada (situação em 31/12). Nada é somado com a outra obra.
+    // Acumulado da obra = terreno + obra confirmada (situação em 31/12). Nada
+    // é somado com a outra obra.
+    //
+    // ⚠️ O terreno mudou de lugar no CONTAI-010: deixou de ser três colunas da
+    // `obra` (preço, ITBI, escritura, sem data nenhuma, somadas inteiras em
+    // TODO ano) e virou desembolso DATADO. Por isso a linha é montada aqui, no
+    // cenário do teste, e não no `seed.sql`: pô-la no seed obrigaria o `limpar`
+    // das fixtures a recriá-la junto da `OBRA_SEED`, espalhando o setup por
+    // três arquivos. A asserção continua sendo a mesma e é o que importa —
+    // **terreno e obra somam na situação de 31/12**, que é o número que vai
+    // para Bens e Direitos.
     await expect(page.getByText(/Acumulado desta obra/)).toContainText(
       "800.000,00",
     );

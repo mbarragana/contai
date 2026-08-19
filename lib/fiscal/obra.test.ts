@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  custoTerrenoCentavos,
   exigeAvisoEquiparacao,
   diasEntre,
   escolherObraAtiva,
@@ -134,17 +133,9 @@ describe("aritmética de datas", () => {
   });
 });
 
-describe("custo do terreno", () => {
-  it("soma ITBI e escritura ao preço pago (IN SRF 84/2001, art. 17)", () => {
-    expect(
-      custoTerrenoCentavos({
-        valorTerrenoCentavos: 42_000_000,
-        valorItbiCentavos: 1_260_000,
-        valorEscrituraRegistroCentavos: 840_000,
-      }),
-    ).toBe(44_100_000);
-  });
-});
+// ⚠️ O custo do terreno saiu deste arquivo no CONTAI-010, junto com as três
+// colunas de valor: ele é um número POR ANO (regime de caixa) e mora agora em
+// `lib/fiscal/terreno.ts` (`custoTerrenoAteOAno`), com testes próprios.
 
 describe("aviso de equiparação a empresa (critério 11)", () => {
   it("dispara com mais de uma unidade OU com desmembramento", () => {
@@ -266,9 +257,7 @@ describe("validação do cadastro de obra", () => {
     temCno: "nao",
     cno: "",
     cnoRegistradoEm: "",
-    valorTerrenoCentavos: 42_000_000,
-    valorItbiCentavos: 0,
-    valorEscrituraRegistroCentavos: 0,
+    naturezaAquisicaoTerreno: null,
     unidadesAutonomas: 1,
     origemDesmembramentoLoteamento: false,
   };
@@ -324,13 +313,17 @@ describe("validação do cadastro de obra", () => {
     ).toContain("cnoRegistradoEm");
   });
 
-  it("valor do terreno ilegível não vira zero em silêncio", () => {
-    expect(campos({ ...VALIDA, valorTerrenoCentavos: null })).toContain(
-      "valorTerrenoCentavos",
+  it("natureza da aquisição em branco NÃO bloqueia (critério 23)", () => {
+    // A obra que já existe não tinha como responder isso — vira pendência de
+    // COMPLEMENTO, visível no painel do terreno, e continua salvável. Travar
+    // aqui devolveria o Mateus para a planilha por causa de um campo que o app
+    // acabou de inventar.
+    expect(campos({ ...VALIDA, naturezaAquisicaoTerreno: null })).not.toContain(
+      "naturezaAquisicaoTerreno",
     );
-    expect(campos({ ...VALIDA, valorItbiCentavos: null })).toContain(
-      "valorItbiCentavos",
-    );
+    expect(
+      validarObra({ ...VALIDA, naturezaAquisicaoTerreno: "financiado" }, HOJE),
+    ).toEqual([]);
   });
 
   it("premissas do produto são obrigatórias (critério 11)", () => {

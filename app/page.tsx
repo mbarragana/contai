@@ -319,6 +319,77 @@ export default function Home() {
               </Card>
             ))}
 
+            {/* ⚠️ CONTAI-010 — os dois estados do TERRENO. Bloco próprio,
+                DEPOIS das pendências fiscais e fora delas (critério 21):
+                nenhum dos dois entra em `emPendenciaCentavos`, e o CONTAI-005
+                não muda de código. O primeiro é pendência de COMPLEMENTO (falta
+                um dado que só o Mateus tem); o segundo é o calendário do banco.
+                Nenhum dos dois é bloqueio. */}
+            {estado.resumo.terrenoSemData.length > 0 ? (
+              <>
+                <Passo>Terreno — valores sem data</Passo>
+                {estado.resumo.terrenoSemData.map((t) => (
+                  <Card key={t.id} className="border-amb">
+                    <Chip cor="amb">Falta a data</Chip>
+                    <div className="mt-1.5 font-semibold">{t.titulo}</div>
+                    <Dica>
+                      <span className="mono">{formatarBRL(t.valorCentavos)}</span>
+                    </Dica>
+                    <Consequencia cor="amb">
+                      {t.consequencia}. <strong>Não bloqueia o app</strong> —
+                      fica como pendência até você preencher.
+                    </Consequencia>
+                    <div className="mt-2.5">
+                      <BotaoLink href={t.href}>Informar a data</BotaoLink>
+                    </div>
+                  </Card>
+                ))}
+              </>
+            ) : null}
+
+            {estado.resumo.financiamentoAguardandoInforme ? (
+              <>
+                <Passo>
+                  Financiamento {estado.resumo.financiamentoAguardandoInforme.ano}{" "}
+                  — aguardando informe anual
+                </Passo>
+                <Card>
+                  <Chip cor="amb" vazado>
+                    Aguardando informe
+                  </Chip>
+                  <Consequencia cor="amb">
+                    {estado.resumo.financiamentoAguardandoInforme.aviso}
+                  </Consequencia>
+                  {estado.resumo.financiamentoAguardandoInforme
+                    .estimativaCentavos !== null ? (
+                    <>
+                      {/* Cinza, rotulada, FORA de toda soma. */}
+                      <div className="mono mt-1.5 text-[14px] text-mut">
+                        Ordem de grandeza do que falta: ≈{" "}
+                        {formatarBRL(
+                          estado.resumo.financiamentoAguardandoInforme
+                            .estimativaCentavos,
+                        )}
+                      </div>
+                      <Dica>
+                        {
+                          estado.resumo.financiamentoAguardandoInforme
+                            .sobreAEstimativa
+                        }
+                      </Dica>
+                    </>
+                  ) : null}
+                  <div className="mt-2.5">
+                    <BotaoLink
+                      href={estado.resumo.financiamentoAguardandoInforme.href}
+                    >
+                      Ver o terreno ano a ano
+                    </BotaoLink>
+                  </div>
+                </Card>
+              </>
+            ) : null}
+
             {/* ⚠️ BLOCO SEPARADO, RÓTULO PRÓPRIO, LONGE DO CUSTO (critério
                 10). Ele fica DEPOIS das pendências fiscais de propósito:
                 agendado não é pendência fiscal — nada saiu da conta, logo não
@@ -330,7 +401,11 @@ export default function Home() {
               <Link href={`/obras/${obra.id}`} className="underline">
                 Dados da obra
               </Link>{" "}
-              — matrícula, CNO, custo do terreno.
+              — matrícula e CNO ·{" "}
+              <Link href={`/obras/${obra.id}/terreno`} className="underline">
+                Terreno
+              </Link>{" "}
+              — desembolsos datados, contrato e informes anuais.
             </Dica>
 
             {/* Único caminho até a saída (critério 6 do CONTAI-002): logout

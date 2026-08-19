@@ -25,10 +25,16 @@ import type {
   DocumentoInsert,
   DocumentoRow,
   FavorecidoInsert,
+  Financiamento,
+  FinanciamentoInforme,
+  FinanciamentoInformeRow,
+  FinanciamentoRow,
+  NaturezaAquisicaoTerreno,
   Obra,
   ObraInsert,
   ObraRow,
   OrigemCompromisso,
+  OrigemRecursoEntrada,
   Pagamento,
   PagamentoDiferencaRow,
   PagamentoDocumentoRow,
@@ -36,6 +42,9 @@ import type {
   PagamentoRow,
   QuitacaoRecusadaRow,
   ResolucaoDiferenca,
+  TerrenoDesembolso,
+  TerrenoDesembolsoRow,
+  TipoDesembolsoTerreno,
   TipoFavorecido,
 } from "@/lib/types";
 
@@ -77,10 +86,7 @@ function paraObra(row: ObraRow): Obra {
     matricula: row.matricula,
     cartorio: row.cartorio,
     municipio: row.municipio,
-    valorTerrenoCentavos: numericParaCentavos(row.valor_terreno) ?? 0,
-    valorItbiCentavos: numericParaCentavos(row.valor_itbi) ?? 0,
-    valorEscrituraRegistroCentavos:
-      numericParaCentavos(row.valor_escritura_registro) ?? 0,
+    naturezaAquisicaoTerreno: row.natureza_aquisicao_terreno,
     dataInicioObra: row.data_inicio_obra,
     cnoRegistradoEm: row.cno_registrado_em,
     unidadesAutonomas: row.unidades_autonomas,
@@ -190,9 +196,8 @@ export interface EntradaObraBanco {
   cno: string | null;
   cnoRegistradoEm: string | null;
   dataInicioObra: string;
-  valorTerrenoCentavos: number;
-  valorItbiCentavos: number;
-  valorEscrituraRegistroCentavos: number;
+  /** `null` = ainda não respondida — pendência de complemento, não bloqueio. */
+  naturezaAquisicaoTerreno: NaturezaAquisicaoTerreno | null;
   unidadesAutonomas: number;
   origemDesmembramentoLoteamento: boolean;
 }
@@ -206,11 +211,7 @@ function paraLinhaObra(entrada: EntradaObraBanco): ObraInsert {
     cno: entrada.cno,
     cno_registrado_em: entrada.cnoRegistradoEm,
     data_inicio_obra: entrada.dataInicioObra,
-    valor_terreno: centavosParaNumeric(entrada.valorTerrenoCentavos),
-    valor_itbi: centavosParaNumeric(entrada.valorItbiCentavos),
-    valor_escritura_registro: centavosParaNumeric(
-      entrada.valorEscrituraRegistroCentavos,
-    ),
+    natureza_aquisicao_terreno: entrada.naturezaAquisicaoTerreno,
     unidades_autonomas: entrada.unidadesAutonomas,
     origem_desmembramento_loteamento: entrada.origemDesmembramentoLoteamento,
   };
@@ -245,6 +246,58 @@ export interface PainelDados {
   obra: Obra;
   documentos: Documento[];
   pagamentos: Pagamento[];
+  /**
+   * CONTAI-010 — o custo do terreno saiu das colunas da obra e virou lista
+   * DATADA. Viaja no painel porque `calcularResumo({ ...dados, ano })` precisa
+   * dele para a situação em 31/12; ao contrário do compromisso, ele É custo de
+   * aquisição e o lugar dele é dentro do cálculo.
+   */
+  desembolsosTerreno: TerrenoDesembolso[];
+  informesFinanciamento: FinanciamentoInforme[];
+}
+
+function paraDesembolsoTerreno(row: TerrenoDesembolsoRow): TerrenoDesembolso {
+  return {
+    id: row.id,
+    obraId: row.obra_id,
+    tipo: row.tipo,
+    valorCentavos: numericParaCentavos(row.valor) ?? 0,
+    dataPagamento: row.data_pagamento,
+    estado: row.estado,
+    origemRecurso: row.origem_recurso,
+    arquivoPath: row.arquivo_path,
+  };
+}
+
+function paraFinanciamento(row: FinanciamentoRow): Financiamento {
+  return {
+    id: row.id,
+    obraId: row.obra_id,
+    instituicao: row.instituicao,
+    numeroContrato: row.numero_contrato,
+    dataContrato: row.data_contrato,
+    precoContratadoCentavos: numericParaCentavos(row.preco_contratado) ?? 0,
+    numeroParcelas: row.numero_parcelas,
+  };
+}
+
+function paraInforme(row: FinanciamentoInformeRow): FinanciamentoInforme {
+  return {
+    id: row.id,
+    financiamentoId: row.financiamento_id,
+    anoBase: row.ano_base,
+    amortizacaoCentavos: numericParaCentavos(row.amortizacao) ?? 0,
+    jurosCorrecaoCentavos: numericParaCentavos(row.juros_correcao) ?? 0,
+    segurosCentavos: numericParaCentavos(row.seguros) ?? 0,
+    taxasFcvsCentavos: numericParaCentavos(row.taxas_fcvs) ?? 0,
+    moraCentavos: numericParaCentavos(row.mora) ?? 0,
+    multaCentavos: numericParaCentavos(row.multa) ?? 0,
+    diferencaTeoricoPagoCentavos:
+      numericParaCentavos(row.diferenca_teorico_pago) ?? 0,
+    totalPagoCentavos: numericParaCentavos(row.total_pago) ?? 0,
+    saldoDevedorCentavos: numericParaCentavos(row.saldo_devedor) ?? 0,
+    arquivoPath: row.arquivo_path,
+  };
 }
 
 function indexarDiferencas(
@@ -273,25 +326,53 @@ export async function carregarPainel(obraId: string): Promise<PainelDados> {
   const supabase = getSupabase();
   const obra = await carregarObra(obraId);
 
-  const [documentos, pagamentos, vinculos, diferencas] = await Promise.all([
-    supabase
-      .from("documento")
-      .select("*, favorecido(nome, documento)")
-      .eq("obra_id", obra.id)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("pagamento")
-      .select("*, favorecido(nome, tipo)")
-      .eq("obra_id", obra.id)
-      .order("data_pagamento", { ascending: false }),
-    supabase.from("pagamento_documento").select("*"),
-    supabase.from("pagamento_diferenca").select("*"),
-  ]);
+  const [
+    documentos,
+    pagamentos,
+    vinculos,
+    diferencas,
+    desembolsos,
+    financiamentos,
+    informes,
+  ] = await Promise.all([
+      supabase
+        .from("documento")
+        .select("*, favorecido(nome, documento)")
+        .eq("obra_id", obra.id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("pagamento")
+        .select("*, favorecido(nome, tipo)")
+        .eq("obra_id", obra.id)
+        .order("data_pagamento", { ascending: false }),
+      supabase.from("pagamento_documento").select("*"),
+      supabase.from("pagamento_diferenca").select("*"),
+      supabase
+        .from("terreno_desembolso")
+        .select("*")
+        .eq("obra_id", obra.id)
+        .order("data_pagamento", { ascending: true, nullsFirst: false }),
+      supabase.from("financiamento").select("*").eq("obra_id", obra.id),
+      // O informe pertence ao CONTRATO, não à obra. Vem tudo e filtra-se aqui:
+      // a RLS já limita à conta, e o volume é UMA LINHA POR ANO POR CONTRATO —
+      // ~20 linhas na vida inteira do financiamento do Mateus.
+      supabase
+        .from("financiamento_informe")
+        .select("*")
+        .order("ano_base", { ascending: true }),
+    ]);
 
   if (documentos.error) throw documentos.error;
   if (pagamentos.error) throw pagamentos.error;
   if (vinculos.error) throw vinculos.error;
   if (diferencas.error) throw diferencas.error;
+  if (desembolsos.error) throw desembolsos.error;
+  if (financiamentos.error) throw financiamentos.error;
+  if (informes.error) throw informes.error;
+
+  const contratosDaObra = new Set(
+    ((financiamentos.data ?? []) as FinanciamentoRow[]).map((f) => f.id),
+  );
 
   const docsPorPagamento = agruparVinculos(
     (vinculos.data ?? []) as PagamentoDocumentoRow[],
@@ -310,6 +391,12 @@ export async function carregarPainel(obraId: string): Promise<PainelDados> {
     ).map((row) =>
       paraPagamento(row, docsPorPagamento.get(row.id) ?? [], porPagamento.get(row.id)),
     ),
+    desembolsosTerreno: ((desembolsos.data ?? []) as TerrenoDesembolsoRow[]).map(
+      paraDesembolsoTerreno,
+    ),
+    informesFinanciamento: ((informes.data ?? []) as FinanciamentoInformeRow[])
+      .filter((i) => contratosDaObra.has(i.financiamento_id))
+      .map(paraInforme),
   };
 }
 
@@ -324,7 +411,15 @@ export async function carregarPaineis(): Promise<PainelDados[]> {
   const obras = await carregarObras();
   if (obras.length === 0) return [];
 
-  const [documentos, pagamentos, vinculos, diferencas] = await Promise.all([
+  const [
+    documentos,
+    pagamentos,
+    vinculos,
+    diferencas,
+    desembolsos,
+    financiamentos,
+    informes,
+  ] = await Promise.all([
     supabase
       .from("documento")
       .select("*, favorecido(nome, documento)")
@@ -335,18 +430,37 @@ export async function carregarPaineis(): Promise<PainelDados[]> {
       .order("data_pagamento", { ascending: false }),
     supabase.from("pagamento_documento").select("*"),
     supabase.from("pagamento_diferenca").select("*"),
+    supabase
+      .from("terreno_desembolso")
+      .select("*")
+      .order("data_pagamento", { ascending: true, nullsFirst: false }),
+    supabase.from("financiamento").select("*"),
+    supabase
+      .from("financiamento_informe")
+      .select("*")
+      .order("ano_base", { ascending: true }),
   ]);
 
   if (documentos.error) throw documentos.error;
   if (pagamentos.error) throw pagamentos.error;
   if (vinculos.error) throw vinculos.error;
   if (diferencas.error) throw diferencas.error;
+  if (desembolsos.error) throw desembolsos.error;
+  if (financiamentos.error) throw financiamentos.error;
+  if (informes.error) throw informes.error;
 
   const docsPorPagamento = agruparVinculos(
     (vinculos.data ?? []) as PagamentoDocumentoRow[],
   );
   const porPagamento = indexarDiferencas(
     (diferencas.data ?? []) as PagamentoDiferencaRow[],
+  );
+  // Contrato → obra: o informe não conhece a obra, só o contrato.
+  const obraDoContrato = new Map(
+    ((financiamentos.data ?? []) as FinanciamentoRow[]).map((f) => [
+      f.id,
+      f.obra_id,
+    ]),
   );
 
   return obras.map((obra) => ({
@@ -359,6 +473,12 @@ export async function carregarPaineis(): Promise<PainelDados[]> {
       .map((row) =>
         paraPagamento(row, docsPorPagamento.get(row.id) ?? [], porPagamento.get(row.id)),
       ),
+    desembolsosTerreno: ((desembolsos.data ?? []) as TerrenoDesembolsoRow[])
+      .filter((row) => row.obra_id === obra.id)
+      .map(paraDesembolsoTerreno),
+    informesFinanciamento: ((informes.data ?? []) as FinanciamentoInformeRow[])
+      .filter((row) => obraDoContrato.get(row.financiamento_id) === obra.id)
+      .map(paraInforme),
   }));
 }
 
@@ -432,7 +552,13 @@ export async function moverPagamentoDeObra(
  */
 export async function subirParaAcervo(
   arquivo: File,
-  pasta: "documento" | "comprovante",
+  /**
+   * `terreno` e `informe` nascem no CONTAI-010: comprovante de desembolso do
+   * terreno e o extrato anual do financiamento. O primeiro nível do caminho
+   * continua sendo o `user_id` — é isso que a policy do bucket exige
+   * (0002_storage.sql); o segundo é organização nossa.
+   */
+  pasta: "documento" | "comprovante" | "terreno" | "informe",
 ): Promise<string> {
   const usuarioId = await getUsuarioId();
   const seguro = arquivo.name.replace(/[^\w.\-]+/g, "_").slice(-80);
@@ -1005,6 +1131,197 @@ export async function carregarRecusasQuitacao(): Promise<
     pagamentoId: r.pagamento_id,
     compromissoId: r.compromisso_id,
   }));
+}
+
+// ══ CONTAI-010 · terreno, contrato e informe anual ══════════════════════
+//
+// ⚠️ Nada daqui vira `pagamento`, e a separação é FISCAL, não arquitetural
+// (parecer §5): o favorecido é o banco ou o cartório, o documento hábil é
+// contrato/guia/extrato e não NF, e a aferição do INSS não vê nada disto.
+// Fundir os dois faria o financiamento cair como "pago sem nota" todo ano e
+// inflar o headline de custo em risco do CONTAI-005 (critério 21).
+
+/** O contrato de UMA obra — `unique (obra_id)`, então é 0 ou 1. */
+export async function carregarFinanciamento(
+  obraId: string,
+): Promise<Financiamento | null> {
+  await getUsuarioId();
+  const { data, error } = await getSupabase()
+    .from("financiamento")
+    .select("*")
+    .eq("obra_id", obraId)
+    .limit(1);
+  if (error) throw error;
+  const row = (data as FinanciamentoRow[] | null)?.[0];
+  return row ? paraFinanciamento(row) : null;
+}
+
+export async function carregarDesembolsosTerreno(
+  obraId: string,
+): Promise<TerrenoDesembolso[]> {
+  await getUsuarioId();
+  const { data, error } = await getSupabase()
+    .from("terreno_desembolso")
+    .select("*")
+    .eq("obra_id", obraId)
+    .order("data_pagamento", { ascending: true, nullsFirst: false });
+  if (error) throw error;
+  return ((data ?? []) as TerrenoDesembolsoRow[]).map(paraDesembolsoTerreno);
+}
+
+export async function carregarInformes(
+  financiamentoId: string,
+): Promise<FinanciamentoInforme[]> {
+  await getUsuarioId();
+  const { data, error } = await getSupabase()
+    .from("financiamento_informe")
+    .select("*")
+    .eq("financiamento_id", financiamentoId)
+    .order("ano_base", { ascending: true });
+  if (error) throw error;
+  return ((data ?? []) as FinanciamentoInformeRow[]).map(paraInforme);
+}
+
+export interface EntradaDesembolsoTerreno {
+  obraId: string;
+  tipo: TipoDesembolsoTerreno;
+  valorCentavos: number;
+  /**
+   * `null` só quando `estado = 'previsto'`. Nada aqui preenche data sozinho
+   * (critério 22): o app não inventa data, nem a de hoje, nem a do cadastro.
+   */
+  dataPagamento: string | null;
+  estado: "pago" | "previsto";
+  origemRecurso: OrigemRecursoEntrada | null;
+  /** Obrigatório para linha nova `pago` — a tela é quem garante. */
+  arquivoPath: string | null;
+}
+
+export async function criarDesembolsoTerreno(
+  entrada: EntradaDesembolsoTerreno,
+): Promise<string> {
+  const { data, error } = await getSupabase()
+    .from("terreno_desembolso")
+    .insert({
+      obra_id: entrada.obraId,
+      tipo: entrada.tipo,
+      valor: centavosParaNumeric(entrada.valorCentavos),
+      data_pagamento: entrada.dataPagamento,
+      estado: entrada.estado,
+      origem_recurso: entrada.origemRecurso,
+      arquivo_path: entrada.arquivoPath,
+    })
+    .select("id")
+    .single();
+  if (error) throw error;
+  return (data as { id: string }).id;
+}
+
+/**
+ * Completa a data (e o comprovante) de um desembolso gravado sem eles — a
+ * migration 0008 — critério 23. É o ÚNICO uso do UPDATE nesta tabela, e é a
+ * razão de o grant existir: sem ele, a pendência de complemento não teria como
+ * ser resolvida pela tela, e correção que exige SQL é a dor D9 de volta.
+ *
+ * O VALOR não é tocado por este caminho: o que faltava era a data, não o
+ * dinheiro.
+ */
+export async function completarDesembolsoTerreno(
+  id: string,
+  dataPagamento: string,
+  arquivoPath: string | null,
+): Promise<void> {
+  const { error } = await getSupabase()
+    .from("terreno_desembolso")
+    .update(
+      arquivoPath
+        ? { data_pagamento: dataPagamento, arquivo_path: arquivoPath }
+        : { data_pagamento: dataPagamento },
+    )
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export interface EntradaFinanciamento {
+  obraId: string;
+  instituicao: string;
+  numeroContrato: string | null;
+  dataContrato: string;
+  precoContratadoCentavos: number;
+  numeroParcelas: number | null;
+}
+
+export async function criarFinanciamento(
+  entrada: EntradaFinanciamento,
+): Promise<string> {
+  const { data, error } = await getSupabase()
+    .from("financiamento")
+    .insert({
+      obra_id: entrada.obraId,
+      instituicao: entrada.instituicao,
+      numero_contrato: entrada.numeroContrato,
+      data_contrato: entrada.dataContrato,
+      // ⚠️ Gravado para o texto da discriminação e para fechar a conta de quem
+      // lê. NENHUMA função de apuração o soma (critério 8).
+      preco_contratado: centavosParaNumeric(entrada.precoContratadoCentavos),
+      numero_parcelas: entrada.numeroParcelas,
+    })
+    .select("id")
+    .single();
+  if (error) throw error;
+  return (data as { id: string }).id;
+}
+
+export interface EntradaInforme {
+  financiamentoId: string;
+  anoBase: number;
+  amortizacaoCentavos: number;
+  jurosCorrecaoCentavos: number;
+  segurosCentavos: number;
+  taxasFcvsCentavos: number;
+  moraCentavos: number;
+  multaCentavos: number;
+  diferencaTeoricoPagoCentavos: number;
+  totalPagoCentavos: number;
+  saldoDevedorCentavos: number;
+  /** Obrigatório — sem o extrato, não grava (critério 10). */
+  arquivoPath: string;
+}
+
+/**
+ * Grava o informe anual.
+ *
+ * A trava da soma é conferida ANTES, na tela (`travaDaSoma`), com a diferença
+ * exata na mensagem; o CHECK do banco é o backstop. As duas existem: a de cima
+ * explica, a de baixo garante.
+ *
+ * O segundo informe do mesmo ano-base bate no `unique (financiamento_id,
+ * ano_base)` e volta como 23505 — a tela traduz com o motivo por extenso
+ * (`UM_INFORME_POR_ANO`).
+ */
+export async function criarInforme(entrada: EntradaInforme): Promise<string> {
+  const { data, error } = await getSupabase()
+    .from("financiamento_informe")
+    .insert({
+      financiamento_id: entrada.financiamentoId,
+      ano_base: entrada.anoBase,
+      amortizacao: centavosParaNumeric(entrada.amortizacaoCentavos),
+      juros_correcao: centavosParaNumeric(entrada.jurosCorrecaoCentavos),
+      seguros: centavosParaNumeric(entrada.segurosCentavos),
+      taxas_fcvs: centavosParaNumeric(entrada.taxasFcvsCentavos),
+      mora: centavosParaNumeric(entrada.moraCentavos),
+      multa: centavosParaNumeric(entrada.multaCentavos),
+      diferenca_teorico_pago: centavosParaNumeric(
+        entrada.diferencaTeoricoPagoCentavos,
+      ),
+      total_pago: centavosParaNumeric(entrada.totalPagoCentavos),
+      saldo_devedor: centavosParaNumeric(entrada.saldoDevedorCentavos),
+      arquivo_path: entrada.arquivoPath,
+    })
+    .select("id")
+    .single();
+  if (error) throw error;
+  return (data as { id: string }).id;
 }
 
 /**

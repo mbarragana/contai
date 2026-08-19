@@ -1,6 +1,11 @@
 // Tipos GERADOS a partir do banco — não edite à mão.
 // Fonte: `npx supabase gen types typescript --local` com as migrations 0001 a
-// 0007 aplicadas (`npm run db:reset`). Regerar sempre que uma migration entrar.
+// 0008 aplicadas (`npm run db:reset`). Regerar sempre que uma migration entrar.
+//
+// ⚠️ O bloco da migration 0008 (CONTAI-010) foi escrito À MÃO, no formato que o
+// gerador produz, porque o projeto não estava linkado na sessão em que a
+// migration nasceu. Regerar com o CLI na próxima oportunidade — se o resultado
+// divergir daqui, quem vale é o CLI.
 export type Json =
   | string
   | number
@@ -262,6 +267,109 @@ export type Database = {
         }
         Relationships: []
       }
+      financiamento: {
+        Row: {
+          created_at: string
+          data_contrato: string
+          id: string
+          instituicao: string
+          numero_contrato: string | null
+          numero_parcelas: number | null
+          obra_id: string
+          preco_contratado: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          data_contrato: string
+          id?: string
+          instituicao: string
+          numero_contrato?: string | null
+          numero_parcelas?: number | null
+          obra_id: string
+          preco_contratado: number
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          data_contrato?: string
+          id?: string
+          instituicao?: string
+          numero_contrato?: string | null
+          numero_parcelas?: number | null
+          obra_id?: string
+          preco_contratado?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financiamento_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: true
+            referencedRelation: "obra"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financiamento_informe: {
+        Row: {
+          amortizacao: number
+          ano_base: number
+          arquivo_path: string
+          created_at: string
+          diferenca_teorico_pago: number
+          financiamento_id: string
+          id: string
+          juros_correcao: number
+          mora: number
+          multa: number
+          saldo_devedor: number
+          seguros: number
+          taxas_fcvs: number
+          total_pago: number
+        }
+        Insert: {
+          amortizacao?: number
+          ano_base: number
+          arquivo_path: string
+          created_at?: string
+          diferenca_teorico_pago?: number
+          financiamento_id: string
+          id?: string
+          juros_correcao?: number
+          mora?: number
+          multa?: number
+          saldo_devedor?: number
+          seguros?: number
+          taxas_fcvs?: number
+          total_pago: number
+        }
+        Update: {
+          amortizacao?: number
+          ano_base?: number
+          arquivo_path?: string
+          created_at?: string
+          diferenca_teorico_pago?: number
+          financiamento_id?: string
+          id?: string
+          juros_correcao?: number
+          mora?: number
+          multa?: number
+          saldo_devedor?: number
+          seguros?: number
+          taxas_fcvs?: number
+          total_pago?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financiamento_informe_financiamento_id_fkey"
+            columns: ["financiamento_id"]
+            isOneToOne: false
+            referencedRelation: "financiamento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       obra: {
         Row: {
           cartorio: string | null
@@ -272,13 +380,13 @@ export type Database = {
           id: string
           matricula: string | null
           municipio: string | null
+          natureza_aquisicao_terreno:
+            | Database["public"]["Enums"]["natureza_aquisicao_terreno"]
+            | null
           nome: string
           origem_desmembramento_loteamento: boolean
           unidades_autonomas: number
           user_id: string
-          valor_escritura_registro: number
-          valor_itbi: number
-          valor_terreno: number
         }
         Insert: {
           cartorio?: string | null
@@ -289,13 +397,13 @@ export type Database = {
           id?: string
           matricula?: string | null
           municipio?: string | null
+          natureza_aquisicao_terreno?:
+            | Database["public"]["Enums"]["natureza_aquisicao_terreno"]
+            | null
           nome: string
           origem_desmembramento_loteamento?: boolean
           unidades_autonomas?: number
           user_id?: string
-          valor_escritura_registro?: number
-          valor_itbi?: number
-          valor_terreno?: number
         }
         Update: {
           cartorio?: string | null
@@ -306,13 +414,13 @@ export type Database = {
           id?: string
           matricula?: string | null
           municipio?: string | null
+          natureza_aquisicao_terreno?:
+            | Database["public"]["Enums"]["natureza_aquisicao_terreno"]
+            | null
           nome?: string
           origem_desmembramento_loteamento?: boolean
           unidades_autonomas?: number
           user_id?: string
-          valor_escritura_registro?: number
-          valor_itbi?: number
-          valor_terreno?: number
         }
         Relationships: []
       }
@@ -468,6 +576,59 @@ export type Database = {
           },
         ]
       }
+      terreno_desembolso: {
+        Row: {
+          arquivo_path: string | null
+          created_at: string
+          data_pagamento: string | null
+          estado: Database["public"]["Enums"]["estado_desembolso_terreno"]
+          id: string
+          obra_id: string
+          origem_recurso:
+            | Database["public"]["Enums"]["origem_recurso_entrada"]
+            | null
+          tipo: Database["public"]["Enums"]["tipo_desembolso_terreno"]
+          user_id: string
+          valor: number
+        }
+        Insert: {
+          arquivo_path?: string | null
+          created_at?: string
+          data_pagamento?: string | null
+          estado: Database["public"]["Enums"]["estado_desembolso_terreno"]
+          id?: string
+          obra_id: string
+          origem_recurso?:
+            | Database["public"]["Enums"]["origem_recurso_entrada"]
+            | null
+          tipo: Database["public"]["Enums"]["tipo_desembolso_terreno"]
+          user_id?: string
+          valor: number
+        }
+        Update: {
+          arquivo_path?: string | null
+          created_at?: string
+          data_pagamento?: string | null
+          estado?: Database["public"]["Enums"]["estado_desembolso_terreno"]
+          id?: string
+          obra_id?: string
+          origem_recurso?:
+            | Database["public"]["Enums"]["origem_recurso_entrada"]
+            | null
+          tipo?: Database["public"]["Enums"]["tipo_desembolso_terreno"]
+          user_id?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "terreno_desembolso_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obra"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -477,8 +638,15 @@ export type Database = {
     }
     Enums: {
       classificacao: "material" | "mao_obra"
+      estado_desembolso_terreno: "pago" | "previsto"
       meio_pagamento: "pix" | "boleto" | "cartao"
+      natureza_aquisicao_terreno:
+        | "a_vista"
+        | "financiado"
+        | "parcelado_vendedor"
+        | "recebido"
       origem_compromisso: "boleto" | "pix" | "cartao"
+      origem_recurso_entrada: "proprio" | "fgts"
       resolucao_diferenca:
         | "nao_compoe_custo"
         | "falta_documento"
@@ -488,6 +656,13 @@ export type Database = {
       situacao_compromisso: "aberto" | "quitado" | "cancelado"
       status_documento: "registrado" | "quarentena" | "aguardando_pagamento"
       status_pagamento: "aguardando_nf" | "conciliado"
+      tipo_desembolso_terreno:
+        | "pagamento_terreno"
+        | "entrada"
+        | "itbi"
+        | "escritura_registro"
+        | "parcela_vendedor"
+        | "quitacao"
       tipo_documento: "nf_material" | "nf_servico" | "boleto"
       tipo_favorecido: "pj" | "pf"
     }
@@ -621,8 +796,16 @@ export const Constants = {
   public: {
     Enums: {
       classificacao: ["material", "mao_obra"],
+      estado_desembolso_terreno: ["pago", "previsto"],
       meio_pagamento: ["pix", "boleto", "cartao"],
+      natureza_aquisicao_terreno: [
+        "a_vista",
+        "financiado",
+        "parcelado_vendedor",
+        "recebido",
+      ],
       origem_compromisso: ["boleto", "pix", "cartao"],
+      origem_recurso_entrada: ["proprio", "fgts"],
       resolucao_diferenca: [
         "nao_compoe_custo",
         "falta_documento",
@@ -633,6 +816,14 @@ export const Constants = {
       situacao_compromisso: ["aberto", "quitado", "cancelado"],
       status_documento: ["registrado", "quarentena", "aguardando_pagamento"],
       status_pagamento: ["aguardando_nf", "conciliado"],
+      tipo_desembolso_terreno: [
+        "pagamento_terreno",
+        "entrada",
+        "itbi",
+        "escritura_registro",
+        "parcela_vendedor",
+        "quitacao",
+      ],
       tipo_documento: ["nf_material", "nf_servico", "boleto"],
       tipo_favorecido: ["pj", "pf"],
     },
