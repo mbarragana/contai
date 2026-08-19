@@ -244,9 +244,20 @@ pelo servidor é o mesmo bug do `localStorage` com outro nome, e o E2E **não
 pegaria**, porque o Playwright não simula ITP. Quem trava a regressão é a
 asserção de `expires > 14 dias` em `e2e/entrar.spec.ts`.
 
-Se a tela mostrar `JWT issued at future`, o relógio do Docker desencontrou do
-relógio do Mac (acontece depois que a máquina dorme): `npm run db:stop && npm
-run db:start`.
+### Dois ruídos de AMBIENTE que parecem bug de código — e não são
+
+Os dois aparecem depois de `db reset` ou de a máquina dormir, e os dois já
+custaram caça a bug fantasma. **Em nenhum dos dois se edita `entrar.spec.ts`,
+`lib/sessao.ts`, `lib/auth.ts` ou `proxy.ts`.**
+
+| Sintoma | Causa | Comando |
+|---|---|---|
+| `JWT issued at future` na tela | o relógio do Docker desencontrou do relógio do Mac (acontece depois que a máquina dorme) | `npm run db:stop && npm run db:start` |
+| **502 do GoTrue** no login, com o stack "de pé" | o `supabase db reset` do `globalSetup` recria containers e o **Kong fica com o upstream velho** — ele resolve o IP uma vez e não renova | `docker restart supabase_kong_contai supabase_rest_contai` |
+
+O segundo foi registrado no Gate 1b do CONTAI-019. Ele derruba a suíte inteira
+de uma vez e o erro aponta para autenticação, que é a leitura errada: o GoTrue
+está vivo: quem não o encontra é o proxy na frente dele.
 
 ## CI (`.github/workflows/ci.yml`)
 
