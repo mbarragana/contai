@@ -894,7 +894,7 @@ test.describe("em aberto e penalidade nunca vão no mesmo balde (critério 13)",
   });
 });
 
-// ══ Ano-base no futuro ══════════════════════════════════════════════════
+// ══ Ano-base fora da vida do contrato ═══════════════════════════════════
 
 test("informe de ano que ainda não aconteceu é recusado pela tela", async ({
   page,
@@ -906,6 +906,55 @@ test("informe de ano que ainda não aconteceu é recusado pela tela", async ({
 
   await expect(
     page.getByText(`${ANO_CORRENTE + 5} ainda não aconteceu`, { exact: false }),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel("Extrato do exercício", { exact: true }),
+  ).toHaveCount(0);
+  expect(await informes(db)).toHaveLength(0);
+});
+
+/**
+ * ⚠️ O PIOR DOS TRÊS BURACOS DA ROTA DIGITÁVEL, e o que passou batido na
+ * primeira passada do Gate 2: ano-base ANTERIOR ao contrato.
+ *
+ * `custoTerrenoAteOAno` soma todo informe com `ano_base <= ano`. Um informe de
+ * um ano em que o financiamento nem existia sobe o acumulado de **todos** os
+ * anos, inclusive os que já foram declarados — e custo inflado em Bens e
+ * Direitos é redução indevida de ganho de capital, cobrada com multa. É o texto
+ * do próprio `UM_INFORME_POR_ANO`.
+ *
+ * O CHECK do banco não alcança isto (ele só limita 1990-2999, e o piso depende
+ * da data do contrato, que está em outra tabela): a tela é a única barreira.
+ */
+test("informe de ano ANTERIOR ao contrato é recusado — inflaria todos os anos", async ({
+  page,
+  db,
+}) => {
+  await contrato(db); // contrato de ANO_BASE - 1
+  const anoAntesDoContrato = ANO_BASE - 5;
+  await page.goto(
+    `/obras/${OBRA_ID_SEED}/terreno/informe/${anoAntesDoContrato}`,
+  );
+
+  await expect(
+    page.getByText("é anterior ao contrato", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel("Extrato do exercício", { exact: true }),
+  ).toHaveCount(0);
+  expect(await informes(db)).toHaveLength(0);
+});
+
+/** `Number("abc")` é `NaN`, e `NaN > anoCorrente` é `false`: atravessava. */
+test("ano-base não numérico na URL não cai no formulário", async ({
+  page,
+  db,
+}) => {
+  await contrato(db);
+  await page.goto(`/obras/${OBRA_ID_SEED}/terreno/informe/abc`);
+
+  await expect(
+    page.getByText("Ano-base inválido no endereço", { exact: false }),
   ).toBeVisible();
   await expect(
     page.getByLabel("Extrato do exercício", { exact: true }),
