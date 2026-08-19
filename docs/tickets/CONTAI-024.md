@@ -60,6 +60,27 @@ quitação é ticket com parecer; privilégio sem caminho é superfície à toa"
 7. [ ] E2E: corrigir rubricas trocadas muda o custo do ano **e** deixa rastro;
        correção que não fecha a soma é recusada; o `previsto` pago vira `pago`
        sem criar linha nova.
+8. [ ] **A marca do FCVS sobrevive à gravação.** *(Acrescentado no Gate 4 do
+       CONTAI-010, de uma ressalva do `contador`.)* A tela de leitura/correção
+       mostra as **sete rubricas uma a uma**, e a linha **Taxas + FCVS** carrega
+       a marca *"candidato a inclusão, pendente de confirmação"* — ela **nunca é
+       agregada** com seguros nem com a "Diferença Teórico / Pago".
+       **Por que isto é critério e não estética**: hoje a palavra "candidato" só
+       existe no passo de digitação do CONTAI-010, e some em tudo que se lê
+       depois. É o **pre-mortem 3** do CONTAI-010 acontecendo em câmera lenta —
+       quando a confirmação do FCVS chegar, ninguém vai lembrar de revisitar. E
+       a marca não pode virar a mesma dos seguros: seguro está **em aberto por
+       divergência** (ADENDO 4), FCVS está **pendente de confirmação**. São
+       coisas diferentes, e o critério 13 do CONTAI-010 manda preservar a
+       diferença.
+9. [ ] **Defesa em profundidade do filtro natureza → tipo de desembolso.**
+       *(Ressalva do `cto-obra` no reveredito do Gate 2 do CONTAI-010.)* Hoje a
+       regra `tiposDeDesembolsoPara` é imposta **só na camada de render**: nem
+       `lib/data.ts` nem o banco recusam um `pagamento_terreno` numa obra
+       `financiado`. O vetor residual é aba velha carregada antes de a natureza
+       ser definida, ou request direto ao PostgREST. Como a camada de dados
+       destas tabelas vai ser revisitada aqui de qualquer forma, a defesa entra
+       junto.
 
 ## Gate Fiscal
 **Necessário.** A pergunta ao `contador`: *um informe corrigido depois de o

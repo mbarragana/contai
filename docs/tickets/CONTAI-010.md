@@ -12,7 +12,10 @@ o ticket antigo; o que não muda está marcado.
 **Tamanho**: **M pequeno**, fatiado em dois S — este ticket é o **Passo 1
 (captura + correção do cálculo)**; o Passo 2 (texto da discriminação e o caso do
 ano da venda) vai junto da **US-004**. Ver *Viabilidade (CTO)*.
-**Gate 0: PENDENTE — não existe mock.**
+**Gate 0: ✅ APROVADO** — mock v2 em `design/mocks/CONTAI-010.html`, aprovado
+pelo Mateus em 2026-08-19 (commit `bd74c8a`).
+
+**Status: ✅ DONE em 2026-08-19** — os cinco gates fechados. Log no fim.
 
 ---
 
@@ -116,10 +119,11 @@ tinha efetivamente desembolsado até ali.
 ## Critérios de Aceite
 
 ### Gate 0 — antes de qualquer linha de código
-1. [ ] **Mock aprovado explicitamente pelo Mateus.**
-       ⚠️ **PENDENTE: rodar `/design`.** Há UI nova (formulário do informe
-       anual, o aviso de "aguardando informe" e a natureza da aquisição).
-       **Não existe mock hoje.** Cenário: **gestão em casa, sentado** — a tela
+1. [x] **Mock aprovado explicitamente pelo Mateus** — **v2, em 2026-08-19**
+       (`design/mocks/CONTAI-010.html`, commit `bd74c8a`). A v2 é do fluxo dele:
+       o **tipo de compra** virou a bifurcação do passo 1, e a trava da dupla
+       contagem deixou de ser recusa tardia. Cenário: **gestão em casa,
+       sentado** — a tela
        pode ter mais campos, mais densidade e mais passos; 375px continua sendo
        o piso, não o alvo. **O Teste do Canteiro não se aplica a esta tela**
        (régua corrigida no `CLAUDE.md` em 18/08).
@@ -437,5 +441,100 @@ confirmação).
 - **Cenário**: **gestão em casa, sentado**, 1x por ano. **Não é captura de
   canteiro** e não se julga por essa régua (`CLAUDE.md`, correção de 18/08).
 
-**Veredito: APROVADO — P0 fora da R1, obrigatório antes da US-004, Gate 0
-(mock) pendente.**
+**Veredito: APROVADO — P0 fora da R1, obrigatório antes da US-004.**
+
+---
+
+## Log dos gates — 2026-08-19
+
+| Gate | Quem | Hash | Resultado |
+|---|---|---|---|
+| **0** — mock | `designer` + Mateus | `bd74c8a` | ✅ aprovado (v2) |
+| **1** — implementar | `lead-engineer` | `ebe0bfc` | migration 0008, `lib/fiscal/terreno.ts`, 4 telas |
+| **2** — review | `cto-obra` + `contador` | `ec19d3c` · `be31bc4` | **REQUEST CHANGES → APPROVE** |
+| **3** — fluxo | orquestrador | `f54751c` | 375px, 4 estados, 2 vãos fechados |
+| **4** — validação | `po` | *(este commit)* | **PASS — DONE** |
+
+**Números finais**: lint limpo · typecheck limpo · **342 unitários** (eram 295)
+· **89 E2E** (eram 63), a 375px.
+
+### O que o Gate 2 pegou, e que 30 testes verdes não pegariam
+
+Os dois bloqueadores tinham a mesma forma — **o app mostrava número menor que a
+realidade sem dizer que era menor**, que é o defeito **D34**:
+
+1. A home ficava **muda** sobre o financiamento enquanto não existisse nenhum
+   informe — que é o estado de hoje (contrato assinado, zero informes). A
+   condição era "existe algum informe"; virou **"existe contrato"**.
+2. O **R$ 0,00 do terreno** era afirmado como *"situação em 31/12 na ficha Bens
+   e Direitos"*. Passou a dizer que zero significa **nada registrado, não nada
+   pago** — a direção do erro era a irreversível (custo subestimado = ganho de
+   capital inflado).
+
+### Divergências deliberadas do mock aprovado
+
+As três foram autorizadas pelo Mateus **depois** da aprovação do mock:
+
+1. **Seguros** — critério 18 **removido** (`eb761f6`). A tela `s8` não foi
+   implementada e nenhum rótulo afirma o tratamento dos seguros.
+2. **"Parcela a parcela"** — telas `s17` e `s11` **não construídas**
+   (critério 14, versão estrutural: dupla contagem impossível por ausência de
+   tipo).
+3. **Sem backfill** — o conteúdo das três colunas foi **descartado** com
+   autorização dele (2026-08-19), registrada em comentário na `0008`.
+
+Uma quarta divergência foi decidida pelo `po` no Gate 4: as telas-explicador
+`s9` e `s10` viraram **texto inline** no card da própria rubrica — numa tela
+onde ele transcreve sete linhas de um extrato aberto ao lado, navegar para fora
+e voltar é pior que ler ao lado do campo. Nenhum texto do parecer se perdeu.
+
+---
+
+## ⚠️ Ressalvas vivas — o que este ticket NÃO fecha
+
+### 1. Ação do Mateus, e é a mais urgente — não é ticket
+
+**Redigitar os três desembolsos do terreno** (pagamento, ITBI, escritura), cada
+um **com a sua data** e comprovante, e **lançar o informe de 2025**. Até lá o app
+mostra **R$ 0,00 de terreno** numa obra cujo ano-base **2025 já foi declarado
+pelo contador com CRC com o terreno dentro**. O descarte foi autorizado; a
+autorização não redigita sozinha.
+
+É também a **pergunta 2** das Perguntas Abertas, que continua sem resposta: em
+que datas foram pagos a entrada, o ITBI e a escritura. É o único dado deste
+ticket que só ele tem — e o app corretamente se recusa a chutar.
+
+### 2. A marca do FCVS não sobrevive à gravação
+
+A palavra **"candidato a inclusão"** só aparece no passo de digitação, e ainda
+condicionada a `taxas_fcvs > 0`. Na tela de sucesso e no painel, o FCVS é
+agregado com seguros e a Diferença numa linha só. **Não morde hoje** (Taxas +
+FCVS é R$ 0,00 no extrato de 2025) e a superfície de revisão onde a marca faria
+falta **ainda não existe** — ela nasce no **CONTAI-024**, com critério próprio.
+
+### 3. O parecer se contradiz sobre o saldo devedor na discriminação
+
+- §4, regra 2: o saldo devedor **aparece** no texto, rotulado *"não incluído por
+  não ter sido pago"* — *"fecha a conta na cabeça de quem lê"*;
+- adendo 2 §4: *"Saldo devedor **não entra na discriminação** do bem"*.
+
+Os dois textos de tela chegaram a herdar lados opostos. Aplicada a **mesma
+disciplina dos seguros**: onde a fonte se contradiz, **a tela cala** — ficou só
+o que é `[Certain]` (não é custo, nunca soma, nunca vira dívida). **Exige adendo
+do `contador` antes de a US-004 ser especificada.**
+
+### 4. Continuam "confirmar" — nenhuma bloqueia software
+
+A alínea do art. 17 na IN vigente · a natureza da *"Diferença Teórico / Pago"*
+(um chamado à instituição, vale para todos os anos) · o **FCVS** · a indenização
+em dinheiro do DFI · e **a pergunta que fecha o ADENDO 4**: *por que o contador
+com CRC inclui os seguros?* Essa última não bloqueia o app, **bloqueia a
+assinatura**.
+
+### 5. Tickets abertos por este ticket
+
+- **CONTAI-024** (P1) — corrigir informe e contrato, **com rastro**. O Gate 2
+  tirou o `grant update` das duas tabelas: grant sem tela não entrega o remédio
+  que promete.
+- **CONTAI-025** (P1) — *"paguei, mas não sei a data"*, o terceiro estado.
+- **CONTAI-026** (P2) — terreno **recebido**, sem caminho de captura.

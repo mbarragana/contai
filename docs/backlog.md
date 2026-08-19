@@ -290,10 +290,33 @@ Aceite:
 2. [ ] Texto da discriminação gerado (modelo do contador, com CNO)
 3. [ ] Lista CPF-por-CPF de pagamentos a PF (Pagamentos Efetuados), se houver
 4. [ ] Posição da aferição INSS: serviços PJ com vs. sem retenção 11%
-5. [ ] *(2026-08-10)* **Nenhuma discriminação de ano anterior pode ser gerada
+5. [x] *(2026-08-10)* **Nenhuma discriminação de ano anterior pode ser gerada
        antes do CONTAI-010.** Sem data de pagamento do terreno, do ITBI e da
        escritura não há regime de caixa, e o custo do terreno inteiro compõe
-       **todo** ano-calendário — inclusive os anteriores ao desembolso (D22)
+       **todo** ano-calendário — inclusive os anteriores ao desembolso (D22).
+       ✅ **DESBLOQUEADO em 2026-08-19**: CONTAI-010 entregue (Passo 1)
+
+> ⚠️ **Os três critérios abaixo são o PASSO 2 do CONTAI-010**, e vivem aqui
+> porque é aqui que serão implementados. *(Registrados no Gate 4 do CONTAI-010,
+> 2026-08-19, a pedido do `po`: até então só existiam no corpo daquele ticket e
+> em comentário de código — e requisito que só mora no ticket do vizinho é
+> requisito que se perde.)*
+
+6. [ ] **Juros/correção do financiamento vão em linha nomeada própria** no texto
+       da discriminação — **proibido incluí-los dentro de um total sem dizer**
+       (critério 20 do CONTAI-010). Item contestado incluído em silêncio é o
+       pior dos mundos; incluído com nome é **posição declarada**, e isso muda o
+       tratamento numa glosa
+7. [ ] **Ano da venda**: a tela pede **extrato do período + termo de quitação**,
+       porque o informe daquele ano só chega no ano seguinte e o ganho de
+       capital é apurado antes (critério 17 do CONTAI-010). **1x na vida**
+8. [ ] **Onde o saldo devedor aparece no texto** — ⚠️ **o parecer se
+       contradiz**: `2026-08-17-terreno-financiado.md` §4 regra 2 manda que ele
+       **apareça**, rotulado *"não incluído por não ter sido pago"*; o adendo 2
+       §4 diz que ele **não entra** na discriminação. **Exige adendo do
+       `contador` ANTES de a US-004 ser especificada.** Até lá a tela cala, e
+       cala de propósito — é a mesma disciplina aplicada aos seguros no
+       CONTAI-010: onde a fonte se contradiz, o app não afirma
 
 **US-008 [P2 — pós-MVP] — Extração automática de campos de PDF/XML**
 *(extraída do escopo original da US-001; decisão do Mateus 2026-08-07:

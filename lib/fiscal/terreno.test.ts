@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import { formatarBRL } from "@/lib/money";
@@ -7,6 +9,7 @@ import {
   custoTerrenoAteOAno,
   custoTerrenoDoAno,
   entraEmAlgumAno,
+  INSUMO_PARA_REVISAO_CRC,
   penalidadesCentavos,
   rubricasComClassificacaoEmAberto,
   somaDasRubricasCentavos,
@@ -431,5 +434,63 @@ describe("a marca do FCVS", () => {
     // Critério 13 + ADENDO 4: os seguros estão EM ABERTO, e nenhuma tela deste
     // ticket afirma o tratamento deles.
     expect(TAXAS_E_FCVS_NA_MESMA_LINHA.toLowerCase()).not.toContain("seguro");
+  });
+});
+
+/**
+ * ⚠️ CRITÉRIO 19 — "todo número de custo do financiamento é apresentado como
+ * INSUMO PARA REVISÃO PROFISSIONAL (CRC), nunca como veredito".
+ *
+ * Este teste nasceu no Gate 4: o `po` notou que era o **único critério fiscal
+ * do ticket sem rede** — dava para apagar a frase das três telas e a suíte
+ * ficava verde. Num ticket que blindou a estimativa varrendo `lib/` inteiro, a
+ * assimetria não se justifica.
+ *
+ * Por que a asserção é sobre a FONTE das telas e não sobre o texto renderizado:
+ * o E2E já exercita as telas, mas ele não sabe dizer que a frase **sumiu de uma
+ * delas** — só falharia se alguém apagasse a que ele olha. Aqui a lista de
+ * superfícies é explícita, e tirar a frase de qualquer uma delas fica vermelho
+ * com o nome do arquivo.
+ *
+ * A regra é do parecer, adendo 2 §2: *"nesta ordem de grandeza a inclusão exige
+ * assinatura de contador com CRC, não decisão de app. O app soma e nomeia em
+ * linha própria; quem assume a posição na declaração é humano."*
+ */
+describe("critério 19 — insumo para revisão do CRC, nunca veredito", () => {
+  /** As três superfícies que mostram número de custo do financiamento. */
+  const SUPERFICIES = [
+    "app/obras/[id]/terreno/page.tsx",
+    "app/obras/[id]/terreno/informe/[anoBase]/page.tsx",
+  ];
+
+  it("a frase existe e nomeia o CRC, os juros e quem assume a posição", () => {
+    expect(INSUMO_PARA_REVISAO_CRC).toContain("CRC");
+    expect(INSUMO_PARA_REVISAO_CRC).toContain("não um veredito");
+    expect(INSUMO_PARA_REVISAO_CRC).toContain("juros");
+    // Quem assina é humano — é a ressalva que o `contador` exigiu no corpo do
+    // produto, e ela não pode ser cortada por "o texto ficou grande".
+    expect(INSUMO_PARA_REVISAO_CRC).toContain("humano");
+  });
+
+  it("toda tela que mostra custo do financiamento a exibe", () => {
+    for (const arquivo of SUPERFICIES) {
+      const fonte = readFileSync(arquivo, "utf-8");
+      expect(
+        fonte.includes("INSUMO_PARA_REVISAO_CRC"),
+        `${arquivo} mostra número de custo do financiamento sem dizer que ele é insumo para revisão do CRC (critério 19)`,
+      ).toBe(true);
+    }
+  });
+
+  it("o painel e a tela do informe a exibem em TODAS as caixas de custo", () => {
+    // O informe tem duas: a conferência (passo 3) e a tela de gravado. Perder
+    // uma das duas é perder a ressalva justamente onde o número vira definitivo.
+    const informe = readFileSync(
+      "app/obras/[id]/terreno/informe/[anoBase]/page.tsx",
+      "utf-8",
+    );
+    const usos = informe.split("INSUMO_PARA_REVISAO_CRC").length - 1;
+    // 1 import + 2 usos em JSX.
+    expect(usos).toBeGreaterThanOrEqual(3);
   });
 });
