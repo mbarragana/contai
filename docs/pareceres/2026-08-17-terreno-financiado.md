@@ -488,3 +488,128 @@ decidir a composição na saída.
 Ao pedir o extrato analítico ao banco, pedir **retroativo à data do contrato** e
 junto o **informe anual de pagamentos** — é a peça única que sustenta o ano
 inteiro se o analítico mensal se perder.
+
+---
+
+# Adendo de 2026-08-18 — o informe anual substitui a captura mensal
+
+> ⚠️ **Este adendo REVISA a recomendação da seção 5 acima** (*"guardar
+> amortização, juros, correção, seguros e tarifas separados, **todo mês**"*) e
+> **cancela** o pedido de extrato analítico retroativo. Motivo: a exigência
+> mensal era de **rastreabilidade**, não de apuração — e custava um pedido ao
+> banco por mês, que o Mateus recusou com razão. Onde as duas seções
+> divergirem, **vale este adendo**.
+
+## 1. O informe anual sozinho sustenta o custo do ano? **Sim.**
+
+[Certain, quanto ao regime] Custo de aquisição é **regime de caixa por
+ano-calendário**. A ficha Bens e Direitos tem **uma** situação em 31/12 — não
+tem casa para mês. O informe anual do financiamento é emitido pelo próprio
+banco, nominal ao CPF, com nº do contrato: é **documentação hábil e idônea**
+(IN SRF 84/2001, art. 17), e cobre exatamente o recorte que a apuração precisa.
+
+**Condição única**: o informe precisa **separar** o que entra do que não entra.
+Pelas regras já fixadas neste parecer, o custo do ano é
+`amortização + juros + correção`, e **não** `seguros MIP/DFI + tarifas + IOF`.
+Se o informe trouxer só *"total pago no ano"* num número só, **falta um número**
+— e aí sim é preciso uma peça complementar (extrato do ano, **um download**, não
+um pedido mensal).
+
+**O que se perde ao abrir mão do mensal**, nomeado:
+- **Auditoria item a item sob intimação.** Recuperável: o extrato analítico
+  continua no internet banking e pode ser baixado **quando (se) for pedido**.
+  [Guessing na janela de disponibilidade por banco — confirmar no app dele.]
+- **Detecção precoce de erro do banco** (parcela cobrada errada). Passa a ser
+  descoberta em janeiro, não no mês. Consequência fiscal: nenhuma.
+- **Nada mais.** Não se perde base de cálculo, não se perde ano, não se perde
+  comprovação.
+
+## 2. Existe razão fiscal para granularidade mensal? **Não. Derrubado.**
+
+[Certain] Nenhuma das duas apurações do projeto olha mês:
+- **IRPF/custo**: o corte é 31/12. Quem faz o corte de competência de caixa
+  dentro do informe é o **próprio banco** — parcela debitada em 02/jan cai no
+  informe do ano seguinte, que é o certo.
+- **Aferição INSS/SERO**: **não vê financiamento nenhum** (§5 acima, item 3).
+  Parcela de terreno não é material, não é mão de obra, não tem competência.
+
+A exigência "todo mês" era **medo de perder o dado**, escrito antes de eu
+tratar o informe anual como peça suficiente. Com o informe, o dado não se perde
+— ele é **reemitido** pelo banco todo ano. Rastreabilidade que custa 12
+interações por ano e não muda um centavo de imposto **cede à realidade do
+usuário**.
+
+**Uma exceção, e só uma**: o **ano da venda**. O informe daquele ano só chega no
+ano seguinte, e o GCAP é apurado antes. Ver passo 3c.
+
+## 3. O mínimo do ano — e é a boa notícia
+
+| # | O que | Quantas vezes |
+|---|---|---|
+| **a** | Registrar contrato (instituição, nº, data, preço, nº de parcelas), **entrada** (valor + data + comprovante), ITBI e escritura | **1x na vida** — já pendente, não é novo |
+| **b** | **Baixar o informe anual no app/site do banco** e registrar **um** desembolso do ano com os números separados + anexar o PDF | **1x por ano**, em **jan/fev**, quando o informe é publicado |
+| **c** | No **ano da venda**: extrato do período do ano corrente + **termo de quitação** do financiamento | **1x na vida**, no ano da venda |
+
+**Pedidos ao gerente durante o ano: zero.** O informe anual é publicação
+automática do banco para o IR — ele não é solicitado, ele **aparece**.
+
+## 4. O boleto/extrato mensal que ele já recebe traz a decomposição?
+
+**Pergunta — não vou supor.** [Likely] extrato de financiamento habitacional
+costuma discriminar amortização, juros, seguro MIP, seguro DFI e taxa de
+administração; mas isso varia por banco e por canal (PDF do boleto ≠ tela do
+app), e o parecer não inventa fato do banco dele.
+
+**Importa menos do que parece**: se trouxer, é dado que ele **já tem**, e o
+problema vira só de **captura** — bônus, não requisito. Se não trouxer, o passo
+3b continua bastando. **Nenhuma decisão deste adendo depende dessa resposta.**
+
+## 5. O passado — **cancelado o pedido retroativo**
+
+A seção 5 acima mandava pedir extrato analítico **retroativo à data do
+contrato**. **Retiro.** No lugar:
+
+- **Anos-calendário já encerrados**: baixar o **informe anual de cada ano**, já
+  emitido e disponível no internet banking. É **download**, não pedido.
+- **Ano corrente**: **nada a fazer** até jan/fev do ano que vem.
+
+**Pedidos ao banco: nenhum.** Só volta a existir pedido se o informe não trouxer
+a separação (§1) — e aí é **um**, do ano em questão.
+
+## 6. Consequência para o produto
+
+**Sim: um lançamento por ano, por contrato**, com os componentes separados —
+não doze mensais. E isso **simplifica**, não quebra:
+
+- **`valor_terreno`**: nada muda na direção. O número continua sendo *total
+  efetivamente desembolsado até 31/12 do ano declarado* (§1 acima) — só que a
+  lista de desembolsos passa a ter **1 linha de financiamento por ano** em vez
+  de 12. O CONTAI-010 revisado volta de **M** para perto de **S**.
+- **Discriminação de Bens e Direitos**: **inalterada**. Os juros continuam
+  precisando de **linha nomeada própria** (§4 acima), então o lançamento anual
+  guarda **os componentes separados**, não um total. Um lançamento, vários
+  números.
+- **O que quebra de verdade, e é aceitável**: durante o ano corrente o painel de
+  custo **subestima** o financiamento, porque o informe ainda não existe. Não
+  afeta declaração nenhuma (Bens e Direitos é preenchido em jan-abril, com o
+  informe já na mão), afeta só o número na tela. **Tem que ser nomeado na
+  interface** — algo como *"financiamento 2026: aguardando informe anual"* —
+  e nunca silenciado, senão vira o defeito do CONTAI-005 ao contrário.
+- **Trava obrigatória**: se o app aceitar lançamento mensal opcional, **por
+  ano+contrato é o informe OU as parcelas, nunca os dois**. Dupla contagem aqui
+  é custo inflado em Bens e Direitos = redução indevida de ganho de capital.
+
+## 7. Limite
+
+Isto é **apuração automatizável**. O que continua exigindo **contador humano
+(CRC)**: a decisão final sobre incluir juros na composição declarada e a
+conferência do informe contra o contrato no ano da venda.
+
+**Números do informe (rubricas, layout) e disponibilidade retroativa: confirmar
+no app do banco dele** — não são legislação, são prática de instituição.
+
+---
+
+**Pergunta única ao Mateus**: o informe anual do seu financiamento separa
+amortização, juros, seguros e tarifas, ou vem um total só? (Se não souber, o
+plano acima não muda — só ganha um download a mais no primeiro ano.)
