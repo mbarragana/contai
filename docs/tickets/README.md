@@ -89,7 +89,7 @@ disser que a home não basta. Não reutilizar o ID.
 
 | # | Ticket | P | Status | Nota |
 |---|---|---|---|---|
-| 010 | Terreno financiado (Passo 1: captura) | P0 | 🟡 | Gate Fiscal reescrito em 17/08 — vira **lista de desembolsos**, S→M. Passo 2 espera CRC |
+| 010 | Terreno financiado (Passo 1: captura) | P0 | 🟡 | **Reescrito em 18/08** — corrigido **erro fiscal** no corpo do ticket (juros e correção **entram** no custo: R$ 43.051,23 só em 2025). Gate Fiscal **fechado**; a peça é o **informe anual** que o Mateus baixa sozinho, **1 lançamento/ano**, não 12. **Gate 0 pendente: rodar `/design`** (formulário novo). CTO: **M pequeno**, fatiado em dois S — Passo 2 vai junto da US-004 |
 | 011 | Export do acervo | P0 | 🟡 | Gate 0 aprovado 16/08; **P1 do CTO** (fonte do estado) pendente |
 | 016 | Tipo de empreitada na obra | P0 | 🟡 | ramo `total` **bloqueado** — o texto do contador não está em arquivo. Não exige mock |
 | 017 | Lista de notas a cobrar (tela 14) | — | 🟡 | **cortado**, com condição de volta escrita. Depende de 004 + 007 |
@@ -110,6 +110,14 @@ cartão não tem onde morar, e o comentário do código culpa uma pergunta (Q4) 
 foi respondida em 08/08 → **`CONTAI-022`**; **D27** — o formulário direto recusa
 gravação sem comprovante enquanto a confirmação de compromisso não recusa (dois
 pesos para o mesmo fato) → **absorvida pelo `CONTAI-019`**, critérios 46-48.
+
+**Dores novas de 18/08, do parecer do terreno financiado**: **D33** — o
+financiamento do terreno **não tem onde morar no app**, e o custo de 2025
+(**R$ 59.934,75**, com documento já na mão do Mateus) está inteiro fora do
+sistema → **absorvida pelo `CONTAI-010`**; **D34** — durante o ano corrente o
+painel **subestima** o custo do financiamento, porque o informe só sai em
+jan/fev, e hoje isso seria silencioso → **absorvida pelo `CONTAI-010`**,
+critério 16.
 
 **Dores sem ticket, abertas no Gate Fiscal do `CONTAI-021` (18/08)**: **D24** —
 o app não sabe qual ano-calendário já foi declarado, e sem isso nem o aviso do
