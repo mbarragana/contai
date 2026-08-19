@@ -372,7 +372,10 @@
       <div class="card">
         <div class="row"><span class="lbl">Favorecido</span><span class="val">WK Construções LTDA</span></div>
         <div class="row"><span class="lbl">CNPJ</span><span class="val mono">12.345.678/0001-90</span></div>
-        <div class="hint" style="margin-top:6px">Vem da nota — dá para trocar.</div>
+        <!-- CONTAI-021, critério 14: a dica antiga dizia "dá para trocar". O adendo de
+             2026-08-18 a derruba e o código já não troca desde b807901 — o favorecido é
+             read-only aqui, e a correção é na nota (CONTAI-021). -->
+        <div class="hint" style="margin-top:6px">Vem da nota. Se estiver errado, corrige-se na nota.</div>
       </div>
 
       <div class="card">

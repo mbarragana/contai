@@ -1,0 +1,1678 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>contai — Mock CONTAI-021 · Corrigir documento já registrado</title>
+<style>
+  :root{
+    --bd-bg:#d8d5cd; --bd-ink:#3a382f; --bd-mut:#6f6b60;
+    --paper:#faf9f6; --ink:#23221d; --mut:#716c61; --line:#e6e3da; --soft:#f1efe9;
+    --red:#b91c1c; --red-bg:#fbecec; --amb:#92600a; --amb-bg:#fdf3df; --grn:#15803d; --grn-bg:#e9f5ed;
+    --blu:#1d4ed8; --blu-bg:#eaeffb;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bd-bg:#211f1b; --bd-ink:#e8e5dc; --bd-mut:#9b968a; }
+  }
+  :root[data-theme="dark"]{ --bd-bg:#211f1b; --bd-ink:#e8e5dc; --bd-mut:#9b968a; }
+  :root[data-theme="light"]{ --bd-bg:#d8d5cd; --bd-ink:#3a382f; --bd-mut:#6f6b60; }
+
+  *{box-sizing:border-box; margin:0}
+  body{background:var(--bd-bg); color:var(--bd-ink);
+    font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:24px 12px 48px; gap:16px}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-variant-numeric:tabular-nums}
+
+  /* ── barra de avaliação ─────────────────────────── */
+  .evalbar{max-width:820px; width:100%}
+  .evalbar h1{font-size:15px; font-weight:600; text-align:center}
+  .evalbar p{font-size:12.5px; color:var(--bd-mut); margin-top:4px; text-align:center}
+  .grupo{font-size:11px; color:var(--bd-mut); text-transform:uppercase; letter-spacing:.08em;
+    width:100%; text-align:left; margin:10px 0 -2px}
+  .tabs{display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-start; margin-top:4px}
+  .tab{border:1px solid color-mix(in srgb, var(--bd-ink) 25%, transparent); background:transparent;
+    color:var(--bd-ink); border-radius:999px; padding:4px 10px; font-size:12px; cursor:pointer; font-family:inherit}
+  .tab:hover{background:color-mix(in srgb, var(--bd-ink) 8%, transparent)}
+  .tab.on{background:var(--bd-ink); color:var(--bd-bg); border-color:var(--bd-ink)}
+  .tab:focus-visible,.btn:focus-visible,.inp:focus-visible,.lnk:focus-visible,.opt:focus-visible,
+  .fake-file:focus-within{outline:2px solid var(--bd-ink); outline-offset:2px}
+  .larg{display:flex; gap:6px; align-items:center; justify-content:center; margin-top:10px;
+    font-size:11.5px; color:var(--bd-mut); flex-wrap:wrap}
+
+  /* ╔══════════════════════════════════════════════════════════════════════╗
+     ║  APROVAÇÃO — bloco desenhado para ser fácil de virar, e por INTEIRO.  ║
+     ║  Já houve mock que virou pela metade (classe verde, texto de "não").  ║
+     ║  Para aprovar são TRÊS edições, todas obrigatórias:                   ║
+     ║   1. class="aprov nao"  →  class="aprov sim"                          ║
+     ║   2. o TEXTO de dentro  →  "Mock APROVADO pelo Mateus em AAAA-MM-DD"  ║
+     ║   3. o card deste mock em design/mocks/index.html (linha "Status:")   ║
+     ╚══════════════════════════════════════════════════════════════════════╝ */
+  .aprov{max-width:820px; width:100%; border-radius:10px; padding:10px 14px; font-size:12.5px;
+    text-align:center; font-weight:600}
+  .aprov.nao{background:var(--amb-bg); color:var(--amb); border:1px dashed var(--amb)}
+  .aprov.sim{background:var(--grn-bg); color:var(--grn); border:1px solid var(--grn)}
+
+  /* ── CONTROLES DE SIMULAÇÃO — FORA do quadro da tela ────────────────────
+     Nada aqui é componente do app. Existe só para o mock ser navegável.
+     Lição de 2026-08-18: quando o recurso de simulação senta dentro da tela
+     (o checkbox que fingia ser anexo), o Mateus julga a coisa errada.
+     Aqui o anexo é <input type="file"> DE VERDADE — escolher arquivo mostra o
+     nome e o tamanho reais. A simbar só força o estado de FALHA, que não dá
+     para produzir de verdade num arquivo estático.                        */
+  .simbar{max-width:820px; width:100%; border:2px dashed var(--bd-mut); border-radius:12px;
+    padding:11px 14px; display:flex; flex-wrap:wrap; gap:14px; align-items:center;
+    background:color-mix(in srgb, var(--bd-ink) 5%, transparent)}
+  .simbar .selo{font-size:10.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--bd-mut); flex:none; width:100%}
+  .simgrupo{display:flex; gap:6px; align-items:center; flex-wrap:wrap}
+  .simgrupo > span{font-size:11.5px; color:var(--bd-mut)}
+
+  /* ── celular / mesa ─────────────────────────────── */
+  .phone{width:375px; max-width:100%; height:820px; background:var(--paper); color:var(--ink);
+    border-radius:30px; border:6px solid #16150f; overflow:hidden; display:flex; flex-direction:column;
+    box-shadow:0 18px 40px rgba(0,0,0,.28)}
+  .phone.mesa{width:720px; height:880px; border-radius:14px; border-width:4px}
+  .screen{display:none; flex-direction:column; height:100%}
+  .screen.on{display:flex}
+  .appbar{padding:14px 18px 10px; border-bottom:1px solid var(--line); flex:none}
+  .appbar .brand{font-weight:700; font-size:16px; letter-spacing:-.01em}
+  .appbar .sub{font-size:11.5px; color:var(--mut); margin-top:1px}
+  .body{flex:1; overflow-y:auto; padding:16px 18px; display:flex; flex-direction:column; gap:12px}
+  .foot{flex:none; padding:12px 18px 18px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:8px}
+  .phone.mesa .body{padding:22px 0; align-items:stretch}
+  .phone.mesa .body > *{max-width:580px; width:100%; margin-left:auto; margin-right:auto}
+  .phone.mesa .foot{padding:14px calc(50% - 290px) 20px}
+
+  .card{border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:#fff}
+  .card + .card{margin-top:0}
+  .chip{display:inline-block; font-size:11px; font-weight:600; border-radius:999px; padding:2px 9px}
+  .chip.red{color:var(--red); background:var(--red-bg)}
+  .chip.amb{color:var(--amb); background:var(--amb-bg)}
+  .chip.grn{color:var(--grn); background:var(--grn-bg)}
+  .chip.blu{color:var(--blu); background:var(--blu-bg)}
+  .chip.mud{color:var(--mut); background:var(--soft)}
+  .consequencia{font-size:12.5px; margin-top:6px; padding:8px 10px; border-radius:8px}
+  .consequencia.red{background:var(--red-bg); color:var(--red)}
+  .consequencia.amb{background:var(--amb-bg); color:var(--amb)}
+  .consequencia.grn{background:var(--grn-bg); color:var(--grn)}
+  .consequencia.blu{background:var(--blu-bg); color:var(--blu)}
+  .consequencia.mud{background:var(--soft); color:var(--mut)}
+
+  .btn{display:block; width:100%; text-align:center; border-radius:10px; padding:13px 14px;
+    font-size:14.5px; font-weight:600; cursor:pointer; border:1px solid transparent; font-family:inherit}
+  .btn.primary{background:var(--ink); color:var(--paper)}
+  .btn.ghost{background:transparent; color:var(--ink); border-color:var(--line)}
+  .btn.danger{background:var(--red); color:#fff}
+  .btn.danger-ghost{background:transparent; color:var(--red); border-color:var(--red)}
+  .btn:hover{filter:brightness(1.12)}
+  .btn[disabled]{opacity:.42; cursor:not-allowed; filter:none}
+  .btn.mini{padding:9px 10px; font-size:13px}
+  .lnk{background:none; border:none; padding:0; font:inherit; font-size:12.5px; color:var(--blu);
+    text-decoration:underline; cursor:pointer; text-align:left}
+
+  .row{display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:9px 0; border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:none}
+  .row .lbl{font-size:12px; color:var(--mut); flex:none}
+  .row .val{font-size:13.5px; text-align:right; overflow-wrap:anywhere}
+  .ok{color:var(--grn); font-weight:600}
+  .warn{color:var(--amb); font-weight:600}
+  .bad{color:var(--red); font-weight:600}
+
+  .hint{font-size:12px; color:var(--mut)}
+  .banner{border-radius:10px; padding:12px 14px; font-size:13.5px}
+  .banner.red{background:var(--red-bg); color:var(--red)}
+  .banner.amb{background:var(--amb-bg); color:var(--amb)}
+  .banner.grn{background:var(--grn-bg); color:var(--grn)}
+  .banner.blu{background:var(--blu-bg); color:var(--blu)}
+  .banner.mud{background:var(--soft); color:var(--mut)}
+  .big{font-size:26px; font-weight:700; letter-spacing:-.02em}
+  .parecer{font-size:10.5px; color:var(--mut); margin-top:6px; font-style:italic; line-height:1.4}
+  .secao{font-size:11px; color:var(--mut); text-transform:uppercase; letter-spacing:.07em; margin-top:4px}
+
+  /* Bloco tracejado âmbar = PERGUNTA EM ABERTO, não decisão tomada. */
+  .pendente{border:1px dashed var(--amb); background:var(--amb-bg); color:var(--amb);
+    border-radius:8px; padding:9px 11px; font-size:12px}
+  .pendente strong{display:block; margin-bottom:3px}
+
+  /* Pendência PERSISTENTE do critério 4 — não é aviso de clique, é linha de lista. */
+  .divida{border:1px solid var(--amb); border-left:4px solid var(--amb); background:#fffdf7;
+    border-radius:10px; padding:11px 13px}
+
+  /* ── citação literal do parecer — não se reescreve ─ */
+  .literal{border-left:3px solid var(--blu); background:var(--blu-bg); color:var(--blu);
+    border-radius:0 8px 8px 0; padding:11px 13px; font-size:13px}
+  .literal ul{margin:8px 0 0 16px; padding:0}
+  .literal li{margin-top:6px}
+
+  /* ── formulário ─────────────────────────────────── */
+  .lab{display:block; font-size:12px; color:var(--mut); margin-bottom:5px}
+  .inp{width:100%; font-family:inherit; font-size:16px; padding:11px 12px; border:1px solid var(--line);
+    border-radius:9px; background:#fff; color:var(--ink)}
+  .inp.erro{border-color:var(--red); background:var(--red-bg)}
+  textarea.inp{min-height:76px; font-size:14px}
+  .colado{font-size:12.5px; margin-top:6px; padding:8px 10px; border-radius:8px;
+    background:var(--amb-bg); color:var(--amb)}
+  .colado.red{background:var(--red-bg); color:var(--red)}
+  .colado.blu{background:var(--blu-bg); color:var(--blu)}
+  .colado.grn{background:var(--grn-bg); color:var(--grn)}
+  .oculto{display:none !important}
+
+  /* ── escolha exclusiva: NADA nasce marcado ──────────────────────────────
+     Campo com consequência fiscal não tem default. O botão só acorda depois
+     que o Mateus escolhe.                                                 */
+  .opts{display:flex; flex-direction:column; gap:8px; margin-top:8px}
+  .opt{display:flex; gap:11px; align-items:flex-start; width:100%; text-align:left;
+    border:1px solid var(--line); border-radius:10px; padding:11px 12px; background:#fff;
+    cursor:pointer; font:inherit; color:inherit}
+  .opt:hover{background:var(--soft)}
+  .opt .bola{width:22px; height:22px; flex:none; border:2px solid var(--mut); border-radius:999px;
+    display:flex; align-items:center; justify-content:center; margin-top:1px}
+  .opt .bola i{width:10px; height:10px; border-radius:999px; background:transparent; display:block}
+  .opt.on{border-color:var(--ink); box-shadow:inset 0 0 0 1px var(--ink); background:var(--soft)}
+  .opt.on .bola{border-color:var(--ink)}
+  .opt.on .bola i{background:var(--ink)}
+  .opt .tt{font-size:13.5px; font-weight:600}
+  .opt .ss{display:block; font-size:12px; color:var(--mut); margin-top:2px}
+
+  /* Afirmação explícita — caixa, nunca pré-marcada. */
+  .afirm{display:flex; gap:11px; align-items:flex-start; width:100%; text-align:left;
+    border:1px solid var(--line); border-left:3px solid var(--ink); border-radius:8px;
+    padding:11px 12px; background:var(--soft); cursor:pointer; font:inherit; color:inherit}
+  .afirm .cx{width:22px; height:22px; flex:none; border:2px solid var(--mut); border-radius:6px;
+    display:flex; align-items:center; justify-content:center; font-size:14px; color:transparent; margin-top:1px}
+  .afirm.on .cx{background:var(--ink); border-color:var(--ink); color:#fff}
+  .afirm .tt{font-size:13px}
+
+  /* ── tabela de custo por ano — antes → depois ───── */
+  .anos{width:100%; border-collapse:collapse; font-size:13px}
+  .anos th{font-size:11px; color:var(--mut); text-transform:uppercase; letter-spacing:.05em;
+    text-align:right; padding:0 0 6px; font-weight:600}
+  .anos th:first-child{text-align:left}
+  .anos td{padding:7px 0; border-top:1px solid var(--line); text-align:right}
+  .anos td:first-child{text-align:left; color:var(--mut); font-size:12.5px}
+  .anos tr.total td{border-top:2px solid var(--line); font-weight:700}
+  .anos .dep{font-weight:700}
+  .anos .sobe{color:var(--grn)} .anos .desce{color:var(--red)} .anos .igual{color:var(--mut)}
+  .anos tr.mexe td:first-child{color:var(--amb); font-weight:700}
+
+  /* ── ANEXO — componente real: <input type="file"> ───────────────────────
+     Não é checkbox, não é botão que finge. Escolher arquivo mostra o nome e
+     o tamanho de verdade. A falha vem da barra de simulação, fora do quadro. */
+  .anexo{border:1px dashed var(--mut); border-radius:10px; padding:12px; background:#fff}
+  .anexo[data-estado="anexado"]{border-style:solid; border-color:var(--grn); background:var(--grn-bg)}
+  .anexo[data-estado="falha"]{border-style:solid; border-color:var(--red); background:var(--red-bg)}
+  .anexo[data-estado="vazio"] .anx-cheio, .anexo[data-estado="vazio"] .anx-falha,
+  .anexo[data-estado="anexado"] .anx-vazio, .anexo[data-estado="anexado"] .anx-falha,
+  .anexo[data-estado="falha"] .anx-vazio, .anexo[data-estado="falha"] .anx-cheio{display:none}
+  .anx-tit{font-size:13.5px; font-weight:600}
+  .anx-sub{font-size:11.5px; color:var(--mut); margin-top:2px}
+  .anx-bts{display:flex; gap:6px; margin-top:10px}
+  .fake-file{flex:1; min-width:0; display:block; text-align:center; border-radius:10px;
+    padding:11px 6px; font-size:13px; font-weight:600; cursor:pointer;
+    border:1px solid var(--line); background:transparent; color:var(--ink)}
+  .fake-file:hover{filter:brightness(1.12)}
+  .fake-file input{position:absolute; width:1px; height:1px; opacity:0; pointer-events:none}
+  .anx-cheio{display:flex; gap:10px; align-items:center}
+  .anx-thumb{width:46px; height:56px; flex:none; border-radius:6px; border:1px solid var(--grn);
+    background:#fff; display:flex; align-items:center; justify-content:center;
+    font-size:10px; font-weight:700; color:var(--grn); font-family:ui-monospace,Menlo,monospace}
+  .anx-info{flex:1; min-width:0}
+  .anx-nome{font-size:13px; font-weight:600; overflow-wrap:anywhere}
+  .anx-links{display:flex; flex-direction:column; gap:5px; flex:none; text-align:right}
+
+  /* ── rastro (revisão) ───────────────────────────── */
+  .rastro{list-style:none; font-size:12.5px}
+  .rastro li{padding:9px 0; border-bottom:1px dotted var(--line)}
+  .rastro li:last-child{border-bottom:none}
+  .rastro .qd{font-size:11px; color:var(--mut)}
+  .rastro .campo{font-weight:600}
+  .rastro .ad{font-family:ui-monospace,Menlo,monospace; font-size:12px}
+  .rastro .ad s{color:var(--mut)}
+
+  /* A tela 7 é a mesma confirmação para as três ações — só o conteúdo muda. */
+  #s7[data-corr="valor"]  .v-classe, #s7[data-corr="valor"]  .v-nome,
+  #s7[data-corr="classe"] .v-valor,  #s7[data-corr="classe"] .v-nome,
+  #s7[data-corr="nome"]   .v-valor,  #s7[data-corr="nome"]   .v-classe{display:none}
+
+  .ascii{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; line-height:1.5;
+    white-space:pre; overflow-x:auto; background:#fff; border:1px solid var(--line); border-radius:8px; padding:12px}
+  .lista{list-style:none; font-size:12.5px}
+  .lista li{padding:7px 0; border-bottom:1px dotted var(--line); display:flex; gap:8px}
+  .lista li:last-child{border-bottom:none}
+  .lista .n{flex:none; font-weight:700; color:var(--red)}
+</style>
+
+<div class="evalbar">
+  <h1>Mock CONTAI-021 — Corrigir um documento já registrado · v1</h1>
+  <p><strong>Hoje no mock: 19/08/2026.</strong> Obra <strong>Casa Tanheiros</strong>. Cenário:
+     a 2ª nota real da empreiteira foi registrada com <strong>R$ 4.085,71</strong> quando o papel
+     anexado diz <strong>R$ 40.857,14</strong> — um dígito a menos.<br>
+     <strong>Régua de 2026-08-18</strong>: corrigir nota registrada errada é <strong>gestão em casa,
+     sentado, com calma</strong>. 375 px é <strong>piso</strong> (não pode quebrar), não alvo — e
+     “não cabe com uma mão” <strong>não é veto</strong> aqui. O Teste do Canteiro não se aplica.<br>
+     Texto com consequência fiscal é <strong>cópia</strong> de
+     <code>2026-08-18-correcao-de-documento-registrado.md</code> e do adendo de 18/08 do parecer de
+     vínculo — a origem está escrita na própria tela, em itálico.<br>
+     <strong>Três ações nomeadas, não um formulário</strong>:
+     <code>/documento/[id]/corrigir/{valor|classificacao|emitente}</code>.
+     Campo proibido sentado ao lado de editável é o convite a inventar dado.<br>
+     Blocos <strong>tracejados âmbar</strong> dentro da tela são <strong>perguntas em aberto</strong>
+     — devolvidas ao <code>contador</code> ou ao <code>po</code>, não decisões minhas.<br>
+     Dados de exemplo são <strong>fictícios</strong> (CNPJ 12.345.678/0001-99 não existe).</p>
+</div>
+
+<!-- ╔═══════════════════════════════════════════════════════════════════════╗
+     ║  APROVAÇÃO — para virar, as TRÊS edições (nenhuma é opcional):        ║
+     ║   1. class="aprov nao"  →  class="aprov sim"                          ║
+     ║   2. o texto abaixo → "Mock APROVADO pelo Mateus em AAAA-MM-DD (v1)"  ║
+     ║   3. design/mocks/index.html, card deste mock, linha "Status:"        ║
+     ║  Virar só a classe deixa um mock verde dizendo que não foi aprovado.  ║
+     ╚═══════════════════════════════════════════════════════════════════════╝ -->
+<div class="aprov nao" id="barraAprovacao">
+  ⏳ Mock NÃO aprovado — aguardando leitura do Mateus.
+</div>
+
+<div class="evalbar">
+  <div class="grupo">0 · O fluxo inteiro, antes de qualquer tela</div>
+  <div class="tabs" id="g0"></div>
+  <div class="grupo">1 · Por onde a correção começa</div>
+  <div class="tabs" id="g1"></div>
+  <div class="grupo">2 · A pergunta que vem ANTES do campo (§3 do parecer)</div>
+  <div class="tabs" id="g2"></div>
+  <div class="grupo">3 · Corrigir o valor — o único campo que move custo entre anos</div>
+  <div class="tabs" id="g3"></div>
+  <div class="grupo">4 · Corrigir a classificação — muda a composição, não o total</div>
+  <div class="tabs" id="g4"></div>
+  <div class="grupo">5 · Corrigir o nome do emitente — o único caminho pelo qual o nome muda</div>
+  <div class="tabs" id="g5"></div>
+  <div class="grupo">6 · O que o app NÃO corrige — e com que saída</div>
+  <div class="tabs" id="g6"></div>
+  <div class="grupo">7 · Depois de gravar — o rastro e a pendência que não some</div>
+  <div class="tabs" id="g7"></div>
+  <div class="grupo">8 · Retrofit: corrigir a obra passa pela mesma porta (crit. 13)</div>
+  <div class="tabs" id="g8"></div>
+
+  <div class="larg">
+    <span>Largura:</span>
+    <button class="tab" id="w375">375 px (piso — não pode quebrar)</button>
+    <button class="tab on" id="w720">720 px (mesa — uso principal)</button>
+  </div>
+</div>
+
+<!-- ╔═══════════════════════════════════════════════════════════════════════╗
+     ║  SIMULAÇÃO — fora do quadro de propósito. Nada aqui é tela do app.    ║
+     ║  O anexo da tela 5b é <input type="file"> DE VERDADE: escolher um     ║
+     ║  arquivo mostra nome e tamanho reais. Só a FALHA vem daqui.           ║
+     ╚═══════════════════════════════════════════════════════════════════════╝ -->
+<div class="simbar">
+  <span class="selo">⚙ Controles de simulação — não fazem parte da tela</span>
+  <div class="simgrupo">
+    <span>Anexo do documento novo (tela 5b):</span>
+    <button class="tab" data-anx="vazio">voltar para vazio</button>
+    <button class="tab" data-anx="falha">forçar falha ao anexar</button>
+  </div>
+</div>
+
+<div class="phone mesa" id="phone">
+
+  <!-- ══════════════════ 0 · FLUXO ══════════════════ -->
+  <section class="screen on" id="s0">
+    <div class="appbar">
+      <div class="brand">Fluxo — corrigir um documento registrado</div>
+      <div class="sub">Acordar isto antes de discutir tela</div>
+    </div>
+    <div class="body">
+      <div class="banner blu" style="font-size:12.5px">
+        <strong>Uma frase que resume o desenho:</strong> antes de mostrar campo nenhum, o app pergunta
+        <strong>onde está o erro — no papel ou na digitação</strong>. É essa resposta que decide se
+        existe correção a fazer aqui, e é ela que vira o <strong>motivo</strong> gravado no rastro.
+        <div class="parecer">Parecer de 2026-08-18, §3 (“os dois erros diferentes”) e §5
+          (motivo é “a primeira pergunta de um auditor”).</div>
+      </div>
+
+      <div class="ascii">                      /documento/[id]  — detalhe
+                                │
+                   card "Corrigir este registro"
+                                │
+        ┌───────────────┬───────┴────────┬────────────────┬───────────────┐
+      valor       classificação      nome do          "está errado o     "o erro
+        │               │            emitente          CNPJ/CPF"          está na
+        │               │               │                   │              nota"
+        └───────┬───────┴───────────────┘                   │                │
+                │                                      SEM CAMPO           texto
+      ┌─────────┴──────────────────────────────┐       texto com          do §3
+      │  PASSO 1 — onde está o erro?           │       saída (§4)            │
+      │  (nada pré-selecionado)                │            │                │
+      ├────────────────────────────────────────┤     "não é typo,       ┌────┴────┐
+      │ a) só aqui no app, o papel está certo  │      é outro           │         │
+      │ b) a nota estava errada, o emitente    │      favorecido"    já tenho   ainda
+      │    mandou documento novo               │            │        o doc      não
+      │ c) outro motivo (texto livre)          │      a nota antiga    novo      │
+      └─────────┬──────────────────────────────┘      continua no        │       │
+                │                                     acervo             │   FIM: nada
+      ┌─────────┴────────┐                                               │   grava. O
+      │ (b) exige ANEXO  │◄──────────────────────────────────────────────┘   texto diz
+      │ do documento novo│                                                   o que pedir
+      │ no MESMO ato     │                                                   ao emitente
+      └─────────┬────────┘
+                │
+      PASSO 2 — o campo, sozinho, com o anexo à vista para conferir
+                │
+      PASSO 3 — "o que isso muda", ANTES de gravar
+                │
+        ┌───────┴────────────┬─────────────────────┬──────────────────┐
+      valor              classificação          nome do emitente
+        │                    │                     │
+   custo confirmado    composição              onde este nome
+   POR ANO,            material × mão de       aparece hoje:
+   antes → depois      obra, antes → depois    N documentos,
+        │              (o TOTAL não muda)      M pagamentos
+        │                    │                     │
+   mexeu em ano             │                 tem pagamento de
+   ANTERIOR ao corrente?    │                 ano anterior?
+        │                    │                     │
+       sim                   │                    sim
+        │                    │                     │
+   PENDÊNCIA PERSISTENTE     │              (pergunta em aberto
+   "avalie retificadora      │               ao contador — §7 do
+    com seu contador"        │               parecer manda a CRC)
+        └────────────────────┴─────────────────────┘
+                │
+      PASSO 4 — gravar. UPDATE + RASTRO na mesma transação.
+                │            (crit. 9: não existe uma sem a outra)
+                └──► volta ao documento, com a correção visível no histórico</div>
+
+      <div class="card">
+        <div class="secao">Quatro coisas que este fluxo decide, e por quê</div>
+        <ul class="lista" style="margin-top:6px">
+          <li><span class="n">1</span><span><strong>A pergunta vem antes do campo.</strong>
+            Se o erro é da nota, não existe campo a mostrar — mostrar mesmo assim ensina a digitar
+            por cima do papel.</span></li>
+          <li><span class="n">2</span><span><strong>Uma ação, um campo.</strong> Os cinco regimes de
+            consequência (valor recalcula custo; classificação muda composição; nome é outra tabela;
+            CNPJ é proibido; status é derivado) não cabem num formulário só.</span></li>
+          <li><span class="n">3</span><span><strong>O rastro é sempre</strong>, com ou sem pagamento
+            ligado. “Ter pagamento vinculado” é estado futuro; rastro não gravado não se
+            recupera.</span></li>
+          <li><span class="n">4</span><span><strong>O aviso de ano anterior vira linha de lista</strong>,
+            não pop-up. Aviso que só existe no clique é aviso que não existiu.</span></li>
+        </ul>
+        <div class="parecer">Ordem: parecer §3 · CONTAI-021 “Escopo da rodada 1” (decisão do
+          cto-obra) · parecer §5 (mudança de posição do contador) · parecer §6.3.</div>
+      </div>
+    </div>
+    <div class="foot"><button class="btn primary" data-ir="s1">Começar pelo detalhe do documento</button></div>
+  </section>
+
+  <!-- ══════════════════ 1 · DETALHE — AS ENTRADAS ══════════════════ -->
+  <section class="screen" id="s1">
+    <div class="appbar">
+      <div class="brand">NF de serviço</div>
+      <div class="sub">WK Construções LTDA · Casa Tanheiros</div>
+    </div>
+    <div class="body">
+      <div class="card">
+        <div class="row"><span class="lbl">Valor</span><span class="val mono">R$ 4.085,71</span></div>
+        <div class="row"><span class="lbl">Destinatário</span><span class="val ok">Seu CPF ✓</span></div>
+        <div class="row"><span class="lbl">Retenção 11% INSS</span><span class="val ok">sim ✓</span></div>
+        <div class="row"><span class="lbl">Classificação</span><span class="val">Mão de obra</span></div>
+        <div class="row"><span class="lbl">Anexo</span>
+          <span class="val"><button class="lnk">nf-wk-agosto.pdf — abrir</button></span></div>
+      </div>
+
+      <div class="card" style="border-color:var(--grn)">
+        <span class="chip grn">Custo comprovado</span>
+        <div class="mono big" style="margin-top:6px">R$ 4.085,71</div>
+        <div class="hint">entra no custo de aquisição pela <strong>data do pagamento</strong> — regime de caixa</div>
+        <div class="row" style="margin-top:6px"><span class="lbl">Excedente do pagamento</span>
+          <span class="val warn mono">R$ 36.771,43 — pago sem nota</span></div>
+        <div class="consequencia amb">
+          Você pagou além do que esta nota documenta. Esse valor continua como
+          <strong>pago sem nota</strong> até chegar uma nota que o cubra.
+        </div>
+      </div>
+
+      <!-- ── O BLOCO NOVO DESTE TICKET ─────────────────────────────────── -->
+      <div class="card">
+        <div style="font-weight:600">Corrigir este registro</div>
+        <div class="hint" style="margin-top:3px">
+          Cada correção é uma ação separada, porque cada uma muda uma coisa diferente na sua
+          declaração. Todas ficam registradas.
+        </div>
+        <div style="display:flex; flex-direction:column; gap:7px; margin-top:10px">
+          <button class="btn ghost" data-ir="s2">Corrigir o valor
+            <span style="display:block; font-weight:400; font-size:11.5px; color:var(--mut)">
+              hoje: R$ 4.085,71 — recalcula o custo de cada ano</span></button>
+          <button class="btn ghost" data-ir="s4">Corrigir a classificação
+            <span style="display:block; font-weight:400; font-size:11.5px; color:var(--mut)">
+              hoje: mão de obra — muda a composição, não o total</span></button>
+          <button class="btn ghost" data-ir="s5">Corrigir o nome do emitente
+            <span style="display:block; font-weight:400; font-size:11.5px; color:var(--mut)">
+              hoje: WK Construções LTDA — vale para todos os registros dele</span></button>
+        </div>
+        <div style="margin-top:11px; display:flex; flex-direction:column; gap:6px">
+          <button class="lnk" data-ir="s6">O CNPJ/CPF do emitente está errado — e agora?</button>
+          <button class="lnk" data-ir="s6b">Está errado outro dado, que não está nesta lista</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Obra</span><span class="val">Casa Tanheiros</span></div>
+        <div style="margin-top:8px"><button class="btn ghost mini" data-ir="s8">Corrigir a obra deste registro</button></div>
+      </div>
+
+      <!-- ── PROPOSTA, não requisito: o rastro visível ─────────────────── -->
+      <div class="card">
+        <div style="font-weight:600">Histórico de correções</div>
+        <ul class="rastro" style="margin-top:6px">
+          <li><span class="hint">Nenhuma correção neste registro.</span></li>
+        </ul>
+        <div class="pendente" style="margin-top:9px">
+          <strong>Pergunta ao <code>po</code> — entra na rodada 1?</strong>
+          O critério 7 manda <em>gravar</em> o rastro; nenhum critério manda <em>mostrar</em>.
+          Rastro que só existe no banco não é acervo que o Mateus lê em 2034 — mas é tela a mais.
+          Desenhei como leitura simples aqui (ver a tela 7 com o histórico preenchido). Se ficar
+          fora da rodada 1, este card sai e a linha do banco continua sendo gravada.
+        </div>
+      </div>
+    </div>
+    <div class="foot"><button class="btn ghost" data-ir="s0">Voltar ao fluxo</button></div>
+  </section>
+
+  <!-- ══════════════════ 1b · O LINK QUE JÁ ESTÁ EM PRODUÇÃO ══════════════════ -->
+  <section class="screen" id="s1b">
+    <div class="appbar">
+      <div class="brand">Registrar pagamento</div>
+      <div class="sub">da NF de serviço · WK Construções LTDA</div>
+    </div>
+    <div class="body">
+      <div class="banner amb">
+        <strong>Este é o link que hoje promete o que o app não faz.</strong>
+        “Corrigir na nota” está em produção desde o commit <code>b807901</code> e leva a
+        <code>/documento/[id]</code>, onde não existe correção nenhuma.
+      </div>
+
+      <div class="card">
+        <div class="lab">Favorecido — da nota</div>
+        <div style="font-size:15px; font-weight:600">WK Construções LTDA</div>
+        <div class="lab" style="margin-top:12px">CNPJ / CPF do favorecido — da nota</div>
+        <div class="mono" style="font-size:15px">12.345.678/0001-99</div>
+        <p class="hint" style="margin-top:8px">
+          Quem recebe o dinheiro é atributo da nota, não do pagamento. CNPJ/CPF errado não se edita:
+          é outro favorecido — corrige-se o documento e refaz-se o vínculo.
+        </p>
+        <div style="margin-top:9px"><button class="btn ghost mini" data-ir="s5">Corrigir na nota</button></div>
+      </div>
+
+      <div class="card">
+        <div class="secao">O que muda no destino deste link (critério 2)</div>
+        <div class="hint" style="margin-top:6px">
+          O link sai da caixa do <strong>favorecido</strong>, então o destino natural é a correção do
+          <strong>nome do emitente</strong> — não uma tela genérica. De lá, quem descobre que o erro
+          é outro tem saída para as outras duas ações e para o texto do CNPJ.
+        </div>
+        <div class="ascii" style="margin-top:8px">/adicionar/pagamento?documento=ID
+        │ "Corrigir na nota"
+        ▼
+/documento/ID/corrigir/emitente?voltar=pagamento
+        │ grava
+        ▼
+/adicionar/pagamento?documento=ID   ← volta com o nome novo</div>
+        <div class="pendente" style="margin-top:9px">
+          <strong>Pergunta ao <code>po</code> — o que acontece com o formulário pela metade?</strong>
+          O critério 2 diz “volta ao pagamento com o dado novo”. Se o Mateus já digitou valor, data e
+          meio, e sai para corrigir a nota, esse preenchimento <strong>se perde</strong> hoje.
+          Guardar rascunho é escopo novo (e não trivial: anexo já escolhido, sessão). Alternativa
+          barata: a tela de correção avisa <em>“você vai perder o que digitou no pagamento”</em>
+          antes de sair. Preciso de decisão — não vou embutir uma no mock.
+        </div>
+      </div>
+    </div>
+    <div class="foot"><button class="btn ghost" data-ir="s1">Ir para o documento</button></div>
+  </section>
+
+  <!-- ══════════════════ 2 · A PERGUNTA ANTES DO CAMPO ══════════════════ -->
+  <section class="screen" id="s2">
+    <div class="appbar">
+      <div class="brand">Corrigir o valor</div>
+      <div class="sub">NF de serviço · WK Construções LTDA · passo 1 de 3</div>
+    </div>
+    <div class="body">
+      <div class="card">
+        <div class="row"><span class="lbl">Valor gravado hoje</span><span class="val mono">R$ 4.085,71</span></div>
+        <div class="row"><span class="lbl">Papel anexado</span>
+          <span class="val"><button class="lnk">nf-wk-agosto.pdf — abrir</button></span></div>
+      </div>
+
+      <div class="card">
+        <div style="font-size:15px; font-weight:700">Esse dado está errado na nota, ou só aqui no app?</div>
+        <div class="hint" style="margin-top:4px">
+          Esta resposta fica gravada junto com a correção. É a primeira coisa que se pergunta quando
+          alguém lê este acervo depois.
+        </div>
+
+        <div class="opts" id="motivos">
+          <button class="opt" data-motivo="digitacao">
+            <span class="bola"><i></i></span>
+            <span><span class="tt">Só aqui no app — eu digitei errado</span>
+              <span class="ss">O papel anexado está certo. Vou corrigir o app para bater com ele.</span></span>
+          </button>
+          <button class="opt" data-motivo="emitente">
+            <span class="bola"><i></i></span>
+            <span><span class="tt">A nota estava errada e o emitente já corrigiu</span>
+              <span class="ss">Recebi carta de correção ou nota substitutiva — tenho o arquivo aqui
+                para anexar agora.</span></span>
+          </button>
+          <button class="opt" data-motivo="outro">
+            <span class="bola"><i></i></span>
+            <span><span class="tt">Outro motivo — vou escrever</span>
+              <span class="ss">Nenhum dos dois descreve o caso.</span></span>
+          </button>
+        </div>
+
+        <div class="oculto" id="caixaOutro" style="margin-top:10px">
+          <label class="lab" for="txtOutro">Escreva o motivo (obrigatório)</label>
+          <textarea class="inp" id="txtOutro" placeholder="O que aconteceu, em uma ou duas linhas."></textarea>
+        </div>
+
+        <div class="colado blu oculto" id="avisoEmitente" style="margin-top:10px">
+          <strong>No próximo passo o documento novo é anexado.</strong> Sem ele, esta correção não
+          grava — senão o app passa a divergir do papel na direção oposta.
+          <div class="parecer">Parecer §5, regra dura 2: “se motivo = emitente corrigiu a nota, o
+            documento novo é anexado no mesmo ato”.</div>
+        </div>
+
+        <div style="margin-top:11px">
+          <button class="lnk" data-ir="s2b">A nota está errada e eu ainda não pedi nada ao emitente</button>
+        </div>
+      </div>
+
+      <div class="hint">
+        Nada aqui nasce escolhido. Campo que decide consequência fiscal não tem resposta padrão.
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" id="btnPasso1" disabled data-ir="s3">Escolha o motivo para continuar</button>
+      <button class="btn ghost" data-ir="s1">Cancelar</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 2b · O ERRO É DA NOTA ══════════════════ -->
+  <section class="screen" id="s2b">
+    <div class="appbar">
+      <div class="brand">O erro está na nota</div>
+      <div class="sub">Não dá para consertar aqui — e o texto explica o que pedir</div>
+    </div>
+    <div class="body">
+      <!-- CÓPIA LITERAL do §3 do parecer. Não reescrever uma palavra. -->
+      <div class="literal">
+        <strong>Esse dado está errado na nota, ou só aqui no app?</strong>
+        <p style="margin-top:8px">Se está errado <strong>na nota</strong>, não dá para consertar
+          aqui. O que vale na fiscalização é o papel: se o app disser uma coisa e o arquivo anexado
+          disser outra, a divergência derruba a prova — e quem explica isso numa intimação é você.</p>
+        <p style="margin-top:8px">Peça ao emitente:</p>
+        <ul>
+          <li><strong>Valor, CNPJ/CPF do destinatário ou data de emissão errados</strong> →
+            <strong>nota substitutiva</strong> (cancelamento e reemissão).
+            <strong>Carta de correção não conserta nenhum desses.</strong></li>
+          <li><strong>Descrição do serviço ou dado sem efeito no valor</strong> →
+            <strong>carta de correção</strong>, que ele te manda em arquivo.</li>
+        </ul>
+        <p style="margin-top:8px">Quando o documento novo chegar, registre e anexe.
+          <strong>Esta nota continua no acervo</strong> — nada aqui se apaga.</p>
+        <div class="parecer">Cópia literal do §3 do parecer de 2026-08-18. Este texto não se
+          reescreve na implementação.</div>
+      </div>
+
+      <div class="card">
+        <div class="secao">O que o app faz agora</div>
+        <div class="hint" style="margin-top:6px">
+          <strong>Nada.</strong> Não grava, não marca quarentena, não muda status. O documento fica
+          exatamente como está, e você volta aqui quando o arquivo novo chegar.
+        </div>
+        <div class="consequencia mud">
+          Quarentena tem um significado só no contai — <strong>destinatário diferente do seu
+          CPF</strong>. Usá-la para “nota errada do emitente” destruiria o único sinal fiscal
+          daquela coluna.
+          <div class="parecer">Parecer §4.1.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="pendente">
+          <strong>Pergunta ao <code>contador</code> — sair sem gravar deixa rastro?</strong>
+          O §5 manda gravar rastro em <em>toda correção</em>. Aqui não houve correção: o Mateus
+          descobriu que o erro é do papel e saiu. Registrar “consultei e não corrigi” tem valor de
+          acervo, ou é ruído? Não vou decidir isso sozinho.
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" data-ir="s1">Voltar ao documento — deixar como está</button>
+      <button class="btn ghost" data-ir="s2">Voltar ao passo 1</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 3 · VALOR — ANO CORRENTE ══════════════════ -->
+  <section class="screen" id="s3">
+    <div class="appbar">
+      <div class="brand">Corrigir o valor</div>
+      <div class="sub">NF de serviço · WK Construções LTDA · passo 2 e 3 de 3</div>
+    </div>
+    <div class="body">
+      <div class="banner mud" style="font-size:12.5px">
+        <strong>Motivo escolhido:</strong> <span id="ecoMotivo">eu digitei errado no app — o papel está certo</span>.
+        <button class="lnk" data-ir="s2" style="display:block; margin-top:4px">trocar</button>
+      </div>
+
+      <div class="card">
+        <div class="lab">Papel anexado — confira antes de digitar</div>
+        <div style="display:flex; gap:10px; align-items:center">
+          <div class="anx-thumb" style="border-color:var(--line); color:var(--mut)">PDF</div>
+          <div class="anx-info">
+            <div class="anx-nome">nf-wk-agosto.pdf</div>
+            <div class="hint">218 KB · o anexo <strong>não se substitui</strong> — se precisar, anexa-se um adicional</div>
+          </div>
+          <button class="lnk" style="flex:none">Abrir</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Valor gravado hoje</span><span class="val mono">R$ 4.085,71</span></div>
+        <div style="margin-top:11px">
+          <label class="lab" for="inpValor">Valor que está no papel</label>
+          <input class="inp mono" id="inpValor" inputmode="decimal" value="40.857,14">
+        </div>
+        <div class="colado grn" style="margin-top:8px">
+          Diferença: <strong class="mono">+ R$ 36.771,43</strong>
+        </div>
+      </div>
+
+      <!-- PASSO 3 — o que isso muda, ANTES de gravar -->
+      <div class="card">
+        <div style="font-weight:600">O que isso muda no seu custo</div>
+        <div class="hint" style="margin-top:3px">
+          Custo confirmado por ano-calendário — o que entra na declaração de cada ano.
+        </div>
+        <table class="anos" style="margin-top:9px">
+          <thead><tr><th>Ano</th><th>hoje</th><th>depois</th></tr></thead>
+          <tbody>
+            <tr><td>2025</td><td class="mono">R$ 12.400,00</td><td class="mono igual">R$ 12.400,00</td></tr>
+            <tr class="mexe"><td>2026</td><td class="mono">R$ 7.085,71</td>
+                <td class="mono dep sobe">R$ 43.857,14</td></tr>
+            <tr class="total"><td>Acumulado</td><td class="mono">R$ 19.485,71</td>
+                <td class="mono dep sobe">R$ 56.257,14</td></tr>
+          </tbody>
+        </table>
+        <div class="consequencia grn">
+          Só <strong>2026</strong> muda, e 2026 é o ano corrente. O pagamento de
+          <strong>R$ 40.857,14</strong> ligado a esta nota passa a estar coberto por inteiro: o
+          “pago sem nota” de <strong class="mono">R$ 36.771,43</strong> some.
+          <div class="parecer">Custo comprovado do par = mínimo entre a soma dos pagamentos e a soma
+            dos documentos hábeis (parecer de 2026-08-17, §3). O ano é o da
+            <strong>data do pagamento</strong> — regime de caixa.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="secao">O que fica registrado</div>
+        <ul class="lista" style="margin-top:4px">
+          <li><span class="n">·</span><span>campo <strong>valor</strong>: R$ 4.085,71 → R$ 40.857,14</span></li>
+          <li><span class="n">·</span><span>motivo: <strong>eu digitei errado no app</strong></span></li>
+          <li><span class="n">·</span><span>quando, e por quem</span></li>
+          <li><span class="n">·</span><span>anos afetados, com o custo antes e depois de cada um</span></li>
+        </ul>
+        <div class="consequencia mud">
+          Correção registrada <strong>não se apaga e não se edita</strong> — nem por você.
+          <div class="parecer">Parecer §5, regra dura 1: append-only.</div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" data-ir="s7" data-corr="valor">Gravar — o custo de 2026 sobe para R$ 43.857,14</button>
+      <button class="btn ghost" data-ir="s1">Cancelar</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 3b · VALOR — MEXE EM ANO ANTERIOR ══════════════════ -->
+  <section class="screen" id="s3b">
+    <div class="appbar">
+      <div class="brand">Corrigir o valor</div>
+      <div class="sub">NF de material · Depósito Ilha (fictício) · paga em 12/11/2025</div>
+    </div>
+    <div class="body">
+      <div class="card">
+        <div class="row"><span class="lbl">Valor gravado hoje</span><span class="val mono">R$ 1.280,00</span></div>
+        <div style="margin-top:11px">
+          <label class="lab" for="inpValor2">Valor que está no papel</label>
+          <input class="inp mono" id="inpValor2" inputmode="decimal" value="12.800,00">
+        </div>
+        <div class="colado grn" style="margin-top:8px">Diferença: <strong class="mono">+ R$ 11.520,00</strong></div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:600">O que isso muda no seu custo</div>
+        <table class="anos" style="margin-top:9px">
+          <thead><tr><th>Ano</th><th>hoje</th><th>depois</th></tr></thead>
+          <tbody>
+            <tr class="mexe"><td>2025 ⚠</td><td class="mono">R$ 12.400,00</td>
+                <td class="mono dep sobe">R$ 23.920,00</td></tr>
+            <tr><td>2026</td><td class="mono">R$ 7.085,71</td><td class="mono igual">R$ 7.085,71</td></tr>
+            <tr class="total"><td>Acumulado</td><td class="mono">R$ 19.485,71</td>
+                <td class="mono dep sobe">R$ 31.005,71</td></tr>
+          </tbody>
+        </table>
+
+        <div class="consequencia amb">
+          <strong>Esta correção mudou o custo de um ano anterior; se a DAA daquele ano já foi
+          entregue, avalie retificadora com seu contador.</strong>
+          <div class="parecer">Texto do critério 4 do CONTAI-021 / parecer §6. O app não decide nem
+            redige retificadora — isso é do contador com CRC.</div>
+        </div>
+
+        <div class="consequencia mud">
+          <strong>O app não sabe se você já entregou a declaração de 2025.</strong> Ele sabe que 2025
+          é um ano anterior a 2026, e é só isso que ele afirma. Quem sabe a data da entrega é você.
+          <div class="parecer">CONTAI-021, “Out of Scope”: o detector de “ano já declarado” não
+            existe — inferir por calendário erra de janeiro a abril.</div>
+        </div>
+      </div>
+
+      <div class="card" style="border-color:var(--amb)">
+        <span class="chip amb">Vai virar uma pendência na tela inicial</span>
+        <div class="hint" style="margin-top:6px">
+          Este aviso <strong>não some quando você fechar a tela</strong>. Ele fica na lista de
+          pendências até você marcar que já tratou com o contador.
+        </div>
+        <div class="parecer" style="margin-top:6px">Parecer §6.3: “aviso que só existe no momento do
+          clique é aviso que não existiu”.</div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" data-ir="s7b">Gravar — e abrir a pendência de 2025</button>
+      <button class="btn ghost" data-ir="s1">Cancelar</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 3c · NOTA SEM VALOR (null → valor) ══════════════════ -->
+  <section class="screen" id="s3c">
+    <div class="appbar">
+      <div class="brand">Corrigir o valor</div>
+      <div class="sub">Boleto sem valor gravado · dor D-018.5</div>
+    </div>
+    <div class="body">
+      <div class="banner blu">
+        <strong>Este registro entrou sem valor.</strong> Preencher agora é o mesmo caminho de
+        qualquer outra correção — mesma pergunta de motivo, mesmo rastro, mesma conta.
+        <div class="parecer">Parecer §1, linha <code>valor</code>: “<code>null → valor</code> é o
+          mesmo caminho, sem exceção”.</div>
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Valor gravado hoje</span><span class="val mono">—</span></div>
+        <div style="margin-top:11px">
+          <label class="lab" for="inpValor3">Valor que está no papel</label>
+          <input class="inp mono" id="inpValor3" inputmode="decimal" placeholder="0,00">
+        </div>
+        <div class="colado" style="margin-top:8px">
+          Enquanto o valor estiver em branco, este documento <strong>não cobre pagamento nenhum</strong>
+          — o que foi pago contra ele continua como “pago sem nota”.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="secao">No rastro, “antes” fica assim</div>
+        <ul class="rastro" style="margin-top:6px">
+          <li><span class="campo">valor</span>
+            <div class="ad"><s>(em branco)</s> → R$ 3.960,00</div>
+            <div class="qd">o “antes” vazio é gravado como vazio, não como zero — zero é um valor,
+              branco é a ausência dele</div></li>
+        </ul>
+        <div class="parecer">Parecer §5: antes/depois como <strong>texto</strong>, justamente para
+          preservar <code>null</code>, zeros à esquerda e enum.</div>
+      </div>
+    </div>
+    <div class="foot"><button class="btn ghost" data-ir="s1">Voltar ao documento</button></div>
+  </section>
+
+  <!-- ══════════════════ 3d · NADA MUDOU / VALOR INVÁLIDO ══════════════════ -->
+  <section class="screen" id="s3d">
+    <div class="appbar">
+      <div class="brand">Corrigir o valor</div>
+      <div class="sub">Dois estados que travam a gravação — e dizem por quê</div>
+    </div>
+    <div class="body">
+      <div class="secao">a) O valor digitado é o mesmo que já está gravado</div>
+      <div class="card">
+        <div class="row"><span class="lbl">Valor gravado hoje</span><span class="val mono">R$ 4.085,71</span></div>
+        <div style="margin-top:11px">
+          <label class="lab">Valor que está no papel</label>
+          <input class="inp mono" value="4.085,71" readonly>
+        </div>
+        <div class="colado" style="margin-top:8px">
+          Igual ao que já está gravado — <strong>não há o que corrigir</strong>. Gravar assim criaria
+          uma linha de histórico de uma correção que não aconteceu.
+        </div>
+        <div style="margin-top:10px"><button class="btn primary" disabled>Nada a corrigir</button></div>
+      </div>
+
+      <div class="secao" style="margin-top:6px">b) O valor não é um número válido</div>
+      <div class="card">
+        <div style="margin-top:2px">
+          <label class="lab">Valor que está no papel</label>
+          <input class="inp mono erro" value="40.857,1a" readonly>
+        </div>
+        <div class="colado red" style="margin-top:8px">
+          Não consigo ler isto como um valor em reais. Digite só números, com vírgula nos centavos.
+        </div>
+        <div style="margin-top:10px"><button class="btn primary" disabled>Gravar</button></div>
+      </div>
+
+      <div class="hint">
+        Nos dois casos o botão fica desligado <strong>e diz o motivo no próprio rótulo ou colado ao
+        campo</strong>. Botão cinza mudo é o que faz o usuário achar que o app quebrou.
+      </div>
+    </div>
+    <div class="foot"><button class="btn ghost" data-ir="s3">Voltar</button></div>
+  </section>
+
+  <!-- ══════════════════ 3e · GRAVANDO / FALHOU ══════════════════ -->
+  <section class="screen" id="s3e">
+    <div class="appbar">
+      <div class="brand">Corrigir o valor</div>
+      <div class="sub">Gravando, e o que aparece quando falha</div>
+    </div>
+    <div class="body">
+      <div class="secao">a) Gravando</div>
+      <div class="card">
+        <div class="hint">A correção e o registro dela vão juntos, numa operação só.</div>
+        <div style="margin-top:10px"><button class="btn primary" disabled>Gravando…</button></div>
+      </div>
+
+      <div class="secao" style="margin-top:6px">b) Falhou</div>
+      <div class="banner red" role="alert">
+        <strong>Não deu para gravar.</strong> A conexão caiu no meio.
+        <strong>Nada foi alterado</strong> — o valor continua R$ 4.085,71 e nenhum registro de
+        correção foi criado.
+      </div>
+      <div class="card">
+        <div class="consequencia mud">
+          Ou as duas coisas acontecem — a correção <strong>e</strong> o registro dela — ou nenhuma
+          acontece. Não existe correção sem histórico, nem histórico de correção que não aconteceu.
+          <div class="parecer">Critério 9 do CONTAI-021: as duas escritas numa função Postgres
+            transacional. É a mesma filosofia do check <code>documento_quarentena_coerente</code>.</div>
+        </div>
+        <div style="margin-top:10px"><button class="btn primary">Tentar de novo</button></div>
+        <div style="margin-top:7px"><button class="btn ghost" data-ir="s1">Voltar ao documento</button></div>
+      </div>
+    </div>
+    <div class="foot"><button class="btn ghost" data-ir="s3">Voltar</button></div>
+  </section>
+
+  <!-- ══════════════════ 4 · CLASSIFICAÇÃO ══════════════════ -->
+  <section class="screen" id="s4">
+    <div class="appbar">
+      <div class="brand">Corrigir a classificação</div>
+      <div class="sub">NF de serviço · WK Construções LTDA</div>
+    </div>
+    <div class="body">
+      <div class="banner mud" style="font-size:12.5px">
+        <strong>Motivo escolhido:</strong> eu digitei errado no app — o papel está certo.
+        <button class="lnk" data-ir="s2" style="display:block; margin-top:4px">trocar</button>
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Classificação hoje</span><span class="val">Material</span></div>
+        <div class="lab" style="margin-top:12px">O que esta nota é</div>
+        <div class="opts" id="classes">
+          <button class="opt" data-classe="material">
+            <span class="bola"><i></i></span>
+            <span><span class="tt">Material</span>
+              <span class="ss">Cimento, tijolo, esquadria, revestimento — coisa comprada e
+                incorporada ao imóvel.</span></span>
+          </button>
+          <button class="opt" data-classe="mao_obra">
+            <span class="bola"><i></i></span>
+            <span><span class="tt">Mão de obra</span>
+              <span class="ss">Serviço executado na obra — empreitada, instalação,
+                acabamento.</span></span>
+          </button>
+        </div>
+        <div class="hint" style="margin-top:8px">Nada nasce marcado, nem a classificação atual.</div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:600">O que isso muda</div>
+        <table class="anos" style="margin-top:9px">
+          <thead><tr><th>2026</th><th>hoje</th><th>depois</th></tr></thead>
+          <tbody>
+            <tr><td>Material</td><td class="mono">R$ 7.085,71</td><td class="mono dep desce">R$ 3.000,00</td></tr>
+            <tr><td>Mão de obra</td><td class="mono">R$ 0,00</td><td class="mono dep sobe">R$ 4.085,71</td></tr>
+            <tr class="total"><td>Total do ano</td><td class="mono">R$ 7.085,71</td>
+                <td class="mono igual">R$ 7.085,71</td></tr>
+          </tbody>
+        </table>
+        <div class="consequencia blu">
+          <strong>O total do seu custo não muda — nem um centavo.</strong> O que muda é a
+          <strong>composição</strong> do texto que vai na descrição do imóvel: quanto foi material e
+          quanto foi mão de obra.
+          <div class="parecer">Parecer §1, linha <code>classificacao</code>: “CORRIGÍVEL sempre, sem
+            trava. Não muda total nenhum; muda a composição da discriminação”.</div>
+        </div>
+        <div class="consequencia mud">
+          Se o ano já foi declarado, o aviso é menor: <strong>a composição declarada muda, o total
+          não.</strong>
+          <div class="parecer">Parecer §1, mesma linha.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="pendente">
+          <strong>Pergunta ao <code>contador</code> — marcenaria fixa aparece aqui?</strong>
+          O §1 diz que marcenaria fixa / planejados “continua revisão humana”. Isso é uma
+          <em>terceira</em> resposta nesta tela, um aviso ao escolher Material, ou nada — porque
+          revisão humana é outro fluxo? Não desenhei porque não sei o que a regra pede.
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" id="btnClasse" disabled data-ir="s7" data-corr="classe">Escolha a classificação para continuar</button>
+      <button class="btn ghost" data-ir="s1">Cancelar</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 5 · NOME DO EMITENTE ══════════════════ -->
+  <section class="screen" id="s5">
+    <div class="appbar">
+      <div class="brand">Corrigir o nome do emitente</div>
+      <div class="sub">Este é o único lugar do app onde um nome de favorecido muda</div>
+    </div>
+    <div class="body">
+      <div class="banner mud" style="font-size:12.5px">
+        <strong>Motivo escolhido:</strong> eu digitei errado no app — o papel está certo.
+        <button class="lnk" data-ir="s2" style="display:block; margin-top:4px">trocar</button>
+      </div>
+
+      <div class="card">
+        <div class="lab">CNPJ / CPF deste favorecido — não muda aqui</div>
+        <div class="mono" style="font-size:16px; font-weight:600">12.345.678/0001-99</div>
+        <div class="hint" style="margin-top:4px">
+          O CNPJ é a identidade do favorecido. É por ele que a Receita cruza tudo — o nome só
+          acompanha.
+        </div>
+        <div style="margin-top:8px"><button class="lnk" data-ir="s6">O CNPJ é que está errado</button></div>
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Nome gravado hoje</span><span class="val">WK Construçoes LTDAA</span></div>
+        <div style="margin-top:11px">
+          <label class="lab" for="inpNome">Nome como está impresso na nota</label>
+          <input class="inp" id="inpNome" value="WK Construções LTDA">
+        </div>
+      </div>
+
+      <!-- Afirmação explícita, nunca pré-marcada -->
+      <div class="card">
+        <button class="afirm" id="afirmCnpj">
+          <span class="cx">✓</span>
+          <span class="tt">O CNPJ impresso na nota é <strong class="mono">12.345.678/0001-99</strong>
+            — só o nome está diferente.</span>
+        </button>
+        <div class="pendente" style="margin-top:9px">
+          <strong>Pergunta ao <code>contador</code> — esta afirmação é exigida?</strong>
+          O §4.3 exige afirmação explícita para trocar o <em>ponteiro</em> do favorecido, e não diz
+          nada sobre corrigir só o nome. Coloquei aqui porque sem ela existe um caminho ruim:
+          renomear “WK” para o nome da empresa certa mantendo o CNPJ errado — o registro passaria a
+          mentir duas vezes, e nenhuma tela teria pedido nada. Se for exagero, tiro.
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:600">Onde este nome aparece hoje</div>
+        <ul class="lista" style="margin-top:6px">
+          <li><span class="n">·</span><span><strong>3 documentos</strong> — 2 de 2026, 1 de 2025</span></li>
+          <li><span class="n">·</span><span><strong>4 pagamentos</strong> — 3 de 2026, 1 de
+            <strong>2025</strong></span></li>
+        </ul>
+        <div class="consequencia amb">
+          O nome muda <strong>em todos eles de uma vez</strong>, inclusive nos de 2025. Não existe
+          “nome de antes” e “nome de agora”: o favorecido é um só, e o CNPJ é que o identifica.
+        </div>
+        <div class="consequencia amb">
+          Um dos pagamentos é de <strong>2025</strong>. Se você já entregou a declaração daquele ano,
+          o nome que saiu nela passa a ser diferente do que o app mostra a partir de agora —
+          <strong>avalie com seu contador</strong>.
+          <div class="parecer">Adendo de 2026-08-18, §3: “o que a declaração exige preservar é o nome
+            como consta no documento e como foi declarado à época” <code>[Likely]</code>; parecer §7:
+            o efeito de correção de nome em ano já declarado <strong>exige CRC</strong>.</div>
+        </div>
+        <div class="pendente">
+          <strong>Pergunta ao <code>contador</code> — isto abre a mesma pendência persistente do
+          critério 4?</strong>
+          O critério 4 fala de correção que muda <em>custo</em> de ano anterior. Aqui o custo não
+          muda um centavo; o que muda é o <strong>nome</strong> que saiu na ficha Pagamentos
+          Efetuados. É aviso na hora, ou é dívida documental que fica na lista até ser tratada?
+          Desenhei como aviso — mudo em uma linha se a resposta for a outra.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="consequencia mud">
+          Desde o commit <code>b807901</code> nenhum outro fluxo do app renomeia favorecido — nem
+          registrar pagamento, nem registrar nota. Aqui é o único lugar, e por isso aqui tem
+          rastro.
+          <div class="parecer">Adendo de 2026-08-18, §3: “nome de favorecido muda por ato
+            deliberado, com rastro — nunca como efeito colateral”.</div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" id="btnNome" disabled data-ir="s7" data-corr="nome">Confirme a afirmação para gravar</button>
+      <button class="btn ghost" data-ir="s1">Cancelar</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 5b · ANEXO OBRIGATÓRIO (documento novo) ══════════════════ -->
+  <section class="screen" id="s5b">
+    <div class="appbar">
+      <div class="brand">Corrigir o valor</div>
+      <div class="sub">Motivo: o emitente corrigiu a nota · o documento novo entra agora</div>
+    </div>
+    <div class="body">
+      <div class="banner blu">
+        <strong>Você escolheu “a nota estava errada e o emitente já corrigiu”.</strong>
+        A carta de correção ou a nota substitutiva é anexada <strong>neste mesmo ato</strong> — não
+        depois.
+        <div class="parecer">Parecer §5, regra dura 2. Sem o documento novo, o app passaria a
+          divergir do papel na direção oposta: o mesmo defeito com outro sinal.</div>
+      </div>
+
+      <!-- ANEXO REAL: <input type="file">. Escolher arquivo mostra nome e tamanho de verdade. -->
+      <div class="card">
+        <div class="anexo" data-estado="vazio" id="anexoNovo">
+          <div class="anx-vazio">
+            <div class="anx-tit">Documento novo do emitente</div>
+            <div class="anx-sub">Carta de correção ou nota substitutiva — PDF, XML ou foto</div>
+            <div class="anx-bts">
+              <label class="fake-file">📷 Tirar foto
+                <input type="file" accept="image/*" capture="environment" data-alvo="anexoNovo"></label>
+              <label class="fake-file">📎 Escolher arquivo
+                <input type="file" data-alvo="anexoNovo"></label>
+            </div>
+          </div>
+          <div class="anx-cheio">
+            <div class="anx-thumb" data-ext>ARQ</div>
+            <div class="anx-info">
+              <div class="anx-nome" data-nome>—</div>
+              <div class="hint" data-meta>—</div>
+            </div>
+            <div class="anx-links">
+              <button class="lnk">Ver</button>
+              <label class="lnk" style="cursor:pointer">Trocar
+                <input type="file" data-alvo="anexoNovo" style="position:absolute;width:1px;height:1px;opacity:0"></label>
+            </div>
+          </div>
+          <div class="anx-falha">
+            <div class="anx-tit bad">Não consegui anexar</div>
+            <div class="anx-sub">Sem internet agora. <strong>A correção não grava sem este
+              arquivo</strong> — tente de novo quando a conexão voltar.</div>
+            <div class="anx-bts">
+              <label class="fake-file" style="border-color:var(--red); color:var(--red)">Tentar de novo
+                <input type="file" data-alvo="anexoNovo"></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="consequencia mud" id="porqueAnexo">
+          <strong>Este anexo não substitui a nota antiga.</strong> Ele se soma a ela. A nota original
+          continua no acervo, com o arquivo dela — o acervo só cresce.
+          <div class="parecer">Parecer §1, linha <code>arquivo_path</code>: “o anexo é a prova. Não se
+            substitui — anexa-se adicional”.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Valor gravado hoje</span><span class="val mono">R$ 4.085,71</span></div>
+        <div style="margin-top:11px">
+          <label class="lab" for="inpValor4">Valor que está no documento novo</label>
+          <input class="inp mono" id="inpValor4" inputmode="decimal" value="40.857,14">
+        </div>
+      </div>
+
+      <div class="pendente">
+        <strong>Pergunta ao <code>po</code> — o documento novo vira registro próprio?</strong>
+        Aqui ele entra como <em>anexo adicional da mesma nota</em>. Mas uma nota substitutiva é uma
+        nota nova, com número próprio — e o §1 do parecer diz que “a NF que chegou depois do boleto é
+        registro novo”. Anexo adicional ou documento novo ligado ao antigo? Isso muda o desenho e
+        o modelo, e não está no ticket.
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" id="btnAnexo" disabled data-ir="s7" data-corr="valor">Anexe o documento para gravar</button>
+      <button class="btn ghost" data-ir="s2">Voltar ao passo 1</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 6 · CNPJ/CPF ERRADO — SEM CAMPO ══════════════════ -->
+  <section class="screen" id="s6">
+    <div class="appbar">
+      <div class="brand">O CNPJ/CPF do emitente está errado</div>
+      <div class="sub">Não tem campo aqui — e o motivo não é burocracia</div>
+    </div>
+    <div class="body">
+      <div class="banner red" role="alert">
+        <strong>CNPJ errado não é typo, é outro favorecido.</strong>
+        <div class="parecer">Adendo de 2026-08-18, §2, regra dura. Citação literal.</div>
+      </div>
+
+      <div class="card">
+        <div class="hint">
+          Se o CNPJ gravado é <strong class="mono">12.345.678/0001-99</strong> e o do papel é outro,
+          não existe letra errada a consertar: o registro está apontando para
+          <strong>uma empresa diferente</strong> da que emitiu a nota. Reescrever a string trocaria
+          um erro por outro, em silêncio, em todos os registros daquele favorecido.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="secao">O que acontece com o que já está registrado</div>
+        <ul class="lista" style="margin-top:4px">
+          <li><span class="n">1</span><span><strong>A nota continua no acervo.</strong> Não é
+            anulada, não vai para quarentena, não se apaga.</span></li>
+          <li><span class="n">2</span><span>O que se corrige é <strong>para quem o documento
+            aponta</strong> — o favorecido certo, existente ou novo — e nunca o CNPJ de um favorecido
+            já cadastrado.</span></li>
+          <li><span class="n">3</span><span>Cada pagamento ligado é repontado
+            <strong>um a um, por você</strong>. Nada em cascata: o app não muda quatro registros
+            porque você mexeu em um.</span></li>
+          <li><span class="n">4</span><span>O favorecido errado <strong>fica no histórico</strong> e
+            deixa de aparecer como sugestão em registro novo.</span></li>
+        </ul>
+        <div class="parecer">Parecer §4, itens 1 a 5. “Quarentena tem um significado só” — usá-la
+          para emitente errado destruiria o único sinal fiscal daquela coluna.</div>
+      </div>
+
+      <div class="card" style="border-color:var(--amb)">
+        <span class="chip amb">Ainda não existe no app</span>
+        <div class="hint" style="margin-top:6px">
+          Trocar o favorecido de um documento é a <strong>rodada 2</strong> deste trabalho. Enquanto
+          não existir, o caminho honesto é: registre o que aconteceu e não force nada.
+        </div>
+        <div class="consequencia red">
+          <strong>O que não fazer enquanto isso:</strong> não troque o <em>nome</em> do favorecido
+          para o da empresa certa. O CNPJ continuaria o errado, e o registro passaria a mentir duas
+          vezes — com uma aparência de certo.
+        </div>
+        <div class="pendente" style="margin-top:9px">
+          <strong>Pergunta ao <code>po</code> — o que esta tela oferece HOJE?</strong>
+          O §4.4 proíbe “bloqueio total sem explicação”, e o critério 12 aceita texto com saída
+          declarada. Mas a saída declarada aqui é “espere a rodada 2”. Vale abrir uma
+          <em>anotação</em> no documento (“o CNPJ deste registro está errado — tratar”), para que o
+          erro não fique invisível até lá? É a mesma família da D25 (“marcar como duplicata”).
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" data-ir="s1">Voltar ao documento</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 6b · O QUE NÃO TEM CAMPO, E POR QUÊ ══════════════════ -->
+  <section class="screen" id="s6b">
+    <div class="appbar">
+      <div class="brand">Está errado outro dado</div>
+      <div class="sub">O que não se corrige aqui — cada um com o seu motivo</div>
+    </div>
+    <div class="body">
+      <div class="card">
+        <div class="secao">Não tem campo, e não vai ter</div>
+        <div class="row"><span class="lbl">Situação do documento</span>
+          <span class="val">é <strong>consequência</strong>, não escolha</span></div>
+        <div class="hint" style="margin-top:6px">
+          A situação (em ordem, em quarentena) sai do que você respondeu sobre a nota. Ela muda
+          quando você corrige o <strong>fato</strong> — nunca escolhendo a situação numa lista.
+        </div>
+        <div class="parecer">Parecer §1: “dropdown de status é o caminho de fraude silencioso: não
+          exige mentir sobre fato nenhum, só escolher um valor”.</div>
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Arquivo anexado</span>
+          <span class="val">não se troca — <strong>acrescenta-se</strong></span></div>
+        <div class="hint" style="margin-top:6px">
+          O anexo é a prova. Se a foto ficou ilegível ou chegou uma 2ª via, anexe o arquivo novo: os
+          dois ficam. Nada sai do acervo.
+        </div>
+        <div class="parecer">Parecer §1, linha <code>arquivo_path</code>.</div>
+      </div>
+
+      <div class="card" style="border-color:var(--amb)">
+        <span class="chip amb">Ainda não nesta rodada</span>
+        <div class="hint" style="margin-top:6px">
+          Estes três <strong>são</strong> corrigíveis pelo parecer, e ficaram de fora da primeira
+          rodada porque cada um traz uma regra própria e ainda não apareceu nenhum caso real:
+        </div>
+        <ul class="lista" style="margin-top:6px">
+          <li><span class="n">·</span><span><strong>Tipo</strong> (NF de material ↔ NF de serviço) —
+            trocar obriga a responder de novo classificação e retenção, e não pode atravessar para
+            boleto.</span></li>
+          <li><span class="n">·</span><span><strong>Vencimento</strong> — não decide ano nem
+            custo.</span></li>
+          <li><span class="n">·</span><span><strong>“A nota está no meu CPF”</strong> — voltar atrás
+            aqui exige anexo à vista e afirmação explícita, nunca um toque.</span></li>
+        </ul>
+        <div class="hint" style="margin-top:6px">
+          <strong>Número, série e data de emissão</strong> não aparecem porque ainda não existem no
+          app (CONTAI-004). A tela não promete campo que o registro não tem.
+        </div>
+      </div>
+    </div>
+    <div class="foot"><button class="btn ghost" data-ir="s1">Voltar ao documento</button></div>
+  </section>
+
+  <!-- ══════════════════ 7 · DEPOIS DE GRAVAR ══════════════════ -->
+  <section class="screen" id="s7" data-corr="valor">
+    <div class="appbar">
+      <div class="brand">NF de serviço</div>
+      <div class="sub">WK Construções LTDA · Casa Tanheiros</div>
+    </div>
+    <div class="body">
+      <div class="banner grn v-valor" role="status">
+        <strong>Corrigido.</strong> O valor desta nota agora é <strong>R$ 40.857,14</strong>, e a
+        correção ficou registrada.
+      </div>
+      <div class="banner grn v-classe" role="status">
+        <strong>Corrigido.</strong> Esta nota agora conta como <strong>mão de obra</strong>.
+        O total do seu custo não mudou.
+      </div>
+      <div class="banner grn v-nome" role="status">
+        <strong>Corrigido.</strong> O emitente agora se chama <strong>WK Construções LTDA</strong>
+        — em todos os registros dele.
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Valor</span>
+          <span class="val mono v-valor">R$ 40.857,14</span>
+          <span class="val mono v-classe">R$ 4.085,71</span>
+          <span class="val mono v-nome">R$ 4.085,71</span></div>
+        <div class="row"><span class="lbl">Destinatário</span><span class="val ok">Seu CPF ✓</span></div>
+        <div class="row"><span class="lbl">Classificação</span><span class="val">Mão de obra</span></div>
+      </div>
+
+      <div class="card v-valor" style="border-color:var(--grn)">
+        <span class="chip grn">Custo comprovado</span>
+        <div class="mono big" style="margin-top:6px">R$ 40.857,14</div>
+        <div class="hint">o “pago sem nota” de R$ 36.771,43 deixou de existir</div>
+      </div>
+      <div class="card v-classe" style="border-color:var(--line)">
+        <span class="chip mud">Total do ano — igual</span>
+        <div class="mono big" style="margin-top:6px">R$ 7.085,71</div>
+        <div class="hint">o que mudou foi a composição: R$ 4.085,71 saíram de material para mão de obra</div>
+      </div>
+      <div class="card v-nome" style="border-color:var(--line)">
+        <span class="chip mud">Nenhum valor mudou</span>
+        <div class="hint" style="margin-top:6px">
+          Nome não é dinheiro: custo, anos e vínculos ficaram exatamente como estavam. O que muda é o
+          que sai escrito na ficha Pagamentos Efetuados.
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:600">Histórico de correções</div>
+        <ul class="rastro" style="margin-top:6px">
+          <li class="v-valor">
+            <div class="qd">19/08/2026, 21:40 · Mateus</div>
+            <div class="campo">valor</div>
+            <div class="ad"><s>R$ 4.085,71</s> → R$ 40.857,14</div>
+            <div class="qd" style="margin-top:3px">motivo: <strong>eu digitei errado no app — o
+              papel está certo</strong></div>
+            <div class="qd">custo de 2026: R$ 7.085,71 → R$ 43.857,14</div>
+          </li>
+          <li class="v-classe">
+            <div class="qd">19/08/2026, 21:40 · Mateus</div>
+            <div class="campo">classificação</div>
+            <div class="ad"><s>material</s> → mão de obra</div>
+            <div class="qd" style="margin-top:3px">motivo: <strong>eu digitei errado no app — o
+              papel está certo</strong></div>
+            <div class="qd">custo de 2026: R$ 7.085,71 → R$ 7.085,71 (sem mudança)</div>
+          </li>
+          <li class="v-nome">
+            <div class="qd">19/08/2026, 21:40 · Mateus</div>
+            <div class="campo">nome do favorecido <span class="mono">12.345.678/0001-99</span></div>
+            <div class="ad"><s>WK Construçoes LTDAA</s> → WK Construções LTDA</div>
+            <div class="qd" style="margin-top:3px">motivo: <strong>eu digitei errado no app — o
+              papel está certo</strong></div>
+            <div class="qd">alcance: 3 documentos e 4 pagamentos, um deles de 2025</div>
+          </li>
+        </ul>
+        <div class="hint" style="margin-top:8px">
+          Esta lista <strong>só cresce</strong>. Nenhuma linha pode ser editada ou apagada — nem por
+          você.
+        </div>
+        <div class="parecer">Parecer §5: append-only, com campo, antes, depois, quando, quem, motivo
+          e anos afetados.</div>
+      </div>
+    </div>
+    <div class="foot"><button class="btn primary" data-ir="s1">Voltar ao documento</button></div>
+  </section>
+
+  <!-- ══════════════════ 7b · A HOME COM A PENDÊNCIA QUE NÃO SOME ══════════════════ -->
+  <section class="screen" id="s7b">
+    <div class="appbar">
+      <div class="brand">Casa Tanheiros</div>
+      <div class="sub">19/08/2026</div>
+    </div>
+    <div class="body">
+      <div class="card">
+        <div class="hint">Custo confirmado no IR — 2026</div>
+        <div class="mono big">R$ 7.085,71</div>
+      </div>
+
+      <div class="secao">O que está faltando</div>
+
+      <!-- A pendência do critério 4 — linha de lista, não pop-up -->
+      <div class="divida">
+        <span class="chip amb">Correção mexeu em ano anterior</span>
+        <div style="font-weight:600; margin-top:6px; font-size:13.5px">
+          O custo de <strong>2025</strong> mudou depois que você corrigiu uma nota
+        </div>
+        <div class="hint" style="margin-top:4px">
+          De R$ 12.400,00 para R$ 23.920,00 — correção de 19/08/2026, na NF de material do Depósito
+          Ilha.
+        </div>
+        <div class="consequencia amb">
+          Esta correção mudou o custo de um ano anterior; se a DAA daquele ano já foi entregue,
+          <strong>avalie retificadora com seu contador</strong>.
+          <div class="parecer">Critério 4 do CONTAI-021 / parecer §6.3 — pendência persistente,
+            não aviso de clique. O app não decide nem redige retificadora.</div>
+        </div>
+        <div style="margin-top:9px; display:flex; flex-direction:column; gap:6px">
+          <button class="btn ghost mini" data-ir="s7c">Ver a correção que causou isto</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <span class="chip red">Pago sem nota</span>
+        <div class="mono" style="font-size:19px; font-weight:700; margin-top:5px">R$ 36.771,43</div>
+        <div class="hint">1 pagamento sem documento que o cubra</div>
+      </div>
+    </div>
+    <div class="foot"><button class="btn ghost" data-ir="s7c">Abrir a pendência</button></div>
+  </section>
+
+  <!-- ══════════════════ 7c · A PENDÊNCIA ABERTA ══════════════════ -->
+  <section class="screen" id="s7c">
+    <div class="appbar">
+      <div class="brand">Correção mexeu em ano anterior</div>
+      <div class="sub">2025 · pendência aberta em 19/08/2026</div>
+    </div>
+    <div class="body">
+      <div class="card">
+        <div class="secao">O que aconteceu</div>
+        <div class="row"><span class="lbl">Documento</span>
+          <span class="val">NF de material · Depósito Ilha</span></div>
+        <div class="row"><span class="lbl">Campo corrigido</span><span class="val">valor</span></div>
+        <div class="row"><span class="lbl">Antes → depois</span>
+          <span class="val mono">R$ 1.280,00 → R$ 12.800,00</span></div>
+        <div class="row"><span class="lbl">Custo de 2025</span>
+          <span class="val mono">R$ 12.400,00 → <strong>R$ 23.920,00</strong></span></div>
+        <div class="row"><span class="lbl">Motivo</span>
+          <span class="val">eu digitei errado no app</span></div>
+      </div>
+
+      <div class="card">
+        <div class="consequencia amb">
+          Esta correção mudou o custo de um ano anterior; se a DAA daquele ano já foi entregue,
+          avalie retificadora com seu contador.
+        </div>
+        <div class="consequencia mud">
+          <strong>O app não diz se você precisa retificar.</strong> Ele não sabe se a declaração de
+          2025 foi entregue, nem se essa diferença é material. Quem decide isso é o contador.
+          <div class="parecer">Parecer §6.4 e §7: “o app não decide nem redige retificadora. CRC”.</div>
+        </div>
+      </div>
+
+      <div class="card" style="border-color:var(--amb)">
+        <div class="pendente">
+          <strong>Pergunta ao <code>po</code> — quem baixa esta pendência, e como?</strong>
+          O critério 4 exige que ela <em>não suma ao fechar a tela</em>, e não diz como ela termina.
+          Se nunca terminar, a lista de pendências acumula ruído permanente e o Mateus para de olhar
+          para ela — que é exatamente o que a meta 2 não pode ter. Três saídas possíveis, e a
+          escolha não é minha:
+          <ul style="margin:6px 0 0 16px">
+            <li>“Já falei com meu contador sobre 2025” — some da lista, fica no histórico;</li>
+            <li>“Retifiquei a declaração de 2025 em DD/MM/AAAA” — some e guarda a data;</li>
+            <li>não some nunca, e vira contexto permanente do ano.</li>
+          </ul>
+        </div>
+        <div style="margin-top:9px">
+          <button class="btn ghost mini" disabled>Marcar como tratada — depende da resposta acima</button>
+        </div>
+      </div>
+    </div>
+    <div class="foot"><button class="btn ghost" data-ir="s7b">Voltar ao início</button></div>
+  </section>
+
+  <!-- ══════════════════ 8 · RETROFIT DA CORREÇÃO DE OBRA ══════════════════ -->
+  <section class="screen" id="s8">
+    <div class="appbar">
+      <div class="brand">Corrigir a obra deste registro</div>
+      <div class="sub">Tela que já existe — o que muda é o registro da mudança</div>
+    </div>
+    <div class="body">
+      <div class="banner blu" style="font-size:12.5px">
+        <strong>Esta tela já existe e não muda de forma.</strong> O que muda é por baixo: mover um
+        documento de obra passa a gravar rastro, pela mesma porta das outras correções.
+        <div class="parecer">Critério 13 do CONTAI-021: senão a regra do rastro nasce com uma exceção
+          não declarada.</div>
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Obra hoje</span><span class="val">Casa Tanheiros</span></div>
+        <div class="lab" style="margin-top:12px">Mover para</div>
+        <div class="opts">
+          <button class="opt"><span class="bola"><i></i></span>
+            <span><span class="tt">Reforma do apartamento</span>
+              <span class="ss">CNO próprio · iniciada em 03/2025</span></span></button>
+        </div>
+        <div class="hint" style="margin-top:8px">Nada nasce marcado.</div>
+      </div>
+
+      <div class="card">
+        <div class="secao">O que fica registrado</div>
+        <ul class="rastro" style="margin-top:6px">
+          <li><div class="campo">obra</div>
+            <div class="ad"><s>Casa Tanheiros</s> → Reforma do apartamento</div>
+            <div class="qd" style="margin-top:3px">motivo: <strong>arquivado na obra errada</strong></div></li>
+        </ul>
+        <div class="pendente" style="margin-top:9px">
+          <strong>Pergunta ao <code>contador</code> — esta tela pergunta o motivo?</strong>
+          As outras três perguntam “o erro é do papel ou da digitação?”. Aqui a pergunta não faz
+          sentido: <em>o papel não tem obra</em> — obra é arquivamento do app, e o único erro
+          possível é de arquivamento. Então o motivo pode ser gravado sem perguntar, como acima, ou
+          isso é um default em campo do rastro e o §5 exige a pergunta assim mesmo? Desenhei sem
+          perguntar; troco se a resposta for a outra.
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" disabled>Escolha a obra de destino</button>
+      <button class="btn ghost" data-ir="s1">Cancelar</button>
+    </div>
+  </section>
+
+</div>
+
+<script>
+(function () {
+  var TABS = [
+    { g: "g0", id: "s0",  t: "Fluxo (ASCII) — leia primeiro" },
+
+    { g: "g1", id: "s1",  t: "★ 1 · Detalhe com as três ações" },
+    { g: "g1", id: "s1b", t: "1b · O link que já está em produção" },
+
+    { g: "g2", id: "s2",  t: "★ 2 · Onde está o erro? (interativo)" },
+    { g: "g2", id: "s2b", t: "2b · O erro é da nota — texto do §3" },
+
+    { g: "g3", id: "s3",  t: "★ 3 · Valor — só o ano corrente" },
+    { g: "g3", id: "s3b", t: "★ 3b · Valor — mexe em ano anterior" },
+    { g: "g3", id: "s3c", t: "3c · Nota sem valor (null → valor)" },
+    { g: "g3", id: "s3d", t: "3d · Nada a corrigir / valor inválido" },
+    { g: "g3", id: "s3e", t: "3e · Gravando e falha" },
+
+    { g: "g4", id: "s4",  t: "★ 4 · Classificação (interativo)" },
+
+    { g: "g5", id: "s5",  t: "★ 5 · Nome do emitente (interativo)" },
+    { g: "g5", id: "s5b", t: "5b · Anexo do documento novo (file real)" },
+
+    { g: "g6", id: "s6",  t: "★ 6 · CNPJ/CPF errado — sem campo" },
+    { g: "g6", id: "s6b", t: "6b · O resto que não tem campo" },
+
+    { g: "g7", id: "s7",  t: "★ 7 · Gravado, com o histórico" },
+    { g: "g7", id: "s7b", t: "7b · Home com a pendência" },
+    { g: "g7", id: "s7c", t: "7c · A pendência aberta" },
+
+    { g: "g8", id: "s8",  t: "8 · Corrigir a obra, com rastro" }
+  ];
+
+  var botoes = {};
+  TABS.forEach(function (tab) {
+    var b = document.createElement("button");
+    b.className = "tab";
+    b.textContent = tab.t;
+    b.onclick = function () { mostrar(tab.id); };
+    document.getElementById(tab.g).appendChild(b);
+    botoes[tab.id] = b;
+  });
+
+  function mostrar(id) {
+    var secoes = document.querySelectorAll(".screen");
+    for (var i = 0; i < secoes.length; i++) secoes[i].classList.remove("on");
+    var alvo = document.getElementById(id);
+    if (alvo) { alvo.classList.add("on"); alvo.querySelector(".body").scrollTop = 0; }
+    for (var k in botoes) botoes[k].classList.toggle("on", k === id);
+  }
+
+  document.addEventListener("click", function (e) {
+    var alvo = e.target.closest("[data-ir]");
+    if (!alvo || alvo.disabled) return;
+    /* A tela 7 é a mesma confirmação para as três ações; quem a abre diz qual. */
+    if (alvo.dataset.corr) {
+      document.getElementById("s7").setAttribute("data-corr", alvo.dataset.corr);
+    }
+    mostrar(alvo.getAttribute("data-ir"));
+  });
+
+  mostrar("s0");
+
+  /* ── largura: 375 px (piso) × 720 px (mesa) ───────── */
+  var phone = document.getElementById("phone");
+  var w375 = document.getElementById("w375");
+  var w720 = document.getElementById("w720");
+  w375.onclick = function () { phone.classList.remove("mesa"); w375.classList.add("on"); w720.classList.remove("on"); };
+  w720.onclick = function () { phone.classList.add("mesa"); w720.classList.add("on"); w375.classList.remove("on"); };
+
+  /* ══ PASSO 1: motivo — NADA nasce escolhido ══════════
+     O botão só acorda depois da escolha, e o rótulo dele diz o que falta.  */
+  var MOTIVO_TEXTO = {
+    digitacao: "eu digitei errado no app — o papel está certo",
+    emitente:  "a nota estava errada e o emitente já corrigiu",
+    outro:     "outro motivo, escrito por mim"
+  };
+  var opcoesMotivo = document.querySelectorAll("#motivos .opt");
+  var btnPasso1 = document.getElementById("btnPasso1");
+  var caixaOutro = document.getElementById("caixaOutro");
+  var avisoEmitente = document.getElementById("avisoEmitente");
+  var txtOutro = document.getElementById("txtOutro");
+  var ecoMotivo = document.getElementById("ecoMotivo");
+  var motivoEscolhido = null;
+
+  function pintarMotivo() {
+    for (var i = 0; i < opcoesMotivo.length; i++) {
+      opcoesMotivo[i].classList.toggle("on", opcoesMotivo[i].dataset.motivo === motivoEscolhido);
+    }
+    caixaOutro.classList.toggle("oculto", motivoEscolhido !== "outro");
+    avisoEmitente.classList.toggle("oculto", motivoEscolhido !== "emitente");
+
+    if (!motivoEscolhido) {
+      btnPasso1.disabled = true;
+      btnPasso1.textContent = "Escolha o motivo para continuar";
+      return;
+    }
+    if (motivoEscolhido === "outro" && txtOutro.value.trim() === "") {
+      btnPasso1.disabled = true;
+      btnPasso1.textContent = "Escreva o motivo para continuar";
+      return;
+    }
+    btnPasso1.disabled = false;
+    btnPasso1.textContent = "Continuar — ver o valor";
+    btnPasso1.setAttribute("data-ir", motivoEscolhido === "emitente" ? "s5b" : "s3");
+    if (ecoMotivo) ecoMotivo.textContent = MOTIVO_TEXTO[motivoEscolhido];
+  }
+
+  for (var i = 0; i < opcoesMotivo.length; i++) {
+    (function (bt) {
+      bt.onclick = function () { motivoEscolhido = bt.dataset.motivo; pintarMotivo(); };
+    })(opcoesMotivo[i]);
+  }
+  txtOutro.oninput = pintarMotivo;
+  pintarMotivo();
+
+  /* ══ classificação — também sem default ══ */
+  var opcoesClasse = document.querySelectorAll("#classes .opt");
+  var btnClasse = document.getElementById("btnClasse");
+  for (var j = 0; j < opcoesClasse.length; j++) {
+    (function (bt) {
+      bt.onclick = function () {
+        for (var k = 0; k < opcoesClasse.length; k++) opcoesClasse[k].classList.remove("on");
+        bt.classList.add("on");
+        btnClasse.disabled = false;
+        btnClasse.textContent = "Gravar — o total do ano não muda";
+      };
+    })(opcoesClasse[j]);
+  }
+
+  /* ══ nome do emitente — afirmação nunca pré-marcada ══ */
+  var afirmCnpj = document.getElementById("afirmCnpj");
+  var btnNome = document.getElementById("btnNome");
+  afirmCnpj.onclick = function () {
+    afirmCnpj.classList.toggle("on");
+    var ok = afirmCnpj.classList.contains("on");
+    btnNome.disabled = !ok;
+    btnNome.textContent = ok ? "Gravar o nome novo — vale para os 7 registros"
+                             : "Confirme a afirmação para gravar";
+  };
+
+  /* ══ ANEXO REAL — <input type="file">, não checkbox ══════════════════════
+     Escolher arquivo lê nome e tamanho DE VERDADE. A falha é a única coisa
+     que vem da barra de simulação, porque não dá para produzi-la aqui.     */
+  var anexoNovo = document.getElementById("anexoNovo");
+  var btnAnexo = document.getElementById("btnAnexo");
+
+  function estadoAnexo(estado) {
+    anexoNovo.setAttribute("data-estado", estado);
+    var pronto = estado === "anexado";
+    btnAnexo.disabled = !pronto;
+    btnAnexo.textContent = pronto
+      ? "Gravar — com o documento novo anexado"
+      : (estado === "falha" ? "Não dá para gravar sem o documento" : "Anexe o documento para gravar");
+  }
+
+  document.addEventListener("change", function (e) {
+    var inp = e.target;
+    if (!inp || inp.type !== "file" || !inp.dataset.alvo) return;
+    var arq = inp.files && inp.files[0];
+    if (!arq) return;
+    var kb = Math.max(1, Math.round(arq.size / 1024));
+    var ext = (arq.name.split(".").pop() || "ARQ").toUpperCase().slice(0, 4);
+    anexoNovo.querySelector("[data-nome]").textContent = arq.name;
+    anexoNovo.querySelector("[data-meta]").textContent =
+      kb.toLocaleString("pt-BR") + " KB · anexado agora";
+    anexoNovo.querySelector("[data-ext]").textContent = ext;
+    estadoAnexo("anexado");
+  });
+
+  document.querySelectorAll("[data-anx]").forEach(function (bt) {
+    bt.onclick = function () { estadoAnexo(bt.getAttribute("data-anx")); };
+  });
+
+  estadoAnexo("vazio");
+})();
+</script>
