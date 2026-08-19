@@ -1752,3 +1752,76 @@ esse argumento não expira.
 **Por que também não é zero**: as três telas restantes são de **documento**, e é
 exatamente ali que a confusão entre data da nota e data do pagamento nasce.
 Trocar lá tem mais valor didático do que teve na tela do pagamento.
+
+## Dívidas nomeadas no Gate 2 do CONTAI-019 — 2026-08-18
+
+*Três, todas levantadas pelo `cto-obra` e pelo `contador` e conscientemente
+NÃO implementadas na rodada. A D28 é a única que promete alguma coisa ao
+Mateus na tela — as outras duas são defesa de suíte e de acervo.*
+
+### D28 — a tela promete que o relatório trava, e hoje nada trava
+
+⚠️ **É a que não pode se perder, e a frase é literal:**
+
+> o texto em tela **promete que o relatório trava**, e hoje **nada trava** — o
+> ticket da **US-004** tem de chamar `podeGerarRelatorioAnual`, senão aquele
+> texto vira mentira.
+
+**Onde a promessa está escrita**, em três lugares que o CONTAI-019 acabou de
+publicar:
+
+- `app/compromisso/[id]/page.tsx` — o cartão do vencido diz que, sem resposta,
+  **nenhum relatório anual pode ser gerado**;
+- `app/_components/agendado.tsx` — a mesma consequência no cartão da home;
+- `app/page.tsx` — o bloco de agendados.
+
+**O mecanismo existe e está testado**: `podeGerarRelatorioAnual`
+(`lib/fiscal/compromisso.ts`), com o `ano` recebido e provadamente ignorado
+(§A do adendo 1), e unitários cobrindo 28/12/2025 bloqueando 2026, "sem data
+prevista não bloqueia" e "o *não, é outro pagamento* não desbloqueia".
+**O que não existe é o CHAMADOR** — a tela de relatório anual é da US-004.
+
+**Por que isso é pior que uma funcionalidade faltando**: o critério 21 do
+CONTAI-019 diz, com todas as letras, que *"este critério não pode ser adiado
+com a US-004 — é o único dente do mecanismo"*. A função entregue satisfaz o
+critério; a **promessa em tela**, não. O Mateus vai ler que o app trava o
+relatório e confiar nisso. Se a US-004 nascer sem chamar a função, ele gera um
+relatório anual com buraco conhecido **acreditando que o app o teria impedido**
+— e é exatamente na virada do ano que a omissão custa.
+
+**Amarração explícita**: quem pegar a **US-004** topa com esta exigência antes
+de começar. Não é sugestão de implementação; é pré-condição de o texto já
+publicado continuar verdadeiro. Alternativa aceitável, se a US-004 demorar:
+tirar a promessa das três telas — mas aí o dente do critério 21 fica sem
+nenhuma expressão para o usuário, e o `contador` precisa ser consultado.
+
+### D29 — `getByRole(..., { name })` sem `exact` erra na direção de APROVAR
+
+O Gate 1b achou **quatro** testes que passavam na página de ORIGEM: `"Pagamento"`
+casa por SUBSTRING com `"Registrar o pagamento"`, e as asserções nunca chegavam
+na tela que diziam testar. Foram consertados com `waitForURL`, que é o conserto
+certo — **ajustar o locator ao que a tela mostra é como se apaga um requisito**.
+
+O que ficou por fazer é a **defesa estrutural**: o `cto-obra` levantou ~31
+`getByRole(..., { name })` sem `exact: true` na suíte. Nenhum deles é
+falso-positivo hoje; o problema é que **nada impede o próximo**. Teste verde
+pelo motivo errado não aparece em relatório nenhum, e a suíte é a única defesa
+do projeto contra "passa local, quebra remoto".
+
+Entra no mesmo pacote o `getByRole("alert")` × route-announcer do Next
+(escopado em `main` no Gate 2) — mesma família: locator que casa com mais coisa
+do que quem escreveu imaginou.
+
+### D30 — `pagamento_diferenca` aceita UPDATE no valor, e não deveria
+
+O critério 32 do CONTAI-019 é explícito: **resolver não apaga o registro da
+diferença** (acervo append-only, CONTAI-009). O código só escreve `resolucao` e
+`resolvido_em`, e o comentário da migration diz isso — mas o `grant update` é
+de **tabela**, não de coluna, porque `information_schema.role_table_grants` só
+enxerga privilégio de tabela e um `grant update (col)` viraria falso negativo
+em `e2e/privilegios.spec.ts`.
+
+Resultado: **nada no banco impede** um caminho futuro de sobrescrever
+`encargos` ou `nao_explicado`. A defesa correta é um **trigger de
+imutabilidade** nessas duas colunas, que não interfere no mapa de privilégios.
+Não entrou na rodada por ser risco de código futuro, não de código presente.

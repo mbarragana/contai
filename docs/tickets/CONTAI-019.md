@@ -648,3 +648,26 @@ devolvida ao Mateus: nenhuma era fato que só ele sabe.*
   medição) e a 3 é **não** — ele não registrou nada, logo **não há custo com data
   errada em produção** e a promoção a P0 não acontece. **P1, sem condição
   pendurada.**
+
+## Nota de flake — `e2e/compromisso.spec.ts`
+
+*Registrada no Gate 3 (2026-08-18) para quem topar com ela daqui a dois meses.*
+
+- **Teste**: `"data no futuro dispara as TRÊS mudanças de uma vez"`
+  (`e2e/compromisso.spec.ts`, describe *"registrar com data futura"*).
+- **Quando falhou**: **uma única vez**, na rodada de `npm run quality` sobre o
+  HEAD `df36b41` (fechamento do Gate 1b).
+- **O que aconteceu depois**: passou **isolado**, passou em **todas** as demais
+  rodadas — incluindo o `quality` de `50958a1` (63 passed, 0 failed), que já
+  incluía o retrabalho do Gate 2.
+
+**Não foi investigada, e a decisão de não investigar é deliberada**: falha única
+não reproduzível vira caça a fantasma, e o custo de procurar supera o de
+registrar. O que este bloco existe para evitar é a **segunda** pessoa gastando
+o mesmo tempo do zero.
+
+**Se ela voltar**, o palpite de partida — e é palpite, não diagnóstico — é que
+o teste afirma **três mudanças simultâneas** disparadas por um evento de
+digitação em campo de data, e o que se observa é o React tendo aplicado só
+parte do lote. Comece medindo se as três asserções esperam o mesmo commit de
+render, não pelo locator.
