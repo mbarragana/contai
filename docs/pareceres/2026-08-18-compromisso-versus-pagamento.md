@@ -739,3 +739,84 @@ novo**: é o §4 do parecer de 17/08 em linguagem de tela ("nota de dezembro pag
 em janeiro quebra o regime de caixa em dois anos ao mesmo tempo"). **O exemplo
 fica** — é ele que ensina; a sentença abstrata sozinha é esquecível, e errar o
 ano é o item 3 do pre-mortem do `CONTAI-019`.
+
+# ADENDO 3 — 2026-08-18 · três ratificações que travam o Gate 1b do CONTAI-019
+
+- **Origem**: três perguntas do `lead-engineer`/`cto-obra` no Gate 1b do `CONTAI-019`.
+- **Normativo para**: os textos de tela do `CONTAI-019`. Substitui, onde
+  divergir, o bloco literal do §C(b) e a tabela do ADENDO 2 §5.
+
+## G.1 "compromisso" × "agendamento" — autorizado trocar na tela
+
+**Autorizado** `[Certain]`. É vocabulário de interface, não substância: as duas
+palavras nomeiam a mesma entidade — obrigação futura **não paga**, custo **zero**
+até o pagamento (§1). A consequência descrita na pergunta não muda nada. Uma
+palavra que aparece **num único lugar** do produto não ensina, ela confunde: o
+usuário não sabe se "compromisso" é outra coisa que ele não conhece.
+
+⚠️ **Isto contraria o §C(b) e o critério 38 na forma, não no conteúdo.** O que o
+§C(b) fixa é que este texto **não é reescrito por quem implementa** — a
+literalidade continua valendo, com a redação abaixo no lugar da anterior.
+
+**Mantém-se "compromisso"** no parecer, no modelo de dados e nos nomes de código.
+Termo de domínio e termo de tela não precisam coincidir; **não** se traduz o
+schema.
+
+**Texto literal — substitui o bloco do §C(b):**
+
+> **Este pagamento quita o agendamento de 15/09/2026?**
+> WK Construções — previsto R$ 25.000,00 para 15/09/2026
+> [ Sim, quita este agendamento ]  [ Não, é outro pagamento ]
+> Se não quitar, o agendamento continua em aberto e este pagamento fica
+> registrado sozinho.
+
+A troca vale para **todas as quatro linhas** do bloco, inclusive os rótulos dos
+botões e a consequência — meia troca deixa a tela bilíngue dentro do mesmo card.
+
+## G.2 Data com ano — dd/MM/aaaa, e em todo texto literal deste parecer
+
+**Autorizado, e vale para todos** `[Certain]`, não só para este texto.
+
+A razão não é estética: o invariante central do produto é **regime de caixa** —
+a data do pagamento **decide o exercício**. Data sem ano num sistema assim é
+defeito onde quer que apareça, e o §C(a)(3) tirou de propósito o recorte de
+ano-calendário do gatilho justamente porque o par **28/12/2025 → 05/01/2026** é
+onde a duplicidade custa mais caro. Perguntar *"quita o agendamento de 28/12?"*
+na tela de janeiro é esconder do usuário exatamente o dado que ele precisa para
+responder.
+
+**Regra**: todo texto de tela deste parecer que exiba data de compromisso ou de
+pagamento usa **dd/MM/aaaa**. Não há caso em que omitir o ano ajude. Os quatro
+caracteres extras cabem nos 375px, e esta é tela de gestão (régua de 18/08).
+
+## G.3 "Pago sem comprovante" com favorecido de tipo desconhecido
+
+**Vermelho ratificado** `[Certain]`, e pelo motivo que o `lead-engineer` deu, que
+é o correto: sem saber o tipo, não dá para **descartar** o caminho PF, em que o
+comprovante é **constitutivo** do custo (ADENDO 2 §1). Subestimar o peso de uma
+pendência é o erro que faz ela não ser resolvida; superestimar custa um anexo a
+mais. Mesma direção segura já fixada para o `DESCONHECIDO` do `CONTAI-001`.
+
+O texto **não afirma consequência fiscal** — está certo que não afirme: afirmar
+qual dos dois regimes se aplica, sem saber o tipo, seria inventar fato. Ele
+nomeia a incerteza e **pede o dado que a resolve**.
+
+**Terceira linha da tabela do ADENDO 2 §5 — texto literal:**
+
+| Caminho | Estado sem comprovante | Texto da pendência |
+|---|---|---|
+| **Tipo do favorecido ainda não conhecido** | pendência **vermelha**, pelo pior caso (o caminho PF); não compõe custo confirmado | *"sem o comprovante não dá para dizer o quanto este pagamento sustenta — informe o CNPJ/CPF do favorecido: para PF o comprovante da transferência é o que constitui o custo"* |
+
+Chip: **"Pago sem comprovante"**, igual às outras duas linhas — o chip nomeia o
+fato, que é o mesmo; o que muda é a consequência. **Quando o CNPJ/CPF for
+informado, a pendência é reclassificada** para a linha PJ ou PF: vermelho por
+desconhecimento é provisório, e não pode virar vermelho permanente de uma
+pendência que era amarela.
+
+## G.4 Automático × humano (deste adendo)
+
+**Sistema sozinho** `[Certain]`: aplicar os três textos; reclassificar a
+gravidade quando o tipo do favorecido for informado.
+
+**Nada aqui exige CRC** — são decisões de linguagem e de gravidade de aviso, não
+de tributação.
