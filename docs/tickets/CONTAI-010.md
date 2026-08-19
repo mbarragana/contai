@@ -81,7 +81,7 @@ doze. O documento traz a decomposição pronta:
 |---|---|---|
 | Amortização | **Sim** `[Certain]` | é preço do imóvel |
 | Juros / Correção Monetária | **Sim** | IN SRF 84/2001 art. 17, I (ver ressalva da alínea acima) |
-| Seguros (MIP/DFI) | **Não** | cobertura de risco, não preço — exclusão firme |
+| Seguros (MIP/DFI) | ⚠️ **EM ABERTO — não decidir no código** | o parecer do agente `contador` diz "não entra" (cobertura de risco, não preço); **o contador com CRC que assina a declaração INCLUIU** no total pago de 2025, e o Mateus decidiu manter (2026-08-19). **Guardar separado e não fixar a regra** — ver ADENDO 4 do parecer |
 | Taxas + FCVS | **Não somar hoje** | taxa de administração é serviço bancário, **fora**. ⚠️ **FCVS NÃO ESTÁ FECHADO**: tem cara de encargo do contrato e é **candidato a inclusão** — guardar separado, marcado *"confirmar"* |
 | Mora / Multa | **Não** `[Certain]` | penalidade nunca é custo |
 | **Diferença Teórico / Pago** | ⚠️ **Desconhecida** | o `contador` **não sabe o que é** e não supõe. **Fora da soma, revisão humana.** No caso real: R$ 167,43 — a 15%, ~R$ 25. Custa um chamado à instituição, **uma vez, vale para todos os anos** |
@@ -161,12 +161,17 @@ tinha efetivamente desembolsado até ali.
         + mora/multa + diferença teórico-pago` **tem de fechar com o total
         pago**. Não fechou → **recusa** com a razão em tela. Nunca somar o
         resto e seguir.
-12. [ ] Somam no custo **apenas amortização e juros/correção**. Todas as
-        demais rubricas são **guardadas separadas** e **jamais somadas** —
-        mesma regra dura já aplicada a marcenaria planejada.
+12. [ ] **As sete rubricas são guardadas SEPARADAS, sempre** — é isso que
+        permite recompor o custo sob qualquer entendimento sem redigitar nada.
+        ⚠️ **A composição do custo NÃO é decidida no código deste ticket**:
+        amortização e juros/correção somam `[Certain]`; **seguros seguem a
+        prática do contador com CRC** (hoje: incluídos) e o app **não afirma
+        em tela** que ficam fora. Mora e multa nunca somam `[Certain]`.
+        Ver ADENDO 4 de `docs/pareceres/2026-08-17-terreno-financiado.md`.
 13. [ ] **FCVS** é guardado com marca própria — *"candidato a inclusão,
-        pendente de confirmação"* —, distinta da marca do seguro, que é
-        **exclusão firme**. As duas não podem virar o mesmo rótulo.
+        pendente de confirmação"*. Não herda o tratamento de nenhuma outra
+        rubrica, e em especial **não é resolvido por analogia com seguros**,
+        que está em aberto (critério 12).
 14. [ ] **Trava da dupla contagem, na versão estrutural**: o caminho de
         lançamento **mensal não é construído**. Sem tipo para "parcela do
         financiamento", a dupla contagem é impossível **por ausência de tipo**,
@@ -189,11 +194,12 @@ tinha efetivamente desembolsado até ali.
         seguinte e o ganho de capital é apurado antes. A tela pede, nesse ano,
         **extrato do período** + **termo de quitação** do financiamento.
         É **1x na vida**.
-18. [ ] A tela responde à pergunta que ele vai refazer todo ano, **com este
-        texto, copiado do adendo 3 e não reescrito**:
-        > **Juros pagam o dinheiro que comprou o imóvel — entram no custo.
-        > O seguro paga a cobertura de um risco (morte, invalidez, dano ao
-        > imóvel), não o imóvel — não entra, mesmo sendo obrigatório.**
+18. [ ] ⚠️ **REMOVIDO em 2026-08-19 por decisão do Mateus.** O texto que
+        afirmava em tela que *"o seguro não entra, mesmo sendo obrigatório"*
+        **não vai para a interface**: ele apresenta como pacífico algo que o
+        contador com CRC pratica de outro modo. Nenhuma tela deste ticket
+        afirma o tratamento dos seguros — a tela mostra a rubrica, o valor e
+        de onde ele veio, e cala sobre a classificação. Ver ADENDO 4.
 19. [ ] Todo número de custo do financiamento é apresentado como **insumo para
         revisão profissional (CRC)**, nunca como veredito. Texto no relatório,
         não só no formulário.
@@ -295,9 +301,10 @@ a alínea do art. 17 na IN vigente · a natureza da *"Diferença Teórico / Pago
 2. **A "diferença teórico/pago" é somada porque fecha a conta bonitinho.**
    Mitigação: critério 11 exige que ela **participe da trava** e o 12 exige que
    ela **não participe do custo**. São coisas diferentes e o teste (d) separa.
-3. **FCVS é tratado como seguro** e perde a marca de candidato — quando a
-   confirmação vier favorável, ninguém lembra de revisitar. Mitigação:
-   critério 13.
+3. **FCVS herda o tratamento de outra rubrica** e perde a marca de candidato —
+   quando a confirmação vier favorável, ninguém lembra de revisitar. O risco
+   cresceu em 19/08: com os seguros **em aberto** (critério 12), resolver o FCVS
+   "por analogia" não resolve nada. Mitigação: critério 13.
 4. **Dupla contagem**: alguém acha útil deixar registrar parcela avulsa "além"
    do informe. Mitigação: critério 14, e o motivo escrito (custo inflado =
    redução indevida de ganho de capital).
@@ -407,9 +414,11 @@ confirmação).
    do contrato): qual é a natureza da rubrica **"Diferença Teórico / Pago"**?
 2. **Para o Mateus**: em que datas foram pagos a **entrada**, o **ITBI** e a
    **escritura**? É o único dado deste ticket que só ele tem.
-3. **Para o CRC, quando houver**: confirma a alínea do art. 17 e o tratamento
-   de seguros, tarifas e FCVS? O `contador` já reduziu a pergunta de *"os juros
-   entram?"* para isso — conversa de dez minutos com o dispositivo na mão.
+3. **Para o contador com CRC — ele existe e assinou a declaração de 2025**:
+   **por que os seguros entram no total pago que ele declarou?** É entendimento
+   dele, praxe do escritório, ou dispositivo que o agente não achou? Some-se a
+   alínea do art. 17 e o tratamento de tarifas e FCVS. É a pergunta que fecha o
+   ADENDO 4 do parecer e o critério 12 — conversa de dez minutos.
 
 *A pergunta 3 do Gate Fiscal da versão anterior (terreno parcelado) está
 **resolvida**, não mais aberta.*
