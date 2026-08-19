@@ -820,3 +820,174 @@ gravidade quando o tipo do favorecido for informado.
 
 **Nada aqui exige CRC** — são decisões de linguagem e de gravidade de aviso, não
 de tributação.
+
+# ADENDO 4 — 2026-08-18 · a QUINTA resolução da diferença não explicada
+
+- **Origem**: lacuna do próprio §F.2, achada por mim no Gate 2 do `CONTAI-019` e
+  já implementada em código (`resolucao_diferenca`, `diferencaContaComoCusto`, a
+  tela do pagamento e os testes) **antes de virar parecer**. O `po` reprovou o
+  Gate 4 por isso, e com razão.
+- **Normativo para**: substitui a **contagem** e a **tabela** do §F.2.
+- ⚠️ **Por que este adendo é obrigatório, e não formalidade**: enquanto ele não
+  existir, o arquivo diz **quatro** e o enum tem **cinco**, e a regra de
+  arbitragem do projeto (*"a fonte é o arquivo; a transcrição perde para o
+  parecer em qualquer divergência"*) manda **a quinta perder**. Quem executar
+  essa arbitragem de boa-fé daqui a seis meses remove `previsao_errada` e
+  **reintroduz o bug B1** — a previsão virando teto do custo. Regra fiscal que
+  só existe em comentário de código é a mesma falha que o `CLAUDE.md` proíbe,
+  com outro nome.
+- **Li o código antes de ratificar** (a pergunta era se ele faz o que eu quero,
+  não se o commit está bem escrito): `supabase/migrations/0007_compromisso.sql`
+  (o enum), `lib/fiscal/vinculo.ts` (`diferencaContaComoCusto`,
+  `parteForaDoCusto`, `baseDocumentavel`), `lib/fiscal/resumo.ts` (a pendência
+  que some), `app/compromisso/[id]/confirmar/page.tsx` (onde a diferença
+  **nasce**) e `app/pagamento/[id]/page.tsx` (o rótulo e o efeito em tela).
+  **Confere com o que segue.** O ponto que eu precisava ver era a fórmula de
+  origem da diferença, e ela é literalmente
+  `naoExplicado = max(0, (pago − previsto) − encargos)` — é dela que sai a
+  álgebra do §H.2.
+
+## H.1 A quinta resolução — linha normativa, no formato da tabela do §F.2
+
+| Resolução | Efeito no custo | Resíduo |
+|---|---|---|
+| **5. A previsão é que estava errada — o valor pago é o certo** | **entra no custo**, e quem limita volta a ser o **documento hábil** | **nenhum, sem pendência** |
+
+Texto de tela (literal, já em produção no `CONTAI-019` e ratificado aqui):
+
+> **A previsão é que estava errada — o valor pago é o certo**
+> O valor pago entra inteiro no custo, e quem volta a limitar é a nota — nunca a
+> previsão. Não fica resíduo nem pendência.
+
+`[Certain]` quanto à substância: nenhuma norma dá efeito a previsão. O custo de
+aquisição se prova por **dispêndio pago e documentado** (IN SRF 84/2001, art. 17
+— e o §1 deste parecer), e um orçamento que errou para menos não é uma condição
+que a lei imponha ao custo. Se o dinheiro saiu, é da obra, tem comprovante e tem
+nota hábil no CPF dele que o cubra, **ele é custo** — o fato de o Mateus ter
+previsto menos é irrelevante para a Receita.
+
+**Não confundir com a resolução 4.** As duas parecem "o número estava errado",
+mas apontam para lados opostos: `erro_digitacao` diz que o **registro do
+pagamento** está errado (o fato ainda não está confirmado → fica **fora** até a
+correção com rastro do `CONTAI-021`); `previsao_errada` diz que o **fato está
+certo** e quem estava errada era a previsão → **entra**. Trocar uma pela outra
+inverte o efeito fiscal.
+
+## H.2 A álgebra do colapso — o achado, e o motivo de a quinta existir
+
+`[Certain]`, é aritmética, não interpretação. A diferença nasce, na tela de
+confirmação, como `naoExplicado = (pago − previsto) − encargos`. Com
+`resolucao = null` — que o §F.2 fixa como o **único** estado inicial permitido —
+ela fica **fora** do elegível, e o elegível vira:
+
+```
+elegivel = pago − encargos − naoExplicado
+         = pago − encargos − (pago − previsto − encargos)
+         = previsto
+```
+
+O elegível colapsava **exatamente no valor previsto**. Ou seja: a **previsão**
+passava a limitar o custo comprovado por nota hábil — o §2 inteiro violado **por
+dentro da fórmula que o §F.3 existe para proteger**, e sem que nenhum teste de
+comportamento tivesse motivo de reclamar, porque cada peça estava certa
+isoladamente.
+
+⚠️ **Direção que SUBESTIMA o custo.** Isso é o que torna o erro perigoso, não o
+que o torna tolerável: **não gera passivo tributário**, logo não aparece em
+fiscalização, não aparece em conferência de risco e **não dói em lugar nenhum
+até a hora de apurar o ganho de capital** — quando o custo já está subdeclarado e
+o imposto já foi pago a maior sobre lucro que nunca existiu. Erro que subestima é
+seguro para *não ser autuado* e caro para o bolso; ele não se autodenuncia.
+
+## H.3 O caso que prova
+
+Previsto **R$ 9.000**, nota hábil no CPF dele **R$ 10.000**, pago **R$ 10.000**,
+**sem encargo nenhum**.
+
+Antes da quinta resolução, o app: gravava **R$ 1.000 "sem explicação"**, derrubava
+o custo comprovado para `min(9.000; 10.000) = 9.000` e subia **pendência
+vermelha** de R$ 1.000 — **sem que houvesse diferença nenhuma a explicar** (o
+pagamento inteiro é obra e está coberto por nota hábil) e **sem que nenhuma das
+quatro resoluções anteriores fosse verdadeira**:
+
+- não é a **1** — é da obra, e é principal, não encargo;
+- não é a **2** — o documento **existe**, e cobre o valor cheio;
+- não é a **3** — há um documento só;
+- não é a **4** — ninguém digitou errado; R$ 10.000 é o que saiu da conta.
+
+`[Certain]` **Alerta vermelho sem resposta correta é a máquina de ensinar a
+ignorar alerta.** O dano não fica no R$ 1.000 deste pagamento: ele treina o
+usuário a passar por cima do vermelho, e o próximo vermelho — o que era de
+verdade — passa junto. É o mesmo raciocínio do §F.1 sobre não matar a cobrança da
+nota, um degrau acima.
+
+## H.4 O limite da quinta — ela devolve o pago ao ELEGÍVEL, não ao custo
+
+`[Certain]`, e este parágrafo é o que impede o conserto de abrir um buraco maior
+do que o que fechou. A resolução 5 **não fura o teto do mínimo**.
+
+Caso: previsto **R$ 9.000**, pago **R$ 10.000**, nota hábil **R$ 9.500** →
+elegível 10.000, custo comprovado `min(10.000; 9.500) = ` **R$ 9.500**, não
+R$ 10.000. O `min(Σ elegíveis, Σ documentos hábeis)` do §F.3 continua mandando, e
+os R$ 500 restantes viram **"pago sem nota"** — pendência acionável, como
+qualquer outro pagamento sem cobertura documental.
+
+Daí a leitura exata da coluna "Resíduo" no §H.1: **nenhum resíduo vem da
+classificação**. O que a nota hábil não cobrir continua aparecendo pela regra
+geral, e isso é o comportamento certo — a quinta resolução afirma *"este dinheiro
+é obra"*, não *"este dinheiro está documentado"*. **Quem documenta é o documento.**
+
+Corolário para o seletor de vínculo: um pagamento resolvido como
+`previsao_errada` **continua candidato a receber nota** (é custo real ainda
+carente de documento), ao contrário de um resolvido como `nao_compoe_custo`, que
+sai da lista para sempre. O código faz isso.
+
+## H.5 "Não sei ainda" continua sendo o estado inicial, e a quinta não é default
+
+`[Certain]` A quinta resolução é **resolução**, não default. Nada aqui revoga o
+§F.2: *"não sei ainda"* segue **estado permitido** e **único estado inicial**,
+porque é o único que não afirma nada, e o §H.2 é exatamente o motivo pelo qual
+esse estado inicial **precisa doer** em vez de ser confortável — o número que ele
+produz é a previsão, e a previsão não decide custo nenhum.
+
+⚠️ **Marcar `previsao_errada` por padrão seria pior do que o bug que ela
+conserta**: transformaria toda diferença para mais em custo automático, sem que
+ninguém tivesse afirmado que aquele dinheiro é obra — inclusive quando for juro,
+multa ou item não incorporado. Campo fiscal não tem default (regra do
+`CLAUDE.md`); campo vazio pergunta, campo preenchido afirma.
+
+## H.6 A contagem — são CINCO, e isto SUBSTITUI a redação anterior
+
+`[Certain]` **Onde o §F.2 disser "quatro resoluções" ou "conjunto FECHADO e tem
+QUATRO saídas", leia-se CINCO.** Isto **substitui** a contagem anterior, no mesmo
+padrão do ADENDO 3 §G.1 (que substituiu o bloco literal do §C(b)): o texto antigo
+não fica valendo em paralelo, e não há divergência a arbitrar.
+
+O conjunto **continua fechado** — o que mudou foi o tamanho dele. As cinco saídas,
+rotuladas pelo resultado:
+
+| # | Resolução | Efeito no custo |
+|---|---|---|
+| 1 | Não compõe custo da obra | fora, **definitivamente**, sem pendência |
+| 2 | É da obra e falta o documento | fora **hoje**; **"pago sem nota"** |
+| 3 | O pagamento cobriu mais de um documento | **dentro**, resolve por **vínculo** |
+| 4 | Errei o valor digitado | **não é classificação fiscal** — `CONTAI-021` |
+| **5** | **A previsão é que estava errada — o valor pago é o certo** | **dentro**, teto volta a ser o **documento hábil**, sem resíduo |
+| — | *"Não sei ainda"* | fora — **estado inicial**, não é resolução |
+
+## H.7 Automático × humano (deste adendo)
+
+**Sistema sozinho** `[Certain]`: oferecer a quinta opção; devolver o valor pago
+ao elegível quando ela for escolhida; aplicar o `min` do §F.3 por cima, sem
+exceção; encerrar a pendência da diferença sem gerar resíduo próprio; manter o
+pagamento na lista de candidatos a vínculo.
+
+**Não automatizável** `[Certain]`: **escolher** a resolução. Só o Mateus sabe se
+os R$ 1.000 a mais foram obra, juro ou geladeira — e essa é a afirmação que o
+sistema registra, não a que ele deduz.
+
+**Nada neste adendo exige CRC.** É classificação de custo já provado, dentro do
+arcabouço que os §§1-2 e §F.3 já fixaram, e nenhum número novo de legislação foi
+usado. O que **sempre** exige contador humano continua sendo a **assinatura da
+declaração** e a apuração do ganho de capital no ano da venda — o app informa e
+organiza, não assina.
