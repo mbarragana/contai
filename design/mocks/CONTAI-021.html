@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>contai — Mock CONTAI-021 · Corrigir documento já registrado</title>
+<title>contai — Mock CONTAI-021 v2 · Corrigir documento já registrado</title>
 <style>
   :root{
     --bd-bg:#d8d5cd; --bd-ink:#3a382f; --bd-mut:#6f6b60;
@@ -19,6 +19,9 @@
     font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
     min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:24px 12px 48px; gap:16px}
   .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-variant-numeric:tabular-nums}
+  /* Nome de função/coluna citado em texto é token longo sem espaço: em 375 px
+     ele empurrava a página inteira para o lado. 375 px é PISO — não quebra. */
+  code{overflow-wrap:anywhere; word-break:break-word}
 
   /* ── barra de avaliação ─────────────────────────── */
   .evalbar{max-width:820px; width:100%}
@@ -46,6 +49,10 @@
      ╚══════════════════════════════════════════════════════════════════════╝ */
   .aprov{max-width:820px; width:100%; border-radius:10px; padding:10px 14px; font-size:12.5px;
     text-align:center; font-weight:600}
+  .novo{border:1px solid var(--bd-ink); border-radius:10px; padding:11px 14px; font-size:12.5px;
+    line-height:1.5; margin-top:10px}
+  .novo ul{margin:6px 0 0 17px; padding:0}
+  .novo li{margin-top:5px}
   .aprov.nao{background:var(--amb-bg); color:var(--amb); border:1px dashed var(--amb)}
   .aprov.sim{background:var(--grn-bg); color:var(--grn); border:1px solid var(--grn)}
 
@@ -126,10 +133,8 @@
   .parecer{font-size:10.5px; color:var(--mut); margin-top:6px; font-style:italic; line-height:1.4}
   .secao{font-size:11px; color:var(--mut); text-transform:uppercase; letter-spacing:.07em; margin-top:4px}
 
-  /* Bloco tracejado âmbar = PERGUNTA EM ABERTO, não decisão tomada. */
-  .pendente{border:1px dashed var(--amb); background:var(--amb-bg); color:var(--amb);
-    border-radius:8px; padding:9px 11px; font-size:12px}
-  .pendente strong{display:block; margin-bottom:3px}
+  /* Os blocos tracejados âmbar da v1 (perguntas em aberto) saíram na v2: as 10
+     foram respondidas pelo `contador` e pelo `po` em 19/08. */
 
   /* Pendência PERSISTENTE do critério 4 — não é aviso de clique, é linha de lista. */
   .divida{border:1px solid var(--amb); border-left:4px solid var(--amb); background:#fffdf7;
@@ -240,7 +245,7 @@
 </style>
 
 <div class="evalbar">
-  <h1>Mock CONTAI-021 — Corrigir um documento já registrado · v1</h1>
+  <h1>Mock CONTAI-021 — Corrigir um documento já registrado · v2</h1>
   <p><strong>Hoje no mock: 19/08/2026.</strong> Obra <strong>Casa Tanheiros</strong>. Cenário:
      a 2ª nota real da empreiteira foi registrada com <strong>R$ 4.085,71</strong> quando o papel
      anexado diz <strong>R$ 40.857,14</strong> — um dígito a menos.<br>
@@ -253,9 +258,31 @@
      <strong>Três ações nomeadas, não um formulário</strong>:
      <code>/documento/[id]/corrigir/{valor|classificacao|emitente}</code>.
      Campo proibido sentado ao lado de editável é o convite a inventar dado.<br>
-     Blocos <strong>tracejados âmbar</strong> dentro da tela são <strong>perguntas em aberto</strong>
-     — devolvidas ao <code>contador</code> ou ao <code>po</code>, não decisões minhas.<br>
+     <strong>Os 10 blocos tracejados âmbar da v1 saíram.</strong> Eram perguntas em aberto, e as
+     dez foram respondidas — pelo <code>contador</code> (adendo de 19/08 no parecer) e pelo
+     <code>po</code> (critérios 16-21). No lugar de cada uma está a decisão, com a origem citada.<br>
      Dados de exemplo são <strong>fictícios</strong> (CNPJ 12.345.678/0001-99 não existe).</p>
+
+  <div class="novo">
+    <strong>A regra que a v2 inteira tenta tornar óbvia</strong>
+    <p style="margin-top:5px"><strong>Pendência persistente só nasce quando a correção muda um NÚMERO
+      declarado.</strong> Correção de identificação (nome), de composição (material × mão de obra) ou
+      de arquivamento sem número atrás gera <strong>rastro e aviso</strong> — nunca linha na lista de
+      pendências. É ela que impede o alarme que não desliga.</p>
+    <p style="margin-top:6px"><strong>Três superfícies que a v1 não tinha:</strong></p>
+    <ul>
+      <li><strong>O ciclo de vida da pendência de retificadora</strong> (crit. 20 e 21) — por
+        <em>ano</em>, acumulando as correções daquele ano, baixada só pelo Mateus com um desfecho
+        escolhido, gravada por acréscimo, e reabrindo <em>nova</em> se vier correção depois.
+        Telas <strong>0b, 7b, 7c, 7d, 7e, 7f</strong>.</li>
+      <li><strong>A tela do CNPJ errado passa a oferecer uma ação</strong> (crit. 19) — marcar
+        “CNPJ errado — tratar”, sem campo e sem tocar na situação do documento.
+        Telas <strong>6, 6c</strong>.</li>
+      <li><strong>Corrigir a obra deixa de ser correção trivial</strong> (adendo §5) — é a única das
+        cinco que muda número dos <em>dois</em> lados e a única que abre pendência.
+        Telas <strong>8, 8b, 8c</strong>.</li>
+    </ul>
+  </div>
 </div>
 
 <!-- ╔═══════════════════════════════════════════════════════════════════════╗
@@ -265,8 +292,9 @@
      ║   3. design/mocks/index.html, card deste mock, linha "Status:"        ║
      ║  Virar só a classe deixa um mock verde dizendo que não foi aprovado.  ║
      ╚═══════════════════════════════════════════════════════════════════════╝ -->
-<div class="aprov sim" id="barraAprovacao">
-  ✅ Mock APROVADO pelo Mateus em 2026-08-19 (v1).
+<div class="aprov nao" id="barraAprovacao">
+  ⏳ Mock NÃO aprovado — v2. A v1 foi aprovada em 2026-08-19; esta versão acrescenta as três
+  superfícies novas e aguarda o Mateus.
 </div>
 
 <div class="evalbar">
@@ -284,9 +312,9 @@
   <div class="tabs" id="g5"></div>
   <div class="grupo">6 · O que o app NÃO corrige — e com que saída</div>
   <div class="tabs" id="g6"></div>
-  <div class="grupo">7 · Depois de gravar — o rastro e a pendência que não some</div>
+  <div class="grupo">7 · Depois de gravar — o rastro, e a pendência do ano do início ao fim</div>
   <div class="tabs" id="g7"></div>
-  <div class="grupo">8 · Retrofit: corrigir a obra passa pela mesma porta (crit. 13)</div>
+  <div class="grupo">8 · Corrigir a obra — a correção que muda número dos dois lados</div>
   <div class="tabs" id="g8"></div>
 
   <div class="larg">
@@ -370,9 +398,9 @@
         │                    │                     │
        sim                   │                    sim
         │                    │                     │
-   PENDÊNCIA PERSISTENTE     │              (pergunta em aberto
-   "avalie retificadora      │               ao contador — §7 do
-    com seu contador"        │               parecer manda a CRC)
+   PENDÊNCIA PERSISTENTE     │              AVISO + RASTRO, sem
+   "avalie retificadora      │              pendência: o custo
+    com seu contador"        │              não muda (adendo §4)
         └────────────────────┴─────────────────────┘
                 │
       PASSO 4 — gravar. UPDATE + RASTRO na mesma transação.
@@ -393,12 +421,94 @@
             recupera.</span></li>
           <li><span class="n">4</span><span><strong>O aviso de ano anterior vira linha de lista</strong>,
             não pop-up. Aviso que só existe no clique é aviso que não existiu.</span></li>
+          <li><span class="n">5</span><span><strong>Pendência só nasce quando a correção muda um
+            NÚMERO declarado.</strong> Nome, classificação e arquivamento sem pagamento em ano
+            anterior geram <strong>rastro e aviso</strong>, nunca linha na lista. Sem essa fronteira,
+            a lista de pendências vira alarme que não desliga — e ele para de olhar para ela.</span></li>
         </ul>
         <div class="parecer">Ordem: parecer §3 · CONTAI-021 “Escopo da rodada 1” (decisão do
-          cto-obra) · parecer §5 (mudança de posição do contador) · parecer §6.3.</div>
+          cto-obra) · parecer §5 (mudança de posição do contador) · parecer §6.3 · adendo de
+          2026-08-19, regra que atravessa as cinco respostas.</div>
       </div>
     </div>
-    <div class="foot"><button class="btn primary" data-ir="s1">Começar pelo detalhe do documento</button></div>
+    <div class="foot">
+      <button class="btn primary" data-ir="s0b">Ver o segundo fluxo — o ciclo da pendência</button>
+      <button class="btn ghost" data-ir="s1">Começar pelo detalhe do documento</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 0b · FLUXO 2 — O CICLO DA PENDÊNCIA ══════════════════ -->
+  <section class="screen" id="s0b">
+    <div class="appbar">
+      <div class="brand">Fluxo 2 — a pendência de retificadora, do nascimento à baixa</div>
+      <div class="sub">O que a v1 não desenhava: como isso termina</div>
+    </div>
+    <div class="body">
+      <div class="banner blu" style="font-size:12.5px">
+        <strong>Uma pendência que não sabe morrer é ruído permanente.</strong> A v1 mostrava a
+        pendência nascendo e parava ali — e uma lista que só cresce é uma lista para a qual ele para
+        de olhar. Este fluxo é a resposta do <code>po</code> nos critérios 20 e 21.
+      </div>
+
+      <div class="ascii">                    CORREÇÃO GRAVADA (rastro sempre)
+                                  │
+              a correção muda um NÚMERO de ano anterior ao corrente?
+                                  │
+              ┌────────── não ────┴──── sim ──────────┐
+              │                                        │
+     RASTRO + AVISO no ato.                   já existe pendência
+     Acabou. Nada vai para a lista.           ABERTA para esse ano?
+     · nome do emitente (adendo §4)                    │
+     · classificação (composição)          ┌─── não ───┴─── sim ───┐
+     · obra, sem pagamento anterior        │                        │
+                                    ABRE pendência          ACUMULA na mesma
+                                    do ano X                (crit. 20): a lista
+                                           │                de correções cresce e
+                                           │                o delta exibido é o
+                                           └───────┬────────┘  ACUMULADO do ano
+                                                   │        (1º antes → último depois)
+                                    "O que está faltando"
+                                    UMA linha por ANO — nunca uma por correção
+                                                   │
+                                    só o Mateus baixa, em ato nomeado
+                                    (nunca ao fechar a tela, nunca em lote,
+                                     nunca automático, nunca sugerido)
+                                                   │
+                                    ESCOLHE UM DESFECHO — nada nasce marcado:
+                                      a) retifiquei a DAA de X          + data
+                                      b) meu contador avaliou: não retifica + data
+                                      c) a DAA de X ainda não foi entregue
+                                                   │
+                                    INSERT, não update: a pendência SAI da lista
+                                    e fica no HISTÓRICO DO ANO — quem, quando,
+                                    qual desfecho, e as correções que a compunham
+                                                   │
+                                    correção NOVA que mexa em X, depois disso
+                                                   │
+                                    PENDÊNCIA NOVA — a antiga não reabre.
+                                    O "antes" da nova é o "depois" da baixada.</div>
+
+      <div class="card">
+        <div class="secao">Três coisas que este ciclo decide</div>
+        <ul class="lista" style="margin-top:6px">
+          <li><span class="n">1</span><span><strong>A chave é o ano, não a correção.</strong> Cinco
+            correções em 2025 são <strong>uma</strong> linha na lista. Alarme que se multiplica é o
+            mesmo defeito do alarme que não desliga, com outro sinal.</span></li>
+          <li><span class="n">2</span><span><strong>O app nunca escolhe o desfecho.</strong> Ele não
+            sabe se a DAA foi entregue nem o que o contador respondeu — as duas coisas que os três
+            desfechos separam.</span></li>
+          <li><span class="n">3</span><span><strong>Baixar não apaga e não silencia o futuro.</strong>
+            A baixa é gravada por acréscimo; correção nova abre pendência nova. Reabrir a antiga
+            apagaria o fato de que ela foi tratada.</span></li>
+        </ul>
+        <div class="parecer">Critérios 20 e 21 do CONTAI-021, decididos pelo <code>po</code> em
+          19/08 · adendo de 2026-08-19 do parecer, regra que atravessa as cinco respostas.</div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" data-ir="s1">Começar pelo detalhe do documento</button>
+      <button class="btn ghost" data-ir="s0">Voltar ao primeiro fluxo</button>
+    </div>
   </section>
 
   <!-- ══════════════════ 1 · DETALHE — AS ENTRADAS ══════════════════ -->
@@ -458,19 +568,20 @@
         <div style="margin-top:8px"><button class="btn ghost mini" data-ir="s8">Corrigir a obra deste registro</button></div>
       </div>
 
-      <!-- ── PROPOSTA, não requisito: o rastro visível ─────────────────── -->
+      <!-- ── Critério 16: o rastro é EXIBIDO, e aqui — não é tela nova ──── -->
       <div class="card">
         <div style="font-weight:600">Histórico de correções</div>
         <ul class="rastro" style="margin-top:6px">
           <li><span class="hint">Nenhuma correção neste registro.</span></li>
         </ul>
-        <div class="pendente" style="margin-top:9px">
-          <strong>Pergunta ao <code>po</code> — entra na rodada 1?</strong>
-          O critério 7 manda <em>gravar</em> o rastro; nenhum critério manda <em>mostrar</em>.
-          Rastro que só existe no banco não é acervo que o Mateus lê em 2034 — mas é tela a mais.
-          Desenhei como leitura simples aqui (ver a tela 7 com o histórico preenchido). Se ficar
-          fora da rodada 1, este card sai e a linha do banco continua sendo gravada.
+        <div class="hint" style="margin-top:8px">
+          Card <strong>só de leitura</strong>, dentro da tela que já existe: uma linha por correção —
+          quando, quem, campo, antes → depois, motivo e anos afetados. Nada aqui se edita nem se
+          apaga. <button class="lnk" data-ir="s7">ver preenchido, na tela 7</button>
         </div>
+        <div class="parecer">Critério 16 do CONTAI-021 (decisão do <code>po</code>, 19/08): o rastro
+          é <strong>exibido</strong> já na rodada 1. Rastro que só o banco vê não cumpre a meta 3 —
+          quem vai ler isso em 2034 é o Mateus, não o Postgres.</div>
       </div>
     </div>
     <div class="foot"><button class="btn ghost" data-ir="s0">Voltar ao fluxo</button></div>
@@ -490,6 +601,15 @@
       </div>
 
       <div class="card">
+        <div class="secao">O que você já digitou neste pagamento</div>
+        <div class="row"><span class="lbl">Valor</span><span class="val mono">R$ 40.857,14</span></div>
+        <div class="row"><span class="lbl">Data do pagamento</span><span class="val mono">18/08/2026</span></div>
+        <div class="row"><span class="lbl">Meio</span><span class="val">PIX</span></div>
+        <div class="row"><span class="lbl">Comprovante</span>
+          <span class="val warn">comprovante-pix.pdf — escolhido, ainda não enviado</span></div>
+      </div>
+
+      <div class="card">
         <div class="lab">Favorecido — da nota</div>
         <div style="font-size:15px; font-weight:600">WK Construções LTDA</div>
         <div class="lab" style="margin-top:12px">CNPJ / CPF do favorecido — da nota</div>
@@ -498,7 +618,7 @@
           Quem recebe o dinheiro é atributo da nota, não do pagamento. CNPJ/CPF errado não se edita:
           é outro favorecido — corrige-se o documento e refaz-se o vínculo.
         </p>
-        <div style="margin-top:9px"><button class="btn ghost mini" data-ir="s5">Corrigir na nota</button></div>
+        <div style="margin-top:9px"><button class="btn ghost mini" data-ir="s1c">Corrigir na nota</button></div>
       </div>
 
       <div class="card">
@@ -515,17 +635,62 @@
         │ grava
         ▼
 /adicionar/pagamento?documento=ID   ← volta com o nome novo</div>
-        <div class="pendente" style="margin-top:9px">
-          <strong>Pergunta ao <code>po</code> — o que acontece com o formulário pela metade?</strong>
-          O critério 2 diz “volta ao pagamento com o dado novo”. Se o Mateus já digitou valor, data e
-          meio, e sai para corrigir a nota, esse preenchimento <strong>se perde</strong> hoje.
-          Guardar rascunho é escopo novo (e não trivial: anexo já escolhido, sessão). Alternativa
-          barata: a tela de correção avisa <em>“você vai perder o que digitou no pagamento”</em>
-          antes de sair. Preciso de decisão — não vou embutir uma no mock.
+        <div class="consequencia amb">
+          Sair daqui com o formulário pela metade <strong>perde o que foi digitado</strong> — e o app
+          avisa antes, com os dois caminhos nomeados. <strong>Não guarda rascunho.</strong>
+          <button class="lnk" data-ir="s1c" style="display:block; margin-top:5px">ver o aviso — tela 1c</button>
+          <div class="parecer">Critério 17 do CONTAI-021 (decisão do <code>po</code>, 19/08):
+            <strong>aviso, não rascunho</strong>. Persistir formulário fiscal pela metade é escopo
+            novo e devolve dias depois um formulário sem contexto — o oposto de “campo vazio
+            pergunta, campo preenchido afirma”.</div>
         </div>
       </div>
     </div>
     <div class="foot"><button class="btn ghost" data-ir="s1">Ir para o documento</button></div>
+  </section>
+
+  <!-- ══════════════════ 1c · SAIR COM O FORMULÁRIO PELA METADE ══════════════════ -->
+  <section class="screen" id="s1c">
+    <div class="appbar">
+      <div class="brand">Sair para corrigir a nota?</div>
+      <div class="sub">Você já preencheu parte deste pagamento</div>
+    </div>
+    <div class="body">
+      <div class="banner amb" role="alert">
+        <strong>O que você digitou não vai ser guardado.</strong> Valor, data e meio voltam em branco.
+        E o <strong>arquivo que você já escolheu não sobrevive</strong> a esta navegação — vai
+        precisar anexar de novo, mesmo que a tela pareça lembrar dele.
+      </div>
+
+      <div class="card">
+        <div class="secao">O que se perde</div>
+        <div class="row"><span class="lbl">Valor</span><span class="val mono">R$ 40.857,14</span></div>
+        <div class="row"><span class="lbl">Data do pagamento</span><span class="val mono">18/08/2026</span></div>
+        <div class="row"><span class="lbl">Meio</span><span class="val">PIX</span></div>
+        <div class="row"><span class="lbl">Comprovante</span>
+          <span class="val bad">comprovante-pix.pdf — <strong>não sobrevive</strong></span></div>
+      </div>
+
+      <div class="card" style="border-color:var(--grn)">
+        <div style="font-weight:600">Você provavelmente não precisa sair agora</div>
+        <div class="hint" style="margin-top:5px">
+          O pagamento aponta para o <strong>favorecido</strong>, não para o texto do nome dele.
+          Termine este pagamento e corrija o nome depois, pelo documento: <strong>o dado gravado é
+          exatamente o mesmo</strong>.
+        </div>
+        <div class="consequencia grn">
+          Corrigir antes ou corrigir depois grava a mesma coisa. O que muda é só quanto você
+          redigita.
+        </div>
+        <div class="parecer">Critério 17 do CONTAI-021 (decisão do <code>po</code>, 19/08): o aviso
+          tem que dar a <strong>saída barata</strong>, não só o susto. Rascunho ficou fora de escopo —
+          volta se o aviso não resolver na prática, não antes.</div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" data-ir="s1b">Continuar o pagamento</button>
+      <button class="btn danger-ghost" data-ir="s5">Sair e corrigir a nota — perco o que digitei</button>
+    </div>
   </section>
 
   <!-- ══════════════════ 2 · A PERGUNTA ANTES DO CAMPO ══════════════════ -->
@@ -636,11 +801,21 @@
       </div>
 
       <div class="card">
-        <div class="pendente">
-          <strong>Pergunta ao <code>contador</code> — sair sem gravar deixa rastro?</strong>
-          O §5 manda gravar rastro em <em>toda correção</em>. Aqui não houve correção: o Mateus
-          descobriu que o erro é do papel e saiu. Registrar “consultei e não corrigi” tem valor de
-          acervo, ou é ruído? Não vou decidir isso sozinho.
+        <div class="secao">Sair daqui não deixa rastro — e isso é decisão, não esquecimento</div>
+        <div class="hint" style="margin-top:6px">
+          Nada foi alterado. O documento continua no acervo com o valor que está no papel que você
+          anexou. Quando o emitente mandar a nota substitutiva ou a carta de correção, volte aqui e
+          anexe: <strong>é nesse momento que a correção fica registrada</strong>.
+        </div>
+        <div class="consequencia mud">
+          O histórico grava <strong>antes → depois de um fato do acervo</strong>. Aqui não houve
+          antes nem depois: o app está certo, o papel é que está errado. “Consultei e não corrigi”,
+          repetido, torna ilegível em 2034 exatamente a linha que importa.
+          <div class="parecer">Adendo de 2026-08-19, §1 — decisão do <code>contador</code>. A data em
+            que o erro foi identificado <strong>não faz correr prazo nenhum seu</strong>: quem tem
+            prazo para cancelar ou substituir é o emitente, e ele é do município (NFS-e) ou do Ajuste
+            SINIEF 07/05 (NF-e). <code>[Likely] — confirmar na legislação municipal.</code> Gravar
+            essa data no app fingiria uma relevância que ela não tem.</div>
         </div>
       </div>
     </div>
@@ -963,13 +1138,18 @@
         </div>
       </div>
 
-      <div class="card">
-        <div class="pendente">
-          <strong>Pergunta ao <code>contador</code> — marcenaria fixa aparece aqui?</strong>
-          O §1 diz que marcenaria fixa / planejados “continua revisão humana”. Isso é uma
-          <em>terceira</em> resposta nesta tela, um aviso ao escolher Material, ou nada — porque
-          revisão humana é outro fluxo? Não desenhei porque não sei o que a regra pede.
-        </div>
+      <!-- Rodapé PASSIVO. Não é opção, não é alarme. Adendo de 19/08, §2. -->
+      <div class="hint" style="padding:0 2px">
+        Esta escolha muda só a composição do que você declara (material × mão de obra).
+        <strong>Não muda o total e não tira nada do custo.</strong> Se a sua dúvida é se o gasto
+        entra no custo do imóvel — é o caso de <strong>marcenaria fixa e planejados</strong> —, isso
+        não se decide aqui: leve ao seu contador.
+        <div class="parecer">Adendo de 2026-08-19, §2 — <strong>cópia literal</strong>. Marcenaria
+          fixa <strong>não</strong> é uma terceira opção desta lista, e <strong>não</strong> dispara
+          alarme ao escolher “Material”: ela é dúvida de <em>dentro ou fora do custo de
+          aquisição</em>, outra pergunta, que nenhuma das duas opções desta tela expressa. Alarme que
+          dispara em quase todo caso que não é marcenaria é alarme que não desliga. O gatilho certo é
+          a descrição do documento no registro — fora do CONTAI-021.</div>
       </div>
     </div>
     <div class="foot">
@@ -1015,13 +1195,16 @@
           <span class="tt">O CNPJ impresso na nota é <strong class="mono">12.345.678/0001-99</strong>
             — só o nome está diferente.</span>
         </button>
-        <div class="pendente" style="margin-top:9px">
-          <strong>Pergunta ao <code>contador</code> — esta afirmação é exigida?</strong>
-          O §4.3 exige afirmação explícita para trocar o <em>ponteiro</em> do favorecido, e não diz
-          nada sobre corrigir só o nome. Coloquei aqui porque sem ela existe um caminho ruim:
-          renomear “WK” para o nome da empresa certa mantendo o CNPJ errado — o registro passaria a
-          mentir duas vezes, e nenhuma tela teria pedido nada. Se for exagero, tiro.
+        <div class="hint" style="margin-top:10px">
+          <strong>Não é esse o CNPJ do papel?</strong> Então não é o nome que está errado. →
+          <button class="lnk" data-ir="s6">O CNPJ/CPF do emitente está errado</button>
         </div>
+        <div class="parecer">Adendo de 2026-08-19, §3 — <strong>cópia literal, e a segunda linha é
+          obrigatória</strong>. Ele <strong>estende</strong> o §4.3 do parecer, que amarrava a
+          afirmação à troca do ponteiro: <em>todo ato que altere a identificação de um favorecido já
+          gravado</em> exige, no mesmo ato, afirmação de que o CNPJ/CPF gravado é o impresso no
+          anexo. Corrigir o nome é um desses atos. Este é o único instante em que o CNPJ gravado é
+          lido lado a lado com o papel — custo de um toque, numa tela de gestão em casa.</div>
       </div>
 
       <div class="card">
@@ -1036,20 +1219,24 @@
           “nome de antes” e “nome de agora”: o favorecido é um só, e o CNPJ é que o identifica.
         </div>
         <div class="consequencia amb">
-          Um dos pagamentos é de <strong>2025</strong>. Se você já entregou a declaração daquele ano,
-          o nome que saiu nela passa a ser diferente do que o app mostra a partir de agora —
-          <strong>avalie com seu contador</strong>.
-          <div class="parecer">Adendo de 2026-08-18, §3: “o que a declaração exige preservar é o nome
-            como consta no documento e como foi declarado à época” <code>[Likely]</code>; parecer §7:
-            o efeito de correção de nome em ano já declarado <strong>exige CRC</strong>.</div>
+          Um dos pagamentos deste favorecido é de <strong>2025</strong>. Se você já entregou a
+          declaração daquele ano, o nome que saiu nela continua diferente do que o app mostra a
+          partir de agora. O <strong>CPF/CNPJ</strong>, que é o que identifica o favorecido na
+          declaração, <strong>não mudou</strong>.
+          <div style="margin-top:6px">Esta correção fica registrada no histórico, com a data. Se o
+            seu contador precisar dela, está lá — <strong>o app não decide se isso pede
+            retificadora</strong>.</div>
+          <div class="parecer">Adendo de 2026-08-19, §4 — cópia literal.</div>
         </div>
-        <div class="pendente">
-          <strong>Pergunta ao <code>contador</code> — isto abre a mesma pendência persistente do
-          critério 4?</strong>
-          O critério 4 fala de correção que muda <em>custo</em> de ano anterior. Aqui o custo não
-          muda um centavo; o que muda é o <strong>nome</strong> que saiu na ficha Pagamentos
-          Efetuados. É aviso na hora, ou é dívida documental que fica na lista até ser tratada?
-          Desenhei como aviso — mudo em uma linha se a resposta for a outra.
+        <div class="consequencia grn">
+          <strong>Isto NÃO abre pendência na sua lista.</strong> O custo não muda um centavo, e
+          pendência persistente só nasce quando a correção muda um <strong>número declarado</strong>.
+          Aqui muda identificação: <strong>rastro e aviso, e acabou</strong>.
+          <div class="parecer">Adendo de 2026-08-19, regra que atravessa as cinco respostas —
+            “alarme que ninguém sabe baixar é o carimbo recusado em 10/08”. E o caso grave já está
+            barrado antes: se não for grafia, mas <strong>outra empresa</strong>, não é correção de
+            nome — é troca de ponteiro, e a tela do §4 recusa. Pelo funil, o que chega nesta tela é
+            sempre grafia.</div>
         </div>
       </div>
 
@@ -1136,12 +1323,23 @@
         </div>
       </div>
 
-      <div class="pendente">
-        <strong>Pergunta ao <code>po</code> — o documento novo vira registro próprio?</strong>
-        Aqui ele entra como <em>anexo adicional da mesma nota</em>. Mas uma nota substitutiva é uma
-        nota nova, com número próprio — e o §1 do parecer diz que “a NF que chegou depois do boleto é
-        registro novo”. Anexo adicional ou documento novo ligado ao antigo? Isso muda o desenho e
-        o modelo, e não está no ticket.
+      <div class="card">
+        <div class="secao">Por que a nota substitutiva não vira um registro novo</div>
+        <div class="hint" style="margin-top:6px">
+          Ela entra como <strong>anexo adicional deste mesmo registro</strong>: um registro, dois
+          papéis, e o histórico dizendo qual valor veio de qual.
+        </div>
+        <div class="consequencia red">
+          Se virasse <strong>documento novo</strong>, o app passaria a ter <strong>dois documentos
+          vivos para o mesmo fato</strong> — e não existe estado “cancelada” para aposentar o antigo,
+          porque editar a situação é proibido. A soma dos documentos dobraria e o custo comprovado
+          subiria sozinho, sem que nada tivesse sido pago a mais.
+          <div class="parecer">Critério 18 do CONTAI-021 (decisão do <code>po</code>, 19/08), com o
+            §1 do parecer (<code>status</code> não é corrigível). <strong>Decisão reversível</strong>:
+            quando o CONTAI-004 trouxer número e série, e a anotação de duplicata da D25 existir, a
+            substitutiva pode virar registro próprio “substitui o documento X” — sem reabrir gate
+            fiscal.</div>
+        </div>
       </div>
     </div>
     <div class="foot">
@@ -1200,16 +1398,134 @@
           para o da empresa certa. O CNPJ continuaria o errado, e o registro passaria a mentir duas
           vezes — com uma aparência de certo.
         </div>
-        <div class="pendente" style="margin-top:9px">
-          <strong>Pergunta ao <code>po</code> — o que esta tela oferece HOJE?</strong>
-          O §4.4 proíbe “bloqueio total sem explicação”, e o critério 12 aceita texto com saída
-          declarada. Mas a saída declarada aqui é “espere a rodada 2”. Vale abrir uma
-          <em>anotação</em> no documento (“o CNPJ deste registro está errado — tratar”), para que o
-          erro não fique invisível até lá? É a mesma família da D25 (“marcar como duplicata”).
+      </div>
+
+      <!-- ── A AÇÃO QUE A v1 NÃO TINHA (critério 19) ──────────────────── -->
+      <div class="card" style="border-color:var(--amb)">
+        <div style="font-weight:600">O que você pode fazer agora</div>
+        <div class="hint" style="margin-top:4px">
+          Trocar o favorecido do documento é a rodada 2. Até lá o erro não precisa ficar invisível:
+          marque-o e ele passa a aparecer na sua lista de pendências, com o documento nomeado.
+        </div>
+        <div style="margin-top:11px">
+          <button class="btn ghost" data-ir="s6c">Marcar: o CNPJ deste registro está errado — tratar</button>
+        </div>
+        <div class="consequencia mud">
+          Marcar <strong>não muda nada no documento</strong>: não abre campo, não mexe na situação,
+          não manda para quarentena, não altera valor nem desfaz vínculo. É anotação com consequência
+          visível — e marcar duas vezes continua sendo <strong>uma</strong> pendência.
+          <div class="parecer">Critério 19 do CONTAI-021 (decisão do <code>po</code>, 19/08):
+            <strong>sem campo editável, sem tocar <code>status</code> nem quarentena, uma por
+            documento</strong>. O motivo é de produto, não fiscal: o §4.4 do parecer proíbe impasse
+            mudo, e o risco concreto é ele dar vazão à intenção <strong>trocando o nome do
+            favorecido</strong> — exatamente o que esta tela pede para não fazer, hoje sem oferecer
+            nada em troca.</div>
         </div>
       </div>
     </div>
     <div class="foot">
+      <button class="btn ghost" data-ir="s1">Voltar ao documento</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 6c · DEPOIS DE MARCAR ══════════════════ -->
+  <section class="screen" id="s6c">
+    <div class="appbar">
+      <div class="brand">NF de serviço</div>
+      <div class="sub">WK Construções LTDA · marcado: CNPJ errado</div>
+    </div>
+    <div class="body">
+      <div class="banner amb" role="status">
+        <strong>Marcado.</strong> Este registro entrou na lista de pendências como
+        <strong>“CNPJ errado — tratar”</strong>.
+      </div>
+
+      <div class="card">
+        <div class="secao">O que mudou no documento</div>
+        <div class="row"><span class="lbl">Valor</span><span class="val mono">R$ 4.085,71</span></div>
+        <div class="row"><span class="lbl">Situação</span><span class="val ok">Em ordem — igual a antes</span></div>
+        <div class="row"><span class="lbl">Destinatário</span><span class="val ok">Seu CPF ✓</span></div>
+        <div class="row"><span class="lbl">Emitente</span>
+          <span class="val">WK Construções LTDA · <span class="mono">12.345.678/0001-99</span></span></div>
+        <div class="consequencia mud">
+          <strong>Nada.</strong> O CNPJ continua o que está gravado, porque corrigi-lo é apontar o
+          documento para <em>outro favorecido</em> — e isso é a rodada 2. O que existe agora é o erro
+          declarado, com data, em vez de invisível.
+          <div class="parecer">Parecer §4.1: quarentena tem um significado só — destinatário
+            diferente do seu CPF. Usá-la para “emitente errado” destruiria o único sinal fiscal
+            daquela coluna.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="secao">Marcar de novo não faz nada</div>
+        <div class="hint" style="margin-top:6px">
+          É <strong>uma pendência por documento</strong>. Voltar aqui e marcar outra vez deixa a
+          lista com uma linha só — não existe “marcado duas vezes”.
+        </div>
+        <div style="margin-top:10px">
+          <button class="btn ghost mini" disabled>Já marcado — CNPJ errado, a tratar</button>
+        </div>
+      </div>
+
+      <!-- Desfecho próprio, decidido pelo `po` em 19/08 — lista de UM item -->
+      <div class="card" style="border-color:var(--amb)">
+        <div style="font-weight:600">Como esta pendência termina</div>
+        <div class="hint" style="margin-top:4px">
+          Ela é <strong>por documento</strong>, não por ano, e tem lista de desfecho própria — não é
+          a mesma da pendência de retificadora.
+        </div>
+        <div class="opts" style="margin-top:9px">
+          <button class="opt"><span class="bola"><i></i></span>
+            <span><span class="tt">Conferi o papel: o CNPJ gravado está certo — o erro foi meu ao marcar</span>
+              <span class="ss">Único desfecho manual disponível hoje. Pede a data.</span></span></button>
+        </div>
+        <div class="consequencia mud">
+          <strong>É o único desfecho manual, e é de propósito.</strong> “Já não é mais um problema,
+          o registro aponta para o favorecido certo” <strong>não</strong> está na lista: isso o app
+          verifica sozinho, e afirmação manual do que a máquina prova é carimbo que não prova nada.
+          Na rodada 1 seria pior — nada pode ter repontado, então a opção só serviria para silenciar
+          o alarme sem o conserto.
+          <div class="parecer">Decisão do <code>po</code>, 19/08, respondendo esta lacuna do critério
+            19. Mecanismo igual ao do critério 21: <strong>INSERT, não update</strong>; sai da lista e
+            fica no histórico <strong>do documento</strong>; marcar de novo depois da baixa abre
+            pendência nova.</div>
+        </div>
+        <div class="consequencia amb">
+          <strong>A outra saída é automática, e é a única do sistema inteiro.</strong> Quando a
+          rodada 2 repontar o documento para o favorecido certo, o desfecho
+          <code>apontamento_corrigido</code> é gravado sozinho, por acréscimo, apontando para a
+          correção que fez a troca. É legítima onde a da retificadora não seria: aqui o app
+          <strong>prova</strong> o fato — o ponteiro mudou no banco; lá ele não tem como saber se a
+          DAA foi retificada.
+        </div>
+        <div class="consequencia mud">
+          <strong>Enquanto a rodada 2 não existir, a pendência declara o que está esperando:</strong>
+          <em>“a correção do apontamento ainda não existe no app”</em>. Pendência que declara a
+          própria saída não é o defeito do critério 20 — alarme mudo é.
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:600">Histórico de correções</div>
+        <ul class="rastro" style="margin-top:6px">
+          <li><span class="hint">Nenhuma correção neste registro.</span></li>
+        </ul>
+        <div class="hint" style="margin-top:8px">
+          Marcar <strong>não é correção</strong>: nenhum dado do documento mudou, então não há
+          antes → depois a registrar. O que existe é a pendência aberta, com a data.
+        </div>
+      </div>
+
+      <div class="banner amb" style="font-size:12px">
+        ⚠️ <strong>Para o <code>po</code> aplicar no ticket:</strong> o critério 19 hoje diz “baixa
+        pelo critério 21”, e os três desfechos do 21 são todos sobre DAA — nenhum descreve “resolvi o
+        CNPJ errado”. O texto substituto já está escrito na resposta do <code>po</code> de 19/08 e é
+        o que esta tela desenha. <strong>O mock está à frente do ticket neste ponto.</strong>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" data-ir="s7b">Ver na lista de pendências</button>
       <button class="btn ghost" data-ir="s1">Voltar ao documento</button>
     </div>
   </section>
@@ -1368,14 +1684,15 @@
       <div class="secao">O que está faltando</div>
 
       <!-- A pendência do critério 4 — linha de lista, não pop-up -->
+      <!-- UMA linha por ANO, nunca uma por correção (critério 20) -->
       <div class="divida">
         <span class="chip amb">Correção mexeu em ano anterior</span>
         <div style="font-weight:600; margin-top:6px; font-size:13.5px">
-          O custo de <strong>2025</strong> mudou depois que você corrigiu uma nota
+          <strong>2025</strong> — o custo do ano mudou depois de <strong>3 correções</strong> suas
         </div>
         <div class="hint" style="margin-top:4px">
-          De R$ 12.400,00 para R$ 23.920,00 — correção de 19/08/2026, na NF de material do Depósito
-          Ilha.
+          Acumulado do ano: <strong class="mono">R$ 12.400,00 → R$ 31.150,00</strong> · aberta em
+          12/08/2026, última correção em 19/08/2026.
         </div>
         <div class="consequencia amb">
           Esta correção mudou o custo de um ano anterior; se a DAA daquele ano já foi entregue,
@@ -1383,8 +1700,38 @@
           <div class="parecer">Critério 4 do CONTAI-021 / parecer §6.3 — pendência persistente,
             não aviso de clique. O app não decide nem redige retificadora.</div>
         </div>
-        <div style="margin-top:9px; display:flex; flex-direction:column; gap:6px">
-          <button class="btn ghost mini" data-ir="s7c">Ver a correção que causou isto</button>
+        <div class="consequencia mud">
+          As três correções que mexeram em 2025 estão <strong>dentro</strong> desta linha — não viram
+          três linhas aqui. O número mostrado é o <strong>acumulado do ano</strong>: do primeiro
+          “antes” ao último “depois”.
+          <div class="parecer">Critério 20 do CONTAI-021 (decisão do <code>po</code>, 19/08):
+            a pendência é <strong>por ano-calendário</strong>, não por correção. Alarme que se
+            multiplica é o mesmo defeito do alarme que não desliga.</div>
+        </div>
+        <div style="margin-top:9px">
+          <button class="btn ghost mini" data-ir="s7c">Abrir a pendência de 2025</button>
+        </div>
+      </div>
+
+      <!-- Pendência do critério 19 — por DOCUMENTO, não por ano -->
+      <div class="divida" style="margin-top:10px">
+        <span class="chip amb">CNPJ errado — tratar</span>
+        <div style="font-weight:600; margin-top:6px; font-size:13.5px">
+          O CNPJ do emitente de <strong>1 documento</strong> está errado
+        </div>
+        <div class="hint" style="margin-top:4px">
+          NF de serviço · WK Construções LTDA · marcado por você em 19/08/2026.
+        </div>
+        <div class="consequencia mud">
+          Enquanto não for tratado, esse documento continua apontando para um favorecido que
+          <strong>não é o que emitiu a nota</strong> — e é esse favorecido que sairia na ficha
+          Pagamentos Efetuados. <strong>A correção do apontamento ainda não existe no app.</strong>
+          <div class="parecer">Critério 19. Esta pendência é <strong>por documento</strong>, não por
+            ano: ela não muda número nenhum, muda identificação. Lista de desfecho própria — não se
+            mistura com a da retificadora.</div>
+        </div>
+        <div style="margin-top:9px">
+          <button class="btn ghost mini" data-ir="s6c">Ver o documento marcado</button>
         </div>
       </div>
 
@@ -1397,24 +1744,80 @@
     <div class="foot"><button class="btn ghost" data-ir="s7c">Abrir a pendência</button></div>
   </section>
 
-  <!-- ══════════════════ 7c · A PENDÊNCIA ABERTA ══════════════════ -->
+  <!-- ══════════════════ 7c · A PENDÊNCIA DO ANO, ACUMULADA ══════════════════ -->
   <section class="screen" id="s7c">
     <div class="appbar">
       <div class="brand">Correção mexeu em ano anterior</div>
-      <div class="sub">2025 · pendência aberta em 19/08/2026</div>
+      <div class="sub">2025 · aberta em 12/08/2026 · 3 correções acumuladas</div>
     </div>
     <div class="body">
+      <div class="card" style="border-color:var(--amb)">
+        <div class="secao">O acumulado do ano</div>
+        <table class="anos" style="margin-top:9px">
+          <thead><tr><th>Custo confirmado</th><th>antes</th><th>agora</th></tr></thead>
+          <tbody>
+            <tr class="mexe"><td>2025</td><td class="mono">R$ 12.400,00</td>
+                <td class="mono dep sobe">R$ 31.150,00</td></tr>
+          </tbody>
+        </table>
+        <div class="hint" style="margin-top:7px">
+          Do <strong>primeiro “antes”</strong> — como estava antes da correção de 12/08 — ao
+          <strong>último “depois”</strong>, o de 19/08. É esse número que interessa a quem for
+          avaliar a retificadora, não o delta de cada correção isolada.
+        </div>
+        <div class="parecer">Critério 20 do CONTAI-021 (decisão do <code>po</code>, 19/08).</div>
+      </div>
+
       <div class="card">
-        <div class="secao">O que aconteceu</div>
-        <div class="row"><span class="lbl">Documento</span>
-          <span class="val">NF de material · Depósito Ilha</span></div>
-        <div class="row"><span class="lbl">Campo corrigido</span><span class="val">valor</span></div>
-        <div class="row"><span class="lbl">Antes → depois</span>
-          <span class="val mono">R$ 1.280,00 → R$ 12.800,00</span></div>
-        <div class="row"><span class="lbl">Custo de 2025</span>
-          <span class="val mono">R$ 12.400,00 → <strong>R$ 23.920,00</strong></span></div>
-        <div class="row"><span class="lbl">Motivo</span>
-          <span class="val">eu digitei errado no app</span></div>
+        <div style="font-weight:600">As 3 correções que compõem esta pendência</div>
+        <ul class="rastro" style="margin-top:6px">
+          <li>
+            <div class="qd">12/08/2026, 09:12 · Mateus</div>
+            <div class="campo">valor · NF de material — Depósito Ilha</div>
+            <div class="ad"><s>R$ 1.280,00</s> → R$ 12.800,00</div>
+            <div class="qd" style="margin-top:3px">custo de 2025: R$ 12.400,00 → R$ 23.920,00 ·
+              motivo: eu digitei errado no app</div>
+          </li>
+          <li>
+            <div class="qd">15/08/2026, 20:03 · Mateus</div>
+            <div class="campo">valor · NF de serviço — Elétrica Ilha (fictício)</div>
+            <div class="ad"><s>R$ 2.300,00</s> → R$ 8.530,00</div>
+            <div class="qd" style="margin-top:3px">custo de 2025: R$ 23.920,00 → R$ 30.150,00 ·
+              motivo: a nota estava errada e o emitente já corrigiu</div>
+          </li>
+          <li>
+            <div class="qd">19/08/2026, 21:40 · Mateus</div>
+            <div class="campo">valor · Boleto — Depósito Ilha</div>
+            <div class="ad"><s>(em branco)</s> → R$ 1.000,00</div>
+            <div class="qd" style="margin-top:3px">custo de 2025: R$ 30.150,00 → R$ 31.150,00 ·
+              motivo: eu digitei errado no app</div>
+          </li>
+        </ul>
+        <div class="hint" style="margin-top:8px">
+          Cada uma tem a linha completa no histórico do documento dela — quem, quando, motivo. Aqui
+          elas aparecem <strong>agrupadas pelo ano que mexeram</strong>, que é a unidade da
+          retificadora.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="secao">Obras afetadas</div>
+        <div class="row"><span class="lbl">Casa Tanheiros</span>
+          <span class="val mono">R$ 12.400,00 → R$ 31.150,00</span></div>
+        <div class="hint" style="margin-top:6px">
+          Uma pendência do ano pode atingir <strong>mais de uma obra</strong> — é o caso de mover um
+          documento de obra (tela 8). Quando isso acontece, ela aparece na tela inicial
+          <strong>de cada obra afetada</strong>, mostrando ali o delta daquela obra; aqui, onde o
+          contexto é o ano, as duas aparecem lado a lado.
+        </div>
+        <div class="parecer">Decisão do <code>po</code>, 19/08, corrigindo o critério 20: a
+          <strong>chave continua sendo o ano</strong> — a DAA é do contribuinte, não da obra, e uma
+          retificadora de 2025 corrige as linhas de todas as obras no mesmo ato; o desfecho do
+          critério 21 não é divisível por obra. O que faltava era o <strong>conjunto de obras
+          afetadas</strong>, sem o qual a pendência fica invisível na home de uma delas.
+          ⚠️ Ele é <code>antes ∪ depois</code> do campo <code>obra</code> no rastro, nunca
+          <code>documento.obra_id</code> — depois do move o documento só conhece o destino, e a obra
+          de origem perderia o alarme.</div>
       </div>
 
       <div class="card">
@@ -1429,43 +1832,391 @@
         </div>
       </div>
 
-      <div class="card" style="border-color:var(--amb)">
-        <div class="pendente">
-          <strong>Pergunta ao <code>po</code> — quem baixa esta pendência, e como?</strong>
-          O critério 4 exige que ela <em>não suma ao fechar a tela</em>, e não diz como ela termina.
-          Se nunca terminar, a lista de pendências acumula ruído permanente e o Mateus para de olhar
-          para ela — que é exatamente o que a meta 2 não pode ter. Três saídas possíveis, e a
-          escolha não é minha:
-          <ul style="margin:6px 0 0 16px">
-            <li>“Já falei com meu contador sobre 2025” — some da lista, fica no histórico;</li>
-            <li>“Retifiquei a declaração de 2025 em DD/MM/AAAA” — some e guarda a data;</li>
-            <li>não some nunca, e vira contexto permanente do ano.</li>
-          </ul>
+      <div class="card">
+        <div style="font-weight:600">Como esta pendência termina</div>
+        <div class="hint" style="margin-top:4px">
+          Ela não some sozinha, não some ao fechar a tela e o app nunca a baixa por você. Quem baixa
+          é você, escolhendo o que de fato aconteceu.
         </div>
-        <div style="margin-top:9px">
-          <button class="btn ghost mini" disabled>Marcar como tratada — depende da resposta acima</button>
+        <div style="margin-top:11px">
+          <button class="btn primary" data-ir="s7d">Marcar como tratada</button>
+        </div>
+        <div class="parecer">Critério 21 do CONTAI-021 (decisão do <code>po</code>, 19/08): ato
+          nomeado, com desfecho escolhido — nunca ao fechar a tela, nunca em lote, nunca automático,
+          nunca sugerido pelo app.</div>
+      </div>
+    </div>
+    <div class="foot"><button class="btn ghost" data-ir="s7b">Voltar ao início</button></div>
+  </section>
+
+  <!-- ══════════════════ 7d · ESCOLHER O DESFECHO ══════════════════ -->
+  <section class="screen" id="s7d">
+    <div class="appbar">
+      <div class="brand">Marcar como tratada</div>
+      <div class="sub">2025 · o que aconteceu de verdade</div>
+    </div>
+    <div class="body">
+      <div class="card">
+        <div class="row"><span class="lbl">Ano</span><span class="val">2025</span></div>
+        <div class="row"><span class="lbl">Correções acumuladas</span><span class="val">3</span></div>
+        <div class="row"><span class="lbl">Custo do ano</span>
+          <span class="val mono">R$ 12.400,00 → R$ 31.150,00</span></div>
+      </div>
+
+      <div class="card">
+        <div style="font-size:15px; font-weight:700">Escolha o desfecho</div>
+        <div class="hint" style="margin-top:4px">
+          <strong>O app não sugere nenhum dos três, e não marca nenhum por padrão.</strong> Ele não
+          sabe se a declaração de 2025 foi entregue nem o que seu contador respondeu — que são
+          exatamente as duas coisas que os três separam.
+        </div>
+
+        <div class="opts" id="desfechos">
+          <button class="opt" data-desf="retifiquei">
+            <span class="bola"><i></i></span>
+            <span><span class="tt">Retifiquei a DAA de 2025</span>
+              <span class="ss">A declaração já tinha sido entregue e você entregou a
+                retificadora.</span></span>
+          </button>
+          <button class="opt" data-desf="avaliou">
+            <span class="bola"><i></i></span>
+            <span><span class="tt">Meu contador avaliou e não é preciso retificar</span>
+              <span class="ss">Você levou a diferença ao contador e a resposta foi que não
+                retifica.</span></span>
+          </button>
+          <button class="opt" data-desf="nao_entregue">
+            <span class="bola"><i></i></span>
+            <span><span class="tt">A DAA de 2025 ainda não foi entregue</span>
+              <span class="ss">Não é retificadora: a correção entra na declaração normal.</span></span>
+          </button>
+        </div>
+
+        <div class="oculto" id="caixaData" style="margin-top:11px">
+          <label class="lab" for="inpDataDesf">Data <span id="rotuloData">da retificadora</span> — obrigatória</label>
+          <input class="inp mono" id="inpDataDesf" inputmode="numeric" placeholder="dd/mm/aaaa">
+        </div>
+        <div class="hint oculto" id="semData" style="margin-top:11px">
+          Este desfecho <strong>não pede data</strong>: não houve entrega a datar. A data do ato fica
+          registrada sozinha, como em toda linha do acervo.
+        </div>
+
+        <div class="hint" style="margin-top:11px">
+          Não existe campo livre aqui. Texto solto em registro fiscal vira lugar de guardar o que
+          ninguém relê.
+          <div class="parecer">CONTAI-021, “Out of Scope”: texto livre no desfecho ficou fora — o
+            critério 21 fecha em três opções.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="consequencia mud">
+          <strong>Baixar não apaga.</strong> A pendência sai da lista e fica no histórico de 2025 —
+          quem baixou, quando, qual desfecho, e as três correções que a compunham. Nenhuma delas some.
+          <div class="parecer">Critério 21: o desfecho é <strong>INSERT, não update</strong>, mesma
+            disciplina do rastro (critério 8).</div>
+        </div>
+        <div class="consequencia amb">
+          <strong>Baixar não silencia o futuro.</strong> Se você corrigir outra coisa que mexa em
+          2025 depois de hoje, <strong>abre uma pendência nova</strong> — esta não reabre.
+          <div class="parecer">Critério 21, última linha. Reabrir a antiga apagaria o fato de que ela
+            foi tratada.</div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" id="btnDesfecho" disabled data-ir="s7e">Escolha o desfecho para continuar</button>
+      <button class="btn ghost" data-ir="s7c">Cancelar</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 7e · BAIXADA ══════════════════ -->
+  <section class="screen" id="s7e">
+    <div class="appbar">
+      <div class="brand">Casa Tanheiros</div>
+      <div class="sub">19/08/2026 · depois da baixa</div>
+    </div>
+    <div class="body">
+      <div class="banner grn" role="status">
+        <strong>Pendência de 2025 baixada.</strong> Ela saiu da lista e ficou no histórico do ano.
+      </div>
+
+      <div class="secao">O que está faltando</div>
+      <div class="card">
+        <span class="chip red">Pago sem nota</span>
+        <div class="mono" style="font-size:19px; font-weight:700; margin-top:5px">R$ 36.771,43</div>
+        <div class="hint">1 pagamento sem documento que o cubra</div>
+      </div>
+      <div class="hint">
+        A linha de 2025 não está mais aqui — e <strong>nada foi apagado</strong> para isso acontecer.
+      </div>
+
+      <div class="secao" style="margin-top:6px">Histórico do ano · 2025</div>
+      <div class="card">
+        <ul class="rastro">
+          <li>
+            <div class="qd">19/08/2026, 21:55 · Mateus</div>
+            <div class="campo">pendência de retificadora — 2025 · baixada</div>
+            <div class="ad">desfecho: <strong>retifiquei a DAA de 2025</strong> em 18/08/2026</div>
+            <div class="qd" style="margin-top:3px">compunham a pendência: 3 correções · custo do ano
+              R$ 12.400,00 → R$ 31.150,00 · obras afetadas: Casa Tanheiros</div>
+          </li>
+        </ul>
+        <div class="hint" style="margin-top:8px">
+          A baixa foi gravada <strong>por acréscimo</strong>: a pendência não foi editada nem
+          removida. Esta lista só cresce, como o resto do acervo.
+        </div>
+        <div class="parecer">Critério 21 do CONTAI-021. Se a pendência atingisse duas obras, uma
+          baixa só sairia das duas listas — um desfecho, um acréscimo.</div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" data-ir="s7f">E se eu corrigir outra coisa de 2025 depois disso?</button>
+      <button class="btn ghost" data-ir="s7b">Voltar ao estado anterior</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 7f · CORREÇÃO NOVA ABRE PENDÊNCIA NOVA ══════════════════ -->
+  <section class="screen" id="s7f">
+    <div class="appbar">
+      <div class="brand">Casa Tanheiros</div>
+      <div class="sub">02/09/2026 · duas semanas depois da baixa</div>
+    </div>
+    <div class="body">
+      <div class="banner blu" style="font-size:12.5px">
+        Em 02/09 você corrigiu o valor de outra nota de 2025. <strong>A pendência baixada não
+        reabriu</strong> — nasceu uma nova, com a conta dela.
+        <div class="parecer">Critério 21: “correção nova depois da baixa abre pendência NOVA — baixa
+          não silencia delta futuro”. Reabrir a antiga apagaria o fato de que ela foi tratada, e é
+          esse fato que o contador vai querer ler.</div>
+      </div>
+
+      <div class="secao">O que está faltando</div>
+      <div class="divida">
+        <span class="chip amb">Correção mexeu em ano anterior</span>
+        <div style="font-weight:600; margin-top:6px; font-size:13.5px">
+          <strong>2025</strong> — o custo do ano mudou depois de <strong>1 correção</strong> sua
+        </div>
+        <div class="hint" style="margin-top:4px">
+          Acumulado desta pendência: <strong class="mono">R$ 31.150,00 → R$ 33.400,00</strong> ·
+          aberta em 02/09/2026.
+        </div>
+        <div class="consequencia amb">
+          Esta correção mudou o custo de um ano anterior; se a DAA daquele ano já foi entregue,
+          <strong>avalie retificadora com seu contador</strong>.
+        </div>
+        <div class="consequencia mud">
+          O “antes” desta pendência é <strong class="mono">R$ 31.150,00</strong> — o número em que a
+          anterior parou. A conta <strong>não recomeça do zero</strong> e não repete o que já foi
+          tratado: seu contador precisa saber o que mudou <em>depois</em> da retificadora que você já
+          entregou.
+        </div>
+      </div>
+
+      <div class="secao" style="margin-top:6px">Histórico do ano · 2025</div>
+      <div class="card">
+        <ul class="rastro">
+          <li>
+            <div class="qd">19/08/2026, 21:55 · Mateus</div>
+            <div class="campo">pendência de retificadora — 2025 · baixada</div>
+            <div class="ad">desfecho: <strong>retifiquei a DAA de 2025</strong> em 18/08/2026</div>
+            <div class="qd" style="margin-top:3px">compunham a pendência: 3 correções · custo do ano
+              R$ 12.400,00 → R$ 31.150,00</div>
+          </li>
+        </ul>
+        <div class="hint" style="margin-top:8px">
+          A baixa de agosto continua aqui, intacta, ao lado da pendência nova de setembro. É assim
+          que em 2034 dá para dizer <strong>o que já foi tratado e o que ficou por tratar</strong> —
+          e em que ordem.
         </div>
       </div>
     </div>
     <div class="foot"><button class="btn ghost" data-ir="s7b">Voltar ao início</button></div>
   </section>
 
-  <!-- ══════════════════ 8 · RETROFIT DA CORREÇÃO DE OBRA ══════════════════ -->
+  <!-- ══════════════════ 8 · CORRIGIR A OBRA — A QUINTA CORREÇÃO ══════════════════ -->
   <section class="screen" id="s8">
     <div class="appbar">
       <div class="brand">Corrigir a obra deste registro</div>
-      <div class="sub">Tela que já existe — o que muda é o registro da mudança</div>
+      <div class="sub">NF de material · Depósito Ilha · R$ 9.400,00 · 2 pagamentos ligados</div>
     </div>
     <div class="body">
-      <div class="banner blu" style="font-size:12.5px">
-        <strong>Esta tela já existe e não muda de forma.</strong> O que muda é por baixo: mover um
-        documento de obra passa a gravar rastro, pela mesma porta das outras correções.
-        <div class="parecer">Critério 13 do CONTAI-021: senão a regra do rastro nasce com uma exceção
-          não declarada.</div>
+      <div class="banner red" style="font-size:12.5px" role="alert">
+        <strong>A v1 desenhou isto como correção trivial de arquivamento. Não é.</strong>
+        Mover um documento entre obras muda <strong>número dos dois lados</strong>, roda o mesmo
+        detector da correção de valor, e é <strong>a única das cinco correções que abre pendência
+        persistente</strong> — porque aqui muda um número declarado.
+        <div class="parecer">Adendo de 2026-08-19, §5, do <code>contador</code>.</div>
+      </div>
+
+      <div class="card">
+        <div class="secao">Esta tela não pergunta o motivo — e isso não é default em campo fiscal</div>
+        <div class="hint" style="margin-top:6px">
+          As outras correções perguntam “o erro é do papel ou da digitação?”. Aqui a pergunta não tem
+          resposta possível: <strong>o papel não tem obra</strong>. Obra é arquivamento do app, e
+          “o emitente corrigiu a nota” é impossível num campo que não existe no documento.
+        </div>
+        <div class="consequencia mud">
+          O rastro grava sozinho o motivo <strong><code>arquivamento_corrigido</code></strong> — não
+          “arquivado na obra errada”, que seria o app inferindo a <em>causa</em>. Rastro registra
+          fato.
+          <div class="parecer">Adendo de 2026-08-19, §5: “<code>motivo</code> é metadado do ato, não
+            dado do documento… perguntar o que só tem uma resposta ensina a clicar sem ler”.</div>
+        </div>
       </div>
 
       <div class="card">
         <div class="row"><span class="lbl">Obra hoje</span><span class="val">Casa Tanheiros</span></div>
+        <div class="lab" style="margin-top:12px">Mover para</div>
+        <div class="opts" id="obraDestino">
+          <button class="opt" data-obra="reforma"><span class="bola"><i></i></span>
+            <span><span class="tt">Reforma do apartamento</span>
+              <span class="ss">CNO próprio · iniciada em 03/2025</span></span></button>
+        </div>
+        <div class="hint" style="margin-top:8px">Nada nasce marcado.</div>
+      </div>
+
+      <!-- ── A parte que a v1 não tinha: o que acontece com os pagamentos ── -->
+      <div class="card" style="border-color:var(--amb)">
+        <div style="font-weight:600">Os 2 pagamentos ligados a esta nota</div>
+        <div class="hint" style="margin-top:4px">
+          Um pagamento e o documento dele <strong>não podem ficar em obras diferentes</strong>. Então
+          um dos dois está errado, e só você sabe qual — <strong>a resposta é por pagamento, um a
+          um</strong>.
+        </div>
+
+        <div style="margin-top:12px">
+          <div class="lab">Pagamento 1 · PIX de 20/10/2025 · <strong class="mono">R$ 6.000,00</strong></div>
+          <div class="opts" data-pag="p1">
+            <button class="opt" data-esc="junto"><span class="bola"><i></i></span>
+              <span><span class="tt">Este pagamento também é da Reforma do apartamento</span>
+                <span class="ss">Vai junto com a nota. O custo sai de uma obra e entra na
+                  outra — o total não muda.</span></span></button>
+            <button class="opt" data-esc="desfaz"><span class="bola"><i></i></span>
+              <span><span class="tt">Este pagamento é mesmo da Casa Tanheiros</span>
+                <span class="ss">Então foi ligado ao papel errado. O vínculo se desfaz, com
+                  registro, e ele volta a “pago sem nota” na Casa Tanheiros.</span></span></button>
+          </div>
+        </div>
+
+        <div style="margin-top:14px">
+          <div class="lab">Pagamento 2 · Boleto de 05/12/2025 · <strong class="mono">R$ 3.400,00</strong></div>
+          <div class="opts" data-pag="p2">
+            <button class="opt" data-esc="junto"><span class="bola"><i></i></span>
+              <span><span class="tt">Este pagamento também é da Reforma do apartamento</span>
+                <span class="ss">Vai junto com a nota.</span></span></button>
+            <button class="opt" data-esc="desfaz"><span class="bola"><i></i></span>
+              <span><span class="tt">Este pagamento é mesmo da Casa Tanheiros</span>
+                <span class="ss">O vínculo se desfaz, com registro.</span></span></button>
+          </div>
+        </div>
+
+        <div class="consequencia red">
+          <strong>Não existe uma terceira saída.</strong> Deixar o vínculo cruzando duas obras é o
+          estado que o critério 11 do CONTAI-018 proíbe pela porta da frente — e ele fica
+          <strong>invisível nas duas telas</strong>, derrubando o custo de uma obra sem levantar o da
+          outra, e acendendo “pago sem nota” por um fato que não aconteceu.
+          <div class="parecer">Decisão do <code>po</code>, 19/08, sobre o que a v1 não perguntou.
+            ⚠️ Hoje <code>moverDocumentoDeObra</code> faz um <code>UPDATE</code> seco de
+            <code>obra_id</code> e produz exatamente esse estado — <strong>em produção</strong>.
+            Alarme falso na meta 1 é o dano mais caro deste produto: é o número que decide se ele
+            pode pagar alguém.</div>
+        </div>
+        <div class="consequencia mud">
+          <strong>Um a um, nunca em cascata.</strong> Duas perguntas para dois pagamentos. O app não
+          muda registro que você não olhou.
+          <div class="parecer">Parecer §4.4: “cascata silenciosa é proibida”. A forma que ele
+            <em>manda</em> usar é esta: ato explícito, com rastro em cada.</div>
+        </div>
+      </div>
+
+      <!-- ── O detector do critério 4, rodando dos DOIS lados ── -->
+      <div class="card" id="cardDeltas">
+        <div style="font-weight:600">O que isso muda no seu custo</div>
+        <div class="hint oculto" id="deltaEspera" style="margin-top:4px">
+          Responda a obra de destino e os 2 pagamentos para ver a conta.
+        </div>
+
+        <div id="deltaTabelas" class="oculto">
+          <div class="secao" style="margin-top:8px">Casa Tanheiros — de onde sai</div>
+          <table class="anos" style="margin-top:6px">
+            <thead><tr><th>Ano</th><th>hoje</th><th>depois</th></tr></thead>
+            <tbody>
+              <tr class="mexe"><td>2025 ⚠</td><td class="mono">R$ 31.150,00</td>
+                  <td class="mono dep desce" id="dSaiCusto">—</td></tr>
+              <tr><td>Pago sem nota em 2025</td><td class="mono">R$ 0,00</td>
+                  <td class="mono dep" id="dSaiSemNota">—</td></tr>
+            </tbody>
+          </table>
+
+          <div class="secao" style="margin-top:12px">Reforma do apartamento — para onde vai</div>
+          <table class="anos" style="margin-top:6px">
+            <thead><tr><th>Ano</th><th>hoje</th><th>depois</th></tr></thead>
+            <tbody>
+              <tr class="mexe"><td>2025 ⚠</td><td class="mono">R$ 0,00</td>
+                  <td class="mono dep" id="dEntraCusto">—</td></tr>
+            </tbody>
+          </table>
+
+          <div class="consequencia mud" id="dResumo">—</div>
+
+          <div class="consequencia amb">
+            <strong>Esta correção mudou o custo de um ano anterior; se a DAA daquele ano já foi
+            entregue, avalie retificadora com seu contador.</strong>
+            <div class="parecer">Texto do critério 4 do CONTAI-021 / parecer §6. Mesmo detector da
+              correção de valor — <strong>construído uma vez</strong>: se saísse duas vezes, o Mateus
+              veria dois avisos diferentes para o mesmo evento fiscal.</div>
+          </div>
+          <div class="consequencia mud">
+            <strong>O app não sabe se você já entregou a declaração de 2025.</strong> Ele sabe que
+            2025 é um ano anterior a 2026, e é só isso que ele afirma.
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="secao">O que fica registrado</div>
+        <ul class="rastro" style="margin-top:6px" id="rastroObra">
+          <li><div class="campo">obra · do documento</div>
+            <div class="ad"><s>Casa Tanheiros</s> → Reforma do apartamento</div>
+            <div class="qd" style="margin-top:3px">motivo: <strong>arquivamento_corrigido</strong></div>
+            <div class="qd">anos afetados: 2025, nas duas obras</div></li>
+          <li id="rastroP1"><div class="campo">obra · pagamento de 20/10/2025</div>
+            <div class="ad">— <span class="hint">responda acima</span></div></li>
+          <li id="rastroP2"><div class="campo">obra · pagamento de 05/12/2025</div>
+            <div class="ad">— <span class="hint">responda acima</span></div></li>
+        </ul>
+        <div class="consequencia mud">
+          As três linhas têm o <strong>mesmo identificador de ato</strong>: no banco elas são
+          granulares, na tela são <strong>uma correção só</strong>. E gravam juntas — documento,
+          pagamentos e rastros numa transação só.
+          <div class="parecer">Critérios 9 e 13 do CONTAI-021. Na pendência do ano isto entra como
+            <strong>uma</strong> linha — “Documento movido de Casa Tanheiros para Reforma do
+            apartamento, com 2 pagamentos” —, nunca como três.</div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" id="btnObra" disabled data-ir="s8c">Responda as 3 perguntas para continuar</button>
+      <button class="btn ghost" data-ir="s1">Cancelar</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 8b · OBRA SEM PAGAMENTO — A FRONTEIRA DA REGRA ══════════════════ -->
+  <section class="screen" id="s8b">
+    <div class="appbar">
+      <div class="brand">Corrigir a obra deste registro</div>
+      <div class="sub">NF de material · sem pagamento ligado · emitida em 03/2026</div>
+    </div>
+    <div class="body">
+      <div class="banner grn" style="font-size:12.5px">
+        <strong>Este é o caso simples, e ele existe para deixar a fronteira visível.</strong>
+        Sem pagamento ligado, mover de obra <strong>não muda número nenhum</strong> — nem na origem
+        nem no destino. Documento sozinho não comprova custo: o que comprova é o par.
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Obra hoje</span><span class="val">Casa Tanheiros</span></div>
+        <div class="row"><span class="lbl">Pagamentos ligados</span><span class="val">nenhum</span></div>
         <div class="lab" style="margin-top:12px">Mover para</div>
         <div class="opts">
           <button class="opt"><span class="bola"><i></i></span>
@@ -1476,19 +2227,40 @@
       </div>
 
       <div class="card">
+        <div style="font-weight:600">O que isso muda no seu custo</div>
+        <table class="anos" style="margin-top:9px">
+          <thead><tr><th>2026</th><th>hoje</th><th>depois</th></tr></thead>
+          <tbody>
+            <tr><td>Casa Tanheiros</td><td class="mono">R$ 43.857,14</td>
+                <td class="mono igual">R$ 43.857,14</td></tr>
+            <tr><td>Reforma do apartamento</td><td class="mono">R$ 0,00</td>
+                <td class="mono igual">R$ 0,00</td></tr>
+          </tbody>
+        </table>
+        <div class="consequencia grn">
+          <strong>Nada muda, e por isso NÃO abre pendência.</strong> Fica o rastro e o aviso, e
+          acabou. Pendência persistente só nasce quando a correção muda um <strong>número
+          declarado</strong>.
+          <div class="parecer">Adendo de 2026-08-19, regra que atravessa as cinco respostas. É a
+            mesma fronteira do nome do emitente (tela 5) e da classificação (tela 4): identificação,
+            composição e arquivamento sem número atrás geram <strong>rastro e aviso</strong>, nunca
+            linha na lista.</div>
+        </div>
+      </div>
+
+      <div class="card">
         <div class="secao">O que fica registrado</div>
         <ul class="rastro" style="margin-top:6px">
-          <li><div class="campo">obra</div>
+          <li><div class="campo">obra · do documento</div>
             <div class="ad"><s>Casa Tanheiros</s> → Reforma do apartamento</div>
-            <div class="qd" style="margin-top:3px">motivo: <strong>arquivado na obra errada</strong></div></li>
+            <div class="qd" style="margin-top:3px">motivo: <strong>arquivamento_corrigido</strong></div>
+            <div class="qd">anos afetados: nenhum — o custo não mudou em obra nenhuma</div></li>
         </ul>
-        <div class="pendente" style="margin-top:9px">
-          <strong>Pergunta ao <code>contador</code> — esta tela pergunta o motivo?</strong>
-          As outras três perguntam “o erro é do papel ou da digitação?”. Aqui a pergunta não faz
-          sentido: <em>o papel não tem obra</em> — obra é arquivamento do app, e o único erro
-          possível é de arquivamento. Então o motivo pode ser gravado sem perguntar, como acima, ou
-          isso é um default em campo do rastro e o §5 exige a pergunta assim mesmo? Desenhei sem
-          perguntar; troco se a resposta for a outra.
+        <div class="hint" style="margin-top:8px">
+          O rastro é <strong>sempre</strong>, com ou sem pagamento ligado. “Ter pagamento vinculado”
+          é estado futuro: a nota movida hoje sem vínculo pode ser vinculada amanhã, e o rastro que
+          não foi gravado não se recupera.
+          <div class="parecer">Parecer §5 — a mudança de posição do <code>contador</code>.</div>
         </div>
       </div>
     </div>
@@ -1498,18 +2270,114 @@
     </div>
   </section>
 
+  <!-- ══════════════════ 8c · A PENDÊNCIA APARECE NAS DUAS OBRAS ══════════════════ -->
+  <section class="screen" id="s8c">
+    <div class="appbar">
+      <div class="brand">Depois de mover</div>
+      <div class="sub">A mesma pendência de 2025, vista das duas obras</div>
+    </div>
+    <div class="body">
+      <div class="banner blu" style="font-size:12.5px">
+        <strong>É UMA pendência, não duas.</strong> A chave é o <strong>ano</strong>, porque a DAA é
+        do contribuinte e não da obra: uma retificadora de 2025 corrige as linhas das duas obras no
+        mesmo ato, e o desfecho não é divisível. Mas ela precisa <strong>aparecer nas duas telas
+        iniciais</strong> — a home do contai é por obra, e pendência que só existe numa delas é
+        alarme invisível.
+        <div class="parecer">Decisão do <code>po</code>, 19/08, corrigindo o critério 20: a pendência
+          carrega um <strong>conjunto de obras afetadas</strong>. ⚠️ Ele é
+          <code>antes ∪ depois</code> do campo <code>obra</code> no rastro — nunca
+          <code>documento.obra_id</code>, que depois do move só conhece o destino e faria a obra de
+          <strong>origem</strong> perder o alarme.</div>
+      </div>
+
+      <div class="secao">Tela inicial · Casa Tanheiros — o que está faltando</div>
+      <div class="divida">
+        <span class="chip amb">Correção mexeu em ano anterior</span>
+        <div style="font-weight:600; margin-top:6px; font-size:13.5px">
+          <strong>2025</strong> — o custo do ano mudou depois de <strong>4 correções</strong> suas
+        </div>
+        <div class="hint" style="margin-top:4px">
+          Nesta obra: <strong class="mono">R$ 12.400,00 → R$ 21.750,00</strong>.
+        </div>
+        <div class="consequencia mud">
+          Esta correção <strong>também mudou o custo de 2025 na Reforma do apartamento</strong>.
+          <div class="parecer">A outra obra é <strong>nomeada sem valor</strong>: dinheiro de duas
+            obras lado a lado na mesma tela é a soma que não existe em declaração nenhuma — a razão
+            do critério 14 de <code>/obras</code>.</div>
+        </div>
+      </div>
+
+      <div class="secao" style="margin-top:10px">Tela inicial · Reforma do apartamento — o que está faltando</div>
+      <div class="divida">
+        <span class="chip amb">Correção mexeu em ano anterior</span>
+        <div style="font-weight:600; margin-top:6px; font-size:13.5px">
+          <strong>2025</strong> — o custo do ano mudou depois de <strong>1 correção</strong> sua
+        </div>
+        <div class="hint" style="margin-top:4px">
+          Nesta obra: <strong class="mono">R$ 0,00 → R$ 9.400,00</strong>.
+        </div>
+        <div class="consequencia mud">
+          Esta correção <strong>também mudou o custo de 2025 na Casa Tanheiros</strong>.
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:10px">
+        <div class="secao">Dentro da pendência, o move é UMA linha</div>
+        <ul class="rastro" style="margin-top:6px">
+          <li>
+            <div class="qd">19/08/2026, 22:10 · Mateus</div>
+            <div class="campo">obra · NF de material — Depósito Ilha</div>
+            <div class="ad"><s>Casa Tanheiros</s> → Reforma do apartamento, <strong>com 2
+              pagamentos</strong></div>
+            <div class="qd" style="margin-top:3px">motivo: <strong>arquivamento_corrigido</strong> ·
+              custo de 2025: Casa Tanheiros R$ 31.150,00 → R$ 21.750,00 · Reforma do apartamento
+              R$ 0,00 → R$ 9.400,00</div>
+          </li>
+        </ul>
+        <div class="hint" style="margin-top:8px">
+          No banco são <strong>três</strong> linhas — o documento e os dois pagamentos —, com o mesmo
+          identificador de ato. Na tela é <strong>uma</strong>, porque foi um ato só.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="consequencia grn">
+          <strong>Uma baixa resolve as duas.</strong> Marcar a pendência de 2025 como tratada é um
+          desfecho, um acréscimo — e ela sai das duas listas iniciais ao mesmo tempo.
+        </div>
+        <div style="margin-top:10px">
+          <button class="btn ghost mini" data-ir="s7c">Abrir a pendência de 2025</button>
+        </div>
+      </div>
+
+      <div class="banner amb" style="font-size:12px">
+        ⚠️ <strong>Para o <code>po</code> aplicar nos documentos:</strong> o §5 do adendo diz que
+        mover documento entre obras faz o custo “sair de uma e entrar na outra”. <strong>No modelo de
+        hoje isso é falso</strong> — o pagamento não vai junto, e sem a escolha da tela 8 o custo
+        <em>some</em> de uma e <em>não chega</em> na outra. O critério 13 e o critério 20 do ticket
+        precisam de texto novo. <strong>O mock está à frente dos documentos aqui.</strong>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" data-ir="s8">Voltar à correção de obra</button>
+      <button class="btn ghost" data-ir="s1">Voltar ao documento</button>
+    </div>
+  </section>
+
 </div>
 
 <script>
 (function () {
   var TABS = [
-    { g: "g0", id: "s0",  t: "Fluxo (ASCII) — leia primeiro" },
+    { g: "g0", id: "s0",  t: "Fluxo 1 (ASCII) — leia primeiro" },
+    { g: "g0", id: "s0b", t: "★ Fluxo 2 · o ciclo da pendência — NOVO" },
 
-    { g: "g1", id: "s1",  t: "★ 1 · Detalhe com as três ações" },
+    { g: "g1", id: "s1",  t: "★ 1 · Detalhe: ações + histórico (crit. 16)" },
     { g: "g1", id: "s1b", t: "1b · O link que já está em produção" },
+    { g: "g1", id: "s1c", t: "1c · Sair com o formulário pela metade — NOVO" },
 
     { g: "g2", id: "s2",  t: "★ 2 · Onde está o erro? (interativo)" },
-    { g: "g2", id: "s2b", t: "2b · O erro é da nota — texto do §3" },
+    { g: "g2", id: "s2b", t: "2b · O erro é da nota — e não deixa rastro" },
 
     { g: "g3", id: "s3",  t: "★ 3 · Valor — só o ano corrente" },
     { g: "g3", id: "s3b", t: "★ 3b · Valor — mexe em ano anterior" },
@@ -1522,14 +2390,20 @@
     { g: "g5", id: "s5",  t: "★ 5 · Nome do emitente (interativo)" },
     { g: "g5", id: "s5b", t: "5b · Anexo do documento novo (file real)" },
 
-    { g: "g6", id: "s6",  t: "★ 6 · CNPJ/CPF errado — sem campo" },
+    { g: "g6", id: "s6",  t: "★ 6 · CNPJ errado — agora com ação · NOVO" },
+    { g: "g6", id: "s6c", t: "★ 6c · Marcado, e como isso termina — NOVO" },
     { g: "g6", id: "s6b", t: "6b · O resto que não tem campo" },
 
     { g: "g7", id: "s7",  t: "★ 7 · Gravado, com o histórico" },
-    { g: "g7", id: "s7b", t: "7b · Home com a pendência" },
-    { g: "g7", id: "s7c", t: "7c · A pendência aberta" },
+    { g: "g7", id: "s7b", t: "★ 7b · Home: uma linha por ANO (crit. 20)" },
+    { g: "g7", id: "s7c", t: "★ 7c · A pendência do ano, acumulada — NOVO" },
+    { g: "g7", id: "s7d", t: "★ 7d · Escolher o desfecho — NOVO, interativo" },
+    { g: "g7", id: "s7e", t: "7e · Baixada — sai da lista, fica no histórico" },
+    { g: "g7", id: "s7f", t: "7f · Correção nova abre pendência NOVA" },
 
-    { g: "g8", id: "s8",  t: "8 · Corrigir a obra, com rastro" }
+    { g: "g8", id: "s8",  t: "★ 8 · Corrigir a obra — NOVO, interativo" },
+    { g: "g8", id: "s8b", t: "8b · Sem pagamento: rastro, sem pendência" },
+    { g: "g8", id: "s8c", t: "★ 8c · A pendência nas DUAS obras — NOVO" }
   ];
 
   var botoes = {};
@@ -1674,5 +2548,154 @@
   });
 
   estadoAnexo("vazio");
+
+  /* ══ tela 7d — DESFECHO: nada nasce marcado, e o app não sugere ═══════
+     Dois dos três desfechos pedem data; o terceiro não tem entrega a datar.
+     O botão diz o que falta, sempre — botão cinza mudo faz achar que quebrou. */
+  var opcoesDesf   = document.querySelectorAll("#desfechos .opt");
+  var btnDesfecho  = document.getElementById("btnDesfecho");
+  var caixaData    = document.getElementById("caixaData");
+  var semData      = document.getElementById("semData");
+  var rotuloData   = document.getElementById("rotuloData");
+  var inpDataDesf  = document.getElementById("inpDataDesf");
+  var desfEscolhido = null;
+
+  var DESF_DATA = {
+    retifiquei: "da retificadora",
+    avaliou: "em que seu contador respondeu",
+    nao_entregue: null
+  };
+
+  function pintarDesfecho() {
+    for (var i = 0; i < opcoesDesf.length; i++) {
+      opcoesDesf[i].classList.toggle("on", opcoesDesf[i].dataset.desf === desfEscolhido);
+    }
+    var pedeData = desfEscolhido !== null && DESF_DATA[desfEscolhido] !== null;
+    caixaData.classList.toggle("oculto", !pedeData);
+    semData.classList.toggle("oculto", desfEscolhido !== "nao_entregue");
+    if (pedeData) rotuloData.textContent = DESF_DATA[desfEscolhido];
+
+    if (!desfEscolhido) {
+      btnDesfecho.disabled = true;
+      btnDesfecho.textContent = "Escolha o desfecho para continuar";
+      return;
+    }
+    if (pedeData && inpDataDesf.value.trim() === "") {
+      btnDesfecho.disabled = true;
+      btnDesfecho.textContent = "Informe a data para continuar";
+      return;
+    }
+    btnDesfecho.disabled = false;
+    btnDesfecho.textContent = "Marcar a pendência de 2025 como tratada";
+  }
+
+  for (var d = 0; d < opcoesDesf.length; d++) {
+    (function (bt) {
+      bt.onclick = function () { desfEscolhido = bt.dataset.desf; pintarDesfecho(); };
+    })(opcoesDesf[d]);
+  }
+  inpDataDesf.oninput = pintarDesfecho;
+  pintarDesfecho();
+
+  /* ══ tela 8 — obra de destino + o que fazer com CADA pagamento ════════
+     A conta muda conforme as respostas, porque as duas saídas produzem
+     números diferentes — e é isso que a tela precisa mostrar ANTES de gravar. */
+  var VALOR_DOC   = 940000;   /* centavos */
+  var CUSTO_SAI   = 3115000;  /* Casa Tanheiros, 2025, hoje */
+  var PAGS        = { p1: 600000, p2: 340000 };
+
+  var obraDestino = null;
+  var escolhaPag  = { p1: null, p2: null };
+
+  function brl(c) {
+    return "R$ " + (c / 100).toLocaleString("pt-BR",
+      { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  var btnObra      = document.getElementById("btnObra");
+  var deltaEspera  = document.getElementById("deltaEspera");
+  var deltaTabelas = document.getElementById("deltaTabelas");
+
+  function pintarObra() {
+    var opcoesObra = document.querySelectorAll("#obraDestino .opt");
+    for (var i = 0; i < opcoesObra.length; i++) {
+      opcoesObra[i].classList.toggle("on", opcoesObra[i].dataset.obra === obraDestino);
+    }
+    ["p1", "p2"].forEach(function (p) {
+      var grupo = document.querySelectorAll('[data-pag="' + p + '"] .opt');
+      for (var j = 0; j < grupo.length; j++) {
+        grupo[j].classList.toggle("on", grupo[j].dataset.esc === escolhaPag[p]);
+      }
+      var li = document.getElementById("rastro" + p.toUpperCase());
+      var ad = li.querySelector(".ad");
+      if (!escolhaPag[p]) {
+        ad.innerHTML = '— <span class="hint">responda acima</span>';
+      } else if (escolhaPag[p] === "junto") {
+        ad.innerHTML = "<s>Casa Tanheiros</s> → Reforma do apartamento · " +
+          "motivo: <strong>arquivamento_corrigido</strong>";
+      } else {
+        ad.innerHTML = "vínculo com esta nota <s>ligado</s> → desfeito · " +
+          "o pagamento continua na Casa Tanheiros";
+      }
+    });
+
+    var faltam = (obraDestino ? 0 : 1) + (escolhaPag.p1 ? 0 : 1) + (escolhaPag.p2 ? 0 : 1);
+    deltaEspera.classList.toggle("oculto", faltam === 0);
+    deltaTabelas.classList.toggle("oculto", faltam !== 0);
+
+    if (faltam > 0) {
+      btnObra.disabled = true;
+      btnObra.textContent = faltam === 1
+        ? "Falta 1 resposta para ver a conta"
+        : "Faltam " + faltam + " respostas para ver a conta";
+      return;
+    }
+
+    var junto = 0, desfaz = 0;
+    ["p1", "p2"].forEach(function (p) {
+      if (escolhaPag[p] === "junto") junto += PAGS[p]; else desfaz += PAGS[p];
+    });
+    var entra = Math.min(junto, VALOR_DOC);
+
+    document.getElementById("dSaiCusto").textContent    = brl(CUSTO_SAI - VALOR_DOC);
+    document.getElementById("dSaiSemNota").textContent  = brl(desfaz);
+    document.getElementById("dSaiSemNota").className    =
+      "mono dep " + (desfaz > 0 ? "desce" : "igual");
+    document.getElementById("dEntraCusto").textContent  = brl(entra);
+    document.getElementById("dEntraCusto").className    =
+      "mono dep " + (entra > 0 ? "sobe" : "igual");
+
+    var resumo = document.getElementById("dResumo");
+    if (desfaz === 0) {
+      resumo.className = "consequencia grn";
+      resumo.innerHTML = "<strong>O custo total não muda.</strong> Os " + brl(VALOR_DOC) +
+        " saem de uma obra e entram na outra — a nota e os pagamentos dela viajam juntos.";
+    } else if (junto === 0) {
+      resumo.className = "consequencia amb";
+      resumo.innerHTML = "<strong>O custo confirmado total cai " + brl(desfaz) + ".</strong> " +
+        "A nota vai sozinha para a Reforma, onde não cobre pagamento nenhum, e os pagamentos " +
+        "voltam a <strong>pago sem nota</strong> na Casa Tanheiros. " +
+        "Isso agora é a verdade — antes o vínculo estava errado.";
+    } else {
+      resumo.className = "consequencia amb";
+      resumo.innerHTML = "Dos " + brl(VALOR_DOC) + ", <strong>" + brl(junto) +
+        "</strong> acompanham a nota e <strong>" + brl(desfaz) +
+        "</strong> voltam a <strong>pago sem nota</strong> na Casa Tanheiros. " +
+        "O custo confirmado total cai " + brl(desfaz) + ".";
+    }
+
+    btnObra.disabled = false;
+    btnObra.textContent = "Gravar — e abrir a pendência de 2025";
+  }
+
+  document.querySelectorAll("#obraDestino .opt").forEach(function (bt) {
+    bt.onclick = function () { obraDestino = bt.dataset.obra; pintarObra(); };
+  });
+  ["p1", "p2"].forEach(function (p) {
+    document.querySelectorAll('[data-pag="' + p + '"] .opt').forEach(function (bt) {
+      bt.onclick = function () { escolhaPag[p] = bt.dataset.esc; pintarObra(); };
+    });
+  });
+  pintarObra();
 })();
 </script>
