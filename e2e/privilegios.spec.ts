@@ -67,20 +67,20 @@ const ESPERADO: Record<string, string> = {
   // tabela criada no stack local do CLI sai com tudo liberado para `anon` e
   // `authenticated` pelo `alter default privileges`, e no remoto sai com nada.
   //
-  // UPDATE serve a UM ato: COMPLETAR a data de pagamento (e o comprovante) de
-  // um desembolso que ficou sem ela — critério 23. Sem ele, a pendência de
-  // complemento não teria como ser resolvida pela tela, e correção que exige
-  // SQL é a dor D9 de volta. Sem DELETE: acervo append-only.
+  // UPDATE serve a UM ato, e ele TEM caminho na tela: COMPLETAR a data de
+  // pagamento (e o comprovante) de um desembolso que ficou sem ela — critério
+  // 23, `completarDesembolsoTerreno`. Sem ele, a pendência de complemento não
+  // teria como ser resolvida pela tela, e correção que exige SQL é a dor D9 de
+  // volta. Sem DELETE: acervo append-only.
   terreno_desembolso: "INSERT,SELECT,UPDATE",
-  // UPDATE serve à correção do cadastro do contrato (instituição, número, nº
-  // de parcelas), digitado à mão uma vez na vida.
-  financiamento: "INSERT,SELECT,UPDATE",
-  // ⚠️ UPDATE aqui é o grant mais discutível do lote, e está justificado por
-  // extenso na 0008: sem ele, um informe com duas rubricas TROCADAS ENTRE SI (a
-  // soma fecha do mesmo jeito, então nem a trava nem o CHECK acusam) trava o
-  // ano-base PARA SEMPRE por causa do `unique (financiamento_id, ano_base)`, e
-  // o único conserto seria SQL à mão em produção.
-  financiamento_informe: "INSERT,SELECT,UPDATE",
+  // ⚠️ SEM UPDATE nas duas, e a ausência é a decisão (revisão de 2026-08-19).
+  // Não existe `.update()` para elas em `lib/data.ts`: o grant não entregava o
+  // remédio que prometia (o conserto de um informe com rubricas trocadas
+  // continuaria sendo SQL à mão), e comprava a superfície de reescrever
+  // registro fiscal sem rastro. O remédio de verdade é tela + rastro + grant no
+  // mesmo diff, em ticket a abrir. Ver a justificativa por extenso na 0008.
+  financiamento: "INSERT,SELECT",
+  financiamento_informe: "INSERT,SELECT",
 };
 
 test.describe("privilégios do schema public", () => {

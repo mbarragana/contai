@@ -10,6 +10,8 @@ import {
   penalidadesCentavos,
   rubricasComClassificacaoEmAberto,
   somaDasRubricasCentavos,
+  TAXAS_E_FCVS_NA_MESMA_LINHA,
+  tiposDeDesembolsoPara,
   travaDaSoma,
 } from "@/lib/fiscal/terreno";
 import type { FinanciamentoInforme, TerrenoDesembolso } from "@/lib/types";
@@ -345,5 +347,89 @@ describe("anos do financiamento (critério 16)", () => {
     expect(anos).toHaveLength(1);
     expect(anos[0].situacao).toBe("aguardando_informe");
     expect(anos[0].estimativaCentavos).toBeNull();
+  });
+});
+
+
+// ══════════════════════════════════════════════════════════════════════════
+// A PORTA LATERAL DA DUPLA CONTAGEM (critérios 2 e 14)
+//
+// A trava do 14 é estrutural — não existe tipo "parcela do financiamento" — mas
+// ela só protege o tipo que nomeia. Numa obra `financiado`, oferecer "Parcela
+// ao vendedor" ou "Pagamento do terreno" deixa o débito mensal do banco entrar
+// como linha avulsa ao lado do informe do ano: o mesmo dinheiro duas vezes, sem
+// nada acusar. É a natureza da aquisição que decide qual regra roda.
+// ══════════════════════════════════════════════════════════════════════════
+
+describe("os tipos de desembolso que cada natureza admite", () => {
+  it("financiado NÃO oferece parcela ao vendedor nem pagamento do terreno", () => {
+    const tipos = tiposDeDesembolsoPara("financiado");
+    expect(tipos).not.toContain("parcela_vendedor");
+    expect(tipos).not.toContain("pagamento_terreno");
+    // O que sai do bolso dele fora do banco, e o desembolso do ano da venda.
+    expect(tipos).toEqual([
+      "entrada",
+      "itbi",
+      "escritura_registro",
+      "quitacao",
+    ]);
+  });
+
+  it("parcelado com o vendedor é o ÚNICO com parcela ao vendedor", () => {
+    expect(tiposDeDesembolsoPara("parcelado_vendedor")).toContain(
+      "parcela_vendedor",
+    );
+    for (const natureza of ["a_vista", "financiado", "recebido"] as const) {
+      expect(tiposDeDesembolsoPara(natureza)).not.toContain("parcela_vendedor");
+    }
+  });
+
+  it("quitação do financiamento só existe onde há financiamento", () => {
+    expect(tiposDeDesembolsoPara("financiado")).toContain("quitacao");
+    for (const natureza of [
+      "a_vista",
+      "parcelado_vendedor",
+      "recebido",
+    ] as const) {
+      expect(tiposDeDesembolsoPara(natureza)).not.toContain("quitacao");
+    }
+  });
+
+  it("à vista mantém o caso degenerado: um desembolso e os acessórios", () => {
+    expect(tiposDeDesembolsoPara("a_vista")).toEqual([
+      "pagamento_terreno",
+      "entrada",
+      "itbi",
+      "escritura_registro",
+    ]);
+  });
+
+  it("natureza DESCONHECIDA devolve a lista cheia — não se inventa restrição", () => {
+    // Critério 23: a pendência de complemento pede a resposta e não bloqueia
+    // nada. Restringir a lista com base em fato que o app não sabe seria
+    // presumir — que é exatamente o defeito que este ticket conserta.
+    expect(tiposDeDesembolsoPara(null)).toHaveLength(6);
+    expect(tiposDeDesembolsoPara(null)).toContain("parcela_vendedor");
+    expect(tiposDeDesembolsoPara(null)).toContain("quitacao");
+    expect(tiposDeDesembolsoPara(null)).toContain("pagamento_terreno");
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// Critério 13 — o FCVS tem marca PRÓPRIA, e a palavra é "candidato"
+// ══════════════════════════════════════════════════════════════════════════
+
+describe("a marca do FCVS", () => {
+  it("diz 'candidato a inclusão, pendente de confirmação'", () => {
+    // É essa palavra que faz alguém revisitar o ano quando a confirmação
+    // chegar (pre-mortem 3). Sem ela o FCVS vira "mais uma linha guardada".
+    expect(TAXAS_E_FCVS_NA_MESMA_LINHA).toContain("candidato a inclusão");
+    expect(TAXAS_E_FCVS_NA_MESMA_LINHA).toContain("pendente de confirmação");
+  });
+
+  it("não resolve o FCVS por analogia com seguros, nem fala deles", () => {
+    // Critério 13 + ADENDO 4: os seguros estão EM ABERTO, e nenhuma tela deste
+    // ticket afirma o tratamento deles.
+    expect(TAXAS_E_FCVS_NA_MESMA_LINHA.toLowerCase()).not.toContain("seguro");
   });
 });

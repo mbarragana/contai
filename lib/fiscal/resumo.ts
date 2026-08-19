@@ -33,6 +33,7 @@
 
 import type {
   Documento,
+  Financiamento,
   FinanciamentoInforme,
   Obra,
   Pagamento,
@@ -46,11 +47,14 @@ import {
 } from "./documento";
 import {
   AGUARDANDO_INFORME,
+  anosDoFinanciamento,
   custoDoInformeCentavos,
   custoTerrenoAteOAno,
   DESEMBOLSO_SEM_DATA,
   ESTIMATIVA_NAO_E_APURACAO,
+  faltaLancarInforme,
   NOME_DO_DESEMBOLSO,
+  TERRENO_ZERO_NAO_E_NADA_PAGO,
 } from "./terreno";
 import {
   anoCalendario,
@@ -171,6 +175,39 @@ export interface FinanciamentoAguardandoInforme {
   href: string;
 }
 
+/**
+ * Ano **JÁ FECHADO** sem informe lançado (critério 16). Não se confunde com o
+ * anterior: aqui o extrato já foi publicado pelo banco, o dinheiro já saiu, e o
+ * custo daquele ano-calendário simplesmente não existe no sistema.
+ *
+ * É o estado real da obra do Mateus hoje — contrato assinado, zero informes —
+ * e era exatamente ele que a home calava.
+ *
+ * ⚠️ Fora de todas as somas, como os outros dois: não há valor a somar, porque
+ * o número que faltaria é justamente o que ninguém lançou.
+ */
+export interface FinanciamentoFaltaLancar {
+  ano: number;
+  aviso: string;
+  href: string;
+}
+
+/**
+ * ⚠️ **O R$ 0,00 do terreno afirmado como situação de Bens e Direitos.**
+ *
+ * Sem nenhum desembolso datado e sem nenhum informe, a parte do terreno do
+ * acumulado é zero — e zero apresentado sob o rótulo "situação em 31/12 na
+ * ficha Bens e Direitos" é fato falso com moldura de fato apurado. Este campo
+ * existe para a tela dizer que o zero é ausência de registro, não ausência de
+ * pagamento.
+ */
+export interface TerrenoSemRegistro {
+  /** A parte do terreno dentro do acumulado — zero, e é esse o ponto. */
+  terrenoNoAcumuladoCentavos: number;
+  aviso: string;
+  href: string;
+}
+
 export interface ResumoObra {
   ano: number;
   custoConfirmadoAnoCentavos: number;
@@ -185,6 +222,10 @@ export interface ResumoObra {
    */
   terrenoSemData: TerrenoSemData[];
   financiamentoAguardandoInforme: FinanciamentoAguardandoInforme | null;
+  /** Anos já fechados sem informe — do mais antigo para o mais recente. */
+  financiamentoFaltaLancar: FinanciamentoFaltaLancar[];
+  /** `null` quando existe algum valor datado no terreno. */
+  terrenoSemRegistro: TerrenoSemRegistro | null;
   /** Terceiro número em tela (parecer §5.2) — fora das duas somas. */
   notasSemPagamento: NotaSemPagamento[];
   notasSemPagamentoCentavos: number;
@@ -212,6 +253,20 @@ export interface EntradaResumo {
    */
   desembolsosTerreno: TerrenoDesembolso[];
   informesFinanciamento: FinanciamentoInforme[];
+  /**
+   * CONTAI-010 — o CONTRATO do financiamento, ou `null` quando a obra não tem.
+   *
+   * **Obrigatório e não opcional, pelo mesmo motivo de `desembolsosTerreno`**:
+   * um campo opcional faria a home voltar a calar sobre o financiamento em
+   * qualquer chamador que esquecesse de passá-lo — que foi exatamente o defeito
+   * que este campo veio consertar (a existência do contrato era INFERIDA de
+   * haver informe, então contrato assinado e zero informes = silêncio total).
+   *
+   * ⚠️ O `precoContratado` que ele carrega **nunca entra em soma nenhuma**
+   * (critério 8). O que se lê daqui é a EXISTÊNCIA do contrato e a
+   * `dataContrato`, que diz desde quando enumerar os anos.
+   */
+  financiamento: Financiamento | null;
   ano: number;
 }
 
@@ -235,6 +290,7 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
     pagamentos,
     desembolsosTerreno,
     informesFinanciamento,
+    financiamento,
     ano,
   } = entrada;
 
@@ -497,25 +553,24 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
       href: `/obras/${obra.id}/terreno/desembolsos`,
     }));
 
-  // Só o ANO EM TELA: "aguardando informe" fala do ano que ainda não fechou.
-  // Ano passado sem informe é "falta lançar", e mora no painel do terreno
-  // (`anosDoFinanciamento`), que é onde existe o contrato para saber desde
-  // quando enumerar.
+  // ⚠️ A CONDIÇÃO É O CONTRATO, não a existência de informe.
   //
-  // ⚠️ LIMITE CONHECIDO: a existência do financiamento é inferida de HAVER
-  // INFORME de algum ano, porque `EntradaResumo` não recebe o contrato. No
-  // PRIMEIRO ano de um contrato — nenhum informe ainda — a home fica calada.
-  // O critério 16 continua atendido pelo painel do terreno, que lê
-  // `financiamento.data_contrato` e enumera os anos a partir dele; aqui a
-  // alternativa seria `informesFinanciamento.length === 0` disparar o aviso
-  // para TODA obra, inclusive a comprada à vista, que nunca terá informe —
-  // afirmar "aguardando informe" onde não há financiamento é pior que calar.
+  // A versão anterior disparava com `informesFinanciamento.length > 0`, e o
+  // dilema que a justificava — "sem informe não dá para saber se há
+  // financiamento, e afirmar 'aguardando informe' numa obra à vista é pior que
+  // calar" — era FALSO: `carregarPainel` já carregava o contrato, e bastava
+  // trazê-lo até aqui. Com contrato assinado e ZERO informes, que é o estado
+  // real da obra hoje, a home ficava muda e o acumulado subestimava ~R$ 60 mil
+  // por ano-base não lançado. Critério 16: nunca em silêncio.
+  //
+  // Sem financiamento (`null`), nada é afirmado — a obra à vista continua sem
+  // ver uma palavra sobre informe, que é o comportamento certo.
   const temInformeDoAno = informesFinanciamento.some((i) => i.anoBase === ano);
   const informeAnterior = informesFinanciamento.find(
     (i) => i.anoBase === ano - 1,
   );
   const financiamentoAguardandoInforme: FinanciamentoAguardandoInforme | null =
-    informesFinanciamento.length > 0 && !temInformeDoAno
+    financiamento !== null && !temInformeDoAno
       ? {
           ano,
           // ⚠️ Ordem de grandeza, NUNCA somada — ver `ESTIMATIVA_NAO_E_APURACAO`.
@@ -528,18 +583,51 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
         }
       : null;
 
+  // Os anos JÁ FECHADOS sem informe — o caso que dói hoje. `anosDoFinanciamento`
+  // é a mesma função que o painel do terreno usa: uma definição só de "desde
+  // quando enumerar" e de "o que é falta_lancar".
+  const financiamentoFaltaLancar: FinanciamentoFaltaLancar[] =
+    financiamento === null
+      ? []
+      : anosDoFinanciamento(financiamento.dataContrato, informesFinanciamento, ano)
+          .filter((a) => a.situacao === "falta_lancar")
+          .map((a) => ({
+            ano: a.ano,
+            aviso: faltaLancarInforme(a.ano),
+            href: `/obras/${obra.id}/terreno/informe/${a.ano}`,
+          }));
+
+  // O R$ 0,00 do terreno: ausência de registro, nunca ausência de pagamento.
+  // A condição é "nenhum valor DATADO e nenhum informe" — é a mesma coisa que
+  // `custoTerrenoAteOAno === 0`, e é deliberadamente mais larga que "nenhum
+  // desembolso": uma linha `pago` sem data também deixa o acumulado em zero, e
+  // nesse caso o zero mente exatamente igual.
+  const terrenoNoAcumuladoCentavos = custoTerrenoAteOAno(
+    desembolsosTerreno,
+    informesFinanciamento,
+    ano,
+  );
+  const terrenoSemRegistro: TerrenoSemRegistro | null =
+    terrenoNoAcumuladoCentavos === 0
+      ? {
+          terrenoNoAcumuladoCentavos,
+          aviso: TERRENO_ZERO_NAO_E_NADA_PAGO,
+          href: `/obras/${obra.id}/terreno`,
+        }
+      : null;
+
   return {
     ano,
     custoConfirmadoAnoCentavos: custoAno,
     // Conserta de carona o defeito original (terreno inteiro em todo ano): só
     // o que foi efetivamente desembolsado até 31/12 deste ano entra.
-    acumuladoImovelCentavos:
-      custoTerrenoAteOAno(desembolsosTerreno, informesFinanciamento, ano) +
-      custoAteFimDoAno,
+    acumuladoImovelCentavos: terrenoNoAcumuladoCentavos + custoAteFimDoAno,
     emPendenciaCentavos: emPendencia,
     pendencias,
     terrenoSemData,
     financiamentoAguardandoInforme,
+    financiamentoFaltaLancar,
+    terrenoSemRegistro,
     notasSemPagamento,
     notasSemPagamentoCentavos: notasSemPagamento.reduce(
       (s, n) => s + n.valorCentavos,

@@ -650,7 +650,10 @@ três toques é padrão novo no app.
   fiscal já pronta no adendo §B — falta o ticket e o mock.
 - **Relacionado**: `CONTAI-010` — parcelas de financiamento são o mesmo padrão
   *contrato é previsão, extrato é fato*. ⚠️ **Não fundir**: os juros do terreno
-  **compõem** custo (art. 17, I, "g"), ao contrário dos juros de mora daqui.
+  **compõem** custo (IN SRF 84/2001, art. 17, I — bens imóveis), ao contrário dos
+  juros de mora daqui. ⚠️ A LETRA da alínea **não se afirma**: os adendos 1 e 2 do
+  parecer do terreno citaram "g", o adendo 3 corrigiu para "i" e mandou conferir na
+  IN vigente. O inciso I é o que vale.
   Confundir é erro fiscal, não de escopo.
 
 ## Perguntas ao Mateus — as três estão FECHADAS

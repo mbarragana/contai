@@ -38,10 +38,12 @@ import {
   FGTS_NA_ENTRADA_ENTRA,
   NOME_DO_DESEMBOLSO,
   PREVISTO_NAO_E_PAGO,
+  tiposDeDesembolsoPara,
 } from "@/lib/fiscal/terreno";
 import { hojeIso } from "@/lib/hoje";
 import { formatarBRL, parseValorInput } from "@/lib/money";
 import type {
+  NaturezaAquisicaoTerreno,
   Obra,
   OrigemRecursoEntrada,
   TerrenoDesembolso,
@@ -59,17 +61,30 @@ import type {
  * um desembolso pode ter valor e ainda não ter data (critérios 5 e 23).
  */
 
-const TIPOS = [
-  { valor: "pagamento_terreno", texto: "Pagamento do terreno" },
-  { valor: "entrada", texto: "Entrada" },
-  { valor: "itbi", texto: "ITBI" },
-  { valor: "escritura_registro", texto: "Escritura e registro" },
-  { valor: "parcela_vendedor", texto: "Parcela ao vendedor" },
-  { valor: "quitacao", texto: "Quitação do financiamento" },
-] as const satisfies readonly {
-  valor: TipoDesembolsoTerreno;
-  texto: string;
-}[];
+/**
+ * ⚠️ As opções são FILTRADAS pela natureza da aquisição, e isso é trava
+ * fiscal, não conveniência de tela.
+ *
+ * A trava do critério 14 impede a dupla contagem por AUSÊNCIA DE TIPO — não
+ * existe "parcela do financiamento" no modelo. Mas ela só protege o tipo que
+ * nomeia: numa obra `financiado`, oferecer "Parcela ao vendedor" ou "Pagamento
+ * do terreno" é a porta lateral pela qual o débito mensal do banco entra como
+ * linha avulsa, some com o informe do ano e o mesmo dinheiro é contado duas
+ * vezes — custo inflado em Bens e Direitos é redução indevida de ganho de
+ * capital, cobrada com multa (critérios 2 e 14).
+ *
+ * A regra mora em `lib/fiscal/terreno.ts`, com teste; aqui só se renderiza.
+ * Natureza desconhecida devolve a lista cheia: o app não inventa restrição
+ * sobre fato que não sabe.
+ */
+function opcoesDeTipo(
+  natureza: NaturezaAquisicaoTerreno | null,
+): readonly { valor: TipoDesembolsoTerreno; texto: string }[] {
+  return tiposDeDesembolsoPara(natureza).map((valor) => ({
+    valor,
+    texto: NOME_DO_DESEMBOLSO[valor],
+  }));
+}
 
 const ESTADOS = [
   { valor: "pago", texto: "Já paguei" },
@@ -289,6 +304,8 @@ export default function DesembolsosDoTerreno() {
     (d) => d.estado === "pago" && d.dataPagamento === null,
   );
 
+  const tipos = opcoesDeTipo(obra.naturezaAquisicaoTerreno);
+
   return (
     <>
       <AppBar titulo="O que saiu do seu bolso" sub={`${obra.nome} · terreno`} />
@@ -375,7 +392,7 @@ export default function DesembolsosDoTerreno() {
           <Escolha
             destaque
             rotulo="O que é este desembolso?"
-            opcoes={TIPOS}
+            opcoes={tipos}
             valor={tipo}
             onChange={setTipo}
             erro={erroDe("tipo")}

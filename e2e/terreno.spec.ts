@@ -30,6 +30,22 @@ import { expect, test } from "./fixtures";
 
 const INSTITUICAO = "Banco Litoral";
 
+/**
+ * A natureza da aquisição nasce NULL na obra do seed (pendência de complemento,
+ * critério 23). Quem a responde é a tela de dados da obra; aqui ela é montada
+ * direto no banco, pelo MESMO client autenticado do app.
+ */
+async function definirNatureza(
+  db: Db,
+  natureza: "a_vista" | "financiado" | "parcelado_vendedor" | "recebido",
+) {
+  const { error } = await db
+    .from("obra")
+    .update({ natureza_aquisicao_terreno: natureza })
+    .eq("id", OBRA_ID_SEED);
+  if (error) throw new Error(`definir natureza: ${error.message}`);
+}
+
 /** ISO de hoje no fuso do aparelho — o mesmo `hojeIso()` que o app usa. */
 function hoje(): string {
   const agora = new Date();
@@ -585,4 +601,310 @@ test.describe("painel do terreno", () => {
       }),
     ).toBeVisible();
   });
+});
+
+
+// ══ Os dois bloqueadores do Gate 2 ══════════════════════════════════════
+//
+// Os dois são a mesma família: **o app mostra número menor que a realidade sem
+// dizer que é menor**. A direção do erro é a irreversível — custo de aquisição
+// subestimado vira ganho de capital inflado no dia da venda.
+
+test.describe("o financiamento nunca fica em silêncio (critério 16)", () => {
+  test("contrato cadastrado e ZERO informes: a home NOMEIA os anos não lançados", async ({
+    page,
+    db,
+  }) => {
+    // É o estado real da obra hoje. Antes desta correção a home imprimia o
+    // acumulado sem um caractere sobre o financiamento, porque a existência do
+    // contrato era INFERIDA de haver informe.
+    await contrato(db); // contrato de ANO_BASE - 1
+    await definirNatureza(db, "financiado");
+
+    await page.goto("/");
+
+    // O ano JÁ FECHADO, com a consequência por extenso e a ação possível.
+    const faltaLancar = page.locator(`[data-falta-lancar="${ANO_BASE}"]`);
+    await expect(faltaLancar).toBeVisible();
+    await expect(
+      faltaLancar.getByText(
+        `custo de aquisição de ${ANO_BASE} não existe no sistema`,
+        { exact: false },
+      ),
+    ).toBeVisible();
+    await expect(
+      faltaLancar.getByText("é download, não pedido", { exact: false }),
+    ).toBeVisible();
+
+    // E o ano CORRENTE, que é outra coisa: o banco ainda não publicou nada.
+    await expect(
+      page.getByText(
+        `Financiamento ${ANO_CORRENTE} — aguardando informe anual`,
+        { exact: true },
+      ),
+    ).toBeVisible();
+
+    // ⚠️ Nada disso é pendência fiscal: o headline de "custo em risco" do
+    // CONTAI-005 não muda de código neste ticket (critério 21).
+    await expect(
+      page.getByText("Nenhuma pendência.", { exact: false }),
+    ).toBeVisible();
+  });
+
+  test("obra SEM contrato não vê uma palavra sobre informe", async ({
+    page,
+    db,
+  }) => {
+    // Afirmar "aguardando informe" numa obra comprada à vista, que nunca terá
+    // informe, seria pior que calar. A condição é o contrato, não o palpite.
+    await definirNatureza(db, "a_vista");
+    await criarDesembolsoTerreno(db, {
+      tipo: "pagamento_terreno",
+      valor: 800000,
+      estado: "pago",
+      data_pagamento: `${ANO_BASE}-06-10`,
+    });
+
+    await page.goto("/");
+    await expect(page.getByText("aguardando informe", { exact: false })).toHaveCount(
+      0,
+    );
+    await expect(page.getByText("falta lançar", { exact: false })).toHaveCount(0);
+  });
+});
+
+test.describe("o R$ 0,00 do terreno não é apuração", () => {
+  test("sem desembolso e sem informe, o painel diz que o zero é ausência de REGISTRO", async ({
+    page,
+  }) => {
+    // O backfill das três colunas mortas foi descartado: a obra atravessou a
+    // migration sem desembolso nenhum, e o terreno dela FOI pago de verdade —
+    // o ano-base 2025 já foi declarado pelo CRC com o terreno dentro.
+    await page.goto(`/obras/${OBRA_ID_SEED}/terreno`);
+
+    await expect(
+      page.getByText("nada foi registrado ainda — não que nada foi pago", {
+        exact: false,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("não serve para a declaração", { exact: false }),
+    ).toBeVisible();
+    // E a moldura de fato apurado SAI: nada de "= situação em 31/12 na ficha
+    // Bens e Direitos" em cima de um zero que ninguém apurou.
+    await expect(
+      page.getByText("na ficha Bens e Direitos, pela parte do terreno", {
+        exact: false,
+      }),
+    ).toHaveCount(0);
+  });
+
+  test("a home mostra a parte do terreno e o mesmo aviso", async ({ page }) => {
+    await page.goto("/");
+    await expect(
+      page.getByText("Terreno nesta soma:", { exact: false }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("nada foi registrado ainda — não que nada foi pago", {
+        exact: false,
+      }),
+    ).toBeVisible();
+  });
+
+  test("um desembolso DATADO cala o aviso — aí o número é apuração", async ({
+    page,
+    db,
+  }) => {
+    await criarDesembolsoTerreno(db, {
+      tipo: "pagamento_terreno",
+      valor: 800000,
+      estado: "pago",
+      data_pagamento: `${ANO_BASE}-06-10`,
+    });
+
+    await page.goto(`/obras/${OBRA_ID_SEED}/terreno`);
+    await expect(
+      page.getByText("nada foi registrado ainda", { exact: false }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByText("na ficha Bens e Direitos, pela parte do terreno", {
+        exact: false,
+      }),
+    ).toBeVisible();
+  });
+});
+
+// ══ A porta lateral da dupla contagem (critérios 2 e 14) ════════════════
+
+test.describe("os tipos de desembolso seguem a natureza da aquisição", () => {
+  test("obra financiada NÃO oferece 'Parcela ao vendedor' nem 'Pagamento do terreno'", async ({
+    page,
+    db,
+  }) => {
+    // Se oferecesse, o débito mensal do banco entraria como linha avulsa ao
+    // lado do informe do ano — o mesmo dinheiro duas vezes, e a trava
+    // estrutural do critério 14 não pega, porque ela só protege o tipo que
+    // nomeia ("parcela do financiamento", que não existe).
+    await definirNatureza(db, "financiado");
+    await page.goto(`/obras/${OBRA_ID_SEED}/terreno/desembolsos`);
+
+    const grupo = page.getByRole("group", {
+      name: "O que é este desembolso?",
+      exact: true,
+    });
+    await expect(
+      grupo.getByText("Parcela ao vendedor", { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      grupo.getByText("Pagamento do terreno", { exact: true }),
+    ).toHaveCount(0);
+    // O que sobra é o que sai do bolso dele fora do banco, mais a quitação.
+    await expect(grupo.getByText("Entrada", { exact: true })).toBeVisible();
+    await expect(grupo.getByText("ITBI", { exact: true })).toBeVisible();
+    await expect(
+      grupo.getByText("Escritura e registro", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      grupo.getByText("Quitação do financiamento", { exact: true }),
+    ).toBeVisible();
+  });
+
+  test("natureza ainda não informada devolve a lista CHEIA", async ({ page }) => {
+    // A obra do seed nasce com a natureza NULL. O app não inventa restrição
+    // sobre fato que não sabe — a pendência de complemento já pede a resposta.
+    await page.goto(`/obras/${OBRA_ID_SEED}/terreno/desembolsos`);
+    const grupo = page.getByRole("group", {
+      name: "O que é este desembolso?",
+      exact: true,
+    });
+    await expect(
+      grupo.getByText("Parcela ao vendedor", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      grupo.getByText("Quitação do financiamento", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      grupo.getByText("Pagamento do terreno", { exact: true }),
+    ).toBeVisible();
+  });
+});
+
+// ══ Os dois defeitos da tela do informe ═════════════════════════════════
+
+test.describe("o saldo devedor é exigido, e nada o confere além da pergunta", () => {
+  test("saldo devedor em branco NÃO grava — branco não é resposta", async ({
+    page,
+    db,
+  }) => {
+    await contrato(db);
+    await irParaOInforme(page);
+    await page
+      .getByLabel("Extrato do exercício", { exact: true })
+      .setInputFiles(pdf("extrato.pdf"));
+    await page
+      .getByRole("button", { name: "Continuar para os números", exact: true })
+      .click();
+
+    // Tudo certo, MENOS o saldo devedor. A trava da soma fecha.
+    await preencherRubricas(page, { saldo: "" });
+
+    await expect(
+      page.getByText(
+        "Informe o saldo devedor em 31/12 — ele está no extrato",
+        { exact: false },
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Conferir e gravar", exact: true }),
+    ).toBeDisabled();
+
+    // ⚠️ O ESTADO GRAVADO: nada entrou.
+    expect(await informes(db)).toHaveLength(0);
+  });
+
+  test("0,00 DIGITADO é afirmação e passa — o contrato pode ter sido quitado", async ({
+    page,
+    db,
+  }) => {
+    await contrato(db);
+    await irParaOInforme(page);
+    await page
+      .getByLabel("Extrato do exercício", { exact: true })
+      .setInputFiles(pdf("extrato.pdf"));
+    await page
+      .getByRole("button", { name: "Continuar para os números", exact: true })
+      .click();
+    await preencherRubricas(page, { saldo: "0,00" });
+
+    await expect(
+      page.getByRole("button", { name: "Conferir e gravar", exact: true }),
+    ).toBeEnabled();
+  });
+});
+
+test.describe("em aberto e penalidade nunca vão no mesmo balde (critério 13)", () => {
+  test("a tela de sucesso mostra DUAS linhas, com rótulos que não se confundem", async ({
+    page,
+    db,
+  }) => {
+    await contrato(db);
+    await irParaOInforme(page);
+    await page
+      .getByLabel("Extrato do exercício", { exact: true })
+      .setInputFiles(pdf("extrato.pdf"));
+    await page
+      .getByRole("button", { name: "Continuar para os números", exact: true })
+      .click();
+    // Seguros 499,56 + diferença 167,43 = 667,00 em aberto; mora 200,00 +
+    // multa 100,00 = 300,00 de penalidade. O total pago absorve as duas.
+    await preencherRubricas(page, {
+      mora: "200,00",
+      multa: "100,00",
+      total: "60.901,74",
+    });
+    await page
+      .getByRole("button", { name: "Conferir e gravar", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: `Gravar informe de ${ANO_BASE}`, exact: true })
+      .click();
+
+    await expect(
+      page.getByRole("heading", { name: `${ANO_BASE} fechado`, exact: false }),
+    ).toBeVisible();
+
+    // Duas linhas, dois números, dois destinos. Balde único é a via pela qual o
+    // FCVS vira seguro e o seguro vira mora.
+    const emAberto = page.getByText("Guardado — classificação com o seu contador", {
+      exact: true,
+    });
+    const penalidade = page.getByText("Guardado — penalidade, nunca é custo", {
+      exact: true,
+    });
+    await expect(emAberto).toBeVisible();
+    await expect(penalidade).toBeVisible();
+    await expect(page.getByText("667,00", { exact: false })).toBeVisible();
+    await expect(page.getByText("300,00", { exact: false })).toBeVisible();
+    // E a soma dos dois NÃO aparece como número único.
+    await expect(page.getByText("967,00", { exact: false })).toHaveCount(0);
+  });
+});
+
+// ══ Ano-base no futuro ══════════════════════════════════════════════════
+
+test("informe de ano que ainda não aconteceu é recusado pela tela", async ({
+  page,
+  db,
+}) => {
+  // O CHECK do banco só limita 1990-2999, e a rota é digitável.
+  await contrato(db);
+  await page.goto(`/obras/${OBRA_ID_SEED}/terreno/informe/${ANO_CORRENTE + 5}`);
+
+  await expect(
+    page.getByText(`${ANO_CORRENTE + 5} ainda não aconteceu`, { exact: false }),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel("Extrato do exercício", { exact: true }),
+  ).toHaveCount(0);
+  expect(await informes(db)).toHaveLength(0);
 });

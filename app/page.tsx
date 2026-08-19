@@ -184,6 +184,32 @@ export default function Home() {
               <Dica>
                 = situação em 31/12 na ficha Bens e Direitos (terreno + obra)
               </Dica>
+              {/* ⚠️ O R$ 0,00 do terreno NÃO é apuração — é a ausência dela.
+                  A parte do terreno aparece nomeada logo abaixo do acumulado
+                  para o "R$ 0,00 aqui" do aviso apontar para um número
+                  visível, e não para a soma inteira (que pode ter custo de
+                  obra dentro). Sem isto, a linha afirma fato falso com
+                  moldura de fato apurado, e a direção do erro é a
+                  irreversível: custo subestimado = ganho de capital inflado. */}
+              {estado.resumo.terrenoSemRegistro ? (
+                <>
+                  <div className="mono mt-1 text-[13px]">
+                    Terreno nesta soma:{" "}
+                    {formatarBRL(
+                      estado.resumo.terrenoSemRegistro
+                        .terrenoNoAcumuladoCentavos,
+                    )}
+                  </div>
+                  <Consequencia cor="amb">
+                    {estado.resumo.terrenoSemRegistro.aviso}
+                  </Consequencia>
+                  <div className="mt-2.5">
+                    <BotaoLink href={estado.resumo.terrenoSemRegistro.href}>
+                      Registrar os desembolsos do terreno
+                    </BotaoLink>
+                  </div>
+                </>
+              ) : null}
               <Dica>
                 Nada é somado com as outras obras — cada matrícula é um item da
                 declaração.
@@ -341,6 +367,27 @@ export default function Home() {
                     </Consequencia>
                     <div className="mt-2.5">
                       <BotaoLink href={t.href}>Informar a data</BotaoLink>
+                    </div>
+                  </Card>
+                ))}
+              </>
+            ) : null}
+
+            {/* Ano JÁ FECHADO sem informe — o extrato existe, o dinheiro
+                saiu, e o custo daquele ano não existe no sistema. Vem ANTES do
+                "aguardando informe" porque é o único dos dois que tem ação
+                possível hoje. */}
+            {estado.resumo.financiamentoFaltaLancar.length > 0 ? (
+              <>
+                <Passo>Financiamento — informe anual não lançado</Passo>
+                {estado.resumo.financiamentoFaltaLancar.map((f) => (
+                  <Card key={f.ano} className="border-amb" data-falta-lancar={f.ano}>
+                    <Chip cor="amb">falta lançar {f.ano}</Chip>
+                    <Consequencia cor="amb">{f.aviso}</Consequencia>
+                    <div className="mt-2.5">
+                      <BotaoLink href={f.href} variante="primary">
+                        Registrar informe de {f.ano}
+                      </BotaoLink>
                     </div>
                   </Card>
                 ))}

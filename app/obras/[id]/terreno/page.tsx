@@ -34,11 +34,13 @@ import {
   custoTerrenoAteOAno,
   DESEMBOLSO_SEM_DATA,
   ESTIMATIVA_NAO_E_APURACAO,
+  faltaLancarInforme,
   INSUMO_PARA_REVISAO_CRC,
   NOME_DA_NATUREZA,
   NOME_DO_DESEMBOLSO,
   PREVISTO_NAO_E_PAGO,
   SALDO_DEVEDOR_INFORMATIVO,
+  TERRENO_ZERO_NAO_E_NADA_PAGO,
 } from "@/lib/fiscal/terreno";
 import { hojeIso } from "@/lib/hoje";
 import { formatarBRL } from "@/lib/money";
@@ -159,10 +161,21 @@ export default function PainelDoTerreno() {
           <Linha rotulo={`Já desembolsado até 31/12/${anoCorrente}`}>
             <span className="mono font-semibold">{formatarBRL(acumulado)}</span>
           </Linha>
-          <Dica>
-            = situação em 31/12/{anoCorrente} na ficha Bens e Direitos, pela
-            parte do terreno.
-          </Dica>
+          {/* ⚠️ Zero NÃO ganha a moldura de fato apurado. Com o backfill das
+              três colunas descartado, esta linha nasceu em R$ 0,00 numa obra
+              cujo terreno foi pago de verdade — e o ano-base 2025 já foi
+              declarado pelo contador com CRC COM o terreno dentro. Afirmar
+              "= situação em 31/12 na ficha Bens e Direitos" em cima disso é o
+              app dizendo fato falso, na direção irreversível: custo
+              subestimado vira ganho de capital inflado na venda. */}
+          {acumulado === 0 ? (
+            <Consequencia cor="amb">{TERRENO_ZERO_NAO_E_NADA_PAGO}</Consequencia>
+          ) : (
+            <Dica>
+              = situação em 31/12/{anoCorrente} na ficha Bens e Direitos, pela
+              parte do terreno.
+            </Dica>
+          )}
           <Consequencia cor="amb">{INSUMO_PARA_REVISAO_CRC}</Consequencia>
         </Card>
 
@@ -270,11 +283,10 @@ export default function PainelDoTerreno() {
 
                 {a.situacao === "falta_lancar" ? (
                   <>
+                    {/* Uma definição só do texto: a home mostra o mesmo
+                        aviso, e duas cópias descolam no dia da correção. */}
                     <Consequencia cor="amb">
-                      Sem este lançamento, o custo de aquisição de {a.ano} não
-                      existe no sistema. Custo pago e não discriminado na
-                      declaração não existe na hora da venda. O extrato já foi
-                      publicado pelo banco — é download, não pedido.
+                      {faltaLancarInforme(a.ano)}
                     </Consequencia>
                     <div className="mt-2.5">
                       <BotaoLink

@@ -374,8 +374,13 @@ export async function criarVinculo(
 
 /**
  * Desembolso do terreno montado direto no banco. Serve ao cenário "isto já
- * estava lá quando o Mateus abriu a tela" — inclusive a linha SEM DATA, que é o
- * que a migration 0008 produz a partir das colunas mortas.
+ * estava lá quando o Mateus abriu a tela" — inclusive a linha SEM DATA.
+ *
+ * ⚠️ Essa linha sem data **não vem de backfill nenhum**: a migration 0008
+ * DROPA `valor_terreno`, `valor_itbi` e `valor_escritura_registro` sem
+ * converter nada (descarte autorizado pelo Mateus em 2026-08-19 — ele redigita
+ * os valores com as datas certas). O estado `(pago, sem data)` continua
+ * existindo porque é legítimo: paguei, e não sei em que dia.
  */
 export async function criarDesembolsoTerreno(
   db: Db,

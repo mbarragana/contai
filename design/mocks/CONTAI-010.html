@@ -179,6 +179,27 @@
   .ano{display:flex; justify-content:space-between; align-items:center; gap:10px}
 </style>
 
+<div class="evalbar" style="border:2px solid #b91c1c; background:#fbecec; color:#3a382f">
+  <h1 style="color:#b91c1c">⚠️ DESATUALIZADO EM PARTE — a implementação é a referência</h1>
+  <p>Em <strong>2026-08-19</strong> o Mateus removeu o <strong>critério 18</strong> do
+     CONTAI-010, e o <strong>ADENDO 4</strong> de
+     <code>docs/pareceres/2026-08-17-terreno-financiado.md</code> registrou a divergência
+     com o contador com CRC que assina a declaração: o parecer do agente exclui os seguros
+     do custo, <strong>o CRC os incluiu</strong>, e a posição do CRC prevalece.
+     <strong>Nenhuma tela do produto afirma o tratamento dos seguros.</strong></p>
+  <p>Portanto, neste arquivo <strong>não são mais verdade</strong>:</p>
+  <ul style="margin:6px 0 0 18px">
+    <li>o rótulo <code>✕ não entra no custo — decisão firme</code> na linha de seguros
+        (a tela real mostra a rubrica, o valor e a origem, e <strong>cala</strong> sobre a
+        classificação);</li>
+    <li>a tela <code>s8</code> inteira (<em>“Mas é obrigatório. Por que não entra?”</em>),
+        que ensina a posição removida.</li>
+  </ul>
+  <p>As telas <strong>não foram apagadas de propósito</strong> — servem de registro do que
+     foi discutido. Onde o mock e o código divergirem,
+     <strong>o código é a referência</strong>.</p>
+</div>
+
 <div class="evalbar">
   <h1>Mock CONTAI-010 — Da compra do terreno ao informe anual · v2</h1>
   <p><strong>Cenário: gestão, em casa, sentado.</strong> Acontece <strong>uma vez por ano</strong>,

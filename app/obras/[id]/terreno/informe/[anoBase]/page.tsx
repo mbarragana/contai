@@ -39,10 +39,12 @@ import {
   RUBRICA_EM_ABERTO,
   rubricasComClassificacaoEmAberto,
   SALDO_DEVEDOR_INFORMATIVO,
+  SALDO_DEVEDOR_OBRIGATORIO,
   TAXAS_E_FCVS_NA_MESMA_LINHA,
   travaDaSoma,
   UM_INFORME_POR_ANO,
 } from "@/lib/fiscal/terreno";
+import { hojeIso } from "@/lib/hoje";
 import { formatarBRL, parseValorInput } from "@/lib/money";
 import type { Financiamento, FinanciamentoInforme, Obra } from "@/lib/types";
 
@@ -148,6 +150,7 @@ export default function InformeAnual() {
   const router = useRouter();
   const id = params.id;
   const anoBase = Number(params.anoBase);
+  const anoCorrente = Number(hojeIso().slice(0, 4));
 
   const [fase, setFase] = useState<Fase>({ nome: "carregando" });
   const [obra, setObra] = useState<Obra | null>(null);
@@ -234,8 +237,26 @@ export default function InformeAnual() {
 
   const trava = travaDaSoma(valores);
   const totalInformado = (numeros.lidos.totalPagoCentavos ?? 0) > 0;
+  /**
+   * ⚠️ O saldo devedor é o ÚNICO campo desta tela em que branco não pode valer
+   * zero. As sete rubricas têm a trava da soma conferindo cada uma contra o
+   * total pago; o saldo devedor não participa de soma nenhuma e por isso **nada
+   * o confere**. Em branco virando 0 a tela imprime "Saldo devedor em 31/12:
+   * R$ 0,00", que lido literalmente diz FINANCIAMENTO QUITADO — default em
+   * campo fiscal, proibido pelo CLAUDE.md — e o número vaza para o texto da
+   * discriminação do Passo 2, que exige "pago + saldo devedor = preço
+   * contratado".
+   *
+   * **0,00 DIGITADO é afirmação e passa** (o contrato pode ter sido quitado de
+   * verdade); branco não é resposta.
+   */
+  const saldoInformado = campos.saldoDevedor.trim() !== "";
   const podeGravar =
-    !numeros.algumIlegivel && totalInformado && trava.fecha && arquivo !== null;
+    !numeros.algumIlegivel &&
+    totalInformado &&
+    trava.fecha &&
+    saldoInformado &&
+    arquivo !== null;
 
   const jaExiste = jaRegistrados.some((i) => i.anoBase === anoBase);
 
@@ -282,6 +303,37 @@ export default function InformeAnual() {
           )}
         </Corpo>
         <Rodape>
+          <BotaoLink href={`/obras/${id}/terreno`}>Voltar ao terreno</BotaoLink>
+        </Rodape>
+      </>
+    );
+  }
+
+  // ── Ano-base no futuro: o exercício ainda não existe ───────────────────
+  //
+  // O CHECK do banco só limita 1990-2999, e a rota é digitável: `/informe/2031`
+  // gravaria custo de aquisição de um ano que ainda não aconteceu. A tela é a
+  // única barreira aqui, e a régua é a mesma do desembolso com data futura —
+  // o app não registra fato que ainda não ocorreu.
+  if (anoBase > anoCorrente) {
+    return (
+      <>
+        <AppBar titulo={`Informe anual de ${anoBase}`} sub={obra.nome} />
+        <Corpo>
+          <Banner cor="red" role="alert">
+            {anoBase} ainda não aconteceu. Não existe extrato de um exercício
+            que não fechou, e o app não grava custo de aquisição em ano que
+            ainda não existe. O ano-base mais recente com extrato publicado é{" "}
+            {anoCorrente - 1}.
+          </Banner>
+        </Corpo>
+        <Rodape>
+          <BotaoLink
+            href={`/obras/${id}/terreno/informe/${anoCorrente - 1}`}
+            variante="primary"
+          >
+            Registrar informe de {anoCorrente - 1}
+          </BotaoLink>
           <BotaoLink href={`/obras/${id}/terreno`}>Voltar ao terreno</BotaoLink>
         </Rodape>
       </>
@@ -347,12 +399,21 @@ export default function InformeAnual() {
                 {formatarBRL(custoDoInformeCentavos(valores))}
               </span>
             </Linha>
-            <Linha rotulo="Guardado, fora da soma">
+            {/* ⚠️ DUAS LINHAS, NUNCA UMA. Somá-las apagaria a diferença que o
+                critério 13 manda preservar: "em aberto" é rubrica cuja
+                classificação ninguém fechou (seguros, taxas/FCVS, Diferença
+                Teórico/Pago — ADENDO 4); "penalidade" tem classificação
+                FECHADA, nunca é custo. Balde único é a via pela qual o FCVS
+                vira seguro e o seguro vira mora — e `lib/fiscal/terreno.ts`
+                mantém as duas funções separadas justamente por isso. */}
+            <Linha rotulo="Guardado — classificação com o seu contador">
               <span className="mono">
-                {formatarBRL(
-                  rubricasComClassificacaoEmAberto(valores) +
-                    penalidadesCentavos(valores),
-                )}
+                {formatarBRL(rubricasComClassificacaoEmAberto(valores))}
+              </span>
+            </Linha>
+            <Linha rotulo="Guardado — penalidade, nunca é custo">
+              <span className="mono">
+                {formatarBRL(penalidadesCentavos(valores))}
               </span>
             </Linha>
             <Linha rotulo={`Saldo devedor em 31/12/${anoBase}`}>
@@ -539,7 +600,9 @@ export default function InformeAnual() {
               erro={
                 centavos("saldoDevedor") === null
                   ? "Valor não reconhecido — copie como está no extrato."
-                  : undefined
+                  : !saldoInformado
+                    ? SALDO_DEVEDOR_OBRIGATORIO
+                    : undefined
               }
             />
             <Consequencia cor="amb">{SALDO_DEVEDOR_INFORMATIVO}</Consequencia>
@@ -567,7 +630,9 @@ export default function InformeAnual() {
                 ? "Há um valor que o app não conseguiu ler."
                 : !totalInformado
                   ? "Informe o total pago no exercício."
-                  : "A soma precisa fechar com o total pago para continuar."}
+                  : !trava.fecha
+                    ? "A soma precisa fechar com o total pago para continuar."
+                    : SALDO_DEVEDOR_OBRIGATORIO}
             </Dica>
           )}
           <Botao variante="ghost" onClick={() => setPasso(1)}>

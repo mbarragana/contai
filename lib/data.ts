@@ -254,6 +254,14 @@ export interface PainelDados {
    */
   desembolsosTerreno: TerrenoDesembolso[];
   informesFinanciamento: FinanciamentoInforme[];
+  /**
+   * O CONTRATO do financiamento, ou `null`. Viaja no painel porque é ele — e
+   * não a existência de um informe — que diz que ESTA obra tem financiamento:
+   * contrato assinado e zero informes é o estado real da obra hoje, e era o
+   * estado em que a home ficava muda sobre um custo de dezenas de milhares de
+   * reais por ano (critério 16).
+   */
+  financiamento: Financiamento | null;
 }
 
 function paraDesembolsoTerreno(row: TerrenoDesembolsoRow): TerrenoDesembolso {
@@ -397,6 +405,10 @@ export async function carregarPainel(obraId: string): Promise<PainelDados> {
     informesFinanciamento: ((informes.data ?? []) as FinanciamentoInformeRow[])
       .filter((i) => contratosDaObra.has(i.financiamento_id))
       .map(paraInforme),
+    // `unique (obra_id)` no banco: no máximo uma linha por obra.
+    financiamento: ((financiamentos.data ?? []) as FinanciamentoRow[])[0]
+      ? paraFinanciamento(((financiamentos.data ?? []) as FinanciamentoRow[])[0])
+      : null,
   };
 }
 
@@ -479,6 +491,10 @@ export async function carregarPaineis(): Promise<PainelDados[]> {
     informesFinanciamento: ((informes.data ?? []) as FinanciamentoInformeRow[])
       .filter((row) => obraDoContrato.get(row.financiamento_id) === obra.id)
       .map(paraInforme),
+    financiamento:
+      ((financiamentos.data ?? []) as FinanciamentoRow[])
+        .filter((f) => f.obra_id === obra.id)
+        .map(paraFinanciamento)[0] ?? null,
   }));
 }
 

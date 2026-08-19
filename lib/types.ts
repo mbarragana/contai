@@ -202,10 +202,16 @@ export interface TerrenoDesembolso {
   /** FGTS na entrada é desembolso dele e ENTRA no custo (parecer §2a). */
   origemRecurso: OrigemRecursoEntrada | null;
   /**
-   * `null` em duas situações, e elas NÃO são a mesma coisa em tela:
-   * `previsto` (ainda não pagou — critério 5) e `pago` sem data conhecida
-   * (pendência de complemento — critério 23). Nenhuma das duas entra em ano
-   * nenhum: o custo é regime de caixa e sem data não há ano-calendário.
+   * O comprovante no acervo, ou `null`.
+   *
+   * ⚠️ `null` **não diz nada sobre o ano-calendário** — quem decide isso é
+   * `dataPagamento`, e só ela. As duas situações em que ele fica nulo:
+   * - `previsto` — nada foi pago, não há o que anexar (critério 5);
+   * - uma linha `pago` cuja DATA foi completada sem comprovante à mão
+   *   (`completarDesembolsoTerreno` aceita o anexo como opcional: o que falta
+   *   ali é a data). Essa linha tem estado `pago` + data + `arquivoPath` nulo,
+   *   e **SOMA normalmente no ano dela** — o custo existe, o lastro documental
+   *   é que está fraco.
    */
   arquivoPath: string | null;
 }

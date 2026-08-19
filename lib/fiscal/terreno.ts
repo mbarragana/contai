@@ -27,7 +27,9 @@
 
 import type {
   FinanciamentoInforme,
+  NaturezaAquisicaoTerreno,
   TerrenoDesembolso,
+  TipoDesembolsoTerreno,
 } from "@/lib/types";
 import { formatarBRL } from "@/lib/money";
 
@@ -426,12 +428,22 @@ export const GUARDADO_NAO_E_DESCARTADO =
   "isso que permite recompor o custo sob qualquer entendimento sem redigitar " +
   "nada — o erro irreversível seria não ter capturado.";
 
-/** Critério 13 — o FCVS não herda o tratamento de nenhuma outra rubrica. */
+/**
+ * Critério 13 — o FCVS não herda o tratamento de nenhuma outra rubrica.
+ *
+ * ⚠️ A palavra **"candidato"** é obrigatória e não é enfeite: é ela que faz
+ * alguém revisitar este ano quando a confirmação chegar (pre-mortem 3). Sem a
+ * marca própria, o FCVS vira "mais uma linha guardada" e a confirmação
+ * favorável não encontra nada para corrigir. E ela é dita **só do FCVS** — o
+ * texto continua calado sobre a classificação dos seguros (ADENDO 4).
+ */
 export const TAXAS_E_FCVS_NA_MESMA_LINHA =
   "Esta linha junta duas coisas com destinos diferentes: taxa de administração " +
   "do contrato e FCVS. O extrato não separa, e o app não adivinha a divisão — " +
   "guarda o valor cheio fora da soma e marca o ano como pendente de revisão " +
-  "humana. Nada trava por causa disto.";
+  "humana. Nada trava por causa disto. O FCVS fica marcado como " +
+  "candidato a inclusão, pendente de confirmação: se a confirmação vier " +
+  "favorável, é esta linha que volta a ser olhada.";
 
 /** Critério 16 — o ano corrente subestima, e isso é nomeado, nunca silenciado. */
 export const AGUARDANDO_INFORME =
@@ -440,6 +452,97 @@ export const AGUARDANDO_INFORME =
   "comprova só é publicado em jan/fev do ano seguinte. Não é um defeito, é o " +
   "calendário do banco — e não afeta declaração nenhuma, que é preenchida com " +
   "o informe já na mão.";
+
+/**
+ * Critério 16 — **ano ANTERIOR sem informe**, que é o caso que dói hoje: o
+ * extrato já existe, o dinheiro já saiu, e o custo daquele ano não existe no
+ * sistema. Diferente de `AGUARDANDO_INFORME`, que fala do ano que ainda não
+ * fechou e cujo documento o banco ainda não publicou.
+ *
+ * Uma definição só, usada pela home e pelo painel do terreno: duas cópias do
+ * mesmo texto fiscal descolam no dia em que uma delas for corrigida.
+ */
+export function faltaLancarInforme(ano: number): string {
+  return (
+    `Falta lançar o informe anual de ${ano}. Sem ele, o custo de aquisição ` +
+    `de ${ano} não existe no sistema — e custo pago e não discriminado na ` +
+    "declaração não existe na hora da venda. O extrato já foi publicado pelo " +
+    "banco: é download, não pedido."
+  );
+}
+
+/**
+ * ⚠️ O R$ 0,00 do terreno **não é uma apuração** — é a ausência dela.
+ *
+ * O backfill das três colunas mortas foi DESCARTADO (2026-08-19, decisão do
+ * Mateus): a obra existente atravessou a migration 0008 sem desembolso nenhum,
+ * e o painel passou a imprimir R$ 0,00 com a moldura de fato apurado
+ * ("situação em 31/12 na ficha Bens e Direitos"). É o app afirmando fato falso,
+ * e a direção do erro é a irreversível — custo subestimado vira ganho de
+ * capital inflado na venda. Agrava: o ano-base 2025 já foi declarado pelo
+ * contador com CRC **com o terreno dentro**.
+ */
+export const TERRENO_ZERO_NAO_E_NADA_PAGO =
+  "R$ 0,00 aqui significa que nada foi registrado ainda — não que nada foi " +
+  "pago. Enquanto o terreno não tiver desembolsos datados, esta linha " +
+  "subestima a situação em 31/12 e não serve para a declaração.";
+
+/**
+ * Critério 15 + parecer §4 — o saldo devedor é **exigido**, e não tem default.
+ *
+ * Campo em branco valendo zero é o defeito que o `CLAUDE.md` proíbe em campo
+ * fiscal: "Saldo devedor em 31/12: R$ 0,00" lido literalmente diz
+ * **financiamento quitado**. As sete rubricas podem vir em branco porque a
+ * trava da soma as confere contra o total pago; o saldo devedor não participa
+ * de soma nenhuma e por isso **nada o confere** — só a pergunta.
+ */
+export const SALDO_DEVEDOR_OBRIGATORIO =
+  "Informe o saldo devedor em 31/12 — ele está no extrato. Não entra em soma " +
+  "nenhuma, mas é ele que fecha a conta de quem lê a declaração: pago + saldo " +
+  "devedor = preço contratado.";
+
+// ── Quais desembolsos cada natureza admite (critérios 2 e 14) ────────────
+
+/**
+ * A natureza da aquisição **decide qual regra roda** (critério 2), e aqui ela
+ * decide quais tipos de desembolso existem.
+ *
+ * ⚠️ Isto é a **porta lateral da dupla contagem**. A trava do critério 14 é
+ * estrutural — não existe tipo "parcela do financiamento" —, mas ela só protege
+ * o tipo que nomeia: numa obra `financiado`, oferecer "Parcela ao vendedor" ou
+ * "Pagamento do terreno" convida a registrar o débito mensal do banco sob um
+ * rótulo vizinho, e aí o mesmo dinheiro entra duas vezes (informe + linha
+ * avulsa) sem nada acusar.
+ *
+ * **Natureza desconhecida (`null`) devolve a lista cheia**: o app não inventa
+ * restrição sobre fato que não sabe — a pendência de complemento já pede a
+ * resposta, e ela não bloqueia nada (critério 23).
+ */
+export function tiposDeDesembolsoPara(
+  natureza: NaturezaAquisicaoTerreno | null,
+): TipoDesembolsoTerreno[] {
+  const todos: TipoDesembolsoTerreno[] = [
+    "pagamento_terreno",
+    "entrada",
+    "itbi",
+    "escritura_registro",
+    "parcela_vendedor",
+    "quitacao",
+  ];
+  if (natureza === null) return todos;
+  return todos.filter((tipo) => {
+    // Parcela ao vendedor só existe onde há vendedor parcelando (parecer §2b).
+    if (tipo === "parcela_vendedor") return natureza === "parcelado_vendedor";
+    // Quitação do financiamento só existe onde há financiamento. Ela é o
+    // desembolso do ano da venda (parecer: "financiar não amputa o custo").
+    if (tipo === "quitacao") return natureza === "financiado";
+    // Pagamento do terreno é o desembolso do preço direto ao vendedor — no
+    // financiado quem paga o preço ao vendedor é o banco, e o que sai do bolso
+    // dele é entrada + parcelas, que vêm pelo informe anual.
+    if (tipo === "pagamento_terreno") return natureza !== "financiado";
+    return true;
+  });
+}
 
 /** D2.8 — a estimativa é ordem de grandeza, e fica FORA de toda soma. */
 export const ESTIMATIVA_NAO_E_APURACAO =

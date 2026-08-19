@@ -361,33 +361,38 @@ revoke all privileges on table
 -- SEM DELETE nas três. Acervo append-only (CONTAI-009): desembolso registrado
 -- e informe gravado são fato com documento atrás, não rascunho.
 
--- UPDATE em `terreno_desembolso` serve a UM ato: COMPLETAR o que falta numa
--- linha já gravada — a data de pagamento e o comprovante de um desembolso
--- registrado sem eles, e a passagem de `previsto` para `pago` no dia em que o
--- ITBI for recolhido (critérios 5 e 23). Sem ele a pendência de complemento
--- não teria como ser resolvida pela tela — e correção que exige SQL é a dor
--- D9 de volta.
+-- UPDATE em `terreno_desembolso` serve a UM ato, e ele TEM caminho na tela:
+-- COMPLETAR o que falta numa linha já gravada — a data de pagamento e o
+-- comprovante de um desembolso registrado sem eles (critério 23,
+-- `completarDesembolsoTerreno`). Sem ele a pendência de complemento não teria
+-- como ser resolvida pela tela — e correção que exige SQL é a dor D9 de volta.
+--
+-- ⚠️ Este UPDATE **não** serve à passagem de `previsto` para `pago`: essa
+-- transição NÃO EXISTE no código. `completarDesembolsoTerreno` escreve apenas
+-- `data_pagamento` e `arquivo_path`, a tela só oferece completar linhas que já
+-- estão `pago`, e a constraint `terreno_desembolso_previsto_sem_data` recusaria
+-- (23514) uma linha `previsto` que ganhasse data. O fluxo previsto→pago é
+-- ticket próprio — ele exige decidir a obrigatoriedade do anexo na transição,
+-- e comentário de migration vira justificativa imutável depois do `db push`.
 grant select, insert, update on table terreno_desembolso to authenticated;
 
--- UPDATE em `financiamento` serve à correção do cadastro do contrato
--- (instituição, número, nº de parcelas), que é digitado à mão uma vez na vida.
-grant select, insert, update on table financiamento to authenticated;
-
--- ⚠️ UPDATE em `financiamento_informe` — justificativa por escrito, porque a
--- regra vizinha da 0007 é "privilégio sem caminho na interface é superfície à
--- toa", e este está no limite dela.
+-- ── `financiamento` e `financiamento_informe`: SEM UPDATE ───────────────
 --
--- Sem UPDATE, um informe gravado com DUAS RUBRICAS TROCADAS ENTRE SI (a soma
--- fecha do mesmo jeito, então nem a trava nem o CHECK acusam) TRAVA O ANO-BASE
--- PARA SEMPRE por causa do `unique (financiamento_id, ano_base)`: não dá para
--- gravar o certo por cima, não dá para apagar o errado, e o único conserto
--- seria SQL à mão em produção. O erro é plausível — são sete números
--- transcritos de um PDF — e o dano é que o custo do ano fica errado com
--- aparência de certo.
+-- As duas nasceram com `update` na primeira escrita desta migration, pelo
+-- cenário real de um informe gravado com DUAS RUBRICAS TROCADAS ENTRE SI: a
+-- soma fecha do mesmo jeito, nem a trava da aplicação nem o CHECK acusam, e o
+-- `unique (financiamento_id, ano_base)` trava aquele ano-base para sempre —
+-- não dá para gravar o certo por cima nem para apagar o errado.
 --
--- O grant é de TABELA e não de coluna porque
--- `information_schema.role_table_grants` (a fonte de `e2e/privilegios.spec.ts`)
--- só enxerga privilégio de TABELA: um `grant update (…)` sumiria do mapa e o
--- teste leria como "tabela sem UPDATE". Mesma nota que a 0007 deixou em
--- `pagamento_diferenca`.
-grant select, insert, update on table financiamento_informe to authenticated;
+-- **O cenário é real e continua sem remédio; o grant é que não era o remédio.**
+-- Não existe nenhum `.update()` para estas duas tabelas em `lib/data.ts`, então
+-- o conserto continuaria sendo SQL à mão em produção com ou sem o privilégio. O
+-- que o grant comprava, sozinho, era só a superfície: reescrita silenciosa de
+-- registro fiscal sem rastro, contra o acervo append-only do CONTAI-009.
+--
+-- A resposta certa é **tela + rastro + grant no mesmo diff** — a correção de
+-- informe/contrato registrando o que mudou, quem mudou e quando, como o
+-- `compromisso_data_historico` já faz. Isso é **ticket a abrir**, e até ele
+-- existir estas duas tabelas são append-only de verdade.
+grant select, insert on table financiamento to authenticated;
+grant select, insert on table financiamento_informe to authenticated;

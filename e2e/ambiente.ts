@@ -34,9 +34,12 @@ export const OBRA_ID_SEED = "22222222-2222-4222-8222-222222222222";
  * acumulado do imóvel acusa.
  *
  * ⚠️ CONTAI-010: `valor_terreno`, `valor_itbi` e `valor_escritura_registro`
- * MORRERAM na migration 0008 (as três viraram `terreno_desembolso`, cada um com
- * a sua data), e `natureza_aquisicao_terreno` nasce NULL — pendência de
- * complemento, que é o estado real da obra do Mateus depois da migration.
+ * MORRERAM na migration 0008 — e morreram sem virar nada. **Não houve
+ * backfill**: os três valores foram DESCARTADOS (autorização do Mateus em
+ * 2026-08-19), e ele redigita cada um em `terreno_desembolso` com a data certa,
+ * que é o dado que as colunas nunca tiveram. `natureza_aquisicao_terreno` nasce
+ * NULL — pendência de complemento, que é o estado real da obra depois da
+ * migration.
  */
 export const OBRA_SEED = {
   id: OBRA_ID_SEED,

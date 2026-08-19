@@ -6,6 +6,7 @@ import { podeGerarRelatorioAnual } from "@/lib/fiscal/compromisso";
 import { calcularResumo, type EntradaResumo } from "@/lib/fiscal/resumo";
 import type {
   Documento,
+  Financiamento,
   FinanciamentoInforme,
   Obra,
   Pagamento,
@@ -96,6 +97,7 @@ function resumo(over: Partial<EntradaResumo> = {}) {
     pagamentos: [],
     desembolsosTerreno: [TERRENO],
     informesFinanciamento: [],
+    financiamento: null,
     ano: 2026,
     ...over,
   });
@@ -771,6 +773,7 @@ describe("os oito lugares (parecer §2, itens 1 a 8)", () => {
     pagamentos: [pag({ id: "p1", valorCentavos: 1_000_000, documentoIds: ["d1"] })],
     desembolsosTerreno: [TERRENO],
     informesFinanciamento: [] as FinanciamentoInforme[],
+    financiamento: null,
   };
 
   it("1 · custo confirmado e acumulado: `EntradaResumo` não tem compromisso", () => {
@@ -827,6 +830,7 @@ describe("os oito lugares (parecer §2, itens 1 a 8)", () => {
       pagamentos: [],
       desembolsosTerreno: [TERRENO],
       informesFinanciamento: [],
+      financiamento: null,
       ano: 2026,
     });
     expect(r.notasSemPagamentoCentavos).toBe(300_000);
@@ -901,10 +905,25 @@ describe("terreno e financiamento fora das pendências (critério 21)", () => {
     arquivoPath: null,
   };
 
+  /**
+   * O CONTRATO. Ele é o que faz a home falar sobre o financiamento — não a
+   * existência de um informe (ver o bloco do critério 16 mais abaixo).
+   */
+  const CONTRATO: Financiamento = {
+    id: "fin-1",
+    obraId: "obra-1",
+    instituicao: "Banco Litoral",
+    numeroContrato: null,
+    dataContrato: "2024-03-20",
+    precoContratadoCentavos: 65_000_000,
+    numeroParcelas: 240,
+  };
+
   const completo = () =>
     resumo({
       desembolsosTerreno: [TERRENO, SEM_DATA],
       informesFinanciamento: [INFORME],
+      financiamento: CONTRATO,
     });
 
   it("informe e desembolso NÃO viram pendência e NÃO entram no custo em risco", () => {
@@ -958,20 +977,200 @@ describe("terreno e financiamento fora das pendências (critério 21)", () => {
   it("com o informe do ano em tela, não há 'aguardando informe'", () => {
     const r = resumo({
       informesFinanciamento: [{ ...INFORME, anoBase: 2026 }],
+      financiamento: CONTRATO,
     });
     expect(r.financiamentoAguardandoInforme).toBeNull();
   });
 
-  it("saldo devedor e preço contratado não chegam ao resumo por caminho nenhum", () => {
-    // `EntradaResumo` não tem campo de `Financiamento`: o PREÇO CONTRATADO
-    // (critério 8) não tem como entrar. O saldo devedor viaja no informe e não
-    // é somado — dobrá-lo não muda número nenhum.
+  it("saldo devedor e preço contratado não entram em soma nenhuma", () => {
+    // ⚠️ `EntradaResumo` PASSOU a ter `financiamento` (a home precisa saber que
+    // o contrato existe — critério 16), e por isso o PREÇO CONTRATADO agora tem
+    // como chegar até aqui. O que este teste tranca é que ele **não é somado**
+    // (critério 8): dobrá-lo não move número nenhum. O mesmo para o saldo
+    // devedor, que viaja no informe (critério 15).
+    const base = { informesFinanciamento: [INFORME], financiamento: CONTRATO };
+    const normal = resumo(base);
     const dobrado = resumo({
+      ...base,
       informesFinanciamento: [
         { ...INFORME, saldoDevedorCentavos: INFORME.saldoDevedorCentavos * 2 },
       ],
+      financiamento: {
+        ...CONTRATO,
+        precoContratadoCentavos: CONTRATO.precoContratadoCentavos * 2,
+      },
     });
-    const normal = resumo({ informesFinanciamento: [INFORME] });
     expect(dobrado.acumuladoImovelCentavos).toBe(normal.acumuladoImovelCentavos);
+    expect(dobrado.custoConfirmadoAnoCentavos).toBe(
+      normal.custoConfirmadoAnoCentavos,
+    );
+    expect(dobrado.emPendenciaCentavos).toBe(normal.emPendenciaCentavos);
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  // ⚠️ CRITÉRIO 16 — "nunca em silêncio". O BLOQUEADOR do Gate 2.
+  //
+  // A condição do aviso era `informesFinanciamento.length > 0`: a existência do
+  // financiamento era INFERIDA de haver informe. Com contrato assinado e ZERO
+  // informes — o estado real da obra hoje — a home imprimia o acumulado sem um
+  // caractere sobre o financiamento, subestimando ~R$ 60 mil por ano-base não
+  // lançado. A condição passou a ser o CONTRATO.
+  // ════════════════════════════════════════════════════════════════════════
+
+  describe("critério 16 · o financiamento nunca fica em silêncio", () => {
+    it("contrato SEM informe nenhum: a home fala, e fala do ano corrente", () => {
+      const r = resumo({ financiamento: CONTRATO, informesFinanciamento: [] });
+      expect(r.financiamentoAguardandoInforme).not.toBeNull();
+      expect(r.financiamentoAguardandoInforme!.ano).toBe(2026);
+      // Sem informe anterior não há de onde tirar ordem de grandeza — e o app
+      // não inventa uma.
+      expect(r.financiamentoAguardandoInforme!.estimativaCentavos).toBeNull();
+    });
+
+    it("os anos JÁ FECHADOS sem informe aparecem um a um, com a consequência", () => {
+      // Contrato de 2024, ano em tela 2026, nenhum informe: 2024 e 2025 estão
+      // fechados e não lançados. 2026 é "aguardando", não "falta lançar".
+      const r = resumo({ financiamento: CONTRATO, informesFinanciamento: [] });
+      expect(r.financiamentoFaltaLancar.map((f) => f.ano)).toEqual([2024, 2025]);
+      for (const f of r.financiamentoFaltaLancar) {
+        expect(f.aviso).toContain(`custo de aquisição de ${f.ano} não existe`);
+        expect(f.aviso).toContain("é download, não pedido");
+        expect(f.href).toBe(`/obras/obra-1/terreno/informe/${f.ano}`);
+      }
+    });
+
+    it("o ano com informe lançado sai da lista de 'falta lançar'", () => {
+      const r = resumo({
+        financiamento: CONTRATO,
+        informesFinanciamento: [INFORME], // 2025
+      });
+      expect(r.financiamentoFaltaLancar.map((f) => f.ano)).toEqual([2024]);
+    });
+
+    it("SEM contrato o app não afirma nada — obra à vista nunca terá informe", () => {
+      const r = resumo({ financiamento: null, informesFinanciamento: [] });
+      expect(r.financiamentoAguardandoInforme).toBeNull();
+      expect(r.financiamentoFaltaLancar).toEqual([]);
+    });
+
+    it("nada disso soma: o acumulado é o mesmo com e sem os avisos", () => {
+      const comContrato = resumo({
+        financiamento: CONTRATO,
+        informesFinanciamento: [],
+      });
+      const semContrato = resumo({
+        financiamento: null,
+        informesFinanciamento: [],
+      });
+      expect(comContrato.acumuladoImovelCentavos).toBe(
+        semContrato.acumuladoImovelCentavos,
+      );
+      expect(comContrato.emPendenciaCentavos).toBe(0);
+    });
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  // ⚠️ O R$ 0,00 DO TERRENO — o segundo bloqueador do Gate 2.
+  //
+  // O backfill das três colunas mortas foi descartado, e o painel passou a
+  // imprimir R$ 0,00 sob o rótulo "situação em 31/12 na ficha Bens e Direitos"
+  // numa obra cujo terreno foi pago de verdade — e cujo ano-base 2025 já foi
+  // declarado pelo CRC COM o terreno dentro. Fato falso com moldura de fato
+  // apurado, na direção irreversível (custo subestimado = ganho inflado).
+  // ════════════════════════════════════════════════════════════════════════
+
+  describe("o zero do terreno é ausência de registro, não de pagamento", () => {
+    it("sem desembolso e sem informe, o aviso existe e o número é zero", () => {
+      const r = resumo({ desembolsosTerreno: [], informesFinanciamento: [] });
+      expect(r.terrenoSemRegistro).not.toBeNull();
+      expect(r.terrenoSemRegistro!.terrenoNoAcumuladoCentavos).toBe(0);
+      expect(r.terrenoSemRegistro!.aviso).toContain(
+        "nada foi registrado ainda",
+      );
+      expect(r.terrenoSemRegistro!.aviso).toContain("não que nada foi pago");
+      expect(r.terrenoSemRegistro!.aviso).toContain("não serve para a declaração");
+    });
+
+    it("linha PAGA SEM DATA também deixa o zero mentindo — e o aviso fica", () => {
+      // O acumulado continua zero: sem data não há ano-calendário. O aviso é
+      // sobre o número em tela, não sobre a existência de linhas.
+      const r = resumo({ desembolsosTerreno: [SEM_DATA], informesFinanciamento: [] });
+      expect(r.acumuladoImovelCentavos).toBe(0);
+      expect(r.terrenoSemRegistro).not.toBeNull();
+    });
+
+    it("`previsto` não tira o aviso: previsto não é pago", () => {
+      const r = resumo({
+        desembolsosTerreno: [
+          { ...SEM_DATA, id: "t-prev", estado: "previsto", arquivoPath: null },
+        ],
+        informesFinanciamento: [],
+      });
+      expect(r.terrenoSemRegistro).not.toBeNull();
+    });
+
+    it("um desembolso DATADO cala o aviso — aí o número é apuração", () => {
+      const r = resumo({ desembolsosTerreno: [TERRENO] });
+      expect(r.terrenoSemRegistro).toBeNull();
+    });
+
+    it("só o informe também basta para o número virar apuração", () => {
+      const r = resumo({
+        desembolsosTerreno: [],
+        informesFinanciamento: [INFORME],
+        financiamento: CONTRATO,
+      });
+      expect(r.terrenoSemRegistro).toBeNull();
+    });
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  // ⚠️ A ESTIMATIVA — blindagem por AUSÊNCIA DE CAMINHO
+  //
+  // Mesmo padrão do compromisso: o que este teste prova não é que o número deu
+  // zero, é que NÃO EXISTE CAMINHO para a estimativa chegar a uma saída. Ela é
+  // ordem de grandeza tirada do informe do ano anterior; o dia em que entrar num
+  // texto de discriminação, vira número inventado numa declaração.
+  // ════════════════════════════════════════════════════════════════════════
+
+  describe("a estimativa não tem caminho para saída nenhuma", () => {
+    it("nenhum módulo de `lib/fiscal/` além de quem a produz a nomeia", () => {
+      // `terreno.ts` a calcula, `resumo.ts` a repassa para a tela. Qualquer
+      // outro módulo — inclusive os de saída da US-004, quando nascerem —
+      // deixa este teste vermelho COM O NOME DO ARQUIVO, antes de qualquer
+      // número errado ir para uma declaração.
+      const dir = "lib/fiscal";
+      const produtores = new Set(["terreno.ts", "resumo.ts"]);
+      const proibidos = readdirSync(dir).filter(
+        (f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && !produtores.has(f),
+      );
+      expect(proibidos.length).toBeGreaterThan(3); // o teste vale alguma coisa
+      for (const arquivo of proibidos) {
+        const fonte = readFileSync(`${dir}/${arquivo}`, "utf-8");
+        expect(
+          /estimativa/i.test(fonte),
+          `${arquivo} passou a conhecer a estimativa — ela é ordem de grandeza, não apuração`,
+        ).toBe(false);
+      }
+    });
+
+    it("a estimativa não é somada ao acumulado — o informe entra UMA vez", () => {
+      const r = completo(); // informe de 2025, ano em tela 2026
+      const custoDoInforme =
+        INFORME.amortizacaoCentavos + INFORME.jurosCorrecaoCentavos;
+      // A estimativa vale exatamente o custo do informe anterior. Se ela
+      // vazasse para o acumulado, este número viria dobrado.
+      expect(r.financiamentoAguardandoInforme!.estimativaCentavos).toBe(
+        custoDoInforme,
+      );
+      expect(r.acumuladoImovelCentavos).toBe(TERRENO_CENTAVOS + custoDoInforme);
+    });
+
+    it("ela vem sempre acompanhada da frase que a desqualifica como apuração", () => {
+      const r = completo();
+      expect(r.financiamentoAguardandoInforme!.sobreAEstimativa).toContain(
+        "não um número apurado",
+      );
+    });
   });
 });
