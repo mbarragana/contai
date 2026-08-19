@@ -812,3 +812,50 @@ Seguro de **R$ 499,56/ano** por ~20 anos ≈ **R$ 10 mil**; a 15%, ≈ **R$ 1,5 
 de imposto. **Não é irrelevante** — mas é o pior lugar para brigar: sem alínea
 nominal **e** com o argumento material contra. Os R$ 43 mil/ano de **juros** são
 onde o dinheiro está, e esses eu **incluo**, nomeados.
+
+---
+
+## ⚠️ ADENDO 4 — 2026-08-19 — DIVERGÊNCIA COM O CONTADOR COM CRC (não resolvida)
+
+**Este adendo não é do agente `contador`. É registro de um fato que contraria os
+adendos 2 e 3 acima, e ele NÃO deve ser apagado nem "corrigido".**
+
+### O fato
+
+A declaração do ano-calendário **2025** (exercício 2026) foi feita por um
+**contador com CRC**, e o Mateus decidiu em 2026-08-19 que **ela será mantida**.
+
+Nela, o financiamento foi declarado em Bens e Direitos pelo **TOTAL PAGO no
+ano** — isto é, **incluindo seguros e a rubrica "Diferença Teórico / Pago"**.
+
+Os adendos 2 e 3 deste parecer mandam **excluir seguros** ("cobertura de risco,
+não preço") e deixar a "Diferença Teórico / Pago" **fora da soma**.
+
+**São posições incompatíveis.** No caso concreto de 2025 a diferença é de
+R$ 666,99 no total do imóvel (R$ 499,56 de seguros + R$ 167,43 da rubrica
+desconhecida), rateados entre os dois declarantes.
+
+### Quem prevalece, e por quê
+
+**Prevalece o contador com CRC.** Ele assina a declaração e responde por ela; o
+parecer do agente não assina nada. A regra do `CLAUDE.md` de que regra fiscal vem
+do agente `contador` vale contra *memória de sessão*, **não contra profissional
+habilitado com o caso na mão**.
+
+### Consequência obrigatória para o CONTAI-010
+
+**O ticket, como está escrito, manda EXCLUIR os seguros — ou seja, manda
+implementar o lado que NÃO é o praticado.** Antes do Gate 1:
+
+1. O critério de composição do custo tem de refletir a prática do CRC, **ou**
+   oferecer os dois tratamentos com a escolha explícita e registrada.
+2. O app **guarda as sete rubricas separadas** de qualquer forma — é isso que
+   permite recompor o número sob qualquer das duas leituras, sem redigitar nada.
+3. Nenhuma tela pode afirmar que seguro "não entra" como se fosse fato pacífico.
+
+### O que resolveria de verdade
+
+Perguntar ao contador com CRC **por que** inclui — se é entendimento dele, praxe
+do escritório, ou dispositivo que o agente não encontrou. **Enquanto isso não for
+feito, a divergência fica aberta e registrada.** Ver também a pendência do
+chamado à CAIXA sobre a natureza da rubrica "Diferença Teórico / Pago".
