@@ -8,19 +8,49 @@ Desmembrado do CONTAI-018 (diretriz D2, 2026-08-18) e **reescreve a US-002**: el
 deixa de ser "fila de boletos a pagar com lembrete" e vira compromisso de
 pagamento previsto, com boleto sendo *uma* origem e o PIX agendado sendo outra.
 
-- **Gate 0 (mock)**: **ENTREGUE** — `design/mocks/CONTAI-019.html`, 17 telas
-  (`268b90c`, `51e7c5b`). ⚠️ **NÃO aprovado**: o Mateus já reprovou três coisas
-  lendo — os verbos das três respostas, o botão que bloqueia a gravação sem
-  anexo, e o checkbox no lugar do controle de anexo. Essas três, mais as oito
-  correções do fechamento de 18/08 (seção **Gate 0**), estão com o `designer`.
-- **Gate Fiscal**: **FECHADO, dívida de arquivo PAGA** (`4e0cf87`) —
-  `docs/pareceres/2026-08-18-compromisso-versus-pagamento.md`, mais o **ADENDO**
-  de 18/08 (§§A–E), que fecha bloqueio anual, cartão, sugestão de quitação e
-  valor menor. **A fonte é o arquivo**; a transcrição abaixo permanece como
-  histórico e perde para o parecer em qualquer divergência.
+- **Gate 0 (mock)**: **APROVADO pelo Mateus** — mock v2, `012fb13`
+  (`design/mocks/CONTAI-019.html`). As três reprovações dele foram atendidas.
+  ⚠️ **O mock v2 NÃO aplicou 3 das 8 correções que este ticket lista** (itens 1,
+  2 e 3 de *"Correções pendentes no mock"*), e por isso está **defasado do
+  código** em quatro pontos — ver *Divergências declaradas*, abaixo.
+- **Gate Fiscal**: **FECHADO** — `docs/pareceres/2026-08-18-compromisso-versus-pagamento.md`
+  (`4e0cf87`), mais **ADENDO 1** (§§A–E), **ADENDO 2** (`238a650`), **ADENDO 3**
+  (`397095b`, §§F–G) e **ADENDO 4** (`d69a3cf`, §§H.1–H.7, a quinta resolução).
+  **A fonte é o arquivo**; a transcrição abaixo permanece como histórico e perde
+  para o parecer em qualquer divergência.
+- **Gates do `/develop`**: G1a `0441187` · G1b `df36b41` · G2 `50958a1`
+  (retrabalho dos 4 bloqueadores) · G3 `3ec2913` · **G4 (`po`)**: **FAIL em
+  18/08**, por lastro documental — a quinta resolução estava no enum e **não no
+  parecer**. Fechado por `d69a3cf` (`contador`) + esta revisão.
 - **Pendências fechadas em 18/08** pelo `po` + `designer` + `contador`, sem ida
-  ao Mateus: seção *Decisões de fechamento* no fim. **Nada mais aguarda
-  decisão** — só aprovação de mock.
+  ao Mateus: seção *Decisões de fechamento* no fim.
+
+## Divergências declaradas do mock v2 — RATIFICADAS no Gate 4
+
+*A regra do `/develop` é que divergir do mock aprovado é FAIL **a menos que
+aprovada**. As quatro abaixo foram ratificadas pelo `po` em 18/08, e a
+**precedência é ticket > mock** — mas só neste caso e por este motivo: o mock v2
+foi aprovado sobre uma versão que **o próprio ticket já declarava incompleta**.
+**Aprovação não converte pendência declarada em decisão tomada.** Divergência em
+ponto que o ticket NÃO listava seria FAIL sem discussão.*
+
+1. **A data da confirmação nasce VAZIA, sem atalho "hoje"** — o mock v2 ainda
+   pré-preenche (s10). Vence o **critério 17** + decisão nº 1: é a **mitigação
+   real do item 3 do pre-mortem**, e o ticket original apontava como mitigação o
+   próprio critério que causava o risco.
+2. **Borda TRACEJADA nos dois estados**, com `border-2` no vencido — o mock v2
+   troca por sólida (`CONTAI-019.html:660`, `:894`) e **perde uma das quatro
+   marcas**. O próprio ticket lista isso como **defeito** (critério 8).
+3. **A lacuna da s12 virou pendência vermelha na home**, com as resoluções do
+   §F.2 e *"não sei ainda"* inicial — correção nº 3, não aplicada na v2.
+4. **Escopo acrescentado: a tela `/compromisso` ("ver todos")** — o critério 43
+   a exige por implicação, e **link que não abre nada é o defeito que o
+   CONTAI-018 veio matar**. Fura mock-first na letra; aceita porque é lista sem
+   campo, sem regra fiscal e sem decisão. **Entra no mock retroativamente.**
+
+⚠️ **O mock precisa ser atualizado, e não é opcional**: enquanto a v2 estiver
+defasada, o próximo `/design` lê `CONTAI-019.html:660`, vê borda sólida no
+vencido e **reimplanta o defeito com a bênção de um arquivo aprovado**.
 
 ## Dor de Origem
 
@@ -139,7 +169,21 @@ continue sendo só o que o dinheiro realmente pagou.
    afirmando as três, no mesmo passo.
 6. [ ] Salvar com data futura cria **compromisso**, não pagamento. E2E confere:
    uma linha em `compromisso`, **zero** em `pagamento`.
-7. [ ] **O texto nunca diz "previsto/efetivado" nem "regime de caixa".**
+7. [ ] **Nas telas de registro e de compromisso**, o texto nunca diz
+   **"previsto/efetivado"** nem **"regime de caixa"** — formulário de pagamento,
+   home, detalhe do pagamento e as telas novas sob `/compromisso`.
+   ⚠️ **O escopo foi NOMEADO no Gate 4 (18/08); a redação anterior dizia
+   "nunca", sem recorte.** Ela foi cumprida nas telas que este ticket abriu e
+   **não** nas três telas de documento que ele nunca tocou
+   (`app/adicionar/page.tsx:35`, `app/adicionar/documento/page.tsx:365`,
+   `app/documento/[id]/page.tsx:139`). O que sobrou virou **`CONTAI-023`**.
+   **O recorte é do trabalho, não da régua**: trocar texto fiscal em tela que
+   ninguém revisou nesta rodada passa no build, passa no teste e só aparece no
+   dedo do Mateus — o argumento do `lead-engineer` está certo e foi aceito. Mas
+   deixar o critério dizendo *"nunca"* depois de cumpri-lo *"nas telas que este
+   ticket toca"* seria a **D29 aplicada a requisito**: **ajustar a régua ao que
+   se entregou é como se apaga um requisito.** Por isso o escopo está escrito e
+   o resto tem ID, em vez de virar dor solta num backlog de 1.800 linhas.
 
 ### Ver
 
@@ -297,8 +341,11 @@ cair no mês (e no ano) errado em silêncio.*
     contrário do compromisso vencido (critério 21). Aqui o fato consumado já está
     registrado e o único erro possível **subestima** o custo. Ela entra na **lista
     de revisão pré-declaração**. Unitário afirmando que o relatório gera.
-31c. [ ] **O conjunto de resoluções é FECHADO e tem QUATRO saídas** (`contador`,
-    §F.2), rotuladas **pelo resultado, nunca pela causa**:
+31c. [ ] **O conjunto de resoluções é FECHADO e tem CINCO saídas** (`contador`,
+    §F.2 **conforme substituído pelo ADENDO 4 §H.6**, `d69a3cf`: *"onde o §F.2
+    disser 'quatro resoluções' ou 'conjunto FECHADO e tem QUATRO saídas',
+    leia-se CINCO"* — substitui, não convive em paralelo). Rotuladas **pelo
+    resultado, nunca pela causa**:
     1. **"Não compõe custo da obra"** (mora, taxa, item não incorporado) → fora
        **definitivamente**, registrado, **sem pendência** — não há o que cobrar;
     2. **"É da obra e falta o documento"** → fora **hoje**, vira **"pago sem
@@ -310,10 +357,45 @@ cair no mês (e no ano) errado em silêncio.*
        PIX cobrindo duas compras do mesmo favorecido); sem ela o Mateus é
        empurrado para a 1 ou a 2 e **perde custo real já comprovado no acervo**;
     4. **"Errei o valor digitado"** → não é classificação fiscal, é **correção do
-       registro com rastro** — `CONTAI-021`.
+       registro com rastro** — `CONTAI-021`;
+    5. ⚠️ **"A previsão é que estava errada — o valor pago é o certo"** → **entra
+       no custo**, e **quem volta a limitar é o documento hábil, nunca a
+       previsão**. Acrescentada no **Gate 2** (`50958a1`) e materializada em
+       parecer no **ADENDO 4** (`d69a3cf`), depois de o **Gate 4 reprovar a
+       ausência de lastro**: o enum tinha cinco valores e o arquivo dizia quatro,
+       e a regra de arbitragem do projeto (*"a fonte é o arquivo"*) mandava a
+       quinta perder — quem a executasse de boa-fé removeria `previsao_errada` e
+       **reintroduziria o B1**.
+       ⚠️ **Resíduo, na redação do §H.4, e a redação é o critério**: *nenhum
+       resíduo vem da **classificação***. O que a nota hábil não cobrir continua
+       aparecendo pela regra geral, porque a quinta afirma *"este dinheiro é
+       obra"*, nunca *"este dinheiro está documentado"* — **quem documenta é o
+       documento**. Previsto R$ 9.000, pago R$ 10.000, **nota R$ 9.500** → custo
+       `min(10.000; 9.500) = ` **R$ 9.500**, com **R$ 500 de "pago sem nota" de
+       pé**. *(O corpo do `50958a1` dizia "sem resíduo" sem essa ressalva, e o
+       `contador` corrigiu lendo o código: o código sempre fez o certo, o texto
+       é que generalizava.)*
+       ⚠️ **Não confundir com a 4.** As duas soam como *"o número está errado"* e
+       **apontam para lados opostos do custo**: a **4** diz que o **registro do
+       pagamento** está errado — fato ainda não confirmado, fica **fora** até o
+       `CONTAI-021`; a **5** diz que o **fato está certo** e quem errou foi a
+       **previsão** — **entra**. Trocar uma pela outra **inverte o efeito
+       fiscal**.
+       **Por que ela precisou existir** (§H.2, e é aritmética, não
+       interpretação): com `resolucao = null` — o único estado inicial permitido
+       — o elegível era
+       `pago − encargos − (pago − previsto − encargos)` = **`previsto`**. A
+       previsão virava o **teto do custo**: o §2 inteiro violado por dentro da
+       fórmula que o §F.3 existe para proteger, **na direção que subestima** — a
+       que não gera passivo tributário, não aparece em fiscalização e por isso
+       **não se autodenuncia** até a hora de apurar o ganho de capital.
     E **"não sei ainda" é estado permitido, e é o único que pode ser o estado
     inicial**, porque é o único que não afirma nada. Forçar classificação ensina a
     inventar dado no campo que sobrou.
+    ⚠️ **A quinta é resolução, não default** (§H.5): marcá-la por padrão seria
+    **pior que o bug que ela conserta** — toda diferença para mais viraria custo
+    automático sem ninguém ter afirmado que aquele dinheiro é obra, inclusive
+    quando for juro, multa ou item não incorporado. Campo fiscal não tem default.
 31d. [ ] **A opção "era principal" NÃO promete aumento de custo no ato, e mesmo
     assim FICA** (§F.1). Com nota de R$ 10.000, o teto mantém o custo em
     R$ 10.000 — o número não se move hoje. Tirar o botão é o **mais caro** dos
@@ -323,6 +405,13 @@ cair no mês (e no ano) errado em silêncio.*
     R$ 300, o teto vira `min(10.300; 10.300)`. **A mentira não está no botão, e
     sim em prometer aumento no ato**: a tela diz que o número não se move hoje e
     diz **o que o move** (a nota).
+    ⚠️ **Ajuste do Gate 4 (18/08)**: a resolução que **devolve o teto ao
+    documento hábil** é a **quinta** (`previsao_errada`), não esta. As duas
+    colocam o dinheiro no elegível — são idênticas dentro de
+    `diferencaContaComoCusto` —, e o que difere é **o que o Mateus afirma**:
+    aqui, que o documento **falta**; lá, que o documento **já cobre** e quem
+    errou foi a previsão. **Nenhuma das duas fura o `min` do §F.3** (§H.4), e é
+    por isso que nenhuma delas pode prometer aumento no ato.
 31e. [ ] **Texto de tela literal do parecer §F.4** — copiado, **não reescrito**.
     A minuta anterior do `designer` foi **reprovada por motivo fiscal**: ancorava
     a consequência no **previsto**, e previsão não decide custo — quem limita é o
@@ -469,7 +558,10 @@ três toques é padrão novo no app.
    read-only, botão desabilitado enquanto vazio, **sem atalho "hoje"**; remover o
    bloco de pergunta sobre pré-preenchimento.
 3. **`s12` (revisão)**: trocar a lacuna pela pendência na home, com o **texto
-   literal do §F.4** e as **quatro resoluções** do §F.2 — incluindo *"o pagamento
+   literal do §F.4** e as **CINCO resoluções** do §F.2 (⚠️ **corrigido no Gate 4**:
+   a lista nasceu com quatro, e o ADENDO 4 §H.6 fixou cinco — quem desenhar com
+   quatro faz o mock nascer defasado outra vez, e desta vez num ponto fiscal) —
+   incluindo *"o pagamento
    cobriu mais de um documento"*, que não estava desenhada, e o estado inicial
    *"não sei ainda"*.
 4. **`s9` ("mudou a data")**: explicitar **mesmo compromisso** + *"era 10/08"* +

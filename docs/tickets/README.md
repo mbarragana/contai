@@ -53,7 +53,7 @@ de quem escreveu a linha.
 | Ordem | # | Ticket | P | Status | O que trava |
 |---|---|---|---|---|---|
 | **1** | **021** | **Corrigir documento já registrado** | P1 | 🟡 | **mock pendente (`/design`)**. Gate Fiscal fechado 18/08 em arquivo. Vira **P0** no registro da 2ª nota (R$ 40.857,14) — hoje **nenhuma tela corrige**, e o link "Corrigir na nota" já está em produção mentindo |
-| **2** | **019** | **Pagamento agendado (compromisso × pagamento)** | P1 | 🟡 | **só falta a aprovação do mock pelo Mateus.** Parecer materializado em `4e0cf87`; mock de 17 telas entregue em `268b90c`/`51e7c5b`; as pendências de desenho e as fiscais foram **fechadas pelo `po` + `designer` + `contador` em 18/08** — nada mais aguarda decisão. ⚠️ **A condição "vira P0 se ele registrou com data de hoje" MORREU**: ele **não registrou nada**, então o custo em produção não tem data errada. Continua **P1** |
+| **2** | **019** | **Pagamento agendado (compromisso × pagamento)** | P1 | 🔨 | **G4 fechado em 18/08 após um FAIL e o conserto.** G1a `0441187` · G1b `df36b41` · G2 `50958a1` · G3 `3ec2913` · G4 `po`. O FAIL foi por **lastro documental** — a quinta resolução da diferença estava no enum e **não no parecer**; fechado pelo **ADENDO 4** (`d69a3cf`). ⚠️ **Ressalva viva: o mock v2 está DEFASADO em 4 pontos** (borda sólida no vencido, data pré-preenchida, s12 sem as cinco resoluções, sem a tela `/compromisso`) — tarefa do `designer`, **não bloqueia o PASS**, bloqueia quem for desenhar em cima. Ressalva **D28**: a `US-004` tem de chamar `podeGerarRelatorioAnual` |
 | 3 | 014 | Manifest de PWA + prova no aparelho | P1 | 🟢 | Gate 0 substituído por aprovação de ícone |
 | 4 | 004 | Nº do documento e data de emissão | P0 | 🟡 | **mock pendente** — mesmo passe do 007 |
 | 4 | 007 | CNO referenciado na NF de serviço | P0 | 🟡 | **mock pendente** + **6 pontos a reescrever** |
@@ -97,6 +97,7 @@ disser que a home não basta. Não reutilizar o ID.
 | 008 | Mover registro sem quebrar vínculo | P0 | 🟡 | gatilho é a US-003 |
 | 015 | Captcha no login | P2 | 🟡 | mock pendente. `po` recomendou cortar; Mateus manteve como ticket |
 | 022 | Cartão de crédito (compra → fatura) | P0 | 🔴 | **reservado em 18/08**, sem arquivo. Bloqueado pelo 019; regra fiscal pronta (adendo §B) |
+| 023 | Tirar "regime de caixa" das 4 telas restantes | P2 | 🟢 | **criado no Gate 4 do 019** (18/08), da dor **D31**. Sem mock e sem Gate Fiscal — texto já ratificado no §F.5. **S.** Dos primeiros a ceder se a fila apertar |
 
 ## Stories ainda sem ticket
 
@@ -115,6 +116,20 @@ o app não sabe qual ano-calendário já foi declarado, e sem isso nem o aviso d
 021 nem o da D-018.2 conseguem ser verdadeiros (mesmo detector, construir uma
 vez); **D25** — documento em duplicidade não tem saída depois do registro
 ("marcar como duplicata de X" é anotação, não delete).
+
+⚠️ **Colisão de ID corrigida no Gate 4 do `CONTAI-019` (18/08)**: o número
+**D24** estava sendo usado por **duas** dores abertas no mesmo dia. A do
+*"regime de caixa"* foi renumerada para **D31** e virou o **`CONTAI-023`**.
+**D24 = ano-calendário declarado; D31 = "regime de caixa" nas telas restantes.**
+ID repetido em backlog vivo destrói a rastreabilidade que o ID existe para dar —
+a partir da colisão, nenhuma das duas pode ser citada em ticket sem ambiguidade.
+
+**Dívidas do Gate 2/4 do `CONTAI-019`**: **D28** (a tela promete que o relatório
+trava e **nada trava** — a `US-004` **tem de** chamar `podeGerarRelatorioAnual`),
+**D29** (`getByRole(…, { name })` sem `exact` erra na direção de **aprovar**),
+**D30** (`pagamento_diferenca` aceita UPDATE no valor) e **D32** (enum fiscal sem
+contrapartida em `docs/pareceres/` — vai junto com a D29, e **exige antes** a
+regra de o parecer citar o identificador entre crases).
 
 ---
 

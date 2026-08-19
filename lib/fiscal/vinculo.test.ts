@@ -1042,7 +1042,22 @@ describe("⚠️ B1 — a PREVISÃO não pode virar teto do custo (Gate 2, §2)"
     expect(a.componentes[0].custoComprovadoCentavos).toBe(1_000_000);
   });
 
-  it("e não sobra resíduo nenhum: sem 'pago sem nota' pela diferença", () => {
+  /**
+   * ⚠️ O NOME DESTE TESTE JÁ GENERALIZOU, e a generalização era falsa.
+   *
+   * Ele se chamava "e não sobra resíduo nenhum" e roda só o cenário em que a
+   * NOTA COBRE O PAGAMENTO INTEIRO. O comportamento sempre esteve certo; o
+   * nome é que prometia mais do que o caso prova — a mesma falha que o
+   * `contador` achou no corpo do commit `50958a1` e corrigiu no ADENDO 4 §H.4:
+   *
+   *     Nenhum resíduo vem da CLASSIFICAÇÃO. O que a nota não cobrir continua
+   *     aparecendo pela regra geral, porque a quinta resolução afirma "este
+   *     dinheiro é obra", nunca "este dinheiro está documentado".
+   *
+   * O caso limitado pela nota é o teste seguinte (nota de R$ 9.500 → sobram
+   * R$ 500 de "pago sem nota"). Os dois juntos é que descrevem a regra.
+   */
+  it("com a nota cobrindo o pago inteiro, a classificação não deixa resíduo", () => {
     const a = cenario("previsao_errada");
     expect(a.porPagamento.get("p1")?.semNotaCentavos).toBe(0);
   });
