@@ -1,11 +1,3 @@
-// Tipos GERADOS a partir do banco — não edite à mão.
-// Fonte: `npx supabase gen types typescript --local` com as migrations 0001 a
-// 0008 aplicadas (`npm run db:reset`). Regerar sempre que uma migration entrar.
-//
-// ⚠️ O bloco da migration 0008 (CONTAI-010) foi escrito À MÃO, no formato que o
-// gerador produz, porque o projeto não estava linkado na sessão em que a
-// migration nasceu. Regerar com o CLI na próxima oportunidade — se o resultado
-// divergir daqui, quem vale é o CLI.
 export type Json =
   | string
   | number
@@ -233,6 +225,48 @@ export type Database = {
             columns: ["obra_id"]
             isOneToOne: false
             referencedRelation: "obra"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documento_anexo: {
+        Row: {
+          arquivo_path: string
+          created_at: string
+          documento_id: string
+          id: string
+          revisao_id: string | null
+          user_id: string
+        }
+        Insert: {
+          arquivo_path: string
+          created_at?: string
+          documento_id: string
+          id?: string
+          revisao_id?: string | null
+          user_id?: string
+        }
+        Update: {
+          arquivo_path?: string
+          created_at?: string
+          documento_id?: string
+          id?: string
+          revisao_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documento_anexo_documento_id_fkey"
+            columns: ["documento_id"]
+            isOneToOne: false
+            referencedRelation: "documento"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documento_anexo_revisao_id_fkey"
+            columns: ["revisao_id"]
+            isOneToOne: false
+            referencedRelation: "revisao"
             referencedColumns: ["id"]
           },
         ]
@@ -543,6 +577,75 @@ export type Database = {
           },
         ]
       }
+      pendencia: {
+        Row: {
+          aberta_em: string
+          ano: number | null
+          documento_id: string | null
+          id: string
+          tipo: Database["public"]["Enums"]["tipo_pendencia"]
+          user_id: string
+        }
+        Insert: {
+          aberta_em?: string
+          ano?: number | null
+          documento_id?: string | null
+          id?: string
+          tipo: Database["public"]["Enums"]["tipo_pendencia"]
+          user_id?: string
+        }
+        Update: {
+          aberta_em?: string
+          ano?: number | null
+          documento_id?: string | null
+          id?: string
+          tipo?: Database["public"]["Enums"]["tipo_pendencia"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      pendencia_desfecho: {
+        Row: {
+          baixada_em: string
+          data_informada: string | null
+          desfecho: Database["public"]["Enums"]["desfecho_pendencia"]
+          pendencia_id: string
+          tipo: Database["public"]["Enums"]["tipo_pendencia"]
+          user_id: string
+        }
+        Insert: {
+          baixada_em?: string
+          data_informada?: string | null
+          desfecho: Database["public"]["Enums"]["desfecho_pendencia"]
+          pendencia_id: string
+          tipo: Database["public"]["Enums"]["tipo_pendencia"]
+          user_id?: string
+        }
+        Update: {
+          baixada_em?: string
+          data_informada?: string | null
+          desfecho?: Database["public"]["Enums"]["desfecho_pendencia"]
+          pendencia_id?: string
+          tipo?: Database["public"]["Enums"]["tipo_pendencia"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pendencia_desfecho_do_mesmo_tipo"
+            columns: ["pendencia_id", "tipo"]
+            isOneToOne: false
+            referencedRelation: "pendencia"
+            referencedColumns: ["id", "tipo"]
+          },
+          {
+            foreignKeyName: "pendencia_desfecho_pendencia_id_fkey"
+            columns: ["pendencia_id"]
+            isOneToOne: true
+            referencedRelation: "pendencia"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quitacao_recusada: {
         Row: {
           compromisso_id: string
@@ -572,6 +675,96 @@ export type Database = {
             columns: ["pagamento_id"]
             isOneToOne: false
             referencedRelation: "pagamento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      revisao: {
+        Row: {
+          antes: string | null
+          ato_id: string
+          campo: string
+          created_at: string
+          depois: string | null
+          entidade: Database["public"]["Enums"]["entidade_revisao"]
+          entidade_id: string
+          id: string
+          motivo: Database["public"]["Enums"]["motivo_revisao"]
+          motivo_texto: string | null
+          quando: string
+          user_id: string
+        }
+        Insert: {
+          antes?: string | null
+          ato_id: string
+          campo: string
+          created_at?: string
+          depois?: string | null
+          entidade: Database["public"]["Enums"]["entidade_revisao"]
+          entidade_id: string
+          id?: string
+          motivo: Database["public"]["Enums"]["motivo_revisao"]
+          motivo_texto?: string | null
+          quando?: string
+          user_id?: string
+        }
+        Update: {
+          antes?: string | null
+          ato_id?: string
+          campo?: string
+          created_at?: string
+          depois?: string | null
+          entidade?: Database["public"]["Enums"]["entidade_revisao"]
+          entidade_id?: string
+          id?: string
+          motivo?: Database["public"]["Enums"]["motivo_revisao"]
+          motivo_texto?: string | null
+          quando?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      revisao_ano_afetado: {
+        Row: {
+          ano: number
+          custo_antes: number
+          custo_depois: number
+          id: string
+          obra_id: string
+          pendencia_id: string | null
+          revisao_id: string
+        }
+        Insert: {
+          ano: number
+          custo_antes: number
+          custo_depois: number
+          id?: string
+          obra_id: string
+          pendencia_id?: string | null
+          revisao_id: string
+        }
+        Update: {
+          ano?: number
+          custo_antes?: number
+          custo_depois?: number
+          id?: string
+          obra_id?: string
+          pendencia_id?: string | null
+          revisao_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revisao_ano_afetado_pendencia"
+            columns: ["pendencia_id"]
+            isOneToOne: false
+            referencedRelation: "pendencia"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "revisao_ano_afetado_revisao_id_fkey"
+            columns: ["revisao_id"]
+            isOneToOne: false
+            referencedRelation: "revisao"
             referencedColumns: ["id"]
           },
         ]
@@ -634,12 +827,70 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      baixar_pendencia: {
+        Args: {
+          p_data: string
+          p_desfecho: Database["public"]["Enums"]["desfecho_pendencia"]
+          p_pendencia_id: string
+        }
+        Returns: undefined
+      }
+      corrigir_documento: {
+        Args: {
+          p_anexo_path: string
+          p_anos: Json
+          p_campo: string
+          p_depois: string
+          p_documento_id: string
+          p_motivo: Database["public"]["Enums"]["motivo_revisao"]
+          p_motivo_texto: string
+        }
+        Returns: string
+      }
+      corrigir_nome_favorecido: {
+        Args: {
+          p_favorecido_id: string
+          p_motivo: Database["public"]["Enums"]["motivo_revisao"]
+          p_motivo_texto: string
+          p_nome: string
+        }
+        Returns: string
+      }
+      marcar_emitente_errado: {
+        Args: { p_documento_id: string }
+        Returns: string
+      }
+      mover_documento_de_obra: {
+        Args: {
+          p_anos: Json
+          p_documento_id: string
+          p_obra_destino: string
+          p_pagamentos: Json
+        }
+        Returns: string
+      }
+      pendencia_do_ano: { Args: { p_ano: number }; Returns: string }
+      revisao_gravar_anos: {
+        Args: { p_anos: Json; p_revisao_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       classificacao: "material" | "mao_obra"
+      desfecho_pendencia:
+        | "retifiquei_a_daa"
+        | "contador_avaliou_nao_retifica"
+        | "daa_ainda_nao_entregue"
+        | "cnpj_gravado_esta_certo"
+        | "apontamento_corrigido"
+      entidade_revisao: "documento" | "favorecido" | "pagamento"
       estado_desembolso_terreno: "pago" | "previsto"
       meio_pagamento: "pix" | "boleto" | "cartao"
+      motivo_revisao:
+        | "erro_de_digitacao_minha"
+        | "emitente_corrigiu_a_nota"
+        | "outro"
+        | "arquivamento_corrigido"
       natureza_aquisicao_terreno:
         | "a_vista"
         | "financiado"
@@ -665,6 +916,7 @@ export type Database = {
         | "quitacao"
       tipo_documento: "nf_material" | "nf_servico" | "boleto"
       tipo_favorecido: "pj" | "pf"
+      tipo_pendencia: "retificadora_possivel" | "emitente_errado"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -796,8 +1048,22 @@ export const Constants = {
   public: {
     Enums: {
       classificacao: ["material", "mao_obra"],
+      desfecho_pendencia: [
+        "retifiquei_a_daa",
+        "contador_avaliou_nao_retifica",
+        "daa_ainda_nao_entregue",
+        "cnpj_gravado_esta_certo",
+        "apontamento_corrigido",
+      ],
+      entidade_revisao: ["documento", "favorecido", "pagamento"],
       estado_desembolso_terreno: ["pago", "previsto"],
       meio_pagamento: ["pix", "boleto", "cartao"],
+      motivo_revisao: [
+        "erro_de_digitacao_minha",
+        "emitente_corrigiu_a_nota",
+        "outro",
+        "arquivamento_corrigido",
+      ],
       natureza_aquisicao_terreno: [
         "a_vista",
         "financiado",
@@ -826,6 +1092,7 @@ export const Constants = {
       ],
       tipo_documento: ["nf_material", "nf_servico", "boleto"],
       tipo_favorecido: ["pj", "pf"],
+      tipo_pendencia: ["retificadora_possivel", "emitente_errado"],
     },
   },
 } as const

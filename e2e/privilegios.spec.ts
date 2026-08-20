@@ -81,7 +81,42 @@ const ESPERADO: Record<string, string> = {
   // mesmo diff — CONTAI-024. Ver a justificativa por extenso na 0008.
   financiamento: "INSERT,SELECT",
   financiamento_informe: "INSERT,SELECT",
+
+  // ── CONTAI-021 (migration 0009) ────────────────────────────────────────
+  // As cinco nascem aqui e as cinco precisaram de `revoke` ANTES do `grant`,
+  // pelo mesmo motivo das anteriores.
+  //
+  // ⚠️ NENHUMA DELAS TEM UPDATE OU DELETE, e nas cinco a ausência é a decisão:
+  // * `revisao` — parecer §5, regra dura 1: "append-only: sem update, sem
+  //   delete, NEM PARA O DONO". É o critério 8 do ticket, e é a razão de o
+  //   rastro ser tabela própria em vez de coluna JSONB em `documento` (que tem
+  //   UPDATE desde a 0005, porque a correção precisa dele — privilégio no
+  //   Postgres é por TABELA, nunca por coluna).
+  revisao: "INSERT,SELECT",
+  // O snapshot de custo antes/depois POR ANO E POR OBRA. É a prova que
+  // sustenta a conversa de retificadora anos depois; editável, deixaria de
+  // ser prova.
+  revisao_ano_afetado: "INSERT,SELECT",
+  // Anexo ADICIONAL (carta de correção / nota substitutiva). O acervo só
+  // cresce: `documento.arquivo_path` não se substitui (parecer §1).
+  documento_anexo: "INSERT,SELECT",
+  // A baixa é INSERT em `pendencia_desfecho`, nunca UPDATE aqui (critérios 19
+  // e 21). Sem UPDATE, "reabrir a antiga" é impossível de representar — e é
+  // esse o objetivo: reabrir apagaria o fato de que ela foi tratada.
+  pendencia: "INSERT,SELECT",
+  // O desfecho é o fato que fica legível em 2034.
+  pendencia_desfecho: "INSERT,SELECT",
 };
+
+/**
+ * ⚠️ ESTE MAPA SÓ ENXERGA TABELA. A migration 0009 trouxe as PRIMEIRAS FUNÇÕES
+ * do repo, e função nasce com `execute` para `public` — em qualquer Postgres,
+ * local ou remoto —, o que inclui `anon`. O `revoke execute ... from public,
+ * anon` está no diff da 0009, mas `information_schema.role_table_grants` não
+ * o alcança: o teste abaixo passaria verde com uma função de ESCRITA aberta ao
+ * anônimo. Estender a verificação a `information_schema.role_routine_grants` é
+ * proposta registrada para o Gate 2 do CONTAI-021 — não se decide aqui.
+ */
 
 test.describe("privilégios do schema public", () => {
   test("nenhuma tabela sem decisão explícita de GRANT", () => {

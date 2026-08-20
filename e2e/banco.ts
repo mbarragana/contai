@@ -229,6 +229,17 @@ const OBRA_SEED_COM_DONO = { user_id: USER_ID_SEED, ...OBRA_SEED };
 const COLUNAS_SEED = Object.keys(OBRA_SEED_COM_DONO);
 
 const SQL_LIMPAR = [
+  // CONTAI-021 — a ordem importa e não é `on delete cascade` em tudo:
+  // `revisao_ano_afetado` aponta para `revisao` E para `pendencia`;
+  // `pendencia_desfecho` aponta para `pendencia`; `documento_anexo` aponta para
+  // `documento` e para `revisao`. Nenhuma dessas cinco tem DELETE concedido a
+  // `authenticated` (migration 0009: append-only é estrutural), então limpá-las
+  // é andaime de ambiente por definição — ver a nota do `sqlAdmin`.
+  "delete from revisao_ano_afetado;",
+  "delete from pendencia_desfecho;",
+  "delete from pendencia;",
+  "delete from documento_anexo;",
+  "delete from revisao;",
   // CONTAI-010 — o informe cai antes do contrato, que cai antes da obra.
   "delete from financiamento_informe;",
   "delete from financiamento;",

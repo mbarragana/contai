@@ -27,6 +27,11 @@ export type NaturezaAquisicaoTerreno = Enums<"natureza_aquisicao_terreno">;
 export type TipoDesembolsoTerreno = Enums<"tipo_desembolso_terreno">;
 export type EstadoDesembolsoTerreno = Enums<"estado_desembolso_terreno">;
 export type OrigemRecursoEntrada = Enums<"origem_recurso_entrada">;
+// ── CONTAI-021 ────────────────────────────────────────────────────────────
+export type EntidadeRevisao = Enums<"entidade_revisao">;
+export type MotivoRevisao = Enums<"motivo_revisao">;
+export type TipoPendencia = Enums<"tipo_pendencia">;
+export type DesfechoPendencia = Enums<"desfecho_pendencia">;
 
 // ── Rows (PostgREST) ─────────────────────────────────────────────────────
 export type ObraRow = Tables<"obra">;
@@ -42,6 +47,11 @@ export type QuitacaoRecusadaRow = Tables<"quitacao_recusada">;
 export type TerrenoDesembolsoRow = Tables<"terreno_desembolso">;
 export type FinanciamentoRow = Tables<"financiamento">;
 export type FinanciamentoInformeRow = Tables<"financiamento_informe">;
+export type RevisaoRow = Tables<"revisao">;
+export type RevisaoAnoAfetadoRow = Tables<"revisao_ano_afetado">;
+export type DocumentoAnexoRow = Tables<"documento_anexo">;
+export type PendenciaRow = Tables<"pendencia">;
+export type PendenciaDesfechoRow = Tables<"pendencia_desfecho">;
 
 // ── Inserts ──────────────────────────────────────────────────────────────
 export type ObraInsert = TablesInsert<"obra">;
@@ -253,4 +263,68 @@ export interface FinanciamentoInforme {
   /** Informativo. Nunca somado, nunca subtraído (critério 15). */
   saldoDevedorCentavos: number;
   arquivoPath: string;
+}
+
+// ── CONTAI-021 · correção de documento registrado (centavos) ─────────────
+
+/**
+ * Um ano-calendário cujo custo comprovado mudou por causa de uma correção,
+ * **numa obra**.
+ *
+ * ⚠️ A dimensão `obraId` não é decoração: sem ela o critério 20(c) é
+ * impossível — depois de um move o documento só conhece o DESTINO, e derivar a
+ * obra dele apagaria a ORIGEM, que é justamente o lado onde o custo caiu e
+ * onde "pago sem nota" subiu (adendo §5.4).
+ */
+export interface AnoAfetado {
+  obraId: string;
+  ano: number;
+  antesCentavos: number;
+  depoisCentavos: number;
+  /**
+   * Abre (ou acumula em) pendência de retificadora? Só quando o ano é
+   * ANTERIOR ao corrente — §5.3. A decisão mora em `lib/fiscal/revisao.ts`,
+   * onde "hoje" é injetável e testável, nunca no Postgres do container.
+   */
+  pendencia: boolean;
+}
+
+/** Uma linha do rastro (§5). `antes`/`depois` são texto: `null` ≠ zero. */
+export interface Revisao {
+  id: string;
+  atoId: string;
+  entidade: EntidadeRevisao;
+  entidadeId: string;
+  campo: string;
+  antes: string | null;
+  depois: string | null;
+  quando: string;
+  motivo: MotivoRevisao;
+  motivoTexto: string | null;
+  anosAfetados: AnoAfetado[];
+}
+
+/**
+ * A pendência persistente (§6.3): não some ao fechar a tela.
+ *
+ * ⚠️ Nome com sufixo de propósito: `lib/fiscal/resumo.ts` já exporta uma
+ * `Pendencia`, que é OUTRA COISA — o cartão derivado do estado atual da obra
+ * ("pago sem nota", "quarentena"), recalculado a cada carga e que desaparece
+ * sozinho quando o fato muda. Esta aqui é LINHA GRAVADA: nasce de um ato,
+ * sobrevive ao recálculo e só sai da lista por um desfecho escolhido.
+ */
+export interface PendenciaPersistente {
+  id: string;
+  tipo: TipoPendencia;
+  /** `retificadora_possivel`: a chave. A DAA é do contribuinte, não da obra. */
+  ano: number | null;
+  /** `emitente_errado`: a chave. */
+  documentoId: string | null;
+  abertaEm: string;
+  /** `null` = aberta. Preenchido = baixada, e a baixa é acréscimo. */
+  desfecho: {
+    desfecho: DesfechoPendencia;
+    dataInformada: string | null;
+    baixadaEm: string;
+  } | null;
 }
