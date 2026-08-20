@@ -1,6 +1,6 @@
 # Índice de tickets — por ordem de execução
 
-*Atualizado em 2026-08-18. A ordem canônica é a **6ª revisão da fila**, no fim de
+*Atualizado em 2026-08-19. A ordem canônica é a **6ª revisão da fila**, no fim de
 `../backlog.md`. Este arquivo é o mapa; o backlog é a fonte da ordem e o ticket é
 a fonte do escopo.*
 
@@ -52,16 +52,20 @@ de quem escreveu a linha.
 
 | Ordem | # | Ticket | P | Status | O que trava |
 |---|---|---|---|---|---|
-| **1** | **021** | **Corrigir documento já registrado** | P1 | 🟡 | **mock pendente (`/design`)**. Gate Fiscal fechado 18/08 em arquivo. Vira **P0** no registro da 2ª nota (R$ 40.857,14) — hoje **nenhuma tela corrige**, e o link "Corrigir na nota" já está em produção mentindo |
-| **2** | **019** | **Pagamento agendado (compromisso × pagamento)** | P1 | 🔨 | **G4 fechado em 18/08 após um FAIL e o conserto.** G1a `0441187` · G1b `df36b41` · G2 `50958a1` · G3 `3ec2913` · G4 `po`. O FAIL foi por **lastro documental** — a quinta resolução da diferença estava no enum e **não no parecer**; fechado pelo **ADENDO 4** (`d69a3cf`). ⚠️ **Ressalva viva: o mock v2 está DEFASADO em 4 pontos** (borda sólida no vencido, data pré-preenchida, s12 sem as cinco resoluções, sem a tela `/compromisso`) — tarefa do `designer`, **não bloqueia o PASS**, bloqueia quem for desenhar em cima. Ressalva **D28**: a `US-004` tem de chamar `podeGerarRelatorioAnual` |
-| 3 | 014 | Manifest de PWA + prova no aparelho | P1 | 🟢 | Gate 0 substituído por aprovação de ícone |
-| 4 | 004 | Nº do documento e data de emissão | P0 | 🟡 | **mock pendente** — mesmo passe do 007 |
-| 4 | 007 | CNO referenciado na NF de serviço | P0 | 🟡 | **mock pendente** + **6 pontos a reescrever** |
-| 5 | 009 | Detalhe do pagamento | P0 | 🟡 | Gate 0 aprovado 16/08; **5 perguntas em aberto** |
-| 6 | 005 | Headline da home (reduzido a corte) | P0 | 🟡 | **mock v5 pendente**. Decisão nº 1 fechada em 17/08: R$ 49.850 |
+| **1** | **021** | **Corrigir documento já registrado** | P1 | 🔨 | **Gate 0 fechado**: mock **v2 aprovado pelo Mateus em 19/08** (`ad07fd8`). Gate Fiscal fechado 18/08 em arquivo, **com adendo de 19/08** (§5.1-5.5). **Em Gate 1.** Vira **P0** no registro da 2ª nota (R$ 40.857,14). Carrega o **critério 13**, que é conserto de bug **em produção** (`moverDocumentoDeObra`) — e **só do lado do documento**: o lado do pagamento é o `008` |
+| **2** | **008** | **Mover PAGAMENTO entre obras sem quebrar o vínculo** | **P0** | 🟡 | **REABERTO em 19/08** — a condição que o segurava ("defeito inatingível pela interface") **caducou** quando o `CONTAI-018` foi ao ar em 18/08. `moverPagamentoDeObra` é o **mesmo `UPDATE` seco** do critério 13 do `021`, na direção espelhada: custo cai na origem, **"pago sem nota" sobe no destino** por um fato que não aconteceu, e sobra vínculo cruzando duas obras. **Trava**: mock (a tela espelhada não existe) + **pergunta 1 do Gate Fiscal**, aberta desde 10/08 (NF de serviço + CNO). **Depende do `021`** — reusa `revisao`, `ato_id`, função transacional e pendência por ano |
+| **3** | **019** | **Pagamento agendado (compromisso × pagamento)** | P1 | 🔨 | **G4 fechado em 18/08 após um FAIL e o conserto.** G1a `0441187` · G1b `df36b41` · G2 `50958a1` · G3 `3ec2913` · G4 `po`. O FAIL foi por **lastro documental** — a quinta resolução da diferença estava no enum e **não no parecer**; fechado pelo **ADENDO 4** (`d69a3cf`). ⚠️ **Ressalva viva: o mock v2 está DEFASADO em 4 pontos** (borda sólida no vencido, data pré-preenchida, s12 sem as cinco resoluções, sem a tela `/compromisso`) — tarefa do `designer`, **não bloqueia o PASS**, bloqueia quem for desenhar em cima. Ressalva **D28**: a `US-004` tem de chamar `podeGerarRelatorioAnual` |
+| 4 | 014 | Manifest de PWA + prova no aparelho | P1 | 🟢 | Gate 0 substituído por aprovação de ícone |
+| 5 | 004 | Nº do documento e data de emissão | P0 | 🟡 | **mock pendente** — mesmo passe do 007 |
+| 5 | 007 | CNO referenciado na NF de serviço | P0 | 🟡 | **mock pendente** + **6 pontos a reescrever** |
+| 6 | 009 | Detalhe do pagamento | P0 | 🟡 | Gate 0 aprovado 16/08; **5 perguntas em aberto** |
+| 7 | 005 | Headline da home (reduzido a corte) | P0 | 🟡 | **mock v5 pendente**. Decisão nº 1 fechada em 17/08: R$ 49.850 |
 
-*O `004` e o `007` dividem a ordem 4 de propósito: mesmo formulário, mesmo passe
-de mock.*
+*O `004` e o `007` dividem a ordem 5 de propósito: mesmo formulário, mesmo passe
+de mock. O `008` entrou na ordem 2 em 19/08 e empurrou todos os demais um degrau:
+não é preferência, é a **outra metade** do bug que o `021` conserta — deixá-lo
+para depois de cinco tickets é manter a porta dos fundos aberta com a da frente
+consertada, que é a pior combinação possível.*
 
 ⚠️ **`CONTAI-022` está RESERVADO e não tem arquivo** — é o **fluxo do cartão de
 crédito** (dor **D26**), aberto pelo `contador` no adendo §B de 18/08: a compra
@@ -94,7 +98,6 @@ disser que a home não basta. Não reutilizar o ID.
 | 016 | Tipo de empreitada na obra | P0 | 🟡 | ramo `total` **bloqueado** — o texto do contador não está em arquivo. Não exige mock |
 | 017 | Lista de notas a cobrar (tela 14) | — | 🟡 | **cortado**, com condição de volta escrita. Depende de 004 + 007 |
 | 006 | Estados de rede lenta/indisponível | P1 | 🟢 | sem bloqueio. ⚠️ **rodar sozinho na árvore** — toca muitos arquivos |
-| 008 | Mover registro sem quebrar vínculo | P0 | 🟡 | gatilho é a US-003 |
 | 015 | Captcha no login | P2 | 🟡 | mock pendente. `po` recomendou cortar; Mateus manteve como ticket |
 | 022 | Cartão de crédito (compra → fatura) | P0 | 🔴 | **reservado em 18/08**, sem arquivo. Bloqueado pelo 019; regra fiscal pronta (adendo §B) |
 | 023 | Tirar "regime de caixa" das 4 telas restantes | P2 | 🟢 | **criado no Gate 4 do 019** (18/08), da dor **D31**. Sem mock e sem Gate Fiscal — texto já ratificado no §F.5. **S.** Dos primeiros a ceder se a fila apertar |
