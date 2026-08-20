@@ -1517,10 +1517,11 @@
       </div>
 
       <div class="banner amb" style="font-size:12px">
-        ⚠️ <strong>Para o <code>po</code> aplicar no ticket:</strong> o critério 19 hoje diz “baixa
+        ✅ <strong>APLICADO no ticket em 19/08 pelo <code>po</code> (critério 19 reescrito).</strong>
+        O texto anterior dizia “baixa
         pelo critério 21”, e os três desfechos do 21 são todos sobre DAA — nenhum descreve “resolvi o
         CNPJ errado”. O texto substituto já está escrito na resposta do <code>po</code> de 19/08 e é
-        o que esta tela desenha. <strong>O mock está à frente do ticket neste ponto.</strong>
+        o que esta tela desenha — e é o que o critério 19 passou a dizer.
       </div>
     </div>
     <div class="foot">
@@ -2088,12 +2089,14 @@
           <div class="opts" data-pag="p1">
             <button class="opt" data-esc="junto"><span class="bola"><i></i></span>
               <span><span class="tt">Este pagamento também é da Reforma do apartamento</span>
-                <span class="ss">Vai junto com a nota. O custo sai de uma obra e entra na
-                  outra — o total não muda.</span></span></button>
+                <span class="ss">Vai junto com a nota. O par pagamento↔nota continua inteiro,
+                  só muda de imóvel: sai do custo de aquisição de um bem e entra no do outro, sem
+                  que o seu gasto mude um centavo.</span></span></button>
             <button class="opt" data-esc="desfaz"><span class="bola"><i></i></span>
               <span><span class="tt">Este pagamento é mesmo da Casa Tanheiros</span>
                 <span class="ss">Então foi ligado ao papel errado. O vínculo se desfaz, com
-                  registro, e ele volta a “pago sem nota” na Casa Tanheiros.</span></span></button>
+                  registro, e ele volta a “pago sem nota” na Casa Tanheiros. O pagamento continua
+                  sendo dispêndio dela — o que falta é o documento hábil que o comprove.</span></span></button>
           </div>
         </div>
 
@@ -2350,11 +2353,15 @@
       </div>
 
       <div class="banner amb" style="font-size:12px">
-        ⚠️ <strong>Para o <code>po</code> aplicar nos documentos:</strong> o §5 do adendo diz que
+        ✅ <strong>APLICADO em 19/08: critérios 13 e 20 reescritos pelo <code>po</code>; o §5 do
+        adendo já foi retratado pelo <code>contador</code> (§5.1).</strong> O texto anulado dizia que
         mover documento entre obras faz o custo “sair de uma e entrar na outra”. <strong>No modelo de
         hoje isso é falso</strong> — o pagamento não vai junto, e sem a escolha da tela 8 o custo
         <em>some</em> de uma e <em>não chega</em> na outra. O critério 13 e o critério 20 do ticket
-        precisam de texto novo. <strong>O mock está à frente dos documentos aqui.</strong>
+        precisavam de texto novo — e agora têm. ⚠️ <strong>A frase “o total não muda”, na tela 8,
+        foi corrigida pelo <code>po</code> em 19/08 conforme o §5.2</strong> (desfecho misto reduz
+        legitimamente o custo comprovado somado): correção de texto normativo, sem redesenho e sem
+        nova aprovação — mesmo precedente do critério 14.
       </div>
     </div>
     <div class="foot">
@@ -2680,7 +2687,9 @@
       resumo.innerHTML = "Dos " + brl(VALOR_DOC) + ", <strong>" + brl(junto) +
         "</strong> acompanham a nota e <strong>" + brl(desfaz) +
         "</strong> voltam a <strong>pago sem nota</strong> na Casa Tanheiros. " +
-        "O custo confirmado total cai " + brl(desfaz) + ".";
+        "O custo confirmado somado das duas obras cai " + brl(desfaz) + ". " +
+        "Isso <strong>não é perda</strong>: esses " + brl(desfaz) + " continuam sendo dispêndio " +
+        "da Casa Tanheiros — o que falta é o documento hábil que os comprove.";
     }
 
     btnObra.disabled = false;

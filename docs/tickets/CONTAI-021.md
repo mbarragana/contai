@@ -153,6 +153,38 @@ descreve: *inventar dado no campo que sobrou*.
     documento hábil) — a tela não pode afirmar o contrário, e nisto o parecer
     vence a frase do mock.
 
+    **Texto final das três frases, decidido pelo `po` em 19/08 e já APLICADO ao
+    mock aprovado** (`design/mocks/CONTAI-021.html`, tela `s8` — correção de
+    texto, sem redesenho, no precedente do critério 14; o parecer é normativo e
+    isto **não** volta para aprovação do Mateus). O `lead-engineer` implementa
+    **estas** strings, não as do mock v2 original:
+
+    - **Desfecho (i)**, no lugar de *"O custo sai de uma obra e entra na outra —
+      o total não muda"*:
+      > Vai junto com a nota. O par pagamento↔nota continua inteiro, só muda de
+      > imóvel: sai do custo de aquisição de um bem e entra no do outro, sem que o
+      > seu gasto mude um centavo.
+    - **Desfecho (ii)** — e ele **não pode sugerir prejuízo nem erro do Mateus**
+      (ressalva 3 do `contador`: o pagamento continua sendo dispêndio da obra, o
+      que falta é documento hábil que o comprove):
+      > Então foi ligado ao papel errado. O vínculo se desfaz, com registro, e ele
+      > volta a "pago sem nota" na obra de origem. O pagamento continua sendo
+      > dispêndio dela — o que falta é o documento hábil que o comprove.
+    - **Resumo do desfecho MISTO**, onde a queda aparece (é o único lugar em que
+      a tela narra a mistura):
+      > Dos R$ {total}, R$ {junto} acompanham a nota e R$ {fica} voltam a "pago
+      > sem nota" em {obra de origem}. O custo confirmado somado das duas obras
+      > cai R$ {fica}. Isso **não é perda**: esses R$ {fica} continuam sendo
+      > dispêndio de {obra de origem} — o que falta é o documento hábil que os
+      > comprove.
+
+    ⚠️ **O lado espelhado deste bug — mover PAGAMENTO — não está neste ticket.**
+    `moverPagamentoDeObra` (`lib/data.ts`, tela `/pagamento/[id]/obra`, mesmo
+    componente `app/_components/corrigir-obra.tsx`) é o **mesmo `UPDATE` seco**,
+    com o mesmo dano na direção inversa. É o **`CONTAI-008`**, reaberto em 19/08.
+    Este ticket **não** o conserta e **não** o disfarça: nada aqui altera o
+    comportamento da tela do pagamento.
+
     **Gravação**: documento + N pagamentos + N rastros numa **única função
     Postgres** (critério 9) — falha no meio sem transação é o estado inválido
     nascendo sozinho (adendo §5.5). As N linhas de `revisao` compartilham um
@@ -203,20 +235,105 @@ de desfecho do critério 21 e o botão do critério 19; o resto já está no v1.
     valor veio de qual. **Decisão reversível**: quando o `CONTAI-004` trouxer
     número/série e a anotação da D25 existir, a substitutiva pode virar registro
     próprio *"substitui o documento X"* — sem reabrir gate fiscal.
-19. [ ] **A tela de CNPJ errado oferece UMA ação hoje**: *"Marcar: o CNPJ deste
-    registro está errado — tratar"*, que abre pendência do mesmo mecanismo do
-    critério 4 (tipo `emitente_errado`), **uma por documento** (idempotente),
-    **sem campo editável, sem tocar `status` nem quarentena**. Motivo de
-    produto, não fiscal: o §4.4 proíbe impasse mudo, e o risco concreto é ele dar
-    vazão à intenção **trocando o nome do favorecido** — que é exatamente o que a
-    tela pede para não fazer, hoje sem oferecer nada em troca. Baixa pelo
-    critério 21, ou **automática** quando a rodada 2 repontar `favorecido_id`.
-20. [ ] **A pendência de retificadora é por ANO-CALENDÁRIO, não por correção.**
-    Havendo pendência aberta para 2025, toda correção seguinte que mexa em 2025
-    **acumula nela**: a lista de correções que a compõem cresce e o delta exibido
-    é o **acumulado do ano** (primeiro `antes` → último `depois`). Cinco
-    correções não viram cinco linhas em "O que está faltando" — alarme que se
-    multiplica é o mesmo defeito do alarme que não desliga.
+19. [ ] **A tela de CNPJ errado oferece UMA ação hoje, e a pendência dela tem
+    lista de desfecho PRÓPRIA.**
+
+    **A ação**: *"Marcar: o CNPJ deste registro está errado — tratar"*, que abre
+    pendência do mesmo mecanismo do critério 4 (tipo `emitente_errado`), **uma
+    por documento** (idempotente — voltar e marcar de novo deixa a lista com uma
+    linha só, não existe "marcado duas vezes"), **sem campo editável, sem tocar
+    `status` nem quarentena**. Motivo de produto, não fiscal: o §4.4 proíbe
+    impasse mudo, e o risco concreto é ele dar vazão à intenção **trocando o nome
+    do favorecido** — que é exatamente o que a tela pede para não fazer, hoje sem
+    oferecer nada em troca.
+
+    ⚠️ **Corrigido pelo `po` em 19/08** (tela `s6c` do mock v2, que estava à
+    frente deste ticket): a versão anterior mandava baixar *"pelo critério 21"*, e
+    os três desfechos do 21 são **todos sobre DAA** — nenhum descreve "resolvi o
+    CNPJ errado". **A chave desta pendência é o DOCUMENTO, não o ano**, e a lista
+    de desfecho é esta:
+
+    - **Desfecho manual — um só, hoje**: *"Conferi o papel: o CNPJ gravado está
+      certo — o erro foi meu ao marcar"* **+ data**.
+    - **Desfecho automático — `apontamento_corrigido`**: gravado **sozinho**,
+      por acréscimo, quando a **rodada 2** repontar `documento.favorecido_id`,
+      apontando para a correção que fez a troca. É a **única baixa automática do
+      sistema**, e é legítima onde a da retificadora não seria: aqui o app
+      **prova** o fato — o ponteiro mudou no banco; lá ele não tem como saber se
+      a DAA foi retificada.
+    - **O que NÃO está na lista, e é de propósito**: *"já não é mais um problema,
+      o registro aponta para o favorecido certo"*. Afirmação manual do que a
+      máquina prova é **carimbo que não prova nada** — e na rodada 1 nada pode
+      ter repontado, então a opção só serviria para **silenciar o alarme sem o
+      conserto**.
+    - **Enquanto a rodada 2 não existir, a pendência declara o que está
+      esperando**: *"a correção do apontamento ainda não existe no app"*.
+      Pendência que declara a própria saída não é o defeito do critério 20 —
+      alarme **mudo** é.
+
+    **Mecanismo, igual ao do critério 21**: o desfecho é **INSERT, não update**;
+    a pendência **sai da lista** e fica no **histórico do documento** (critério
+    16), com quem, quando e qual desfecho, legível em 2034; **marcar de novo
+    depois da baixa abre pendência NOVA**, nunca ressuscita a antiga.
+
+    **Marcar não gera linha de `revisao`**: nenhum dado do documento mudou, não
+    há antes→depois a registrar (adendo §1 do parecer). O que existe é a
+    pendência aberta, com a data.
+
+    **E2E**: marcar duas vezes → uma linha; baixar com o desfecho manual → sai da
+    lista e aparece no histórico **do documento**; marcar de novo depois da baixa
+    → pendência **nova**.
+20. [ ] **A pendência de retificadora é por ANO-CALENDÁRIO, não por correção —
+    e carrega um CONJUNTO DE OBRAS AFETADAS.**
+
+    **(a) Acumulação.** Havendo pendência aberta para 2025, toda correção
+    seguinte que mexa em 2025 **acumula nela**: a lista de correções que a compõem
+    cresce e o delta exibido é o **acumulado do ano** (primeiro `antes` → último
+    `depois`), **por obra**. Cinco correções não viram cinco linhas em "O que
+    está faltando" — alarme que se multiplica é o mesmo defeito do alarme que não
+    desliga. Um **move** (critério 13) entra como **uma** linha — *"Documento
+    movido de A para B, com 2 pagamentos"* —, nunca como três: no banco são N
+    linhas de `revisao` com o mesmo `ato_id`, na tela é um ato só.
+
+    **(b) De onde vem o conjunto de obras — `[Certain]`, §5.4 do adendo.** As
+    obras **candidatas** saem do **RASTRO**: `antes ∪ depois` do campo `obra` do
+    ato. **Nunca de `documento.obra_id`** — depois do move o documento só conhece
+    o **destino**, e derivar a obra dele apagaria a **origem**, que é justamente o
+    lado onde o custo caiu e onde "pago sem nota" subiu. Perder o alarme no lado
+    que piorou é o pior resultado possível desta tela.
+
+    **(c) O filtro, e ele é obrigatório — decisão do `po`, 19/08** (ressalva 2 do
+    `contador` sobre o desenho de `s7c`/`s8c`): **`antes ∪ depois` é o conjunto de
+    CANDIDATAS; afetada é a candidata cujo custo daquele ano efetivamente
+    mudou**, lido do **snapshot de anos afetados por obra** que o critério 7 já
+    grava. **Fica com filtro**, e a versão sem filtro está descartada: sem ele, o
+    desfecho em que **todos** os pagamentos ficam na origem acenderia pendência
+    numa obra onde **nenhum número se mexeu**, contradizendo o §5.3 na frase
+    seguinte a ela — e alarme falso é exatamente a doença que este ticket existe
+    para curar. Custo de implementação: zero, o dado já está gravado.
+    **Se, depois do filtro, nenhuma obra teve número alterado naquele ano, não
+    abre pendência nenhuma** (é o caso `s8b`: documento sem pagamento vinculado).
+
+    **(d) Onde ela aparece.** Na **tela inicial de cada obra afetada**, mostrando
+    ali o delta **daquela** obra e **nomeando a(s) outra(s) SEM VALOR** — critério
+    14 de `/obras`: dinheiro de duas obras somado na mesma tela é soma que não
+    existe em declaração nenhuma. Na **tela da pendência**, onde o contexto é o
+    ano, cada obra tem **a sua linha com o seu delta**, lado a lado e **nunca
+    somadas**.
+
+    **(e) É UMA pendência, não duas.** A chave é o **ano**, porque a **DAA é do
+    contribuinte, não da obra**: uma retificadora de 2025 corrige as linhas das
+    duas obras no mesmo ato, e **o desfecho do critério 21 não é divisível por
+    obra** — uma baixa tira a pendência das duas telas iniciais ao mesmo tempo.
+
+    **(f) Quando NÃO abre** (§5.3): documento **sem** pagamento vinculado (não
+    muda número em obra nenhuma — documento sozinho comprova zero dos dois lados);
+    e delta **só no ano corrente** (o número se corrige sozinho antes da DAA).
+
+    **E2E**: mover documento com dois pagamentos em **desfecho misto** e provar
+    que existe **uma** pendência de 2025, com **as duas** obras e o delta de cada
+    uma; repetir com **todos** os pagamentos ficando na origem e provar que a obra
+    de **destino não entra** no conjunto.
 21. [ ] **Só o Mateus baixa a pendência, em ato nomeado, e a baixa não apaga.**
     Botão *"Marcar como tratada"* na tela da pendência, que **exige escolher um
     desfecho** — nunca ao fechar a tela, nunca em lote, nunca automático, nunca
@@ -258,6 +375,20 @@ de desfecho do critério 21 e o botão do critério 19; o resto já está no v1.
   `CONTAI-004` (número/série) e da anotação da D25 para não gerar duplicidade.
 - **Texto livre no desfecho da pendência** — critério 21 fecha em três opções.
   Campo livre em registro fiscal vira lugar de guardar o que ninguém relê.
+- **Mover PAGAMENTO entre obras (o lado espelhado do critério 13)** — mesmo bug,
+  mesma classe de dano, **outro ticket**: `CONTAI-008`, reaberto e reescrito em
+  19/08. Fica fora daqui por três razões nomeadas: (1) a tela espelhada
+  (*"escolha, documento a documento"*) **não está no mock v2 aprovado**, e
+  mock-first é regra do Mateus, não do `po`; (2) ela reabre uma pergunta fiscal
+  que o adendo §5 **não** responde — levar junto uma **NF de serviço** para obra
+  cujo CNO ela não referencia, que é a pergunta 1 do Gate Fiscal do `CONTAI-008`,
+  aberta desde 10/08 (`podeCorrigirObra` barra isso no caminho do documento e
+  **não** roda no caminho do pagamento, onde `tipo` é `null`); (3) ela reusa
+  inteira a máquina que **este** ticket constrói (`revisao`, `ato_id`, função
+  transacional, pendência por ano) — feita depois custa uma fração, feita agora
+  duplica o desenho. **Meia correção não é desculpa**: o `CONTAI-008` entra na
+  fila **imediatamente depois deste**, e a exposição no intervalo está nomeada
+  lá.
 
 ## Gate Fiscal (Contador)
 
@@ -329,7 +460,9 @@ O que este ticket **não pode** contrariar:
 
 - **Bloqueado por**: Gate 0 (mock) · `CONTAI-018` (a tela de custo por ano
   antes→depois reusa o que o 018 entrega).
-- **Bloqueia**: nada.
+- **Bloqueia**: **`CONTAI-008`** (o lado espelhado — mover pagamento), que
+  depende da tabela `revisao`, do `ato_id`, da função transacional e da pendência
+  por ano que este ticket cria.
 - **Relação**: `CONTAI-004` amplia a lista corrigível quando entrar, sem reabrir
   gate. A dor **D-018.2** compartilha o **mesmo detector** deste ticket
   (recalcular custo por ano e comparar) — **construir uma vez**; se sair duas
