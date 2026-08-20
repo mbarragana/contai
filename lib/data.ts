@@ -7,7 +7,10 @@
  */
 
 import { podeQuitar } from "@/lib/fiscal/compromisso";
-import type { EscolhaDePagamento } from "@/lib/fiscal/revisao";
+import type {
+  EscolhaDePagamento,
+  LinhaDeAnoDaPendencia,
+} from "@/lib/fiscal/revisao";
 import { podeVincular } from "@/lib/fiscal/vinculo";
 import { numericParaCentavos, centavosParaNumeric } from "@/lib/money";
 import {
@@ -814,7 +817,7 @@ export async function baixarPendencia(entrada: {
  * `depois`), o CONJUNTO DE OBRAS AFETADAS e a lista de atos que a compõem.
  */
 export async function carregarAnosDasPendencias(): Promise<
-  { pendenciaId: string; revisaoId: string; ano: AnoAfetado }[]
+  LinhaDeAnoDaPendencia[]
 > {
   const { data, error } = await getSupabase()
     .from("revisao_ano_afetado")
@@ -826,6 +829,30 @@ export async function carregarAnosDasPendencias(): Promise<
     revisaoId: row.revisao_id,
     ano: paraAnoAfetado(row),
   }));
+}
+
+/**
+ * Tudo que as telas de pendência precisam, numa carga só: a pendência, o
+ * snapshot de anos por obra e as revisões que a compõem.
+ *
+ * Existe para as TRÊS superfícies (home da obra, lista e detalhe) lerem o mesmo
+ * conjunto — quem monta é `montarPendenciasDeAno`, pura e com teste unitário.
+ * Duas montagens diferentes do mesmo alarme divergem, e o Mateus veria dois
+ * números para o mesmo evento fiscal.
+ */
+export async function carregarPainelDePendencias(): Promise<{
+  pendencias: PendenciaPersistente[];
+  linhas: LinhaDeAnoDaPendencia[];
+  revisoes: Revisao[];
+}> {
+  const [pendencias, linhas] = await Promise.all([
+    carregarPendencias(),
+    carregarAnosDasPendencias(),
+  ]);
+  const revisoes = await carregarRevisoesPorId([
+    ...new Set(linhas.map((l) => l.revisaoId)),
+  ]);
+  return { pendencias, linhas, revisoes };
 }
 
 /** As linhas de rastro pedidas por id — o detalhe de cada ato da pendência. */

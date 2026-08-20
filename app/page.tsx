@@ -28,6 +28,7 @@ import {
   carregarCompromissos,
   carregarObras,
   carregarPainel,
+  carregarPainelDePendencias,
   classificarErro,
   type ErroDeTela,
   type PainelDados,
@@ -35,6 +36,13 @@ import {
 import { montarAgendaDaHome, type AgendaHome } from "@/lib/fiscal/compromisso";
 import { escolherObraAtiva } from "@/lib/fiscal/obra";
 import { calcularResumo, type Pendencia, type ResumoObra } from "@/lib/fiscal/resumo";
+import {
+  AVISO_ANO_ANTERIOR,
+  EMITENTE_ERRADO_O_QUE_FALTA,
+  montarPendenciasDeAno,
+  pendenciasAbertasDaObra,
+  type PendenciaDeAno,
+} from "@/lib/fiscal/revisao";
 import {
   EXPLICACAO_CUSTO_ZERO,
   EXPLICACAO_NOTAS_SEM_PAGAMENTO,
@@ -56,6 +64,16 @@ type Estado =
        * ali viajaria pelo spread até a porta do cálculo de custo (critério 3).
        */
       agenda: AgendaHome;
+      /**
+       * CONTAI-021, critério 20(d): a pendência de retificadora aparece na tela
+       * inicial de CADA OBRA AFETADA. Campo separado como a agenda, e pela
+       * mesma razão: nada disto pode viajar pelo spread até a porta de
+       * `calcularResumo` — é alarme gravado, não número de custo.
+       */
+      pendenciasDeCorrecao: PendenciaDeAno[];
+      /** Marcações de "CNPJ errado" abertas de documentos DESTA obra. */
+      emitenteErrado: { id: string; documentoId: string; abertaEm: string }[];
+      nomeDasObras: Map<string, string>;
     };
 
 const ACAO_POR_TIPO: Partial<Record<Pendencia["tipo"], string>> = {
@@ -91,13 +109,33 @@ export default function Home() {
 
         const dados = await carregarPainel(ativa.id);
         const compromissos = await carregarCompromissos(ativa.id);
+        const painelPendencias = await carregarPainelDePendencias();
         const ano = Number(hojeIso().slice(0, 4));
         if (cancelado) return;
+        const docsDaObra = new Set(dados.documentos.map((d) => d.id));
         setEstado({
           fase: "pronto",
           dados,
           resumo: calcularResumo({ ...dados, ano }),
           agenda: montarAgendaDaHome(compromissos, hojeIso()),
+          pendenciasDeCorrecao: pendenciasAbertasDaObra(
+            montarPendenciasDeAno(painelPendencias),
+            ativa.id,
+          ),
+          emitenteErrado: painelPendencias.pendencias
+            .filter(
+              (p) =>
+                p.tipo === "emitente_errado" &&
+                p.desfecho === null &&
+                p.documentoId !== null &&
+                docsDaObra.has(p.documentoId),
+            )
+            .map((p) => ({
+              id: p.id,
+              documentoId: p.documentoId as string,
+              abertaEm: p.abertaEm,
+            })),
+          nomeDasObras: new Map(obras.map((o) => [o.id, o.nome])),
         });
       } catch (erro) {
         if (cancelado) return;
@@ -314,6 +352,74 @@ export default function Home() {
                 ))}
               </>
             ) : null}
+
+            {/* ⚠️ CONTAI-021, critério 20 — a pendência PERSISTENTE, que não
+                some ao fechar a tela. Bloco próprio, ANTES das pendências
+                derivadas: estas são recalculadas a cada carga e desaparecem
+                sozinhas quando o fato muda; a de correção é linha GRAVADA e só
+                sai com um desfecho escolhido pelo Mateus. */}
+            {estado.pendenciasDeCorrecao.length > 0 ||
+            estado.emitenteErrado.length > 0 ? (
+              <Passo>Correções a tratar</Passo>
+            ) : null}
+
+            {estado.pendenciasDeCorrecao.map((p) => {
+              const nesta = p.obras.find((o) => o.obraId === obra.id);
+              const outras = p.obras
+                .filter((o) => o.obraId !== obra.id)
+                .map((o) => estado.nomeDasObras.get(o.obraId) ?? "outra obra");
+              return (
+                <Card key={p.id} className="border-amb" data-pendencia={p.ano}>
+                  <Chip cor="amb">Correção mexeu em ano anterior</Chip>
+                  <div className="mt-1.5 font-semibold">
+                    {p.ano} — o custo do ano mudou depois de {p.quantidadeDeAtos}{" "}
+                    {p.quantidadeDeAtos === 1 ? "correção sua" : "correções suas"}
+                  </div>
+                  {nesta ? (
+                    <Dica>
+                      Nesta obra:{" "}
+                      <span className="mono">
+                        {formatarBRL(nesta.antesCentavos)} →{" "}
+                        {formatarBRL(nesta.depoisCentavos)}
+                      </span>
+                      .
+                    </Dica>
+                  ) : null}
+                  {/* ⚠️ A outra obra é NOMEADA SEM VALOR: dinheiro de duas obras
+                      lado a lado na mesma tela é a soma que não existe em
+                      declaração nenhuma (critério 14 de /obras). */}
+                  {outras.length > 0 ? (
+                    <Dica>
+                      Esta correção também mudou o custo de {p.ano} em{" "}
+                      {outras.join(", ")}.
+                    </Dica>
+                  ) : null}
+                  <Consequencia cor="amb">{AVISO_ANO_ANTERIOR}</Consequencia>
+                  <div className="mt-2.5">
+                    <BotaoLink href={`/pendencias/${p.id}`}>
+                      Abrir a pendência de {p.ano}
+                    </BotaoLink>
+                  </div>
+                </Card>
+              );
+            })}
+
+            {estado.emitenteErrado.map((p) => (
+              <Card key={p.id} className="border-amb">
+                <Chip cor="amb">CNPJ errado — tratar</Chip>
+                <div className="mt-1.5 font-semibold">
+                  O CNPJ do emitente de 1 documento está errado
+                </div>
+                <Consequencia cor="amb">
+                  {EMITENTE_ERRADO_O_QUE_FALTA}
+                </Consequencia>
+                <div className="mt-2.5">
+                  <BotaoLink href={`/documento/${p.documentoId}`}>
+                    Ver o documento marcado
+                  </BotaoLink>
+                </div>
+              </Card>
+            ))}
 
             {estado.resumo.pendencias.length > 0 ? (
               <Passo>Pendências</Passo>

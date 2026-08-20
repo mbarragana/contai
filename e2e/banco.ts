@@ -545,6 +545,59 @@ export async function diferencas(db: Db) {
   return data!;
 }
 
+// ── CONTAI-021 · rastro e pendências ─────────────────────────────────────
+//
+// Todas pelo MESMO client autenticado do app: `revisao`, `revisao_ano_afetado`,
+// `pendencia` e `pendencia_desfecho` têm `select` para `authenticated`
+// (migration 0009), e é essa a leitura que o teste tem de exercitar. Se a
+// policy barrasse, a lista voltaria vazia e o teste acusaria.
+
+export async function revisoes(db: Db) {
+  const { data, error } = await db
+    .from("revisao")
+    .select("*")
+    .order("quando", { ascending: true })
+    .order("created_at", { ascending: true });
+  conferir("ler revisão", error);
+  return data!;
+}
+
+export async function anosAfetados(db: Db) {
+  const { data, error } = await db
+    .from("revisao_ano_afetado")
+    .select("*")
+    .order("ano", { ascending: true });
+  conferir("ler ano afetado", error);
+  return data!;
+}
+
+export async function pendencias(db: Db) {
+  const { data, error } = await db
+    .from("pendencia")
+    .select("*")
+    .order("aberta_em", { ascending: true });
+  conferir("ler pendência", error);
+  return data!;
+}
+
+export async function desfechosDePendencia(db: Db) {
+  const { data, error } = await db
+    .from("pendencia_desfecho")
+    .select("*")
+    .order("baixada_em", { ascending: true });
+  conferir("ler desfecho de pendência", error);
+  return data!;
+}
+
+export async function anexosDoDocumento(db: Db) {
+  const { data, error } = await db
+    .from("documento_anexo")
+    .select("*")
+    .order("created_at", { ascending: true });
+  conferir("ler anexo adicional", error);
+  return data!;
+}
+
 export async function favorecidos(db: Db) {
   const { data, error } = await db
     .from("favorecido")

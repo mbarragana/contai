@@ -8,13 +8,21 @@ import {
   anosComPendencia,
   pagamentosImpedidosDeIrJunto,
   pagamentosVinculados,
+  montarPendenciasDeAno,
+  pendenciasAbertasDaObra,
   resumoDesfechoMisto,
   semNotaDoAno,
   simularMoveDeObra,
+  type LinhaDeAnoDaPendencia,
 } from "@/lib/fiscal/revisao";
 import { alocarCusto } from "@/lib/fiscal/vinculo";
 import { formatarBRL } from "@/lib/money";
-import type { Documento, Pagamento, Revisao } from "@/lib/types";
+import type {
+  Documento,
+  Pagamento,
+  PendenciaPersistente,
+  Revisao,
+} from "@/lib/types";
 
 const CASA = "obra-casa";
 const REFORMA = "obra-reforma";
@@ -442,5 +450,198 @@ describe("agruparPorAto — o move é UMA linha no histórico, nunca três", () 
       }),
     ]);
     expect(atos[0].anosAfetados.map((a) => a.obraId)).toEqual([CASA, REFORMA]);
+  });
+});
+
+describe("montarPendenciasDeAno — o acumulado do ano (critério 20a)", () => {
+  const P = "pend-2025";
+
+  function pendencia(over: Partial<PendenciaPersistente> = {}): PendenciaPersistente {
+    return {
+      id: P,
+      tipo: "retificadora_possivel",
+      ano: 2025,
+      documentoId: null,
+      abertaEm: "2026-08-12T09:12:00Z",
+      desfecho: null,
+      ...over,
+    };
+  }
+
+  function linha(
+    revisaoId: string,
+    obraId: string,
+    antes: number,
+    depois: number,
+  ): LinhaDeAnoDaPendencia {
+    return {
+      pendenciaId: P,
+      revisaoId,
+      ano: {
+        obraId,
+        ano: 2025,
+        antesCentavos: antes,
+        depoisCentavos: depois,
+        pendencia: true,
+      },
+    };
+  }
+
+  function revisao(id: string, atoId: string, quando: string): Revisao {
+    return {
+      id,
+      atoId,
+      entidade: "documento",
+      entidadeId: "d1",
+      campo: "valor",
+      antes: null,
+      depois: "1",
+      quando,
+      motivo: "erro_de_digitacao_minha",
+      motivoTexto: null,
+      anosAfetados: [],
+    };
+  }
+
+  it("três correções no mesmo ano viram UMA linha, do primeiro antes ao último depois", () => {
+    const montadas = montarPendenciasDeAno({
+      pendencias: [pendencia()],
+      linhas: [
+        linha("r1", CASA, 1_240_000, 2_392_000),
+        linha("r2", CASA, 2_392_000, 3_015_000),
+        linha("r3", CASA, 3_015_000, 3_115_000),
+      ],
+      revisoes: [
+        revisao("r1", "ato-1", "2026-08-12T09:12:00Z"),
+        revisao("r2", "ato-2", "2026-08-15T20:03:00Z"),
+        revisao("r3", "ato-3", "2026-08-19T21:40:00Z"),
+      ],
+    });
+
+    expect(montadas).toHaveLength(1);
+    expect(montadas[0].quantidadeDeAtos).toBe(3);
+    // Os números do mock s7c: R$ 12.400,00 → R$ 31.150,00.
+    expect(montadas[0].obras).toEqual([
+      { obraId: CASA, antesCentavos: 1_240_000, depoisCentavos: 3_115_000 },
+    ]);
+    expect(montadas[0].ultimaCorrecaoEm).toBe("2026-08-19T21:40:00Z");
+  });
+
+  it("a ordem de chegada das linhas não muda o acumulado", () => {
+    const embaralhado = montarPendenciasDeAno({
+      pendencias: [pendencia()],
+      linhas: [
+        linha("r3", CASA, 3_015_000, 3_115_000),
+        linha("r1", CASA, 1_240_000, 2_392_000),
+        linha("r2", CASA, 2_392_000, 3_015_000),
+      ],
+      revisoes: [
+        revisao("r1", "ato-1", "2026-08-12T09:12:00Z"),
+        revisao("r2", "ato-2", "2026-08-15T20:03:00Z"),
+        revisao("r3", "ato-3", "2026-08-19T21:40:00Z"),
+      ],
+    });
+    expect(embaralhado[0].obras[0]).toEqual({
+      obraId: CASA,
+      antesCentavos: 1_240_000,
+      depoisCentavos: 3_115_000,
+    });
+  });
+
+  it("um MOVE com dois pagamentos conta como UM ato, e atinge as duas obras", () => {
+    const montadas = montarPendenciasDeAno({
+      pendencias: [pendencia()],
+      linhas: [
+        linha("r-doc", CASA, 3_115_000, 2_175_000),
+        linha("r-doc", REFORMA, 0, 940_000),
+      ],
+      // As três linhas do banco compartilham o `ato_id` — na tela é um ato só.
+      revisoes: [
+        revisao("r-doc", "ato-move", "2026-08-19T22:10:00Z"),
+        revisao("r-pag1", "ato-move", "2026-08-19T22:10:00Z"),
+        revisao("r-pag2", "ato-move", "2026-08-19T22:10:00Z"),
+      ],
+    });
+    expect(montadas[0].quantidadeDeAtos).toBe(1);
+    expect(montadas[0].obras.map((o) => o.obraId).sort()).toEqual(
+      [CASA, REFORMA].sort(),
+    );
+  });
+
+  it("baixada sai da lista da obra, e continua existindo no histórico", () => {
+    const montadas = montarPendenciasDeAno({
+      pendencias: [
+        pendencia({
+          desfecho: {
+            desfecho: "retifiquei_a_daa",
+            dataInformada: "2026-08-18",
+            baixadaEm: "2026-08-19T21:55:00Z",
+          },
+        }),
+      ],
+      linhas: [linha("r1", CASA, 1_240_000, 3_115_000)],
+      revisoes: [revisao("r1", "ato-1", "2026-08-12T09:12:00Z")],
+    });
+
+    expect(montadas).toHaveLength(1);
+    expect(pendenciasAbertasDaObra(montadas, CASA)).toEqual([]);
+  });
+
+  it("uma pendência NOVA depois da baixa não reabre a antiga", () => {
+    const montadas = montarPendenciasDeAno({
+      pendencias: [
+        pendencia({
+          desfecho: {
+            desfecho: "retifiquei_a_daa",
+            dataInformada: "2026-08-18",
+            baixadaEm: "2026-08-19T21:55:00Z",
+          },
+        }),
+        pendencia({ id: "pend-nova", abertaEm: "2026-09-02T10:00:00Z" }),
+      ],
+      linhas: [
+        linha("r1", CASA, 1_240_000, 3_115_000),
+        {
+          pendenciaId: "pend-nova",
+          revisaoId: "r4",
+          ano: {
+            obraId: CASA,
+            ano: 2025,
+            // ⚠️ O "antes" da nova é o número em que a anterior PAROU: a conta
+            // não recomeça do zero e não repete o que já foi tratado.
+            antesCentavos: 3_115_000,
+            depoisCentavos: 3_340_000,
+            pendencia: true,
+          },
+        },
+      ],
+      revisoes: [
+        revisao("r1", "ato-1", "2026-08-12T09:12:00Z"),
+        revisao("r4", "ato-4", "2026-09-02T10:00:00Z"),
+      ],
+    });
+
+    const abertas = pendenciasAbertasDaObra(montadas, CASA);
+    expect(abertas).toHaveLength(1);
+    expect(abertas[0].id).toBe("pend-nova");
+    expect(abertas[0].obras[0].antesCentavos).toBe(3_115_000);
+  });
+
+  it("a pendência de CNPJ errado não entra na lista de ANO — a chave dela é o documento", () => {
+    const montadas = montarPendenciasDeAno({
+      pendencias: [
+        {
+          id: "pend-cnpj",
+          tipo: "emitente_errado",
+          ano: null,
+          documentoId: "d1",
+          abertaEm: "2026-08-19T00:00:00Z",
+          desfecho: null,
+        },
+      ],
+      linhas: [],
+      revisoes: [],
+    });
+    expect(montadas).toEqual([]);
   });
 });

@@ -23,6 +23,7 @@ import type {
   Documento,
   MotivoRevisao,
   Pagamento,
+  PendenciaPersistente,
   Revisao,
 } from "@/lib/types";
 
@@ -507,3 +508,173 @@ export function avisoNomeEmAnoAnterior(ano: number): string {
 export const AVISO_NOME_FICA_NO_HISTORICO =
   "Esta correção fica registrada no histórico, com a data. Se o seu contador " +
   "precisar dela, está lá — o app não decide se isso pede retificadora.";
+
+// ── O ciclo da pendência de retificadora (critérios 20 e 21) ─────────────
+
+/**
+ * Uma pendência de ANO, montada para a tela.
+ *
+ * ⚠️ A chave é o ANO, e nunca a correção: "cinco correções em 2025 são UMA
+ * linha na lista. Alarme que se multiplica é o mesmo defeito do alarme que não
+ * desliga, com outro sinal" (critério 20a). E nunca a OBRA: "a DAA é do
+ * contribuinte, não da obra — uma retificadora de 2025 corrige as linhas das
+ * duas obras no mesmo ato, e o desfecho não é divisível" (adendo §5.4).
+ */
+export interface PendenciaDeAno {
+  id: string;
+  ano: number;
+  abertaEm: string;
+  /** A mais recente das correções que a compõem. */
+  ultimaCorrecaoEm: string;
+  /** ATOS, não linhas de banco: um move com 2 pagamentos conta 1. */
+  quantidadeDeAtos: number;
+  /**
+   * As obras AFETADAS, cada uma com o SEU delta — nunca somadas.
+   * Vêm do RASTRO (`antes ∪ depois` do campo `obra`), nunca de
+   * `documento.obra_id`: depois do move o documento só conhece o DESTINO, e
+   * derivar dele apagaria a ORIGEM, que é o lado onde o custo caiu.
+   */
+  obras: {
+    obraId: string;
+    /** O acumulado do ano: PRIMEIRO `antes` → ÚLTIMO `depois`. */
+    antesCentavos: number;
+    depoisCentavos: number;
+  }[];
+  /** `null` = aberta. Preenchido = baixada, e a baixa é acréscimo. */
+  desfecho: PendenciaPersistente["desfecho"];
+}
+
+export interface LinhaDeAnoDaPendencia {
+  pendenciaId: string;
+  revisaoId: string;
+  ano: AnoAfetado;
+}
+
+/**
+ * Junta pendência + snapshot + rastro no que a tela mostra.
+ *
+ * O ACUMULADO é "do primeiro `antes` — como estava antes da primeira correção
+ * — ao último `depois`" (critério 20a). Não é a soma dos deltas e não é o
+ * delta da última correção: "é esse número que interessa a quem for avaliar a
+ * retificadora, não o delta de cada correção isolada".
+ */
+export function montarPendenciasDeAno(entrada: {
+  pendencias: readonly PendenciaPersistente[];
+  linhas: readonly LinhaDeAnoDaPendencia[];
+  revisoes: readonly Revisao[];
+}): PendenciaDeAno[] {
+  const quandoDaRevisao = new Map(entrada.revisoes.map((r) => [r.id, r.quando]));
+  const atoDaRevisao = new Map(entrada.revisoes.map((r) => [r.id, r.atoId]));
+
+  return entrada.pendencias
+    .filter((p) => p.tipo === "retificadora_possivel" && p.ano !== null)
+    .map((p) => {
+      const minhas = entrada.linhas
+        .filter((l) => l.pendenciaId === p.id)
+        .sort((a, b) => {
+          const qa = quandoDaRevisao.get(a.revisaoId) ?? "";
+          const qb = quandoDaRevisao.get(b.revisaoId) ?? "";
+          return qa < qb ? -1 : qa > qb ? 1 : 0;
+        });
+
+      const porObra = new Map<string, { antes: number; depois: number }>();
+      for (const l of minhas) {
+        const atual = porObra.get(l.ano.obraId);
+        if (atual) {
+          // Só o DEPOIS avança: o ANTES é o da primeira correção do ano.
+          atual.depois = l.ano.depoisCentavos;
+        } else {
+          porObra.set(l.ano.obraId, {
+            antes: l.ano.antesCentavos,
+            depois: l.ano.depoisCentavos,
+          });
+        }
+      }
+
+      const quandos = minhas
+        .map((l) => quandoDaRevisao.get(l.revisaoId) ?? p.abertaEm)
+        .sort();
+
+      return {
+        id: p.id,
+        ano: p.ano as number,
+        abertaEm: p.abertaEm,
+        ultimaCorrecaoEm: quandos[quandos.length - 1] ?? p.abertaEm,
+        quantidadeDeAtos: new Set(
+          minhas.map((l) => atoDaRevisao.get(l.revisaoId) ?? l.revisaoId),
+        ).size,
+        obras: [...porObra.entries()].map(([obraId, v]) => ({
+          obraId,
+          antesCentavos: v.antes,
+          depoisCentavos: v.depois,
+        })),
+        desfecho: p.desfecho,
+      };
+    })
+    .sort((a, b) => b.ano - a.ano);
+}
+
+/** As pendências ABERTAS que atingem ESTA obra — o que a home dela mostra. */
+export function pendenciasAbertasDaObra(
+  pendencias: readonly PendenciaDeAno[],
+  obraId: string,
+): PendenciaDeAno[] {
+  return pendencias.filter(
+    (p) => p.desfecho === null && p.obras.some((o) => o.obraId === obraId),
+  );
+}
+
+/**
+ * Os três desfechos do critério 21, na ordem da tela. **Nada nasce marcado, e
+ * o app não sugere nenhum**: ele não sabe se a DAA foi entregue nem o que o
+ * contador respondeu, que são exatamente as duas coisas que os três separam.
+ */
+export const DESFECHOS_DE_RETIFICADORA = [
+  {
+    valor: "retifiquei_a_daa",
+    titulo: (ano: number) => `Retifiquei a DAA de ${ano}`,
+    detalhe:
+      "A declaração já tinha sido entregue e você entregou a retificadora.",
+    pedeData: true,
+  },
+  {
+    valor: "contador_avaliou_nao_retifica",
+    titulo: () => "Meu contador avaliou e não é preciso retificar",
+    detalhe:
+      "Você levou a diferença ao contador e a resposta foi que não retifica.",
+    pedeData: true,
+  },
+  {
+    valor: "daa_ainda_nao_entregue",
+    titulo: (ano: number) => `A DAA de ${ano} ainda não foi entregue`,
+    detalhe: "Não é retificadora: a correção entra na declaração normal.",
+    pedeData: false,
+  },
+] as const;
+
+/**
+ * O desfecho manual da pendência de CNPJ errado — **um só, hoje** (critério
+ * 19). A lista é PRÓPRIA: os três acima são todos sobre DAA, e nenhum descreve
+ * "resolvi o CNPJ errado".
+ *
+ * ⚠️ O que NÃO está aqui, e é de propósito: *"já não é mais um problema, o
+ * registro aponta para o favorecido certo"*. Afirmação manual do que a máquina
+ * prova é carimbo que não prova nada — e na rodada 1 nada pode ter repontado,
+ * então a opção só serviria para silenciar o alarme sem o conserto.
+ */
+export const DESFECHO_MANUAL_EMITENTE_ERRADO = {
+  valor: "cnpj_gravado_esta_certo",
+  titulo: "Conferi o papel: o CNPJ gravado está certo — o erro foi meu ao marcar",
+  detalhe: "Único desfecho manual disponível hoje. Pede a data.",
+  pedeData: true,
+} as const;
+
+/**
+ * Critério 19 — a pendência que declara o que está esperando. Pendência que
+ * declara a própria saída não é o defeito do critério 20; alarme MUDO é.
+ */
+export const EMITENTE_ERRADO_O_QUE_FALTA =
+  "Enquanto não for tratado, esse documento continua apontando para um " +
+  "favorecido que não é o que emitiu a nota — e é esse favorecido que sairia " +
+  "na ficha Pagamentos Efetuados. A correção do apontamento ainda não existe " +
+  "no app.";

@@ -489,9 +489,19 @@ test.describe("caminho A — vínculo no ato do registro", () => {
     await expect(page.getByLabel("CNPJ / CPF do favorecido")).toHaveCount(0);
 
     // Saída 1: corrigir na origem.
+    //
+    // ⚠️ O DESTINO mudou no CONTAI-021 (critério 2). Até 19/08 ele levava a
+    // `/documento/[id]`, onde NÃO EXISTIA correção nenhuma — "o usuário clica
+    // em Corrigir na nota e chega numa tela que não corrige". Como o link sai
+    // da caixa do FAVORECIDO, o destino natural é a correção do nome do
+    // emitente; `voltar=pagamento` é o que traz ele de volta para cá com o nome
+    // novo.
     await expect(
       page.getByRole("link", { name: "Corrigir na nota" }),
-    ).toHaveAttribute("href", `/documento/${documentoId}`);
+    ).toHaveAttribute(
+      "href",
+      `/documento/${documentoId}/corrigir/emitente?voltar=pagamento`,
+    );
 
     // Saída 2: sem vínculo o pagamento é avulso, e aí os campos voltam.
     await page

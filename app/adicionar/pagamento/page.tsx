@@ -770,12 +770,24 @@ function RegistrarPagamento() {
                     documento={documento}
                     erroNome={erroDe("favorecidoNome")}
                     erroDocumento={erroDe("favorecidoDocumento")}
-                    // ⚠️ Data e meio nascem preenchidos (hoje, PIX) e por isso
-                    // NÃO contam como "digitado": só valor e comprovante saem
-                    // do dedo dele. Contar o default como digitação faria o
-                    // aviso aparecer sempre — e aviso que aparece sempre é o
-                    // aviso que se aprende a dispensar.
-                    temAlgoDigitado={valor.trim() !== "" || comprovante !== null}
+                    /**
+                     * ⚠️ O que conta como "digitado" é só o que SAIU DO DEDO
+                     * DELE, e a distinção não é preciosismo:
+                     * - data e meio nascem preenchidos (hoje, PIX);
+                     * - o VALOR nasce preenchido pelo app com o saldo da nota
+                     *   (`sugestaoValor`), num pagamento que nasce ligado — que
+                     *   é exatamente o caminho por onde este link é alcançado.
+                     * Contar qualquer um dos três faria o aviso aparecer
+                     * SEMPRE, e aviso que aparece sempre é o aviso que se
+                     * aprende a dispensar. Ele só aparece quando há de fato
+                     * algo a perder: valor DIFERENTE do sugerido, ou um
+                     * comprovante já escolhido — que é o único que não
+                     * sobrevive à navegação em hipótese nenhuma.
+                     */
+                    temAlgoDigitado={
+                      (valor.trim() !== "" && valor !== sugestaoValor?.texto) ||
+                      comprovante !== null
+                    }
                     onSairParaCorrigir={() => setConfirmandoSaida(true)}
                   />
                 ) : (

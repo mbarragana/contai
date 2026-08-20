@@ -503,10 +503,20 @@ test.describe("correção da obra de um registro", () => {
     expect(antes[0].obra_id).toBe(OBRA_ID_SEED);
 
     // Correção pela interface (critério 13) — sem isto seria SQL na mão.
+    //
+    // ⚠️ Título e rótulo do botão MUDARAM no CONTAI-021: a tela do documento
+    // deixou de reusar `app/_components/corrigir-obra.tsx` e virou o ato
+    // transacional do critério 13. O componente antigo continua servindo o
+    // caminho do PAGAMENTO (`/pagamento/[id]/obra`), que o CONTAI-008 reabre e
+    // que este ticket não altera — e é ele que o teste do pagamento exercita.
     await page.getByRole("link", { name: "Corrigir a obra deste registro" }).click();
-    await expect(page.getByRole("heading", { name: "Corrigir obra" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Corrigir a obra deste registro" }),
+    ).toBeVisible();
     await page.getByRole("button", { name: /Casa do Morro/ }).click();
-    await page.getByRole("button", { name: "Mover para a obra escolhida" }).click();
+    await page
+      .getByRole("button", { name: "Mover o registro para a obra escolhida" })
+      .click();
     await expect(
       page.getByRole("heading", { name: "Obra corrigida ✓" }),
     ).toBeVisible();
