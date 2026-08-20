@@ -301,7 +301,7 @@ Texto literal do aviso:
 > Esta correção fica registrada no histórico, com a data. Se o seu contador
 > precisar dela, está lá — **o app não decide se isso pede retificadora**.
 
-## 5. Corrigir a obra: **não pergunta o motivo**
+## 5. Corrigir a obra: **não pergunta o motivo** — e **não é "transferir custo"**
 
 O `designer` está certo, e não é default em campo fiscal: `motivo` é metadado do
 ato, não dado do documento, e a taxonomia do §5 não se aplica aqui —
@@ -312,16 +312,153 @@ O rastro grava sozinho: campo `obra`, antes→depois, e motivo próprio
 **`arquivamento_corrigido`**. Não gravar *"arquivado na obra errada"*: isso é
 inferência sobre a causa; o rastro registra fato.
 
-⚠️ **Mas esta tela deve ganhar o que o mock não mostra.** Mover documento entre
-obras **muda custo dos dois lados** — sai de uma, entra na outra. Se houver
-pagamento vinculado, **é o mesmo detector do critério 4**, e ele deve rodar aqui:
-delta por ano-calendário **das duas obras** antes de gravar, e **pendência
-persistente** se algum ano anterior mudar — porque aqui muda número. É a única
-das cinco respostas que **abre** pendência.
+### 5.1 Retratação — "sai de uma, entra na outra" é **falso** no modelo de hoje
+
+⚠️ **Correção de 19/08, do mesmo dia deste adendo.** O bloco que encerrava este
+§5 dizia:
+
+> ~~Mover documento entre obras **muda custo dos dois lados** — sai de uma, entra
+> na outra.~~
+
+**Anulo essas palavras.** A conclusão operacional sobrevive inteira (roda o
+mesmo detector do critério 4, delta por ano-calendário das duas obras antes de
+gravar, pendência persistente quando muda número); o **mecanismo** que descrevi
+não existe. Quem pegou foi o `designer`, no mock v2 (`s8c`), e a prova não é
+argumento, é o código:
+
+- `moverDocumentoDeObra` (`lib/data.ts`) é um `UPDATE documento SET obra_id`
+  **seco**: não move `pagamento.obra_id`, não mexe em `pagamento_documento`, não
+  grava rastro.
+- `alocarCusto` (`lib/fiscal/vinculo.ts`) recebe a entrada de **uma** obra e, no
+  laço, ignora em silêncio o vínculo que aponta para documento fora dela. O
+  comentário local aposta que *"o critério 11 impede que esse caso nasça pela
+  interface"* — e o move faz nascer pela porta dos fundos.
+
+**O que de fato acontece hoje ao mover uma nota que tem pagamento vinculado:**
+
+1. **na origem** — o pagamento perde a nota: o custo comprovado do ano **cai**, e
+   **"pago sem nota" sobe pelo mesmo valor**;
+2. **no destino** — entra documento **sem pagamento nenhum**: `min(0, valor) = 0`,
+   o custo **não sobe**;
+3. **no banco** — sobra vínculo vivo cruzando duas obras, invisível nas duas
+   telas.
+
+Não é transferência: **o custo some de um lado e não aparece do outro.** E o dano
+mais caro dos três é o alarme falso da meta 1 — "pago sem nota" é o número pelo
+qual o Mateus decide se pode pagar alguém.
+
+**Por que o mecanismo é esse** `[Certain]` **quanto à norma, no que ela exige:**
+o custo de aquisição só admite dispêndio **comprovado com documentação hábil e
+idônea** (IN SRF 84/2001, art. 17). Documento sozinho não é dispêndio — é papel;
+pagamento sozinho não é comprovação — é dinheiro sem lastro. É o par que
+comprova. O app materializa isso como `custo comprovado = min(Σ pagamentos,
+Σ documentos hábeis)` **por componente conexo e dentro de uma mesma obra**
+(parecer de 2026-08-17, §3, e critério 11). Mover só o documento quebra o par:
+**tira comprovação de um lado sem criar dispêndio do outro.**
+
+### 5.2 A regra fiscal dos dois desfechos, por pagamento
+
+A forma decidida — cada pagamento vinculado resolvido **um a um, em ato
+explícito**, sem cascata (§4.4) e sem concluir com pagamento indeciso — é a
+correta, e eu a ratifico. O que cada desfecho significa fiscalmente:
+
+**(i) "o pagamento também é da obra de destino" → vai junto** (`pagamento.obra_id`
+muda, com rastro). `[Certain]` **Este é o único desfecho que transfere custo entre
+obras.** O par pagamento↔documento continua íntegro, só muda de imóvel: sai do
+custo de aquisição de um bem e entra no do outro, sem que o gasto do Mateus mude
+um centavo. Aqui o total das duas obras se conserva — **e só aqui**.
+
+**(ii) "o pagamento é mesmo da obra de origem" → o vínculo se desfaz** (com
+rastro) e o pagamento volta a **"pago sem nota"** na origem. `[Certain]` **Isso é
+registro verdadeiro, não perda de custo.** Se a nota é de outro imóvel, ela nunca
+comprovou aquele pagamento: o número que cai é o número que estava **errado
+antes**. O custo do mundo real não muda com clique nenhum — o que o app calcula
+é o que ele **consegue demonstrar** (parecer de 2026-08-17, §2). O pagamento
+segue existindo, segue sendo dispêndio da obra de origem, e volta à fila de quem
+precisa de documento hábil para entrar no custo. **"Pago sem nota" aqui é a
+verdade, e é para isso que o alarme serve.**
+
+⚠️ **Consequência que a tela precisa dizer, e que o mock ainda não diz:** com
+mais de um pagamento na mesma nota, misturar (i) e (ii) **reduz legitimamente o
+custo comprovado somado das duas obras**. Exemplo do próprio mock — NF de
+R$ 9.400,00 do Depósito Ilha, PIX de R$ 6.000,00 e boleto de R$ 3.400,00: se o
+PIX vai junto e o boleto fica, o destino ganha `min(6.000; 9.400) = R$ 6.000,00`
+e a origem perde os R$ 9.400,00, com R$ 3.400,00 indo para "pago sem nota". A
+diferença **não evaporou**: ela é o pagamento que ficou sem documento hábil, e
+essa é a única leitura honesta. A frase *"o total não muda"* vale para o caminho
+em que **todos** os pagamentos acompanham a nota — em desfecho misto ela é falsa,
+e não pode aparecer na tela como se fosse geral.
+
+### 5.3 Quando abre pendência persistente — confirmação, com uma fronteira
+
+A regra que atravessa as cinco respostas continua valendo, sem emenda:
+**pendência persistente só nasce quando a correção muda um NÚMERO que foi ou será
+declarado.** Aplicada aqui:
+
+| Caso | Muda número? | Pendência |
+|---|---|---|
+| **Sem** pagamento vinculado | **Não**, em obra nenhuma — documento sozinho comprova zero nos dois lados | **Não abre.** Rastro e aviso, e acabou. **Confirmo a tela `s8b`** |
+| **Com** pagamento vinculado, delta em ano **anterior** ao corrente | Sim, em uma ou nas duas obras | **Abre**, uma por **ano** |
+| **Com** pagamento vinculado, delta só no ano **corrente** | Sim, mas em ano ainda não declarado | **Não abre** — o número se corrige sozinho antes da DAA |
+
+Duas notas que o `lead-engineer` precisa respeitar:
+
+- `[Certain]` **O desfecho (ii) empurra o custo de um ano declarado para BAIXO.**
+  É a direção que significa *declarei custo que hoje não sei comprovar* — a
+  única que produz passivo tributário (§4 deste parecer). Não muda a mecânica da
+  pendência, mas é o caso em que a conversa com o CRC é menos adiável. O app
+  continua não decidindo retificadora.
+- A **lacuna do §6 segue aberta**: o modelo não sabe qual ano-calendário já foi
+  declarado. Enquanto não souber, "ano anterior ao corrente" é o proxy, e a tela
+  deve afirmar só o que sabe — *"2025 é ano anterior a 2026"* —, nunca *"você já
+  declarou"*.
+
+### 5.4 De onde vem o conjunto de obras da pendência
+
+**Confirmo a regra desenhada em `s7c`/`s8c`, e ela é dura:**
+
+> `[Certain]` (é consequência do modelo, não de norma) **As obras candidatas de
+> uma pendência de ano vêm do RASTRO — `antes ∪ depois` do campo `obra` —, nunca
+> de `documento.obra_id`.**
+
+O motivo é aritmético: depois do move, o documento só conhece o **destino**.
+Derivar a obra afetada dele apagaria a origem do alarme — e a origem é
+justamente o lado onde o custo caiu e onde "pago sem nota" subiu. Perder o
+alarme no lado que piorou é o pior resultado possível desta tela.
+
+Uma precisão em cima do desenho: `antes ∪ depois` é o conjunto de **candidatas**;
+**afetada é a candidata cujo custo daquele ano efetivamente mudou** (o snapshot
+de anos afetados do §5 já grava custo antes/depois **por obra**). Sem esse filtro,
+o caso em que todos os pagamentos ficam na origem acenderia alarme numa obra onde
+nenhum número se mexeu — contradizendo a regra do 5.3 na frase seguinte a ela.
+
+E a chave da pendência **continua sendo o ANO**: a DAA é do contribuinte, não da
+obra. Uma retificadora de 2025 corrige as linhas das duas obras no mesmo ato, e
+o desfecho não é divisível — uma baixa tira a pendência das duas telas iniciais.
+Que os valores das duas obras nunca apareçam somados na mesma tela é regra do
+critério 14 de `/obras`, e ela não é enfraquecida aqui: a pendência **nomeia** a
+outra obra, não soma com ela.
+
+### 5.5 Atomicidade — exigência da meta 3, não de norma
+
+`[Likely]` — **não conheço norma que exija transação.** A exigência é da **meta 3
+do projeto** (acervo que sobrevive ao prazo de decadência) e da própria coerência
+do cálculo: documento, pagamentos e rastros gravam **num ato só**, com
+identificador de ato comum. Gravação parcial produz exatamente o estado que este
+§5 existe para impedir — vínculo cruzando obras, invisível nas duas telas. Se a
+transação não fechar, **nada muda**: o estado anterior é errado de arquivamento,
+o estado partido é errado de número.
+
+`[Certain]` **É a única das cinco respostas deste adendo que abre pendência** — e,
+depois desta correção, ela a abre **em uma ou nas duas obras**, conforme o
+desfecho escolhido pagamento a pagamento.
 
 ## Fecho
 
 - **Automático**: as cinco decisões acima. Nenhuma exige julgamento novo.
-- **Só o Mateus**: a afirmação do §3 deste adendo.
+- **Só o Mateus**: a afirmação do §3 deste adendo; e, no §5, **a obra de cada
+  pagamento vinculado, um a um** — o app não tem como saber de qual imóvel é o
+  dinheiro, e inferir seria a cascata silenciosa que o §4.4 proíbe.
 - **CRC**: se a correção de grafia de nome em ano declarado pede retificadora
-  (§4 acima) — o app informa e guarda, não decide.
+  (§4 acima) — o app informa e guarda, não decide; e o efeito, em ano já
+  declarado, do custo comprovado que **cai** por vínculo desfeito (§5.3).
