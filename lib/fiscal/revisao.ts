@@ -66,31 +66,74 @@ export const DESFECHO_FICA_NA_ORIGEM =
  * Em desfecho misto o custo comprovado somado das duas obras **cai
  * legitimamente** — a diferença é o pagamento que ficou sem documento hábil.
  *
- * ⚠️ Os três valores são a PARTIÇÃO dos pagamentos vinculados
- * (`total = junto + fica`), que é a única leitura em que a primeira frase
- * fecha. A queda efetiva do custo somado é mostrada NA TABELA logo acima, obra
- * por obra e ano por ano — e ela coincide com `fica` no caso canônico do
- * parecer (nota que cobre os pagamentos por inteiro), mas não em todo caso.
- * Divergência registrada para o Gate 2; a tela nunca mostra só a frase.
+ * ⚠️ **TEXTO REDIGIDO PELO `contador` NO GATE 2 (bloqueante 1), e a correção
+ * não é de estilo: a versão anterior afirmava número FALSO, e errava sempre
+ * para MAIS.** Ela derivava a queda da PARTIÇÃO DOS PAGAMENTOS (`{fica}`),
+ * quando a queda vem da ALOCAÇÃO. Os dois só coincidem quando
+ * Σ pagamentos ≤ valor da nota. Exemplo do parecer: nota 9.400, PIX 6.000
+ * (junto), boleto 6.000 (fica) — a tela dizia que caía 6.000, e cai 3.400.
+ * Superestimar a queda é inflar o alarme sobre o número da meta 1, que é
+ * justamente o número pelo qual ele decide se pode pagar alguém. E um
+ * pagamento que fica e que também comprova OUTRA nota da origem não volta a
+ * "pago sem nota" — mas entrava em `{fica}`, de modo que a primeira frase
+ * também mentia.
+ *
+ * **Todos os números saem da MESMA alocação que alimenta as duas tabelas da
+ * tela** (`origemAntes/origemDepois/destinoAntes/destinoDepois`), nunca da soma
+ * dos pagamentos escolhidos:
+ * - `semNotaSobeCentavos` = Σ anos [`semNotaDoAno(origemDepois) −
+ *   semNotaDoAno(origemAntes)`];
+ * - `quedaCentavos` = Σ [`antes − depois`] das entradas de anos afetados, das
+ *   DUAS obras.
+ *
+ * `{total}`, `{junto}` e `{fica}` continuam sendo a partição dos pagamentos —
+ * é o que a primeira frase descreve, e ali ela é verdadeira: são os
+ * pagamentos que acompanham a nota e os que continuam na origem.
  */
 export function resumoDesfechoMisto(entrada: {
   totalCentavos: number;
   juntoCentavos: number;
   ficaCentavos: number;
+  /** Da alocação, nunca da soma dos pagamentos que ficaram. */
+  semNotaSobeCentavos: number;
+  /** Da alocação, somando as duas obras. */
+  quedaCentavos: number;
   obraOrigemNome: string;
   formatar: (centavos: number) => string;
 }): string {
-  const { formatar } = entrada;
-  const fica = formatar(entrada.ficaCentavos);
+  const { formatar, obraOrigemNome: origem } = entrada;
+
+  const primeira =
+    `Dos ${formatar(entrada.totalCentavos)} ligados a esta nota, ` +
+    `${formatar(entrada.juntoCentavos)} acompanham a nota e ` +
+    `${formatar(entrada.ficaCentavos)} continuam em ${origem}.`;
+
+  // Variação obrigatória 1: "sobe R$ 0,00" é o mesmo defeito com outro sinal —
+  // a oração inteira sai.
+  const subida =
+    entrada.semNotaSobeCentavos > 0
+      ? `o "pago sem nota" de ${origem} sobe ${formatar(entrada.semNotaSobeCentavos)}, e `
+      : "";
+
+  // Variação obrigatória 2: queda zero não se anuncia como queda.
+  //
+  // O `else` cobre também o caso aritmeticamente improvável de a soma SUBIR:
+  // "não muda" seria impreciso ali, mas nunca falso na direção perigosa —
+  // afirmar uma queda que não houve é que seria (parecer §4: superestimar
+  // custo é a direção que gera passivo).
+  const efeito =
+    entrada.quedaCentavos > 0
+      ? `o custo confirmado, somando as duas obras, cai ${formatar(entrada.quedaCentavos)}.`
+      : "o custo confirmado, somando as duas obras, não muda — esta nota já " +
+        "não comprovava esse valor.";
+
   return (
-    `Dos ${formatar(entrada.totalCentavos)}, ` +
-    `${formatar(entrada.juntoCentavos)} acompanham a nota e ${fica} voltam a ` +
-    `"pago sem nota" em ${entrada.obraOrigemNome}. O custo confirmado somado ` +
-    `das duas obras cai ${fica}. Isso não é perda: esses ${fica} continuam ` +
-    `sendo dispêndio de ${entrada.obraOrigemNome} — o que falta é o documento ` +
-    "hábil que os comprove."
+    `${primeira} Depois desta correção, ${subida}${efeito} Isso não é perda: ` +
+    `esse dinheiro continua sendo dispêndio de ${origem} — o que falta é o ` +
+    "documento hábil que o comprove."
   );
 }
+
 
 /**
  * Critério 4 / parecer §6.3 — copiado literalmente, e é o mesmo texto na

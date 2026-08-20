@@ -189,6 +189,21 @@ export default function CorrigirObraDoDocumento() {
     const soma = (ps: Pagamento[]) =>
       ps.reduce((s, p) => s + p.valorCentavos, 0);
 
+    // ⚠️ Os dois números do resumo do desfecho misto vêm DA ALOCAÇÃO, nunca da
+    // soma dos pagamentos escolhidos (bloqueante 1 do Gate 2, redigido pelo
+    // `contador`): a partição dos pagamentos e a queda do custo só coincidem
+    // quando Σ pagamentos ≤ valor da nota, e fora disso a versão anterior
+    // superestimava a queda — inflando o alarme sobre o número da meta 1.
+    const semNotaSobe = anosDaAlocacao(origemAntes, origemDepois).reduce(
+      (acc, a) =>
+        acc + semNotaDoAno(origemDepois, a) - semNotaDoAno(origemAntes, a),
+      0,
+    );
+    const queda = anos.reduce(
+      (acc, a) => acc + (a.antesCentavos - a.depoisCentavos),
+      0,
+    );
+
     return {
       origem,
       destino,
@@ -205,6 +220,8 @@ export default function CorrigirObraDoDocumento() {
       totalCentavos: soma(vinculados),
       juntoCentavos: soma(vaoJunto),
       ficaCentavos: soma(ficam),
+      semNotaSobeCentavos: semNotaSobe,
+      quedaCentavos: queda,
     };
   }, [pronto, destinoId, escolhas, ano]);
 
@@ -400,7 +417,18 @@ export default function CorrigirObraDoDocumento() {
               <button
                 key={o.id}
                 type="button"
-                onClick={() => setDestinoId(o.id)}
+                /**
+                 * ⚠️ Trocar o destino ZERA as escolhas (bloqueante 5 do Gate
+                 * 2). Sem isto, *"este pagamento também é da obra X"* continua
+                 * marcado depois que o destino vira outra obra — a afirmação
+                 * fica selecionada com o SIGNIFICADO TROCADO por baixo. Com
+                 * duas obras é inócuo; com três é dado errado gravado a partir
+                 * de um toque que respondeu outra pergunta.
+                 */
+                onClick={() => {
+                  setDestinoId(o.id);
+                  setEscolhas({});
+                }}
                 aria-pressed={destinoId === o.id}
                 className={`min-h-[44px] rounded-[10px] border px-[14px] py-3 text-left ${
                   destinoId === o.id
@@ -573,6 +601,8 @@ export default function CorrigirObraDoDocumento() {
                   totalCentavos: conta.totalCentavos,
                   juntoCentavos: conta.juntoCentavos,
                   ficaCentavos: conta.ficaCentavos,
+                  semNotaSobeCentavos: conta.semNotaSobeCentavos,
+                  quedaCentavos: conta.quedaCentavos,
                   obraOrigemNome: nomeOrigem,
                   formatar: formatarBRL,
                 })}

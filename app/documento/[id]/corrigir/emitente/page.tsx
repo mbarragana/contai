@@ -3,7 +3,7 @@
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 
-import { CampoTexto } from "@/app/_components/campos";
+import { CampoArquivo, CampoTexto } from "@/app/_components/campos";
 import {
   ErroEstaNaNota,
   MotivoEscolhidoResumo,
@@ -33,6 +33,7 @@ import {
   classificarErro,
   corrigirNomeDoFavorecido,
   mensagemDeErro,
+  subirParaAcervo,
   type ErroDeTela,
 } from "@/lib/data";
 import { formatarDocumento } from "@/lib/fiscal/identificacao";
@@ -93,6 +94,7 @@ function CorrigirEmitente() {
   const [tentativa, setTentativa] = useState(0);
   const [fase, setFase] = useState<Fase>({ nome: "passo1" });
   const [nome, setNome] = useState("");
+  const [anexo, setAnexo] = useState<File | null>(null);
   const [afirmou, setAfirmou] = useState(false);
   const [gravando, setGravando] = useState(false);
   const [erroGravar, setErroGravar] = useState<string | null>(null);
@@ -129,11 +131,17 @@ function CorrigirEmitente() {
     setGravando(true);
     setErroGravar(null);
     try {
+      // Mesma ordem das outras duas telas: o arquivo precisa existir no acervo
+      // para a função Postgres o registrar no MESMO ato. Falha no upload =
+      // nada gravado, e a tela diz isso.
+      const anexoPath = anexo ? await subirParaAcervo(anexo, "documento") : null;
       await corrigirNomeDoFavorecido({
         favorecidoId: documento.favorecidoId,
+        documentoId: documento.id,
         nome: nome.trim(),
         motivo: fase.motivo,
         motivoTexto: fase.motivoTexto,
+        anexoPath,
       });
       setFase({ nome: "gravado", nome_novo: nome.trim() });
     } catch (erro) {
@@ -269,7 +277,15 @@ function CorrigirEmitente() {
 
   const igual = nome.trim() === (documento.favorecidoNome ?? "");
   const vazio = nome.trim() === "";
-  const podeGravar = !vazio && !igual && afirmou && !gravando;
+  /**
+   * ⚠️ Bloqueante 2 do Gate 2: o passo 1 PROMETE *"no próximo passo o documento
+   * novo é anexado — sem ele, esta correção não grava"*, e esta tela não pedia
+   * nada. Promessa quebrada por um botão é o defeito que este ticket existe
+   * para consertar. A guarda de verdade está na função Postgres; aqui ela
+   * aparece antes, com o motivo no rótulo.
+   */
+  const faltaAnexo = fase.motivo === "emitente_corrigiu_a_nota" && anexo === null;
+  const podeGravar = !vazio && !igual && afirmou && !faltaAnexo && !gravando;
 
   return (
     <>
@@ -288,6 +304,24 @@ function CorrigirEmitente() {
           texto={fase.motivoTexto}
           onTrocar={() => setFase({ nome: "passo1" })}
         />
+
+        {fase.motivo === "emitente_corrigiu_a_nota" ? (
+          <>
+            <CampoArquivo
+              rotulo="Carta de correção ou nota substitutiva"
+              ajuda="PDF, XML ou foto. Sem ele, esta correção não grava."
+              accept="application/pdf,image/*,text/xml,application/xml"
+              arquivo={anexo}
+              onChange={setAnexo}
+              erro={faltaAnexo ? "O documento novo é obrigatório." : undefined}
+            />
+            <Consequencia cor="amb">
+              Este anexo <strong>não substitui</strong> a nota antiga — ele se
+              soma a ela. A nota original continua no acervo, com o arquivo
+              dela. O acervo só cresce.
+            </Consequencia>
+          </>
+        ) : null}
 
         {/* ⚠️ SEM CAMPO. O CNPJ é a identidade do favorecido; é por ele que a
             Receita cruza tudo, e o nome só acompanha. */}
@@ -389,9 +423,11 @@ function CorrigirEmitente() {
               ? "Digite o nome do papel para continuar"
               : igual
                 ? "Nada a corrigir"
-                : !afirmou
-                  ? "Confirme a afirmação para gravar"
-                  : "Gravar a correção"}
+                : faltaAnexo
+                  ? "Anexe o documento novo para gravar"
+                  : !afirmou
+                    ? "Confirme a afirmação para gravar"
+                    : "Gravar a correção"}
         </Botao>
         <BotaoLink href={voltaHref}>Cancelar</BotaoLink>
       </Rodape>

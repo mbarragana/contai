@@ -361,27 +361,127 @@ describe("pagamentos vinculados e a guarda do vínculo cruzado", () => {
 });
 
 describe("resumoDesfechoMisto — a frase que o §5.2 exigiu", () => {
-  it("narra a queda e NÃO diz que o total não muda", () => {
+  /**
+   * ⚠️ O CASO QUE A VERSÃO ANTERIOR ERRAVA, e ele é o motivo do bloqueante 1
+   * do Gate 2: Σ pagamentos (12.000) **maior** que o valor da nota (9.400).
+   * A frase antiga derivava a queda da partição dos pagamentos e anunciava
+   * R$ 6.000,00; a queda real é R$ 3.400,00. Superestimar a queda infla o
+   * alarme sobre o número da meta 1.
+   *
+   * Os números aqui não são digitados: saem da MESMA `alocarCusto` que
+   * alimenta as duas tabelas da tela — é isso que o teste tem de provar.
+   */
+  function contaDoMove(valorBoletoCentavos: number) {
+    const nota = doc({ id: "d-nf" });
+    const pix = pag({ id: "p-pix", valorCentavos: 600_000, documentoIds: ["d-nf"] });
+    const boleto = pag({
+      id: "p-boleto",
+      valorCentavos: valorBoletoCentavos,
+      dataPagamento: "2025-12-05",
+      meio: "boleto",
+      documentoIds: ["d-nf"],
+    });
+
+    const s = simularMoveDeObra({
+      documento: nota,
+      origem: { obraId: CASA, documentos: [nota], pagamentos: [pix, boleto] },
+      destino: { obraId: REFORMA, documentos: [], pagamentos: [] },
+      escolhas: [
+        { pagamentoId: "p-pix", desfecho: "vai_junto" },
+        { pagamentoId: "p-boleto", desfecho: "fica_na_origem" },
+      ],
+    });
+
+    const origemAntes = alocarCusto(s.origemAntes);
+    const origemDepois = alocarCusto(s.origemDepois);
+    const anos = anosAfetados(
+      [
+        { obraId: CASA, antes: origemAntes, depois: origemDepois },
+        {
+          obraId: REFORMA,
+          antes: alocarCusto(s.destinoAntes),
+          depois: alocarCusto(s.destinoDepois),
+        },
+      ],
+      2026,
+    );
+
+    return {
+      totalCentavos: 600_000 + valorBoletoCentavos,
+      juntoCentavos: 600_000,
+      ficaCentavos: valorBoletoCentavos,
+      semNotaSobeCentavos:
+        semNotaDoAno(origemDepois, 2025) - semNotaDoAno(origemAntes, 2025),
+      quedaCentavos: anos.reduce(
+        (acc, a) => acc + (a.antesCentavos - a.depoisCentavos),
+        0,
+      ),
+      obraOrigemNome: "Casa Tanheiros",
+      formatar: formatarBRL,
+    };
+  }
+
+  it("Σ pagamentos MAIOR que a nota: a queda é a da alocação, não a do que ficou", () => {
+    const conta = contaDoMove(600_000);
+    // A partição diz 6.000; a alocação diz 3.400. É a alocação que vale.
+    expect(conta.ficaCentavos).toBe(600_000);
+    expect(conta.quedaCentavos).toBe(340_000);
+    expect(conta.semNotaSobeCentavos).toBe(340_000);
+
+    const texto = resumoDesfechoMisto(conta);
+    expect(texto).toContain(`cai ${formatarBRL(340_000)}`);
+    // ⚠️ A regressão que o Gate 2 pegou: nunca mais anunciar a queda pelo
+    // valor do pagamento que ficou.
+    expect(texto).not.toContain(`cai ${formatarBRL(600_000)}`);
+    expect(texto).toContain(
+      `o "pago sem nota" de Casa Tanheiros sobe ${formatarBRL(340_000)}`,
+    );
+  });
+
+  it("caso canônico do parecer (nota cobre os pagamentos): 6.000 junto, 3.400 fica", () => {
+    const conta = contaDoMove(340_000);
+    const texto = resumoDesfechoMisto(conta);
+    expect(texto).toContain(`Dos ${formatarBRL(940_000)} ligados a esta nota`);
+    expect(texto).toContain(`${formatarBRL(600_000)} acompanham a nota`);
+    expect(texto).toContain(
+      `${formatarBRL(340_000)} continuam em Casa Tanheiros`,
+    );
+    expect(texto).toContain(`cai ${formatarBRL(340_000)}`);
+    expect(texto).toContain("Isso não é perda");
+    // A frase proibida pelo adendo §5.2 como afirmação geral.
+    expect(texto).not.toContain("o total não muda");
+  });
+
+  it("queda ZERO não se anuncia como queda", () => {
     const texto = resumoDesfechoMisto({
       totalCentavos: 940_000,
       juntoCentavos: 600_000,
       ficaCentavos: 340_000,
+      semNotaSobeCentavos: 340_000,
+      quedaCentavos: 0,
       obraOrigemNome: "Casa Tanheiros",
       formatar: formatarBRL,
     });
-    // ⚠️ `formatarBRL` usa ESPAÇO NÃO SEPARÁVEL depois do "R$" (Intl, pt-BR).
-    // Escrever "R$ 9.400,00" à mão no teste falha por um caractere invisível —
-    // por isso o esperado sai do próprio formatador.
-    const total = formatarBRL(940_000);
-    const junto = formatarBRL(600_000);
-    const fica = formatarBRL(340_000);
-    expect(texto).toContain(`Dos ${total}`);
-    expect(texto).toContain(`${junto} acompanham a nota`);
-    expect(texto).toContain(`${fica} voltam a "pago sem nota" em Casa Tanheiros`);
-    expect(texto).toContain(`cai ${fica}`);
-    expect(texto).toContain("Isso não é perda");
-    // A frase proibida pelo adendo §5.2 como afirmação geral.
-    expect(texto).not.toContain("o total não muda");
+    expect(texto).toContain(
+      "o custo confirmado, somando as duas obras, não muda — esta nota já não comprovava esse valor.",
+    );
+    expect(texto).not.toContain("cai R$");
+  });
+
+  it('"pago sem nota" que não sobe some da frase — "sobe R$ 0,00" é o mesmo defeito com outro sinal', () => {
+    const texto = resumoDesfechoMisto({
+      totalCentavos: 940_000,
+      juntoCentavos: 600_000,
+      ficaCentavos: 340_000,
+      semNotaSobeCentavos: 0,
+      quedaCentavos: 340_000,
+      obraOrigemNome: "Casa Tanheiros",
+      formatar: formatarBRL,
+    });
+    expect(texto).not.toContain("pago sem nota");
+    expect(texto).toContain(
+      `Depois desta correção, o custo confirmado, somando as duas obras, cai ${formatarBRL(340_000)}.`,
+    );
   });
 });
 

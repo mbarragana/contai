@@ -849,6 +849,8 @@ export type Database = {
       }
       corrigir_nome_favorecido: {
         Args: {
+          p_anexo_path?: string
+          p_documento_id: string
           p_favorecido_id: string
           p_motivo: Database["public"]["Enums"]["motivo_revisao"]
           p_motivo_texto?: string

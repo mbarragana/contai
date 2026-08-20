@@ -109,14 +109,52 @@ const ESPERADO: Record<string, string> = {
 };
 
 /**
- * ⚠️ ESTE MAPA SÓ ENXERGA TABELA. A migration 0009 trouxe as PRIMEIRAS FUNÇÕES
- * do repo, e função nasce com `execute` para `public` — em qualquer Postgres,
- * local ou remoto —, o que inclui `anon`. O `revoke execute ... from public,
- * anon` está no diff da 0009, mas `information_schema.role_table_grants` não
- * o alcança: o teste abaixo passaria verde com uma função de ESCRITA aberta ao
- * anônimo. Estender a verificação a `information_schema.role_routine_grants` é
- * proposta registrada para o Gate 2 do CONTAI-021 — não se decide aqui.
+ * O mapa acima só enxerga TABELA. A migration 0009 trouxe as PRIMEIRAS FUNÇÕES
+ * do repo, e **função nasce com `execute` para `public`** — em qualquer
+ * Postgres, local ou remoto —, o que inclui `anon`. Um mapa só de tabela
+ * ficaria verde com uma função de ESCRITA aberta ao anônimo: mesma família do
+ * incidente de 2026-08-17, com a superfície pior (escrita, não leitura).
+ *
+ * Decisão do `cto-obra` no Gate 2 do CONTAI-021: o teste passa a cobrir função
+ * **neste ticket**, com o mesmo desenho do de tabela — toda função de `public`
+ * precisa de decisão explícita aqui, `anon` e `PUBLIC` sem nada, e
+ * `authenticated` com EXECUTE exatamente nas que o app chama.
+ *
+ * ⚠️ `postgres` e `service_role` ficam DE FORA do mapa, como no de tabela:
+ * nenhum caminho do produto os usa (não há server-side com secret key), e
+ * medir papel que o app não assume é ruído.
+ *
+ * ⚠️ Sobrecarga: nenhuma função aqui é sobrecarregada, então o NOME identifica.
+ * No dia em que duas versões da mesma função existirem, este mapa passa a
+ * precisar da assinatura — e o teste de "nenhuma função fora do mapa" avisa,
+ * porque as duas aparecem com o mesmo nome.
  */
+const FUNCOES_ESPERADAS: Record<string, string> = {
+  // As cinco que a interface chama, e as duas auxiliares que elas chamam por
+  // dentro. As auxiliares precisam de EXECUTE porque as funções são
+  // `security invoker`: sem o privilégio, a chamada interna falharia com o
+  // papel do app.
+  baixar_pendencia: "authenticated",
+  corrigir_documento: "authenticated",
+  corrigir_nome_favorecido: "authenticated",
+  marcar_emitente_errado: "authenticated",
+  mover_documento_de_obra: "authenticated",
+  pendencia_do_ano: "authenticated",
+  revisao_gravar_anos: "authenticated",
+
+  // ⚠️ A FUNÇÃO DO TRIGGER, e ela aparece com `execute` para `PUBLIC` e `anon`
+  // de propósito — **documentada, não silenciada**. Ela é `returns trigger`, e
+  // o Postgres RECUSA chamada direta de função de trigger ("trigger functions
+  // can only be called as triggers"), então o privilégio é inofensivo. Não foi
+  // revogada porque trigger não é executado pelo chamador: revogar aqui não
+  // muda nada no que ela faz, e deixaria no arquivo um `revoke` que sugere uma
+  // proteção que não é dele.
+  //
+  // Se algum dia uma função de trigger passar a ser chamável (por exemplo,
+  // extraindo o corpo para uma função normal), a linha abaixo tem de mudar no
+  // mesmo diff — e é para isso que ela está escrita e não omitida.
+  pendencia_uma_aberta_por_chave: "PUBLIC,anon,authenticated",
+};
 
 test.describe("privilégios do schema public", () => {
   test("nenhuma tabela sem decisão explícita de GRANT", () => {
@@ -153,6 +191,55 @@ test.describe("privilégios do schema public", () => {
         concedido.get(tabela) ?? "(nenhum)",
         `privilégios de authenticated em ${tabela}`,
       ).toBe(esperado);
+    }
+  });
+
+  test("nenhuma função de public sem decisão explícita de GRANT", () => {
+    const funcoes = consultarAdmin(
+      `select p.proname
+         from pg_proc p
+         join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'public'
+        order by p.proname;`,
+      "listar funções de public",
+    ).map(([nome]) => nome);
+
+    expect(
+      funcoes.sort(),
+      "função em public fora do mapa de privilégios: função NASCE com " +
+        "`execute` para `public` (que inclui `anon`) em qualquer Postgres. " +
+        "Ou ela recebe revoke/grant explícito na migration que a criou (e " +
+        "entra em FUNCOES_ESPERADAS), ou vai para produção executável pelo " +
+        "anônimo — a mesma classe de erro do incidente de 2026-08-17, com " +
+        "superfície de ESCRITA",
+    ).toEqual(Object.keys(FUNCOES_ESPERADAS).sort());
+  });
+
+  test("EXECUTE das funções: só o papel que o app assume", () => {
+    const linhas = consultarAdmin(
+      `select routine_name, grantee
+         from information_schema.routine_privileges
+        where specific_schema = 'public'
+          and privilege_type = 'EXECUTE'
+          and grantee in ('PUBLIC', 'anon', 'authenticated')
+        order by routine_name, grantee;`,
+      "ler EXECUTE das funções",
+    );
+
+    // Agrupado em JS, e não com `string_agg(... order by ...)`: a ordenação do
+    // Postgres depende do collation do container, e 'PUBLIC' × 'anon' cai
+    // exatamente na diferença entre C e en_US. Um teste de privilégio não pode
+    // ficar vermelho por causa de collation.
+    const concedido = new Map<string, string[]>();
+    for (const [funcao, grantee] of linhas) {
+      concedido.set(funcao, [...(concedido.get(funcao) ?? []), grantee]);
+    }
+
+    for (const [funcao, esperado] of Object.entries(FUNCOES_ESPERADAS)) {
+      expect(
+        (concedido.get(funcao) ?? ["(nenhum)"]).sort().join(","),
+        `EXECUTE em ${funcao}`,
+      ).toBe(esperado.split(",").sort().join(","));
     }
   });
 

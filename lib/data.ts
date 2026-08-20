@@ -709,18 +709,30 @@ export async function corrigirClassificacaoDoDocumento(entrada: {
  * ⚠️ O CNPJ/CPF **não é parâmetro**: a string de um favorecido existente nunca
  * é reescrita (parecer §1 e §4.2). Sem pendência: o custo não muda um centavo
  * (adendo §4).
+ *
+ * ⚠️ `anexoPath` entrou no Gate 2 (bloqueante 2): `emitente_corrigiu_a_nota`
+ * gravava aqui SEM anexo enquanto `corrigirValorDoDocumento` o exigia — e o
+ * passo 1, que é o mesmo componente nas três telas, já prometia "sem ele, esta
+ * correção não grava". Reemissão com razão social corrigida é caso real
+ * (`contador`, 20/08), então o motivo FICA na lista e o que entra é a guarda.
+ * O `documentoId` é o registro a que o anexo se soma: o nome vive em
+ * `favorecido`, mas o PAPEL do emitente está no documento.
  */
 export async function corrigirNomeDoFavorecido(entrada: {
   favorecidoId: string;
+  documentoId: string;
   nome: string;
   motivo: MotivoRevisao;
   motivoTexto: string | null;
+  anexoPath: string | null;
 }): Promise<string> {
   const { data, error } = await getSupabase().rpc("corrigir_nome_favorecido", {
     p_favorecido_id: entrada.favorecidoId,
+    p_documento_id: entrada.documentoId,
     p_nome: entrada.nome,
     p_motivo: entrada.motivo,
     ...(entrada.motivoTexto ? { p_motivo_texto: entrada.motivoTexto } : {}),
+    ...(entrada.anexoPath ? { p_anexo_path: entrada.anexoPath } : {}),
   });
   if (error) throw error;
   return data as string;
@@ -921,27 +933,57 @@ export async function carregarCorrecoesDoDocumento(
 ): Promise<Revisao[]> {
   const supabase = getSupabase();
 
-  const alvo = favorecidoId
-    ? `and(entidade.eq.documento,entidade_id.eq.${documentoId}),and(entidade.eq.favorecido,entidade_id.eq.${favorecidoId})`
-    : `and(entidade.eq.documento,entidade_id.eq.${documentoId})`;
+  /**
+   * ⚠️ DUAS CONSULTAS SEPARADAS, e não um `.or()` com string montada à mão
+   * (ressalva 7 do Gate 2). O filtro do PostgREST é uma linguagem própria: um
+   * id com vírgula ou parêntese vira sintaxe, e o erro apareceria como
+   * "nenhuma correção neste registro" — ou seja, rastro sumindo em silêncio,
+   * que é o oposto exato do que esta tela existe para fazer. Duas chamadas
+   * `.eq()` custam um round-trip e não têm como ser mal interpretadas.
+   */
+  const [doDocumento, doFavorecido] = await Promise.all([
+    supabase
+      .from("revisao")
+      .select("ato_id")
+      .eq("entidade", "documento")
+      .eq("entidade_id", documentoId),
+    favorecidoId
+      ? supabase
+          .from("revisao")
+          .select("ato_id")
+          .eq("entidade", "favorecido")
+          .eq("entidade_id", favorecidoId)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (doDocumento.error) throw doDocumento.error;
+  if (doFavorecido.error) throw doFavorecido.error;
 
-  const atos = await supabase.from("revisao").select("ato_id").or(alvo);
-  if (atos.error) throw atos.error;
   const atoIds = [
-    ...new Set(((atos.data ?? []) as { ato_id: string }[]).map((r) => r.ato_id)),
+    ...new Set(
+      [...(doDocumento.data ?? []), ...(doFavorecido.data ?? [])].map(
+        (r) => (r as { ato_id: string }).ato_id,
+      ),
+    ),
   ];
   if (atoIds.length === 0) return [];
 
-  const [linhas, anos] = await Promise.all([
-    supabase
-      .from("revisao")
-      .select("*")
-      .in("ato_id", atoIds)
-      .order("quando", { ascending: false })
-      .order("created_at", { ascending: true }),
-    supabase.from("revisao_ano_afetado").select("*"),
-  ]);
+  const linhas = await supabase
+    .from("revisao")
+    .select("*")
+    .in("ato_id", atoIds)
+    .order("quando", { ascending: false })
+    .order("created_at", { ascending: true });
   if (linhas.error) throw linhas.error;
+
+  // O snapshot só das revisões deste registro — `select("*")` na tabela
+  // inteira trazia o rastro da conta toda para montar um card (ressalva 7).
+  const anos = await supabase
+    .from("revisao_ano_afetado")
+    .select("*")
+    .in(
+      "revisao_id",
+      ((linhas.data ?? []) as RevisaoRow[]).map((r) => r.id),
+    );
   if (anos.error) throw anos.error;
 
   const porRevisao = new Map<string, AnoAfetado[]>();

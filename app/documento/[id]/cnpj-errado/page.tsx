@@ -30,7 +30,22 @@ import {
 } from "@/lib/data";
 import { formatarDocumento } from "@/lib/fiscal/identificacao";
 import { formatarDataBR } from "@/lib/fiscal/obra";
-import type { Documento } from "@/lib/types";
+import type { Documento, StatusDocumento } from "@/lib/types";
+
+/**
+ * ⚠️ Bloqueante 3 do Gate 2. A linha "Situação" era o literal
+ * *"Em ordem — igual a antes"*, e o `blocoCorrigir` do detalhe também é
+ * renderizado no ramo `status === "quarentena"` — ou seja, um documento EM
+ * QUARENTENA chegava aqui e lia "Em ordem", apagando o ÚNICO SINAL FISCAL
+ * daquela coluna (parecer §4.1: "quarentena tem um significado só —
+ * destinatário ≠ CPF do dono"). Agora a tela lê o `status` real; o que ela
+ * afirma é só o que é verdade em qualquer um dos três: marcar não o muda.
+ */
+const ROTULO_STATUS: Record<StatusDocumento, string> = {
+  registrado: "Em ordem",
+  quarentena: "Em quarentena — o destinatário não é o seu CPF",
+  aguardando_pagamento: "Aguardando pagamento",
+};
 
 /**
  * Telas s6 e s6c do mock v2 — **o CNPJ/CPF do emitente está errado**.
@@ -256,7 +271,9 @@ export default function CnpjErrado() {
         </Card>
 
         <Card>
-          <Linha rotulo="Situação">Em ordem — igual a antes</Linha>
+          <Linha rotulo="Situação">
+            {ROTULO_STATUS[documento.status]} — não muda com esta marcação
+          </Linha>
           <Linha rotulo="Emitente">
             {documento.favorecidoNome ?? "—"} ·{" "}
             <span className="mono">{cnpj}</span>

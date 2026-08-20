@@ -538,6 +538,21 @@ $$;
 -- pendência. `antes` é LIDO AQUI, do próprio banco — o app não o informa. Não
 -- é desconfiança do app: é que o `antes` é o que está gravado no instante da
 -- gravação, e deixá-lo vir da tela abriria a janela entre carregar e gravar.
+--
+-- ⚠️ ASSIMETRIA CONSCIENTE, e quem for ler isto em 2034 precisa saber dela
+-- (ressalva 6 do Gate 2). Duas coisas com nome parecido têm origens
+-- diferentes:
+-- * o `antes` DO CAMPO (`revisao.antes`) é lido do banco no instante da
+--   gravação, dentro da transação. É a VERDADE DO BANCO;
+-- * `custo_antes`/`custo_depois` (`revisao_ano_afetado`) vêm do APP, calculados
+--   por `alocarCusto` sobre um painel carregado ANTES do toque. É o que a
+--   TELA MOSTROU ao Mateus quando ele decidiu gravar.
+-- Não são a mesma coisa e não se pretende que sejam: o snapshot existe para
+-- provar o que foi exibido e decidido, e é isso que a conversa de retificadora
+-- precisa. Uma escrita concorrente entre carregar e gravar (cenário que hoje
+-- não existe: single-user, um aparelho por vez) faria os dois divergirem — e a
+-- divergência ficaria visível, que é melhor do que um número recalculado no
+-- banco contradizendo em silêncio a tela que ele aprovou.
 -- ⚠️ Os parâmetros anuláveis vêm com `default null` e POR ISSO no fim da
 -- lista (o Postgres exige que default só apareça depois dos obrigatórios). Não
 -- é estilo: `supabase gen types` traduz parâmetro COM default em campo
@@ -565,6 +580,16 @@ declare
 begin
   if p_campo not in ('valor', 'classificacao') then
     raise exception 'campo % nao e corrigivel por esta acao', p_campo;
+  end if;
+
+  -- ⚠️ `p_depois` NUNCA é nulo, e a guarda é explícita (ressalva do Gate 2).
+  -- O parecer §1 conhece `null → valor` (a dor D-018.5) e NÃO conhece o
+  -- caminho inverso: apagar o valor de uma nota já registrada tiraria custo
+  -- sem que fato nenhum tivesse mudado, e o mesmo vale para `classificacao`.
+  -- Sem esta linha, um `null` vindo da tela viraria `update ... set valor =
+  -- null` com uma linha de rastro dizendo que foi correção.
+  if p_depois is null then
+    raise exception 'correcao para vazio nao existe: % nao se apaga, corrige-se', p_campo;
   end if;
 
   -- Parecer §5, regra dura 2: "se motivo = emitente corrigiu a nota, o
@@ -621,22 +646,45 @@ $$;
 -- renomear). Sem anos afetados e sem pendência: "o custo não muda um centavo,
 -- e pendência persistente só nasce quando a correção muda um número
 -- declarado" (adendo §4). Aviso e rastro, e acabou.
+--
+-- ⚠️ `p_documento_id` e `p_anexo_path` entraram no Gate 2 (bloqueante 2, e os
+-- DOIS revisores o levantaram). A função gravava `emitente_corrigiu_a_nota`
+-- SEM anexo enquanto `corrigir_documento` o exigia — e a tela, que compartilha
+-- o passo 1, já PROMETIA "sem ele, esta correção não grava". Promessa quebrada
+-- por um botão é o defeito que este ticket existe para consertar.
+--
+-- Tirar o motivo da lista foi explicitamente recusado pelo `contador`:
+-- reemissão com razão social corrigida é caso real. O anexo é o mesmo do §5,
+-- regra dura 2, e entra em `documento_anexo` — nunca por cima de
+-- `documento.arquivo_path`.
 create function corrigir_nome_favorecido(
   p_favorecido_id uuid,
   p_nome          text,
   p_motivo        motivo_revisao,
-  p_motivo_texto  text default null
+  -- O registro que o Mateus está olhando: é a ele que o anexo se soma. O nome
+  -- vive em `favorecido`, mas o PAPEL do emitente está no documento.
+  p_documento_id  uuid,
+  p_motivo_texto  text default null,
+  p_anexo_path    text default null
 ) returns uuid
 language plpgsql
 security invoker
 set search_path = public, pg_temp
 as $$
 declare
-  v_ato   uuid := gen_random_uuid();
-  v_antes text;
+  v_ato     uuid := gen_random_uuid();
+  v_revisao uuid;
+  v_antes   text;
 begin
   if p_motivo = 'arquivamento_corrigido' then
     raise exception 'arquivamento_corrigido e o motivo do move, nao de correcao de nome';
+  end if;
+
+  -- Mesma guarda de `corrigir_documento`, palavra por palavra (parecer §5,
+  -- regra dura 2): sem o documento novo, o app passa a divergir do papel na
+  -- direção oposta — o mesmo defeito com outro sinal.
+  if p_motivo = 'emitente_corrigiu_a_nota' and p_anexo_path is null then
+    raise exception 'motivo emitente_corrigiu_a_nota exige o documento novo anexado no mesmo ato';
   end if;
 
   select f.nome into v_antes from favorecido f where f.id = p_favorecido_id;
@@ -651,7 +699,15 @@ begin
   update favorecido set nome = p_nome where id = p_favorecido_id;
 
   insert into revisao (ato_id, entidade, entidade_id, campo, antes, depois, motivo, motivo_texto)
-  values (v_ato, 'favorecido', p_favorecido_id, 'nome', v_antes, p_nome, p_motivo, p_motivo_texto);
+  values (v_ato, 'favorecido', p_favorecido_id, 'nome', v_antes, p_nome, p_motivo, p_motivo_texto)
+  returning id into v_revisao;
+
+  -- `revisao_id` aponta para a revisão do NOME: é ela que responde, em 2034,
+  -- qual papel trouxe qual grafia.
+  if p_anexo_path is not null then
+    insert into documento_anexo (documento_id, arquivo_path, revisao_id)
+    values (p_documento_id, p_anexo_path, v_revisao);
+  end if;
 
   return v_ato;
 end;
@@ -723,6 +779,22 @@ begin
 
   for v_item in select * from jsonb_array_elements(coalesce(p_pagamentos, '[]'::jsonb)) loop
     v_pag := (v_item ->> 'pagamento_id')::uuid;
+
+    -- ⚠️ O LADO INVERSO da guarda acima, e ele não é simetria estética
+    -- (bloqueante 4 do Gate 2). A validação anterior recusa pagamento
+    -- VINCULADO sem desfecho; esta recusa desfecho para pagamento NÃO
+    -- VINCULADO. Sem ela, um item a mais no array gravaria rastro
+    -- `'vinculo'` de um desligamento que nunca houve, ou moveria
+    -- `pagamento.obra_id` de um pagamento sem relação nenhuma com este ato —
+    -- que é literalmente "rastro de correção que não aconteceu", o defeito
+    -- que o critério 9 nomeia, acontecendo DENTRO da função que existe para
+    -- impedi-lo.
+    if not exists (
+      select 1 from pagamento_documento pd
+       where pd.pagamento_id = v_pag and pd.documento_id = p_documento_id
+    ) then
+      raise exception 'pagamento % nao esta vinculado a este documento', v_pag;
+    end if;
 
     if (v_item ->> 'desfecho') = 'vai_junto' then
       -- ⚠️ Guarda contra recriar o bug pelo outro lado: se este pagamento
@@ -888,7 +960,7 @@ revoke execute on function
   pendencia_do_ano(integer),
   revisao_gravar_anos(uuid, jsonb),
   corrigir_documento(uuid, text, text, motivo_revisao, jsonb, text, text),
-  corrigir_nome_favorecido(uuid, text, motivo_revisao, text),
+  corrigir_nome_favorecido(uuid, text, motivo_revisao, uuid, text, text),
   mover_documento_de_obra(uuid, uuid, jsonb, jsonb),
   marcar_emitente_errado(uuid),
   baixar_pendencia(uuid, desfecho_pendencia, date)
@@ -898,7 +970,7 @@ grant execute on function
   pendencia_do_ano(integer),
   revisao_gravar_anos(uuid, jsonb),
   corrigir_documento(uuid, text, text, motivo_revisao, jsonb, text, text),
-  corrigir_nome_favorecido(uuid, text, motivo_revisao, text),
+  corrigir_nome_favorecido(uuid, text, motivo_revisao, uuid, text, text),
   mover_documento_de_obra(uuid, uuid, jsonb, jsonb),
   marcar_emitente_errado(uuid),
   baixar_pendencia(uuid, desfecho_pendencia, date)

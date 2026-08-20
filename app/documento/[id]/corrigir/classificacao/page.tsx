@@ -315,6 +315,21 @@ export default function CorrigirClassificacao() {
                   </span>
                 </span>
               </Linha>
+              {/* ⚠️ O balde "sem classificação" APARECE quando existe
+                  (ressalva 6 do Gate 2). Sem esta linha, Material + Mão de
+                  obra ≠ Total numa tela cujo argumento inteiro é "o total não
+                  muda" — e a conta que não fecha é pior que o número ausente. */}
+              {conta.antes.semClassificacaoCentavos > 0 ||
+              conta.depois.semClassificacaoCentavos > 0 ? (
+                <Linha rotulo="Sem classificação">
+                  <span className="mono">
+                    {formatarBRL(conta.antes.semClassificacaoCentavos)} →{" "}
+                    <span className="font-semibold">
+                      {formatarBRL(conta.depois.semClassificacaoCentavos)}
+                    </span>
+                  </span>
+                </Linha>
+              ) : null}
               <Linha rotulo="Total — igual">
                 <span className="mono font-semibold">
                   {formatarBRL(conta.antes.totalCentavos)} →{" "}

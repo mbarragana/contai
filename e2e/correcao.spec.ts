@@ -1,7 +1,8 @@
 import type { Page } from "@playwright/test";
 
-import { OBRA_ID_SEED, OBRA_SEED } from "./ambiente";
+import { OBRA_ID_SEED, OBRA_SEED, USER_ID_SEED } from "./ambiente";
 import {
+  anexosDoDocumento,
   anosAfetados,
   criarDocumento,
   criarFavorecido,
@@ -10,6 +11,7 @@ import {
   criarVinculo,
   desfechosDePendencia,
   documentos,
+  favorecidos,
   pagamentos,
   pendencias,
   revisoes,
@@ -291,6 +293,53 @@ test.describe("mover documento entre obras (critérios 13 e 20)", () => {
     expect(anos.some((a) => a.obra_id === c.reformaId)).toBe(false);
   });
 
+  /**
+   * Bloqueante 4 do Gate 2 — o LADO INVERSO da guarda de "pagamento indeciso".
+   *
+   * A função exigia desfecho para todo pagamento vinculado, e ACEITAVA desfecho
+   * para pagamento que não está vinculado: gravaria rastro `'vinculo'` de um
+   * desligamento que nunca houve, ou moveria `pagamento.obra_id` de um
+   * pagamento sem relação nenhuma com o ato. É "rastro de correção que não
+   * aconteceu" — o defeito que o critério 9 nomeia — dentro da função que
+   * existe para impedi-lo.
+   *
+   * Chamada DIRETA ao RPC, pelo mesmo client autenticado: a tela nunca monta
+   * esse array, e é justamente por isso que a guarda tem de ser do banco.
+   */
+  test("desfecho para pagamento NÃO vinculado é recusado, e o ato inteiro não grava", async ({
+    db,
+  }) => {
+    const c = await cenarioDoParecer(db);
+    const avulso = await criarPagamento(db, {
+      valor: 1000,
+      data_pagamento: "2025-09-01",
+      meio: "pix",
+      comprovante_path: "u/comprovante/avulso.png",
+    });
+
+    const recusado = await db.rpc("mover_documento_de_obra", {
+      p_documento_id: c.documentoId,
+      p_obra_destino: c.reformaId,
+      p_pagamentos: [
+        { pagamento_id: c.pixId, desfecho: "vai_junto" },
+        { pagamento_id: c.boletoId, desfecho: "fica_na_origem" },
+        { pagamento_id: avulso, desfecho: "vai_junto" },
+      ],
+      p_anos: [],
+    });
+    expect(recusado.error).not.toBeNull();
+
+    // ⚠️ ATOMICIDADE (adendo §5.5): o `update documento` acontece ANTES do laço,
+    // e mesmo assim NADA sobrou. "Se a transação não fechar, nada muda."
+    const doc = (await documentos(db)).find((d) => d.id === c.documentoId)!;
+    expect(doc.obra_id).toBe(OBRA_ID_SEED);
+    expect((await pagamentos(db)).every((p) => p.obra_id === OBRA_ID_SEED)).toBe(
+      true,
+    );
+    expect(await vinculos(db)).toHaveLength(2);
+    expect(await revisoes(db)).toHaveLength(0);
+  });
+
   test("sem pagamento ligado, o move grava rastro e NÃO abre pendência", async ({
     page,
     db,
@@ -323,6 +372,70 @@ test.describe("mover documento entre obras (critérios 13 e 20)", () => {
     expect(await revisoes(db)).toHaveLength(1);
     // Documento sozinho comprova ZERO dos dois lados: nenhum número mudou.
     expect(await anosAfetados(db)).toHaveLength(0);
+    expect(await pendencias(db)).toHaveLength(0);
+  });
+});
+
+/**
+ * Bloqueante 2 do Gate 2 — os DOIS revisores. `corrigir_nome_favorecido`
+ * gravava `emitente_corrigiu_a_nota` SEM anexo enquanto `corrigir_documento` o
+ * exigia, e o passo 1 (compartilhado pelas três telas) já PROMETIA "sem ele,
+ * esta correção não grava". Promessa quebrada por um botão.
+ */
+test.describe("corrigir o nome do emitente (critério 6)", () => {
+  test("motivo 'o emitente corrigiu a nota' não grava sem o documento novo", async ({
+    db,
+  }) => {
+    const favorecidoId = await cenarioFavorecido(db);
+    const documentoId = await criarDocumento(db, {
+      tipo: "nf_material",
+      favorecido_id: favorecidoId,
+      valor: 9400,
+      classificacao: "material",
+      destinatario_cpf_ok: true,
+    });
+
+    const semAnexo = await db.rpc("corrigir_nome_favorecido", {
+      p_favorecido_id: favorecidoId,
+      p_documento_id: documentoId,
+      p_nome: "Depósito Ilha Materiais de Construção LTDA",
+      p_motivo: "emitente_corrigiu_a_nota",
+    });
+    expect(semAnexo.error).not.toBeNull();
+
+    // Nada mudou: nem o nome, nem o rastro.
+    expect((await favorecidos(db))[0].nome).toBe("Depósito Ilha");
+    expect(await revisoes(db)).toHaveLength(0);
+    expect(await anexosDoDocumento(db)).toHaveLength(0);
+
+    // Com o anexo, grava — e o anexo é ADICIONAL: `arquivo_path` do documento
+    // continua o que era (parecer §1, "o anexo é a prova; não se substitui").
+    const arquivoOriginal = (await documentos(db))[0].arquivo_path;
+    const comAnexo = await db.rpc("corrigir_nome_favorecido", {
+      p_favorecido_id: favorecidoId,
+      p_documento_id: documentoId,
+      p_nome: "Depósito Ilha Materiais de Construção LTDA",
+      p_motivo: "emitente_corrigiu_a_nota",
+      p_anexo_path: `${USER_ID_SEED}/documento/nota-substitutiva.pdf`,
+    });
+    expect(comAnexo.error).toBeNull();
+
+    const rastro = await revisoes(db);
+    expect(rastro).toHaveLength(1);
+    expect(rastro[0]).toMatchObject({
+      entidade: "favorecido",
+      campo: "nome",
+      antes: "Depósito Ilha",
+      motivo: "emitente_corrigiu_a_nota",
+    });
+    const anexos = await anexosDoDocumento(db);
+    expect(anexos).toHaveLength(1);
+    expect(anexos[0]).toMatchObject({
+      documento_id: documentoId,
+      revisao_id: rastro[0].id,
+    });
+    expect((await documentos(db))[0].arquivo_path).toBe(arquivoOriginal);
+    // Nome corrigido NÃO abre pendência: o custo não muda um centavo (§4).
     expect(await pendencias(db)).toHaveLength(0);
   });
 });
