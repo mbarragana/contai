@@ -17,13 +17,17 @@ import {
   EstadoErro,
   Linha,
 } from "@/app/_components/ui";
+import { HistoricoDeCorrecoes } from "@/app/_components/corrigir";
 import {
+  carregarCorrecoesDoDocumento,
   carregarDocumento,
+  carregarObras,
   carregarPainel,
   classificarErro,
   type ErroDeTela,
   type PainelDados,
 } from "@/lib/data";
+import { formatarDocumento } from "@/lib/fiscal/identificacao";
 import { CONSEQUENCIA_SEM_RETENCAO } from "@/lib/fiscal/documento";
 import { formatarDataBR } from "@/lib/fiscal/obra";
 import {
@@ -34,7 +38,12 @@ import {
 } from "@/lib/fiscal/vinculo";
 import { hojeIso } from "@/lib/hoje";
 import { formatarBRL } from "@/lib/money";
-import type { Classificacao, Documento, TipoDocumento } from "@/lib/types";
+import type {
+  Classificacao,
+  Documento,
+  Revisao,
+  TipoDocumento,
+} from "@/lib/types";
 
 const NOME_TIPO: Record<TipoDocumento, string> = {
   nf_material: "NF de material",
@@ -51,7 +60,15 @@ const NOME_CLASSIFICACAO: Record<Classificacao | "indefinida", string> = {
 type Estado =
   | { fase: "carregando" }
   | { fase: "erro"; erro: ErroDeTela }
-  | { fase: "pronto"; documento: Documento; painel: PainelDados };
+  | {
+      fase: "pronto";
+      documento: Documento;
+      painel: PainelDados;
+      /** Critério 16 — o rastro é EXIBIDO já na rodada 1. */
+      correcoes: Revisao[];
+      /** Nome de cada obra: o rastro grava id, e id não se lê em 2034. */
+      obras: Map<string, string>;
+    };
 
 /**
  * O bloco que este ticket acrescenta (mock s1, s6, s7, s8) — caminho B do
@@ -232,8 +249,18 @@ function DetalheDocumento() {
         // O painel da obra inteira: é dele que saem os pagamentos ligados e o
         // cálculo do custo comprovado deste conjunto.
         const painel = await carregarPainel(documento.obraId);
+        const [correcoes, obras] = await Promise.all([
+          carregarCorrecoesDoDocumento(documento.id, documento.favorecidoId),
+          carregarObras(),
+        ]);
         if (cancelado) return;
-        setEstado({ fase: "pronto", documento, painel });
+        setEstado({
+          fase: "pronto",
+          documento,
+          painel,
+          correcoes,
+          obras: new Map(obras.map((o) => [o.id, o.nome])),
+        });
       } catch (erro) {
         if (!cancelado) {
           setEstado({ fase: "erro", erro: classificarErro(erro) });
@@ -301,6 +328,50 @@ function DetalheDocumento() {
     </Card>
   );
 
+  /**
+   * CONTAI-021 — as entradas das TRÊS AÇÕES NOMEADAS, e as duas saídas sem
+   * campo. Não é um "editar documento" com N campos: os campos têm regimes de
+   * consequência diferentes, e o campo proibido sentado ao lado dos editáveis
+   * é o convite a inventar dado no campo que sobrou (decisão do `cto-obra`).
+   */
+  const blocoCorrigir = (
+    <Card>
+      <div className="font-semibold">Corrigir este registro</div>
+      <Dica>
+        Cada correção é uma ação separada, porque cada uma muda uma coisa
+        diferente na sua declaração. Todas ficam registradas.
+      </Dica>
+      <div className="mt-2 flex flex-col gap-2">
+        <BotaoLink href={`/documento/${d.id}/corrigir/valor`}>
+          Corrigir o valor — hoje: {valor}
+        </BotaoLink>
+        <BotaoLink href={`/documento/${d.id}/corrigir/classificacao`}>
+          Corrigir a classificação — hoje:{" "}
+          {NOME_CLASSIFICACAO[d.classificacao ?? "indefinida"].toLowerCase()}
+        </BotaoLink>
+        <BotaoLink href={`/documento/${d.id}/corrigir/emitente`}>
+          Corrigir o nome do emitente — vale para todos os registros dele
+        </BotaoLink>
+        <BotaoLink href={`/documento/${d.id}/cnpj-errado`}>
+          O CNPJ/CPF do emitente está errado — e agora?
+        </BotaoLink>
+        <BotaoLink href={`/documento/${d.id}/outro-dado`}>
+          Está errado outro dado, que não está nesta lista
+        </BotaoLink>
+      </div>
+    </Card>
+  );
+
+  const blocoHistorico = (
+    <HistoricoDeCorrecoes
+      correcoes={estado.correcoes}
+      obras={estado.obras}
+      cnpj={
+        d.favorecidoDocumento ? formatarDocumento(d.favorecidoDocumento) : null
+      }
+    />
+  );
+
   // Tela 6 do mock — documento fora do CPF do dono.
   if (d.status === "quarentena") {
     return (
@@ -330,6 +401,8 @@ function DetalheDocumento() {
               contar a mesma despesa duas vezes — e não gera custo. */}
           {blocoPagamentos}
           {blocoObra}
+          {blocoCorrigir}
+          {blocoHistorico}
         </Corpo>
         <BarraAdicionar
           voltar={
@@ -371,6 +444,8 @@ function DetalheDocumento() {
           </Banner>
           {blocoPagamentos}
           {blocoObra}
+          {blocoCorrigir}
+          {blocoHistorico}
         </Corpo>
         <BarraAdicionar
           voltar={
@@ -412,6 +487,8 @@ function DetalheDocumento() {
         ) : null}
         {blocoPagamentos}
         {blocoObra}
+        {blocoCorrigir}
+        {blocoHistorico}
       </Corpo>
       <BarraAdicionar
         voltar={

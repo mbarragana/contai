@@ -170,6 +170,15 @@ function RegistrarPagamento() {
   const [comprovante, setComprovante] = useState<File | null>(null);
   const [erros, setErros] = useState<ErroCampoPagamento[]>([]);
   /**
+   * Critério 17 do CONTAI-021 — **aviso, não rascunho**. Sair por "Corrigir na
+   * nota" com o formulário pela metade perde o que foi digitado, e o app avisa
+   * ANTES, com os dois caminhos nomeados. Persistir formulário fiscal pela
+   * metade é escopo novo (o anexo já escolhido **não sobrevive à navegação em
+   * hipótese nenhuma**) e devolve dias depois um formulário sem contexto — o
+   * oposto de "campo vazio pergunta, campo preenchido afirma".
+   */
+  const [confirmandoSaida, setConfirmandoSaida] = useState(false);
+  /**
    * O valor que veio da nota, guardado para a tela poder DIZER de onde ele
    * saiu. A ajuda só aparece enquanto o campo continua com esse número: no
    * instante em que o Mateus digita outro, o texto some — rótulo que sobrevive
@@ -575,6 +584,67 @@ function RegistrarPagamento() {
       ? `Vem da nota — ${sugestaoValor.rotulo}. Dá para trocar.`
       : undefined;
 
+  /**
+   * Tela s1c do mock do CONTAI-021 — a confirmação de dois botões NOMEADOS.
+   *
+   * O texto dá a **saída barata**, não só o susto: o pagamento aponta para o
+   * FAVORECIDO, não para o texto do nome dele. Corrigir antes ou depois grava
+   * exatamente o mesmo dado — o que muda é só quanto ele redigita.
+   */
+  if (confirmandoSaida && documentoDeOrigem) {
+    return (
+      <>
+        <AppBar
+          titulo="Sair para corrigir a nota?"
+          sub="você já preencheu parte deste pagamento"
+        />
+        <Corpo>
+          <Banner cor="amb" role="alert">
+            O que você digitou <strong>não vai ser guardado</strong>. Valor, data
+            e meio voltam em branco. E o arquivo que você já escolheu{" "}
+            <strong>não sobrevive a esta navegação</strong> — vai precisar
+            anexar de novo, mesmo que a tela pareça lembrar dele.
+          </Banner>
+          <Card>
+            <div className="font-semibold">O que se perde</div>
+            <Linha rotulo="Valor">
+              <span className="mono">{valor.trim() || "—"}</span>
+            </Linha>
+            <Linha rotulo="Data do pagamento">
+              <span className="mono">{formatarDataBR(data)}</span>
+            </Linha>
+            <Linha rotulo="Meio">{meio}</Linha>
+            <Linha rotulo="Comprovante">
+              {comprovante ? `${comprovante.name} — não sobrevive` : "—"}
+            </Linha>
+          </Card>
+          <Card>
+            <div className="font-semibold">
+              Você provavelmente não precisa sair agora
+            </div>
+            <Dica>
+              O pagamento aponta para o <strong>favorecido</strong>, não para o
+              texto do nome dele. Termine este pagamento e corrija o nome depois,
+              pelo documento: o dado gravado é exatamente o mesmo. Corrigir antes
+              ou corrigir depois grava a mesma coisa — o que muda é só quanto
+              você redigita.
+            </Dica>
+          </Card>
+        </Corpo>
+        <Rodape>
+          <Botao variante="primary" onClick={() => setConfirmandoSaida(false)}>
+            Continuar o pagamento
+          </Botao>
+          <BotaoLink
+            href={`/documento/${documentoDeOrigem.id}/corrigir/emitente?voltar=pagamento`}
+          >
+            Sair e corrigir a nota — perco o que digitei
+          </BotaoLink>
+        </Rodape>
+      </>
+    );
+  }
+
   // Tela 12 — troca sem sair do fluxo.
   if (trocando && obra) {
     return (
@@ -700,6 +770,13 @@ function RegistrarPagamento() {
                     documento={documento}
                     erroNome={erroDe("favorecidoNome")}
                     erroDocumento={erroDe("favorecidoDocumento")}
+                    // ⚠️ Data e meio nascem preenchidos (hoje, PIX) e por isso
+                    // NÃO contam como "digitado": só valor e comprovante saem
+                    // do dedo dele. Contar o default como digitação faria o
+                    // aviso aparecer sempre — e aviso que aparece sempre é o
+                    // aviso que se aprende a dispensar.
+                    temAlgoDigitado={valor.trim() !== "" || comprovante !== null}
+                    onSairParaCorrigir={() => setConfirmandoSaida(true)}
                   />
                 ) : (
                   <Carregando rotulo="Carregando a nota" />
@@ -902,12 +979,17 @@ function FavorecidoHerdado({
   documento,
   erroNome,
   erroDocumento,
+  temAlgoDigitado,
+  onSairParaCorrigir,
 }: {
   nota: Documento;
   nome: string;
   documento: string;
   erroNome?: string;
   erroDocumento?: string;
+  /** Critério 17: com o formulário pela metade, o link avisa antes de sair. */
+  temAlgoDigitado: boolean;
+  onSairParaCorrigir: () => void;
 }) {
   const daNota = `da ${NOME_TIPO[nota.tipo]} de ${formatarBRL(nota.valorCentavos ?? 0)}`;
   return (
@@ -939,7 +1021,29 @@ function FavorecidoHerdado({
         refaz-se o vínculo.
       </p>
       <div>
-        <BotaoLink href={`/documento/${nota.id}`}>Corrigir na nota</BotaoLink>
+        {/**
+         * Critério 2 do CONTAI-021 — o link sai da CAIXA DO FAVORECIDO, então o
+         * destino natural é a correção do NOME DO EMITENTE, não uma tela
+         * genérica. De lá, quem descobre que o erro é outro tem saída para as
+         * outras duas ações e para o texto do CNPJ.
+         *
+         * ⚠️ Até 19/08 ele levava a `/documento/[id]`, onde não existia
+         * correção nenhuma: "o usuário clica em Corrigir na nota e chega numa
+         * tela que não corrige" — a disciplina do critério 19 do CONTAI-018
+         * (nenhuma tela promete comportamento que não existe) violada por um
+         * botão.
+         */}
+        {temAlgoDigitado ? (
+          <Botao variante="ghost" onClick={onSairParaCorrigir}>
+            Corrigir na nota
+          </Botao>
+        ) : (
+          <BotaoLink
+            href={`/documento/${nota.id}/corrigir/emitente?voltar=pagamento`}
+          >
+            Corrigir na nota
+          </BotaoLink>
+        )}
       </div>
     </div>
   );

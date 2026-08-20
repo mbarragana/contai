@@ -210,6 +210,10 @@ export default function RegistrarDocumento() {
       destinatarioCpfOk: notaNoCpf === "sim",
       retencao11: null,
       motivoQuarentena: null,
+      // O documento ainda não existe; o favorecido dele também não tem id
+      // ainda (`garantirFavorecido` roda no salvar). Nada aqui depende disso:
+      // a ordenação dos candidatos casa por NOME e valor.
+      favorecidoId: null,
       favorecidoNome: nome.trim() || null,
       favorecidoDocumento: soDigitos(documento) || null,
       arquivoPath: "",

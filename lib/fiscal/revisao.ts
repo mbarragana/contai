@@ -410,3 +410,100 @@ export function anosDaAlocacao(...alocacoes: readonly Alocacao[]): number[] {
   }
   return [...anos].sort((x, y) => x - y);
 }
+
+// ── Composição da discriminação (critério 5) ─────────────────────────────
+
+export interface Composicao {
+  materialCentavos: number;
+  maoObraCentavos: number;
+  /** Documento hábil sem classificação gravada. Não se inventa uma. */
+  semClassificacaoCentavos: number;
+  totalCentavos: number;
+}
+
+/**
+ * Quanto do custo comprovado é **material** e quanto é **mão de obra**.
+ *
+ * Parecer §1, linha `classificacao`: "CORRIGÍVEL sempre, sem trava. Não muda
+ * total nenhum; muda a COMPOSIÇÃO (material × mão de obra) da discriminação."
+ * O total é a soma — e é por isso que a tela pode afirmar que ele não muda: a
+ * correção só troca de balde a parcela DAQUELE documento.
+ *
+ * ⚠️ DUAS PRECISÕES, e as duas são limitações declaradas, não descuido:
+ *
+ * 1. **Não há quebra por ano**, e o mock s4 mostra uma. O ano do custo é o da
+ *    DATA DO PAGAMENTO (regime de caixa); a classificação é do DOCUMENTO. Num
+ *    componente com vários documentos e pagamentos de anos diferentes, repartir
+ *    o coberto de um documento entre anos exigiria uma regra de atribuição que
+ *    **nenhum parecer definiu** — e inventá-la aqui seria o palpite que o
+ *    ticket proíbe. Divergência registrada para o Gate 2.
+ * 2. Quando um componente tem mais de um documento hábil, a repartição do
+ *    coberto ENTRE eles vem de `alocarCusto`, que a declara explicitamente
+ *    "sem efeito fiscal nenhum — ordem estável por id só para a tela não
+ *    dançar". No agregado a soma está certa; a linha de um documento
+ *    individual, nesse caso, é arbitrária-mas-estável.
+ */
+export function composicaoDaDiscriminacao(alocacao: Alocacao): Composicao {
+  let material = 0;
+  let maoObra = 0;
+  let sem = 0;
+
+  for (const a of alocacao.porDocumento.values()) {
+    if (!a.habil) continue;
+    if (a.documento.classificacao === "material") material += a.cobertoCentavos;
+    else if (a.documento.classificacao === "mao_obra") maoObra += a.cobertoCentavos;
+    else sem += a.cobertoCentavos;
+  }
+
+  return {
+    materialCentavos: material,
+    maoObraCentavos: maoObra,
+    semClassificacaoCentavos: sem,
+    totalCentavos: material + maoObra + sem,
+  };
+}
+
+/**
+ * Adendo §2 — **cópia literal**. Marcenaria fixa **não é uma terceira opção**
+ * desta lista e **não dispara alarme** ao escolher "Material": ela é dúvida de
+ * *dentro ou fora do custo de aquisição*, outra pergunta, que nenhuma das duas
+ * opções desta tela expressa. Alarme que dispara em quase todo caso que não é
+ * marcenaria é alarme que não desliga. Fica como rodapé passivo.
+ */
+export const RODAPE_MARCENARIA =
+  "Esta escolha muda só a composição do que você declara (material × mão de " +
+  "obra). Não muda o total e não tira nada do custo. Se a sua dúvida é se o " +
+  "gasto entra no custo do imóvel — é o caso de marcenaria fixa e planejados " +
+  "—, isso não se decide aqui: leve ao seu contador.";
+
+/**
+ * Adendo §3 — **cópia literal, e a segunda linha é obrigatória**. Todo ato que
+ * altere a identificação de um favorecido já gravado exige, no mesmo ato,
+ * afirmação explícita de que o CNPJ/CPF gravado é o impresso no anexo. É o
+ * único instante em que o CNPJ gravado é lido lado a lado com o papel.
+ */
+export function afirmacaoDoCnpj(documentoFormatado: string): string {
+  return `O CNPJ impresso na nota é ${documentoFormatado} — só o nome está diferente.`;
+}
+
+export const AFIRMACAO_CNPJ_SEGUNDA_LINHA =
+  "Não é esse o CNPJ do papel? Então não é o nome que está errado.";
+
+/**
+ * Adendo §4 — **cópia literal**. Nome corrigido com pagamento em ano anterior
+ * gera **aviso + rastro, e não abre pendência**: o custo não muda um centavo, e
+ * a ficha Pagamentos Efetuados identifica o beneficiário pelo CPF/CNPJ — o nome
+ * acompanha.
+ */
+export function avisoNomeEmAnoAnterior(ano: number): string {
+  return (
+    `Um dos pagamentos deste favorecido é de ${ano}. Se você já entregou a ` +
+    "declaração daquele ano, o nome que saiu nela continua diferente do que o " +
+    "app mostra a partir de agora. O CPF/CNPJ, que é o que identifica o " +
+    "favorecido na declaração, não mudou."
+  );
+}
+
+export const AVISO_NOME_FICA_NO_HISTORICO =
+  "Esta correção fica registrada no histórico, com a data. Se o seu contador " +
+  "precisar dela, está lá — o app não decide se isso pede retificadora.";

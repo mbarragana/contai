@@ -103,6 +103,16 @@ export interface Documento {
   motivoQuarentena: string | null;
   favorecidoNome: string | null;
   /**
+   * O PONTEIRO para o favorecido. Existe no domínio desde o CONTAI-021 porque
+   * corrigir o nome do emitente (critério 6) grava em `favorecido.nome`, e a
+   * tela precisa saber em QUAL linha — o nome não identifica ninguém.
+   *
+   * ⚠️ Corrigir este ponteiro (apontar o documento para outro favorecido) é a
+   * RODADA 2, e não existe caminho para isso hoje: o parecer §4 e o critério
+   * 12 dão a saída declarada, sem campo.
+   */
+  favorecidoId: string | null;
+  /**
    * CNPJ/CPF do emitente, só dígitos. Vem junto do nome porque a tela de
    * registrar o pagamento da nota preenche os dois: fazer o Mateus redigitar o
    * documento arrisca um favorecido duplicado por typo — e a dedup de

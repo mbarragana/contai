@@ -33,6 +33,7 @@ function doc(over: Partial<Documento> & { id: string }): Documento {
     destinatarioCpfOk: true,
     retencao11: true,
     motivoQuarentena: null,
+    favorecidoId: "fav-emitente",
     favorecidoNome: "WK Construções LTDA",
     favorecidoDocumento: "11222333000181",
     arquivoPath: "u/documento/nf.pdf",

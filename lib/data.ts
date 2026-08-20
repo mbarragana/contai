@@ -18,6 +18,7 @@ import {
 } from "@/lib/supabase";
 import type {
   AnoAfetado,
+  Classificacao,
   Compromisso,
   CompromissoDataHistoricoRow,
   CompromissoInsert,
@@ -43,7 +44,15 @@ import type {
   PagamentoInsert,
   PagamentoRow,
   QuitacaoRecusadaRow,
+  DesfechoPendencia,
+  MotivoRevisao,
+  PendenciaDesfechoRow,
+  PendenciaPersistente,
+  PendenciaRow,
   ResolucaoDiferenca,
+  Revisao,
+  RevisaoAnoAfetadoRow,
+  RevisaoRow,
   TerrenoDesembolso,
   TerrenoDesembolsoRow,
   TipoDesembolsoTerreno,
@@ -108,6 +117,7 @@ function paraDocumento(row: DocumentoRow & ComFavorecido): Documento {
     destinatarioCpfOk: row.destinatario_cpf_ok,
     retencao11: row.retencao_11,
     motivoQuarentena: row.motivo_quarentena,
+    favorecidoId: row.favorecido_id,
     favorecidoNome: row.favorecido?.nome ?? null,
     favorecidoDocumento: row.favorecido?.documento ?? null,
     arquivoPath: row.arquivo_path,
@@ -610,6 +620,363 @@ export async function moverPagamentoDeObra(
     .update({ obra_id: obraDestinoId })
     .eq("id", id);
   if (error) throw error;
+}
+
+// ══ CONTAI-021 · as três ações nomeadas de correção ═════════════════════
+//
+// ⚠️ TRÊS FUNÇÕES, e não uma `corrigirDocumento(campo, valor)` genérica. É a
+// decisão de forma do `cto-obra` (18/08), e o fundamento é de domínio: os
+// campos têm REGIMES DE CONSEQUÊNCIA diferentes — valor recalcula custo e pode
+// abrir pendência de retificadora; classificação muda a composição e não muda
+// total nenhum; nome do emitente é OUTRA TABELA e não abre pendência. Um
+// caminho só precisaria expressar os três ao mesmo tempo, e é assim que o
+// aviso certo aparece na hora errada.
+//
+// Todas gravam por RPC: a atomicidade do critério 9 é da função Postgres
+// (migration 0009), não daqui. Se a transação não fechar, NADA muda — que é o
+// que a tela de falha promete.
+
+/**
+ * Corrigir o VALOR (critério 3). O único campo do `documento` que move custo
+ * entre anos-calendário — `data_emissao` **nunca** governa o ano do custo
+ * (parecer §0(a)); quem faz isso é `pagamento.data_pagamento`.
+ *
+ * `anexoPath` é obrigatório quando o motivo é `emitente_corrigiu_a_nota`
+ * (critério 10), e entra como anexo ADICIONAL: `arquivo_path` não se
+ * substitui (critério 18). Quem recusa é a função, não a tela.
+ */
+export async function corrigirValorDoDocumento(entrada: {
+  documentoId: string;
+  valorCentavos: number;
+  motivo: MotivoRevisao;
+  motivoTexto: string | null;
+  anos: readonly AnoAfetado[];
+  anexoPath: string | null;
+}): Promise<string> {
+  const { data, error } = await getSupabase().rpc("corrigir_documento", {
+    p_documento_id: entrada.documentoId,
+    p_campo: "valor",
+    // Texto, e no formato do `numeric(14,2)`: o rastro grava antes/depois como
+    // texto justamente para preservar `null`, zeros à esquerda e enum (§5).
+    p_depois: centavosParaNumeric(entrada.valorCentavos).toFixed(2),
+    p_motivo: entrada.motivo,
+    p_anos: paraAnosJson(entrada.anos),
+    ...(entrada.motivoTexto ? { p_motivo_texto: entrada.motivoTexto } : {}),
+    ...(entrada.anexoPath ? { p_anexo_path: entrada.anexoPath } : {}),
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+/**
+ * Corrigir a CLASSIFICAÇÃO (critério 5) — material ↔ mão de obra, **sem
+ * trava**. Não muda total nenhum; muda a composição da discriminação
+ * (parecer §1). Por isso `anos` chega vazio: nenhum número declarado se mexe,
+ * e pendência persistente só nasce quando um número muda.
+ */
+export async function corrigirClassificacaoDoDocumento(entrada: {
+  documentoId: string;
+  classificacao: Classificacao;
+  motivo: MotivoRevisao;
+  motivoTexto: string | null;
+  anexoPath: string | null;
+}): Promise<string> {
+  const { data, error } = await getSupabase().rpc("corrigir_documento", {
+    p_documento_id: entrada.documentoId,
+    p_campo: "classificacao",
+    p_depois: entrada.classificacao,
+    p_motivo: entrada.motivo,
+    p_anos: [],
+    ...(entrada.motivoTexto ? { p_motivo_texto: entrada.motivoTexto } : {}),
+    ...(entrada.anexoPath ? { p_anexo_path: entrada.anexoPath } : {}),
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+/**
+ * Corrigir o NOME do emitente (critério 6) — o **único** caminho pelo qual um
+ * nome de favorecido muda no app.
+ *
+ * Fecha a ferida deixada aberta em `b807901`: `garantirFavorecido` usa
+ * `ignoreDuplicates` justamente para NUNCA renomear em silêncio, e a
+ * consequência aceita lá era "nome gravado errado não se corrige por aqui — a
+ * correção é ato próprio, com rastro, e não existe hoje". Existe agora.
+ *
+ * ⚠️ O CNPJ/CPF **não é parâmetro**: a string de um favorecido existente nunca
+ * é reescrita (parecer §1 e §4.2). Sem pendência: o custo não muda um centavo
+ * (adendo §4).
+ */
+export async function corrigirNomeDoFavorecido(entrada: {
+  favorecidoId: string;
+  nome: string;
+  motivo: MotivoRevisao;
+  motivoTexto: string | null;
+}): Promise<string> {
+  const { data, error } = await getSupabase().rpc("corrigir_nome_favorecido", {
+    p_favorecido_id: entrada.favorecidoId,
+    p_nome: entrada.nome,
+    p_motivo: entrada.motivo,
+    ...(entrada.motivoTexto ? { p_motivo_texto: entrada.motivoTexto } : {}),
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+/**
+ * Critério 19 — *"Marcar: o CNPJ deste registro está errado — tratar"*.
+ *
+ * IDEMPOTENTE: voltar e marcar de novo deixa a lista com uma linha só. Não
+ * abre campo, não mexe em `status`, não manda para quarentena, e **não gera
+ * linha de `revisao`** — nenhum dado do documento mudou, não há antes→depois a
+ * registrar (adendo §1). O que existe é a pendência aberta, com a data.
+ */
+export async function marcarEmitenteErrado(documentoId: string): Promise<string> {
+  const { data, error } = await getSupabase().rpc("marcar_emitente_errado", {
+    p_documento_id: documentoId,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+/**
+ * As pendências persistentes da conta — abertas e baixadas (critérios 4, 19,
+ * 20 e 21).
+ *
+ * Vêm TODAS, com o desfecho junto: "aberta" é a AUSÊNCIA de linha em
+ * `pendencia_desfecho`, e o histórico do ano (mock s7e) precisa das baixadas.
+ * O volume é de uma linha por ano-calendário e uma por documento marcado —
+ * dezenas na vida inteira da obra.
+ */
+export async function carregarPendencias(): Promise<PendenciaPersistente[]> {
+  const supabase = getSupabase();
+  const [pendencias, desfechos] = await Promise.all([
+    supabase.from("pendencia").select("*").order("aberta_em", { ascending: false }),
+    supabase.from("pendencia_desfecho").select("*"),
+  ]);
+  if (pendencias.error) throw pendencias.error;
+  if (desfechos.error) throw desfechos.error;
+
+  const porPendencia = new Map(
+    ((desfechos.data ?? []) as PendenciaDesfechoRow[]).map((d) => [
+      d.pendencia_id,
+      d,
+    ]),
+  );
+
+  return ((pendencias.data ?? []) as PendenciaRow[]).map((p) => {
+    const d = porPendencia.get(p.id);
+    return {
+      id: p.id,
+      tipo: p.tipo,
+      ano: p.ano,
+      documentoId: p.documento_id,
+      abertaEm: p.aberta_em,
+      desfecho: d
+        ? {
+            desfecho: d.desfecho,
+            dataInformada: d.data_informada,
+            baixadaEm: d.baixada_em,
+          }
+        : null,
+    };
+  });
+}
+
+/**
+ * Baixar a pendência, com o desfecho escolhido (critérios 19 e 21).
+ *
+ * **INSERT, não update** — a pendência sai da lista e fica no histórico, com
+ * quem, quando e qual desfecho, legível em 2034. Quem valida se o desfecho
+ * pertence à lista DAQUELE tipo é o banco (check + FK composto da 0009): os
+ * três desfechos do critério 21 são todos sobre DAA, e nenhum descreve
+ * "resolvi o CNPJ errado".
+ */
+export async function baixarPendencia(entrada: {
+  pendenciaId: string;
+  desfecho: DesfechoPendencia;
+  dataInformada: string | null;
+}): Promise<void> {
+  const { error } = await getSupabase().rpc("baixar_pendencia", {
+    p_pendencia_id: entrada.pendenciaId,
+    p_desfecho: entrada.desfecho,
+    ...(entrada.dataInformada ? { p_data: entrada.dataInformada } : {}),
+  });
+  if (error) throw error;
+}
+
+/**
+ * As correções que compõem cada pendência de ano (critério 20a) — as linhas de
+ * `revisao_ano_afetado` com a revisão delas.
+ *
+ * É daqui que saem as três coisas que a tela da pendência mostra e que nenhuma
+ * outra consulta tem: o ACUMULADO do ano por obra (primeiro `antes` → último
+ * `depois`), o CONJUNTO DE OBRAS AFETADAS e a lista de atos que a compõem.
+ */
+export async function carregarAnosDasPendencias(): Promise<
+  { pendenciaId: string; revisaoId: string; ano: AnoAfetado }[]
+> {
+  const { data, error } = await getSupabase()
+    .from("revisao_ano_afetado")
+    .select("*")
+    .not("pendencia_id", "is", null);
+  if (error) throw error;
+  return ((data ?? []) as RevisaoAnoAfetadoRow[]).map((row) => ({
+    pendenciaId: row.pendencia_id as string,
+    revisaoId: row.revisao_id,
+    ano: paraAnoAfetado(row),
+  }));
+}
+
+/** As linhas de rastro pedidas por id — o detalhe de cada ato da pendência. */
+export async function carregarRevisoesPorId(ids: string[]): Promise<Revisao[]> {
+  if (ids.length === 0) return [];
+  const supabase = getSupabase();
+  const [linhas, anos] = await Promise.all([
+    supabase
+      .from("revisao")
+      .select("*")
+      .in("id", ids)
+      .order("quando", { ascending: true }),
+    supabase.from("revisao_ano_afetado").select("*").in("revisao_id", ids),
+  ]);
+  if (linhas.error) throw linhas.error;
+  if (anos.error) throw anos.error;
+
+  const porRevisao = new Map<string, AnoAfetado[]>();
+  for (const a of (anos.data ?? []) as RevisaoAnoAfetadoRow[]) {
+    const lista = porRevisao.get(a.revisao_id) ?? [];
+    lista.push(paraAnoAfetado(a));
+    porRevisao.set(a.revisao_id, lista);
+  }
+
+  return ((linhas.data ?? []) as RevisaoRow[]).map((r) => ({
+    id: r.id,
+    atoId: r.ato_id,
+    entidade: r.entidade,
+    entidadeId: r.entidade_id,
+    campo: r.campo,
+    antes: r.antes,
+    depois: r.depois,
+    quando: r.quando,
+    motivo: r.motivo,
+    motivoTexto: r.motivo_texto,
+    anosAfetados: porRevisao.get(r.id) ?? [],
+  }));
+}
+
+function paraAnoAfetado(row: RevisaoAnoAfetadoRow): AnoAfetado {
+  return {
+    obraId: row.obra_id,
+    ano: row.ano,
+    antesCentavos: numericParaCentavos(row.custo_antes) ?? 0,
+    depoisCentavos: numericParaCentavos(row.custo_depois) ?? 0,
+    pendencia: row.pendencia_id !== null,
+  };
+}
+
+/**
+ * O rastro que o detalhe do documento exibe (critério 16).
+ *
+ * São DUAS buscas de propósito. A primeira acha os atos que tocam este
+ * registro: as correções do próprio documento e as do FAVORECIDO dele — o nome
+ * do emitente muda em outra tabela, e mesmo assim é correção deste registro
+ * para quem lê. A segunda traz as linhas que faltam desses mesmos atos: o move
+ * grava N linhas com o MESMO `ato_id` (documento + cada pagamento), e sem elas
+ * a tela não teria como dizer "com 2 pagamentos".
+ *
+ * Rastro que só o banco vê não cumpre a meta 3 — quem vai ler isso em 2034 é o
+ * Mateus, não o Postgres.
+ */
+export async function carregarCorrecoesDoDocumento(
+  documentoId: string,
+  favorecidoId: string | null,
+): Promise<Revisao[]> {
+  const supabase = getSupabase();
+
+  const alvo = favorecidoId
+    ? `and(entidade.eq.documento,entidade_id.eq.${documentoId}),and(entidade.eq.favorecido,entidade_id.eq.${favorecidoId})`
+    : `and(entidade.eq.documento,entidade_id.eq.${documentoId})`;
+
+  const atos = await supabase.from("revisao").select("ato_id").or(alvo);
+  if (atos.error) throw atos.error;
+  const atoIds = [
+    ...new Set(((atos.data ?? []) as { ato_id: string }[]).map((r) => r.ato_id)),
+  ];
+  if (atoIds.length === 0) return [];
+
+  const [linhas, anos] = await Promise.all([
+    supabase
+      .from("revisao")
+      .select("*")
+      .in("ato_id", atoIds)
+      .order("quando", { ascending: false })
+      .order("created_at", { ascending: true }),
+    supabase.from("revisao_ano_afetado").select("*"),
+  ]);
+  if (linhas.error) throw linhas.error;
+  if (anos.error) throw anos.error;
+
+  const porRevisao = new Map<string, AnoAfetado[]>();
+  for (const a of (anos.data ?? []) as RevisaoAnoAfetadoRow[]) {
+    const lista = porRevisao.get(a.revisao_id) ?? [];
+    lista.push(paraAnoAfetado(a));
+    porRevisao.set(a.revisao_id, lista);
+  }
+
+  return ((linhas.data ?? []) as RevisaoRow[]).map((r) => ({
+    id: r.id,
+    atoId: r.ato_id,
+    entidade: r.entidade,
+    entidadeId: r.entidade_id,
+    campo: r.campo,
+    antes: r.antes,
+    depois: r.depois,
+    quando: r.quando,
+    motivo: r.motivo,
+    motivoTexto: r.motivo_texto,
+    anosAfetados: porRevisao.get(r.id) ?? [],
+  }));
+}
+
+/**
+ * "Onde este nome aparece hoje" (tela s5): o alcance da correção de nome.
+ *
+ * ⚠️ Os documentos vêm SEM quebra por ano, e a divergência em relação ao mock é
+ * deliberada: `documento` **não tem data de emissão no schema** — ela é o
+ * CONTAI-004, que ainda não entrou (Out of Scope deste ticket). Usar
+ * `created_at` como "ano do documento" seria afirmar um fato fiscal que o app
+ * não tem. Os pagamentos SIM quebram por ano, porque `data_pagamento` é data
+ * fiscal de verdade — é dela que sai o ano-calendário do custo — e é ela que
+ * decide se o aviso do adendo §4 aparece.
+ */
+export async function carregarAlcanceDoFavorecido(favorecidoId: string): Promise<{
+  documentos: number;
+  pagamentosPorAno: { ano: number; quantidade: number }[];
+}> {
+  const supabase = getSupabase();
+  const [documentos, pagamentos] = await Promise.all([
+    supabase.from("documento").select("id").eq("favorecido_id", favorecidoId),
+    supabase
+      .from("pagamento")
+      .select("data_pagamento")
+      .eq("favorecido_id", favorecidoId),
+  ]);
+  if (documentos.error) throw documentos.error;
+  if (pagamentos.error) throw pagamentos.error;
+
+  const porAno = new Map<number, number>();
+  for (const p of (pagamentos.data ?? []) as { data_pagamento: string }[]) {
+    const ano = Number(p.data_pagamento.slice(0, 4));
+    porAno.set(ano, (porAno.get(ano) ?? 0) + 1);
+  }
+
+  return {
+    documentos: (documentos.data ?? []).length,
+    pagamentosPorAno: [...porAno.entries()]
+      .map(([ano, quantidade]) => ({ ano, quantidade }))
+      .sort((a, b) => b.ano - a.ano),
+  };
 }
 
 /**
