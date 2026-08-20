@@ -395,6 +395,20 @@ class Conjuntos {
  * Vínculo que aponta para documento fora desta entrada é IGNORADO — a entrada
  * é sempre de UMA obra (nada soma entre obras), e o critério 11 impede que
  * esse caso nasça pela interface.
+ *
+ * ⚠️ ACRÉSCIMO DE 2026-08-19 (CONTAI-021, critério 13). A frase acima estava
+ * FALSA pelos dois lados, e continua falsa por um deles:
+ * - **documento**: `moverDocumentoDeObra` era um `UPDATE obra_id` seco e fazia
+ *   o caso nascer pela porta dos fundos. **FECHADO** pelo CONTAI-021: o move
+ *   virou ato transacional que resolve cada pagamento vinculado, um a um, e
+ *   não conclui com pagamento indeciso (migration 0009).
+ * - **pagamento**: `moverPagamentoDeObra` (`/pagamento/[id]/obra`) é o MESMO
+ *   `UPDATE` seco, na direção inversa, e **continua aberto** — é o critério 12
+ *   do `CONTAI-008`, reaberto em 19/08. Enquanto ele existir, este `continue`
+ *   segue engolindo em silêncio um vínculo que cruza duas obras.
+ * Se `alocarCusto` deve REPORTAR o vínculo órfão como rede de segurança, em
+ * vez de ignorá-lo, é pergunta de arquitetura registrada para o Gate 2 do
+ * CONTAI-021 — não se decide aqui, e nada neste arquivo mudou por causa dela.
  */
 export function alocarCusto(entrada: EntradaAlocacao): Alocacao {
   const { documentos, pagamentos } = entrada;

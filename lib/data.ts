@@ -7,6 +7,7 @@
  */
 
 import { podeQuitar } from "@/lib/fiscal/compromisso";
+import type { EscolhaDePagamento } from "@/lib/fiscal/revisao";
 import { podeVincular } from "@/lib/fiscal/vinculo";
 import { numericParaCentavos, centavosParaNumeric } from "@/lib/money";
 import {
@@ -16,6 +17,7 @@ import {
   SemSessaoError,
 } from "@/lib/supabase";
 import type {
+  AnoAfetado,
   Compromisso,
   CompromissoDataHistoricoRow,
   CompromissoInsert,
@@ -535,20 +537,68 @@ export async function carregarPagamento(id: string): Promise<Pagamento> {
 }
 
 /**
- * Correção da obra de um registro já salvo (critério 13). A regra fiscal que
- * decide SE pode mover está em lib/fiscal/obra.ts (`podeCorrigirObra`) — aqui
- * só grava. O erro deste campo é silencioso e descoberto tarde; um produto que
- * só previne e não conserta perde o caso real.
+ * O snapshot de anos afetados, no formato que a migration 0009 recebe.
+ * Centavos viram `numeric(14,2)` aqui, e só aqui.
+ */
+function paraAnosJson(anos: readonly AnoAfetado[]) {
+  return anos.map((a) => ({
+    ano: a.ano,
+    obra_id: a.obraId,
+    custo_antes: centavosParaNumeric(a.antesCentavos),
+    custo_depois: centavosParaNumeric(a.depoisCentavos),
+    pendencia: a.pendencia,
+  }));
+}
+
+/**
+ * Correção da obra de um DOCUMENTO já salvo (critério 13 do CONTAI-021).
+ *
+ * ⚠️ **Isto conserta um bug que estava EM PRODUÇÃO.** Até 19/08 esta função era
+ * um `UPDATE documento SET obra_id` **seco**: não tocava `pagamento.obra_id`,
+ * não tocava `pagamento_documento`, não gravava rastro. O efeito real, com as
+ * duas obras que o Mateus tem hoje (parecer, adendo §5.1 — retratação do
+ * `contador` em 19/08):
+ *
+ * 1. na ORIGEM o pagamento perdia a nota: o custo comprovado do ano **caía** e
+ *    o **"pago sem nota" subia pelo mesmo valor** — alarme vermelho da meta 1
+ *    por um fato que não aconteceu, e "pago sem nota" é o número pelo qual ele
+ *    decide se pode pagar alguém;
+ * 2. no DESTINO entrava documento sem pagamento nenhum: `min(0, valor) = 0`, o
+ *    custo **não subia**;
+ * 3. no BANCO sobrava vínculo vivo cruzando duas obras, invisível nas duas
+ *    telas — o estado que o critério 11 do CONTAI-018 proíbe pela porta da
+ *    frente, nascendo pela porta dos fundos.
+ *
+ * "Não é transferência, é evaporação."
+ *
+ * Agora é UM ATO TRANSACIONAL (critério 9 / adendo §5.5): documento, N
+ * `pagamento.obra_id`, N deleções de vínculo, N linhas de `revisao` com o
+ * MESMO `ato_id` e a pendência do ano gravam juntos, ou nada grava. A escolha
+ * de cada pagamento vem da tela, **um a um** — cascata silenciosa é proibida
+ * (parecer §4.4) — e a função recusa o ato se algum pagamento vinculado ficar
+ * sem desfecho.
+ *
+ * A regra fiscal que decide SE pode mover continua em `lib/fiscal/obra.ts`
+ * (`podeCorrigirObra`, revalidação de CNO da NF de serviço); o que muda no
+ * custo é `lib/fiscal/revisao.ts`. Aqui só grava.
  */
 export async function moverDocumentoDeObra(
   id: string,
   obraDestinoId: string,
-): Promise<void> {
-  const { error } = await getSupabase()
-    .from("documento")
-    .update({ obra_id: obraDestinoId })
-    .eq("id", id);
+  escolhas: readonly EscolhaDePagamento[],
+  anos: readonly AnoAfetado[],
+): Promise<string> {
+  const { data, error } = await getSupabase().rpc("mover_documento_de_obra", {
+    p_documento_id: id,
+    p_obra_destino: obraDestinoId,
+    p_pagamentos: escolhas.map((e) => ({
+      pagamento_id: e.pagamentoId,
+      desfecho: e.desfecho,
+    })),
+    p_anos: paraAnosJson(anos),
+  });
   if (error) throw error;
+  return data as string;
 }
 
 export async function moverPagamentoDeObra(

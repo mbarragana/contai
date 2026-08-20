@@ -538,14 +538,21 @@ $$;
 -- pendência. `antes` é LIDO AQUI, do próprio banco — o app não o informa. Não
 -- é desconfiança do app: é que o `antes` é o que está gravado no instante da
 -- gravação, e deixá-lo vir da tela abriria a janela entre carregar e gravar.
+-- ⚠️ Os parâmetros anuláveis vêm com `default null` e POR ISSO no fim da
+-- lista (o Postgres exige que default só apareça depois dos obrigatórios). Não
+-- é estilo: `supabase gen types` traduz parâmetro COM default em campo
+-- OPCIONAL do TypeScript, e parâmetro sem default em `string` não-anulável —
+-- sem isto, passar `null` de `lib/data.ts` exigiria um cast, que é exatamente
+-- onde o tipo para de proteger. A ordem dos argumentos não afeta chamada
+-- nenhuma: o PostgREST chama por NOME.
 create function corrigir_documento(
   p_documento_id uuid,
   p_campo        text,
   p_depois       text,
   p_motivo       motivo_revisao,
-  p_motivo_texto text,
   p_anos         jsonb,
-  p_anexo_path   text
+  p_motivo_texto text default null,
+  p_anexo_path   text default null
 ) returns uuid
 language plpgsql
 security invoker
@@ -618,7 +625,7 @@ create function corrigir_nome_favorecido(
   p_favorecido_id uuid,
   p_nome          text,
   p_motivo        motivo_revisao,
-  p_motivo_texto  text
+  p_motivo_texto  text default null
 ) returns uuid
 language plpgsql
 security invoker
@@ -815,7 +822,7 @@ $$;
 create function baixar_pendencia(
   p_pendencia_id uuid,
   p_desfecho     desfecho_pendencia,
-  p_data         date
+  p_data         date default null
 ) returns void
 language plpgsql
 security invoker
@@ -880,7 +887,7 @@ grant select, insert on table pendencia_desfecho  to authenticated;
 revoke execute on function
   pendencia_do_ano(integer),
   revisao_gravar_anos(uuid, jsonb),
-  corrigir_documento(uuid, text, text, motivo_revisao, text, jsonb, text),
+  corrigir_documento(uuid, text, text, motivo_revisao, jsonb, text, text),
   corrigir_nome_favorecido(uuid, text, motivo_revisao, text),
   mover_documento_de_obra(uuid, uuid, jsonb, jsonb),
   marcar_emitente_errado(uuid),
@@ -890,7 +897,7 @@ revoke execute on function
 grant execute on function
   pendencia_do_ano(integer),
   revisao_gravar_anos(uuid, jsonb),
-  corrigir_documento(uuid, text, text, motivo_revisao, text, jsonb, text),
+  corrigir_documento(uuid, text, text, motivo_revisao, jsonb, text, text),
   corrigir_nome_favorecido(uuid, text, motivo_revisao, text),
   mover_documento_de_obra(uuid, uuid, jsonb, jsonb),
   marcar_emitente_errado(uuid),

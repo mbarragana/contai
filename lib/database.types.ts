@@ -829,7 +829,7 @@ export type Database = {
     Functions: {
       baixar_pendencia: {
         Args: {
-          p_data: string
+          p_data?: string
           p_desfecho: Database["public"]["Enums"]["desfecho_pendencia"]
           p_pendencia_id: string
         }
@@ -837,13 +837,13 @@ export type Database = {
       }
       corrigir_documento: {
         Args: {
-          p_anexo_path: string
+          p_anexo_path?: string
           p_anos: Json
           p_campo: string
           p_depois: string
           p_documento_id: string
           p_motivo: Database["public"]["Enums"]["motivo_revisao"]
-          p_motivo_texto: string
+          p_motivo_texto?: string
         }
         Returns: string
       }
@@ -851,7 +851,7 @@ export type Database = {
         Args: {
           p_favorecido_id: string
           p_motivo: Database["public"]["Enums"]["motivo_revisao"]
-          p_motivo_texto: string
+          p_motivo_texto?: string
           p_nome: string
         }
         Returns: string
