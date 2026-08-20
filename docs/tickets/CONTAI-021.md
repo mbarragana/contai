@@ -13,9 +13,10 @@ digitação da obra, e é exatamente quando typo acontece. **A partir do instant
 em que uma nota for registrada errada, isto é P0**, porque hoje não existe
 desfazer — nome de favorecido gravado errado é **permanente** desde `b807901`.
 
-- **Gate 0 (mock)**: **v1 APROVADA pelo Mateus em 19/08**
-  (`design/mocks/CONTAI-021.html`). Restam **duas superfícies** para a v2, já
-  decididas: desfecho da pendência (critério 21) e o botão do critério 19.
+- **Gate 0 (mock)**: **v2 APROVADA pelo Mateus em 19/08** (commit `ad07fd8`,
+  `design/mocks/CONTAI-021.html`, 27 telas). A v2 fechou as três superfícies que
+  faltavam: ciclo da pendência (critérios 20 e 21), ação da tela de CNPJ errado
+  (critério 19) e a correção de obra dos dois lados (critério 13).
 - **Gate Fiscal**: `docs/pareceres/2026-08-18-correcao-de-documento-registrado.md`
   — **APROVADO**. O parecer é normativo; este ticket **transcreve, não
   reinterpreta**.
@@ -64,8 +65,8 @@ descreve: *inventar dado no campo que sobrou*.
 
 ## Critérios de Aceite
 
-1. [ ] **Mock aprovado pelo Mateus** antes do desenvolvimento — **v1 aprovada em
-   19/08**; falta a v2 com as duas superfícies dos critérios 19 e 21. ⚠️ **Régua corrigida em 2026-08-18**:
+1. [x] **Mock aprovado pelo Mateus** antes do desenvolvimento — **v2 aprovada
+   em 19/08** (`ad07fd8`); nada em aberto. ⚠️ **Régua corrigida em 2026-08-18**:
    corrigir nota registrada errada é **gestão em casa, sentado, com calma** —
    cenário **principal**. Avaliar esta tela com "uma mão, com pressa" é medir a
    coisa errada. **375px é piso, não alvo**: pode ter mais campos, mais
@@ -115,9 +116,53 @@ descreve: *inventar dado no campo que sobrou*.
     no acervo** e qual é o caminho (§4 do parecer). Texto com saída declarada
     **não** é o "bloqueio total" que o §4.4 proíbe — o que ele proíbe é impasse
     sem explicação.
-13. [ ] **Retrofit**: `moverDocumentoDeObra` (`/documento/[id]/obra`) hoje é um
-    UPDATE de documento possivelmente vinculado **sem rastro**. Passa pela mesma
-    função. Senão a regra do critério 7 nasce com uma exceção não declarada.
+13. [ ] **Retrofit — mover documento vira ato transacional com escolha por
+    pagamento.** ⚠️ **Isto conserta um bug que está EM PRODUÇÃO**, e o texto
+    anterior deste critério ("passa pela mesma função") subestimava o problema.
+    `moverDocumentoDeObra` (`lib/data.ts`, tela `/documento/[id]/obra`) é um
+    `UPDATE documento SET obra_id` **seco**: não toca em `pagamento.obra_id`,
+    não toca em `pagamento_documento`, não grava rastro. Ele cria pela porta dos
+    fundos o estado que o **critério 11 do CONTAI-018 proíbe** pela porta da
+    frente — vínculo cruzando duas obras —, e `alocarCusto`
+    (`lib/fiscal/vinculo.ts`) o ignora **em silêncio**, sob um comentário que
+    afirma que *"o critério 11 impede que esse caso nasça pela interface"*.
+    Com as **duas obras** que o Mateus tem hoje, o efeito de mover uma nota
+    vinculada é: (1) o custo do ano **cai na origem**; (2) o **"pago sem nota"
+    da origem sobe pelo mesmo valor** — alarme vermelho da meta 1 por um fato
+    que não aconteceu; (3) **nada sobe no destino** (`min(0, valor) = 0`); (4)
+    fica vínculo vivo no banco, invisível nas duas telas. Não é transferência,
+    é evaporação (parecer, **adendo §5.1**, retratação de 19/08).
+
+    **Forma — tela 8 do mock v2, aprovada, e §5.2 do adendo:** mover documento
+    com pagamento vinculado é **UM ato transacional que não conclui com
+    pagamento indeciso**. Para **cada** pagamento vinculado o Mateus escolhe,
+    **um a um, em ato explícito** (a forma que o §4.4 do parecer **manda** usar
+    — cascata silenciosa é proibida):
+    - **(i) "este pagamento também é da obra de destino"** → vai junto
+      (`pagamento.obra_id` muda), com rastro. **É o único desfecho que
+      transfere custo** entre obras;
+    - **(ii) "este pagamento é mesmo da obra de origem"** → **o vínculo se
+      desfaz**, com rastro, e o pagamento volta a "pago sem nota" na origem —
+      que aí é **a verdade**: a nota de outro imóvel nunca comprovou aquele
+      pagamento.
+
+    **Não existe terceira saída.** ⚠️ **Correção de texto de tela exigida pelo
+    §5.2**: *"o total não muda"* só vale quando **todos** os pagamentos
+    acompanham a nota. Em **desfecho misto**, o custo comprovado somado das duas
+    obras **cai legitimamente** (a diferença é o pagamento que ficou sem
+    documento hábil) — a tela não pode afirmar o contrário, e nisto o parecer
+    vence a frase do mock.
+
+    **Gravação**: documento + N pagamentos + N rastros numa **única função
+    Postgres** (critério 9) — falha no meio sem transação é o estado inválido
+    nascendo sozinho (adendo §5.5). As N linhas de `revisao` compartilham um
+    **`ato_id`**: granular no banco, **uma** linha no histórico e **uma** na
+    pendência (critérios 16 e 20). Motivo é `arquivamento_corrigido`, gravado
+    sozinho — **esta tela não pergunta motivo** (adendo §5). **Sem pagamento
+    vinculado** (tela 8b): rastro e aviso, **sem pendência** — não muda número
+    em obra nenhuma (adendo §5.3, que confirma a tela). **Com** pagamento
+    vinculado e delta em **ano anterior**: abre pendência do ano, nas obras
+    cujo número mudou (§5.4).
 14. [ ] **`design/mocks/CONTAI-018.html`, tela s3b**: a dica *"Vem da nota — dá
     para trocar."* sai — o adendo a derruba e o código já não faz isso. É
     correção de mock, uma linha.
