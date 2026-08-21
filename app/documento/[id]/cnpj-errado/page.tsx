@@ -217,7 +217,7 @@ export default function CnpjErrado() {
         <Passo>Ainda não existe no app</Passo>
         <Card>
           <Dica>
-            Trocar o favorecido de um documento é a <strong>rodada 2</strong>
+            Trocar o favorecido de um documento é a <strong>rodada 2</strong>{" "}
             deste trabalho. Enquanto não existir, o caminho honesto é: registre o
             que aconteceu e não force nada.
           </Dica>

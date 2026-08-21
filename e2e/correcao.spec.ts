@@ -541,6 +541,13 @@ test.describe("o ciclo da pendência de retificadora (critério 21)", () => {
     });
 
     await page.goto(`/documento/${documentoId}/cnpj-errado`);
+    // Gate 3: o JSX comia o espaço depois de `</strong>` e a tela lia "rodada
+    // 2deste trabalho" — divergência do mock aprovado (`CONTAI-021.html`,
+    // tela s6c). `getByText` normaliza espaço em branco, mas não INVENTA o que
+    // falta: a frase colada não casa com esta asserção.
+    await expect(
+      page.getByText("é a rodada 2 deste trabalho", { exact: false }),
+    ).toBeVisible();
     await marcar.click();
     await expect(page.getByRole("status")).toContainText("Marcado.");
 
