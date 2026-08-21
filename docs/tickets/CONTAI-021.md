@@ -71,52 +71,52 @@ descreve: *inventar dado no campo que sobrou*.
    cenário **principal**. Avaliar esta tela com "uma mão, com pressa" é medir a
    coisa errada. **375px é piso, não alvo**: pode ter mais campos, mais
    densidade e mais passos que a captura.
-2. [ ] **O link "Corrigir na nota"** (`app/adicionar/pagamento/page.tsx`) leva a
+2. [x] **O link "Corrigir na nota"** (`app/adicionar/pagamento/page.tsx`) leva a
    uma tela que corrige, e volta ao pagamento com o dado novo.
-3. [ ] **Corrigir o valor** — campo único. Antes de gravar, a tela mostra
+3. [x] **Corrigir o valor** — campo único. Antes de gravar, a tela mostra
    **custo confirmado por ano-calendário, antes → depois** (mesmo padrão da tela
    `/desligar`, que já faz isso). Reusa `alocarCusto` sobre cópia com o valor
    novo; nenhuma linha nova em `lib/fiscal/vinculo.ts`.
-4. [ ] **Se a correção muda o custo de um ano anterior ao corrente**, o app grava
+4. [x] **Se a correção muda o custo de um ano anterior ao corrente**, o app grava
    **pendência persistente** — *"esta correção mudou o custo de um ano
    anterior; se a DAA daquele ano já foi entregue, avalie retificadora com seu
    contador"* — que **não some ao fechar a tela** (§6 do parecer: aviso que só
    existe no clique é aviso que não existiu). **O app não decide nem redige
    retificadora — CRC.** Agregação e baixa: critérios **20 e 21**.
-5. [ ] **Corrigir a classificação** (material ↔ mão de obra) — sem trava.
+5. [x] **Corrigir a classificação** (material ↔ mão de obra) — sem trava.
    Muda a composição da discriminação, não o total; a tela diz isso.
-6. [ ] **Corrigir o nome do emitente** — grava em `favorecido.nome`, **com
+6. [x] **Corrigir o nome do emitente** — grava em `favorecido.nome`, **com
    rastro**, e é o **único** caminho pelo qual o nome muda. Resolve a ferida
    deixada aberta em `b807901` (*"nome gravado errado é permanente"*).
    **CNPJ/CPF não tem campo** nesta tela.
-7. [ ] **Toda correção grava rastro antes→depois** — §5 do parecer: campo,
+7. [x] **Toda correção grava rastro antes→depois** — §5 do parecer: campo,
    antes, depois, quando, quem, **motivo** (`erro_de_digitacao_minha` /
    `emitente_corrigiu_a_nota` / `outro`) e **anos afetados**. ⚠️ **Sempre — com
    ou sem pagamento vinculado.** O contador **mudou de posição** aqui: o adendo
    condicionava o rastro ao vínculo, e "ter pagamento vinculado" é estado
    mutável e futuro; rastro não gravado não se recupera.
-8. [ ] **O rastro é append-only na estrutura, não por convenção**: tabela
+8. [x] **O rastro é append-only na estrutura, não por convenção**: tabela
    própria com `insert, select` para `authenticated`, **sem `update`, sem
    `delete`**, e a linha do `ESPERADO` em `e2e/privilegios.spec.ts` **no mesmo
    diff da migration** (senão a suíte fica vermelha com o nome da tabela — é
    para isso que o teste existe).
-9. [ ] **Correção sem rastro é impossível**: as duas escritas (update + rastro)
+9. [x] **Correção sem rastro é impossível**: as duas escritas (update + rastro)
    acontecem numa **função Postgres transacional** criada na mesma migration —
    o PostgREST não dá transação entre tabelas, e das duas ordens possíveis uma
    deixa rastro de correção que não aconteceu e a outra deixa correção sem
    rastro. Mesma filosofia do check `documento_quarentena_coerente`.
-10. [ ] **Se `motivo = emitente_corrigiu_a_nota`**, o documento novo (carta de
+10. [x] **Se `motivo = emitente_corrigiu_a_nota`**, o documento novo (carta de
     correção ou NF substitutiva) é **anexado no mesmo ato**. Sem anexo, não
     grava.
-11. [ ] **Texto de tela para o erro que não é do app** — copiado **literalmente**
+11. [x] **Texto de tela para o erro que não é do app** — copiado **literalmente**
     do §3 do parecer (*"Esse dado está errado na nota, ou só aqui no app?"*),
     incluindo a distinção carta de correção × nota substitutiva. Não reescrever.
-12. [ ] **CNPJ/CPF errado tem saída declarada, sem campo**: a tela explica que
+12. [x] **CNPJ/CPF errado tem saída declarada, sem campo**: a tela explica que
     CNPJ errado **não é typo, é outro favorecido**, que a nota antiga **continua
     no acervo** e qual é o caminho (§4 do parecer). Texto com saída declarada
     **não** é o "bloqueio total" que o §4.4 proíbe — o que ele proíbe é impasse
     sem explicação.
-13. [ ] **Retrofit — mover documento vira ato transacional com escolha por
+13. [x] **Retrofit — mover documento vira ato transacional com escolha por
     pagamento.** ⚠️ **Isto conserta um bug que está EM PRODUÇÃO**, e o texto
     anterior deste critério ("passa pela mesma função") subestimava o problema.
     `moverDocumentoDeObra` (`lib/data.ts`, tela `/documento/[id]/obra`) é um
@@ -195,10 +195,10 @@ descreve: *inventar dado no campo que sobrou*.
     em obra nenhuma (adendo §5.3, que confirma a tela). **Com** pagamento
     vinculado e delta em **ano anterior**: abre pendência do ano, nas obras
     cujo número mudou (§5.4).
-14. [ ] **`design/mocks/CONTAI-018.html`, tela s3b**: a dica *"Vem da nota — dá
+14. [x] **`design/mocks/CONTAI-018.html`, tela s3b**: a dica *"Vem da nota — dá
     para trocar."* sai — o adendo a derruba e o código já não faz isso. É
     correção de mock, uma linha.
-15. [ ] **E2E contra o Postgres local** (regra dura do projeto): correção de
+15. [x] **E2E contra o Postgres local** (regra dura do projeto): correção de
     valor com pagamento vinculado, conferindo pelo mesmo client autenticado (i)
     o valor novo, (ii) a linha de rastro, (iii) o custo por ano recalculado, e
     (iv) que o rastro **não** aceita update nem delete.
@@ -210,13 +210,13 @@ cinco blocos âmbar eram perguntas em aberto. Decididas pelo `po` por delegaçã
 explícita do Mateus. **v2 do mock precisa desenhar só duas coisas** — a escolha
 de desfecho do critério 21 e o botão do critério 19; o resto já está no v1.
 
-16. [ ] **O histórico de correções é EXIBIDO na rodada 1** — card read-only no
+16. [x] **O histórico de correções é EXIBIDO na rodada 1** — card read-only no
     detalhe do documento (`/documento/[id]`), uma linha por correção: quando,
     quem, campo, antes→depois, motivo e anos afetados; vazio diz *"Nenhuma
     correção neste registro."* **Não é tela nova**: é um `select` na tabela do
     critério 7, dentro de tela que já existe. Rastro que só o banco vê não
     cumpre a **meta 3** — quem vai ler isso em 2034 é o Mateus, não o Postgres.
-17. [ ] **Formulário de pagamento pela metade: aviso, não rascunho.** Sair por
+17. [x] **Formulário de pagamento pela metade: aviso, não rascunho.** Sair por
     "Corrigir na nota" com qualquer campo preenchido abre confirmação de dois
     botões nomeados — *"Continuar o pagamento"* (padrão) e *"Sair e corrigir a
     nota — perco o que digitei"* — e o texto dá a saída barata: **o nome do
@@ -226,7 +226,7 @@ de desfecho do critério 21 e o botão do critério 19; o resto já está no v1.
     escopo novo (o **anexo já escolhido não sobrevive à navegação em hipótese
     nenhuma**) e devolve dias depois um formulário sem contexto — o oposto de
     *campo vazio pergunta, campo preenchido afirma*.
-18. [ ] **Nota substitutiva entra como ANEXO ADICIONAL do mesmo registro**, no
+18. [x] **Nota substitutiva entra como ANEXO ADICIONAL do mesmo registro**, no
     mesmo ato da correção de valor, com `motivo = emitente_corrigiu_a_nota`.
     **Não abre registro novo na rodada 1**: o app não tem estado "cancelada" e o
     §1 do parecer proíbe editar `status` — dois documentos vivos para o mesmo
@@ -235,7 +235,7 @@ de desfecho do critério 21 e o botão do critério 19; o resto já está no v1.
     valor veio de qual. **Decisão reversível**: quando o `CONTAI-004` trouxer
     número/série e a anotação da D25 existir, a substitutiva pode virar registro
     próprio *"substitui o documento X"* — sem reabrir gate fiscal.
-19. [ ] **A tela de CNPJ errado oferece UMA ação hoje, e a pendência dela tem
+19. [x] **A tela de CNPJ errado oferece UMA ação hoje, e a pendência dela tem
     lista de desfecho PRÓPRIA.**
 
     **A ação**: *"Marcar: o CNPJ deste registro está errado — tratar"*, que abre
@@ -283,7 +283,7 @@ de desfecho do critério 21 e o botão do critério 19; o resto já está no v1.
     **E2E**: marcar duas vezes → uma linha; baixar com o desfecho manual → sai da
     lista e aparece no histórico **do documento**; marcar de novo depois da baixa
     → pendência **nova**.
-20. [ ] **A pendência de retificadora é por ANO-CALENDÁRIO, não por correção —
+20. [x] **A pendência de retificadora é por ANO-CALENDÁRIO, não por correção —
     e carrega um CONJUNTO DE OBRAS AFETADAS.**
 
     **(a) Acumulação.** Havendo pendência aberta para 2025, toda correção
@@ -334,7 +334,7 @@ de desfecho do critério 21 e o botão do critério 19; o resto já está no v1.
     que existe **uma** pendência de 2025, com **as duas** obras e o delta de cada
     uma; repetir com **todos** os pagamentos ficando na origem e provar que a obra
     de **destino não entra** no conjunto.
-21. [ ] **Só o Mateus baixa a pendência, em ato nomeado, e a baixa não apaga.**
+21. [x] **Só o Mateus baixa a pendência, em ato nomeado, e a baixa não apaga.**
     Botão *"Marcar como tratada"* na tela da pendência, que **exige escolher um
     desfecho** — nunca ao fechar a tela, nunca em lote, nunca automático, nunca
     sugerido pelo app:
@@ -489,3 +489,146 @@ com rastro, o acervo diverge do papel e não é append-only na prática; e serve
 **meta 2**, porque valor errado vai para a discriminação anual.
 **375px continua sendo piso obrigatório** — nenhuma tela pode quebrar no
 celular —, mas "não cabe com uma mão" **não é veto** aqui.
+
+
+## Gate 3 — exercício dos fluxos — 2026-08-21 — **PASS**
+
+Os quatro estados a **375px** (piso, não alvo — a régua de 18/08), na tela real,
+contra o Postgres local, com o caminho do **move com pagamento vinculado** no
+centro, que é o bug que estava em produção.
+
+| Estado | O que foi exercitado | Resultado |
+|---|---|---|
+| **Erro** | move sem destino → botão *"Escolha a obra de destino"* **desabilitado**; com destino e um pagamento indeciso → *"Responda 1 pagamento para continuar"*; **trocar o destino zera as escolhas** e o rótulo volta a *"Responda 2 pagamentos"* | o ato **não conclui com pagamento indeciso**, e nenhuma linha de `revisao` nasce no caminho |
+| **Feliz** | os dois pagamentos `vai_junto` | a frase proibida *"o total não muda"* **não aparece em lugar nenhum**, e o resumo do misto **não** é exibido (não há mistura a narrar) |
+| **Edge** | **Σ pagamentos (12.000) > valor da nota (9.400)** — PIX 6.000 junto, boleto 6.000 fica | a tela afirma *"o custo confirmado, somando as duas obras, **cai R$ 3.400,00**"* e **não** R$ 6.000,00. É o bloqueante 1 do Gate 2 exercitado no caso que o expunha: a queda vem da **alocação**, não da partição dos pagamentos |
+| **Vazio** | documento **sem** pagamento vinculado; `/pendencias` sem nada; histórico de documento nunca corrigido | *"Nenhum número mudou"*, **zero** linhas de ano afetado, **zero** pendências; *"Nenhuma correção neste registro."*; o vazio da lista nomeia **os dois** tipos de pendência |
+
+Depois do move, a cadeia inteira foi percorrida na tela: **home da obra** (delta
+**desta** obra, a outra **nomeada sem valor**) → **lista de pendências** →
+**pendência do ano** (as duas obras, **linhas separadas, nunca somadas**) →
+**histórico do documento** (o ato de 3 linhas de `revisao` aparece como **uma**
+correção, *"com 2 pagamentos"*, com o motivo e o custo de cada obra).
+
+Também exercitadas a 375px: as três ações nomeadas (valor — passos 1/2/3, com o
+antes→depois por ano e o botão que diz a consequência no rótulo; classificação;
+emitente), a tela de CNPJ errado com a marcação idempotente, e o link *"Corrigir
+na nota"* do formulário de pagamento.
+
+**Nenhuma tela rolou na horizontal a 375px** (`scrollWidth - clientWidth ≤ 1`
+verificado em todas), e as tabelas de duas obras rolam **dentro do próprio
+contêiner**.
+
+**Um defeito encontrado e consertado** (`e517cc2`): a tela de CNPJ errado
+renderizava *"rodada 2deste trabalho"* — o JSX come o espaço entre `</strong>` e
+o texto da linha seguinte. Divergia da v2 do mock aprovada
+(`design/mocks/CONTAI-021.html:1392`). Consertado com a asserção que trava a
+regressão no mesmo diff, e varredura do mesmo padrão nas **nove** superfícies do
+ticket, nos dois sentidos: era a **única** ocorrência.
+
+## Gate 4 — validação do `po` — 2026-08-21 — **PASS**, com um loop
+
+⚠️ **Régua**: corrigir nota registrada errada é **gestão, em casa, sentado**
+(`CLAUDE.md`, correção de 18/08, e é do Mateus). **O "Teste do Canteiro" não se
+aplica a esta tela** — 375px é **piso**, não alvo, e mais campos, mais densidade
+e mais passos são legítimos aqui. Foi assim que ela foi medida.
+
+| # | Critério | Veredito | Onde se prova |
+|---|---|---|---|
+| 1 | Mock aprovado antes do desenvolvimento | **PASS** | v2, `ad07fd8`, 19/08 |
+| 2 | O link *"Corrigir na nota"* leva a tela que corrige e volta | **PASS** | `app/adicionar/pagamento/page.tsx:1050,1056` → `?voltar=pagamento` → `voltaHref` |
+| 3 | Valor: custo por ano-calendário, antes → depois | **PASS** | exercitado na tela; `alocarCusto` sobre cópia, zero linha nova em `lib/fiscal/vinculo.ts` |
+| 4 | Pendência persistente quando muda ano anterior | **PASS** | E2E + tela; ela **não some ao fechar** |
+| 5 | Classificação sem trava, e a tela diz que muda composição e não total | **PASS** | `classificacao/page.tsx:340-346` |
+| 6 | Nome do emitente com rastro, **único** caminho | **PASS** | não existe **nenhum** `.update` em `favorecido` no `lib/data.ts` — só o RPC `corrigir_nome_favorecido` |
+| 7 | Rastro antes→depois **sempre**, com ou sem pagamento vinculado | **PASS** | E2E do move sem pagamento: 1 linha de `revisao`, 0 anos afetados |
+| 8 | Append-only **na estrutura** + `privilegios.spec.ts` no mesmo diff | **PASS** | `update` e `delete` devolvem **42501** no E2E; o mapa de privilégios passou a cobrir **função** |
+| 9 | Correção sem rastro é impossível (função transacional) | **PASS** | E2E que chama o RPC direto e prova o **rollback do ato inteiro** |
+| 10 | `emitente_corrigiu_a_nota` exige o anexo no mesmo ato | **PASS** | as **duas** funções exigem (bloqueante 2 do Gate 2 fechou a assimetria) |
+| 11 | Texto do §3 **copiado literalmente** | **PASS** | conferido **palavra por palavra** contra `2026-08-18-correcao-de-documento-registrado.md:65-80`, incluindo *"Peça ao emitente:"* e a distinção carta × substitutiva |
+| 12 | CNPJ errado: saída declarada, **sem campo** | **PASS** | `cnpj-errado/page.tsx` — nenhum input; a saída está escrita |
+| 13 | **Retrofit do move** (o bug em produção) | **PASS** | é o coração do Gate 3, exercitado inclusive com **Σ pagamentos > valor da nota** |
+| 14 | A dica do mock do `CONTAI-018` sai | **PASS** | `8ecbe03` — *"Vem da nota — dá para trocar."* → *"Vem da nota. Se estiver errado, corrige-se na nota."* |
+| 15 | E2E contra o Postgres local | **PASS** | `e2e/correcao.spec.ts`, 9 testes, sem stub |
+| 16 | **Histórico exibido no detalhe do documento** | **FAIL → PASS** | ver o loop abaixo |
+| 17 | Formulário pela metade: aviso, não rascunho | **PASS** | dois botões nomeados, o que se perde listado item a item, e a saída barata dita |
+| 18 | Nota substitutiva como **anexo adicional** do mesmo registro | **PASS** no comportamento; ver ressalva | a tela diz *"o anexo não se substitui; se precisar, anexa-se um adicional"* |
+| 19 | CNPJ errado: **uma** ação, lista de desfecho **própria** | **PASS** | marcar duas vezes → **uma** linha; desfecho da lista errada **recusado pelo banco** |
+| 20 | Pendência por **ano** com **conjunto de obras afetadas** | **PASS** | (a) o move é **uma** linha · (b) o conjunto vem do **rastro** · (c) o **filtro** provado nos dois sentidos · (d) home nomeia a outra **sem valor** · (e) **uma** pendência, não duas · (f) não abre sem pagamento vinculado |
+| 21 | Só o Mateus baixa, em ato nomeado, e a baixa **não apaga** | **PASS** | desfecho é **INSERT**; correção nova depois da baixa abre pendência **NOVA** |
+
+### O loop: critério 16 reprovou, e o que ele era
+
+O card do histórico existia e estava certo em tudo — menos no **motivo**, que
+saía como o **token do enum**: *"motivo: erro de digitacao minha"*, sem acento.
+A v2 do mock aprovada mostra a frase inteira que o Mateus escolheu
+(`design/mocks/CONTAI-021.html:1640-1656, 1779-1793`): *"motivo: eu digitei
+errado no app — o papel está certo"*. Divergência **silenciosa** de mock
+aprovado, nos três lugares em que o rastro é lido por gente — e o rótulo humano
+já existia no mesmo arquivo, **sem uso**.
+
+Não é preciosismo de texto: o critério 16 existe porque *"rastro que só o banco
+vê não cumpre a meta 3"*, e quem abrir esse acervo em **2034** não tem o enum
+`motivo_revisao` à mão para traduzir. O defeito era **invisível** para as
+asserções de estado gravado: o banco estava certo, a tela é que falava enum.
+
+⚠️ **`arquivamento_corrigido` continua exibido como token** — de propósito, e a
+v2 do mock o desenha assim (`:2183, 2258, 2334`): ele é gravado pela **máquina**
+no move, sem pergunta, e não há frase do Mateus para mostrar.
+
+### O que NÃO foi reprovado, e por quê
+
+- **Divergências do mock declaradas no Gate 1/2 são decisão, não desvio** — e
+  todas trazem o motivo escrito ao lado do código: a tabela de classificação sem
+  quebra por ano (o dado não existe no schema; inventá-lo seria o palpite que o
+  ticket proíbe), a linha *"sem classificação"*, o `status` real na tela de CNPJ
+  errado, o alcance do nome sem quebra por ano, o anexo obrigatório nas **três**
+  ações, o resumo do desfecho misto redigido pelo `contador`, a revalidação de
+  CNO, o pagamento impedido de ir junto e o zeramento das escolhas ao trocar o
+  destino.
+- **O mock v2 ficou para trás em vários pontos** — a implementação está à frente
+  dele, e isso **não bloqueia o PASS**; bloqueia quem for desenhar em cima.
+  Registrado como tarefa do `designer` (mesmo tratamento dado ao `CONTAI-019`).
+
+### Log dos gates
+
+| Gate | Commit | Data |
+|---|---|---|
+| **0 — mock** | `ad07fd8` (v2, 27 telas, aprovada pelo Mateus) | 19/08 |
+| **1 — implementar** | `9a088ed` → `67a1bcd` → `3ffbda9` → **`2cefc62`** (4 frentes) | 19-20/08 |
+| **2 — review** | **`29d6144`** — APPROVE do `cto-obra` **e** do `contador`, depois de um loop com **seis bloqueantes** | 20/08 |
+| **3 — fluxo** | **`e517cc2`** — 4 estados a 375px + o defeito do espaço | 21/08 |
+| **4 — validação** | este commit — 21 critérios, **um loop** (`3f04536`) | 21/08 |
+
+**Verificações da rodada final**: `lint` limpo · `typecheck` limpo ·
+`npm run test` **369 passed** · `npx playwright test e2e/correcao.spec.ts`
+**9 passed** · o exercício de Gate 3 (6 cenários a 375px) **passou em 45s**.
+
+⚠️ **Flake conhecido, não é deste ticket**: `e2e/terreno.spec.ts:576`
+(*"o saldo devedor aparece rotulado como fora da declaração"*, CONTAI-010)
+falhou **uma vez** em 21/08, numa rodada da suíte completa que levou **17,4 min**
+contra ~1,8 min normal — máquina sob pressão. **Passou isolada.** O `CONTAI-021`
+não toca terreno nem financiamento.
+
+### Ressalvas que saem daqui vivas
+
+Todas com endereço em `../backlog.md` (seção *"Gates 2 a 4 do CONTAI-021"*):
+**R1** dedupe do array do move · **R2** `alocarCusto` deveria **reportar** o
+vínculo órfão · **R3** trigger concorrente, UUID cru e hora **UTC** no rastro,
+morte do `corrigir-obra.tsx` — **R1 a R3 viram critérios 13-15 do `CONTAI-008`**
+· **R4** pendência do `contador` sobre a repartição do coberto entre documentos
+de **classificações diferentes** (morde o relatório da discriminação, não este
+ticket) · **R5** `p_depois is null` recusado, ratificado **com a condição de
+voltar ao `contador` se aparecer caso real**.
+
+### ⚠️ Release ainda NÃO feito — e a ordem não é negociável
+
+Este ticket traz **migration nova (`0009`)** e **assinatura de função alterada**.
+Quando o Mateus autorizar:
+
+1. `npx supabase db push` — **primeiro**, sempre;
+2. conferir no dashboard (Database → Migrations) que a `0009` entrou;
+3. `git push` — só então a Vercel deploya.
+
+Código na frente da migration quebra em produção **em silêncio para quem
+testou** — foi o incidente de 17/08, com o E2E local verde.

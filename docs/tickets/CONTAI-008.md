@@ -130,11 +130,63 @@ sem nota" por um fato que não aconteceu.
     o total de antes, (iv) o rastro não aceita update nem delete.
 11. [ ] **Regressão do caso benigno**: mover pagamento **sem** vínculo continua
     funcionando exatamente como hoje, **sem atrito novo** — é 99% dos casos.
-12. [ ] **`alocarCusto` deixa de "ignorar em silêncio"**: o comentário de
-    `lib/fiscal/vinculo.ts` que aposta que *"o critério 11 impede que esse caso
-    nasça pela interface"* ou vira verdade (nenhuma porta cria o estado) ou vira
-    comentário honesto. Comentário que afirma uma garantia que o código ao lado
-    não dá é como a tela que promete o que não existe.
+12. [ ] **`alocarCusto` REPORTA o vínculo órfão — não basta "deixar de ignorar
+    em silêncio"**. ⚠️ **Redigido pelo `po` no Gate 4 do `CONTAI-021`
+    (21/08), e o verbo mudou de propósito.** O comentário de
+    `lib/fiscal/vinculo.ts:394-411` já ficou honesto no Gate 1 do `021` — ele
+    diz, por extenso, que o lado do pagamento continua aberto. Só que
+    **comentário honesto não é rede**: enquanto `moverPagamentoDeObra` existir,
+    o estado inválido nasce e o `continue` de `alocarCusto` o engole. Fechar
+    este ticket é fechar a porta; **reportar** é a rede que sobra para o dia em
+    que uma porta nova aparecer. Nenhum vínculo cruzando obras pode ser
+    descartado sem que alguém fique sabendo.
+
+### Herdados do Gate 4 do `CONTAI-021` — 2026-08-21
+
+*O `021` construiu a máquina (`revisao`, `ato_id`, função transacional,
+pendência por ano). Estes três são defeitos **da máquina**, achados no review e
+na validação, que **não seguraram** aquele gate porque são inalcançáveis pela
+tela ou puramente cosméticos hoje. Este ticket escreve a função **espelhada** —
+ela não pode nascer com eles.*
+
+13. [ ] **A guarda do array de decisões conta, não só verifica existência.**
+    Em `supabase/migrations/0009_correcao_documento.sql:762-771`, a guarda de
+    *"o ato não conclui com pagamento indeciso"* pergunta se **existe** desfecho
+    para cada pagamento vinculado — nunca **quantos**. Duas consequências, as
+    duas inalcançáveis pela tela e alcançáveis por **RPC direto**:
+    - `vai_junto` **duplicado** para o mesmo pagamento → o laço de `:780` roda
+      duas vezes e grava **duas linhas de rastro do mesmo fato** (duplicado, mas
+      verdadeiro);
+    - `vai_junto` **+** `fica_na_origem` para o mesmo pagamento → o rastro narra
+      um ato **contraditório**: mudou de obra *e* teve o vínculo desfeito.
+
+    **Conserto de uma linha**: comparar `jsonb_array_length(p_pagamentos)` com o
+    `count(distinct (e ->> 'pagamento_id'))` do mesmo array e recusar quando
+    divergirem. Vale para a função **espelhada** deste ticket e, no mesmo diff,
+    para a do `021`.
+14. [ ] **O rastro do vínculo é legível por gente.** `legivel()`
+    (`app/_components/corrigir.tsx:318-332`) não tem ramo para
+    `campo = "vinculo"`, cujo `antes` é `documento_id::text`
+    (`0009_correcao_documento.sql:823`). Hoje **some**, porque no move do
+    documento a linha principal do ato é sempre `documento:obra`; **aparece** no
+    instante em que este ticket fizer do vínculo a linha principal — e aí o
+    histórico exibe **UUID cru**. Junto: `quandoLegivel()` fatia a string ISO e
+    mostra a hora em **UTC** (17:19 de Florianópolis vira "20:19") numa tela cujo
+    propósito declarado é ser lida em **2034**.
+15. [ ] **`app/_components/corrigir-obra.tsx` não sobrevive a este ticket.** A
+    tela do documento deixou de reusá-lo de propósito no `021`
+    (`app/documento/[id]/obra/page.tsx:75-95`): um lado pergunta o desfecho de
+    cada pagamento, o outro não pergunta nada. Quando este ticket reescrever o
+    lado do pagamento, o componente fica **sem nenhum dono** — e componente
+    compartilhado que sobrou de uma bifurcação é o próximo a receber "só mais um
+    parâmetro".
+
+⚠️ **Nota de concorrência, que NÃO vira critério**: o trigger
+`pendencia_uma_aberta` (`0009_correcao_documento.sql:354-383`) lê antes de o
+outro ter commitado, então dois atos simultâneos podem abrir duas pendências do
+mesmo ano. **É single-user** — está escrito na própria migration, e é por isso
+que não segurou o Gate 2 do `021`. Fica registrado para o dia em que deixar de
+ser.
 
 ## Gate Fiscal (Contador)
 
