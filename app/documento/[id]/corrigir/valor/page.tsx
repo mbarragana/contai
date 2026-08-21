@@ -8,6 +8,7 @@ import {
   ErroEstaNaNota,
   MotivoEscolhidoResumo,
   PassoMotivo,
+  ROTULO_MOTIVO_NO_RASTRO,
   type MotivoEscolhido,
   type RespostaPasso1,
 } from "@/app/_components/corrigir";
@@ -436,7 +437,7 @@ export default function CorrigirValor() {
             </span>
           </Linha>
           <Linha rotulo="motivo">
-            {fase.motivoTexto ?? fase.motivo.replaceAll("_", " ")}
+            {fase.motivoTexto ?? ROTULO_MOTIVO_NO_RASTRO[fase.motivo]}
           </Linha>
           <Linha rotulo="quando, e por quem">no ato da gravação</Linha>
           <Linha rotulo="anos afetados">

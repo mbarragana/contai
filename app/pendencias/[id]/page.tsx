@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { CampoTexto } from "@/app/_components/campos";
+import { ROTULO_MOTIVO_NO_RASTRO } from "@/app/_components/corrigir";
 import { useSessao } from "@/app/_components/sessao";
 import {
   AppBar,
@@ -403,7 +404,8 @@ export default function DetalheDaPendencia() {
                 </div>
                 <div className="text-[12px] text-mut">
                   motivo:{" "}
-                  {principal.motivoTexto ?? principal.motivo.replaceAll("_", " ")}
+                  {principal.motivoTexto ??
+                    ROTULO_MOTIVO_NO_RASTRO[principal.motivo]}
                 </div>
                 {principal.anosAfetados.map((a) => (
                   <div

@@ -125,6 +125,18 @@ test.describe("corrigir o valor de um documento já registrado (critério 15)", 
 
     // E a linha continua exatamente como estava.
     expect((await revisoes(db))[0].depois).toBe("12800.00");
+
+    // (v) O HISTÓRICO mostra o motivo COMO O MATEUS O ESCOLHEU — a frase
+    // inteira do mock aprovado, não o token do enum. Quem lê este acervo em
+    // 2034 (meta 3) não tem o `motivo_revisao` à mão para traduzir
+    // "erro de digitacao minha". Regressão travada aqui porque o defeito era
+    // invisível para as asserções de estado gravado acima: o banco estava
+    // certo, a tela é que falava enum.
+    await page.goto(`/documento/${documentoId}`);
+    await expect(page.getByText("Histórico de correções")).toBeVisible();
+    await expect(
+      page.getByText("motivo: eu digitei errado no app — o papel está certo"),
+    ).toBeVisible();
   });
 
   test("valor igual ao gravado não vira linha de histórico", async ({ page, db }) => {

@@ -51,6 +51,25 @@ export const ROTULO_MOTIVO: Record<MotivoEscolhido, string> = {
 };
 
 /**
+ * O motivo COMO ELE APARECE NO RASTRO (critério 16 e meta 3): quem lê o
+ * histórico em 2034 lê a frase que o Mateus escolheu, não o token do enum.
+ * As três primeiras frases são as do `ROTULO_MOTIVO` — vêm do parecer e do
+ * mock aprovado, e não se reescrevem aqui: reusá-las é o que impede as duas
+ * listas de divergirem.
+ *
+ * ⚠️ `arquivamento_corrigido` é o único que fica com o token legível: ele é
+ * gravado pela MÁQUINA no move de obra, sem pergunta (adendo §5), e a v2 do
+ * mock o mostra assim de propósito. Não há frase do Mateus para exibir.
+ *
+ * Tipado pelo enum do banco: valor novo em `motivo_revisao` quebra o
+ * typecheck aqui, em vez de vazar para a tela como token.
+ */
+export const ROTULO_MOTIVO_NO_RASTRO: Record<MotivoRevisao, string> = {
+  ...ROTULO_MOTIVO,
+  arquivamento_corrigido: "arquivamento corrigido",
+};
+
+/**
  * §3 do parecer, **copiado literalmente**. O ticket é explícito: "Não
  * reescrever." Cada quebra de linha aqui é um parágrafo do parecer.
  */
@@ -371,7 +390,7 @@ function LinhaDoAto({
           : ""}
       </div>
       <div className="text-[12px] text-mut">
-        motivo: {ato.motivoTexto ?? ato.motivo.replaceAll("_", " ")}
+        motivo: {ato.motivoTexto ?? ROTULO_MOTIVO_NO_RASTRO[ato.motivo]}
       </div>
       {ato.anosAfetados.length > 0 ? (
         <div className="text-[12px] text-mut">
