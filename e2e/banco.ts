@@ -621,3 +621,75 @@ export async function arquivosNoAcervo(
   conferir("listar acervo", error);
   return (data ?? []).map((o) => o.name);
 }
+
+/**
+ * Sobe um papel de verdade para o acervo, pelo MESMO client autenticado que o
+ * app usa — é a policy `acervo_dono_insert` que autoriza, como no browser.
+ * Devolve o caminho gravado, que é o que vai para a coluna do lançamento.
+ *
+ * O conteúdo é texto: o teste precisa CONFERIR que o link assinado devolve o
+ * arquivo, e texto é o que dá para comparar sem depender de visualizador de
+ * PDF do navegador.
+ */
+export async function subirParaOAcervo(
+  db: Db,
+  pasta: "documento" | "comprovante" | "terreno" | "informe",
+  nome: string,
+  conteudo: string,
+): Promise<string> {
+  const caminho = `${USER_ID_SEED}/${pasta}/${crypto.randomUUID()}-${nome}`;
+  const { error } = await db.storage
+    .from(BUCKET_ACERVO)
+    .upload(caminho, new Blob([conteudo], { type: "text/plain" }), {
+      contentType: "text/plain",
+    });
+  conferir("subir para o acervo", error);
+  return caminho;
+}
+
+/**
+ * Um objeto que EXISTE no acervo e é de OUTRA conta — o cenário do critério 4.
+ *
+ * ⚠️ Por que isto passa pelo andaime de administrador e não pelo `Db`
+ * autenticado: a policy `acervo_dono_insert` proíbe escrever fora da própria
+ * pasta, e é exatamente essa proibição que o teste NÃO quer contornar. Criar o
+ * papel de outro dono não é comportamento do app — é montagem de ambiente, o
+ * mesmo caso do `limpar` e do "conta sem obra nenhuma".
+ *
+ * E ele precisa EXISTIR: sem a linha, o Storage devolveria 404 porque o objeto
+ * não está lá, e o teste provaria "arquivo inexistente não abre" — que é outra
+ * coisa. Com a linha, quem recusa é `acervo_dono_select`.
+ *
+ * Não há limpeza: a 0002 não tem policy de delete (acervo é append-only) e o
+ * `storage.objects` do stack ainda protege o DELETE por trigger. Quem zera é o
+ * `db reset` do globalSetup.
+ */
+export const DONO_ALHEIO = "99999999-9999-4999-8999-999999999999";
+
+export function plantarObjetoDeOutroDono(nome: string): string {
+  const caminho = `${DONO_ALHEIO}/documento/${nome}`;
+  sqlAdmin(
+    `insert into storage.objects (bucket_id, name, owner_id, metadata)
+     values ('${BUCKET_ACERVO}', ${literalSql(caminho)}, ${literalSql(DONO_ALHEIO)},
+             '{"size": 12, "mimetype": "text/plain"}'::jsonb)
+     on conflict do nothing;`,
+    "plantar objeto de outro dono no acervo",
+  );
+  /**
+   * ⚠️ Conferir que a linha EXISTE, e não é zelo excessivo: sem ela o Storage
+   * devolveria o mesmo 404 por "objeto não existe", e o teste do critério 4
+   * ficaria verde sem ter exercitado policy nenhuma. É o modo exato de este
+   * teste mentir.
+   */
+  const [linha] = consultarAdmin(
+    `select count(*) from storage.objects
+      where bucket_id = '${BUCKET_ACERVO}' and name = ${literalSql(caminho)};`,
+    "conferir o objeto plantado",
+  );
+  if (linha?.[0] !== "1") {
+    throw new Error(
+      `o objeto de outro dono não foi plantado em ${caminho} — o teste do critério 4 provaria "arquivo inexistente", não a policy`,
+    );
+  }
+  return caminho;
+}
