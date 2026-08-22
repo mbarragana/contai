@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 
 import { OBRA_ID_SEED } from "./ambiente";
 import {
+  anexosDeDesembolso,
   criarDesembolsoTerreno,
   criarFinanciamento,
   criarInforme,
@@ -63,6 +64,28 @@ function pdf(nome: string) {
     mimeType: "application/pdf",
     buffer: Buffer.from(`%PDF-1.4 ${nome}`),
   };
+}
+
+/**
+ * Escolhe um papel e responde o que ele é — CONTAI-027, critérios 8 e 14.
+ *
+ * ⚠️ `papel` é obrigatório e **sem default**: sem este segundo passo o
+ * formulário recusa a gravação, e é isso que os testes exercitam.
+ */
+async function anexar(
+  dentro: import("@playwright/test").Locator,
+  rotuloDoCampo: string,
+  nome: string,
+  papel: "Comprovante do pagamento" | "Nota ou recibo" | "Contrato ou escritura",
+) {
+  await dentro
+    .getByLabel(rotuloDoCampo, { exact: true })
+    .setInputFiles(pdf(nome));
+  await dentro
+    .locator(`[data-anexo-novo="${nome}"]`)
+    .getByRole("group", { name: "O que é este papel?" })
+    .getByText(papel, { exact: true })
+    .click();
 }
 
 /** Contrato do cenário — cadastrado uma vez na vida, antes de qualquer informe. */
@@ -358,9 +381,12 @@ test.describe("desembolsos do terreno", () => {
     await page
       .getByLabel("Data em que saiu da conta", { exact: true })
       .fill(`${ANO_BASE}-02-03`);
-    await page
-      .getByLabel("Comprovante", { exact: true })
-      .setInputFiles(pdf("guia-itbi.pdf"));
+    await anexar(
+      page.locator("body"),
+      "Papéis deste desembolso",
+      "guia-itbi.pdf",
+      "Comprovante do pagamento",
+    );
     await page
       .getByRole("button", { name: "Registrar desembolso", exact: true })
       .click();
@@ -377,7 +403,19 @@ test.describe("desembolsos do terreno", () => {
       valor: 12600,
       data_pagamento: `${ANO_BASE}-02-03`,
       estado: "pago",
+      // Um comprovante só: a pergunta do critério 12 nunca apareceu, e nada
+      // foi respondido. `null` aqui é "ninguém perguntou", e é o certo.
+      debitos_mesmo_dia: null,
+      debitos_mesmo_dia_respondido_em: null,
     });
+
+    // ⚠️ O papel foi para a tabela FILHA (migration 0010), com o `papel` que
+    // ele respondeu — a coluna `arquivo_path` do desembolso não existe mais.
+    const papeis = await anexosDeDesembolso(db);
+    expect(papeis).toHaveLength(1);
+    expect(papeis[0].desembolso_id).toBe(gravados[0].id);
+    expect(papeis[0].papel).toBe("comprovante");
+    expect(papeis[0].arquivo_path).toContain("/terreno/");
   });
 
   test("desembolso PAGO sem data é recusado pela tela — a data é o ano", async ({

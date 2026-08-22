@@ -243,6 +243,11 @@ const SQL_LIMPAR = [
   // CONTAI-010 — o informe cai antes do contrato, que cai antes da obra.
   "delete from financiamento_informe;",
   "delete from financiamento;",
+  // CONTAI-027 — a filha cai antes do pai que ela referencia. Ela nasce SEM
+  // DELETE para `authenticated` (migration 0010: o acervo só cresce), então
+  // limpá-la só pode ser andaime de ambiente — é a exceção nomeada do
+  // CLAUDE.md, e não um privilégio que a produção tenha.
+  "delete from terreno_desembolso_anexo;",
   "delete from terreno_desembolso;",
   // CONTAI-019 — as cinco tabelas novas caem ANTES das que elas referenciam.
   // `on delete cascade` já daria conta, mas apagar explícito deixa o erro no
@@ -433,6 +438,32 @@ export async function criarInforme(
     .single();
   conferir("criar informe", error);
   return data!.id;
+}
+
+/**
+ * Um papel pendurado num desembolso — pelo MESMO client autenticado do app, e
+ * é a policy `dono_terreno_anexo` (RLS DERIVADA do pai) que autoriza.
+ */
+export async function criarAnexoDeDesembolso(
+  db: Db,
+  linha: TablesInsert<"terreno_desembolso_anexo">,
+): Promise<string> {
+  const { data, error } = await db
+    .from("terreno_desembolso_anexo")
+    .insert(linha)
+    .select("id")
+    .single();
+  conferir("criar anexo do desembolso", error);
+  return data!.id;
+}
+
+export async function anexosDeDesembolso(db: Db) {
+  const { data, error } = await db
+    .from("terreno_desembolso_anexo")
+    .select("*")
+    .order("created_at", { ascending: true });
+  conferir("ler anexo do desembolso", error);
+  return data!;
 }
 
 export async function desembolsosTerreno(db: Db) {
@@ -665,6 +696,54 @@ export async function subirParaOAcervo(
  * `db reset` do globalSetup.
  */
 export const DONO_ALHEIO = "99999999-9999-4999-8999-999999999999";
+
+/**
+ * Um desembolso do terreno que é de OUTRA CONTA — o cenário que prova a
+ * **RLS DERIVADA DO PAI** de `terreno_desembolso_anexo` (migration 0010).
+ *
+ * ⚠️ Por que isto passa pelo andaime de administrador: montar a conta alheia
+ * não é comportamento do app — é montagem de ambiente, o mesmo caso do
+ * `limpar` e do `plantarObjetoDeOutroDono`. O que o teste NÃO contorna é a
+ * policy: a tentativa de pendurar um anexo aqui é feita pelo client
+ * autenticado do Mateus, exatamente como o app faria.
+ *
+ * A conta e a obra alheias sobrevivem ao `limpar` (ele preserva a obra do seed
+ * e apaga as outras — esta cai junto, e é recriada por `on conflict do
+ * nothing`). Quem zera de vez é o `db reset` do `globalSetup`.
+ */
+export function plantarDesembolsoDeOutroDono(): string {
+  const obraAlheia = "99999999-0000-4000-8000-000000000001";
+  const desembolsoAlheio = "99999999-0000-4000-8000-000000000002";
+  sqlAdmin(
+    `insert into auth.users (
+       instance_id, id, aud, role, email, encrypted_password,
+       email_confirmed_at, created_at, updated_at,
+       raw_app_meta_data, raw_user_meta_data,
+       confirmation_token, recovery_token, email_change_token_new,
+       email_change, email_change_token_current, phone_change,
+       phone_change_token, reauthentication_token
+     ) values (
+       '00000000-0000-0000-0000-000000000000',
+       ${literalSql(DONO_ALHEIO)},
+       'authenticated', 'authenticated', 'outra-conta@contai.local',
+       crypt('nao-usada-em-lugar-nenhum', gen_salt('bf')),
+       now(), now(), now(), '{}'::jsonb, '{}'::jsonb,
+       '', '', '', '', '', '', '', ''
+     ) on conflict (id) do nothing;
+
+     insert into obra (id, user_id, nome, data_inicio_obra)
+     values (${literalSql(obraAlheia)}, ${literalSql(DONO_ALHEIO)},
+             'Obra de outra conta', '2026-01-10')
+     on conflict (id) do nothing;
+
+     insert into terreno_desembolso (id, user_id, obra_id, tipo, valor, estado)
+     values (${literalSql(desembolsoAlheio)}, ${literalSql(DONO_ALHEIO)},
+             ${literalSql(obraAlheia)}, 'entrada', 1000, 'previsto')
+     on conflict (id) do nothing;`,
+    "plantar desembolso de outro dono",
+  );
+  return desembolsoAlheio;
+}
 
 export function plantarObjetoDeOutroDono(nome: string): string {
   const caminho = `${DONO_ALHEIO}/documento/${nome}`;

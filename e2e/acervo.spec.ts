@@ -1,6 +1,7 @@
 import { OBRA_ID_SEED, USER_ID_SEED } from "./ambiente";
 import {
   anexosDoDocumento,
+  criarAnexoDeDesembolso,
   criarDesembolsoTerreno,
   criarDocumento,
   criarFavorecido,
@@ -168,18 +169,27 @@ test.describe("abrir o papel do acervo (critérios 2 e 3)", () => {
       "comprovante-entrada.txt",
       "entrada do terreno",
     );
-    await criarDesembolsoTerreno(db, {
+    // ⚠️ CONTAI-027 rodada 2: o papel vive na tabela FILHA. A coluna
+    // `arquivo_path` do desembolso morreu na migration 0010.
+    const desembolsoId = await criarDesembolsoTerreno(db, {
       tipo: "entrada",
       valor: 60000,
       estado: "pago",
       data_pagamento: "2026-08-12",
+    });
+    await criarAnexoDeDesembolso(db, {
+      desembolso_id: desembolsoId,
       arquivo_path: arquivoPath,
+      papel: "comprovante",
     });
 
     await page.goto(`/obras/${OBRA_ID_SEED}/terreno`);
 
     const item = anexo(page, arquivoPath);
     await expect(item).toContainText("comprovante-entrada.txt");
+    // Critério 14 — o papel aparece ao lado do nome: é ele que responde, em
+    // 2034, qual papel sustenta o quê.
+    await expect(item).toContainText("Comprovante do pagamento");
     await expect(
       item.getByRole("button", { name: "Abrir", exact: true }),
     ).toBeVisible();

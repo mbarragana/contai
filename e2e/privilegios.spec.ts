@@ -67,11 +67,18 @@ const ESPERADO: Record<string, string> = {
   // tabela criada no stack local do CLI sai com tudo liberado para `anon` e
   // `authenticated` pelo `alter default privileges`, e no remoto sai com nada.
   //
-  // UPDATE serve a UM ato, e ele TEM caminho na tela: COMPLETAR a data de
-  // pagamento (e o comprovante) de um desembolso que ficou sem ela — critério
-  // 23, `completarDesembolsoTerreno`. Sem ele, a pendência de complemento não
-  // teria como ser resolvida pela tela, e correção que exige SQL é a dor D9 de
-  // volta. Sem DELETE: acervo append-only.
+  // ⚠️ O UPDATE serve a DOIS atos desde o CONTAI-027 (migration 0010), e os
+  // dois TÊM caminho na tela:
+  // 1. COMPLETAR a data de pagamento de um desembolso que ficou sem ela —
+  //    critério 23 do CONTAI-010, `completarDesembolsoTerreno`. Sem ele, a
+  //    pendência de complemento não teria como ser resolvida pela tela, e
+  //    correção que exige SQL é a dor D9 de volta.
+  // 2. RESPONDER (e re-responder) a pergunta do critério 12 do CONTAI-027 —
+  //    `debitos_mesmo_dia`. A resposta muda quando o conjunto de fatos muda
+  //    (§6 do parecer de 21/08), e por isso é coluna com UPDATE, não linha
+  //    append-only: uma resposta superada não foi *corrigida*.
+  // O VALOR continua sem caminho de correção — é isso que deixa a pendência do
+  // critério 12a sem baixa. Sem DELETE: acervo append-only.
   terreno_desembolso: "INSERT,SELECT,UPDATE",
   // ⚠️ SEM UPDATE nas duas, e a ausência é a decisão (revisão de 2026-08-19).
   // Não existe `.update()` para elas em `lib/data.ts`: o grant não entregava o
@@ -106,6 +113,20 @@ const ESPERADO: Record<string, string> = {
   pendencia: "INSERT,SELECT",
   // O desfecho é o fato que fica legível em 2034.
   pendencia_desfecho: "INSERT,SELECT",
+
+  // ── CONTAI-027 (migration 0010) ────────────────────────────────────────
+  // ⚠️ SEM UPDATE e SEM DELETE, como `documento_anexo`, e a ausência é a
+  // decisão: o acervo só cresce. Papel anexado não é corrigido por cima de
+  // outro — anexa-se adicional (critério 9b) —, e "tirar da lista" só existe
+  // ANTES do Gravar, quando nada subiu ainda. O bucket também é append-only
+  // (a 0002 não tem policy de delete): dar DELETE aqui deixaria linha e objeto
+  // em desacordo, com o objeto órfão e invisível.
+  //
+  // ⚠️ Esta tabela é a primeira do repo SEM `user_id` próprio: o dono é
+  // DERIVADO do pai, na policy. Decisão do `cto-obra` — com coluna própria, o
+  // anexo de uma conta pendurado no desembolso de outra é representável; sem
+  // ela, é impossível.
+  terreno_desembolso_anexo: "INSERT,SELECT",
 };
 
 /**
@@ -154,6 +175,18 @@ const FUNCOES_ESPERADAS: Record<string, string> = {
   // extraindo o corpo para uma função normal), a linha abaixo tem de mudar no
   // mesmo diff — e é para isso que ela está escrita e não omitida.
   pendencia_uma_aberta_por_chave: "PUBLIC,anon,authenticated",
+
+  // ── CONTAI-027 (migration 0010) ────────────────────────────────────────
+  // O ato de gravação: pai + N filhas + a resposta do critério 12, numa
+  // transação só. Existe porque dois INSERTs deixam órfão no meio dos N anexos
+  // — e ali a pendência do critério 15 NÃO acende, porque já existe anexo.
+  terreno_desembolso_gravar: "authenticated",
+
+  // A função do trigger que carimba a data da resposta com o `now()` do
+  // SERVIDOR. Mesmo caso de `pendencia_uma_aberta_por_chave`: `returns
+  // trigger`, o Postgres recusa chamada direta, e o privilégio é inofensivo —
+  // declarado aqui, não silenciado.
+  terreno_desembolso_datar_resposta: "PUBLIC,anon,authenticated",
 };
 
 test.describe("privilégios do schema public", () => {
