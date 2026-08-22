@@ -17,10 +17,20 @@ de lugar.
 empreiteira** que chegar com **recibo + comprovante** (dois papéis, um
 desembolso) — a partir daí, a escolha é anexar um e perder o outro.
 
-- **Gate 0 (mock)**: ⚠️ **PENDENTE — rodar `/design` antes do `/develop`.**
-  Não existe mock. É o critério de aceite nº 1.
+- **Gate 0 (mock)**: ✅ **`design/mocks/CONTAI-027.html` aprovado pelo Mateus em
+  2026-08-21**, já **com o corte do critério 13 dentro**.
 - **Gate Fiscal**: `contador`, 2026-08-21 — **transcrito na íntegra abaixo**.
   Derrubou duas exigências que o `po` tinha proposto.
+- ⚠️ **Adjudicação fiscal de 2026-08-21 — a regra deste ticket mudou.**
+  Fonte: `docs/pareceres/2026-08-21-gate-fiscal-contai-027-criterio-13.md`.
+  O corte do **critério 13** foi decidido *dentro* do Gate 0 e ficou **um dia
+  sem existir em arquivo nenhum**: o ticket seguiu contradizendo um mock já
+  aprovado. O parecer adjudica pelo mérito — **o corte está CONFIRMADO**, com
+  **fundamentação corrigida**: o argumento *"a discriminação não é transmitida
+  pelo app"* está **REJEITADO** (§2 do parecer) e **não pode ser reusado em
+  ticket, mock ou tela** — ele derrubaria junto o bloqueio do compromisso
+  vencido, que está de pé. Esta revisão do ticket executa o **§8** do parecer.
+  **Regra fiscal e texto de tela deste ticket vêm de lá, não daqui.**
 - **Viabilidade**: `cto-obra`, 2026-08-21 — aprovado, com **uma discordância de
   formato registrada** (ele queria dois tickets; ver "Por que um ticket só").
 
@@ -95,9 +105,11 @@ que ele pediu.
 
 ### Rodada 0 — o portão
 
-1. [ ] **Mock em `design/mocks/CONTAI-027.html` aprovado pelo Mateus.** Cobre as
-       duas rodadas num desenho só: lista de anexos com **Abrir** em cada um, e o
-       formulário aceitando mais de um arquivo. **PENDENTE: rodar `/design`.**
+1. [x] **Mock em `design/mocks/CONTAI-027.html` — APROVADO pelo Mateus em
+       2026-08-21.** Cobre as duas rodadas num desenho só: lista de anexos com
+       **Abrir** em cada um, e o formulário aceitando mais de um arquivo. O mock
+       aprovado já traz **o corte do critério 13** e o **critério 9b**; era o
+       ticket que estava desatualizado, não ele.
 
 ### Rodada 1 — abrir o anexo (D35). Sem migration.
 
@@ -126,26 +138,198 @@ que ele pediu.
        não ganha passo nenhum a mais.
 9. [ ] Depois de gravado, o desembolso **lista todos os anexos**, cada um com
        **Abrir** (o componente da rodada 1).
+
+**9b.** [ ] **Anexar papel DEPOIS, num desembolso já gravado.** O papel que
+chega dias depois — o recibo que o vendedor mandou no WhatsApp, a escritura —
+tem lugar. **Sem tela nova**: é a **mesma ação que hoje completa a data**
+(`completarDesembolsoTerreno`), agora disponível também para desembolso que
+**já tem data e já tem papel**.
+
+- Cada papel novo entra **por INSERT na tabela filha — nunca substituição, nunca
+  remoção**. O acervo é append-only, e um papel anexado não é corrigido por cima
+  de outro.
+- O anexo novo pede o **`papel`** dele (critério 14), obrigatório e sem default,
+  como qualquer outro.
+- Se o anexo novo for o **segundo `Comprovante do pagamento`**, ele **dispara a
+  pergunta do critério 12** ali mesmo — *"no mesmo ato de registro ou dias
+  depois, indiferente"* (parecer de 2026-08-21, §6).
+
+Está no mock aprovado (tela `2d`). O ticket já mandava isso sem ter percebido:
+*"anexo vira INSERT na filha"*, em Arquivos prováveis.
+
 10. [ ] **Nenhum campo de valor por anexo.** O valor do lançamento é digitado
         **uma vez**, no lançamento. (Gate Fiscal §1 — a soma dos anexos é
         exigência inventada e está **derrubada**.)
 11. [ ] **Nenhum campo de data por anexo.** (Gate Fiscal §2 — data por anexo é
         campo que só existe se ele digitar, que ninguém confere, e que o app
         trataria como fato: seria **fabricar a evidência que o app não tem**.)
-12. [ ] ⚠️ **A pergunta do segundo anexo**: ao anexar o **segundo** arquivo, o app
-        faz **uma** pergunta binária, **obrigatória e sem default**: *"esses
-        débitos saíram todos no dia [data do lançamento]?"*
-        - **Sim** → grava, fim.
-        - **Não** → **grava assim mesmo** e abre pendência
-          **"lançamento com débitos em datas diferentes"**.
-        **Recusar a gravação está proibido** (adendo 2: *"nunca recuse o registro
-        de um fato consumado"*).
-13. [ ] A pendência do critério 12 **bloqueia a geração da discriminação daquele
-        ano** até ser resolvida — mesmo mecanismo do compromisso vencido. Não
-        trava a captura; trava a declaração, que é onde o erro custa.
-14. [ ] **Campo `papel` por anexo**, conjunto fechado e curto (2–3 valores),
-        **obrigatório e sem default**. Ele não alimenta apuração nenhuma —
-        existe para o dossiê responder, em 2034, **qual papel sustenta o quê**.
+12. [ ] ⚠️ **A pergunta binária — dispara por PAPEL, nunca por contagem de
+    arquivos.** ⚠️ **A redação anterior deste critério (*"ao anexar o
+    segundo arquivo"*) está ERRADA e foi substituída** — ela voltou a contar
+    arquivos, e o §2 do Gate Fiscal exige que a pergunta seja **sobre o
+    lançamento**. Vale a tabela de disparo do **§6 do parecer de
+    2026-08-21**:
+
+    | | Regra |
+    |---|---|
+    | ✅ **Dispara** | quando o lançamento passa a ter **dois papéis marcados `Comprovante do pagamento`** — no mesmo ato de registro ou dias depois, indiferente |
+    | ✅ **Uma vez por ato** | três comprovantes de uma vez perguntam **uma vez só**. Não é por arquivo |
+    | ✅ **Dispara de novo** | se a resposta vigente era *"tudo no dia X"* e chega **comprovante novo**: o fato mudou, e o app **não carrega adiante um "sim" que não sustenta mais** |
+    | ❌ **Nunca** | para `Nota ou recibo` nem `Contrato ou escritura` |
+    | ❌ **Não** | se a pendência **já está aberta** — ele já respondeu |
+    | ❌ **Represada** | enquanto o desembolso **não tiver data**; dispara **junto com o preenchimento da data** |
+
+    A pergunta é **obrigatória, sem default e sem pré-seleção**, as duas
+    opções com o **mesmo peso visual**. Texto **copiado do §4a do parecer**,
+    literalmente — `[data]` é substituição do app:
+
+    ```
+    Quando esse dinheiro saiu da sua conta?
+    ```
+    ```
+    Tudo em [data do lançamento, dd/mm/aaaa]
+    ```
+    ```
+    Em mais de um dia
+    ```
+
+    Consequência (âmbar), **abaixo** das opções:
+
+    ```
+    Cada dia em que o dinheiro saiu é um pagamento com a sua própria data — e é a
+    data que decide em que ano o custo entra. Se foi em mais de um dia, o registro
+    é gravado do mesmo jeito e fica uma pendência.
+    ```
+
+    Nota de apoio:
+
+    ```
+    Não é retrabalho: dois débitos em dias diferentes são dois fatos, e o app não
+    tem como saber quanto foi em cada dia — nem deve fingir que tem.
+    ```
+
+    ⚠️ **A consequência não lidera pela punição, e isso é decisão, não
+    estilo** (§4a): *"frase que começa pelo castigo ensina a responder o que
+    escapa dele — e, com o bloqueio fora, a qualidade dessa resposta é a
+    única defesa que sobrou."*
+
+    - **"Tudo em [data]"** → grava, **e grava a resposta** (critério 12b).
+    - **"Em mais de um dia"** → **grava assim mesmo** e abre a pendência
+      **"Um lançamento, mais de uma data"** (critério 12a).
+
+    **Recusar a gravação está proibido** (adendo 2: *"nunca recuse o registro
+    de um fato consumado"*).
+
+**12a.** [ ] ⚠️ **A pendência — e a ação nomeada tem DUAS metades.** Texto **copiado
+do §4b do parecer**, literalmente. Chip/título, em **vermelho**:
+
+```
+Um lançamento, mais de uma data
+```
+
+Corpo:
+
+```
+Você respondeu que o dinheiro saiu em mais de um dia, e este lançamento tem
+R$ [valor] numa data só. É a data do pagamento que decide o ano do custo.
+```
+
+**A segunda metade da ação nomeada** (vermelho, logo abaixo) — **ela
+existe, e não é opcional**:
+
+```
+Ainda não dá para arrumar aqui: o app não corrige o valor de um desembolso do
+terreno já gravado. Não registre os lançamentos separados antes disso —
+enquanto este continuar com os R$ [valor], os novos somam por cima e o custo do
+terreno fica maior do que foi.
+```
+
+E a saída, quando ela existir:
+
+```
+Quando a correção de valor existir: corrija este para o que saiu na primeira
+data e registre um lançamento para cada uma das outras.
+```
+
+**Por que a segunda metade é obrigatória** (§4b): cumprir só a primeira —
+registrar os lançamentos separados sem corrigir o original — **soma o
+valor duas vezes**. Custo inflado em Bens e Direitos é **redução indevida
+de ganho de capital, cobrada com multa**. *"Pendência que nomeia meia
+ação induz o erro pior que a original."*
+
+❌ **Sem "ok, entendi"**: não se dispensa, não se adia, não se esconde.
+**A pendência não tem baixa hoje** e o app **não oferece nenhuma** (§5 do
+parecer) — *"pendência fiscal baixada por declaração de intenção é o
+campo preenchido que afirma o que ninguém conferiu, com um botão na
+frente"*.
+
+**12b.** [ ] ⚠️ **A resposta se grava — sempre, inclusive o "sim" — com a data em que
+foi dada.** **É requisito fiscal, não de UI** (§4d do parecer). O
+`"tudo no dia [data]"` **não pode ser apenas a ausência de pendência**.
+Razão, por extenso: o corte do critério 13 se apoia em *"erro nomeado é
+melhor que erro invisível"*; se o "sim" não deixa rastro, **ele É o erro
+invisível**, e em 2034 ninguém distingue *"ele afirmou que foi tudo no
+mesmo dia"* de *"ninguém perguntou"* — a primeira é declaração do
+contribuinte, a segunda é lacuna do sistema. Quando a pergunta dispara de
+novo (§6), **a resposta nova é gravada sem apagar a anterior** — o acervo
+é append-only.
+
+**12c.** [ ] ⚠️ **Onde a pendência aparece — três superfícies, e ela é
+INDISPENSÁVEL.** Com o critério 13 fora, a visibilidade é o que resta
+(§3.4 e §4b): **home**, **card do desembolso** e **lista de revisão
+pré-declaração**. Em nenhuma delas ela é dispensável, adiável ou
+colapsável.
+
+- **Home** e **card do desembolso** existem hoje — é onde o critério fecha nesta
+  rodada.
+- A **lista de revisão pré-declaração** e a saída da discriminação são da
+  **US-004**; a exigência **viaja com elas** e está anotada em Dependências.
+  Enquanto a US-004 não existir, este critério fecha nas duas superfícies que
+  existem — **e nenhuma tela promete a terceira**.
+
+**12d.** [ ] ⚠️ **O aviso que acompanha a discriminação do ano fica FORA da área
+copiável** — banner acima de tudo e uma linha por lançamento afetado,
+entre o banner e o bloco. Texto **copiado do §4c do parecer**.
+**Nenhum texto de pendência, alerta ou instrução nossa entra em área
+copiável, neste ou em qualquer relatório** — o bloco é colado literalmente
+na ficha Bens e Direitos, e aviso lá dentro vira **texto declarado à RFB**
+(IN SRF 84/2001, art. 17). **Regra geral, não exceção deste ticket.**
+Vale a partir da **US-004** (ver 12c).
+
+13. [—] ~~A pendência do critério 12 bloqueia a geração da discriminação daquele
+        ano.~~ ⛔ **CORTADO desta rodada em 2026-08-21** — a pendência **não tem
+        fato de baixa no app** (o app não corrige valor de desembolso já gravado),
+        e o bloqueio **só morde quem respondeu a verdade**. Fundamento inteiro em
+        `docs/pareceres/2026-08-21-gate-fiscal-contai-027-criterio-13.md`, §3.
+        ➡️ **MIGRA, na forma exata em que estava escrito, para o ticket de
+        correção de valor de desembolso do terreno** — lá a pendência terá baixa e
+        a trava passa a ser legítima. **A compensação é temporal, não conceitual.**
+        ⚠️ **Não reimplemente este critério aqui.** No lugar dele ficam os
+        critérios **12a–12d**.
+14. [ ] **Campo `papel` por anexo** — **obrigatório, sem default, conjunto
+        fechado de TRÊS valores**, fixados no §7 do parecer de 2026-08-21:
+
+        | Valor | Rótulo em tela | O que sustenta |
+        |---|---|---|
+        | `comprovante` | **Comprovante do pagamento** | condição 1 — que o dinheiro saiu, quando, e da conta dele. **É o único que dispara a pergunta do critério 12** |
+        | `nota` | **Nota ou recibo** | condição 3 — o que foi adquirido, por quanto, em nome de quem |
+        | `contrato` | **Contrato ou escritura** | o título e o preço contratado: escritura, contrato de financiamento, matrícula, guia de ITBI |
+
+        Ele não alimenta apuração nenhuma — existe para o dossiê responder, em
+        2034, **qual papel sustenta o quê**. **Por que três e não dois**: no
+        terreno o papel de título é peça própria e frequente. **Por que não
+        quatro**: taxonomia grande faz o segundo papel não ser anexado, e o ticket
+        que existe para completar o acervo passaria a esvaziá-lo (pre-mortem nº 1).
+        ⚠️ **Valor novo neste conjunto exige parecer do `contador`** — mesma
+        contrapartida da **D32** para o enum de pendência.
+        ⚠️ **Armadilha desarmada pelo §7**: o §3 do Gate Fiscal manda oferecer
+        *"registre isto como `documento`"* quando o usuário marca um anexo como
+        nota/recibo — **isso vale para `pagamento` e NÃO para
+        `terreno_desembolso`**. O desembolso do terreno tem natureza própria:
+        alimenta **só** a apuração de custo, **nunca** a base de aferição,
+        **nunca** o headline de risco, **nunca** Pagamentos Efetuados, e **não tem
+        pendência de "pago sem nota"**. Construir a oferta na tela do terreno
+        criaria **pendência falsa onde o acervo está completo**.
 15. [ ] **Pago sem anexo continua VISÍVEL.** A pendência de complemento
         (critério 23 do `CONTAI-010`) passa a derivar de *"não existe anexo"* na
         tabela filha, **não** de `arquivo_path is null`. Teste próprio, montando
@@ -165,7 +349,16 @@ que ele pediu.
   registrando os lançamentos certos. Desdobrar sozinho mexe em valor e data de
   registro já gravado — território do `CONTAI-024`/`CONTAI-025`, e, se o ano já
   foi declarado, **exige CRC e retificadora** (Gate Fiscal §6). **Registrado como
-  D38**, sem ticket.
+  D38** no `docs/backlog.md`, sem ticket.
+- **Corrigir o VALOR de um desembolso do terreno já gravado** — não existe hoje
+  (`completarDesembolsoTerreno` completa a **data** e diz por extenso que **o
+  valor não é tocado**), e **continua não existindo neste ticket**. É o motivo
+  pelo qual a pendência do critério 12a **não tem baixa** e o critério 13 caiu.
+  ➡️ **Ticket novo, a criar** (§5 do parecer de 2026-08-21): rastro append-only da
+  alteração, e — se o lançamento for de **ano-calendário já declarado** — tela que
+  **pergunta o ano** e diz que a correção é **retificadora e exige CRC**.
+  *"Corrigir número de ano declarado dentro do app, calado, é o app fabricando
+  divergência entre o que ele mostra e o que foi entregue à RFB."*
 - **N anexos em `pagamento`** — o molde fica decidido aqui, a aplicação vem com a
   dor da medição. Copiar o molde é ~1 dia.
 - **N anexos em `financiamento_informe`** — **cortado com fundamento**: o extrato
@@ -228,7 +421,11 @@ que o app não tem — o defeito que a meta 1 existe para impedir. **Não peça 
 por anexo**."*
 
 **O que é implementável** — pergunta sobre o **lançamento**, não sobre os
-arquivos: é o **critério 12**, e o **dente** dela é o **critério 13**.
+arquivos: é o **critério 12**. **O dente que eu havia posto no critério 13
+(bloquear a discriminação do ano) não vai nesta rodada** — ele não tem caminho de
+baixa e só morde quem responde a verdade; ver o parecer de 2026-08-21. Fica no
+lugar: pendência indispensável em três superfícies, aviso fora da área copiável,
+e a resposta gravada nos dois casos.
 
 *"Isso resolve a tensão dos dois cenários do `CLAUDE.md`: não trava a captura no
 canteiro, trava a gestão em casa — que é onde a declaração se monta."*
@@ -264,7 +461,12 @@ default — não pela apuração, que não o consulta, mas pelo dossiê"*.
 *"A discriminação carrega composição — total do ano, materiais × mão de obra,
 CNO — e **nunca listou nota por nota**, muito menos arquivo por arquivo. A
 quantidade de anexos é invisível ali."* O único caminho pelo qual o ticket toca a
-discriminação é o §2, e **é por isso que a pendência bloqueia o relatório**.
+discriminação é o §2.
+
+⚠️ **Correção de 2026-08-21**: a frase original terminava em *"e é por isso que a
+pendência bloqueia o relatório"*. **O bloqueio saiu** (critério 13). O que a
+pendência faz na discriminação passa a ser **avisar, fora da área copiável** —
+critério **12d**, texto no §4c do parecer de 2026-08-21.
 
 > **Se** um lançamento tem N anexos, **então** no índice do dossiê: cada anexo é
 > **linha própria com hash SHA-256** e papel; **o valor aparece uma única vez, na
@@ -283,10 +485,16 @@ como filho exclusivo do lançamento, ele resolve 1→N e **fecha a porta de N→
 
 ### §6 — Automático × humano × CRC
 
-- **Sistema sozinho**: gravar N anexos sem exigir soma e sem pedir valor por
-  anexo; fazer a pergunta binária ao segundo anexo; gravar sempre e abrir a
-  pendência; bloquear a discriminação do ano; manter o recibo fora dos anexos do
-  pagamento; montar o índice do dossiê.
+- **Sistema sozinho** — ⚠️ **lista substituída em 2026-08-21 (§9 do parecer)**;
+  a redação anterior dizia *"fazer a pergunta binária ao segundo anexo"* e
+  *"bloquear a discriminação do ano"*, e as duas caíram: disparar a pergunta
+  **pela regra do §6** (dois papéis `Comprovante do pagamento`); gravar sempre,
+  com pendência ou sem ela; **gravar a resposta e a data dela**; manter a
+  pendência **indispensável nas três superfícies**; imprimir o aviso **fora** do
+  bloco copiável; **não** desdobrar lançamento nenhum; **não** oferecer baixa.
+  Somam-se as que não mudaram: gravar N anexos sem exigir soma e sem pedir valor
+  por anexo; manter o recibo fora dos anexos do pagamento; montar o índice do
+  dossiê.
 - **Só o Mateus**: responder se os débitos são do mesmo dia — *"o app não tem
   como saber, e não deve fingir que tem"* — e dizer qual papel é qual.
 - **Exige CRC**: desdobrar lançamento de **ano já declarado** (retificadora).
@@ -351,8 +559,16 @@ Rodada 1 isolada é **S**.
    para completar o acervo passou a esvaziá-lo. **Mitigação**: critério 14 fixa
    2–3 valores.
 2. **A pergunta do critério 12 virou clique automático no "sim"**, e o
-   lançamento com duas datas passou silencioso. **Mitigação**: sem default, e o
-   dente é o bloqueio da discriminação — não o aviso.
+   lançamento com duas datas passou silencioso. ⚠️ **Este risco ficou SEM
+   MITIGAÇÃO MECÂNICA em 2026-08-21**, e o parecer diz isso com todas as letras
+   (§3.4): *"o pre-mortem nº 2 do `po` fica sem mitigação mecânica e passa a
+   depender de texto na tela. Isso é mais fraco, e eu não vou fingir que não é."*
+   O que resta: pergunta **sem default e sem pré-seleção**, consequência que
+   **não lidera pela punição**, pendência **indispensável em três superfícies**,
+   **aviso fora da área copiável**, e a **regravação da pergunta quando o fato
+   muda** (§6). **A mitigação mecânica volta com o critério 13**, no ticket de
+   correção de valor. Quem for medir este ticket no Gate 4 mede o que está aqui —
+   não o bloqueio.
 3. **A rodada 2 entrou e a rodada 1 ficou para depois.** Aí sim ele anexa três
    papéis que não consegue abrir, que é o cenário nomeado no relato como *"meio
    caminho para acervo inútil"*. **Mitigação**: a ordem é critério, não sugestão.
@@ -373,6 +589,13 @@ Rodada 1 isolada é **S**.
 ## Dependências
 
 - **Bloqueia**: o ticket de N anexos em `pagamento` (medição), ainda sem ID.
+- **Transfere para**: o ticket de **correção de valor de desembolso do terreno**
+  (a criar, ainda sem ID) — recebe o **critério 13 inteiro** e, com ele, a
+  **meta 2** deste ticket.
+- **Aguarda a US-004** (relatórios anuais): a **lista de revisão pré-declaração**
+  (critério 12c) e o **aviso fora da área copiável** (critério 12d) só têm
+  superfície quando ela existir. Enquanto não existir, este ticket fecha nas duas
+  superfícies que existem — e **nenhuma tela promete a terceira**.
 - **Bloqueado por**: nada na fila. ⚠️ **Mas a rodada 2 exige que a migration
   `0009` (do `CONTAI-021`) esteja no remoto** — as duas sobem juntas.
 - **Restringe**: `CONTAI-011` (dossiê) — o §4 do Gate Fiscal é requisito de lá.
@@ -380,16 +603,16 @@ Rodada 1 isolada é **S**.
 
 ## Perguntas Abertas — nenhuma para o Mateus
 
-1. **Ao `contador`, no `/design`**: quais são os **2–3 valores** do campo `papel`?
-   O parecer fixou "curto e fechado" e nomeou dois usos (comprovante de
-   transferência; recibo/nota) — falta o terceiro, se existir (contrato,
-   escritura, boleto).
-2. **Ao `cto-obra`, no Gate 1**: a pendência do critério 12 entra como **valor
+⚠️ **A pergunta nº 1 (os valores do campo `papel`) foi RESPONDIDA** no §7 do
+parecer de 2026-08-21 e virou o **critério 14**: `comprovante` / `nota` /
+`contrato`. Removida daqui para não voltar como pergunta já fechada.
+
+1. **Ao `cto-obra`, no Gate 1**: a pendência do critério 12 entra como **valor
    novo no enum `tipo_pendencia`** da `0009` (o que exige a contrapartida em
    `docs/pareceres/`, pela **D32**), ou é estado derivado de uma coluna no
    próprio desembolso? A `0009` ainda não está no remoto — a janela para alterar
    o enum sem migration extra é agora.
-3. **Ao `cto-obra`, no Gate 1**: `terreno_desembolso_anexo` entra na limpeza do
+2. **Ao `cto-obra`, no Gate 1**: `terreno_desembolso_anexo` entra na limpeza do
    `e2e/fixtures.ts` por qual caminho, já que a exceção do `docker exec … psql`
    é nomeada e fechada?
 
@@ -400,15 +623,30 @@ em casa, sentado, com calma**. **375px é piso, não alvo**: nenhuma tela pode
 quebrar no celular, mas *"não cabe com uma mão"* **não é veto** aqui.
 
 O que continua valendo, e é critério: **o caminho de captura não pode alongar**.
-Anexar **um** arquivo no canteiro tem que ter exatamente os passos de hoje — a
-pergunta do critério 12 só aparece a partir do **segundo** anexo, e nunca aparece
-para quem anexou um só.
+Anexar **um** arquivo no canteiro tem que ter exatamente os passos de hoje.
+⚠️ **Correção de 2026-08-21**: a frase anterior dizia *"a pergunta do critério 12
+só aparece a partir do segundo anexo"* — a régua não é o **anexo**, é o **papel**.
+A pergunta só aparece quando o lançamento passa a ter **dois papéis marcados
+`Comprovante do pagamento`**, e **nunca** aparece para quem anexou comprovante +
+recibo, nem para quem anexou um só. *"Comprovante + recibo são dois papéis e um
+débito; pergunta óbvia treina o clique automático que esvazia a pergunta que
+importa"* (§6 do parecer). E, sem data no desembolso, a pergunta fica
+**represada** — nem no canteiro nem em casa ela aparece antes da data existir.
 
-**Veredito: APROVADO**, com Gate 0 (mock) pendente.
+**Veredito: APROVADO**, com Gate 0 (mock) **aprovado em 2026-08-21**.
+
+⚠️ **Este ticket entrega as metas 1 e 3. A meta 2 SAIU dele** em 2026-08-21,
+junto com o critério 13 (§3.4 e §8.5 do parecer).
 
 - **Meta 1** — nenhum pagamento sem documento hábil: o segundo papel deixa de não
-  ter lugar.
-- **Meta 3** — acervo que sobrevive à decadência: a rodada 1 é **meta 3 pura**.
-  Acervo que ninguém abre não cumpre prazo nenhum.
-- **Meta 2** — o critério 13 impede que a discriminação saia de um ano com
-  lançamento que esconde duas datas.
+  ter lugar, e o papel que chega depois também (critério 9b).
+- **Meta 3** — acervo que sobrevive à decadência: a rodada 1 é **meta 3 pura** —
+  acervo que ninguém abre não cumpre prazo nenhum. A **gravação da resposta**
+  (critério 12b) é meta 3 também: sem ela, *"o sim É o erro invisível"*, e em 2034
+  ninguém distingue a afirmação do contribuinte da lacuna do sistema.
+- **Meta 2 — FORA desta rodada.** O que sobra dela aqui é **informação, não
+  trava**: pendência em três superfícies, aviso fora da área copiável, resposta
+  gravada. A trava **volta no ticket de correção de valor de desembolso do
+  terreno**, com o critério 13 inteiro — *"a compensação é temporal, não
+  conceitual: o bloqueio volta, e volta valendo, porque lá a pendência terá
+  baixa"*.

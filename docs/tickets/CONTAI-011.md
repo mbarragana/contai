@@ -180,6 +180,41 @@ critérios 3, 8, 12, 13 e 14. R6, R7, R9 e R10 são notas para o Gate 2.
   ("é outro ticket"). Voltou como óbvio. O que fica deste ticket é o critério 13
   (c): o pacote **declara o que não contém**.
 
+### Restrições vindas do `CONTAI-027` — anotadas aqui em 2026-08-21
+
+⚠️ **Estas duas não são deste ticket por origem: elas caem aqui porque o dossiê é
+onde elas se cumprem.** Nenhuma delas estava anotada neste arquivo até hoje —
+o `CONTAI-027` dizia *"anotada lá"* e não estava. Ambas entram no **índice**
+(critério 3) e valem a partir do momento em que a tabela filha de anexos existir.
+
+**(a) N anexos compõem UM desembolso** — Gate Fiscal §4 do `CONTAI-027`
+(2026-08-21):
+
+> **Se** um lançamento tem N anexos, **então** no índice do dossiê: cada anexo é
+> **linha própria com hash SHA-256** e **papel** (`comprovante` / `nota` /
+> `contrato`); **o valor aparece uma única vez, na linha do lançamento, nunca
+> repetido por anexo**; e o índice **declara que os N anexos compõem UM
+> desembolso**.
+
+*"Sem essa última frase, quem abrir o pacote em 2034 lê três comprovantes e conta
+três pagamentos. **Um dossiê que induz soma errada é pior que um incompleto**."*
+
+**(b) A resposta vigente e a pendência aberta do ano entram no índice** — §4d do
+parecer `docs/pareceres/2026-08-21-gate-fiscal-contai-027-criterio-13.md`:
+
+- A resposta da pergunta *"Quando esse dinheiro saiu da sua conta?"* — **nos dois
+  casos, inclusive o "tudo no dia X"** —, **com a data em que foi dada**, entra no
+  índice do dossiê **do ano daquele lançamento**.
+- A pendência **"Um lançamento, mais de uma data"** que estiver **aberta** naquele
+  ano entra junto, nomeada.
+
+**Por que isto é bloqueante para o argumento fiscal, e não enfeite**: o corte do
+critério 13 do `CONTAI-027` se sustenta em *"erro nomeado é melhor que erro
+invisível"*. Se o rastro só existe dentro do app, *"o erro nomeado só está nomeado
+dentro de um app que pode não existir em 2034 — e o argumento que sustenta o corte
+deixa de ser verdadeiro no momento em que ele mais importa"*. **O dossiê é o que
+torna o corte defensável.**
+
 ## Out of Scope
 
 - **Restaurar** o acervo de volta para o Supabase a partir do pacote.
@@ -234,6 +269,10 @@ critérios 3, 8, 12, 13 e 14. R6, R7, R9 e R10 são notas para o Gate 2.
    Viabilidade), mas o ticket não vai ao Gate 1 antes do CONTAI-002 fechar.
 4. **CONTAI-003** — entregue. É o que torna o critério 4 possível.
 5. **US-004 (relatórios)** — o critério 12 só fica completo quando ela existir.
+6. **`CONTAI-027`** — enquanto a tabela filha de anexos não existir, as duas
+   restrições da seção *"Restrições vindas do `CONTAI-027`"* não têm o que
+   exportar. Elas **não bloqueiam** este ticket; **este ticket é que não pode
+   fechar sem elas depois que o `027` subir**.
 
 ## Viabilidade (CTO) — decidido em 2026-08-16
 
