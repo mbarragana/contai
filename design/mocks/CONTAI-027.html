@@ -1,0 +1,1348 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>contai — Mock CONTAI-027 v1 · Ver o anexo, e anexar mais de um</title>
+<style>
+  :root{
+    --bd-bg:#d8d5cd; --bd-ink:#3a382f; --bd-mut:#6f6b60;
+    --paper:#faf9f6; --ink:#23221d; --mut:#716c61; --line:#e6e3da; --soft:#f1efe9;
+    --red:#b91c1c; --red-bg:#fbecec; --amb:#92600a; --amb-bg:#fdf3df; --grn:#15803d; --grn-bg:#e9f5ed;
+    --blu:#1d4ed8; --blu-bg:#eaeffb;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bd-bg:#211f1b; --bd-ink:#e8e5dc; --bd-mut:#9b968a; }
+  }
+  :root[data-theme="dark"]{ --bd-bg:#211f1b; --bd-ink:#e8e5dc; --bd-mut:#9b968a; }
+  :root[data-theme="light"]{ --bd-bg:#d8d5cd; --bd-ink:#3a382f; --bd-mut:#6f6b60; }
+
+  *{box-sizing:border-box; margin:0}
+  body{background:var(--bd-bg); color:var(--bd-ink);
+    font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:24px 12px 48px; gap:16px}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-variant-numeric:tabular-nums}
+  /* 375 px é PISO: nome de coluna citado em texto é token longo sem espaço e
+     empurrava a página inteira para o lado. */
+  code{overflow-wrap:anywhere; word-break:break-word}
+
+  /* ── barra de avaliação ─────────────────────────── */
+  .evalbar{max-width:820px; width:100%}
+  .evalbar h1{font-size:15px; font-weight:600; text-align:center}
+  .evalbar p{font-size:12.5px; color:var(--bd-mut); margin-top:4px; text-align:center}
+  .grupo{font-size:11px; color:var(--bd-mut); text-transform:uppercase; letter-spacing:.08em;
+    width:100%; text-align:left; margin:10px 0 -2px}
+  .tabs{display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-start; margin-top:4px}
+  .tab{border:1px solid color-mix(in srgb, var(--bd-ink) 25%, transparent); background:transparent;
+    color:var(--bd-ink); border-radius:999px; padding:4px 10px; font-size:12px; cursor:pointer; font-family:inherit}
+  .tab:hover{background:color-mix(in srgb, var(--bd-ink) 8%, transparent)}
+  .tab.on{background:var(--bd-ink); color:var(--bd-bg); border-color:var(--bd-ink)}
+  .tab:focus-visible,.btn:focus-visible,.inp:focus-visible,.lnk:focus-visible,.opt:focus-visible,
+  .fake-file:focus-within{outline:2px solid var(--bd-ink); outline-offset:2px}
+  .larg{display:flex; gap:6px; align-items:center; justify-content:center; margin-top:10px;
+    font-size:11.5px; color:var(--bd-mut); flex-wrap:wrap}
+
+  /* ╔══════════════════════════════════════════════════════════════════════╗
+     ║  APROVAÇÃO — desenhado para ser fácil de virar, e por INTEIRO.        ║
+     ║  Já houve mock que virou pela metade (classe verde, texto de "não").  ║
+     ║  Para aprovar são TRÊS edições, todas obrigatórias:                   ║
+     ║   1. class="aprov nao"  →  class="aprov sim"                          ║
+     ║   2. o TEXTO de dentro  →  "Mock APROVADO pelo Mateus em AAAA-MM-DD"  ║
+     ║   3. o card deste mock em design/mocks/index.html (linha "Status:")   ║
+     ╚══════════════════════════════════════════════════════════════════════╝ */
+  .aprov{max-width:820px; width:100%; border-radius:10px; padding:10px 14px; font-size:12.5px;
+    text-align:center; font-weight:600}
+  .aprov.nao{background:var(--amb-bg); color:var(--amb); border:1px dashed var(--amb)}
+  .aprov.sim{background:var(--grn-bg); color:var(--grn); border:1px solid var(--grn)}
+  .novo{border:1px solid var(--bd-ink); border-radius:10px; padding:11px 14px; font-size:12.5px;
+    line-height:1.5; margin-top:10px}
+  .novo ul{margin:6px 0 0 17px; padding:0}
+  .novo li{margin-top:5px}
+
+  /* ── CONTROLES DE SIMULAÇÃO — FORA do quadro da tela ────────────────────
+     Nada aqui é componente do app. Existe só para o mock ser navegável.
+     Lição de 2026-08-18: quando o recurso de simulação senta DENTRO da tela
+     (o checkbox que fingia ser "anexar boleto"), o Mateus julga a coisa errada.
+     Neste mock o anexo é <input type="file" multiple> DE VERDADE, e o botão
+     Abrir abre o arquivo que VOCÊ escolheu, em aba nova. O que a simbar faz é
+     só forçar os estados que um arquivo estático não consegue produzir:
+     falha de rede ao gerar o link, e anexo de outro usuário.              */
+  .simbar{max-width:820px; width:100%; border:2px dashed var(--bd-mut); border-radius:12px;
+    padding:11px 14px; display:flex; flex-wrap:wrap; gap:14px; align-items:center;
+    background:color-mix(in srgb, var(--bd-ink) 5%, transparent)}
+  .simbar .selo{font-size:10.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--bd-mut); flex:none; width:100%}
+  .simbar .nota{font-size:11.5px; color:var(--bd-mut); width:100%; line-height:1.45}
+  .simgrupo{display:flex; gap:6px; align-items:center; flex-wrap:wrap}
+  .simgrupo > span{font-size:11.5px; color:var(--bd-mut)}
+
+  /* ── celular / mesa ─────────────────────────────── */
+  .phone{width:375px; max-width:100%; height:820px; background:var(--paper); color:var(--ink);
+    border-radius:30px; border:6px solid #16150f; overflow:hidden; display:flex; flex-direction:column;
+    box-shadow:0 18px 40px rgba(0,0,0,.28)}
+  .phone.mesa{width:720px; height:880px; border-radius:14px; border-width:4px}
+  .screen{display:none; flex-direction:column; height:100%}
+  .screen.on{display:flex}
+  .appbar{padding:14px 18px 10px; border-bottom:1px solid var(--line); flex:none}
+  .appbar .brand{font-weight:700; font-size:16px; letter-spacing:-.01em}
+  .appbar .sub{font-size:11.5px; color:var(--mut); margin-top:1px}
+  .body{flex:1; overflow-y:auto; padding:16px 18px; display:flex; flex-direction:column; gap:12px}
+  .foot{flex:none; padding:12px 18px 18px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:8px}
+  .phone.mesa .body{padding:22px 0; align-items:stretch}
+  .phone.mesa .body > *{max-width:580px; width:100%; margin-left:auto; margin-right:auto}
+  .phone.mesa .foot{padding:14px calc(50% - 290px) 20px}
+
+  .card{border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:#fff}
+  .chip{display:inline-block; font-size:11px; font-weight:600; border-radius:999px; padding:2px 9px}
+  .chip.red{color:var(--red); background:var(--red-bg)}
+  .chip.amb{color:var(--amb); background:var(--amb-bg)}
+  .chip.grn{color:var(--grn); background:var(--grn-bg)}
+  .chip.blu{color:var(--blu); background:var(--blu-bg)}
+  .chip.mud{color:var(--mut); background:var(--soft)}
+  .consequencia{font-size:12.5px; margin-top:6px; padding:8px 10px; border-radius:8px}
+  .consequencia.red{background:var(--red-bg); color:var(--red)}
+  .consequencia.amb{background:var(--amb-bg); color:var(--amb)}
+  .consequencia.grn{background:var(--grn-bg); color:var(--grn)}
+  .consequencia.blu{background:var(--blu-bg); color:var(--blu)}
+  .consequencia.mud{background:var(--soft); color:var(--mut)}
+
+  .btn{display:block; width:100%; text-align:center; border-radius:10px; padding:13px 14px;
+    font-size:14.5px; font-weight:600; cursor:pointer; border:1px solid transparent; font-family:inherit}
+  .btn.primary{background:var(--ink); color:var(--paper)}
+  .btn.ghost{background:transparent; color:var(--ink); border-color:var(--line)}
+  .btn:hover{filter:brightness(1.12)}
+  .btn[disabled]{opacity:.42; cursor:not-allowed; filter:none}
+  .btn.mini{padding:9px 10px; font-size:13px}
+  .lnk{background:none; border:none; padding:0; font:inherit; font-size:12.5px; color:var(--blu);
+    text-decoration:underline; cursor:pointer; text-align:left}
+
+  .row{display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:9px 0; border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:none}
+  .row .lbl{font-size:12px; color:var(--mut); flex:none}
+  .row .val{font-size:13.5px; text-align:right; overflow-wrap:anywhere}
+  .ok{color:var(--grn); font-weight:600}
+  .warn{color:var(--amb); font-weight:600}
+  .bad{color:var(--red); font-weight:600}
+
+  .hint{font-size:12px; color:var(--mut)}
+  .banner{border-radius:10px; padding:12px 14px; font-size:13.5px}
+  .banner.red{background:var(--red-bg); color:var(--red)}
+  .banner.amb{background:var(--amb-bg); color:var(--amb)}
+  .banner.grn{background:var(--grn-bg); color:var(--grn)}
+  .banner.blu{background:var(--blu-bg); color:var(--blu)}
+  .banner.mud{background:var(--soft); color:var(--mut)}
+  .big{font-size:26px; font-weight:700; letter-spacing:-.02em}
+  .parecer{font-size:10.5px; color:var(--mut); margin-top:6px; font-style:italic; line-height:1.4}
+  .secao{font-size:11px; color:var(--mut); text-transform:uppercase; letter-spacing:.07em; margin-top:4px}
+
+  /* Pendência PERSISTENTE — não é aviso de clique, é linha de lista de dívida. */
+  .divida{border:1px solid var(--amb); border-left:4px solid var(--amb); background:#fffdf7;
+    border-radius:10px; padding:11px 13px}
+
+  /* ── citação literal do parecer — não se reescreve ─ */
+  .literal{border-left:3px solid var(--blu); background:var(--blu-bg); color:var(--blu);
+    border-radius:0 8px 8px 0; padding:11px 13px; font-size:13px}
+  .literal ul{margin:8px 0 0 16px; padding:0}
+  .literal li{margin-top:6px}
+
+  /* ── PERGUNTA EM ABERTO — o que eu NÃO tenho autoridade para decidir ──── */
+  .aberta{border:1px dashed var(--amb); background:var(--amb-bg); color:var(--amb);
+    border-radius:10px; padding:11px 13px; font-size:12.5px; line-height:1.5}
+  .aberta strong{display:block; margin-bottom:4px}
+
+  /* ── formulário ─────────────────────────────────── */
+  .lab{display:block; font-size:12px; color:var(--mut); margin-bottom:5px}
+  .inp{width:100%; font-family:inherit; font-size:16px; padding:11px 12px; border:1px solid var(--line);
+    border-radius:9px; background:#fff; color:var(--ink)}
+  textarea.inp{min-height:76px; font-size:14px}
+  .oculto{display:none !important}
+
+  /* ── escolha exclusiva: NADA nasce marcado ──────────────────────────────
+     Campo com consequência fiscal não tem default. O botão só acorda depois
+     que o Mateus escolhe, e o rótulo dele diz o que falta.                */
+  .opts{display:flex; flex-direction:column; gap:8px; margin-top:8px}
+  .opt{display:flex; gap:11px; align-items:flex-start; width:100%; text-align:left;
+    border:1px solid var(--line); border-radius:10px; padding:11px 12px; background:#fff;
+    cursor:pointer; font:inherit; color:inherit}
+  .opt:hover{background:var(--soft)}
+  .opt .bola{width:22px; height:22px; flex:none; border:2px solid var(--mut); border-radius:999px;
+    display:flex; align-items:center; justify-content:center; margin-top:1px}
+  .opt .bola i{width:10px; height:10px; border-radius:999px; background:transparent; display:block}
+  .opt.on{border-color:var(--ink); box-shadow:inset 0 0 0 1px var(--ink); background:var(--soft)}
+  .opt.on .bola{border-color:var(--ink)}
+  .opt.on .bola i{background:var(--ink)}
+  .opt .tt{font-size:13.5px; font-weight:600}
+  .opt .ss{display:block; font-size:12px; color:var(--mut); margin-top:2px}
+
+  /* ── ANEXO — componente REAL: <input type="file" multiple> ──────────────
+     Não é checkbox, não é botão que finge. Escolher arquivo mostra nome e
+     tamanho de verdade, gera preview quando é imagem, e o Abrir abre. */
+  .anexo{border:1px dashed var(--mut); border-radius:10px; padding:12px; background:#fff}
+  .anx-tit{font-size:13.5px; font-weight:600}
+  .anx-sub{font-size:11.5px; color:var(--mut); margin-top:2px}
+  .anx-bts{display:flex; gap:6px; margin-top:10px}
+  .fake-file{flex:1; min-width:0; display:block; text-align:center; border-radius:10px;
+    padding:11px 6px; font-size:13px; font-weight:600; cursor:pointer; position:relative;
+    border:1px solid var(--line); background:transparent; color:var(--ink)}
+  .fake-file:hover{filter:brightness(1.12)}
+  .fake-file input{position:absolute; width:1px; height:1px; opacity:0; pointer-events:none}
+
+  /* ── LINHA DE ANEXO — o componente único da Rodada 1 ────────────────────
+     Um item da lista. Quatro estados no atributo data-est:
+       pronto  · fechado, com Abrir
+       abrindo · pediu o link assinado, esperando
+       falha   · não veio o link → "Tentar de novo" (crit. 5 / D36 item 1)
+       negado  · o objeto não é do dono (policy acervo_dono_select, crit. 4) */
+  .anx{display:flex; gap:10px; align-items:flex-start; border:1px solid var(--line);
+    border-radius:10px; padding:10px 11px; background:#fff}
+  .anx + .anx{margin-top:8px}
+  .anx[data-est="falha"]{border-color:var(--red); background:var(--red-bg)}
+  .anx[data-est="negado"]{border-color:var(--red); background:var(--red-bg)}
+  .anx-thumb{width:44px; height:54px; flex:none; border-radius:6px; border:1px solid var(--line);
+    background:var(--soft); display:flex; align-items:center; justify-content:center; overflow:hidden;
+    font-size:10px; font-weight:700; color:var(--mut); font-family:ui-monospace,Menlo,monospace}
+  .anx-thumb img{width:100%; height:100%; object-fit:cover}
+  .anx-info{flex:1; min-width:0}
+  .anx-nome{font-size:13px; font-weight:600; overflow-wrap:anywhere}
+  .anx-meta{font-size:11.5px; color:var(--mut); margin-top:2px}
+  .anx-papel{font-size:11px; font-weight:600; margin-top:4px}
+  .anx-acao{flex:none; display:flex; flex-direction:column; gap:6px; align-items:flex-end}
+  .anx-abrir{border:1px solid var(--ink); background:#fff; color:var(--ink); border-radius:8px;
+    padding:8px 12px; font:inherit; font-size:12.5px; font-weight:600; cursor:pointer; white-space:nowrap}
+  .anx-abrir:hover{background:var(--soft)}
+  .anx[data-est="abrindo"] .anx-abrir{opacity:.5; cursor:progress}
+  .anx-erro{font-size:11.5px; color:var(--red); margin-top:5px; line-height:1.4}
+  .anx[data-est="pronto"] .so-abrindo, .anx[data-est="pronto"] .so-falha, .anx[data-est="pronto"] .so-negado,
+  .anx[data-est="abrindo"] .so-pronto, .anx[data-est="abrindo"] .so-falha, .anx[data-est="abrindo"] .so-negado,
+  .anx[data-est="falha"] .so-pronto, .anx[data-est="falha"] .so-abrindo, .anx[data-est="falha"] .so-negado,
+  .anx[data-est="negado"] .so-pronto, .anx[data-est="negado"] .so-abrindo, .anx[data-est="negado"] .so-falha{display:none}
+
+  .ascii{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; line-height:1.5;
+    white-space:pre; overflow-x:auto; background:#fff; border:1px solid var(--line); border-radius:8px; padding:12px}
+  .lista{list-style:none; font-size:12.5px}
+  .lista li{padding:7px 0; border-bottom:1px dotted var(--line); display:flex; gap:8px}
+  .lista li:last-child{border-bottom:none}
+  .lista .n{flex:none; font-weight:700; color:var(--mut)}
+
+  /* ── PAPEL do anexo (crit. 14) — 3 valores, NADA pré-selecionado ────────
+     Fica dentro da própria linha do anexo: é atributo daquele papel, não uma
+     tela nova. Enquanto um anexo estiver sem papel, o botão de gravar diz
+     qual falta — botão cinza mudo faz achar que quebrou. */
+  .papel-campo{margin-top:7px}
+  .papel-lab{font-size:11px; color:var(--mut)}
+  .papel-ops{display:flex; flex-wrap:wrap; gap:5px; margin-top:4px}
+  .papel-op{border:1px solid var(--line); background:#fff; color:var(--ink); border-radius:999px;
+    padding:5px 10px; font:inherit; font-size:11.5px; cursor:pointer}
+  .papel-op:hover{background:var(--soft)}
+  .papel-op.on{background:var(--ink); color:var(--paper); border-color:var(--ink)}
+  .papel-falta{font-size:11px; color:var(--amb); margin-top:4px}
+</style>
+
+<div class="evalbar">
+  <h1>Mock CONTAI-027 — Ver o anexo, e anexar mais de um · v1</h1>
+  <p><strong>Hoje no mock: 21/08/2026.</strong> Obra <strong>Casa Tanheiros</strong>.
+     Duas rodadas num desenho só, porque é <strong>uma tela só</strong>: lista de anexos, cada um
+     com <strong>Abrir</strong>.<br>
+     <strong>Rodada 1 — abrir (D35)</strong>: hoje o app <strong>não abre anexo nenhum, em tela
+     nenhuma</strong>. Uma delas chega a mandar <em>“confira antes de digitar”</em>. Conferir o quê?<br>
+     <strong>Rodada 2 — N anexos (D37)</strong>: só no <strong>terreno</strong> nesta rodada.
+     O caso que o ticket resolve é <strong>um desembolso com mais de um papel de suporte</strong>
+     (limite do PIX quebrando a transferência <em>no mesmo dia</em>, ou comprovante + recibo) —
+     <strong>não</strong> é o caso das três transferências em dias diferentes, que já são
+     <strong>três lançamentos</strong> e a tela já suporta.<br>
+     <strong>Régua de 2026-08-18</strong>: registrar e revisar desembolso do terreno é
+     <strong>gestão — em casa, sentado</strong>. 375 px é <strong>piso</strong>, não alvo;
+     “não cabe com uma mão” <strong>não é veto</strong> aqui. O que continua sendo critério é o
+     <strong>caminho de captura</strong>: anexar <strong>um</strong> arquivo tem exatamente os
+     passos de hoje.<br>
+     Dados de exemplo são <strong>fictícios</strong>.</p>
+</div>
+
+<!-- ╔═══════════════════════════════════════════════════════════════════════╗
+     ║  APROVAÇÃO — para virar, as TRÊS edições (nenhuma é opcional):        ║
+     ║   1. class="aprov nao"  →  class="aprov sim"                          ║
+     ║   2. o texto abaixo → "Mock APROVADO pelo Mateus em AAAA-MM-DD (v1)"  ║
+     ║   3. design/mocks/index.html, card deste mock, linha "Status:"        ║
+     ║  Virar só a classe deixa um mock verde dizendo que não foi aprovado.  ║
+     ╚═══════════════════════════════════════════════════════════════════════╝ -->
+<div class="aprov nao" id="barraAprovacao">
+  ⏳ Mock <strong>NÃO aprovado</strong> — v1, aguardando o Mateus.
+</div>
+
+<div class="evalbar">
+  <div class="grupo">0 · O fluxo, antes de qualquer tela</div><div class="tabs" id="g0"></div>
+  <div class="grupo">1 · Rodada 1 — abrir o anexo (D35)</div><div class="tabs" id="g1"></div>
+  <div class="grupo">2 · Rodada 2 — N anexos no desembolso do terreno (D37)</div><div class="tabs" id="g2"></div>
+  <div class="grupo">3 · A pendência, e o dente dela</div><div class="tabs" id="g3"></div>
+  <div class="larg">
+    <span>Largura:</span>
+    <button class="tab on" id="w375">375 px — piso</button>
+    <button class="tab" id="w720">720 px — mesa (cenário principal)</button>
+  </div>
+</div>
+
+<!-- ── SIMULAÇÃO: tudo que existe só para o mock andar mora AQUI, fora do quadro ── -->
+<div class="simbar">
+  <span class="selo">⚙ Controles de simulação — não fazem parte da tela</span>
+  <div class="nota">
+    O anexo deste mock é <strong>&lt;input type="file" multiple&gt;</strong> de verdade: escolher
+    arquivos mostra <strong>nome, tamanho e preview real</strong> (quando é imagem), e o
+    <strong>Abrir</strong> abre <strong>o seu arquivo</strong> em aba nova. Os anexos de
+    <em>exemplo</em> (os que já estão “no acervo” antes de você escolher qualquer coisa) abrem um
+    papel desenhado pelo próprio mock — não existe servidor aqui. O que os botões abaixo fazem é só
+    forçar os dois estados que um arquivo estático não consegue produzir sozinho.
+  </div>
+  <div class="simgrupo">
+    <span>Abrir um anexo:</span>
+    <button class="tab" data-sim="ok">responde normal</button>
+    <button class="tab" data-sim="falha">falhar ao gerar o link</button>
+    <button class="tab" data-sim="negado">anexo de outro usuário (RLS barra)</button>
+  </div>
+</div>
+
+<div class="phone" id="phone">
+
+  <!-- ══════════════════ 0 · FLUXO 1 — RODADA 1 (ASCII) ══════════════════ -->
+  <section class="screen" id="s0">
+    <div class="appbar">
+      <div class="brand">Fluxo 1 — abrir o papel</div>
+      <div class="sub">Rodada 1 · dor D35 · sem migration · vale para as 7 superfícies</div>
+    </div>
+    <div class="body">
+      <div class="banner red">
+        <strong>O ponto de partida: hoje o Abrir não existe em lugar nenhum.</strong>
+        Não há um <code>createSignedUrl</code> no repositório inteiro. O acervo entra e nunca mais é
+        lido de dentro do app — e uma das telas ainda manda “confira antes de digitar”.
+      </div>
+
+      <div class="ascii">Tela que mostra papéis anexados  (qualquer uma das 7 superfícies)
+        │
+        │  HOJE: aparece o NOME do arquivo. E só. Nada abre.
+        ▼
+  ┌──────────────────────────────────────────────┐
+  │ PDF  comprovante-pix-1.pdf      [ Abrir ]    │  ← componente ÚNICO,
+  │      184 KB · Comprovante do pagamento       │    o mesmo nas 7 telas,
+  ├──────────────────────────────────────────────┤    e já em LISTA: é a
+  │ JPG  recibo-vendedor.jpg        [ Abrir ]    │    mesma lista que a
+  │      2,1 MB · Nota ou recibo                 │    rodada 2 consome.
+  └──────────────────────────────────────────────┘
+        │
+        │  toca em Abrir
+        ▼
+  pede um link ASSINADO e TEMPORÁRIO do acervo
+  (bucket privado; nenhuma URL pública é gerada)
+        │
+        ├── veio o link ───────────────► abre o papel
+        │
+        ├── falhou (rede/servidor) ────► “Não consegui abrir agora”
+        │                                 [ Tentar de novo ]
+        │                                 (nunca um botão que não faz nada)
+        │
+        └── não é seu ─────────────────► a policy do acervo barra.
+                                          Não abre, e a tela diz por quê.
+
+  E o 5º estado, que é o único que não tem papel nenhum para abrir:
+
+  ┌──────────────────────────────────────────────┐
+  │ ⚠ Pago, e sem papel nenhum no acervo         │
+  │   [ Anexar agora ]                           │
+  └──────────────────────────────────────────────┘</div>
+
+      <div class="card">
+        <div class="secao">Por que a rodada 1 vem primeiro, e sozinha</div>
+        <div class="hint" style="margin-top:6px">A rodada 2 cria, pela primeira vez, uma
+          <strong>lista</strong> de papéis em tela — e é o Abrir que define como um item dessa lista
+          se apresenta. Invertida, a ordem constrói a lista burra agora e volta para consertar depois,
+          em todas as telas. E anexar três papéis que não se consegue abrir é
+          <strong>meio caminho para acervo inútil</strong>.</div>
+        <div class="hint" style="margin-top:8px">A rodada 1 não tem migration e não muda dado nenhum:
+          ela só passa a <strong>ler</strong> o que já está gravado. Por isso fecha e vai ao ar
+          sozinha.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 0b · FLUXO 2 — RODADA 2 (ASCII) ══════════════════ -->
+  <section class="screen" id="s0b">
+    <div class="appbar">
+      <div class="brand">Fluxo 2 — N papéis num desembolso</div>
+      <div class="sub">Rodada 2 · dor D37 · só o terreno nesta rodada</div>
+    </div>
+    <div class="body">
+      <div class="banner amb">
+        <strong>⚠️ O caso das três transferências em dias diferentes NÃO é este fluxo.</strong>
+        Dias diferentes = <strong>desembolsos diferentes</strong>, um por data, e a tela já faz isso
+        hoje. O que este fluxo resolve é <strong>um desembolso com mais de um papel</strong>: o PIX
+        quebrado pelo limite <em>no mesmo dia</em>, e o papel que chega junto — ou depois — do
+        dinheiro, que nesta obra é o caso comum, não a exceção.
+        <div class="parecer">“Papel que chega depois do dinheiro” não é suposição minha: relato 001,
+          Q1 — <em>“NFs e boletos chegam por WhatsApp e e-mail”</em> — e o relato 002 inteiro
+          (<em>“paguei uma parcela, mas eles não me geraram nota ainda”</em>).</div>
+      </div>
+
+      <div class="ascii">Registrar desembolso
+  tipo → valor → já foi pago? → data em que saiu da conta
+        │
+        ▼
+  Papéis deste desembolso   [ Tirar foto ]  [ Escolher arquivos ]
+        │
+        │  cada papel escolhido pede UMA coisa, inline, na mesma tela:
+        │  o que ele é →  ( ) Comprovante do pagamento
+        │                 ( ) Nota ou recibo
+        │                 ( ) Contrato ou escritura
+        │  (nada pré-marcado; e "tirar da lista" enquanto nada subiu ainda)
+        │
+        ├───────────────────────────┬────────────────────────────────┐
+        ▼                           ▼                                ▼
+  1 papel                    2 papéis, mas só UM é        2 ou mais COMPROVANTES
+                             comprovante                  DO PAGAMENTO
+        │                           │                                │
+  CAMINHO DE CAPTURA:         um desembolso, dois          pergunta binária, UMA por
+  nenhuma tela nova,          papéis, um débito            ato, sem opção pré-marcada:
+  nenhuma confirmação,              │
+  nenhuma navegação.          não pergunta nada       ┌──────────────────────────────┐
+  Uma tela e um Gravar.             │                 │ Quando esse dinheiro saiu    │
+        │                           │                 │ da sua conta?                │
+        │                           │                 │   ( ) Tudo em 21/08/2026     │
+        │                           │                 │   ( ) Em mais de um dia      │
+        │                           │                 └──────────────────────────────┘
+        │                           │                       │                  │
+        ▼                           ▼                       ▼                  ▼
+      GRAVA                       GRAVA                   GRAVA        GRAVA ASSIM MESMO
+                                                                              +
+                                                                     pendência ABERTA
+                                                          "Um lançamento, mais de uma data"
+                                                                              │
+                                                                              ▼
+                                                       home  +  card do desembolso  +
+                                                       lista de revisão pré-declaração
+                                                       (a discriminação SAI — ver 3b/3c)
+
+  ────────────────────────────────────────────────────────────────────────────
+  MESMA pergunta, outro momento: o papel que chega DEPOIS (critério 9b)
+
+  desembolso já gravado ──► [ Anexar papel ] ──► INSERT, nunca substituição
+                                                       │
+                            vira o 2º comprovante? ────┤── sim → pergunta (uma vez)
+                                                       └── não → grava calado
+
+  Regras do gatilho, fechadas pelo po em 21/08:
+   · uma pergunta por ATO, não por arquivo (3 comprovantes de uma vez = 1 pergunta)
+   · não pergunta de novo se a pendência já está aberta (ele já respondeu)
+   · pergunta DE NOVO se a resposta vigente era "tudo no dia X" e chega comprovante novo
+   · nunca pergunta para "Nota ou recibo" nem "Contrato ou escritura"
+   · sem data no desembolso, a pergunta fica REPRESADA — ela cita uma data no botão,
+     e sem data é impronunciável. Dispara junto com o preenchimento da data.</div>
+
+      <div class="card">
+        <div class="secao">Três coisas que este fluxo NÃO tem, e é de propósito</div>
+        <ul class="lista" style="margin-top:8px">
+          <li><span class="n">✕</span><span><strong>Valor por papel.</strong> O valor é digitado uma
+            vez, no lançamento. Somar comprovantes seria criar uma soma que não existe em apuração
+            nenhuma — e exigiria um número inventado por quem tem interesse no total.</span></li>
+          <li><span class="n">✕</span><span><strong>Data por papel.</strong> Seria fabricar a
+            evidência que o app não tem: campo que só existe se ele digitar, que ninguém confere, e
+            que o app trataria como fato.</span></li>
+          <li><span class="n">✕</span><span><strong>Trava de “a soma dos comprovantes bate com o
+            valor”.</strong> Derrubada no Gate Fiscal: não existe norma que conte arquivos.</span></li>
+        </ul>
+        <div class="parecer">Gate Fiscal do CONTAI-027, §1 e §2 — critérios 10 e 11.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 1 · O CARD DO DESEMBOLSO, NO PAINEL DO TERRENO ══════════════════
+       Não existe rota de detalhe de desembolso do terreno, e este ticket NÃO cria uma
+       (decisão do po, 21/08). A lista de papéis mora no card do painel.              -->
+  <section class="screen" id="s1">
+    <div class="appbar">
+      <div class="brand">Terreno</div>
+      <div class="sub">Casa Tanheiros · desembolsos de 2026</div>
+    </div>
+    <div class="body">
+      <div class="banner blu">
+        <strong>Este é o componente único da rodada 1</strong>, e ele já nasce em
+        <strong>lista</strong>: papel de um lado, <strong>Abrir</strong> do outro. É o mesmo item nas
+        sete telas — desenhá-lo com um item só compraria a segunda rodada de mock que este ticket
+        existe para evitar.
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Entrada</span><span class="val mono">R$ 60.000,00</span></div>
+        <div class="row"><span class="lbl">Saiu da conta em</span><span class="val mono">12/08/2026</span></div>
+        <div class="row"><span class="lbl">Entra no custo de</span><span class="val ok">2026</span></div>
+        <div class="secao" style="margin-top:11px">Papéis deste desembolso (2)</div>
+        <div style="margin-top:9px">
+          <div class="anx" data-est="pronto" data-exemplo="comprovante">
+            <div class="anx-thumb">PDF</div>
+            <div class="anx-info">
+              <div class="anx-nome">comprovante-pix-1.pdf</div>
+              <div class="anx-meta">184 KB · anexado em 12/08/2026</div>
+              <div class="anx-papel chip mud">Comprovante do pagamento</div>
+              <div class="anx-erro so-falha">Não consegui abrir agora. O papel continua no acervo — o que falhou foi o link de leitura. Nada foi perdido.</div>
+              <div class="anx-erro so-negado">Este arquivo não é seu. O acervo só abre para o dono.</div>
+            </div>
+            <div class="anx-acao">
+              <button class="anx-abrir so-pronto">Abrir</button>
+              <span class="hint so-abrindo">abrindo…</span>
+              <button class="anx-abrir so-falha" style="border-color:var(--red); color:var(--red)">Tentar de novo</button>
+              <span class="hint so-negado">—</span>
+            </div>
+          </div>
+          <div class="anx" data-est="pronto" data-exemplo="recibo">
+            <div class="anx-thumb">JPG</div>
+            <div class="anx-info">
+              <div class="anx-nome">recibo-vendedor.jpg</div>
+              <div class="anx-meta">2,1 MB · anexado em 14/08/2026</div>
+              <div class="anx-papel chip mud">Nota ou recibo</div>
+              <div class="anx-erro so-falha">Não consegui abrir agora. O papel continua no acervo — o que falhou foi o link de leitura. Nada foi perdido.</div>
+              <div class="anx-erro so-negado">Este arquivo não é seu. O acervo só abre para o dono.</div>
+            </div>
+            <div class="anx-acao">
+              <button class="anx-abrir so-pronto">Abrir</button>
+              <span class="hint so-abrindo">abrindo…</span>
+              <button class="anx-abrir so-falha" style="border-color:var(--red); color:var(--red)">Tentar de novo</button>
+              <span class="hint so-negado">—</span>
+            </div>
+          </div>
+        </div>
+        <div class="anx-bts">
+          <label class="fake-file">📎 Anexar mais um papel
+            <input type="file" multiple data-alvo="listaS1"></label>
+        </div>
+        <div id="listaS1" style="margin-top:9px"></div>
+
+        <div class="consequencia mud">
+          <strong>O link de leitura é temporário e só seu.</strong> O acervo é privado: nada aqui vira
+          endereço público, e o link expira sozinho.
+          <div class="parecer">Critérios 3 e 4: <code>createSignedUrl</code>, e a policy
+            <code>acervo_dono_select</code> da migration 0002 como única autorização — o papel de
+            outro usuário não abre, e o teste prova isso.</div>
+        </div>
+        <div class="consequencia mud">
+          <strong>O valor aparece uma vez só, no desembolso — nunca por papel.</strong>
+          Dois papéis não são dois custos.
+          <div class="parecer">Gate Fiscal §1: nenhum anexo carrega valor e nenhum entra em soma
+            alguma. Por construção, o mesmo comprovante pode sustentar mais de um lançamento sem
+            inflar nada.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="secao">Experimente com um arquivo seu</div>
+        <div class="hint" style="margin-top:6px">O botão “Anexar mais um papel” acima é
+          <code>&lt;input type="file" multiple&gt;</code> de verdade. Escolha qualquer arquivo: ele
+          entra na lista com <strong>nome, tamanho e preview reais</strong>, pede o papel dele, e o
+          <strong>Abrir</strong> abre o seu arquivo.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 1b · “CONFIRA ANTES DE DIGITAR” (crit. 6) ══════════════════ -->
+  <section class="screen" id="s1b">
+    <div class="appbar">
+      <div class="brand">Corrigir o valor</div>
+      <div class="sub">2ª nota da empreiteira · a tela que hoje manda o impossível</div>
+    </div>
+    <div class="body">
+      <div class="banner red">
+        <strong>Hoje esta tela diz “Papel anexado — confira antes de digitar” e não deixa abrir
+        nada.</strong> É a frase citada no ticket, em
+        <code>app/documento/[id]/corrigir/valor/page.tsx</code>. Ou ela ganha o
+        <strong>Abrir</strong>, ou ela some — nenhuma tela promete comportamento que não existe.
+      </div>
+
+      <div class="card">
+        <div class="anx-tit">Papel anexado — confira antes de digitar</div>
+        <div style="margin-top:9px">
+          <div class="anx" data-est="pronto" data-exemplo="nota">
+            <div class="anx-thumb">PDF</div>
+            <div class="anx-info">
+              <div class="anx-nome">nfse-2481-empreiteira.pdf</div>
+              <div class="anx-meta">96 KB · anexado em 19/08/2026</div>
+              <div class="anx-papel chip mud">Nota ou recibo</div>
+              <div class="anx-erro so-falha">Não consegui abrir agora. O papel continua no acervo — o que falhou foi o link de leitura. Nada foi perdido.</div>
+              <div class="anx-erro so-negado">Este arquivo não é seu. O acervo só abre para o dono.</div>
+            </div>
+            <div class="anx-acao">
+              <button class="anx-abrir so-pronto">Abrir</button>
+              <span class="hint so-abrindo">abrindo…</span>
+              <button class="anx-abrir so-falha" style="border-color:var(--red); color:var(--red)">Tentar de novo</button>
+              <span class="hint so-negado">—</span>
+            </div>
+          </div>
+        </div>
+        <div class="hint" style="margin-top:8px">O papel <strong>não se substitui</strong>; se
+          precisar, anexa-se um adicional.</div>
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Valor gravado hoje</span><span class="val mono">R$ 4.085,71</span></div>
+        <div style="margin-top:11px">
+          <label class="lab" for="inpValorS1b">Valor que está no papel</label>
+          <input class="inp mono" id="inpValorS1b" inputmode="decimal" placeholder="0,00">
+        </div>
+      </div>
+
+      <div class="consequencia blu">
+        <strong>Enquanto o Abrir não existir, “confira antes de digitar” é instrução impossível de
+        cumprir.</strong> É a mesma família de defeito que a pendência que trava sem caminho de saída
+        (tela 3c): o app manda fazer o que ele mesmo não deixa.
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 1c · 5º ESTADO — PAGO, E SEM PAPEL NENHUM (crit. 15) ══════════════════ -->
+  <section class="screen" id="s1c">
+    <div class="appbar">
+      <div class="brand">Terreno</div>
+      <div class="sub">O estado que a migration não pode apagar junto com a coluna</div>
+    </div>
+    <div class="body">
+      <div class="banner amb">
+        <strong>A coluna única de arquivo morre nesta rodada.</strong> O que <u>não</u> pode morrer com
+        ela é a pendência de “pago e sem papel nenhum”: ela passa a vir de
+        <em>“não existe nenhuma linha de anexo”</em>, não de uma coluna vazia. É a única superfície
+        onde essa troca fica visível para você.
+      </div>
+
+      <div class="divida" style="border-color:var(--red); border-left-color:var(--red)">
+        <span class="chip red">Pago, e sem papel nenhum</span>
+        <div class="anx-tit" style="margin-top:7px">Escritura e registro · R$ 3.150,00 · 04/07/2026</div>
+        <div class="hint" style="margin-top:5px">Este valor está gravado como pago e não tem nenhum
+          papel no acervo. O custo é real, mas não é comprovável — e é você quem prova, não a memória.</div>
+        <div class="anx-bts">
+          <label class="fake-file">📎 Anexar agora
+            <input type="file" multiple data-alvo="listaS1c"></label>
+        </div>
+        <div id="listaS1c" style="margin-top:9px"></div>
+      </div>
+
+      <div class="card">
+        <div class="secao">O que muda por baixo, e por que isso é critério</div>
+        <div class="hint" style="margin-top:6px">Antes: <em>“a coluna do arquivo está vazia”</em>.
+          Depois: <em>“este desembolso não tem nenhuma linha de anexo”</em>. Mesma pendência, mesma
+          cara. Sem esse cuidado, a migration apagaria a dívida junto com a coluna — e o buraco no
+          acervo só apareceria em 2034.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 1d · AS OUTRAS SUPERFÍCIES ══════════════════ -->
+  <section class="screen" id="s1d">
+    <div class="appbar">
+      <div class="brand">Onde mais este componente entra</div>
+      <div class="sub">Rodada 1 · critério 2 · sem tela própria para cada uma</div>
+    </div>
+    <div class="body">
+      <div class="banner mud">
+        <strong>Não há desenho novo aqui — é o mesmo item de lista das telas 1 e 1b.</strong>
+        Desenhar sete vezes o mesmo componente gastaria a rodada de aprovação sem decidir nada.
+      </div>
+      <div class="card">
+        <div class="secao">As sete superfícies do critério 2</div>
+        <ul class="lista" style="margin-top:8px">
+          <li><span class="n">1</span><span>Corrigir o <strong>valor</strong> do documento — é a do
+            “confira antes de digitar” (tela 1b)</span></li>
+          <li><span class="n">2</span><span>Corrigir a <strong>classificação</strong> do documento</span></li>
+          <li><span class="n">3</span><span>Corrigir o <strong>emitente</strong> do documento</span></li>
+          <li><span class="n">4</span><span>Detalhe do <strong>documento</strong> — este hoje não
+            mostra nem o nome do arquivo; ganha a <strong>lista inteira</strong>, não só um botão</span></li>
+          <li><span class="n">5</span><span>Detalhe do <strong>pagamento</strong></span></li>
+          <li><span class="n">6</span><span>Painel do <strong>terreno</strong> (telas 1, 1c, 2b, 2c)</span></li>
+          <li><span class="n">7</span><span><strong>Informe anual</strong> do financiamento</span></li>
+        </ul>
+        <div class="consequencia mud">
+          <strong>Nenhuma tela fica mostrando nome de arquivo sem poder abrir.</strong> Esse é o
+          critério; se sobrar uma, a rodada 1 não fechou.
+        </div>
+      </div>
+      <div class="card">
+        <div class="secao">A oitava, que fica de fora — e por quê</div>
+        <div class="hint" style="margin-top:6px">A tela de <strong>confirmar um compromisso</strong>
+          também mexe com comprovante, mas ali ele está sendo <em>escolhido</em>, não
+          <em>lido</em>: não há anexo gravado para abrir. Ela entra no dia em que exibir papel já
+          guardado — com este mesmo componente, sem desenho novo.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 2 · REGISTRAR — INTERATIVO, file multiple REAL ══════════════════ -->
+  <section class="screen" id="s2">
+    <div class="appbar">
+      <div class="brand">Registrar um desembolso</div>
+      <div class="sub">Terreno · Casa Tanheiros</div>
+    </div>
+    <div class="body">
+      <div class="banner grn">
+        <strong>Com um papel só, esta tela não ganha tela nova, confirmação nova nem navegação
+        nova.</strong> Uma tela e um Gravar, como hoje. A pergunta do segundo comprovante não
+        aparece — e para quem anexou um só, ela nunca aparece.
+      </div>
+
+      <div class="card">
+        <label class="lab">O que é este desembolso?</label>
+        <div class="opts" data-radio="tipo">
+          <button class="opt" data-v="entrada"><span class="bola"><i></i></span>
+            <span><span class="tt">Entrada</span><span class="ss">o que você pagou do próprio bolso na compra</span></span></button>
+          <button class="opt" data-v="itbi"><span class="bola"><i></i></span>
+            <span><span class="tt">ITBI</span><span class="ss">imposto de transmissão, pago na prefeitura</span></span></button>
+          <button class="opt" data-v="escritura"><span class="bola"><i></i></span>
+            <span><span class="tt">Escritura e registro</span><span class="ss">cartório</span></span></button>
+        </div>
+
+        <div style="margin-top:12px">
+          <label class="lab" for="inpValorS2">Valor</label>
+          <input class="inp mono" id="inpValorS2" inputmode="decimal" placeholder="0,00">
+        </div>
+
+        <div style="margin-top:12px">
+          <label class="lab">Este valor já foi pago?</label>
+          <div class="opts" data-radio="estado">
+            <button class="opt" data-v="pago"><span class="bola"><i></i></span>
+              <span><span class="tt">Já saiu da conta</span></span></button>
+            <button class="opt" data-v="previsto"><span class="bola"><i></i></span>
+              <span><span class="tt">Ainda vou pagar</span></span></button>
+          </div>
+        </div>
+
+        <div style="margin-top:12px">
+          <label class="lab" for="inpDataS2">Data em que saiu da conta</label>
+          <input class="inp" id="inpDataS2" type="date" value="2026-08-21">
+          <div class="hint" style="margin-top:5px">A data que vale é a do débito no extrato — não a do
+            contrato, não a da escritura, não a do vencimento.</div>
+        </div>
+      </div>
+
+      <!-- ANEXOS: <input type="file" multiple> DE VERDADE, com o papel inline. -->
+      <div class="card">
+        <div class="anx-tit">Papéis deste desembolso</div>
+        <div class="anx-sub">Obrigatório: é o que sustenta este custo no dia da venda.
+          <strong>Pode ser mais de um.</strong></div>
+        <div class="anx-bts">
+          <label class="fake-file">📷 Tirar foto
+            <input type="file" accept="image/*" capture="environment" multiple data-alvo="listaS2"></label>
+          <label class="fake-file">📎 Escolher arquivos
+            <input type="file" multiple data-alvo="listaS2"></label>
+        </div>
+        <div id="listaS2" style="margin-top:10px"></div>
+        <div class="hint" id="vazioS2" style="margin-top:8px">Nenhum papel escolhido ainda.</div>
+        <div class="hint" style="margin-top:8px">Nada sobe para o acervo enquanto você não gravar —
+          por isso “tirar da lista” só existe aqui, antes do Gravar. Depois de gravado, o acervo só
+          cresce.</div>
+
+        <!-- A PERGUNTA DO 2º COMPROVANTE — nasce escondida, e sem nada pré-marcado. -->
+        <div class="divida oculto" id="perguntaS2" style="margin-top:12px; border-color:var(--red); border-left-color:var(--red)">
+          <div class="anx-tit">Quando esse dinheiro saiu da sua conta?</div>
+          <div class="opts" data-radio="quando">
+            <button class="opt" data-v="mesmo_dia"><span class="bola"><i></i></span>
+              <span><span class="tt">Tudo em <span data-eco-data>21/08/2026</span></span></span></button>
+            <button class="opt" data-v="varios_dias"><span class="bola"><i></i></span>
+              <span><span class="tt">Em mais de um dia</span></span></button>
+          </div>
+          <div class="consequencia amb">
+            <strong>Cada dia em que o dinheiro saiu é um pagamento com a sua própria data — e é a
+            data que decide em que ano o custo entra.</strong> Se foi em mais de um dia, o registro é
+            gravado do mesmo jeito e fica uma pendência.
+            <div class="parecer">Texto do <code>contador</code>, 21/08, sobre o §2 do Gate Fiscal e o
+              §2b do parecer do terreno. A frase <strong>não</strong> lidera pela punição de
+              propósito: consequência que começa pelo castigo ensina a responder o que escapa dela.</div>
+          </div>
+          <div class="hint" style="margin-top:6px">Não é retrabalho: dois débitos em dias diferentes
+            são dois fatos, e o app não tem como saber quanto foi em cada dia — nem deve fingir que tem.</div>
+        </div>
+      </div>
+
+      <div class="hint">O app nunca inventa a data: nem a de hoje, nem a do cadastro. Data ausente
+        continua ausente e visível.</div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" id="btnGravarS2" disabled>Escolha ao menos um papel para gravar</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 2b · GRAVOU — “tudo no mesmo dia” ══════════════════ -->
+  <section class="screen" id="s2b">
+    <div class="appbar">
+      <div class="brand">Terreno</div>
+      <div class="sub">Entrada · 21/08/2026 · gravado</div>
+    </div>
+    <div class="body">
+      <div class="banner grn"><strong>Gravado.</strong> Um desembolso, dois papéis, uma data.
+        Nenhuma pendência: você disse que o dinheiro saiu todo no mesmo dia.</div>
+      <div class="card">
+        <div class="row"><span class="lbl">Tipo</span><span class="val">Entrada</span></div>
+        <div class="row"><span class="lbl">Valor</span><span class="val mono">R$ 60.000,00</span></div>
+        <div class="row"><span class="lbl">Saiu da conta em</span><span class="val mono">21/08/2026</span></div>
+        <div class="row"><span class="lbl">Entra no custo de</span><span class="val ok">2026</span></div>
+        <div class="secao" style="margin-top:11px">Papéis deste desembolso (2)</div>
+        <div style="margin-top:9px">
+          <div class="anx" data-est="pronto" data-exemplo="comprovante">
+            <div class="anx-thumb">PDF</div>
+            <div class="anx-info">
+              <div class="anx-nome">pix-parte-1.pdf</div>
+              <div class="anx-meta">148 KB · anexado em 21/08/2026</div>
+              <div class="anx-papel chip mud">Comprovante do pagamento</div>
+              <div class="anx-erro so-falha">Não consegui abrir agora. O papel continua no acervo — o que falhou foi o link de leitura. Nada foi perdido.</div>
+              <div class="anx-erro so-negado">Este arquivo não é seu. O acervo só abre para o dono.</div>
+            </div>
+            <div class="anx-acao">
+              <button class="anx-abrir so-pronto">Abrir</button>
+              <span class="hint so-abrindo">abrindo…</span>
+              <button class="anx-abrir so-falha" style="border-color:var(--red); color:var(--red)">Tentar de novo</button>
+              <span class="hint so-negado">—</span>
+            </div>
+          </div>
+          <div class="anx" data-est="pronto" data-exemplo="comprovante2">
+            <div class="anx-thumb">PDF</div>
+            <div class="anx-info">
+              <div class="anx-nome">pix-parte-2.pdf</div>
+              <div class="anx-meta">151 KB · anexado em 21/08/2026</div>
+              <div class="anx-papel chip mud">Comprovante do pagamento</div>
+              <div class="anx-erro so-falha">Não consegui abrir agora. O papel continua no acervo — o que falhou foi o link de leitura. Nada foi perdido.</div>
+              <div class="anx-erro so-negado">Este arquivo não é seu. O acervo só abre para o dono.</div>
+            </div>
+            <div class="anx-acao">
+              <button class="anx-abrir so-pronto">Abrir</button>
+              <span class="hint so-abrindo">abrindo…</span>
+              <button class="anx-abrir so-falha" style="border-color:var(--red); color:var(--red)">Tentar de novo</button>
+              <span class="hint so-negado">—</span>
+            </div>
+          </div>
+        </div>
+        <div class="consequencia mud">
+          <strong>Dois comprovantes, um custo.</strong> O limite do PIX quebrou a transferência; não
+          quebrou o desembolso.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 2c · GRAVOU — “em mais de um dia” ══════════════════ -->
+  <section class="screen" id="s2c">
+    <div class="appbar">
+      <div class="brand">Terreno</div>
+      <div class="sub">Entrada · 21/08/2026 · gravado, com pendência</div>
+    </div>
+    <div class="body">
+      <div class="banner grn"><strong>Gravado.</strong> O registro entrou do mesmo jeito — o app
+        nunca recusa um fato que já aconteceu.
+        <div class="parecer">Adendo 2 do parecer de 18/08: <em>“nunca recuse o registro de um fato
+          consumado”</em>. Critério 12.</div>
+      </div>
+
+      <div class="divida" style="border-color:var(--red); border-left-color:var(--red)">
+        <span class="chip red">Um lançamento, mais de uma data</span>
+        <div class="hint" style="margin-top:7px">Este lançamento tem <strong>R$ 60.000,00 numa data
+          só</strong>, e você respondeu que o dinheiro saiu em mais de um dia. Cada data é um
+          lançamento — é a data do pagamento que decide o ano do custo.</div>
+        <div class="consequencia red" style="margin-top:9px">
+          <strong>Ainda não dá para arrumar aqui:</strong> o app não corrige o valor de um desembolso
+          do terreno já gravado. <strong>Não registre os lançamentos separados antes disso</strong> —
+          enquanto este continuar com os R$ 60.000,00, os novos somam por cima e o custo do terreno
+          fica maior do que foi.
+        </div>
+        <div class="hint" style="margin-top:8px">Quando a correção de valor existir: corrija este para
+          o que saiu na primeira data e registre um lançamento para cada uma das outras.</div>
+        <div class="parecer">Estrutura do <code>po</code>, palavras do <code>contador</code>, 21/08.
+          A segunda metade faltava no ticket — sem ela, cumprir a primeira soma o valor duas vezes no
+          painel do terreno, que é inflação de custo de aquisição: o pior dos dois erros simétricos.</div>
+      </div>
+
+      <div class="card">
+        <div class="secao">O que o app NÃO faz sozinho</div>
+        <div class="hint" style="margin-top:6px">Não desdobra o lançamento em três. Mexer em valor e
+          data já gravados é outro assunto e, num ano já declarado, exige retificadora. A pendência
+          <strong>nomeia</strong> a ação e diz quando ela fica possível; quem executa é você.</div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" data-ir="s3">Ver a pendência na lista</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 2d · O PAPEL QUE CHEGA DEPOIS (crit. 9b) ══════════════════ -->
+  <section class="screen" id="s2d">
+    <div class="appbar">
+      <div class="brand">Terreno</div>
+      <div class="sub">Entrada · 21/08/2026 · anexar um papel que chegou depois</div>
+    </div>
+    <div class="body">
+      <div class="banner blu">
+        <strong>Sem tela nova.</strong> É a mesma ação que hoje completa a data, agora disponível
+        também para desembolso que já tem data e já tem papel. Cada papel novo é
+        <strong>acréscimo</strong> — nunca substituição, nunca remoção.
+        <div class="parecer">Critério 9b, aberto pelo <code>po</code> em 21/08. O ticket já mandava
+          isso sem ter percebido: <em>“anexo vira INSERT na filha”</em>, em Arquivos prováveis.</div>
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Papéis hoje</span><span class="val">1 — comprovante do PIX</span></div>
+        <div class="anx-bts" style="margin-top:10px">
+          <label class="fake-file">📎 Anexar papel
+            <input type="file" multiple data-alvo="listaS2d"></label>
+        </div>
+        <div id="listaS2d" style="margin-top:10px"></div>
+        <div class="hint" id="vazioS2d" style="margin-top:8px">Escolha um arquivo para ver o que
+          acontece: marcá-lo como <strong>Comprovante do pagamento</strong> faz a pergunta aparecer;
+          marcá-lo como <strong>Nota ou recibo</strong> grava calado.</div>
+
+        <div class="divida oculto" id="perguntaS2d" style="margin-top:12px; border-color:var(--red); border-left-color:var(--red)">
+          <div class="anx-tit">Quando esse dinheiro saiu da sua conta?</div>
+          <div class="opts" data-radio="quando2">
+            <button class="opt" data-v="mesmo_dia"><span class="bola"><i></i></span>
+              <span><span class="tt">Tudo em 21/08/2026</span></span></button>
+            <button class="opt" data-v="varios_dias"><span class="bola"><i></i></span>
+              <span><span class="tt">Em mais de um dia</span></span></button>
+          </div>
+          <div class="consequencia amb">
+            <strong>Cada dia em que o dinheiro saiu é um pagamento com a sua própria data — e é a
+            data que decide em que ano o custo entra.</strong> Se foi em mais de um dia, o registro é
+            gravado do mesmo jeito e fica uma pendência.
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="secao">Quando a pergunta aparece — e quando não aparece</div>
+        <ul class="lista" style="margin-top:8px">
+          <li><span class="n">✓</span><span>Quando o lançamento passa a ter <strong>dois papéis
+            marcados “Comprovante do pagamento”</strong> — no mesmo ato ou dias depois, tanto faz</span></li>
+          <li><span class="n">✓</span><span><strong>Uma vez por ato</strong>, não por arquivo: três
+            comprovantes de uma vez perguntam uma vez só</span></li>
+          <li><span class="n">✓</span><span><strong>De novo</strong>, se a resposta vigente era “tudo
+            no dia X” e chega comprovante novo — o fato mudou, e o app não carrega adiante um “sim”
+            que não sustenta mais</span></li>
+          <li><span class="n">✕</span><span><strong>Nunca</strong> para “Nota ou recibo” nem
+            “Contrato ou escritura”: comprovante + recibo são dois papéis e <strong>um</strong>
+            débito, e pergunta de resposta óbvia treina o clique automático</span></li>
+          <li><span class="n">✕</span><span><strong>Não</strong>, se a pendência já está aberta — ele
+            já respondeu</span></li>
+          <li><span class="n">✕</span><span><strong>Não</strong>, enquanto o desembolso não tiver
+            data: a pergunta cita uma data no botão e sem data é impronunciável. Fica
+            <strong>represada</strong> e dispara junto com o preenchimento da data</span></li>
+        </ul>
+        <div class="parecer">Regra de disparo fechada pelo <code>po</code> em 21/08. A última linha é
+          a que impede o duplo alarme no mesmo card, junto com a pendência de “falta a data”.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 3 · A PENDÊNCIA NA HOME ══════════════════ -->
+  <section class="screen" id="s3">
+    <div class="appbar">
+      <div class="brand">O que está faltando</div>
+      <div class="sub">Casa Tanheiros · 21/08/2026</div>
+    </div>
+    <div class="body">
+      <div class="divida" style="border-color:var(--red); border-left-color:var(--red)">
+        <span class="chip red">Um lançamento, mais de uma data</span>
+        <div class="anx-tit" style="margin-top:7px">Entrada do terreno · R$ 60.000,00 · 21/08/2026</div>
+        <div class="hint" style="margin-top:5px">Você respondeu que o dinheiro saiu em mais de um dia,
+          e este lançamento tem tudo numa data só. É a data do pagamento que decide o ano do custo.</div>
+        <div class="consequencia red" style="margin-top:9px">
+          <strong>Ainda não dá para arrumar aqui:</strong> o app não corrige o valor de um desembolso
+          do terreno já gravado. <strong>Não registre os lançamentos separados antes disso</strong> —
+          enquanto este continuar com os R$ 60.000,00, os novos somam por cima.
+        </div>
+        <button class="btn ghost mini" style="margin-top:9px" data-ir="s2c">Abrir o desembolso</button>
+      </div>
+
+      <div class="divida" style="border-color:var(--mut); border-left-color:var(--mut)">
+        <span class="chip mud">Falta a data</span>
+        <div class="anx-tit" style="margin-top:7px">ITBI · R$ 4.200,00</div>
+        <div class="hint" style="margin-top:5px">Sem a data, este valor não tem ano-calendário e a
+          discriminação não pode ser gerada.</div>
+        <div class="parecer">Estas duas nunca aparecem juntas no mesmo desembolso: sem data, a
+          pergunta do segundo comprovante fica represada. A de data tem precedência.</div>
+      </div>
+
+      <div class="card">
+        <div class="secao">Por que vermelha, e não âmbar</div>
+        <div class="hint" style="margin-top:6px">A regra antiga era <em>“vermelho = dinheiro que saiu
+          e não está no custo; âmbar = nada saiu ainda”</em> — e ela não cobre este caso, porque aqui
+          o dinheiro saiu <strong>e está</strong> no custo, possivelmente no ano errado. A regra passa
+          a ser: <strong>vermelho = fato consumado com consequência fiscal aberta; âmbar = nada saiu
+          ainda</strong>.
+          <div class="parecer">Correção do <code>po</code>, 21/08. O <code>contador</code> tinha
+            proposto âmbar pelo argumento de que o acervo está completo; quem decide apresentação de
+            pendência é o <code>po</code>, e ele registra a mudança da regra de cor no backlog.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="secao">Esta pendência não tem “ok, entendi”</div>
+        <div class="hint" style="margin-top:6px">Não dá para dispensar, adiar ou esconder. Ela fecha
+          quando o fato mudar — e hoje, honestamente, não fecha. Pendência fiscal baixada por
+          declaração de intenção é o mesmo defeito do campo preenchido que afirma o que ninguém
+          conferiu, com um botão na frente.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 3b · ANTES DE DECLARAR ══════════════════ -->
+  <section class="screen" id="s3b">
+    <div class="appbar">
+      <div class="brand">Discriminação de 2026</div>
+      <div class="sub">Bens e Direitos · texto para copiar na declaração</div>
+    </div>
+    <div class="body">
+      <div class="banner amb">
+        <strong>Revise antes de copiar — 1 lançamento pede atenção.</strong>
+        A discriminação sai; o que a linha abaixo diz é onde o número pode estar no ano errado.
+      </div>
+
+      <div class="divida" style="border-color:var(--red); border-left-color:var(--red)">
+        <span class="chip red">Um lançamento, mais de uma data</span>
+        <div class="anx-tit" style="margin-top:7px">Entrada do terreno · R$ 60.000,00 · 21/08/2026</div>
+        <div class="hint" style="margin-top:5px">Este valor inteiro está caindo em <strong>2026</strong>
+          pela data do lançamento. Se parte dele saiu em outro dia — e principalmente em outro ano —
+          o ano está errado para essa parte.</div>
+      </div>
+
+      <div class="card">
+        <div class="secao">O texto — daqui para baixo é o que vai para a declaração</div>
+        <div class="ascii" style="margin-top:8px">Terreno adquirido em 2026, matricula XXX, no
+Cartorio de Registro de Imoveis de XXX.
+Valor pago ate 31/12/2026: R$ 64.200,00,
+composto por entrada, ITBI e escritura.
+Saldo devedor do financiamento: R$ XXX.</div>
+        <div class="hint" style="margin-top:7px">O aviso fica <strong>acima</strong> deste bloco, nunca
+          dentro dele: o que está dentro é o que você cola na declaração.</div>
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Total do terreno em 2026</span><span class="val mono">R$ 64.200,00</span></div>
+        <div class="row"><span class="lbl">Lançamentos</span><span class="val">7</span></div>
+        <div class="row"><span class="lbl">Em revisão</span><span class="val bad">1</span></div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary">Copiar o texto de 2026</button>
+      <button class="btn ghost mini" data-ir="s3c">Por que isto não trava (tela 3c)</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 3c · O BLOQUEIO QUE SAIU DESTA RODADA ══════════════════ -->
+  <section class="screen" id="s3c">
+    <div class="appbar">
+      <div class="brand">O critério 13</div>
+      <div class="sub">O bloqueio que o ticket pedia, e por que ele não vai ao ar agora</div>
+    </div>
+    <div class="body">
+      <div class="banner red">
+        <strong>Esta é a tela que o critério 13 pedia — e ela está aqui como comparação, não como
+        proposta.</strong>
+      </div>
+
+      <div class="card" style="opacity:.6">
+        <div class="banner red" style="font-size:12.5px">Não dá para gerar a discriminação de 2026
+          com este lançamento em aberto.</div>
+        <button class="btn primary" disabled style="margin-top:10px">Resolva a pendência para gerar</button>
+      </div>
+
+      <div class="card">
+        <div class="secao">Por que ela não vai ao ar</div>
+        <div class="hint" style="margin-top:6px">A ação nomeada tem duas metades, e a segunda —
+          <em>corrigir o valor deste lançamento</em> — <strong>não tem tela no app</strong>. O único
+          caminho de alteração de desembolso que existe hoje completa a data, e traz escrito que o
+          valor não é tocado por ele.</div>
+        <div class="consequencia red" style="margin-top:9px">
+          <strong>Bloqueio sem caminho de baixa não produz número certo: produz a resposta mentirosa
+          na pergunta.</strong> E a mentira é pior que o defeito original — uma data colapsada
+          <em>com pendência aberta</em> é um erro nomeado no acervo; um “tudo no mesmo dia” falso é um
+          erro invisível, que some do app, some do dossiê e some de 2034.
+        </div>
+        <div class="hint" style="margin-top:8px">Some a isso o que ninguém tinha dito em voz alta:
+          <strong>a discriminação não é transmitida pelo app</strong> — é texto que você copia para a
+          declaração. Um bloqueio que se contorna fechando o app e digitando à mão não protege
+          declaração nenhuma; só empurra você para fora da ferramenta no dia mais importante do ano.</div>
+        <div class="parecer">Decisão do <code>po</code> em 21/08, acatando alteração que o
+          <code>contador</code> fez ao próprio Gate Fiscal. Nenhum dos dois inventou um critério de
+          baixa: <em>“a única baixa disponível seria um ‘eu resolvi isso’ — pendência fiscal fechada
+          por declaração de intenção. Recuso.”</em></div>
+      </div>
+
+      <div class="card">
+        <div class="secao">O que fica no lugar, e onde o bloqueio volta</div>
+        <ul class="lista" style="margin-top:8px">
+          <li><span class="n">1</span><span>A pendência é <strong>indispensável</strong> — sem “ok,
+            entendi”, sem adiar, sem esconder</span></li>
+          <li><span class="n">2</span><span>Ela aparece na <strong>home</strong>, no <strong>card do
+            desembolso</strong> e na <strong>lista de revisão pré-declaração</strong></span></li>
+          <li><span class="n">3</span><span>O aviso acompanha a saída, <strong>fora da área
+            copiável</strong> (tela 3b)</span></li>
+          <li><span class="n">4</span><span>O bloqueio <strong>volta</strong> junto com a correção de
+            valor de desembolso, com rastro — ticket novo, que o <code>po</code> abre. O critério 13
+            migra para lá, e com ele a <strong>meta 2</strong>: este ticket passa a entregar as metas
+            <strong>1 e 3</strong>.</span></li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" data-ir="s3b">Voltar para a tela que vai ao ar (3b)</button>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  /* ══ NAVEGAÇÃO ═════════════════════════════════════════════════════════ */
+  var TABS = [
+    { g: "g0", id: "s0",  t: "Fluxo 1 (ASCII) — abrir · leia primeiro" },
+    { g: "g0", id: "s0b", t: "Fluxo 2 (ASCII) — N papéis" },
+
+    { g: "g1", id: "s1",  t: "★ 1 · A lista com Abrir (interativa)" },
+    { g: "g1", id: "s1b", t: "★ 1b · “Confira antes de digitar” (crit. 6)" },
+    { g: "g1", id: "s1c", t: "★ 1c · Pago, e sem papel nenhum (crit. 15)" },
+    { g: "g1", id: "s1d", t: "1d · As outras superfícies" },
+
+    { g: "g2", id: "s2",  t: "★ 2 · Registrar (interativa — file real)" },
+    { g: "g2", id: "s2b", t: "2b · Gravou — tudo no mesmo dia" },
+    { g: "g2", id: "s2c", t: "★ 2c · Gravou — em mais de um dia" },
+    { g: "g2", id: "s2d", t: "★ 2d · O papel que chega depois (interativa)" },
+
+    { g: "g3", id: "s3",  t: "★ 3 · A pendência na home" },
+    { g: "g3", id: "s3b", t: "★ 3b · Antes de declarar — o que VAI ao ar" },
+    { g: "g3", id: "s3c", t: "3c · O bloqueio que saiu (crit. 13)" }
+  ];
+
+  var botoes = {};
+  TABS.forEach(function (tab) {
+    var b = document.createElement("button");
+    b.className = "tab";
+    b.textContent = tab.t;
+    b.onclick = function () { mostrar(tab.id); };
+    document.getElementById(tab.g).appendChild(b);
+    botoes[tab.id] = b;
+  });
+
+  function mostrar(id) {
+    document.querySelectorAll(".screen").forEach(function (s) { s.classList.remove("on"); });
+    var alvo = document.getElementById(id);
+    if (alvo) { alvo.classList.add("on"); var c = alvo.querySelector(".body"); if (c) c.scrollTop = 0; }
+    for (var k in botoes) botoes[k].classList.toggle("on", k === id);
+  }
+
+  document.addEventListener("click", function (e) {
+    var alvo = e.target.closest("[data-ir]");
+    if (!alvo || alvo.disabled) return;
+    mostrar(alvo.getAttribute("data-ir"));
+  });
+  mostrar("s0");
+
+  /* ── largura: 375 px (piso) × 720 px (mesa, cenário principal) ───────── */
+  var phone = document.getElementById("phone");
+  var w375 = document.getElementById("w375");
+  var w720 = document.getElementById("w720");
+  w375.onclick = function () { phone.classList.remove("mesa"); w375.classList.add("on"); w720.classList.remove("on"); };
+  w720.onclick = function () { phone.classList.add("mesa"); w720.classList.add("on"); w375.classList.remove("on"); };
+
+  /* ══ ABRIR — o coração da rodada 1 ═══════════════════════════════════════
+     No app: pede um link assinado e temporário (createSignedUrl) e abre.
+     Aqui: se o papel é um arquivo que VOCÊ escolheu, abre o arquivo de
+     verdade (URL.createObjectURL). Se é um papel de EXEMPLO, abre um papel
+     desenhado pelo próprio mock — não existe servidor num arquivo estático.
+     "falha" e "negado" vêm da barra de simulação, que é a única coisa que um
+     arquivo estático não consegue produzir sozinho.                         */
+  var simulacao = "ok";
+  document.querySelectorAll("[data-sim]").forEach(function (bt) {
+    bt.onclick = function () {
+      simulacao = bt.getAttribute("data-sim");
+      document.querySelectorAll("[data-sim]").forEach(function (o) { o.classList.toggle("on", o === bt); });
+      if (simulacao === "ok") {
+        document.querySelectorAll(".anx").forEach(function (a) { a.setAttribute("data-est", "pronto"); });
+      }
+    };
+  });
+
+  function papelDeExemplo(linhas) {
+    var corpo = linhas.slice(1).map(function (l, i) {
+      return '<text x="40" y="' + (170 + i * 34) + '" font-family="monospace" font-size="18" fill="#23221d">' +
+        l.replace(/&/g, "&amp;").replace(/</g, "&lt;") + "</text>";
+    }).join("");
+    var svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="620" height="820" viewBox="0 0 620 820">' +
+      '<rect width="620" height="820" fill="#ffffff"/>' +
+      '<rect x="16" y="16" width="588" height="788" fill="none" stroke="#e6e3da" stroke-width="2"/>' +
+      '<text x="40" y="80" font-family="sans-serif" font-size="26" font-weight="700" fill="#23221d">' +
+        linhas[0] + "</text>" +
+      '<line x1="40" y1="104" x2="580" y2="104" stroke="#e6e3da" stroke-width="2"/>' + corpo +
+      '<text x="40" y="770" font-family="sans-serif" font-size="14" fill="#716c61">' +
+        "Papel de EXEMPLO, desenhado pelo mock - nao e documento real.</text></svg>";
+    return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  }
+
+  var EXEMPLOS = {
+    comprovante:  ["COMPROVANTE DE TRANSFERENCIA", "", "Valor:  R$ 30.000,00", "Data:   12/08/2026",
+                   "Tipo:   PIX", "", "(exemplo - nenhum dado real)"],
+    comprovante2: ["COMPROVANTE DE TRANSFERENCIA", "", "Valor:  R$ 30.000,00", "Data:   12/08/2026",
+                   "Tipo:   PIX (2a parte, limite diario)", "", "(exemplo - nenhum dado real)"],
+    recibo:       ["RECIBO", "", "Recebi a quantia de", "R$ 60.000,00 referente a", "entrada do terreno.",
+                   "", "(exemplo - nenhum dado real)"],
+    nota:         ["NOTA FISCAL DE SERVICO", "", "Numero: 2481", "Valor:  R$ 40.857,14", "",
+                   "(exemplo - nenhum dado real)"]
+  };
+
+  function abrir(anx) {
+    if (simulacao === "falha")  { anx.setAttribute("data-est", "falha");  return; }
+    if (simulacao === "negado") { anx.setAttribute("data-est", "negado"); return; }
+    anx.setAttribute("data-est", "abrindo");
+    setTimeout(function () {
+      anx.setAttribute("data-est", "pronto");
+      var url = anx.dataset.url;
+      if (!url && anx.dataset.exemplo) url = papelDeExemplo(EXEMPLOS[anx.dataset.exemplo] || EXEMPLOS.comprovante);
+      if (url) window.open(url, "_blank", "noopener");
+    }, 420);
+  }
+
+  document.addEventListener("click", function (e) {
+    var bt = e.target.closest(".anx-abrir");
+    if (bt) { abrir(bt.closest(".anx")); return; }
+    var tirar = e.target.closest("[data-tirar]");
+    if (tirar) {
+      var linha = tirar.closest(".anx");
+      var dono = linha.parentNode;
+      linha.remove();
+      recalcular(dono.id);
+    }
+  });
+
+  /* ══ ANEXO REAL — <input type="file" multiple> ════════════════════════════
+     Nome, tamanho e preview são do arquivo escolhido, não do mock. O papel
+     (crit. 14) nasce VAZIO: campo com consequência fiscal não tem default. */
+  var PAPEIS = [
+    { v: "comprovante", t: "Comprovante do pagamento" },
+    { v: "nota",        t: "Nota ou recibo" },
+    { v: "contrato",    t: "Contrato ou escritura" }
+  ];
+
+  var CONFIG = {
+    listaS1:  { tirar: true },
+    listaS1c: { tirar: true },
+    listaS2:  { tirar: true, pergunta: "perguntaS2",  vazio: "vazioS2",
+                botao: "btnGravarS2", jaTem: 0 },
+    listaS2d: { tirar: true, pergunta: "perguntaS2d", vazio: "vazioS2d", jaTem: 1 }
+  };
+
+  function linhaAnexo(arq, cfg) {
+    var url = URL.createObjectURL(arq);
+    var img = /^image\//.test(arq.type);
+    var kb  = arq.size / 1024;
+    var tam = kb >= 1024 ? (kb / 1024).toFixed(1).replace(".", ",") + " MB"
+                         : Math.max(1, Math.round(kb)).toLocaleString("pt-BR") + " KB";
+    var ext = (arq.name.split(".").pop() || "ARQ").toUpperCase().slice(0, 4);
+
+    var el = document.createElement("div");
+    el.className = "anx";
+    el.setAttribute("data-est", "pronto");
+    el.dataset.url = url;
+    el.innerHTML =
+      '<div class="anx-thumb">' + (img ? '<img alt="">' : ext) + "</div>" +
+      '<div class="anx-info">' +
+        '<div class="anx-nome"></div>' +
+        '<div class="anx-meta">' + tam + " · escolhido agora, ainda não gravado</div>" +
+        '<div class="papel-campo">' +
+          '<div class="papel-lab">O que é este papel?</div>' +
+          '<div class="papel-ops">' +
+            PAPEIS.map(function (p) {
+              return '<button class="papel-op" data-p="' + p.v + '">' + p.t + "</button>";
+            }).join("") +
+          "</div>" +
+          '<div class="hint" style="margin-top:4px">Na ordem: o dinheiro saiu · o que eu comprei · o que eu combinei.</div>' +
+          '<div class="papel-falta">Escolha um — sem isso este papel não grava.</div>' +
+        "</div>" +
+        '<div class="anx-erro so-falha">Não consegui abrir agora. O papel continua no acervo — o que falhou foi o link de leitura. Nada foi perdido.</div>' +
+        '<div class="anx-erro so-negado">Este arquivo não é seu. O acervo só abre para o dono.</div>' +
+      "</div>" +
+      '<div class="anx-acao">' +
+        '<button class="anx-abrir so-pronto">Abrir</button>' +
+        '<span class="hint so-abrindo">abrindo…</span>' +
+        '<button class="anx-abrir so-falha" style="border-color:var(--red); color:var(--red)">Tentar de novo</button>' +
+        '<span class="hint so-negado">—</span>' +
+        (cfg.tirar ? '<button class="lnk" data-tirar>Tirar da lista</button>' : "") +
+      "</div>";
+    el.querySelector(".anx-nome").textContent = arq.name;
+    if (img) el.querySelector(".anx-thumb img").src = url;
+
+    el.querySelectorAll(".papel-op").forEach(function (bt) {
+      bt.onclick = function () {
+        el.querySelectorAll(".papel-op").forEach(function (o) { o.classList.remove("on"); });
+        bt.classList.add("on");
+        el.dataset.papel = bt.getAttribute("data-p");
+        el.querySelector(".papel-falta").style.display = "none";
+        recalcular(el.parentNode.id);
+      };
+    });
+    return el;
+  }
+
+  document.addEventListener("change", function (e) {
+    var inp = e.target;
+    if (!inp || inp.type !== "file" || !inp.dataset.alvo) return;
+    var destino = document.getElementById(inp.dataset.alvo);
+    var cfg = CONFIG[inp.dataset.alvo] || {};
+    Array.prototype.forEach.call(inp.files, function (arq) {
+      destino.appendChild(linhaAnexo(arq, cfg));
+    });
+    inp.value = "";
+    recalcular(inp.dataset.alvo);
+  });
+
+  /* ══ A PERGUNTA DO 2º COMPROVANTE ════════════════════════════════════════
+     Dispara pelo PAPEL, não pela contagem de arquivos: comprovante + recibo
+     são dois papéis e UM débito, e perguntar ali treinaria o clique
+     automático. Nada nasce marcado, e o botão diz sempre o que falta.      */
+  var respostas = {};
+
+  document.querySelectorAll("[data-radio]").forEach(function (grupo) {
+    grupo.querySelectorAll(".opt").forEach(function (bt) {
+      bt.onclick = function () {
+        grupo.querySelectorAll(".opt").forEach(function (o) { o.classList.remove("on"); });
+        bt.classList.add("on");
+        respostas[grupo.getAttribute("data-radio")] = bt.getAttribute("data-v");
+        recalcular("listaS2");
+      };
+    });
+  });
+
+  var dataS2 = document.getElementById("inpDataS2");
+  function ecoData() {
+    var v = dataS2 && dataS2.value ? dataS2.value.split("-").reverse().join("/") : "—";
+    document.querySelectorAll("[data-eco-data]").forEach(function (n) { n.textContent = v; });
+  }
+  if (dataS2) { dataS2.oninput = ecoData; ecoData(); }
+
+  function recalcular(id) {
+    var cfg = CONFIG[id];
+    if (!cfg) return;
+    var lista = document.getElementById(id);
+    var linhas = lista.querySelectorAll(".anx");
+    var comprovantes = (cfg.jaTem || 0);
+    var semPapel = 0;
+    linhas.forEach(function (l) {
+      if (!l.dataset.papel) semPapel++;
+      else if (l.dataset.papel === "comprovante") comprovantes++;
+    });
+
+    if (cfg.vazio) document.getElementById(cfg.vazio).style.display = linhas.length ? "none" : "";
+
+    var perg = cfg.pergunta ? document.getElementById(cfg.pergunta) : null;
+    var precisa = comprovantes >= 2;
+    if (perg) perg.classList.toggle("oculto", !precisa);
+
+    if (!cfg.botao) return;
+    var bt = document.getElementById(cfg.botao);
+    if (!linhas.length)  { bt.disabled = true;  bt.textContent = "Escolha ao menos um papel para gravar"; return; }
+    if (semPapel)        { bt.disabled = true;  bt.textContent = "Diga o que é cada papel para gravar (" + semPapel + " sem resposta)"; return; }
+    if (precisa && !respostas.quando) {
+      bt.disabled = true; bt.textContent = "Responda quando o dinheiro saiu para gravar"; return;
+    }
+    bt.disabled = false;
+    bt.textContent = precisa && respostas.quando === "varios_dias"
+      ? "Gravar — e abrir a pendência de datas"
+      : "Gravar o desembolso";
+    bt.setAttribute("data-ir", precisa && respostas.quando === "varios_dias" ? "s2c" : "s2b");
+  }
+
+  recalcular("listaS2");
+  recalcular("listaS2d");
+})();
+</script>
