@@ -60,8 +60,12 @@ import type {
   Revisao,
   RevisaoAnoAfetadoRow,
   RevisaoRow,
+  PapelDeAnexo,
   TerrenoDesembolso,
+  TerrenoDesembolsoAnexo,
+  TerrenoDesembolsoAnexoRow,
   TerrenoDesembolsoRow,
+  TerrenoDesembolsoUpdate,
   TipoDesembolsoTerreno,
   TipoFavorecido,
 } from "@/lib/types";
@@ -283,7 +287,24 @@ export interface PainelDados {
   financiamento: Financiamento | null;
 }
 
-function paraDesembolsoTerreno(row: TerrenoDesembolsoRow): TerrenoDesembolso {
+/**
+ * CONTAI-027, critério 7 — os N papéis vêm ANINHADOS, num pedido só.
+ *
+ * O embed do PostgREST (`terreno_desembolso_anexo(*)`) traz os desembolsos com
+ * as filhas dentro: sem ele seriam N+1 requisições, uma por card, num painel
+ * que já carrega documento, pagamento, contrato e informe em paralelo. A RLS
+ * derivada do pai (migration 0010) vale DENTRO do embed — o que a policy
+ * esconde não aparece aninhado.
+ */
+const DESEMBOLSO_COM_ANEXOS = "*, terreno_desembolso_anexo(*)";
+
+type TerrenoDesembolsoComAnexos = TerrenoDesembolsoRow & {
+  terreno_desembolso_anexo: TerrenoDesembolsoAnexoRow[] | null;
+};
+
+function paraDesembolsoTerreno(
+  row: TerrenoDesembolsoComAnexos,
+): TerrenoDesembolso {
   return {
     id: row.id,
     obraId: row.obra_id,
@@ -292,7 +313,31 @@ function paraDesembolsoTerreno(row: TerrenoDesembolsoRow): TerrenoDesembolso {
     dataPagamento: row.data_pagamento,
     estado: row.estado,
     origemRecurso: row.origem_recurso,
+    anexos: (row.terreno_desembolso_anexo ?? [])
+      // Do mais antigo para o mais novo: é essa ordem que a re-pergunta do §6
+      // lê, e é a ordem em que os papéis chegaram ao acervo.
+      .slice()
+      .sort((a, b) => a.created_at.localeCompare(b.created_at))
+      .map(paraAnexoDeDesembolso),
+    debitosMesmoDia: row.debitos_mesmo_dia,
+    debitosMesmoDiaRespondidoEm: row.debitos_mesmo_dia_respondido_em,
+  };
+}
+
+/**
+ * `papel` volta do PostgREST como `text` — o banco é quem o fecha, pelo check
+ * `terreno_anexo_papel` da 0010 (e não um enum, porque `alter type add value`
+ * não convive com a transação única da migration). O cast é o ponto onde a
+ * garantia do banco vira a garantia do tipo, e ele mora aqui, sozinho.
+ */
+function paraAnexoDeDesembolso(
+  row: TerrenoDesembolsoAnexoRow,
+): TerrenoDesembolsoAnexo {
+  return {
+    id: row.id,
     arquivoPath: row.arquivo_path,
+    papel: row.papel as PapelDeAnexo,
+    createdAt: row.created_at,
   };
 }
 
@@ -376,7 +421,7 @@ export async function carregarPainel(obraId: string): Promise<PainelDados> {
       supabase.from("pagamento_diferenca").select("*"),
       supabase
         .from("terreno_desembolso")
-        .select("*")
+        .select(DESEMBOLSO_COM_ANEXOS)
         .eq("obra_id", obra.id)
         .order("data_pagamento", { ascending: true, nullsFirst: false }),
       supabase.from("financiamento").select("*").eq("obra_id", obra.id),
@@ -418,9 +463,9 @@ export async function carregarPainel(obraId: string): Promise<PainelDados> {
     ).map((row) =>
       paraPagamento(row, docsPorPagamento.get(row.id) ?? [], porPagamento.get(row.id)),
     ),
-    desembolsosTerreno: ((desembolsos.data ?? []) as TerrenoDesembolsoRow[]).map(
-      paraDesembolsoTerreno,
-    ),
+    desembolsosTerreno: (
+      (desembolsos.data ?? []) as TerrenoDesembolsoComAnexos[]
+    ).map(paraDesembolsoTerreno),
     informesFinanciamento: ((informes.data ?? []) as FinanciamentoInformeRow[])
       .filter((i) => contratosDaObra.has(i.financiamento_id))
       .map(paraInforme),
@@ -463,7 +508,7 @@ export async function carregarPaineis(): Promise<PainelDados[]> {
     supabase.from("pagamento_diferenca").select("*"),
     supabase
       .from("terreno_desembolso")
-      .select("*")
+      .select(DESEMBOLSO_COM_ANEXOS)
       .order("data_pagamento", { ascending: true, nullsFirst: false }),
     supabase.from("financiamento").select("*"),
     supabase
@@ -504,7 +549,9 @@ export async function carregarPaineis(): Promise<PainelDados[]> {
       .map((row) =>
         paraPagamento(row, docsPorPagamento.get(row.id) ?? [], porPagamento.get(row.id)),
       ),
-    desembolsosTerreno: ((desembolsos.data ?? []) as TerrenoDesembolsoRow[])
+    desembolsosTerreno: (
+      (desembolsos.data ?? []) as TerrenoDesembolsoComAnexos[]
+    )
       .filter((row) => row.obra_id === obra.id)
       .map(paraDesembolsoTerreno),
     informesFinanciamento: ((informes.data ?? []) as FinanciamentoInformeRow[])
@@ -1742,11 +1789,13 @@ export async function carregarDesembolsosTerreno(
   await getUsuarioId();
   const { data, error } = await getSupabase()
     .from("terreno_desembolso")
-    .select("*")
+    .select(DESEMBOLSO_COM_ANEXOS)
     .eq("obra_id", obraId)
     .order("data_pagamento", { ascending: true, nullsFirst: false });
   if (error) throw error;
-  return ((data ?? []) as TerrenoDesembolsoRow[]).map(paraDesembolsoTerreno);
+  return ((data ?? []) as TerrenoDesembolsoComAnexos[]).map(
+    paraDesembolsoTerreno,
+  );
 }
 
 export async function carregarInformes(
@@ -1762,6 +1811,15 @@ export async function carregarInformes(
   return ((data ?? []) as FinanciamentoInformeRow[]).map(paraInforme);
 }
 
+/**
+ * Um papel a gravar: o caminho que já subiu para o acervo + o `papel` que o
+ * Mateus marcou. **Sem valor e sem data** — critérios 10 e 11.
+ */
+export interface AnexoAGravar {
+  arquivoPath: string;
+  papel: PapelDeAnexo;
+}
+
 export interface EntradaDesembolsoTerreno {
   obraId: string;
   tipo: TipoDesembolsoTerreno;
@@ -1773,51 +1831,115 @@ export interface EntradaDesembolsoTerreno {
   dataPagamento: string | null;
   estado: "pago" | "previsto";
   origemRecurso: OrigemRecursoEntrada | null;
-  /** Obrigatório para linha nova `pago` — a tela é quem garante. */
-  arquivoPath: string | null;
-}
-
-export async function criarDesembolsoTerreno(
-  entrada: EntradaDesembolsoTerreno,
-): Promise<string> {
-  const { data, error } = await getSupabase()
-    .from("terreno_desembolso")
-    .insert({
-      obra_id: entrada.obraId,
-      tipo: entrada.tipo,
-      valor: centavosParaNumeric(entrada.valorCentavos),
-      data_pagamento: entrada.dataPagamento,
-      estado: entrada.estado,
-      origem_recurso: entrada.origemRecurso,
-      arquivo_path: entrada.arquivoPath,
-    })
-    .select("id")
-    .single();
-  if (error) throw error;
-  return (data as { id: string }).id;
+  /** N papéis. Obrigatório ≥ 1 para linha nova `pago` — a tela é quem garante. */
+  anexos: readonly AnexoAGravar[];
+  /**
+   * A resposta do critério 12, quando a pergunta disparou neste ato.
+   * `null`/ausente = a pergunta não foi feita (um comprovante só, ou papéis de
+   * outro tipo). **Nunca um default**: campo fiscal em branco pergunta.
+   */
+  debitosMesmoDia?: boolean | null;
 }
 
 /**
- * Completa a data (e o comprovante) de um desembolso gravado sem eles — a
- * migration 0008 — critério 23. É o ÚNICO uso do UPDATE nesta tabela, e é a
- * razão de o grant existir: sem ele, a pendência de complemento não teria como
- * ser resolvida pela tela, e correção que exige SQL é a dor D9 de volta.
+ * Grava o desembolso e os N papéis **num ato só** — RPC
+ * `terreno_desembolso_gravar` (migration 0010).
  *
- * O VALOR não é tocado por este caminho: o que faltava era a data, não o
- * dinheiro.
+ * ⚠️ **Não são dois INSERTs, e a diferença é o pre-mortem nº 5 do `cto-obra`.**
+ * O ramo perigoso não é "pai sem nenhuma filha" (esse a pendência do critério
+ * 15 mostra em vermelho): é a falha NO MEIO dos N anexos — a primeira filha
+ * grava, a segunda falha, a pendência do 15 não acende porque existe anexo, e
+ * o retry duplica o pai (**custo inflado, o pior erro do projeto**) ou duplica
+ * a filha. A transação do banco é a única coisa que fecha isso.
+ */
+export async function criarDesembolsoTerreno(
+  entrada: EntradaDesembolsoTerreno,
+): Promise<string> {
+  const { data, error } = await getSupabase().rpc("terreno_desembolso_gravar", {
+    p_obra_id: entrada.obraId,
+    p_tipo: entrada.tipo,
+    p_valor: centavosParaNumeric(entrada.valorCentavos),
+    p_estado: entrada.estado,
+    p_anexos: entrada.anexos.map((a) => ({
+      arquivo_path: a.arquivoPath,
+      papel: a.papel,
+    })),
+    // Previsto NUNCA leva data (constraint da 0008): previsto não é pago.
+    p_data_pagamento: entrada.dataPagamento ?? undefined,
+    p_origem_recurso: entrada.origemRecurso ?? undefined,
+    p_debitos_mesmo_dia: entrada.debitosMesmoDia ?? undefined,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+export interface ComplementoDesembolsoTerreno {
+  /** Ausente = a data não muda (o desembolso já tinha uma). */
+  dataPagamento?: string;
+  /** Os papéis que chegaram agora. Pode ser vazio (só a data). */
+  anexos: readonly AnexoAGravar[];
+  /** A resposta do critério 12, se a pergunta disparou neste ato. */
+  debitosMesmoDia?: boolean;
+}
+
+/**
+ * A ação que completa a data — e, desde o CONTAI-027 (critério 9b), a **mesma
+ * ação** que anexa o papel que chegou dias depois, em desembolso que já tem
+ * data e já tem papel. **Sem tela nova**: é este caminho, com mais um uso.
+ *
+ * O VALOR não é tocado por aqui, e continua não sendo: o que faltava era a
+ * data ou o papel, nunca o dinheiro. É essa ausência que deixa a pendência do
+ * critério 12a sem baixa (§5 do parecer de 2026-08-21).
+ *
+ * ⚠️ **INSERT, nunca substituição, nunca remoção** — o acervo é append-only, e
+ * `terreno_desembolso_anexo` não tem UPDATE nem DELETE para `authenticated`.
+ *
+ * ⚠️ **A ORDEM DAS DUAS ESCRITAS É REGRA, não estilo.** Os anexos entram
+ * PRIMEIRO; a resposta do critério 12 é carimbada DEPOIS, com o `now()` do
+ * banco. Invertendo, o `created_at` dos papéis deste mesmo ato ficaria POSTERIOR
+ * a `debitos_mesmo_dia_respondido_em`, e a re-pergunta do §6 dispararia
+ * sozinha, para sempre, sobre uma resposta que já cobre esses papéis.
+ *
+ * Não virou função de banco (decisão do `cto-obra` no Gate 1): a falha entre
+ * as duas escritas cai em estados que a pendência do critério 15 e a
+ * re-pergunta do §6 já nomeiam em tela — nenhum deles é silencioso, e nenhum
+ * deles duplica lançamento.
  */
 export async function completarDesembolsoTerreno(
   id: string,
-  dataPagamento: string,
-  arquivoPath: string | null,
+  complemento: ComplementoDesembolsoTerreno,
 ): Promise<void> {
-  const { error } = await getSupabase()
+  const supabase = getSupabase();
+
+  if (complemento.anexos.length > 0) {
+    const { error } = await supabase.from("terreno_desembolso_anexo").insert(
+      complemento.anexos.map((a) => ({
+        desembolso_id: id,
+        arquivo_path: a.arquivoPath,
+        papel: a.papel,
+      })),
+    );
+    if (error) throw error;
+  }
+
+  const mudanca: TerrenoDesembolsoUpdate = {};
+  if (complemento.dataPagamento !== undefined) {
+    mudanca.data_pagamento = complemento.dataPagamento;
+  }
+  if (complemento.debitosMesmoDia !== undefined) {
+    // Critério 12b: a resposta se grava COM a data em que foi dada, nos dois
+    // casos, inclusive o "sim". ⚠️ `debitos_mesmo_dia_respondido_em` NÃO é
+    // enviado daqui: quem o carimba é o trigger da 0010, com o `now()` do
+    // servidor. Mandar o relógio do aparelho faria os anexos deste mesmo ato
+    // parecerem mais novos que a resposta, e a re-pergunta do §6 dispararia
+    // sozinha para sempre.
+    mudanca.debitos_mesmo_dia = complemento.debitosMesmoDia;
+  }
+  if (Object.keys(mudanca).length === 0) return;
+
+  const { error } = await supabase
     .from("terreno_desembolso")
-    .update(
-      arquivoPath
-        ? { data_pagamento: dataPagamento, arquivo_path: arquivoPath }
-        : { data_pagamento: dataPagamento },
-    )
+    .update(mudanca)
     .eq("id", id);
   if (error) throw error;
 }

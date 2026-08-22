@@ -28,7 +28,9 @@
 import type {
   FinanciamentoInforme,
   NaturezaAquisicaoTerreno,
+  PapelDeAnexo,
   TerrenoDesembolso,
+  TerrenoDesembolsoAnexo,
   TipoDesembolsoTerreno,
 } from "@/lib/types";
 import { formatarBRL } from "@/lib/money";
@@ -624,3 +626,233 @@ export const NOME_DO_DESEMBOLSO: Record<
   parcela_vendedor: "Parcela ao vendedor",
   quitacao: "Quitação do financiamento",
 };
+
+// ══ CONTAI-027 rodada 2 · N papéis por desembolso ═══════════════════════
+//
+// Fonte: docs/pareceres/2026-08-21-gate-fiscal-contai-027-criterio-13.md
+// (§4a, §4b, §4d, §6 e §7) e docs/tickets/CONTAI-027.md (critérios 9b a 16).
+//
+// ⚠️ **O critério 13 está CORTADO** (§3 do parecer): nada aqui bloqueia saída
+// nenhuma, e não existe função de bloqueio para ser chamada. A pendência é
+// INFORMAÇÃO indispensável, nunca trava — "pendência sem fato de baixa é
+// informação, nunca trava. Trava sem baixa não coleta o fato que falta:
+// coleta a resposta que destrava."
+//
+// ⚠️ **Módulo puro, e sem `Date.now()`**: a re-pergunta compara duas marcas
+// que vêm do BANCO (`respondidoEm` × `createdAt` do anexo). Nenhuma decisão
+// daqui depende do relógio do aparelho.
+
+/** Critério 14 / §7 — o rótulo em tela de cada papel. Sem default nenhum. */
+export const ROTULO_DO_PAPEL: Record<PapelDeAnexo, string> = {
+  comprovante: "Comprovante do pagamento",
+  nota: "Nota ou recibo",
+  contrato: "Contrato ou escritura",
+};
+
+/**
+ * A ordem em que os três se oferecem, e ela não é alfabética: é a do mock
+ * aprovado — o dinheiro saiu · o que eu comprei · o que eu combinei.
+ */
+export const PAPEIS_DE_ANEXO: readonly PapelDeAnexo[] = [
+  "comprovante",
+  "nota",
+  "contrato",
+];
+
+/**
+ * **Critério 15** — "pago, e sem papel nenhum" continua VISÍVEL depois de a
+ * coluna `arquivo_path` morrer.
+ *
+ * ⚠️ Esta função **substitui `arquivoPath === null` em todo consumidor**, e a
+ * substituição é o critério inteiro: sem ela, a migration apagaria a dívida
+ * junto com a coluna e o buraco no acervo só apareceria em 2034. `previsto`
+ * fica de fora porque não há o que anexar a um pagamento que não aconteceu.
+ */
+export function pagoSemPapel(d: TerrenoDesembolso): boolean {
+  return d.estado === "pago" && d.anexos.length === 0;
+}
+
+/** Os anexos marcados como comprovante — os únicos que o §6 conta. */
+export function comprovantesDe(
+  d: TerrenoDesembolso,
+): TerrenoDesembolsoAnexo[] {
+  return d.anexos.filter((a) => a.papel === "comprovante");
+}
+
+/**
+ * A pendência **"Um lançamento, mais de uma data"** está aberta?
+ *
+ * ⚠️ É exatamente `debitosMesmoDia === false`, e nada mais. Ela **não tem
+ * baixa no app** (§5): o fato que a fecharia é o valor deste lançamento passar
+ * a corresponder a um único dia, e o app não corrige valor de desembolso já
+ * gravado. Não invente critério de baixa — "pendência fiscal baixada por
+ * declaração de intenção é o campo preenchido que afirma o que ninguém
+ * conferiu, com um botão na frente".
+ */
+export function pendenciaDeDatasAberta(d: TerrenoDesembolso): boolean {
+  return d.debitosMesmoDia === false;
+}
+
+/**
+ * O lançamento tem fato novo que a resposta vigente não cobre?
+ *
+ * §6, terceira linha: *"dispara DE NOVO se a resposta vigente era 'tudo no dia
+ * X' e chega comprovante novo — o fato mudou, e o app não carrega adiante um
+ * 'sim' que não sustenta mais"*.
+ *
+ * Comparação de duas marcas do banco, `>` estrito: o comprovante gravado no
+ * MESMO ato da resposta não é fato novo (a gravação insere as filhas e só
+ * então carimba `respondidoEm`).
+ */
+function chegouComprovanteDepoisDaResposta(d: TerrenoDesembolso): boolean {
+  if (d.debitosMesmoDiaRespondidoEm === null) return false;
+  const respondidoEm = d.debitosMesmoDiaRespondidoEm;
+  return comprovantesDe(d).some((a) => a.createdAt > respondidoEm);
+}
+
+/**
+ * O lançamento passou a ter DOIS papéis `comprovante`? É a condição do §6 —
+ * **por papel, nunca por contagem de arquivos**.
+ *
+ * Comprovante + recibo são dois papéis e UM débito: perguntar ali é pergunta
+ * de resposta óbvia, e *"pergunta óbvia treina o clique automático que esvazia
+ * a pergunta que importa"*. Com o bloqueio do critério 13 fora, a pergunta é a
+ * defesa principal — gastá-la em caso trivial é caro.
+ */
+export function temDoisComprovantes(d: TerrenoDesembolso): boolean {
+  return comprovantesDe(d).length >= 2;
+}
+
+/**
+ * A pergunta do critério 12 **deve ser feita agora**?
+ *
+ * A tabela do §6, inteira, derivada — nenhuma linha nova em `pendencia`:
+ * - ✅ dispara com dois papéis `comprovante`, no mesmo ato ou dias depois;
+ * - ✅ dispara de novo se a resposta vigente era "sim" e chegou comprovante
+ *   novo;
+ * - ❌ nunca por `nota` nem `contrato`;
+ * - ❌ não, se a pendência já está aberta (`debitosMesmoDia === false`) — ele
+ *   já respondeu;
+ * - ❌ **represada** enquanto não houver data (ver `perguntaRepresada`).
+ */
+export function perguntaPendente(d: TerrenoDesembolso): boolean {
+  if (d.dataPagamento === null) return false;
+  if (!temDoisComprovantes(d)) return false;
+  if (d.debitosMesmoDia === false) return false;
+  if (d.debitosMesmoDia === null) return true;
+  return chegouComprovanteDepoisDaResposta(d);
+}
+
+/**
+ * As mesmas condições, **sem data**: a pergunta existe e não pode ser feita.
+ *
+ * §6: *"a pergunta cita a data no próprio botão — sem data, ela é
+ * impronunciável. E não há o que proteger: sem data não há ano-calendário, e a
+ * pendência 'falta a data' já cobre o defeito, com precedência. As duas nunca
+ * aparecem juntas no mesmo desembolso."* Quando a data entra (por
+ * `completarDesembolsoTerreno`), a represa abre e a pergunta dispara no mesmo
+ * ato.
+ */
+export function perguntaRepresada(d: TerrenoDesembolso): boolean {
+  if (d.dataPagamento !== null) return false;
+  return temDoisComprovantes(d);
+}
+
+// ── Os textos do critério 12 (CÓPIA literal do §4a do parecer) ──────────
+
+/** §4a — o título. Obrigatória, sem default e sem pré-seleção. */
+export const PERGUNTA_QUANDO_SAIU = "Quando esse dinheiro saiu da sua conta?";
+
+/** §4a — a primeira opção. `[data]` é substituição do app (dd/mm/aaaa). */
+export function opcaoTudoEm(dataBR: string): string {
+  return `Tudo em ${dataBR}`;
+}
+
+/** §4a — a segunda opção. Mesmo peso visual da primeira. */
+export const OPCAO_MAIS_DE_UM_DIA = "Em mais de um dia";
+
+/**
+ * §4a — a consequência, em âmbar, **abaixo** das opções.
+ *
+ * ⚠️ **Ela não lidera pela punição, e isso é decisão, não estilo**: *"frase
+ * que começa pelo castigo ensina a responder o que escapa dele — e, com o
+ * bloqueio fora, a qualidade dessa resposta é a única defesa que sobrou."*
+ * Não reescreva para "começar pelo importante".
+ */
+export const CONSEQUENCIA_DA_DATA_COLAPSADA =
+  "Cada dia em que o dinheiro saiu é um pagamento com a sua própria data — e " +
+  "é a data que decide em que ano o custo entra. Se foi em mais de um dia, o " +
+  "registro é gravado do mesmo jeito e fica uma pendência.";
+
+/** §4a — a nota de apoio. */
+export const NAO_E_RETRABALHO =
+  "Não é retrabalho: dois débitos em dias diferentes são dois fatos, e o app " +
+  "não tem como saber quanto foi em cada dia — nem deve fingir que tem.";
+
+// ── Os textos da pendência (CÓPIA literal do §4b do parecer) ────────────
+
+/**
+ * §4b — o chip/título, em **VERMELHO**.
+ *
+ * ⚠️ A cor é decisão do `po` (D39, 21/08), e ele mudou a regra para escrevê-la:
+ * *"vermelho = fato consumado com consequência fiscal aberta; âmbar = nada
+ * saiu ainda"*. O `contador` havia proposto âmbar olhando o acervo (que está
+ * completo) e **não disputa** a régua da consequência fiscal, que está aberta.
+ */
+export const PENDENCIA_MAIS_DE_UMA_DATA = "Um lançamento, mais de uma data";
+
+/** §4b — o corpo. `[valor]` é substituição do app. */
+export function corpoDaPendenciaDeDatas(valorCentavos: number): string {
+  return (
+    "Você respondeu que o dinheiro saiu em mais de um dia, e este lançamento " +
+    `tem ${formatarBRL(valorCentavos)} numa data só. É a data do pagamento ` +
+    "que decide o ano do custo."
+  );
+}
+
+/**
+ * §4b — **a segunda metade da ação nomeada. Ela existe, e não é opcional.**
+ *
+ * ⚠️ Cumprir só a primeira metade — registrar os lançamentos separados sem
+ * corrigir o original — **soma o valor duas vezes** no custo do terreno. Custo
+ * inflado em Bens e Direitos é **redução indevida de ganho de capital, cobrada
+ * com multa**. Dos dois erros simétricos, esse é o caro: a data colapsada põe
+ * custo no ano errado; a duplicação põe custo que não existe. *"Pendência que
+ * nomeia meia ação induz o erro pior que a original."*
+ *
+ * Quem apagar esta frase da tela para "encurtar" está reintroduzindo o erro
+ * caro.
+ */
+export function acaoDaPendenciaDeDatas(valorCentavos: number): string {
+  const valor = formatarBRL(valorCentavos);
+  return (
+    "Ainda não dá para arrumar aqui: o app não corrige o valor de um " +
+    "desembolso do terreno já gravado. Não registre os lançamentos separados " +
+    `antes disso — enquanto este continuar com os ${valor}, os novos somam ` +
+    "por cima e o custo do terreno fica maior do que foi."
+  );
+}
+
+/** §4b — a saída, quando ela existir (ticket de correção de valor). */
+export const SAIDA_QUANDO_A_CORRECAO_EXISTIR =
+  "Quando a correção de valor existir: corrija este para o que saiu na " +
+  "primeira data e registre um lançamento para cada uma das outras.";
+
+/**
+ * Critério 15 / mock tela 1c — "pago, e sem papel nenhum".
+ *
+ * O custo é real e SOMA no ano dele; o que falta é o lastro. Por isso a frase
+ * não promete que o número está errado — ela diz que ele não é comprovável.
+ */
+export const PAGO_SEM_PAPEL =
+  "Este valor está gravado como pago e não tem nenhum papel no acervo. O " +
+  "custo é real, mas não é comprovável — e é você quem prova, não a memória.";
+
+/**
+ * Critério 9b / mock tela 2d — o papel que chega depois tem lugar, e ele é
+ * ACRÉSCIMO.
+ */
+export const PAPEL_NOVO_E_ACRESCIMO =
+  "Cada papel novo é acréscimo — nunca substituição, nunca remoção. Nada " +
+  "sobe para o acervo enquanto você não gravar; depois de gravado, o acervo " +
+  "só cresce.";

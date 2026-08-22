@@ -136,6 +136,40 @@ alter table terreno_desembolso
   add constraint terreno_desembolso_resposta_exige_data
     check (debitos_mesmo_dia is null or data_pagamento is not null);
 
+-- ── Quem carimba a data da resposta é o BANCO ──────────────────────────
+--
+-- ⚠️ Isto **não é conveniência**: é o que faz o critério 12b sobreviver ao
+-- relógio do aparelho. A re-pergunta do §6 compara
+-- `debitos_mesmo_dia_respondido_em` com o `created_at` dos anexos, e o
+-- `created_at` vem do `now()` do servidor. Se a marca da resposta viesse do
+-- browser, um relógio adiantado ou atrasado — o `JWT issued at future` do
+-- CLAUDE.md é exatamente esse desencontro, e ele acontece nesta máquina —
+-- deixaria os papéis do MESMO ato "mais novos que a resposta". A pergunta
+-- voltaria a cada carga, para sempre, sobre uma resposta que já os cobre. E
+-- pergunta que se repete sem motivo é a que ensina o clique automático (o
+-- pre-mortem nº 2 do `po`, que já está sem mitigação mecânica).
+--
+-- `is distinct from` e não `<>`: a resposta é anulável, e re-carimbar a marca
+-- num UPDATE que só completa a data apagaria a linha do tempo da re-pergunta.
+create function terreno_desembolso_datar_resposta() returns trigger
+language plpgsql
+security invoker
+set search_path = public, pg_temp
+as $$
+begin
+  if tg_op = 'INSERT'
+     or new.debitos_mesmo_dia is distinct from old.debitos_mesmo_dia then
+    new.debitos_mesmo_dia_respondido_em :=
+      case when new.debitos_mesmo_dia is null then null else now() end;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger terreno_desembolso_datar_resposta
+  before insert or update on terreno_desembolso
+  for each row execute function terreno_desembolso_datar_resposta();
+
 -- ══ Backfill ANTES do drop ══════════════════════════════════════════════
 --
 -- ⚠️ `papel = 'comprovante'` **não é inventar fato**: a coluna de origem
@@ -209,17 +243,15 @@ declare
   v_id    uuid;
   v_anexo jsonb;
 begin
+  -- `debitos_mesmo_dia_respondido_em` NÃO aparece aqui: quem o carimba é o
+  -- trigger, com o `now()` do servidor. (O ANO-CALENDÁRIO do custo continua
+  -- vindo de `data_pagamento`, digitada — aqui não se decide ano de nada.)
   insert into terreno_desembolso
     (obra_id, tipo, valor, data_pagamento, estado, origem_recurso,
-     debitos_mesmo_dia, debitos_mesmo_dia_respondido_em)
+     debitos_mesmo_dia)
   values
     (p_obra_id, p_tipo, p_valor, p_data_pagamento, p_estado, p_origem_recurso,
-     p_debitos_mesmo_dia,
-     -- A data da resposta é a do BANCO, no ato — não vem da tela. O que ela
-     -- precisa provar é quando a afirmação foi feita, e isso é fato do
-     -- servidor. (O ANO-CALENDÁRIO do custo continua vindo de
-     -- `data_pagamento`, digitada: aqui não se decide ano de nada.)
-     case when p_debitos_mesmo_dia is null then null else now() end)
+     p_debitos_mesmo_dia)
   returning id into v_id;
 
   -- ⚠️ O laço roda DENTRO da mesma transação do INSERT do pai. É isso, e só
@@ -256,6 +288,12 @@ grant select, insert on table terreno_desembolso_anexo to authenticated;
 -- DELETE. Nada a conceder — o grant já existe desde a 0008.
 
 -- ── EXECUTE: função nasce com `execute` para `public` ──────────────────
+--
+-- ⚠️ `terreno_desembolso_datar_resposta` fica FORA do revoke, como a função de
+-- trigger da 0009: ela é `returns trigger`, e o Postgres RECUSA chamada direta
+-- ("trigger functions can only be called as triggers"). O privilégio é
+-- inofensivo, e um `revoke` aqui sugeriria uma proteção que não é dele. Está
+-- declarada, e não silenciada, em `e2e/privilegios.spec.ts`.
 revoke execute on function
   terreno_desembolso_gravar(uuid, tipo_desembolso_terreno, numeric,
                             estado_desembolso_terreno, jsonb, date,

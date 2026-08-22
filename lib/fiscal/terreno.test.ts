@@ -4,20 +4,35 @@ import { describe, expect, it } from "vitest";
 
 import { formatarBRL } from "@/lib/money";
 import {
+  acaoDaPendenciaDeDatas,
   anosDoFinanciamento,
+  comprovantesDe,
+  corpoDaPendenciaDeDatas,
   custoDoInformeCentavos,
   custoTerrenoAteOAno,
   custoTerrenoDoAno,
   entraEmAlgumAno,
   INSUMO_PARA_REVISAO_CRC,
+  opcaoTudoEm,
+  pagoSemPapel,
   penalidadesCentavos,
+  pendenciaDeDatasAberta,
+  perguntaPendente,
+  perguntaRepresada,
   rubricasComClassificacaoEmAberto,
+  ROTULO_DO_PAPEL,
   somaDasRubricasCentavos,
   TAXAS_E_FCVS_NA_MESMA_LINHA,
+  temDoisComprovantes,
   tiposDeDesembolsoPara,
   travaDaSoma,
 } from "@/lib/fiscal/terreno";
-import type { FinanciamentoInforme, TerrenoDesembolso } from "@/lib/types";
+import type {
+  FinanciamentoInforme,
+  PapelDeAnexo,
+  TerrenoDesembolso,
+  TerrenoDesembolsoAnexo,
+} from "@/lib/types";
 
 /**
  * Os quatro testes obrigatórios do critério 24, mais os do Gate 1:
@@ -48,6 +63,18 @@ const INFORME_2025: FinanciamentoInforme = {
   arquivoPath: "u/informe/extrato-2025.pdf",
 };
 
+/**
+ * Um papel do desembolso. `createdAt` é explícito em todo teste que depende da
+ * linha do tempo da re-pergunta (§6) — nada aqui usa o relógio da máquina.
+ */
+function anexo(
+  papel: PapelDeAnexo,
+  createdAt = "2024-09-12T10:00:00.000Z",
+  id = `anexo-${papel}-${createdAt}`,
+): TerrenoDesembolsoAnexo {
+  return { id, arquivoPath: `u/terreno/${id}.pdf`, papel, createdAt };
+}
+
 function desembolso(
   over: Partial<TerrenoDesembolso> & { id: string },
 ): TerrenoDesembolso {
@@ -58,7 +85,9 @@ function desembolso(
     dataPagamento: "2024-09-12",
     estado: "pago",
     origemRecurso: null,
-    arquivoPath: "u/terreno/comprovante.pdf",
+    anexos: [anexo("comprovante")],
+    debitosMesmoDia: null,
+    debitosMesmoDiaRespondidoEm: null,
     ...over,
   };
 }
@@ -114,7 +143,7 @@ describe("previsto e pago-sem-data não entram em ano nenhum", () => {
       valorCentavos: 1_260_000,
       dataPagamento: null,
       estado: "previsto",
-      arquivoPath: null,
+      anexos: [],
     });
     expect(entraEmAlgumAno(previsto)).toBe(false);
     expect(custoTerrenoAteOAno([previsto], [], anoCorrente)).toBe(0);
@@ -129,7 +158,7 @@ describe("previsto e pago-sem-data não entram em ano nenhum", () => {
       valorCentavos: 80_000_000,
       dataPagamento: null,
       estado: "pago",
-      arquivoPath: null,
+      anexos: [],
     });
     expect(entraEmAlgumAno(semData)).toBe(false);
     for (const ano of [2024, 2025, 2026, 2099]) {
@@ -492,5 +521,235 @@ describe("critério 19 — insumo para revisão do CRC, nunca veredito", () => {
     const usos = informe.split("INSUMO_PARA_REVISAO_CRC").length - 1;
     // 1 import + 2 usos em JSX.
     expect(usos).toBeGreaterThanOrEqual(3);
+  });
+});
+
+// ══ CONTAI-027 rodada 2 · N papéis, e a pergunta do critério 12 ═════════
+//
+// A regra de disparo é a tabela do §6 do parecer de 2026-08-21, linha por
+// linha. Nenhum teste daqui usa `Date.now()`: as duas marcas comparadas vêm do
+// banco, e são literais no teste.
+
+describe("critério 15 — pago sem papel nenhum continua visível", () => {
+  it("pago e sem anexo é pendência; pago com anexo não é", () => {
+    expect(pagoSemPapel(desembolso({ id: "d1", anexos: [] }))).toBe(true);
+    expect(
+      pagoSemPapel(desembolso({ id: "d2", anexos: [anexo("contrato")] })),
+    ).toBe(false);
+  });
+
+  it("previsto NUNCA é 'pago sem papel' — não há o que anexar", () => {
+    const previsto = desembolso({
+      id: "d3",
+      estado: "previsto",
+      dataPagamento: null,
+      anexos: [],
+    });
+    expect(pagoSemPapel(previsto)).toBe(false);
+  });
+
+  it("pago, SEM data e sem papel é pendência de papel também", () => {
+    // As duas pendências coexistem aqui, e são coisas diferentes: falta a data
+    // (ano-calendário) e falta o papel (lastro). Nenhuma esconde a outra.
+    const semNada = desembolso({
+      id: "d4",
+      dataPagamento: null,
+      anexos: [],
+    });
+    expect(pagoSemPapel(semNada)).toBe(true);
+  });
+});
+
+describe("critério 14 — os três papéis, e só eles", () => {
+  it("os rótulos são os do §7 do parecer, literais", () => {
+    expect(ROTULO_DO_PAPEL.comprovante).toBe("Comprovante do pagamento");
+    expect(ROTULO_DO_PAPEL.nota).toBe("Nota ou recibo");
+    expect(ROTULO_DO_PAPEL.contrato).toBe("Contrato ou escritura");
+    expect(Object.keys(ROTULO_DO_PAPEL)).toHaveLength(3);
+  });
+
+  it("só `comprovante` conta para a pergunta", () => {
+    const d = desembolso({
+      id: "d1",
+      anexos: [anexo("comprovante"), anexo("nota"), anexo("contrato")],
+    });
+    expect(comprovantesDe(d)).toHaveLength(1);
+    expect(temDoisComprovantes(d)).toBe(false);
+  });
+});
+
+describe("critério 12 — quando a pergunta dispara (§6)", () => {
+  it("✅ dispara com DOIS papéis comprovante", () => {
+    const d = desembolso({
+      id: "d1",
+      anexos: [anexo("comprovante", "2026-08-21T10:00:00.000Z"),
+               anexo("comprovante", "2026-08-21T10:00:01.000Z")],
+    });
+    expect(perguntaPendente(d)).toBe(true);
+  });
+
+  it("✅ TRÊS comprovantes de uma vez perguntam UMA vez — não é por arquivo", () => {
+    const d = desembolso({
+      id: "d1",
+      anexos: [
+        anexo("comprovante", "2026-08-21T10:00:00.000Z"),
+        anexo("comprovante", "2026-08-21T10:00:01.000Z"),
+        anexo("comprovante", "2026-08-21T10:00:02.000Z"),
+      ],
+    });
+    // A pergunta é UM estado booleano do lançamento, não uma fila por arquivo:
+    // respondida uma vez, os três estão cobertos.
+    expect(perguntaPendente(d)).toBe(true);
+    const respondido = {
+      ...d,
+      debitosMesmoDia: true,
+      debitosMesmoDiaRespondidoEm: "2026-08-21T10:00:03.000Z",
+    };
+    expect(perguntaPendente(respondido)).toBe(false);
+  });
+
+  it("❌ NUNCA para nota nem contrato — comprovante + recibo é UM débito", () => {
+    const comRecibo = desembolso({
+      id: "d1",
+      anexos: [anexo("comprovante"), anexo("nota")],
+    });
+    const comContrato = desembolso({
+      id: "d2",
+      anexos: [anexo("comprovante"), anexo("contrato")],
+    });
+    const duasNotas = desembolso({
+      id: "d3",
+      anexos: [anexo("nota", "2026-08-21T10:00:00.000Z"),
+               anexo("nota", "2026-08-21T10:00:01.000Z")],
+    });
+    expect(perguntaPendente(comRecibo)).toBe(false);
+    expect(perguntaPendente(comContrato)).toBe(false);
+    expect(perguntaPendente(duasNotas)).toBe(false);
+  });
+
+  it("❌ NÃO, se a pendência já está aberta — ele já respondeu", () => {
+    const d = desembolso({
+      id: "d1",
+      anexos: [anexo("comprovante", "2026-08-21T10:00:00.000Z"),
+               anexo("comprovante", "2026-08-22T10:00:00.000Z")],
+      debitosMesmoDia: false,
+      debitosMesmoDiaRespondidoEm: "2026-08-21T10:00:05.000Z",
+    });
+    // Chegou comprovante DEPOIS da resposta, e ainda assim não repergunta: o
+    // "de novo" do §6 é só para a resposta "tudo no dia X".
+    expect(perguntaPendente(d)).toBe(false);
+    expect(pendenciaDeDatasAberta(d)).toBe(true);
+  });
+
+  it("✅ dispara DE NOVO se a resposta era 'tudo no dia X' e chega comprovante novo", () => {
+    const base = desembolso({
+      id: "d1",
+      anexos: [anexo("comprovante", "2026-08-21T10:00:00.000Z"),
+               anexo("comprovante", "2026-08-21T10:00:01.000Z")],
+      debitosMesmoDia: true,
+      debitosMesmoDiaRespondidoEm: "2026-08-21T10:00:02.000Z",
+    });
+    expect(perguntaPendente(base)).toBe(false);
+
+    const comFatoNovo = {
+      ...base,
+      anexos: [...base.anexos, anexo("comprovante", "2026-08-25T09:00:00.000Z")],
+    };
+    expect(perguntaPendente(comFatoNovo)).toBe(true);
+    // ...e o "sim" antigo continua gravado até a resposta nova chegar: o
+    // acervo é append-only, e o rastro da resposta vigente não se apaga por
+    // ter surgido fato novo.
+    expect(comFatoNovo.debitosMesmoDia).toBe(true);
+  });
+
+  it("papel NOVO que não é comprovante não repergunta nada", () => {
+    const d = desembolso({
+      id: "d1",
+      anexos: [
+        anexo("comprovante", "2026-08-21T10:00:00.000Z"),
+        anexo("comprovante", "2026-08-21T10:00:01.000Z"),
+        anexo("nota", "2026-09-01T10:00:00.000Z"),
+      ],
+      debitosMesmoDia: true,
+      debitosMesmoDiaRespondidoEm: "2026-08-21T10:00:02.000Z",
+    });
+    expect(perguntaPendente(d)).toBe(false);
+  });
+
+  it("o comprovante do MESMO ato da resposta não é fato novo", () => {
+    // O `>` é estrito de propósito: a gravação insere as filhas e só então
+    // carimba a resposta. Se fosse `>=`, o ato de responder já dispararia a
+    // re-pergunta sobre si mesmo, para sempre.
+    const d = desembolso({
+      id: "d1",
+      anexos: [anexo("comprovante", "2026-08-21T10:00:00.000Z"),
+               anexo("comprovante", "2026-08-21T10:00:02.000Z")],
+      debitosMesmoDia: true,
+      debitosMesmoDiaRespondidoEm: "2026-08-21T10:00:02.000Z",
+    });
+    expect(perguntaPendente(d)).toBe(false);
+  });
+});
+
+describe("critério 12 — a represa sem data (§6)", () => {
+  const semData = desembolso({
+    id: "d1",
+    dataPagamento: null,
+    anexos: [anexo("comprovante", "2026-08-21T10:00:00.000Z"),
+             anexo("comprovante", "2026-08-21T10:00:01.000Z")],
+  });
+
+  it("sem data a pergunta não é feita — ela cita a data no próprio botão", () => {
+    expect(perguntaPendente(semData)).toBe(false);
+    expect(perguntaRepresada(semData)).toBe(true);
+  });
+
+  it("as duas pendências NUNCA aparecem juntas: a de data tem precedência", () => {
+    // Enquanto falta a data, `perguntaPendente` é falso — e é a pendência
+    // "falta a data" que fala. Elas se excluem por construção.
+    expect(perguntaPendente(semData) && perguntaRepresada(semData)).toBe(false);
+  });
+
+  it("a data entra e a represa abre NO MESMO ATO", () => {
+    const comData = { ...semData, dataPagamento: "2026-08-21" };
+    expect(perguntaRepresada(comData)).toBe(false);
+    expect(perguntaPendente(comData)).toBe(true);
+  });
+
+  it("um comprovante só nunca represa nada", () => {
+    const um = desembolso({
+      id: "d2",
+      dataPagamento: null,
+      anexos: [anexo("comprovante")],
+    });
+    expect(perguntaRepresada(um)).toBe(false);
+  });
+});
+
+describe("critério 12a — os textos da pendência, copiados do §4b", () => {
+  it("o corpo nomeia o valor e diz que a data decide o ano", () => {
+    // ⚠️ `formatarBRL` e não "R$ 60.000,00" à mão: o `Intl` do pt-BR separa o
+    // símbolo com ESPAÇO NÃO-QUEBRÁVEL (U+00A0). Literal com espaço comum
+    // passaria a testar a formatação errada — e passaria a falhar por um
+    // caractere invisível.
+    expect(corpoDaPendenciaDeDatas(6_000_000)).toBe(
+      "Você respondeu que o dinheiro saiu em mais de um dia, e este lançamento " +
+        `tem ${formatarBRL(6_000_000)} numa data só. É a data do pagamento ` +
+        "que decide o ano do custo.",
+    );
+  });
+
+  it("⚠️ a SEGUNDA METADE da ação existe, e proíbe registrar os separados antes", () => {
+    // Sem esta metade, cumprir a primeira soma o valor duas vezes no custo do
+    // terreno — inflação de custo de aquisição, o pior dos dois erros
+    // simétricos (§4b). O teste existe para que apagá-la fique vermelho.
+    const acao = acaoDaPendenciaDeDatas(6_000_000);
+    expect(acao).toContain("Não registre os lançamentos separados antes disso");
+    expect(acao).toContain("os novos somam por cima");
+    expect(acao).toContain(formatarBRL(6_000_000));
+  });
+
+  it("a opção do 'sim' cita a data do lançamento, em dd/mm/aaaa", () => {
+    expect(opcaoTudoEm("21/08/2026")).toBe("Tudo em 21/08/2026");
   });
 });

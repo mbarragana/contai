@@ -10,7 +10,12 @@
  * sem erro de ponto flutuante.
  */
 
-import type { Enums, Tables, TablesInsert } from "@/lib/database.types";
+import type {
+  Enums,
+  Tables,
+  TablesInsert,
+  TablesUpdate,
+} from "@/lib/database.types";
 
 // ── Enums ────────────────────────────────────────────────────────────────
 export type TipoFavorecido = Enums<"tipo_favorecido">;
@@ -45,6 +50,7 @@ export type CompromissoDataHistoricoRow = Tables<"compromisso_data_historico">;
 export type PagamentoDiferencaRow = Tables<"pagamento_diferenca">;
 export type QuitacaoRecusadaRow = Tables<"quitacao_recusada">;
 export type TerrenoDesembolsoRow = Tables<"terreno_desembolso">;
+export type TerrenoDesembolsoAnexoRow = Tables<"terreno_desembolso_anexo">;
 export type FinanciamentoRow = Tables<"financiamento">;
 export type FinanciamentoInformeRow = Tables<"financiamento_informe">;
 export type RevisaoRow = Tables<"revisao">;
@@ -62,6 +68,14 @@ export type CompromissoInsert = TablesInsert<"compromisso">;
 export type TerrenoDesembolsoInsert = TablesInsert<"terreno_desembolso">;
 export type FinanciamentoInsert = TablesInsert<"financiamento">;
 export type FinanciamentoInformeInsert = TablesInsert<"financiamento_informe">;
+export type TerrenoDesembolsoAnexoInsert =
+  TablesInsert<"terreno_desembolso_anexo">;
+
+// ── Updates ──────────────────────────────────────────────────────────────
+// Só existe um: o UPDATE de `terreno_desembolso`, que serve a DOIS atos —
+// completar a data (CONTAI-010, critério 23) e responder / re-responder a
+// pergunta do critério 12 (CONTAI-027).
+export type TerrenoDesembolsoUpdate = TablesUpdate<"terreno_desembolso">;
 
 // ── Domínio (centavos) ───────────────────────────────────────────────────
 export interface Obra {
@@ -222,19 +236,70 @@ export interface TerrenoDesembolso {
   /** FGTS na entrada é desembolso dele e ENTRA no custo (parecer §2a). */
   origemRecurso: OrigemRecursoEntrada | null;
   /**
-   * O comprovante no acervo, ou `null`.
+   * Os papéis deste desembolso, do mais antigo para o mais novo
+   * (CONTAI-027, critério 7). A coluna única `arquivoPath` **morreu** na
+   * migration 0010, com backfill: `papel = 'comprovante'`.
    *
-   * ⚠️ `null` **não diz nada sobre o ano-calendário** — quem decide isso é
-   * `dataPagamento`, e só ela. As duas situações em que ele fica nulo:
+   * ⚠️ Lista VAZIA **não diz nada sobre o ano-calendário** — quem decide isso
+   * é `dataPagamento`, e só ela. As duas situações em que ela fica vazia:
    * - `previsto` — nada foi pago, não há o que anexar (critério 5);
-   * - uma linha `pago` cuja DATA foi completada sem comprovante à mão
-   *   (`completarDesembolsoTerreno` aceita o anexo como opcional: o que falta
-   *   ali é a data). Essa linha tem estado `pago` + data + `arquivoPath` nulo,
-   *   e **SOMA normalmente no ano dela** — o custo existe, o lastro documental
-   *   é que está fraco.
+   * - uma linha `pago` que nunca recebeu papel. Ela **SOMA normalmente no ano
+   *   dela** — o custo existe, o lastro documental é que está fraco —, e é
+   *   **pendência visível** pelo critério 15 (`pagoSemPapel`, em
+   *   `lib/fiscal/terreno.ts`).
+   *
+   * ⚠️ Ninguém conta anexos por conta própria: quem responde "tem papel?",
+   * "tem dois comprovantes?" e "a pergunta dispara?" é `lib/fiscal/terreno.ts`.
+   * Uma terceira via de contagem na tela é como o pre-mortem nº 5 silencia.
    */
-  arquivoPath: string | null;
+  anexos: TerrenoDesembolsoAnexo[];
+  /**
+   * A resposta VIGENTE do critério 12 — *"o dinheiro saiu todo no mesmo
+   * dia?"*. `null` = nunca respondida (ou represada, por falta de data).
+   *
+   * `false` é a pendência **"Um lançamento, mais de uma data"**, e ela **não
+   * tem baixa no app** (§5 do parecer de 2026-08-21): não se dispensa, não se
+   * adia, não se esconde.
+   */
+  debitosMesmoDia: boolean | null;
+  /**
+   * Quando a resposta vigente foi dada — **critério 12b, requisito fiscal**
+   * (§4d): a resposta se grava com a data em que foi dada, **nos dois casos,
+   * inclusive o "sim"**. Sem ela, em 2034 ninguém distingue *"ele afirmou que
+   * foi tudo no mesmo dia"* de *"ninguém perguntou"*.
+   *
+   * É também o que faz a re-pergunta (§6) ser derivação pura: comprovante com
+   * `createdAt` posterior a esta marca é fato novo que a resposta não cobre.
+   */
+  debitosMesmoDiaRespondidoEm: string | null;
 }
+
+/**
+ * Um papel pendurado num desembolso do terreno (migration 0010).
+ *
+ * ⚠️ **Sem valor e sem data próprios**, e as duas ausências são critério
+ * (10 e 11): o valor do lançamento é digitado UMA vez, no lançamento, e data
+ * por anexo seria "fabricar a evidência que o app não tem" (Gate Fiscal §§1
+ * e 2). O que o anexo carrega é `papel`, e só.
+ */
+export interface TerrenoDesembolsoAnexo {
+  id: string;
+  arquivoPath: string;
+  papel: PapelDeAnexo;
+  /** Do banco. É ele que ordena a linha do tempo da re-pergunta (§6). */
+  createdAt: string;
+}
+
+/**
+ * Critério 14 e §7 do parecer de 2026-08-21 — conjunto FECHADO de três,
+ * obrigatório e sem default. Não alimenta apuração nenhuma: existe para o
+ * dossiê responder, em 2034, qual papel sustenta o quê.
+ *
+ * ⚠️ **Valor novo neste conjunto exige parecer do `contador`** (mesma
+ * contrapartida da D32). E `comprovante` é o **único** que dispara a pergunta
+ * do critério 12.
+ */
+export type PapelDeAnexo = "comprovante" | "nota" | "contrato";
 
 /** O contrato, 1x na vida (critério 7). Um por obra. */
 export interface Financiamento {

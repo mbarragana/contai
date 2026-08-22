@@ -39,7 +39,16 @@ const TERRENO: TerrenoDesembolso = {
   dataPagamento: "2025-06-10",
   estado: "pago",
   origemRecurso: null,
-  arquivoPath: "u/terreno/escritura.pdf",
+  anexos: [
+    {
+      id: "a1",
+      arquivoPath: "u/terreno/escritura.pdf",
+      papel: "comprovante",
+      createdAt: "2025-06-10T12:00:00Z",
+    },
+  ],
+  debitosMesmoDia: null,
+  debitosMesmoDiaRespondidoEm: null,
 };
 
 const TERRENO_CENTAVOS = TERRENO.valorCentavos;
@@ -903,7 +912,9 @@ describe("terreno e financiamento fora das pendências (critério 21)", () => {
     dataPagamento: null,
     estado: "pago",
     origemRecurso: null,
-    arquivoPath: null,
+    anexos: [],
+    debitosMesmoDia: null,
+    debitosMesmoDiaRespondidoEm: null,
   };
 
   /**
@@ -1106,7 +1117,7 @@ describe("terreno e financiamento fora das pendências (critério 21)", () => {
     it("`previsto` não tira o aviso: previsto não é pago", () => {
       const r = resumo({
         desembolsosTerreno: [
-          { ...SEM_DATA, id: "t-prev", estado: "previsto", arquivoPath: null },
+          { ...SEM_DATA, id: "t-prev", estado: "previsto", anexos: [] },
         ],
         informesFinanciamento: [],
       });
