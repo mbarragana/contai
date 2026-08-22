@@ -129,6 +129,22 @@ interface ErroCampo {
   mensagem: string;
 }
 
+/**
+ * Este desembolso está esperando a data do pagamento?
+ *
+ * ⚠️ **`previsto` NÃO está**, e a distinção é fiscal, não cosmética: previsto
+ * é o que ainda não foi pago (critério 5 do CONTAI-010), e o banco proíbe que
+ * ele tenha data (`terreno_desembolso_previsto_sem_data`). Perguntar a data ao
+ * anexar um contrato num previsto seria pedir a data de um débito que não
+ * aconteceu — o app fabricando a evidência que ele não tem.
+ *
+ * A ausência de data num previsto também mantém a pergunta do critério 12
+ * REPRESADA, que é o certo: sem pagamento não há data de caixa a colapsar.
+ */
+function precisaDaData(d: TerrenoDesembolso): boolean {
+  return d.estado === "pago" && d.dataPagamento === null;
+}
+
 export default function DesembolsosDoTerreno() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -324,7 +340,7 @@ export default function DesembolsosDoTerreno() {
    */
   async function completar(d: TerrenoDesembolso) {
     setErroCompletar(null);
-    const faltaData = d.dataPagamento === null;
+    const faltaData = precisaDaData(d);
 
     if (faltaData) {
       if (!ehDataValida(dataCompletar)) {
@@ -447,7 +463,7 @@ export default function DesembolsosDoTerreno() {
    * quase iguais é como um deles deixa de disparar a pergunta do critério 12.
    */
   function formularioDeComplemento(d: TerrenoDesembolso) {
-    const faltaData = d.dataPagamento === null;
+    const faltaData = precisaDaData(d);
     const dataDoAto = faltaData ? dataCompletar : d.dataPagamento;
     const precisaResponder = perguntaNoComplemento(
       d,

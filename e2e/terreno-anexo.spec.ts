@@ -3,6 +3,7 @@ import type { Locator, Page } from "@playwright/test";
 import { OBRA_ID_SEED } from "./ambiente";
 import {
   anexosDeDesembolso,
+  arquivosNoAcervo,
   criarAnexoDeDesembolso,
   criarDesembolsoTerreno,
   desembolsosTerreno,
@@ -145,6 +146,40 @@ test.describe("um papel só: os passos de hoje (critério 8)", () => {
     await expect(page.getByText("sem isso ele não grava")).toBeVisible();
     expect(await desembolsosTerreno(db)).toHaveLength(0);
     expect(await anexosDeDesembolso(db)).toHaveLength(0);
+  });
+
+  test("'Tirar da lista' só existe ANTES do Gravar — nada subiu ainda", async ({
+    page,
+    db,
+  }) => {
+    // Depois de gravado o acervo só cresce: `terreno_desembolso_anexo` não tem
+    // DELETE para `authenticated` (migration 0010). Tirar da lista aqui não
+    // apaga nada — o arquivo nunca chegou ao bucket.
+    await preencherDesembolso(page, "60.000,00");
+    const corpo = page.locator("body");
+    await anexar(corpo, "Papéis deste desembolso", "pix.pdf", "Comprovante do pagamento");
+    await anexar(corpo, "Papéis deste desembolso", "errado.pdf", "Nota ou recibo");
+
+    await page
+      .locator('[data-anexo-novo="errado.pdf"]')
+      .getByRole("button", { name: "Tirar da lista", exact: true })
+      .click();
+    await expect(page.locator('[data-anexo-novo="errado.pdf"]')).toHaveCount(0);
+
+    await page
+      .getByRole("button", { name: "Registrar desembolso", exact: true })
+      .click();
+    await expect(page.getByText("registrado no custo de")).toBeVisible();
+
+    const papeis = await anexosDeDesembolso(db);
+    expect(papeis).toHaveLength(1);
+    expect(papeis[0].papel).toBe("comprovante");
+    // ⚠️ E o arquivo tirado da lista NÃO foi para o acervo: o upload só
+    // acontece no Gravar. (Conta não serve: o bucket não é limpo entre testes
+    // — a 0002 não tem policy de delete. Quem zera é o `db reset`.)
+    const noAcervo = await arquivosNoAcervo(db, "terreno");
+    expect(noAcervo.some((n) => n.endsWith("errado.pdf"))).toBe(false);
+    expect(noAcervo.some((n) => n.endsWith("pix.pdf"))).toBe(true);
   });
 });
 
@@ -532,6 +567,42 @@ test.describe("pago, e sem papel nenhum (critério 15)", () => {
     await expect(
       page.locator('[data-pendencia="terreno-sem-papel"]'),
     ).toHaveCount(0);
+  });
+
+  test("⚠️ anexar num PREVISTO não pergunta a data do pagamento", async ({
+    page,
+    db,
+  }) => {
+    // Previsto é o que ainda NÃO foi pago (critério 5 do CONTAI-010), e o
+    // banco proíbe que ele tenha data. Pedir a data ao anexar o contrato seria
+    // pedir a data de um débito que não aconteceu — e gravá-la violaria a
+    // constraint `terreno_desembolso_previsto_sem_data`.
+    const id = await criarDesembolsoTerreno(db, {
+      tipo: "escritura_registro",
+      valor: 3150,
+      estado: "previsto",
+      data_pagamento: null,
+    });
+
+    await page.goto(`/obras/${OBRA_ID_SEED}/terreno/desembolsos`);
+    const cartao = page.locator(`[data-desembolso-gravado="${id}"]`);
+    await cartao
+      .getByRole("button", { name: "Anexar um papel", exact: true })
+      .click();
+    await expect(
+      cartao.getByLabel("Data em que saiu da conta", { exact: true }),
+    ).toHaveCount(0);
+
+    await anexar(cartao, "Anexar papel", "minuta.pdf", "Contrato ou escritura");
+    await cartao
+      .getByRole("button", { name: "Gravar o papel", exact: true })
+      .click();
+    await expect(page.getByText("Papel anexado")).toBeVisible();
+
+    const [gravado] = await desembolsosTerreno(db);
+    expect(gravado.estado).toBe("previsto");
+    expect(gravado.data_pagamento).toBeNull();
+    expect(await anexosDeDesembolso(db)).toHaveLength(1);
   });
 });
 
