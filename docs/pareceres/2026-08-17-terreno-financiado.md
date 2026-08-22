@@ -859,3 +859,16 @@ Perguntar ao contador com CRC **por que** inclui — se é entendimento dele, pr
 do escritório, ou dispositivo que o agente não encontrou. **Enquanto isso não for
 feito, a divergência fica aberta e registrada.** Ver também a pendência do
 chamado à CAIXA sobre a natureza da rubrica "Diferença Teórico / Pago".
+
+---
+
+## Ponteiro — 2026-08-21 · anexos do desembolso do terreno
+
+Regra de **N anexos por desembolso do terreno**, campo `papel`, pergunta do
+segundo comprovante e o destino do **critério 13** do `CONTAI-027`:
+**`docs/pareceres/2026-08-21-gate-fiscal-contai-027-criterio-13.md`**.
+
+Ele depende do §5 deste parecer (*"a parcela é um `pagamento` comum do app?
+**NÃO**"*) para uma conclusão que não é óbvia: o desembolso do terreno **não tem
+pendência de "pago sem nota"**, e por isso um anexo marcado `Nota ou recibo` ali
+**não** abre o caminho de registrá-lo como `documento` (§7 daquele parecer).
