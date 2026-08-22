@@ -771,9 +771,10 @@ export type Database = {
       }
       terreno_desembolso: {
         Row: {
-          arquivo_path: string | null
           created_at: string
           data_pagamento: string | null
+          debitos_mesmo_dia: boolean | null
+          debitos_mesmo_dia_respondido_em: string | null
           estado: Database["public"]["Enums"]["estado_desembolso_terreno"]
           id: string
           obra_id: string
@@ -785,9 +786,10 @@ export type Database = {
           valor: number
         }
         Insert: {
-          arquivo_path?: string | null
           created_at?: string
           data_pagamento?: string | null
+          debitos_mesmo_dia?: boolean | null
+          debitos_mesmo_dia_respondido_em?: string | null
           estado: Database["public"]["Enums"]["estado_desembolso_terreno"]
           id?: string
           obra_id: string
@@ -799,9 +801,10 @@ export type Database = {
           valor: number
         }
         Update: {
-          arquivo_path?: string | null
           created_at?: string
           data_pagamento?: string | null
+          debitos_mesmo_dia?: boolean | null
+          debitos_mesmo_dia_respondido_em?: string | null
           estado?: Database["public"]["Enums"]["estado_desembolso_terreno"]
           id?: string
           obra_id?: string
@@ -818,6 +821,38 @@ export type Database = {
             columns: ["obra_id"]
             isOneToOne: false
             referencedRelation: "obra"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      terreno_desembolso_anexo: {
+        Row: {
+          arquivo_path: string
+          created_at: string
+          desembolso_id: string
+          id: string
+          papel: string
+        }
+        Insert: {
+          arquivo_path: string
+          created_at?: string
+          desembolso_id: string
+          id?: string
+          papel: string
+        }
+        Update: {
+          arquivo_path?: string
+          created_at?: string
+          desembolso_id?: string
+          id?: string
+          papel?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "terreno_desembolso_anexo_desembolso_id_fkey"
+            columns: ["desembolso_id"]
+            isOneToOne: false
+            referencedRelation: "terreno_desembolso"
             referencedColumns: ["id"]
           },
         ]
@@ -875,6 +910,19 @@ export type Database = {
       revisao_gravar_anos: {
         Args: { p_anos: Json; p_revisao_id: string }
         Returns: undefined
+      }
+      terreno_desembolso_gravar: {
+        Args: {
+          p_anexos: Json
+          p_data_pagamento?: string
+          p_debitos_mesmo_dia?: boolean
+          p_estado: Database["public"]["Enums"]["estado_desembolso_terreno"]
+          p_obra_id: string
+          p_origem_recurso?: Database["public"]["Enums"]["origem_recurso_entrada"]
+          p_tipo: Database["public"]["Enums"]["tipo_desembolso_terreno"]
+          p_valor: number
+        }
+        Returns: string
       }
     }
     Enums: {
