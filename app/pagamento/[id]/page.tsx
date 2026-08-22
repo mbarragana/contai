@@ -3,6 +3,7 @@
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import { ListaDeAnexos } from "@/app/_components/anexo";
 import {
   AppBar,
   Banner,
@@ -235,17 +236,26 @@ export default function DetalhePagamento() {
             <span className="mono">{formatarDataBR(p.dataPagamento)}</span>
           </Linha>
           <Linha rotulo="Meio">{p.meio.toUpperCase()}</Linha>
-          <Linha rotulo="Comprovante">
-            {p.comprovantePath ? (
-              <span className="font-semibold text-grn">anexado ✓</span>
-            ) : (
+          {/* ⚠️ CONTAI-027, critério 2: "anexado ✓" era a tela dizendo que o
+              papel existe e não deixando ver qual. O comprovante vira ITEM,
+              com Abrir. A ausência continua sendo `Linha` vermelha — ela tem
+              texto fiscal próprio mais abaixo (critérios 46-47 do CONTAI-010)
+              e este ticket não a reescreve. */}
+          {p.comprovantePath ? null : (
+            <Linha rotulo="Comprovante">
               <span className="font-semibold text-red">sem comprovante</span>
-            )}
-          </Linha>
+            </Linha>
+          )}
           {/* Item (f) do Gate 1b + decisão 10 de 18/08: "regime de caixa" sai
               da tela (critério 7) e entra a frase do §F.5, COM o exemplo — é
               ele que ensina, e a sentença abstrata sozinha é esquecível. */}
           <Dica>{DATA_QUE_VALE_PARA_O_CUSTO}</Dica>
+          {p.comprovantePath ? (
+            <ListaDeAnexos
+              titulo="Comprovante do pagamento"
+              paths={[p.comprovantePath]}
+            />
+          ) : null}
         </Card>
 
         {comprovado > 0 ? (

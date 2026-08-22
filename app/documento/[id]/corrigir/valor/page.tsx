@@ -3,6 +3,7 @@
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { ListaDeAnexos } from "@/app/_components/anexo";
 import { CampoArquivo, CampoTexto } from "@/app/_components/campos";
 import {
   ErroEstaNaNota,
@@ -242,9 +243,11 @@ export default function CorrigirValor() {
             <Linha rotulo="Valor gravado hoje">
               <span className="mono">{valorHoje}</span>
             </Linha>
-            <Linha rotulo="Papel anexado">
-              {d.arquivoPath.split("/").pop()}
-            </Linha>
+          </Card>
+          {/* Critério 2: o nome sozinho não abre nada — aqui ele já é o item
+              com Abrir. Antes deste ticket esta era uma `Linha` de texto. */}
+          <Card>
+            <ListaDeAnexos titulo="Papel anexado" paths={[d.arquivoPath]} />
           </Card>
           {fase.nome === "passo1" ? (
             <PassoMotivo
@@ -305,11 +308,16 @@ export default function CorrigirValor() {
           onTrocar={() => setFase({ nome: "passo1" })}
         />
 
+        {/* ⚠️ CRITÉRIO 6 — a frase que este ticket existe para consertar.
+            "Confira antes de digitar" era instrução impossível de cumprir:
+            nenhuma tela do app abria anexo. O Abrir fica AO LADO dela. */}
         <Card>
-          <div className="font-semibold">Papel anexado — confira antes de digitar</div>
+          <ListaDeAnexos
+            titulo="Papel anexado — confira antes de digitar"
+            paths={[d.arquivoPath]}
+          />
           <Dica>
-            {d.arquivoPath.split("/").pop()} — o anexo{" "}
-            <strong>não se substitui</strong>; se precisar, anexa-se um
+            O anexo <strong>não se substitui</strong>; se precisar, anexa-se um
             adicional.
           </Dica>
         </Card>

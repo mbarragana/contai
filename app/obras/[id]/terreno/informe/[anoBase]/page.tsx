@@ -3,6 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { ListaDeAnexos } from "@/app/_components/anexo";
 import { CampoArquivo, CampoTexto } from "@/app/_components/campos";
 import {
   AppBar,
@@ -143,7 +144,13 @@ type Fase =
   | { nome: "erro"; erro: ErroDeTela }
   | { nome: "pronto" }
   | { nome: "salvando" }
-  | { nome: "gravado" };
+  /**
+   * `arquivoPath`: o extrato que acabou de subir. Fica na fase para a tela de
+   * confirmação poder ABRIR o papel (CONTAI-027, critério 2) — a prova de que
+   * o que entrou no acervo é legível, dita no único momento em que ele ainda
+   * lembra qual arquivo escolheu.
+   */
+  | { nome: "gravado"; arquivoPath: string };
 
 export default function InformeAnual() {
   const params = useParams<{ id: string; anoBase: string }>();
@@ -258,7 +265,8 @@ export default function InformeAnual() {
     saldoInformado &&
     arquivo !== null;
 
-  const jaExiste = jaRegistrados.some((i) => i.anoBase === anoBase);
+  const informeDoAno = jaRegistrados.find((i) => i.anoBase === anoBase) ?? null;
+  const jaExiste = informeDoAno !== null;
 
   async function gravar() {
     if (!financiamento || !arquivo || !trava.fecha) return;
@@ -274,7 +282,7 @@ export default function InformeAnual() {
         ...valores,
         arquivoPath: caminho,
       });
-      setFase({ nome: "gravado" });
+      setFase({ nome: "gravado", arquivoPath: caminho });
     } catch (erro) {
       const codigo = (erro as { code?: string } | null)?.code;
       // 23505 = `unique (financiamento_id, ano_base)` — a trava da dupla
@@ -393,6 +401,17 @@ export default function InformeAnual() {
           <Banner cor="red" role="alert">
             {UM_INFORME_POR_ANO}
           </Banner>
+          {/* Critério 2: a tela recusava o segundo lançamento e não mostrava o
+              extrato do primeiro. Quem chega aqui quer justamente conferir o
+              que já foi lançado. */}
+          {informeDoAno ? (
+            <Card>
+              <ListaDeAnexos
+                titulo={`Extrato de ${anoBase} no acervo`}
+                paths={[informeDoAno.arquivoPath]}
+              />
+            </Card>
+          ) : null}
         </Corpo>
         <Rodape>
           <BotaoLink href={`/obras/${id}/terreno`} variante="primary">
@@ -442,6 +461,12 @@ export default function InformeAnual() {
               </span>
             </Linha>
             <Consequencia cor="amb">{INSUMO_PARA_REVISAO_CRC}</Consequencia>
+          </Card>
+          <Card>
+            <ListaDeAnexos
+              titulo="Extrato do exercício"
+              paths={[fase.arquivoPath]}
+            />
           </Card>
         </Corpo>
         <Rodape>

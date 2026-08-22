@@ -6,6 +6,10 @@
  * fora daqui.
  */
 
+import {
+  ACERVO_NEGADO,
+  classificarFalhaDeAbertura,
+} from "@/lib/acervo";
 import { podeQuitar } from "@/lib/fiscal/compromisso";
 import type {
   EscolhaDePagamento,
@@ -1071,6 +1075,80 @@ export async function subirParaAcervo(
     .upload(caminho, arquivo, { contentType: arquivo.type || undefined });
   if (error) throw error;
   return caminho;
+}
+
+/**
+ * O papel de outro usuário não abre — e quem recusou foi a policy, não o app.
+ *
+ * O erro existe para a tela poder dizer a frase certa (ACERVO_NEGADO) sem
+ * botão de "Tentar de novo": tentar de novo nunca conserta "não é seu".
+ */
+export class AcervoNegadoError extends Error {
+  constructor() {
+    super(ACERVO_NEGADO);
+    this.name = "AcervoNegadoError";
+  }
+}
+
+/**
+ * Abre o que já está no acervo — CONTAI-027, critérios 3 e 4.
+ *
+ * ⚠️ Link ASSINADO, nunca público. `getPublicUrl` não entra neste arquivo: o
+ * bucket é privado desde a 0002 e o custo de errar isso é um endereço eterno
+ * para uma nota com o CPF do Mateus dentro.
+ *
+ * ⚠️ E a autorização é a policy `acervo_dono_select`, só ela. Não há `if` de
+ * dono antes desta chamada: o app PEDE, e o Storage recusa o que não é dele.
+ * Verificação nossa aqui seria uma segunda regra de acesso, que pode discordar
+ * da primeira — e é a do banco que vale.
+ *
+ * O link é gerado no CLIQUE, nunca ao montar a lista: uma tela com seis papéis
+ * criaria seis URLs válidas que ninguém pediu, e a que ninguém abre é a que
+ * vaza no histórico.
+ */
+export async function criarLinkDeLeitura(path: string): Promise<string> {
+  const usuarioId = await getUsuarioId();
+  const { data, error } = await getSupabase()
+    .storage.from(BUCKET_ACERVO)
+    /**
+     * 120 segundos. O link é pedido no clique e consumido no ato — o que este
+     * número controla é por quanto tempo a URL continua abrindo o papel DEPOIS
+     * disso, já fora da tela: no histórico do navegador, num print, na aba que
+     * ficou aberta. Dois minutos porque o começo do download precisa caber num
+     * 4G ruim (uma vez começado, expirar não interrompe); mais que isso é vida
+     * útil de graça para uma URL que carrega documento fiscal com CPF dentro.
+     */
+    .createSignedUrl(path, 120);
+  if (error) {
+    if (classificarFalhaDeAbertura(error, path, usuarioId) === "negado") {
+      throw new AcervoNegadoError();
+    }
+    throw error;
+  }
+  return data.signedUrl;
+}
+
+/**
+ * Os anexos ADICIONAIS do documento (`documento_anexo`, migration 0009).
+ *
+ * Leitura pura: nesta rodada ninguém escreve nesta tabela por aqui. Ela existe
+ * desde o CONTAI-021 — a carta de correção que chegou depois — e sem esta
+ * consulta o detalhe do documento mostraria só o `arquivo_path` e esconderia o
+ * resto do acervo daquele registro. "A lista inteira" do mock é isto.
+ */
+export async function carregarAnexosDoDocumento(
+  documentoId: string,
+): Promise<string[]> {
+  await getUsuarioId();
+  const { data, error } = await getSupabase()
+    .from("documento_anexo")
+    .select("arquivo_path")
+    .eq("documento_id", documentoId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return ((data ?? []) as { arquivo_path: string }[]).map(
+    (a) => a.arquivo_path,
+  );
 }
 
 /**

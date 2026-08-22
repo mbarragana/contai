@@ -3,6 +3,7 @@
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import { ListaDeAnexos } from "@/app/_components/anexo";
 import {
   AppBar,
   Banner,
@@ -356,6 +357,15 @@ export default function PainelDoTerreno() {
                 {d.origemRecurso === "fgts" ? "FGTS" : "Recurso próprio"}
               </Linha>
             ) : null}
+            {/* Mock tela 1 — "Papéis deste desembolso". Nesta rodada é sempre
+                um: a coluna única de `arquivo_path` só vira tabela filha na
+                rodada 2. O componente já recebe lista. */}
+            {d.arquivoPath ? (
+              <ListaDeAnexos
+                titulo="Papéis deste desembolso"
+                paths={[d.arquivoPath]}
+              />
+            ) : null}
           </Card>
         ))}
 
@@ -363,9 +373,16 @@ export default function PainelDoTerreno() {
           <Card className="border-amb" data-pendencia="terreno-sem-data">
             <Chip cor="amb">Falta a data</Chip>
             {semData.map((d) => (
-              <Linha key={d.id} rotulo={NOME_DO_DESEMBOLSO[d.tipo]}>
-                <span className="mono">{formatarBRL(d.valorCentavos)}</span>
-              </Linha>
+              <div key={d.id}>
+                <Linha rotulo={NOME_DO_DESEMBOLSO[d.tipo]}>
+                  <span className="mono">{formatarBRL(d.valorCentavos)}</span>
+                </Linha>
+                {/* Falta a data, não o papel: quem já anexou tem o que abrir,
+                    e esconder isso aqui seria a D35 sobrevivendo num canto. */}
+                {d.arquivoPath ? (
+                  <ListaDeAnexos titulo="Papel anexado" paths={[d.arquivoPath]} />
+                ) : null}
+              </div>
             ))}
             <Consequencia cor="amb">
               {DESEMBOLSO_SEM_DATA}. <strong>Não bloqueia o app</strong> — fica
@@ -389,11 +406,16 @@ export default function PainelDoTerreno() {
               Previsto — ainda não pago
             </Chip>
             {previstos.map((d) => (
-              <Linha key={d.id} rotulo={NOME_DO_DESEMBOLSO[d.tipo]}>
-                <span className="mono text-mut">
-                  {formatarBRL(d.valorCentavos)}
-                </span>
-              </Linha>
+              <div key={d.id}>
+                <Linha rotulo={NOME_DO_DESEMBOLSO[d.tipo]}>
+                  <span className="mono text-mut">
+                    {formatarBRL(d.valorCentavos)}
+                  </span>
+                </Linha>
+                {d.arquivoPath ? (
+                  <ListaDeAnexos titulo="Papel anexado" paths={[d.arquivoPath]} />
+                ) : null}
+              </div>
             ))}
             <Dica>{PREVISTO_NAO_E_PAGO}</Dica>
           </Card>

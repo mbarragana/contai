@@ -3,6 +3,7 @@
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { ListaDeAnexos } from "@/app/_components/anexo";
 import { CampoArquivo } from "@/app/_components/campos";
 import {
   ErroEstaNaNota,
@@ -196,6 +197,16 @@ export default function CorrigirClassificacao() {
     );
   }
 
+  /**
+   * Critério 2: decidir material × mão de obra é ler o papel. A tela mostrava
+   * a classificação gravada e nada do documento que a sustenta.
+   */
+  const blocoAnexo = (
+    <Card>
+      <ListaDeAnexos titulo="Papel anexado" paths={[d.arquivoPath]} />
+    </Card>
+  );
+
   if (fase.nome === "passo1" || fase.nome === "erro_do_papel") {
     return (
       <>
@@ -209,6 +220,7 @@ export default function CorrigirClassificacao() {
               {d.classificacao ? ROTULO[d.classificacao] : "—"}
             </Linha>
           </Card>
+          {blocoAnexo}
           {fase.nome === "passo1" ? (
             <PassoMotivo
               documentoHref={documentoHref}
@@ -269,6 +281,7 @@ export default function CorrigirClassificacao() {
             {d.classificacao ? ROTULO[d.classificacao] : "—"}
           </Linha>
         </Card>
+        {blocoAnexo}
 
         <Passo>O que esta nota é</Passo>
         {(["material", "mao_obra"] as const).map((c) => (

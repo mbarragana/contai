@@ -3,6 +3,7 @@
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 
+import { ListaDeAnexos } from "@/app/_components/anexo";
 import { CampoArquivo, CampoTexto } from "@/app/_components/campos";
 import {
   ErroEstaNaNota,
@@ -238,6 +239,16 @@ function CorrigirEmitente() {
     );
   }
 
+  /**
+   * Critério 2: "nome como está impresso na nota" só se confere com a nota
+   * aberta. A tela pedia a transcrição e escondia o papel.
+   */
+  const blocoAnexo = (
+    <Card>
+      <ListaDeAnexos titulo="Papel anexado" paths={[documento.arquivoPath]} />
+    </Card>
+  );
+
   // ── Passo 1 e a saída "o erro é do papel" ──────────────────────────────
   if (fase.nome === "passo1" || fase.nome === "erro_do_papel") {
     return (
@@ -253,6 +264,7 @@ function CorrigirEmitente() {
               <span className="mono">{cnpj ?? "—"}</span>
             </Linha>
           </Card>
+          {blocoAnexo}
           {fase.nome === "passo1" ? (
             <PassoMotivo
               documentoHref={documentoHref}
@@ -339,6 +351,7 @@ function CorrigirEmitente() {
         <Card>
           <Linha rotulo="Nome gravado hoje">{sub}</Linha>
         </Card>
+        {blocoAnexo}
 
         <CampoTexto
           rotulo="Nome como está impresso na nota"

@@ -3,6 +3,7 @@
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 
+import { ListaDeAnexos } from "@/app/_components/anexo";
 import {
   AppBar,
   Banner,
@@ -19,6 +20,7 @@ import {
 } from "@/app/_components/ui";
 import { HistoricoDeCorrecoes } from "@/app/_components/corrigir";
 import {
+  carregarAnexosDoDocumento,
   carregarCorrecoesDoDocumento,
   carregarDocumento,
   carregarObras,
@@ -66,6 +68,13 @@ type Estado =
       painel: PainelDados;
       /** Critério 16 — o rastro é EXIBIDO já na rodada 1. */
       correcoes: Revisao[];
+      /**
+       * CONTAI-027, critério 2 — "a lista inteira". Os anexos ADICIONAIS da
+       * `documento_anexo` (0009) andam junto com o `arquivo_path`: a carta de
+       * correção que chegou depois é acervo deste documento, e antes deste
+       * ticket ela não aparecia em tela nenhuma.
+       */
+      anexos: string[];
       /** Nome de cada obra: o rastro grava id, e id não se lê em 2034. */
       obras: Map<string, string>;
     };
@@ -249,9 +258,10 @@ function DetalheDocumento() {
         // O painel da obra inteira: é dele que saem os pagamentos ligados e o
         // cálculo do custo comprovado deste conjunto.
         const painel = await carregarPainel(documento.obraId);
-        const [correcoes, obras] = await Promise.all([
+        const [correcoes, obras, anexos] = await Promise.all([
           carregarCorrecoesDoDocumento(documento.id, documento.favorecidoId),
           carregarObras(),
+          carregarAnexosDoDocumento(documento.id),
         ]);
         if (cancelado) return;
         setEstado({
@@ -260,6 +270,7 @@ function DetalheDocumento() {
           painel,
           correcoes,
           obras: new Map(obras.map((o) => [o.id, o.nome])),
+          anexos,
         });
       } catch (erro) {
         if (!cancelado) {
@@ -310,6 +321,24 @@ function DetalheDocumento() {
       ano={ano}
       ligado={ligado}
     />
+  );
+
+  /**
+   * ⚠️ CONTAI-027, critério 2 — este detalhe não mostrava NEM o nome do
+   * arquivo. Agora mostra a lista inteira: o original e os anexos que vieram
+   * depois, cada um com Abrir.
+   *
+   * O original vem primeiro e sempre: `arquivo_path` é a nota que originou o
+   * registro. Os adicionais vêm na ordem em que chegaram — é a ordem em que
+   * quem abrir o dossiê em 2034 vai querer lê-los.
+   */
+  const blocoAnexos = (
+    <Card>
+      <ListaDeAnexos
+        titulo="Papéis deste documento"
+        paths={[d.arquivoPath, ...estado.anexos]}
+      />
+    </Card>
   );
 
   /**
@@ -397,6 +426,7 @@ function DetalheDocumento() {
             saída que preserva o custo. Enquanto isso o documento fica no
             acervo, mas fora do IR.
           </Dica>
+          {blocoAnexos}
           {/* Critério 8: vincular quarentena é permitido — é o que evita
               contar a mesma despesa duas vezes — e não gera custo. */}
           {blocoPagamentos}
@@ -442,6 +472,7 @@ function DetalheDocumento() {
             <strong>você</strong> pagar na regularização da obra. Confira com o
             empreiteiro se a retenção sairá nas próximas notas.
           </Banner>
+          {blocoAnexos}
           {blocoPagamentos}
           {blocoObra}
           {blocoCorrigir}
@@ -485,6 +516,7 @@ function DetalheDocumento() {
             NF e a prova de pagamento.
           </Banner>
         ) : null}
+        {blocoAnexos}
         {blocoPagamentos}
         {blocoObra}
         {blocoCorrigir}
