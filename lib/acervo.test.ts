@@ -11,10 +11,37 @@ const DONO = "11111111-1111-4111-8111-111111111111";
 const OUTRO = "99999999-9999-4999-8999-999999999999";
 
 describe("nomeDoArquivoNoAcervo", () => {
-  it("é o último segmento do caminho — o mesmo que as telas já faziam", () => {
+  it("é o último segmento do caminho", () => {
     expect(
       nomeDoArquivoNoAcervo(`${DONO}/comprovante/abc-comprovante-pix-1.pdf`),
     ).toBe("abc-comprovante-pix-1.pdf");
+  });
+
+  /**
+   * ⚠️ O carimbo é do próprio app (`subirParaAcervo`) e tem 37 caracteres. Sem
+   * tirá-lo, o item a 375px vira um bloco de hexadecimal com um `.pdf` no fim
+   * — a D35 fechada pela metade.
+   */
+  it("tira o UUID que o upload carimbou na frente", () => {
+    expect(
+      nomeDoArquivoNoAcervo(
+        `${DONO}/documento/a3a4c30a-4167-4a97-a0a8-e2a78343fe95-nfse-2481.pdf`,
+      ),
+    ).toBe("nfse-2481.pdf");
+  });
+
+  it("não confunde qualquer hífen com o carimbo", () => {
+    expect(
+      nomeDoArquivoNoAcervo(`${DONO}/terreno/2026-08-12-comprovante-pix.pdf`),
+    ).toBe("2026-08-12-comprovante-pix.pdf");
+    expect(nomeDoArquivoNoAcervo(`${DONO}/terreno/nota-fiscal-2481.pdf`)).toBe(
+      "nota-fiscal-2481.pdf",
+    );
+  });
+
+  it("arquivo cujo nome era só o carimbo não fica anônimo", () => {
+    const so = "a3a4c30a-4167-4a97-a0a8-e2a78343fe95-";
+    expect(nomeDoArquivoNoAcervo(`${DONO}/documento/${so}`)).toBe(so);
   });
 
   it("aguenta caminho sem barra", () => {

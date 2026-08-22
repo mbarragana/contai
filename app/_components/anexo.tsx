@@ -79,53 +79,63 @@ export function ItemDeAnexo({ path }: { path: string }) {
     <div
       data-anexo={path}
       data-estado={estado}
-      className={`mt-2 flex items-start gap-2.5 rounded-lg border px-2.5 py-2 first:mt-0 ${
+      className={`mt-2 rounded-lg border px-2.5 py-2 first:mt-0 ${
         comErro ? "border-red bg-red-bg" : "border-line bg-white"
       }`}
     >
-      <div
-        aria-hidden
-        className="flex h-[54px] w-11 flex-none items-center justify-center rounded-md border border-line bg-soft text-[10px] font-bold tracking-wide text-mut"
-      >
-        {extensaoDoArquivoNoAcervo(path)}
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className="text-[13px] font-semibold [overflow-wrap:anywhere]">
-          {nomeDoArquivoNoAcervo(path)}
+      <div className="flex items-start gap-2.5">
+        <div
+          aria-hidden
+          className="flex h-[54px] w-11 flex-none items-center justify-center rounded-md border border-line bg-soft text-[10px] font-bold tracking-wide text-mut"
+        >
+          {extensaoDoArquivoNoAcervo(path)}
         </div>
-        {comErro ? (
-          <p role="alert" className="mt-1 text-[11.5px] text-red">
-            {estado === "negado" ? ACERVO_NEGADO : ACERVO_FALHA_AO_ABRIR}
-          </p>
-        ) : null}
+
+        <div className="min-w-0 flex-1">
+          <div className="text-[13px] font-semibold [overflow-wrap:anywhere]">
+            {nomeDoArquivoNoAcervo(path)}
+          </div>
+        </div>
+
+        <div className="flex-none">
+          {estado === "abrindo" ? (
+            <span role="status" className="text-[12px] text-mut">
+              abrindo…
+            </span>
+          ) : estado === "negado" ? (
+            /* Sem botão, de propósito: "Tentar de novo" não conserta "não é
+               seu" — seria a porta que não abre da D36, com outro rótulo. */
+            <span aria-hidden className="text-[12px] text-mut">
+              —
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void abrir()}
+              className={`min-h-[44px] rounded-lg border bg-white px-3 text-[13px] font-semibold ${
+                estado === "falha" ? "border-red text-red" : "border-ink text-ink"
+              }`}
+            >
+              {estado === "falha" ? "Tentar de novo" : "Abrir"}
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="flex-none">
-        {estado === "abrindo" ? (
-          <span role="status" className="text-[12px] text-mut">
-            abrindo…
-          </span>
-        ) : estado === "negado" ? (
-          /* Sem botão, de propósito: "Tentar de novo" não conserta "não é
-             seu" — seria a porta que não abre da D36, com outro rótulo. */
-          <span aria-hidden className="text-[12px] text-mut">
-            —
-          </span>
-        ) : (
-          <button
-            type="button"
-            onClick={() => void abrir()}
-            className={`min-h-[44px] rounded-lg border bg-white px-3 text-[13px] font-semibold ${
-              estado === "falha"
-                ? "border-red text-red"
-                : "border-ink text-ink"
-            }`}
-          >
-            {estado === "falha" ? "Tentar de novo" : "Abrir"}
-          </button>
-        )}
-      </div>
+      {/*
+        ⚠️ A mensagem ocupa a LARGURA INTEIRA do item, e é a única divergência
+        de layout em relação ao mock: lá ela mora na coluna do meio, que a
+        375px sobra com pouco mais de cem pixels entre a miniatura e o botão
+        "Tentar de novo". As duas frases têm mais de cem caracteres — na coluna
+        do meio elas quebram em tiras de duas ou três palavras. O que a frase
+        precisa dizer ("nada foi perdido") é justamente o que ninguém lê nesse
+        formato.
+      */}
+      {comErro ? (
+        <p role="alert" className="mt-1.5 text-[11.5px] leading-snug text-red">
+          {estado === "negado" ? ACERVO_NEGADO : ACERVO_FALHA_AO_ABRIR}
+        </p>
+      ) : null}
     </div>
   );
 }

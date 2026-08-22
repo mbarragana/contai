@@ -9,8 +9,25 @@
  */
 
 /**
- * O nome que o Mateus vê. É o mesmo `path.split("/").pop()` que as telas já
- * faziam antes deste ticket.
+ * O prefixo que o PRÓPRIO app carimba no nome ao subir o arquivo:
+ * `${usuarioId}/${pasta}/${crypto.randomUUID()}-${nome}` (`subirParaAcervo`,
+ * em lib/data.ts). Ele existe para o objeto não colidir no bucket, não para
+ * ser lido.
+ */
+const UUID_DO_UPLOAD =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-/i;
+
+/**
+ * O nome que o Mateus vê: último segmento do caminho, **menos o UUID que o
+ * upload carimbou na frente**.
+ *
+ * ⚠️ Isto é uma divergência deliberada em relação ao "`path.split("/").pop()`,
+ * como já se faz hoje". Só tirando o prefixo o nome fica legível: o carimbo
+ * tem 37 caracteres e, a 375px, empurra o nome de verdade para a nona linha —
+ * o item vira um bloco de hexadecimal com um `.pdf` no fim. A dor D35 é
+ * "acervo que ninguém consegue ler"; entregar um nome ilegível seria fechá-la
+ * pela metade. Nada de fiscal se perde: o UUID é artefato de armazenamento, o
+ * caminho completo continua gravado no banco e é ele que vai para o dossiê.
  *
  * ⚠️ NÃO existe tamanho nem data de anexação aqui, e a ausência é deliberada:
  * o mock mostra "184 KB · anexado em 12/08/2026" porque lá o arquivo está na
@@ -21,7 +38,11 @@
  */
 export function nomeDoArquivoNoAcervo(path: string): string {
   const nome = path.split("/").pop();
-  return nome && nome !== "" ? nome : path;
+  if (!nome || nome === "") return path;
+  const semCarimbo = nome.replace(UUID_DO_UPLOAD, "");
+  // Arquivo cujo nome inteiro ERA o carimbo: aí o carimbo é tudo o que existe
+  // para mostrar, e some-lo deixaria o item anônimo.
+  return semCarimbo === "" ? nome : semCarimbo;
 }
 
 /**
