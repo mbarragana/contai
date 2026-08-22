@@ -297,7 +297,18 @@ test.describe("registrar documento", () => {
     await page.getByRole("button", { name: "Salvar registro" }).click();
 
     await expect(page.getByRole("heading", { name: "Registrado ✓" })).toBeVisible();
-    await expect(page.getByText(/Original guardado no acervo/)).toBeVisible();
+    // CONTAI-030: o texto é adjudicado pelo `contador` (parecer de 2026-08-16,
+    // F1 40-44/66-91 e F3 183-188) e se copia, não se reescreve. Duas asserções
+    // porque são dois erros distintos que já estiveram no ar juntos:
+    // "Original" convida a jogar fora o papel; qualquer prazo em tela é palpite
+    // — o app não sabe a data da venda, e obra não vendida tem prazo indefinido.
+    await expect(
+      page.getByText(
+        /Arquivo guardado no acervo — nada se apaga, e o prazo de guarda só começa a correr depois da venda\./,
+      ),
+    ).toBeVisible();
+    await expect(page.getByText(/Original guardado/)).toHaveCount(0);
+    await expect(page.getByText(/venda \+ 5 anos/)).toHaveCount(0);
 
     const gravados = await documentos(db);
     expect(gravados).toHaveLength(1);

@@ -205,6 +205,20 @@ o mesmo vício que o adendo de 2026-08-10 rejeitou no "Salvar mesmo assim".
 >
 > Documento que nasceu em papel — recibo assinado, comprovante impresso,
 > contrato — só teria o mesmo valor do original se a digitalização seguisse os
+⚠️ **Correção de 2026-08-22, feita pelo próprio `contador`.** A versão original
+deste bloco dizia *"por 5 anos contados do primeiro dia do ano seguinte à
+declaração que informar a venda"* — e isso **contradiz o F1, acréscimo 1**, acima
+neste mesmo parecer, que ancora o relógio na **última DAA que declarou qualquer
+parcela** daquele ganho. Venda parcelada com recebimento em 2028 e 2029 tem
+**duas** DAA; "a que informar a venda" é a primeira, e adotá-la joga um ano fora
+do prazo de guarda.
+
+Achado quando o `/design` passou a extrair spec dos mocks (2026-08-22) e o
+`CONTAI-011.html` — que copia este bloco **literalmente**, por exigência do
+critério 13 — foi lido de perto. A correção entra **aqui primeiro**: enquanto o
+parecer estiver errado, o critério "copiar literalmente" reintroduz o erro na
+próxima cópia.
+
 > requisitos técnicos e a assinatura digital ICP-Brasil da Lei 12.682/2012 e do
 > Decreto 10.278/2020. O contai não faz isso: o que ele guarda é cópia simples.
 >
@@ -212,7 +226,8 @@ o mesmo vício que o adendo de 2026-08-10 rejeitou no "Salvar mesmo assim".
 > pedir, quem responde é o papel.
 >
 > **Guarde o original assinado** enquanto o imóvel não for vendido, e por 5 anos
-> contados do primeiro dia do ano seguinte à declaração que informar a venda.
+> contados do primeiro dia do ano seguinte à última declaração que informar
+> qualquer parcela do ganho — venda parcelada tem mais de uma.
 >
 > Nota fiscal eletrônica (NF-e / NFS-e) é diferente: ela já nasce digital, o
 > arquivo é o original e não há papel a guardar.

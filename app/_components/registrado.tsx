@@ -57,8 +57,8 @@ export function Registrado({
           </Banner>
         ) : null}
         <Banner cor="grn" role="status">
-          Salvo em <strong>{obraNome}</strong>. Original guardado no acervo —
-          fica disponível até a venda + 5 anos.
+          Salvo em <strong>{obraNome}</strong>. Arquivo guardado no acervo —
+          nada se apaga, e o prazo de guarda só começa a correr depois da venda.
         </Banner>
         <Card>
           <Linha rotulo="Obra">{obraNome}</Linha>
