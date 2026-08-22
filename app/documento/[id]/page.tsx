@@ -336,7 +336,7 @@ function DetalheDocumento() {
     <Card>
       <ListaDeAnexos
         titulo="Papéis deste documento"
-        paths={[d.arquivoPath, ...estado.anexos]}
+        itens={[d.arquivoPath, ...estado.anexos].map((path) => ({ path }))}
       />
     </Card>
   );

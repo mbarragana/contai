@@ -3,7 +3,19 @@
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
-import { CampoArquivo, CampoTexto, Escolha } from "@/app/_components/campos";
+import { ListaDeAnexos, papeisDoDesembolso } from "@/app/_components/anexo";
+import {
+  comprovantesEscolhidos,
+  EscolhaDeAnexos,
+  semPapel,
+  type AnexoEscolhido,
+} from "@/app/_components/anexos-novos";
+import { CampoTexto, Escolha } from "@/app/_components/campos";
+import {
+  PendenciaDeDatas,
+  PerguntaQuandoSaiu,
+  type RespostaDeDatas,
+} from "@/app/_components/datas-do-desembolso";
 import {
   AppBar,
   Banner,
@@ -37,10 +49,17 @@ import {
   DESEMBOLSO_SEM_DATA,
   FGTS_NA_ENTRADA_ENTRA,
   NOME_DO_DESEMBOLSO,
+  PAGO_SEM_PAPEL,
+  pagoSemPapel,
+  PAPEL_NOVO_E_ACRESCIMO,
+  pendenciaDeDatasAberta,
+  perguntaNoComplemento,
+  perguntaNoRegistro,
   PREVISTO_NAO_E_PAGO,
   tiposDeDesembolsoPara,
 } from "@/lib/fiscal/terreno";
 import { hojeIso } from "@/lib/hoje";
+import { formatarDataBR } from "@/lib/fiscal/obra";
 import { formatarBRL, parseValorInput } from "@/lib/money";
 import type {
   NaturezaAquisicaoTerreno,
@@ -128,13 +147,20 @@ export default function DesembolsosDoTerreno() {
   const [estado, setEstado] = useState<"pago" | "previsto" | null>(null);
   const [data, setData] = useState("");
   const [origem, setOrigem] = useState<OrigemRecursoEntrada | null>(null);
-  const [arquivo, setArquivo] = useState<File | null>(null);
+  /** N papéis, cada um com o seu `papel` — critérios 8 e 14. */
+  const [anexos, setAnexos] = useState<AnexoEscolhido[]>([]);
+  /** A resposta do critério 12. `null` = ainda não respondeu. Sem default. */
+  const [resposta, setResposta] = useState<RespostaDeDatas | null>(null);
   const [erros, setErros] = useState<ErroCampo[]>([]);
 
-  // ── Completar a data de um desembolso gravado sem ela ──────────────────
+  // ── Completar a data / anexar o papel que chegou depois (critério 9b) ──
+  // ⚠️ É a MESMA ação, e é por isso que é o mesmo bloco de estado: o que muda
+  // é o que falta naquele desembolso (a data, o papel, ou os dois).
   const [completando, setCompletando] = useState<string | null>(null);
   const [dataCompletar, setDataCompletar] = useState("");
-  const [arquivoCompletar, setArquivoCompletar] = useState<File | null>(null);
+  const [anexosCompletar, setAnexosCompletar] = useState<AnexoEscolhido[]>([]);
+  const [respostaCompletar, setRespostaCompletar] =
+    useState<RespostaDeDatas | null>(null);
   const [erroCompletar, setErroCompletar] = useState<string | null>(null);
 
   const hoje = hojeIso();
@@ -199,10 +225,30 @@ export default function DesembolsosDoTerreno() {
       }
       // Anexo obrigatório para toda linha NOVA paga (disciplina do anexo no ato
       // do registro). Linha `previsto` não tem o que anexar: nada foi pago.
-      if (!arquivo) {
+      if (anexos.length === 0) {
         encontrados.push({
-          campo: "arquivo",
+          campo: "anexos",
           mensagem: "Anexe o comprovante — é ele que sustenta este custo na venda.",
+        });
+      } else if (semPapel(anexos) > 0) {
+        // Critério 14: `papel` é obrigatório e sem default. O papel que não foi
+        // respondido não grava — nem com um palpite do app.
+        encontrados.push({
+          campo: "anexos",
+          mensagem:
+            semPapel(anexos) === 1
+              ? "Diga o que é o papel que falta — sem isso ele não grava."
+              : `Diga o que é cada papel — ${semPapel(anexos)} ainda sem resposta.`,
+        });
+      }
+      // Critério 12: com dois comprovantes, a resposta é OBRIGATÓRIA e não tem
+      // default. O registro não é recusado por causa dela — ele é recusado por
+      // ela estar em branco, que é outra coisa: o fato consumado grava dos dois
+      // jeitos, e é a pergunta que precisa ser respondida antes.
+      if (perguntaDoRegistro && resposta === null) {
+        encontrados.push({
+          campo: "resposta",
+          mensagem: "Responda quando esse dinheiro saiu da sua conta.",
         });
       }
     }
@@ -218,7 +264,16 @@ export default function DesembolsosDoTerreno() {
 
     setFase({ nome: "salvando" });
     try {
-      const caminho = arquivo ? await subirParaAcervo(arquivo, "terreno") : null;
+      // Os N papéis sobem ANTES; o lançamento e as N linhas de anexo entram
+      // depois, num ato só (RPC `terreno_desembolso_gravar`). Objeto no bucket
+      // sem linha no banco é lixo silencioso e recuperável; linha sem objeto
+      // seria o inverso, e não é.
+      const gravar = await Promise.all(
+        anexos.map(async (a) => ({
+          arquivoPath: await subirParaAcervo(a.arquivo, "terreno"),
+          papel: a.papel!,
+        })),
+      );
       await criarDesembolsoTerreno({
         obraId: id,
         tipo: tipo!,
@@ -227,7 +282,10 @@ export default function DesembolsosDoTerreno() {
         dataPagamento: estado === "pago" ? data : null,
         estado: estado!,
         origemRecurso: tipo === "entrada" ? origem : null,
-        arquivoPath: caminho,
+        anexos: gravar,
+        // ⚠️ **Grava assim mesmo, com pendência ou sem ela**: "nunca recuse o
+        // registro de um fato consumado" (adendo 2 do parecer de 18/08).
+        debitosMesmoDia: perguntaDoRegistro ? resposta === "mesmo_dia" : null,
       });
       await recarregar();
       setSalvo(
@@ -240,7 +298,8 @@ export default function DesembolsosDoTerreno() {
       setEstado(null);
       setData("");
       setOrigem(null);
-      setArquivo(null);
+      setAnexos([]);
+      setResposta(null);
       setFase({ nome: "pronto" });
     } catch (erro) {
       setErroSalvar(mensagemDeErro(erro));
@@ -248,32 +307,97 @@ export default function DesembolsosDoTerreno() {
     }
   }
 
-  async function completar(desembolsoId: string) {
+  /**
+   * A pergunta do critério 12 dispara NESTE registro? Régua do §6: **dois
+   * papéis `comprovante`**, nunca contagem de arquivos — e represada sem data.
+   */
+  const perguntaDoRegistro =
+    estado === "pago" &&
+    perguntaNoRegistro(data, comprovantesEscolhidos(anexos));
+
+  /**
+   * Completar a data **e/ou** anexar o papel que chegou depois — critério 9b.
+   * É a MESMA ação: o que muda é o que falta naquele desembolso.
+   *
+   * ⚠️ **INSERT, nunca substituição, nunca remoção.** O papel novo se soma;
+   * nenhum papel gravado é tocado.
+   */
+  async function completar(d: TerrenoDesembolso) {
     setErroCompletar(null);
-    if (!ehDataValida(dataCompletar)) {
-      setErroCompletar("Informe a data em que o dinheiro saiu da conta.");
+    const faltaData = d.dataPagamento === null;
+
+    if (faltaData) {
+      if (!ehDataValida(dataCompletar)) {
+        setErroCompletar("Informe a data em que o dinheiro saiu da conta.");
+        return;
+      }
+      if (dataCompletar > hoje) {
+        setErroCompletar("Data no futuro — informe a data real do pagamento.");
+        return;
+      }
+    }
+    if (semPapel(anexosCompletar) > 0) {
+      setErroCompletar(
+        "Diga o que é cada papel — sem isso ele não grava (critério 14).",
+      );
       return;
     }
-    if (dataCompletar > hoje) {
-      setErroCompletar("Data no futuro — informe a data real do pagamento.");
+    const dataDoAto = faltaData ? dataCompletar : d.dataPagamento;
+    const precisaResponder = perguntaNoComplemento(
+      d,
+      comprovantesEscolhidos(anexosCompletar),
+      dataDoAto,
+    );
+    if (precisaResponder && respostaCompletar === null) {
+      setErroCompletar("Responda quando esse dinheiro saiu da sua conta.");
       return;
     }
+    if (anexosCompletar.length === 0 && !faltaData && !precisaResponder) {
+      setErroCompletar("Escolha ao menos um papel para anexar.");
+      return;
+    }
+
     setFase({ nome: "salvando" });
     try {
-      const caminho = arquivoCompletar
-        ? await subirParaAcervo(arquivoCompletar, "terreno")
-        : null;
-      await completarDesembolsoTerreno(desembolsoId, dataCompletar, caminho);
+      const gravar = await Promise.all(
+        anexosCompletar.map(async (a) => ({
+          arquivoPath: await subirParaAcervo(a.arquivo, "terreno"),
+          papel: a.papel!,
+        })),
+      );
+      await completarDesembolsoTerreno(d.id, {
+        dataPagamento: faltaData ? dataCompletar : undefined,
+        anexos: gravar,
+        debitosMesmoDia: precisaResponder
+          ? respostaCompletar === "mesmo_dia"
+          : undefined,
+      });
       await recarregar();
       setCompletando(null);
       setDataCompletar("");
-      setArquivoCompletar(null);
-      setSalvo(`Data informada — o valor passa a compor o custo de ${dataCompletar.slice(0, 4)}.`);
+      setAnexosCompletar([]);
+      setRespostaCompletar(null);
+      setSalvo(
+        faltaData
+          ? `Data informada — o valor passa a compor o custo de ${dataCompletar.slice(0, 4)}.`
+          : gravar.length === 1
+            ? "Papel anexado — o acervo deste desembolso cresceu."
+            : `${gravar.length} papéis anexados — o acervo deste desembolso cresceu.`,
+      );
       setFase({ nome: "pronto" });
     } catch (erro) {
       setErroCompletar(mensagemDeErro(erro));
       setFase({ nome: "pronto" });
     }
+  }
+
+  /** Abre o formulário de complemento naquele desembolso, do zero. */
+  function abrirComplemento(desembolsoId: string) {
+    setCompletando(desembolsoId);
+    setDataCompletar("");
+    setAnexosCompletar([]);
+    setRespostaCompletar(null);
+    setErroCompletar(null);
   }
 
   if (fase.nome === "carregando" || fase.nome === "erro" || !obra) {
@@ -304,7 +428,79 @@ export default function DesembolsosDoTerreno() {
     (d) => d.estado === "pago" && d.dataPagamento === null,
   );
 
+  /**
+   * Os que já têm data — é neles que o papel novo entra pelo critério 9b, e é
+   * onde o card do desembolso mostra a pendência do critério 12c. Os `previsto`
+   * também entram: contrato e escritura chegam antes do pagamento, e recusar o
+   * papel ali seria fechar o acervo por antecipação.
+   */
+  const jaGravados = desembolsos.filter((d) => !semData.includes(d));
+
   const tipos = opcoesDeTipo(obra.naturezaAquisicaoTerreno);
+
+  /**
+   * O formulário de complemento de UM desembolso — critério 9b.
+   *
+   * ⚠️ **Sem tela nova, e sem SEGUNDO componente**: é o mesmo bloco para os
+   * três casos que existem (falta a data; falta o papel; chegou papel novo num
+   * desembolso completo). O que muda é qual campo aparece. Dois formulários
+   * quase iguais é como um deles deixa de disparar a pergunta do critério 12.
+   */
+  function formularioDeComplemento(d: TerrenoDesembolso) {
+    const faltaData = d.dataPagamento === null;
+    const dataDoAto = faltaData ? dataCompletar : d.dataPagamento;
+    const precisaResponder = perguntaNoComplemento(
+      d,
+      comprovantesEscolhidos(anexosCompletar),
+      dataDoAto,
+    );
+    return (
+      <div className="mt-2.5 flex flex-col gap-3">
+        {faltaData ? (
+          <CampoTexto
+            rotulo="Data em que saiu da conta"
+            tipo="date"
+            valor={dataCompletar}
+            onChange={setDataCompletar}
+            ajuda={A_DATA_QUE_VALE}
+          />
+        ) : null}
+        <EscolhaDeAnexos
+          rotulo="Anexar papel"
+          ajuda={PAPEL_NOVO_E_ACRESCIMO}
+          itens={anexosCompletar}
+          onChange={setAnexosCompletar}
+        />
+        {/* A represa do §6 abre AQUI, no mesmo ato em que a data entra. */}
+        {precisaResponder && dataDoAto ? (
+          <PerguntaQuandoSaiu
+            dataPagamento={dataDoAto}
+            valor={respostaCompletar}
+            onChange={setRespostaCompletar}
+          />
+        ) : null}
+        {erroCompletar ? (
+          <p role="alert" className="text-[12px] font-semibold text-red">
+            {erroCompletar}
+          </p>
+        ) : null}
+        <Botao
+          variante="primary"
+          onClick={() => void completar(d)}
+          disabled={fase.nome === "salvando"}
+        >
+          {fase.nome === "salvando"
+            ? "Salvando…"
+            : faltaData
+              ? "Informar a data"
+              : "Gravar o papel"}
+        </Botao>
+        <Botao variante="ghost" onClick={() => setCompletando(null)}>
+          Cancelar
+        </Botao>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -339,45 +535,84 @@ export default function DesembolsosDoTerreno() {
                   </span>
                 </Linha>
                 <Consequencia cor="amb">{DESEMBOLSO_SEM_DATA}.</Consequencia>
+                {/* Falta a data, não o papel: quem já anexou tem o que abrir. */}
+                <ListaDeAnexos
+                  titulo="Papéis anexados"
+                  itens={papeisDoDesembolso(d)}
+                />
                 {completando === d.id ? (
-                  <div className="mt-2.5 flex flex-col gap-3">
-                    <CampoTexto
-                      rotulo="Data em que saiu da conta"
-                      tipo="date"
-                      valor={dataCompletar}
-                      onChange={setDataCompletar}
-                      ajuda={A_DATA_QUE_VALE}
-                      erro={erroCompletar ?? undefined}
-                    />
-                    <CampoArquivo
-                      rotulo="Comprovante (se você tiver)"
-                      ajuda="Este valor está gravado sem comprovante. Anexar agora fortalece o acervo, e não é exigido para informar a data — o que falta aqui é a data."
-                      accept=".pdf,image/*"
-                      arquivo={arquivoCompletar}
-                      onChange={setArquivoCompletar}
-                    />
-                    <Botao
-                      variante="primary"
-                      onClick={() => void completar(d.id)}
-                      disabled={fase.nome === "salvando"}
-                    >
-                      {fase.nome === "salvando" ? "Salvando…" : "Informar a data"}
-                    </Botao>
-                    <Botao variante="ghost" onClick={() => setCompletando(null)}>
-                      Cancelar
-                    </Botao>
-                  </div>
+                  formularioDeComplemento(d)
                 ) : (
                   <div className="mt-2.5">
                     <Botao
                       variante="primary"
-                      onClick={() => {
-                        setCompletando(d.id);
-                        setDataCompletar("");
-                        setErroCompletar(null);
-                      }}
+                      onClick={() => abrirComplemento(d.id)}
                     >
                       Informar a data
+                    </Botao>
+                  </div>
+                )}
+              </Card>
+            ))}
+          </>
+        ) : null}
+
+        {/* ── Critério 9b: o papel que chega DEPOIS, num desembolso já
+            gravado. Mesma ação, mesma tela — e a lista inclui os que já têm
+            data e já têm papel, que é justamente o caso que não existia. */}
+        {jaGravados.length > 0 ? (
+          <>
+            <Passo>Papéis de um desembolso já registrado</Passo>
+            {jaGravados.map((d) => (
+              <Card
+                key={d.id}
+                data-desembolso-gravado={d.id}
+                className={
+                  pendenciaDeDatasAberta(d) || pagoSemPapel(d)
+                    ? "border-red"
+                    : undefined
+                }
+              >
+                {/* Critério 12c — o card do desembolso é uma das duas
+                    superfícies onde a pendência é indispensável. */}
+                {pendenciaDeDatasAberta(d) ? (
+                  <div className="mb-2">
+                    <PendenciaDeDatas valorCentavos={d.valorCentavos} />
+                  </div>
+                ) : null}
+                <Linha rotulo={NOME_DO_DESEMBOLSO[d.tipo]}>
+                  <span className="mono font-semibold">
+                    {formatarBRL(d.valorCentavos)}
+                  </span>
+                </Linha>
+                {d.dataPagamento ? (
+                  <Linha rotulo={d.estado === "pago" ? "Pago em" : "Previsto"}>
+                    <span className="mono">
+                      {formatarDataBR(d.dataPagamento)}
+                    </span>
+                  </Linha>
+                ) : null}
+                <ListaDeAnexos
+                  titulo="Papéis deste desembolso"
+                  itens={papeisDoDesembolso(d)}
+                />
+                {/* Critério 15 — "pago, e sem papel nenhum" continua visível,
+                    agora derivado de "não existe linha de anexo". */}
+                {pagoSemPapel(d) ? (
+                  <div data-pendencia="terreno-sem-papel">
+                    <Chip cor="red">Pago, e sem papel nenhum</Chip>
+                    <Consequencia cor="red">{PAGO_SEM_PAPEL}</Consequencia>
+                  </div>
+                ) : null}
+                {completando === d.id ? (
+                  formularioDeComplemento(d)
+                ) : (
+                  <div className="mt-2.5">
+                    <Botao
+                      variante={pagoSemPapel(d) ? "primary" : "ghost"}
+                      onClick={() => abrirComplemento(d.id)}
+                    >
+                      Anexar um papel
                     </Botao>
                   </div>
                 )}
@@ -428,14 +663,28 @@ export default function DesembolsosDoTerreno() {
                 ajuda={A_DATA_QUE_VALE}
                 erro={erroDe("data")}
               />
-              <CampoArquivo
-                rotulo="Comprovante"
-                ajuda="Obrigatório: é o documento que sustenta este custo no dia da venda."
-                accept=".pdf,image/*"
-                arquivo={arquivo}
-                onChange={setArquivo}
-                erro={erroDe("arquivo")}
+              {/* ⚠️ Critério 8 + Teste do Canteiro: com UM papel, esta tela
+                  tem exatamente os passos de hoje — um campo de arquivo, uma
+                  pergunta sobre o que ele é, e o Gravar. O `multiple` não custa
+                  toque nenhum a quem leva um arquivo só. */}
+              <EscolhaDeAnexos
+                rotulo="Papéis deste desembolso"
+                ajuda="Obrigatório: é o que sustenta este custo no dia da venda. Pode ser mais de um."
+                itens={anexos}
+                onChange={setAnexos}
+                erro={erroDe("anexos")}
               />
+              {/* A pergunta do critério 12. ⚠️ Ela NÃO aparece para quem anexou
+                  um só papel, nem para comprovante + recibo: a régua é o PAPEL
+                  (dois `comprovante`), nunca a contagem de arquivos. */}
+              {perguntaDoRegistro ? (
+                <PerguntaQuandoSaiu
+                  dataPagamento={data}
+                  valor={resposta}
+                  onChange={setResposta}
+                  erro={erroDe("resposta")}
+                />
+              ) : null}
             </>
           ) : null}
 

@@ -203,7 +203,7 @@ export default function CorrigirClassificacao() {
    */
   const blocoAnexo = (
     <Card>
-      <ListaDeAnexos titulo="Papel anexado" paths={[d.arquivoPath]} />
+      <ListaDeAnexos titulo="Papel anexado" itens={[{ path: d.arquivoPath }]} />
     </Card>
   );
 

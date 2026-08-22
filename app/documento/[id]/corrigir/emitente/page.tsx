@@ -245,7 +245,10 @@ function CorrigirEmitente() {
    */
   const blocoAnexo = (
     <Card>
-      <ListaDeAnexos titulo="Papel anexado" paths={[documento.arquivoPath]} />
+      <ListaDeAnexos
+        titulo="Papel anexado"
+        itens={[{ path: documento.arquivoPath }]}
+      />
     </Card>
   );
 

@@ -14,12 +14,16 @@
  * linhas. Um componente de item único compraria a segunda rodada de mock que
  * este ticket existe para evitar.
  *
- * ⚠️ **O que o item NÃO mostra, e não é esquecimento**: tamanho do arquivo,
- * data de anexação e o campo `papel`. O mock desenha os três porque lá o
- * arquivo está na mão do navegador; aqui o que existe no banco é um caminho de
- * texto. `papel` nasce na rodada 2 (critério 14) e ainda não tem coluna. Campo
- * que o app não sabe não se preenche — nem com chamada extra ao Storage para
- * parecer que sabe.
+ * ⚠️ **O que o item NÃO mostra, e não é esquecimento**: tamanho do arquivo e
+ * data de anexação. O mock desenha os dois porque lá o arquivo está na mão do
+ * navegador; aqui o que existe no banco é um caminho de texto. Campo que o app
+ * não sabe não se preenche — nem com chamada extra ao Storage para parecer que
+ * sabe.
+ *
+ * ⚠️ **`papel` PASSOU a existir na rodada 2** (critério 14), e ele aparece:
+ * é o campo que responde, em 2034, qual papel sustenta o quê. Onde não há
+ * coluna de papel — documento, pagamento, informe — o item continua sem chip,
+ * porque lá o app continua não sabendo.
  */
 
 import { useState } from "react";
@@ -31,6 +35,8 @@ import {
   nomeDoArquivoNoAcervo,
 } from "@/lib/acervo";
 import { AcervoNegadoError, criarLinkDeLeitura } from "@/lib/data";
+import { ROTULO_DO_PAPEL } from "@/lib/fiscal/terreno";
+import type { TerrenoDesembolso } from "@/lib/types";
 
 /**
  * Os QUATRO estados são do ITEM, não da tela: numa lista de três papéis, um
@@ -39,7 +45,16 @@ import { AcervoNegadoError, criarLinkDeLeitura } from "@/lib/data";
  */
 type EstadoDoItem = "pronto" | "abrindo" | "falha" | "negado";
 
-export function ItemDeAnexo({ path }: { path: string }) {
+/**
+ * Um papel do acervo em tela: o caminho e, onde o app o conhece, o `papel`.
+ */
+export interface ItemDeAcervo {
+  path: string;
+  /** Rótulo do `papel` (critério 14). Ausente onde a entidade não tem o campo. */
+  papel?: string;
+}
+
+export function ItemDeAnexo({ path, papel }: ItemDeAcervo) {
   const [estado, setEstado] = useState<EstadoDoItem>("pronto");
 
   async function abrir() {
@@ -95,6 +110,11 @@ export function ItemDeAnexo({ path }: { path: string }) {
           <div className="text-[13px] font-semibold [overflow-wrap:anywhere]">
             {nomeDoArquivoNoAcervo(path)}
           </div>
+          {papel ? (
+            <div className="mt-1 inline-block rounded-full bg-soft px-[9px] py-0.5 text-[11px] font-semibold text-mut">
+              {papel}
+            </div>
+          ) : null}
         </div>
 
         <div className="flex-none">
@@ -150,28 +170,52 @@ export function ItemDeAnexo({ path }: { path: string }) {
  */
 export function ListaDeAnexos({
   titulo,
-  paths,
+  itens,
   vazio,
 }: {
   titulo: string;
-  paths: readonly string[];
+  itens: readonly ItemDeAcervo[];
   vazio?: string;
 }) {
-  if (paths.length === 0 && !vazio) return null;
+  if (itens.length === 0 && !vazio) return null;
 
   return (
     <div className="mt-1">
       <div className="font-semibold">
         {titulo}
-        {paths.length > 1 ? ` (${paths.length})` : ""}
+        {itens.length > 1 ? ` (${itens.length})` : ""}
       </div>
       <div className="mt-2">
-        {paths.length === 0 ? (
+        {itens.length === 0 ? (
           <p className="text-[12px] text-mut">{vazio}</p>
         ) : (
-          paths.map((path) => <ItemDeAnexo key={path} path={path} />)
+          itens.map((item, posicao) => (
+            /* ⚠️ A chave é o CAMINHO + a posição, e não o caminho sozinho: o
+               critério 16 permite o MESMO objeto do acervo em mais de um
+               lançamento, e nada impede o mesmo papel aparecer duas vezes numa
+               lista futura. Chave repetida faria o React descartar a segunda
+               em silêncio — um papel sumido da tela, que é a D35 de volta. */
+            <ItemDeAnexo key={`${posicao}-${item.path}`} {...item} />
+          ))
         )}
       </div>
     </div>
   );
+}
+
+/**
+ * Os papéis de um desembolso do terreno, prontos para a lista — CONTAI-027,
+ * critérios 9 e 14.
+ *
+ * ⚠️ **Uma definição só, e é de propósito**: as três listas do painel do
+ * terreno e a do formulário mostram o mesmo conjunto. Cada tela montando o seu
+ * é como uma delas passa a contar os anexos por conta própria — a "terceira
+ * via" que o pre-mortem nº 5 nomeia. Quem responde "quantos papéis?" e "quais
+ * são comprovantes?" é `lib/fiscal/terreno.ts`; esta função só traduz.
+ */
+export function papeisDoDesembolso(d: TerrenoDesembolso): ItemDeAcervo[] {
+  return d.anexos.map((a) => ({
+    path: a.arquivoPath,
+    papel: ROTULO_DO_PAPEL[a.papel],
+  }));
 }

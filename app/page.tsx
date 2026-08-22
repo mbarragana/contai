@@ -24,6 +24,7 @@ import {
   Passo,
 } from "@/app/_components/ui";
 import { BlocoAgendados } from "@/app/_components/agendado";
+import { PendenciaDeDatas } from "@/app/_components/datas-do-desembolso";
 import {
   carregarCompromissos,
   carregarObras,
@@ -482,6 +483,27 @@ export default function Home() {
                     <div className="mt-2.5">
                       <BotaoLink href={t.href}>Informar a data</BotaoLink>
                     </div>
+                  </Card>
+                ))}
+              </>
+            ) : null}
+
+            {/* ── CONTAI-027, critério 12c: a HOME é uma das duas superfícies
+                onde esta pendência é indispensável. Vem ANTES da de "falta a
+                data" porque é vermelha — fato consumado com consequência
+                fiscal aberta —, e a de data é âmbar. ⚠️ Sem "ok, entendi":
+                não se dispensa, não se adia, não se esconde. */}
+            {estado.resumo.terrenoMaisDeUmaData.length > 0 ? (
+              <>
+                <Passo>Terreno — um lançamento, mais de uma data</Passo>
+                {estado.resumo.terrenoMaisDeUmaData.map((t) => (
+                  <Card key={t.id} className="border-red">
+                    <PendenciaDeDatas
+                      valorCentavos={t.valorCentavos}
+                      titulo={t.titulo}
+                    >
+                      <BotaoLink href={t.href}>Abrir o desembolso</BotaoLink>
+                    </PendenciaDeDatas>
                   </Card>
                 ))}
               </>

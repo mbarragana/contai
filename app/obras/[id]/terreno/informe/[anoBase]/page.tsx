@@ -408,7 +408,7 @@ export default function InformeAnual() {
             <Card>
               <ListaDeAnexos
                 titulo={`Extrato de ${anoBase} no acervo`}
-                paths={[informeDoAno.arquivoPath]}
+                itens={[{ path: informeDoAno.arquivoPath }]}
               />
             </Card>
           ) : null}
@@ -465,7 +465,7 @@ export default function InformeAnual() {
           <Card>
             <ListaDeAnexos
               titulo="Extrato do exercício"
-              paths={[fase.arquivoPath]}
+              itens={[{ path: fase.arquivoPath }]}
             />
           </Card>
         </Corpo>

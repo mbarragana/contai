@@ -974,6 +974,57 @@ describe("terreno e financiamento fora das pendências (critério 21)", () => {
     expect(r.emPendenciaCentavos).toBe(0);
   });
 
+  /**
+   * CONTAI-027, critério 12c — a pendência "um lançamento, mais de uma data"
+   * na HOME, e a prova de que ela **não vira número**.
+   */
+  it("'mais de uma data' aparece na home e fica FORA de toda soma", () => {
+    const r = resumo({
+      desembolsosTerreno: [
+        {
+          ...TERRENO,
+          debitosMesmoDia: false,
+          debitosMesmoDiaRespondidoEm: "2026-08-21T10:00:00.000Z",
+        },
+      ],
+    });
+    expect(r.terrenoMaisDeUmaData).toHaveLength(1);
+    expect(r.terrenoMaisDeUmaData[0].valorCentavos).toBe(TERRENO_CENTAVOS);
+
+    // ⚠️ O dinheiro SAIU e ESTÁ no custo — o que está aberto é o ANO dele. Por
+    // isso ela não é "custo em risco" e não entra em `emPendenciaCentavos`: o
+    // headline do CONTAI-005 mede o que pode ficar de fora, e este valor está
+    // dentro.
+    expect(r.acumuladoImovelCentavos).toBe(TERRENO_CENTAVOS);
+    expect(r.emPendenciaCentavos).toBe(0);
+    expect(r.pendencias).toHaveLength(0);
+    expect(r.custoConfirmadoAnoCentavos).toBe(0);
+    expect(r.notasSemPagamento).toHaveLength(0);
+    expect(r.despesas).toHaveLength(0);
+  });
+
+  it("a resposta 'tudo no mesmo dia' NÃO abre pendência nenhuma", () => {
+    const r = resumo({
+      desembolsosTerreno: [
+        {
+          ...TERRENO,
+          debitosMesmoDia: true,
+          debitosMesmoDiaRespondidoEm: "2026-08-21T10:00:00.000Z",
+        },
+      ],
+    });
+    expect(r.terrenoMaisDeUmaData).toHaveLength(0);
+  });
+
+  it("as duas pendências do terreno nunca aparecem no MESMO desembolso", () => {
+    // Sem data a pergunta fica represada, então `debitosMesmoDia` é null por
+    // construção (o CHECK do banco impede o contrário) — e o que a home mostra
+    // é só "falta a data".
+    const r = resumo({ desembolsosTerreno: [SEM_DATA] });
+    expect(r.terrenoSemData).toHaveLength(1);
+    expect(r.terrenoMaisDeUmaData).toHaveLength(0);
+  });
+
   it("o ano corrente sem informe é NOMEADO, com a estimativa fora da soma", () => {
     const r = completo(); // ano 2026, informe só de 2025
     const aguardando = r.financiamentoAguardandoInforme!;

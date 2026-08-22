@@ -3,7 +3,8 @@
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
-import { ListaDeAnexos } from "@/app/_components/anexo";
+import { ListaDeAnexos, papeisDoDesembolso } from "@/app/_components/anexo";
+import { PendenciaDeDatas } from "@/app/_components/datas-do-desembolso";
 import {
   AppBar,
   Banner,
@@ -39,6 +40,9 @@ import {
   INSUMO_PARA_REVISAO_CRC,
   NOME_DA_NATUREZA,
   NOME_DO_DESEMBOLSO,
+  PAGO_SEM_PAPEL,
+  pagoSemPapel,
+  pendenciaDeDatasAberta,
   PRECO_CONTRATADO_NAO_E_CUSTO,
   PREVISTO_NAO_E_PAGO,
   SALDO_DEVEDOR_INFORMATIVO,
@@ -343,7 +347,19 @@ export default function PainelDoTerreno() {
         ) : null}
 
         {datados.map((d) => (
-          <Card key={d.id} data-desembolso={d.tipo}>
+          <Card
+            key={d.id}
+            data-desembolso={d.tipo}
+            className={pendenciaDeDatasAberta(d) || pagoSemPapel(d) ? "border-red" : undefined}
+          >
+            {/* ── Critério 12c: o CARD DO DESEMBOLSO é uma das duas superfícies
+                onde a pendência é indispensável (a outra é a home). Ela vem
+                PRIMEIRO, antes dos números que ela põe em dúvida. */}
+            {pendenciaDeDatasAberta(d) ? (
+              <div className="mb-2">
+                <PendenciaDeDatas valorCentavos={d.valorCentavos} />
+              </div>
+            ) : null}
             <Linha rotulo={NOME_DO_DESEMBOLSO[d.tipo]}>
               <span className="mono font-semibold">
                 {formatarBRL(d.valorCentavos)}
@@ -357,14 +373,25 @@ export default function PainelDoTerreno() {
                 {d.origemRecurso === "fgts" ? "FGTS" : "Recurso próprio"}
               </Linha>
             ) : null}
-            {/* Mock tela 1 — "Papéis deste desembolso". Nesta rodada é sempre
-                um: a coluna única de `arquivo_path` só vira tabela filha na
-                rodada 2. O componente já recebe lista. */}
-            {d.arquivoPath ? (
-              <ListaDeAnexos
-                titulo="Papéis deste desembolso"
-                paths={[d.arquivoPath]}
-              />
+            {/* Mock tela 1 — "Papéis deste desembolso", agora com N linhas e o
+                papel de cada uma (critério 14). */}
+            <ListaDeAnexos titulo="Papéis deste desembolso" itens={papeisDoDesembolso(d)} />
+            {/* ── Critério 15 + mock tela 1c: "pago, e sem papel nenhum"
+                continua VISÍVEL depois de a coluna morrer. Deriva de "não
+                existe linha de anexo", nunca de coluna vazia. */}
+            {pagoSemPapel(d) ? (
+              <div data-pendencia="terreno-sem-papel">
+                <Chip cor="red">Pago, e sem papel nenhum</Chip>
+                <Consequencia cor="red">{PAGO_SEM_PAPEL}</Consequencia>
+                <div className="mt-2.5">
+                  <BotaoLink
+                    href={`/obras/${obra.id}/terreno/desembolsos`}
+                    variante="primary"
+                  >
+                    Anexar o papel
+                  </BotaoLink>
+                </div>
+              </div>
             ) : null}
           </Card>
         ))}
@@ -379,9 +406,7 @@ export default function PainelDoTerreno() {
                 </Linha>
                 {/* Falta a data, não o papel: quem já anexou tem o que abrir,
                     e esconder isso aqui seria a D35 sobrevivendo num canto. */}
-                {d.arquivoPath ? (
-                  <ListaDeAnexos titulo="Papel anexado" paths={[d.arquivoPath]} />
-                ) : null}
+                <ListaDeAnexos titulo="Papéis anexados" itens={papeisDoDesembolso(d)} />
               </div>
             ))}
             <Consequencia cor="amb">
@@ -412,9 +437,7 @@ export default function PainelDoTerreno() {
                     {formatarBRL(d.valorCentavos)}
                   </span>
                 </Linha>
-                {d.arquivoPath ? (
-                  <ListaDeAnexos titulo="Papel anexado" paths={[d.arquivoPath]} />
-                ) : null}
+                <ListaDeAnexos titulo="Papéis anexados" itens={papeisDoDesembolso(d)} />
               </div>
             ))}
             <Dica>{PREVISTO_NAO_E_PAGO}</Dica>

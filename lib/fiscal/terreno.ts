@@ -758,6 +758,50 @@ export function perguntaRepresada(d: TerrenoDesembolso): boolean {
   return temDoisComprovantes(d);
 }
 
+/**
+ * **A pergunta dispara NESTE ATO de registro?** (formulário de desembolso
+ * novo, mock tela 2.)
+ *
+ * Não há pai gravado para consultar: o que existe é a data que ele acabou de
+ * digitar e os papéis que ele acabou de marcar. A régua é a mesma do §6 —
+ * **dois papéis `comprovante`** —, e a represa também: sem data, nada é
+ * perguntado. Um comprovante + um recibo **não** perguntam.
+ */
+export function perguntaNoRegistro(
+  dataPagamento: string | null,
+  comprovantesEscolhidos: number,
+): boolean {
+  if (dataPagamento === null || dataPagamento === "") return false;
+  return comprovantesEscolhidos >= 2;
+}
+
+/**
+ * **A pergunta dispara NESTE ATO de complemento?** (completar a data, ou
+ * anexar o papel que chegou depois — critério 9b, mock telas 2d e 1c.)
+ *
+ * Junta o que já está gravado com o que está sendo acrescentado agora:
+ *
+ * - `dataDoAto` é a data que o lançamento **terá depois deste ato** — a que já
+ *   estava, ou a que ele está digitando. É isso que abre a represa "no mesmo
+ *   ato" (§6, última linha).
+ * - `comprovantesNovos` conta PAPEL, não arquivo.
+ * - pendência já aberta não repergunta: ele já respondeu.
+ * - resposta vigente "tudo no dia X" só é reperguntada quando há comprovante
+ *   novo — no ato, ou já gravado depois da resposta (`perguntaPendente`).
+ */
+export function perguntaNoComplemento(
+  d: TerrenoDesembolso,
+  comprovantesNovos: number,
+  dataDoAto: string | null,
+): boolean {
+  if (dataDoAto === null || dataDoAto === "") return false;
+  if (pendenciaDeDatasAberta(d)) return false;
+  const total = comprovantesDe(d).length + comprovantesNovos;
+  if (total < 2) return false;
+  if (d.debitosMesmoDia === null) return true;
+  return comprovantesNovos > 0 || perguntaPendente(d);
+}
+
 // ── Os textos do critério 12 (CÓPIA literal do §4a do parecer) ──────────
 
 /** §4a — o título. Obrigatória, sem default e sem pré-seleção. */

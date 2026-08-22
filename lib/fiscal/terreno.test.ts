@@ -17,6 +17,8 @@ import {
   pagoSemPapel,
   penalidadesCentavos,
   pendenciaDeDatasAberta,
+  perguntaNoComplemento,
+  perguntaNoRegistro,
   perguntaPendente,
   perguntaRepresada,
   rubricasComClassificacaoEmAberto,
@@ -751,5 +753,61 @@ describe("critério 12a — os textos da pendência, copiados do §4b", () => {
 
   it("a opção do 'sim' cita a data do lançamento, em dd/mm/aaaa", () => {
     expect(opcaoTudoEm("21/08/2026")).toBe("Tudo em 21/08/2026");
+  });
+});
+
+describe("critério 12 — a pergunta no ATO (registro e complemento)", () => {
+  it("registro: dois comprovantes com data perguntam; um só, não", () => {
+    expect(perguntaNoRegistro("2026-08-21", 2)).toBe(true);
+    expect(perguntaNoRegistro("2026-08-21", 3)).toBe(true);
+    expect(perguntaNoRegistro("2026-08-21", 1)).toBe(false);
+    expect(perguntaNoRegistro("2026-08-21", 0)).toBe(false);
+  });
+
+  it("registro: sem data, nada é perguntado — represada", () => {
+    expect(perguntaNoRegistro(null, 3)).toBe(false);
+    expect(perguntaNoRegistro("", 3)).toBe(false);
+  });
+
+  it("complemento: o SEGUNDO comprovante que chega dias depois pergunta", () => {
+    const d = desembolso({ id: "d1", anexos: [anexo("comprovante")] });
+    expect(perguntaNoComplemento(d, 1, d.dataPagamento)).toBe(true);
+    // Recibo que chega depois não pergunta nada.
+    expect(perguntaNoComplemento(d, 0, d.dataPagamento)).toBe(false);
+  });
+
+  it("complemento: a represa abre com a DATA, no mesmo ato", () => {
+    const semData = desembolso({
+      id: "d1",
+      dataPagamento: null,
+      anexos: [anexo("comprovante", "2026-08-21T10:00:00.000Z"),
+               anexo("comprovante", "2026-08-21T10:00:01.000Z")],
+    });
+    expect(perguntaNoComplemento(semData, 0, null)).toBe(false);
+    expect(perguntaNoComplemento(semData, 0, "2026-08-21")).toBe(true);
+  });
+
+  it("complemento: pendência aberta não repergunta — ele já respondeu", () => {
+    const d = desembolso({
+      id: "d1",
+      anexos: [anexo("comprovante", "2026-08-21T10:00:00.000Z"),
+               anexo("comprovante", "2026-08-21T10:00:01.000Z")],
+      debitosMesmoDia: false,
+      debitosMesmoDiaRespondidoEm: "2026-08-21T10:00:02.000Z",
+    });
+    expect(perguntaNoComplemento(d, 1, d.dataPagamento)).toBe(false);
+  });
+
+  it("complemento: resposta 'tudo no dia X' + comprovante novo repergunta", () => {
+    const d = desembolso({
+      id: "d1",
+      anexos: [anexo("comprovante", "2026-08-21T10:00:00.000Z"),
+               anexo("comprovante", "2026-08-21T10:00:01.000Z")],
+      debitosMesmoDia: true,
+      debitosMesmoDiaRespondidoEm: "2026-08-21T10:00:02.000Z",
+    });
+    expect(perguntaNoComplemento(d, 1, d.dataPagamento)).toBe(true);
+    // Um papel que não é comprovante não muda o fato: nada a repergunta.
+    expect(perguntaNoComplemento(d, 0, d.dataPagamento)).toBe(false);
   });
 });

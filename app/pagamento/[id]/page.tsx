@@ -253,7 +253,7 @@ export default function DetalhePagamento() {
           {p.comprovantePath ? (
             <ListaDeAnexos
               titulo="Comprovante do pagamento"
-              paths={[p.comprovantePath]}
+              itens={[{ path: p.comprovantePath }]}
             />
           ) : null}
         </Card>

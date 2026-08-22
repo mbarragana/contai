@@ -54,6 +54,7 @@ import {
   ESTIMATIVA_NAO_E_APURACAO,
   faltaLancarInforme,
   NOME_DO_DESEMBOLSO,
+  pendenciaDeDatasAberta,
   TERRENO_ZERO_NAO_E_NADA_PAGO,
 } from "./terreno";
 import {
@@ -201,6 +202,31 @@ export interface FinanciamentoFaltaLancar {
  * existe para a tela dizer que o zero é ausência de registro, não ausência de
  * pagamento.
  */
+/**
+ * **CONTAI-027, critério 12c** — o desembolso cuja resposta do critério 12 foi
+ * *"em mais de um dia"*, e cujo valor está numa data só.
+ *
+ * ⚠️ **Campo próprio, fora de `pendencias` e fora de TODA soma**, pelo mesmo
+ * motivo de `terrenoSemData`: `pendencias` alimenta `emPendenciaCentavos`, que
+ * é o headline de "custo em risco" do CONTAI-005 — e aqui **não há custo em
+ * risco de ficar de fora**. O dinheiro saiu e ESTÁ no custo; o que está aberto
+ * é o ANO dele.
+ *
+ * ⚠️ **É VERMELHA, e não âmbar** (D39 do `po`): *"vermelho = fato consumado
+ * com consequência fiscal aberta; âmbar = nada saiu ainda"*.
+ *
+ * ⚠️ **Não tem baixa, e a home não oferece nenhuma** (§5 do parecer de
+ * 2026-08-21): não se dispensa, não se adia, não se esconde. Os textos vêm de
+ * `lib/fiscal/terreno.ts`, copiados do §4b — a home não os redige.
+ */
+export interface TerrenoMaisDeUmaData {
+  id: string;
+  /** O lançamento, para quem lê a pendência longe do card dele. */
+  titulo: string;
+  valorCentavos: number;
+  href: string;
+}
+
 export interface TerrenoSemRegistro {
   /** A parte do terreno dentro do acumulado — zero, e é esse o ponto. */
   terrenoNoAcumuladoCentavos: number;
@@ -221,6 +247,12 @@ export interface ResumoObra {
    * `despesas` (critério 21). Há teste afirmando cada um desses "não".
    */
   terrenoSemData: TerrenoSemData[];
+  /**
+   * CONTAI-027, critério 12c. Fora de `pendencias`, fora de
+   * `emPendenciaCentavos`, fora de `custoConfirmadoAnoCentavos` — e há teste
+   * afirmando cada um desses "não", como para `terrenoSemData`.
+   */
+  terrenoMaisDeUmaData: TerrenoMaisDeUmaData[];
   financiamentoAguardandoInforme: FinanciamentoAguardandoInforme | null;
   /** Anos já fechados sem informe — do mais antigo para o mais recente. */
   financiamentoFaltaLancar: FinanciamentoFaltaLancar[];
@@ -553,6 +585,23 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
       href: `/obras/${obra.id}/terreno/desembolsos`,
     }));
 
+  /**
+   * CONTAI-027, critério 12c — a home é uma das DUAS superfícies que existem
+   * hoje (a outra é o card do desembolso). A terceira, a lista de revisão
+   * pré-declaração, é da US-004, e **nenhuma tela promete a terceira**.
+   *
+   * Deriva de `debitosMesmoDia === false` (`pendenciaDeDatasAberta`) — nada é
+   * contado aqui, e nada é lido de `pendencia`.
+   */
+  const terrenoMaisDeUmaData: TerrenoMaisDeUmaData[] = desembolsosTerreno
+    .filter(pendenciaDeDatasAberta)
+    .map((d) => ({
+      id: `terreno-mais-de-uma-data:${d.id}`,
+      titulo: `${NOME_DO_DESEMBOLSO[d.tipo]} do terreno`,
+      valorCentavos: d.valorCentavos,
+      href: `/obras/${obra.id}/terreno`,
+    }));
+
   // ⚠️ A CONDIÇÃO É O CONTRATO, não a existência de informe.
   //
   // A versão anterior disparava com `informesFinanciamento.length > 0`, e o
@@ -625,6 +674,7 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
     emPendenciaCentavos: emPendencia,
     pendencias,
     terrenoSemData,
+    terrenoMaisDeUmaData,
     financiamentoAguardandoInforme,
     financiamentoFaltaLancar,
     terrenoSemRegistro,

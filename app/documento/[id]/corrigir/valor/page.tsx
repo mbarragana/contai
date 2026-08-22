@@ -247,7 +247,7 @@ export default function CorrigirValor() {
           {/* Critério 2: o nome sozinho não abre nada — aqui ele já é o item
               com Abrir. Antes deste ticket esta era uma `Linha` de texto. */}
           <Card>
-            <ListaDeAnexos titulo="Papel anexado" paths={[d.arquivoPath]} />
+            <ListaDeAnexos titulo="Papel anexado" itens={[{ path: d.arquivoPath }]} />
           </Card>
           {fase.nome === "passo1" ? (
             <PassoMotivo
@@ -314,7 +314,7 @@ export default function CorrigirValor() {
         <Card>
           <ListaDeAnexos
             titulo="Papel anexado — confira antes de digitar"
-            paths={[d.arquivoPath]}
+            itens={[{ path: d.arquivoPath }]}
           />
           <Dica>
             O anexo <strong>não se substitui</strong>; se precisar, anexa-se um
