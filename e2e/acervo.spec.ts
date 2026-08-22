@@ -4,6 +4,8 @@ import {
   criarDesembolsoTerreno,
   criarDocumento,
   criarFavorecido,
+  criarFinanciamento,
+  criarInforme,
   criarPagamento,
   plantarObjetoDeOutroDono,
   subirParaOAcervo,
@@ -180,6 +182,91 @@ test.describe("abrir o papel do acervo (critérios 2 e 3)", () => {
     await expect(item).toContainText("comprovante-entrada.txt");
     await expect(
       item.getByRole("button", { name: "Abrir", exact: true }),
+    ).toBeVisible();
+  });
+});
+
+/**
+ * ⚠️ Critério 2 é um critério de COBERTURA: "nenhuma tela fica mostrando nome
+ * sem poder abrir — se sobrar uma, a rodada 1 não fechou". As quatro primeiras
+ * superfícies estão exercitadas acima; estas são as três que faltavam.
+ */
+test.describe("as superfícies que faltavam (critério 2)", () => {
+  test("corrigir a CLASSIFICAÇÃO mostra o papel — decidir material × mão de obra é lê-lo", async ({
+    page,
+    db,
+  }) => {
+    const { arquivoPath, documentoId } = await documentoComPapel(db);
+
+    await page.goto(`/documento/${documentoId}/corrigir/classificacao`);
+
+    await expect(
+      anexo(page, arquivoPath).getByRole("button", {
+        name: "Abrir",
+        exact: true,
+      }),
+    ).toBeVisible();
+  });
+
+  test("corrigir o EMITENTE mostra o papel — o nome se transcreve da nota", async ({
+    page,
+    db,
+  }) => {
+    const { arquivoPath, documentoId } = await documentoComPapel(db);
+
+    await page.goto(`/documento/${documentoId}/corrigir/emitente`);
+
+    await expect(
+      anexo(page, arquivoPath).getByRole("button", {
+        name: "Abrir",
+        exact: true,
+      }),
+    ).toBeVisible();
+  });
+
+  test("o informe anual já registrado mostra o extrato que o sustenta", async ({
+    page,
+    db,
+  }) => {
+    const anoCorrente = new Date().getFullYear();
+    const anoBase = anoCorrente - 1;
+    const arquivoPath = await subirParaOAcervo(
+      db,
+      "informe",
+      "extrato-ir.txt",
+      "extrato do exercicio",
+    );
+    const financiamentoId = await criarFinanciamento(db, {
+      instituicao: "Banco do Terreno",
+      data_contrato: `${anoBase - 1}-03-20`,
+      preco_contratado: 650000,
+      numero_parcelas: 240,
+    });
+    await criarInforme(db, {
+      financiamento_id: financiamentoId,
+      ano_base: anoBase,
+      amortizacao: 100,
+      juros_correcao: 200,
+      seguros: 0,
+      taxas_fcvs: 0,
+      mora: 0,
+      multa: 0,
+      diferenca_teorico_pago: 0,
+      total_pago: 300,
+      saldo_devedor: 585815.19,
+      arquivo_path: arquivoPath,
+    });
+
+    // A tela que RECUSA o segundo lançamento do ano é justamente onde ele quer
+    // conferir o que já foi lançado.
+    await page.goto(`/obras/${OBRA_ID_SEED}/terreno/informe/${anoBase}`);
+
+    await expect(page.getByRole("alert")).toBeVisible();
+    await expect(
+      anexo(page, arquivoPath).getByRole("button", {
+        name: "Abrir",
+        exact: true,
+      }),
     ).toBeVisible();
   });
 });
