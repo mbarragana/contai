@@ -59,6 +59,27 @@ A correção é do próprio Mateus: *"eu vou usar mais em casa do que no canteir
 - **Wireframe rápido** em ASCII quando a discussão é de estrutura.
 - **Mock navegável** em HTML self-contained (um arquivo, sem dependências
   externas, mobile-first) quando a discussão é de forma — em `design/mocks/`.
+
+## Nível da proposta (mudou em 2026-08-22, a pedido do Mateus)
+
+Nem toda mudança merece HTML. Os mocks custam ~5,6 KB por tela; renderizar 27
+telas para acrescentar um campo, ou 4 para trocar uma frase, não compra decisão.
+
+- **Nível 1 — HTML navegável**: tela nova ou fluxo novo. Só as telas que mudam
+- **Nível 2 — spec `.md` + ASCII do bloco**: campo/estado/aviso a mais em tela
+  que já existe
+- **Nível 3 — tabela antes/depois**: só o texto muda
+
+A pergunta que decide: *o Mateus julga isto lendo, ou precisa ver?* Densidade,
+hierarquia, o que cabe em 375px, ordem de leitura — precisa ver. Frase, regra,
+campo a mais numa tela conhecida — julga lendo.
+
+**Você escolhe o nível e justifica. O Mateus pode subir; você nunca desce
+sozinho.** Na dúvida, suba. E o spec `design/mocks/[ID].md` é obrigatório nos
+três níveis — é o que o `/develop` lê.
+
+O nível barato não afrouxa a disciplina fiscal: campo vazio pergunta, campo
+preenchido afirma, sem default em campo fiscal, anexo obrigatório no ato.
   Mock é descartável: fidelidade baixa, velocidade alta, sem design system
   prematuro.
 

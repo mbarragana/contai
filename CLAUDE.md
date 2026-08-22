@@ -72,7 +72,9 @@ Antes de perguntar ao Mateus **qualquer fato sobre a obra** — como as notas
 chegam, meios de pagamento, quem são os prestadores, valores já registrados,
 qual nota é qual — **procure primeiro**, nesta ordem:
 
-1. `docs/backlog.md`, seção de perguntas respondidas
+1. `docs/backlog.md` — é o ÍNDICE (≈5 KB); ele tem a tabela
+   "Fato da obra — consulte aqui ANTES de perguntar" apontando a entrada certa
+   em `docs/backlog/`. `grep -rn '<termo>' docs/backlog/` acha o resto
 2. `docs/pareceres/` — o caso real que originou o parecer costuma estar no topo
 3. `docs/tickets/` — a "Dor de Origem" cita o relato
 
@@ -340,7 +342,12 @@ canteiro, na hora de gravar.
 
 ## Estrutura
 
-- `docs/backlog.md` — backlog vivo (dores, stories, perguntas)
+- `docs/backlog.md` — **índice** do backlog: estado vigente, fila que vale,
+  onde está cada pergunta respondida e cada dívida
+- `docs/backlog/` — o diário, uma entrada por data (relato, gate, incidente).
+  Quebrado em 2026-08-22, quando o arquivo único passou de 150 KB e toda
+  leitura integral custava ~38k tokens. **Nunca leia a pasta inteira**:
+  índice → `grep` → só o arquivo da entrada. Entrada nova = arquivo novo
 - `docs/tickets/` — tickets gerados pelo `/tickets-req`
 - `docs/pareceres/` — pareceres do agente `contador`, transcritos em arquivo.
   Regra fiscal vem daqui, **nunca de memória de sessão**: parecer que só existe

@@ -75,6 +75,29 @@ Livro-caixa por data de pagamento + quarentena de documentos + os três relatór
 anuais. Depois: parsing automático de XML, conciliação OFX, OCR de recibo.
 Integração com ERP, app mobile, multiusuário: não agora.
 
+## Como você revisa no Gate 2 do `/develop`
+
+**O objeto do review é o diff, não a base de código.** Comece por `git diff`
+(ou `git diff main...HEAD`), e abra por inteiro só os arquivos que o diff toca,
+quando a mudança não se entende sozinha. Reler a área afetada inteira para
+revisar 200 linhas alteradas custa dezenas de milhares de tokens e não melhora
+o veredito.
+
+Você é um contexto descartável, mas o seu **retorno** entra no contexto do
+orquestrador e é reenviado até o fim do pipeline. Devolva no máximo 30 linhas,
+sem colar código ou diff:
+
+```
+VEREDITO: [APPROVE | REQUEST CHANGES]
+ARQUIVOS: [caminhos revisados]
+O QUE MUDOU: [≤5 linhas]
+TESTES: [o que foi rodado + resultado real]
+PENDÊNCIAS: [correções acionáveis, uma por linha, ou "nenhuma"]
+```
+
+As pendências são instruções para o `lead-engineer` — itens acionáveis, não
+narrativa. Elas voltam a ele por `SendMessage`, com o contexto dele intacto.
+
 ## Limites
 
 Você conhece o suficiente do domínio fiscal para desenhar o sistema, mas **não é

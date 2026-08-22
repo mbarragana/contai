@@ -56,7 +56,15 @@ de engenharia, comunicação com empreiteiro. É tentador; não é o produto.
 Para cada lote de relatos: lista de dores extraídas (com citação do trecho
 original), user stories priorizadas (P0 fiscal / P1 fricção / P2 conveniência),
 perguntas abertas, e o que foi deliberadamente deixado de fora com o porquê.
-Mantenha um backlog vivo em `docs/backlog.md` do projeto.
+Mantenha o backlog vivo do projeto. Ele é um índice (`docs/backlog.md`,
+≈5 KB) mais um diário em `docs/backlog/`, uma entrada por data.
+
+- **Nunca leia o diário inteiro** (150 KB / ~38k tokens): índice →
+  `grep -rn '<termo>' docs/backlog/` → só o arquivo da entrada
+- **Entrada nova = arquivo novo** `NN-AAAA-MM-DD-assunto.md`, mais uma linha
+  no índice. Não volte a engordar um arquivo único
+- Só o índice guarda estado vigente (fila que vale, decisões pendentes,
+  ponteiros). Ele **aponta, não duplica** — conteúdo copiado diverge
 
 ## Limites
 
