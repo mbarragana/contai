@@ -102,12 +102,20 @@ que segurar).
 | **Ordem de execução e status dos tickets** | **`docs/tickets/README.md`** — é o dono. Não mora aqui |
 | Decisões travando avanço | bloco **DECISÕES PENDENTES DO MATEUS**, acima neste arquivo |
 | Última adjudicação fiscal | `docs/backlog/15-2026-08-21-adjudicacao-fiscal-contai-027.md` |
-| Ticket ainda por criar | `15-…-adjudicacao-fiscal-contai-027.md` → *"Ticket novo a criar — correção de valor de desembolso do terreno"*; e **`CONTAI-022`** (D26, cartão de crédito, **P0 fiscal**) e **`CONTAI-031`** (E2E da condição 6, P1, que **bloqueia a fatia 5 do `CONTAI-028`**) — nenhum dos dois existe como arquivo |
+| Ticket ainda por criar | `15-…-adjudicacao-fiscal-contai-027.md` → *"Ticket novo a criar — correção de valor de desembolso do terreno"*; e **`CONTAI-022`** (D26, cartão de crédito, **P0 fiscal**) e **`CONTAI-031`** (E2E da condição 6, P1, que **bloqueia a fatia 5 do `CONTAI-028`**) e **`CONTAI-032`** (D44, default de `data` e `meio`, **P0**, dependente do `CONTAI-025`) — nenhum dos três existe como arquivo |
 
 ✅ **7ª revisão aplicada em 2026-08-23**, direto em `docs/tickets/README.md`. O
 **porquê** — movimentos, cortes, a dívida da premissa paga e a **D44** — está em
 `docs/backlog/21-2026-08-23-setima-revisao-da-fila.md`, que **não repete a
 ordem**.
+
+✅ **Adendo do mesmo dia aplicado (23/08)**, também direto em
+`docs/tickets/README.md`: o parecer
+`docs/pareceres/2026-08-23-default-em-campo-fiscal-e-cno-na-correcao-de-obra.md`
+destravou o `008` no fiscal, criou o **`CONTAI-032`** e trouxe o **`CONTAI-025`**
+para dentro da fila como **pré-requisito** dele. O porquê está em
+`docs/backlog/22-2026-08-23-adendo-a-setima-revisao.md`. **Não é 8ª revisão** — é
+a aplicação de um fato aos itens que ele toca.
 
 ⚠️ **As 6 "Fila revista" do diário são REGISTRO HISTÓRICO, não a ordem de hoje.**
 Desde 2026-08-23 a ordem vive em `docs/tickets/README.md`, e só lá. As filas do
@@ -157,6 +165,7 @@ no bloco de decisões pendentes acima.
 | D43 — formato do rastro (`p_depois`) é expressão anônima dentro da RPC, com **uma única** asserção E2E a protegê-lo | `19-…-duas-condicoes-fiscais-sem-rede.md`; **dividida em duas no Gate 4** (`20-…-gate4-contai-029.md`): o comentário-guarda em `e2e/correcao.spec.ts:96` vai no **`CONTAI-031`** (custo zero, hoje); a extração de `textoDoRastro` fica na **fatia 5 do `CONTAI-028`** |
 | **D44 — RESPONDIDA em 23/08** (`docs/pareceres/2026-08-23-default-em-campo-fiscal-e-cno-na-correcao-de-obra.md` §1): default de `data` E `meio` em produção (`app/adicionar/pagamento/page.tsx:163`, `:169`). A data afirma **dois** fatos — `decidirRegistro` escolhe a ENTIDADE por ela — e o `meio` pré-selecionado torna a recusa do cartão **inalcançável pela inação** | → **`CONTAI-032`**, que **depende do `CONTAI-025`**: tirar o default sem o terceiro estado troca data errada em silêncio por **data inventada pelo dedo**, que é pior |
 | **D45 — o bloqueio de mover NF de serviço está errado no saldo** (`docs/pareceres/2026-08-23-default-em-campo-fiscal-e-cno-na-correcao-de-obra.md` §2): protege uma aferição que o app **nem calcula**, ao preço de travar o custo de aquisição no imóvel errado — o único dos dois que já produz passivo, em **duas** vendas futuras. A restrição nunca teve carimbo de parecer | → `CONTAI-008` **destravado** (independente da Q14); a trava migra para a apuração, no `CONTAI-004` |
+| **D46 — condição fiscal em ticket sem parecer que a carimbe** (classe, não incidente — a **D32** já nomeara a mesma forma): o critério 13 do `CONTAI-003` levava *"**Restrição fiscal**"* em negrito citando **um ticket**, nenhum parecer; o código a endureceu de *revalidar* para **recusar** e ela travou um **P0** por 13 dias | `22-2026-08-23-adendo-a-setima-revisao.md` → *"O achado de processo"*. **Remédio redigido** (três inserções no `/tickets-req`); **instalar em `.claude/commands/tickets-req.md` é do Mateus**. Varredura retroativa: **uma** linha ofensora hoje, já revogada |
 | D40 — `lib/data.ts` monolítico (2065 linhas, 44 importadores) | `16-2026-08-22-custo-de-contexto-do-pipeline.md` → **`CONTAI-028`**; status em `18-2026-08-23-gate4-contai-028-fatia1.md` (**parcialmente paga**: 2065 → 1803) |
 
 O status de cada uma está na própria entrada — este índice aponta, não duplica.
@@ -343,6 +352,15 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
 - O que continua parado esperando o Mateus · o que a revisão NÃO fez
 
 ⚠️ **A ordem NÃO está nesta entrada** — está em `docs/tickets/README.md`.
+
+### `22-2026-08-23-adendo-a-setima-revisao.md` — 219 linhas
+**Adendo à 7ª revisão — 2026-08-23 — o parecer chegou no mesmo dia e mudou quatro postos**
+- Por que é adendo e não 8ª revisão (o teste: revisão reexamina tudo; adendo aplica um fato)
+- Os quatro movimentos — `025` sobe a pré-requisito, `032` nasce, `022` mantém o posto com o **diagnóstico corrigido**, `008` destrava no fiscal e **não sobe**
+- O `032` continua **P0**, por três razões (ano, entidade, guarda desativada) — mudou o custo, não a gravidade
+- A metade `meio` do `032` não depende do `025` — **linha do `contador`**, não do `po`
+- O achado de processo: **`po` não emite condição fiscal** — redação proposta para o `/tickets-req`
+- O que este adendo NÃO fez
 
 ---
 

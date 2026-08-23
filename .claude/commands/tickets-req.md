@@ -38,7 +38,18 @@ pareceres e nos tickets primeiro. Fato da obra se consulta, não se pergunta.
 2. Pre-mortem: "3 meses depois, isso falhou. Por quê?" (3 riscos)
 3. User story + critérios de aceite testáveis (Given/When/Then, verificáveis
    na interface, não no código)
-4. Out of scope explícito — aplique o filtro das três metas do produto
+4. Out of scope explícito — aplique o filtro das três metas
+5. **O `po` não emite condição fiscal.** Critério de aceite que contenha
+   obrigação, proibição ou revalidação de natureza tributária **cita o parecer
+   pelo caminho** (`docs/pareceres/AAAA-MM-DD-assunto.md`) na mesma frase.
+   **Citar outro ticket não serve** — ticket é requisito, não fonte fiscal.
+   Sem parecer, a condição **sai do critério** e vira **pergunta do Passo 2**.
+   O ticket não espera por isso: ele nasce **sem** a condição, e a pergunta
+   aberta é o que a traz de volta.
+   *Regra escrita pelo próprio `po` em 2026-08-23, depois de uma restrição da
+   caneta dele — rotulada "restrição fiscal", sem parecer nenhum atrás — travar
+   o `CONTAI-008` (P0) por 13 dias. Segundo caso da mesma forma; o primeiro foi
+   a D32, em 18/08.* do produto
 
 ### Passo 2: Contador — Gate Fiscal  (subagent `contador`)
 1. O ticket toca regra fiscal (classificação, datas/regime de caixa, retenção,
@@ -50,6 +61,14 @@ pareceres e nos tickets primeiro. Fato da obra se consulta, não se pergunta.
    legislação", nunca como fato
 5. Regra que já tem parecer em `docs/pareceres/` se **cita pelo caminho e se
    copia**, não se rederiva — parecer só existe em arquivo, nunca em memória
+6. **Condição fiscal se escreve com o verbo exato** — *revalidar*, *avisar*,
+   *marcar* e *recusar* são quatro coisas diferentes, e **quem implementa, na
+   dúvida, escolhe a mais dura**. Diga qual das quatro, e diga o que acontece
+   com o registro quando a condição falha. **Recusa só se o parecer recusar por
+   escrito.**
+   *No `CONTAI-003` estava escrito "revalidar" e virou **recusa total** no
+   código — condição fiscal sem parecer não só entra, **cresce no caminho**,
+   porque apertar parece o lado seguro.*
 
 ### Passo 3: CTO — Viabilidade  (subagent `cto-obra`)
 1. Impacto no modelo de dados (Pagamento/Documento/Favorecido/Obra)
@@ -77,6 +96,21 @@ pareceres e nos tickets primeiro. Fato da obra se consulta, não se pergunta.
 - **Teste do Canteiro só se aplica a ticket de captura.** Medir conciliação,
   agendamento ou revisão anual pela régua de "uma mão, com pressa" é medir a
   coisa errada — foi o erro de 2026-08-17/18
+- **Varredura de condição fiscal órfã**, e ela é um *finder*, não um
+  verificador — o casamento é por linha e critério de aceite ocupa várias, então
+  cada achado se lê à mão:
+
+  ```sh
+  grep -rniE 'restri[çc][ãa]o fiscal|regra fiscal|exig[êe]ncia fiscal|fiscalmente (obriga|exige|pro[íi]be)' docs/tickets/*.md
+  ```
+
+  Achou linha sem `docs/pareceres/` no mesmo critério? Ou entra o caminho do
+  parecer, ou a condição vira pergunta do Gate Fiscal.
+  ⚠️ **Não vire isto num `grep` bloqueante.** O verificador dos quatro hashes
+  casa linha de tabela inteira e por isso é decidível; este casaria fragmentos
+  de critérios multi-linha e falharia por construção. O projeto já aprendeu, no
+  ajuste de 18/08, que **verificador que falha sempre é verificador que ninguém
+  roda**.
 - Veredito: APROVADO / PRECISA MUDAR / REJEITADO
 
 ## Formato de Saída

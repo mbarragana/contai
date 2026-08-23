@@ -356,10 +356,20 @@ discriminação de Bens e Direitos e a sua própria aferição no SERO.
         `obra_id` errado é permanente ou exige SQL — que é a dor D9 voltando
         pela porta dos fundos. Justificativa: este erro é **silencioso e
         descoberto tarde** (pre-mortem 1); um produto que só previne e não
-        conserta perde o caso real. **Restrição fiscal**: corrigir a obra de
-        **NF de serviço** obriga a revalidar `cno_referenciado` contra o CNO da
-        obra de destino (CONTAI-007, critério 2) — a correção não pode
-        contrabandear uma nota para uma obra cujo CNO ela não referencia
+        conserta perde o caso real.
+        ⚠️ ~~**Restrição fiscal**: corrigir a obra de **NF de serviço** obriga a
+        revalidar `cno_referenciado` contra o CNO da obra de destino
+        (CONTAI-007, critério 2) — a correção não pode contrabandear uma nota
+        para uma obra cujo CNO ela não referencia~~ — **REVOGADA em 2026-08-23
+        pelo `contador`** (`docs/pareceres/2026-08-23-default-em-campo-fiscal-e-cno-na-correcao-de-obra.md`,
+        §2). Ela foi escrita **pelo `po`** e citava **um ticket, nenhum
+        parecer**; o código a endureceu de *revalidar* para **recusar**
+        (`podeCorrigirObra`) e assim travou o `CONTAI-008` por 13 dias. **A regra
+        que vale**: mover **é permitido**, com **marca permanente** *"CNO
+        impresso ≠ CNO desta obra"*; a nota **não abate aferição de obra
+        nenhuma** até reemissão ou retificação da R-2000, e entra na lista de
+        cobrança do `CONTAI-007`. A trava real vive na **apuração**
+        (`CONTAI-004`), não na porta. Registro da classe: **D46**
 14. [ ] A **lista de obras** mostra nome, CNO (ou a pendência de CNO) e nº de
         pendências. **Nenhum valor em dinheiro, e nenhuma linha de total** —
         ver Out of Scope. É tela de navegação, não painel
