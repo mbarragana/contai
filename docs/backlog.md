@@ -146,6 +146,7 @@ que já existem estão em:
 | `03-2026-08-07-relato-002.md` | Perguntas fechadas pelo contador (2026-08-08) |
 | `05-2026-08-09-relato-003.md` | Perguntas Q11–Q13 — respondidas pelo Mateus em 2026-08-09 |
 | `14-2026-08-21-relato-004.md` | Fato da obra registrado (para não ser reperguntado) |
+| `24-2026-08-23-relato-005.md` | **Respondidas em 23/08**: comunhão **universal** · matrícula com **os dois nomes** · **cada um declara sua parcela** no IR · rateio **pelo percentual do financiamento** · existe uma **2ª obra, com o sogro, para venda** |
 | `24-2026-08-23-relato-005.md` | Fato da obra registrado — **de que conta saiu o dinheiro do terreno** |
 
 Perguntas **ainda abertas**: `03-…-relato-002.md` → *"Perguntas abertas"*;
