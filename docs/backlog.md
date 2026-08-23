@@ -99,16 +99,27 @@ que segurar).
 
 | O que | Onde |
 |---|---|
-| **Fila de tickets vigente** | `docs/backlog/08-2026-08-17-incidente-producao-e-fila-vigente.md` → *"Fila revista — 2026-08-18 (6ª revisão)"* |
+| **Fila de tickets vigente** | ⚠️ **A 6ª revisão (18/08) ENVELHECEU — falta uma 7ª.** Ela está em `docs/backlog/08-2026-08-17-incidente-producao-e-fila-vigente.md`, e lista `CONTAI-018` como 1º e `CONTAI-019` como 2º: **os dois já estão em produção**. Enquanto a 7ª não existir, **não há fila autoritativa** — o que existe é o mapa de status em `docs/tickets/README.md`. Reordenar é trabalho do `po` |
 | Decisões travando avanço | bloco **DECISÕES PENDENTES DO MATEUS**, acima neste arquivo |
 | Última adjudicação fiscal | `docs/backlog/15-2026-08-21-adjudicacao-fiscal-contai-027.md` |
-| Ticket ainda por criar | `15-…-adjudicacao-fiscal-contai-027.md` → *"Ticket novo a criar — correção de valor de desembolso do terreno"*; e **`CONTAI-022`** (D26, cartão de crédito, **P0 fiscal**), que não existe como arquivo |
-| Último gate fechado | `18-2026-08-23-gate4-contai-028-fatia1.md` — `CONTAI-028` **parcialmente entregue** (fatia 1 de 7); `CONTAI-029` **destravado**; fatias 2-7 no fim da fila |
+| Ticket ainda por criar | `15-…-adjudicacao-fiscal-contai-027.md` → *"Ticket novo a criar — correção de valor de desembolso do terreno"*; e **`CONTAI-022`** (D26, cartão de crédito, **P0 fiscal**) e **`CONTAI-031`** (E2E da condição 6, P1, que **bloqueia a fatia 5 do `CONTAI-028`**) — nenhum dos dois existe como arquivo |
+| Último gate fechado | `20-2026-08-23-gate4-contai-029.md` — `CONTAI-029` **entregue** (7/7). Antes dele, `18-2026-08-23-gate4-contai-028-fatia1.md`: `CONTAI-028` **parcialmente entregue** (fatia 1 de 7), fatias 2-7 no fim da fila e a **fatia 5 bloqueada pelo `CONTAI-031`** |
 
-⚠️ **Existem 6 "Fila revista" no diário e só a 6ª vale.** As anteriores ficam
-como registro do raciocínio e estão marcadas como superadas na própria entrada:
-1ª e 2ª em `05-…-relato-003.md`, 3ª e 4ª em `06-…-gate2-contai-003.md`,
-5ª em `07-…-gate4-contai-002.md`. Citar fila que não seja a 6ª é erro.
+⚠️ **Existem 6 "Fila revista" no diário, e a 6ª é a última — mas já não é
+válida.** Ela é de 18/08 e seus dois primeiros itens (`CONTAI-018`, `CONTAI-019`)
+foram entregues; **falta escrever a 7ª**. Até lá, citar qualquer fila como se
+fosse a ordem de hoje é erro — inclusive a 6ª.
+
+As anteriores ficam como registro do raciocínio e estão marcadas como superadas
+na própria entrada: 1ª e 2ª em `05-…-relato-003.md`, 3ª e 4ª em
+`06-…-gate2-contai-003.md`, 5ª em `07-…-gate4-contai-002.md`.
+
+**Fila do diário não se edita** — ela é registro datado. Fila nova é entrada
+nova, e este ponteiro passa a apontar para ela.
+
+⚠️ **Status de entrega NÃO mora aqui.** Quem sabe o que foi entregue, com hash de gate por ticket, é
+`docs/tickets/README.md` — ele é o mapa. Este índice aponta para **decisões e dores**; duplicar status
+nos dois faria os dois divergirem, e ninguém saberia qual mente.
 
 ## Fato da obra — consulte aqui ANTES de perguntar ao Mateus
 
