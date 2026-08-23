@@ -1,8 +1,28 @@
 # Índice de tickets — por ordem de execução
 
-*Atualizado em 2026-08-21. A ordem canônica é a **6ª revisão da fila**, no fim de
-`../backlog.md`. Este arquivo é o mapa; o backlog é a fonte da ordem e o ticket é
-a fonte do escopo.*
+**Este arquivo é a FONTE DA ORDEM.** Mudou em 2026-08-23: antes a ordem canônica
+vivia numa "fila revista" dentro de uma entrada datada do diário, e este arquivo
+só a espelhava. Os dois divergiram — a 6ª revisão passou cinco dias dizendo que
+o `CONTAI-018` era o 1º item **com ele já em produção**. Retrato datado dentro de
+diário não acompanha ticket que anda; este mapa acompanha, porque é ele que o
+gate atualiza.
+
+Quem guarda o quê, e é para ficar assim:
+
+| Fato | Dono |
+|---|---|
+| **ordem de execução**, prioridade, status, hash de gate | **este arquivo** |
+| **por que** a ordem mudou; dores, relatos, adjudicações fiscais | `../backlog.md` + `../backlog/` |
+| escopo, critérios de aceite, Gate Fiscal | o ticket, em `CONTAI-0XX.md` |
+
+Reordenar é ato do `po`, e ele escreve o **porquê** como entrada nova no diário —
+mas a ordem em si se aplica **aqui**, e em nenhum outro lugar.
+
+⚠️ **Pendente: a 7ª revisão.** A ordem abaixo é a 6ª (18/08) com os entregues
+removidos por mim. Ela **não** absorveu o que mudou desde então — D41, D42, D43,
+os dois P0 sem arquivo (`CONTAI-022`, `CONTAI-031`) nem o `CONTAI-031` bloqueando
+a fatia 5 do `CONTAI-028`. Até o `po` reordenar, trate isto como inventário
+ordenado, não como decisão de prioridade.*
 
 **Legenda**: ✅ done · 🔨 em desenvolvimento · 🟢 pronto para `/develop`
 · 🟡 bloqueado por gate · 🔴 sem arquivo (só backlog)
@@ -50,16 +70,20 @@ de quem escreveu a linha.
 
 ## Fila de implementação
 
+*Renumerada em 2026-08-23: começava em 4 porque os itens 1-3 foram entregues e
+migraram para "Em produção". Fechar o buraco é manutenção; **reordenar é ato do
+`po`**, e a 7ª revisão continua devendo.*
+
 | Ordem | # | Ticket | P | Status | O que trava |
 |---|---|---|---|---|---|
 | **1** | **021** | **Corrigir documento já registrado** | P1 | ✅ `G1:2cefc62 G2:29d6144 G3:e517cc2 G4:32914b1` | **DONE em 21/08 — os quatro gates, com o log no corpo do ticket.** Mock **v2** aprovado pelo Mateus em 19/08 (`ad07fd8`, 27 telas); Gate Fiscal em arquivo, com adendo de 19/08 (§5.1-5.5). Gate 2 fechou com **APPROVE dos dois revisores** depois de um loop de **seis bloqueantes** — o primeiro deles fiscal: a tela do desfecho misto afirmava número **falso, sempre para MAIS**. Gate 4 teve **um loop** (`3f04536`): o histórico mostrava o **token do enum** onde o mock mostra a frase do Mateus. Entregou o **critério 13**, que é conserto de bug **em produção** (`moverDocumentoDeObra`) — e **só do lado do documento**. ⚠️ **NÃO está no ar**: migration **0009** e assinatura de função alterada, `db push` **antes** do `git push`, quando o Mateus autorizar. Ressalvas vivas: **R1-R5** no backlog, das quais **R1-R3 viraram os critérios 13-15 do `008`**; **D35** (o app não abre anexo nenhum) virou dor P1 → **`CONTAI-027`, rodada 1** |
 | **2** | **008** | **Mover PAGAMENTO entre obras sem quebrar o vínculo** | **P0** | 🟡 | **REABERTO em 19/08** — a condição que o segurava ("defeito inatingível pela interface") **caducou** quando o `CONTAI-018` foi ao ar em 18/08. `moverPagamentoDeObra` é o **mesmo `UPDATE` seco** do critério 13 do `021`, na direção espelhada: custo cai na origem, **"pago sem nota" sobe no destino** por um fato que não aconteceu, e sobra vínculo cruzando duas obras. **Trava**: mock (a tela espelhada não existe) + **pergunta 1 do Gate Fiscal**, aberta desde 10/08 (NF de serviço + CNO). **Dependência do `021` SATISFEITA em 21/08** (os quatro gates fechados) — a máquina que ele reusa (`revisao`, `ato_id`, função transacional, pendência por ano) existe. **Passa a ser a ordem 1 da fila.** Herdou do Gate 4 do `021` os **critérios 13-15**: dedupe do array de decisões, rastro do vínculo legível (UUID cru e hora **UTC**) e a morte do `corrigir-obra.tsx`. O critério 12 mudou de verbo: `alocarCusto` **reporta** o vínculo órfão, não basta comentário honesto |
 | **3** | **019** | **Pagamento agendado (compromisso × pagamento)** | P1 | 🔨 | **G4 fechado em 18/08 após um FAIL e o conserto.** G1a `0441187` · G1b `df36b41` · G2 `50958a1` · G3 `3ec2913` · G4 `po`. O FAIL foi por **lastro documental** — a quinta resolução da diferença estava no enum e **não no parecer**; fechado pelo **ADENDO 4** (`d69a3cf`). ⚠️ **Ressalva viva: o mock v2 está DEFASADO em 4 pontos** (borda sólida no vencido, data pré-preenchida, s12 sem as cinco resoluções, sem a tela `/compromisso`) — tarefa do `designer`, **não bloqueia o PASS**, bloqueia quem for desenhar em cima. Ressalva **D28**: a `US-004` tem de chamar `podeGerarRelatorioAnual` |
-| 4 | 014 | Manifest de PWA + prova no aparelho | P1 | 🟢 | Gate 0 substituído por aprovação de ícone |
-| 5 | 004 | Nº do documento e data de emissão | P0 | 🟡 | **mock pendente** — mesmo passe do 007 |
-| 5 | 007 | CNO referenciado na NF de serviço | P0 | 🟡 | **mock pendente** + **6 pontos a reescrever** |
-| 6 | 009 | Detalhe do pagamento | P0 | 🟡 | Gate 0 aprovado 16/08; **5 perguntas em aberto** |
-| 7 | 005 | Headline da home (reduzido a corte) | P0 | 🟡 | **mock v5 pendente**. Decisão nº 1 fechada em 17/08: R$ 49.850 |
+| 1 | 014 | Manifest de PWA + prova no aparelho | P1 | 🟢 | Gate 0 substituído por aprovação de ícone |
+| 2 | 004 | Nº do documento e data de emissão | P0 | 🟡 | **mock pendente** — mesmo passe do 007 |
+| 2 | 007 | CNO referenciado na NF de serviço | P0 | 🟡 | **mock pendente** + **6 pontos a reescrever** |
+| 3 | 009 | Detalhe do pagamento | P0 | 🟡 | Gate 0 aprovado 16/08; **5 perguntas em aberto** |
+| 4 | 005 | Headline da home (reduzido a corte) | P0 | 🟡 | **mock v5 pendente**. Decisão nº 1 fechada em 17/08: R$ 49.850 |
 
 *O `004` e o `007` dividem a ordem 5 de propósito: mesmo formulário, mesmo passe
 de mock. O `008` entrou na ordem 2 em 19/08 e empurrou todos os demais um degrau:

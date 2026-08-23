@@ -99,20 +99,20 @@ que segurar).
 
 | O que | Onde |
 |---|---|
-| **Fila de tickets vigente** | ⚠️ **A 6ª revisão (18/08) ENVELHECEU — falta uma 7ª.** Ela está em `docs/backlog/08-2026-08-17-incidente-producao-e-fila-vigente.md`, e lista `CONTAI-018` como 1º e `CONTAI-019` como 2º: **os dois já estão em produção**. Enquanto a 7ª não existir, **não há fila autoritativa** — o que existe é o mapa de status em `docs/tickets/README.md`. Reordenar é trabalho do `po` |
+| **Ordem de execução e status dos tickets** | **`docs/tickets/README.md`** — é o dono. Não mora aqui |
 | Decisões travando avanço | bloco **DECISÕES PENDENTES DO MATEUS**, acima neste arquivo |
 | Última adjudicação fiscal | `docs/backlog/15-2026-08-21-adjudicacao-fiscal-contai-027.md` |
 | Ticket ainda por criar | `15-…-adjudicacao-fiscal-contai-027.md` → *"Ticket novo a criar — correção de valor de desembolso do terreno"*; e **`CONTAI-022`** (D26, cartão de crédito, **P0 fiscal**) e **`CONTAI-031`** (E2E da condição 6, P1, que **bloqueia a fatia 5 do `CONTAI-028`**) — nenhum dos dois existe como arquivo |
-| Último gate fechado | `20-2026-08-23-gate4-contai-029.md` — `CONTAI-029` **entregue** (7/7). Antes dele, `18-2026-08-23-gate4-contai-028-fatia1.md`: `CONTAI-028` **parcialmente entregue** (fatia 1 de 7), fatias 2-7 no fim da fila e a **fatia 5 bloqueada pelo `CONTAI-031`** |
 
-⚠️ **Existem 6 "Fila revista" no diário, e a 6ª é a última — mas já não é
-válida.** Ela é de 18/08 e seus dois primeiros itens (`CONTAI-018`, `CONTAI-019`)
-foram entregues; **falta escrever a 7ª**. Até lá, citar qualquer fila como se
-fosse a ordem de hoje é erro — inclusive a 6ª.
+⚠️ **As 6 "Fila revista" do diário são REGISTRO HISTÓRICO, não a ordem de hoje.**
+Desde 2026-08-23 a ordem vive em `docs/tickets/README.md`, e só lá. As filas do
+diário ficam como o raciocínio datado de cada reordenação — 1ª e 2ª em
+`05-…-relato-003.md`, 3ª e 4ª em `06-…-gate2-contai-003.md`, 5ª em
+`07-…-gate4-contai-002.md`, 6ª em `08-…-incidente-producao-e-fila-vigente.md`.
 
-As anteriores ficam como registro do raciocínio e estão marcadas como superadas
-na própria entrada: 1ª e 2ª em `05-…-relato-003.md`, 3ª e 4ª em
-`06-…-gate2-contai-003.md`, 5ª em `07-…-gate4-contai-002.md`.
+**Citar qualquer uma delas como ordem vigente é erro**, inclusive a 6ª: ela é de
+18/08 e seus dois primeiros itens já estão em produção. Foi essa divergência que
+motivou a mudança.
 
 **Fila do diário não se edita** — ela é registro datado. Fila nova é entrada
 nova, e este ponteiro passa a apontar para ela.
@@ -235,7 +235,7 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
 ### `08-2026-08-17-incidente-producao-e-fila-vigente.md` — 283 linhas
 **Incidente de produção — 2026-08-17 — `permission denied for table obra`**
 - O achado de processo — a regra de E2E contra o Postgres local tem ponto cego
-- Fila revista — 2026-08-18 (6ª revisão)
+- Fila revista — 2026-08-18 (6ª revisão) — **SUPERADA**
 - US-002 — REESCRITA, não fundida
 - O que o uso real produziu em 24 horas
 - Dores levantadas no Gate 2 do CONTAI-018 (2026-08-18)

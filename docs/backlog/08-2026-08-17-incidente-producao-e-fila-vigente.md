@@ -58,7 +58,20 @@ projeto **remoto** com uma conta de verificação e faça um SELECT por tabela? 
 tipo de coisa que este projeto evita. Não implementado; decisão do Mateus.
 
 
-### Fila revista — 2026-08-18 (6ª revisão)
+### Fila revista — 2026-08-18 (6ª revisão) — **SUPERADA**
+
+> **SUPERADA em 2026-08-23, e não por uma 7ª revisão: por mudança de lugar.**
+> A ordem de execução passou a viver em `docs/tickets/README.md`, que é o
+> arquivo que o gate atualiza. Esta fila ficou cinco dias afirmando que o
+> `CONTAI-018` era o 1º item **com ele já em produção** — retrato datado dentro
+> de diário não acompanha ticket que anda.
+>
+> **O que continua valendo aqui é o raciocínio**, não a ordem: as duas premissas
+> que caíram, a reescrita da US-002, o Google Calendar descendo a P2 e os dois
+> defeitos que vieram do uso real. Isso é registro e não se edita.
+>
+> ⚠️ A **7ª revisão continua devendo** — reordenar é ato do `po`, e ela se
+> aplica no `README.md` dos tickets, não aqui.
 
 *Substitui a 5ª revisão. Escrita depois de o app entrar em produção e de o
 Mateus usá-lo com dado real — o que mudou mais coisa que dez dias de análise.*
