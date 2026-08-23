@@ -1685,12 +1685,21 @@ export async function completarDesembolsoTerreno(
   }
   if (complemento.debitosMesmoDia !== undefined) {
     // Critério 12b: a resposta se grava COM a data em que foi dada, nos dois
-    // casos, inclusive o "sim". ⚠️ `debitos_mesmo_dia_respondido_em` NÃO é
-    // enviado daqui: quem o carimba é o trigger da 0010, com o `now()` do
-    // servidor. Mandar o relógio do aparelho faria os anexos deste mesmo ato
-    // parecerem mais novos que a resposta, e a re-pergunta do §6 dispararia
-    // sozinha para sempre.
+    // casos, inclusive o "sim". ⚠️ A DATA nunca vem daqui: quem a carimba é o
+    // trigger, com o `now()` do servidor. Mandar o relógio do aparelho faria os
+    // anexos deste mesmo ato parecerem mais novos que a resposta, e a
+    // re-pergunta do §6 dispararia sozinha para sempre.
     mudanca.debitos_mesmo_dia = complemento.debitosMesmoDia;
+    // ⚠️ O `null` é SINAL, não valor (migration 0011): ele diz ao banco "este
+    // ato é uma resposta — carimbe agora". Sem ele, re-responder o MESMO valor
+    // ("Tudo em [data]" pela segunda vez, o caso comum do 2º comprovante do
+    // mesmo dia) não movia a marca: ela ficava mais velha que o comprovante
+    // novo, a pergunta voltava para sempre e nunca "pegava", e a segunda
+    // afirmação do contribuinte não existia no acervo (§4d). O trigger o
+    // substitui pelo `now()` antes de qualquer constraint ver a linha.
+    // Só entra AQUI DENTRO: num UPDATE que apenas completa a data, este `null`
+    // reescreveria a data de uma resposta que ninguém deu.
+    mudanca.debitos_mesmo_dia_respondido_em = null;
   }
   if (Object.keys(mudanca).length === 0) return;
 

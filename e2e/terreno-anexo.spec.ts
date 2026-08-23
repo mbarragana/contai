@@ -33,6 +33,8 @@ import { expect, test } from "./fixtures";
 
 const ANO = new Date().getFullYear();
 const DATA = `${ANO}-08-12`;
+/** A primeira opção da pergunta do §4a, com a data no próprio botão. */
+const TUDO_EM = `Tudo em ${DATA.split("-").reverse().join("/")}`;
 
 function pdf(nome: string) {
   return {
@@ -442,6 +444,75 @@ test.describe("anexar papel depois, sem tela nova (critério 9b)", () => {
     const [gravado] = await desembolsosTerreno(db);
     expect(gravado.debitos_mesmo_dia).toBe(false);
     expect(await anexosDeDesembolso(db)).toHaveLength(3);
+  });
+
+  test("⚠️ re-responder 'Tudo em [data]' com o MESMO valor RE-CARIMBA — e a pergunta PEGA", async ({
+    page,
+    db,
+  }) => {
+    // Defeito achado no Gate 2 e consertado pela migration 0011. Este é o caso
+    // COMUM da re-pergunta do §6 — o 2º PIX do mesmo dia —, e o teste ao lado
+    // (resposta OPOSTA, `true` → `false`) o mascarava: lá o valor muda, e o
+    // trigger da 0010 carimbava por `is distinct from`.
+    //
+    // Re-afirmando o MESMO valor (`true` → `true`), a marca não se movia: ela
+    // ficava mais VELHA que o comprovante novo, a pergunta voltava em todo ato
+    // futuro e NUNCA pegava. Duas consequências: a segunda afirmação do
+    // contribuinte não existia no acervo (critério 12b, §4d) e a única resposta
+    // que "colava" era "Em mais de um dia" — o app treinando o honesto a
+    // declarar uma pendência falsa, que não tem baixa (§3.2 e §5).
+    const id = await criarDesembolsoTerreno(db, {
+      tipo: "entrada",
+      valor: 60000,
+      estado: "pago",
+      data_pagamento: DATA,
+      debitos_mesmo_dia: true,
+    });
+    for (const nome of ["pix-1", "pix-2"]) {
+      await criarAnexoDeDesembolso(db, {
+        desembolso_id: id,
+        arquivo_path: await subirParaOAcervo(db, "terreno", `${nome}.txt`, nome),
+        papel: "comprovante",
+      });
+    }
+    const [antes] = await desembolsosTerreno(db);
+    const marcaAntes = antes.debitos_mesmo_dia_respondido_em;
+    expect(marcaAntes).not.toBeNull();
+
+    await page.goto(`/obras/${OBRA_ID_SEED}/terreno/desembolsos`);
+    const cartao = page.locator(`[data-desembolso-gravado="${id}"]`);
+    await cartao
+      .getByRole("button", { name: "Anexar um papel", exact: true })
+      .click();
+    await anexar(cartao, "Anexar papel", "pix-3.pdf", "Comprovante do pagamento");
+    await expect(pergunta(page)).toBeVisible();
+
+    // A MESMA resposta de antes — e é isso que o defeito engolia.
+    await pergunta(page).getByText(TUDO_EM, { exact: true }).click();
+    await cartao
+      .getByRole("button", { name: "Gravar o papel", exact: true })
+      .click();
+    await expect(page.getByText("Papel anexado")).toBeVisible();
+
+    const [depois] = await desembolsosTerreno(db);
+    expect(depois.debitos_mesmo_dia).toBe(true);
+    // A marca AVANÇA: a segunda afirmação está datada, e datada DEPOIS do
+    // papel que ela cobre. É o critério 12b em 2034.
+    expect(
+      Date.parse(depois.debitos_mesmo_dia_respondido_em!),
+    ).toBeGreaterThan(Date.parse(marcaAntes!));
+    expect(await anexosDeDesembolso(db)).toHaveLength(3);
+
+    // E a pergunta PEGA: recarregando e reabrindo o mesmo formulário, sem
+    // papel novo nenhum, ela não volta. Antes da 0011 ela voltava aqui — para
+    // sempre, sobre uma resposta que já cobre os três papéis.
+    await page.reload();
+    const recarregado = page.locator(`[data-desembolso-gravado="${id}"]`);
+    await recarregado
+      .getByRole("button", { name: "Anexar um papel", exact: true })
+      .click();
+    await expect(recarregado.getByLabel("Anexar papel", { exact: true })).toBeVisible();
+    await expect(pergunta(page)).toHaveCount(0);
   });
 });
 

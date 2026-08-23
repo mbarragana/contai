@@ -50,7 +50,8 @@ Atualizado em 2026-08-23.*
 |---|---|
 | **Espera o Mateus** | **mock** de `008`, `004`+`007`, `005` · a **Q14** (13 dias, trava o `016`) |
 | **Espera `/tickets-req`** | `032`, `022`, `031` — não têm arquivo |
-| **Espera só o `/develop`** | `027` (no Gate 2), `025`, `014`, `006` |
+| **Espera só o `/develop`** | `025`, `014`, `006` |
+| **Fechado, esperando COMMIT** | `027` — os quatro gates rodaram (Gate 4 em 23/08, **PASS COM RESSALVA**); o retrabalho da `0011` **não está commitado**, e por isso não há hash de G2b/G3/G4 |
 
 ⚠️ **Esta tabela é resumo, não fonte.** Ela repete o que está abaixo — se
 divergir, **vale o de baixo**, e o resumo é que está errado.
@@ -137,6 +138,7 @@ foi pushado, e na Vercel push é deploy. Mas:
 |---|---|---|
 | `0009_correcao_documento.sql` | `CONTAI-021` (em produção desde 21/08) | *"NÃO está no ar … `db push` quando o Mateus autorizar"* |
 | `0010_terreno_anexo.sql` | `CONTAI-027` rodada 2 (commitada e pushada em 21/08) | nunca registrada como aplicada |
+| `0011_resposta_recarimbada.sql` | `CONTAI-027`, retrabalho do Gate 2 (23/08) | **não commitada ainda** — sobe junto com a `0010`, e antes do código |
 
 **Se as duas não estiverem no remoto, a correção de documento e o anexo do
 terreno estão quebrando em produção desde 21/08** — e quebrando do jeito que o
@@ -187,7 +189,7 @@ revisão descreveu.
 
 | Ordem | # | Ticket | P | Status | O que trava |
 |---|---|---|---|---|---|
-| **1** | **027** | **Ver o anexo, e anexar mais de um** | P1 | 🔨 **EM VOO** | ⚠️ **Gate 1 das DUAS rodadas está commitado E PUSHADO desde 21/08 (`1ff74c9`…`53acc37`, migration `0010`), e os Gates 2, 3 e 4 NUNCA RODARAM.** Não há nada travando: o mock foi **aprovado em 21/08**, o Gate Fiscal está em arquivo e o critério 1 está marcado `[x]` no ticket. **Retomar no Gate 2.** É o único item da fila cujo código já está na frente do Mateus sem ter passado por revisor — a regra do projeto é que quem implementa nunca revisa o próprio código, e hoje ninguém revisou |
+| **1** | **027** | **Ver o anexo, e anexar mais de um** | P1 | ✔️ **FECHADO — aguardando commit** | **Gate 4 em 23/08: PASS COM RESSALVA** — 20 de 22 itens de aceite PASS, 1 PENDENTE (12d, dependência declarada da US-004), 1 CORTADO (13, em 21/08). Reverificado no gate: **488 unitários + 132 E2E**. ⛔ **Não recebe ✅ enquanto o retrabalho não for commitado**: os hashes de G2b, G3 e G4 **não existem** — o corpo do ticket os marca `SEM HASH`, e o `CONTAI-019` já ficou com ⚠️ permanente por **um** hash reconstruído. ⛔ **Release**: `npx supabase db push` das migrations **`0009`, `0010` e `0011` ANTES** de qualquer `git push` — o código que depende da `0010` está no ar desde 21/08 e a migration nunca foi registrada como aplicada. **Ressalvas vivas**: **D47** (a pergunta pendente não tem superfície em card nem na home → ticket novo, que **nasce com parecer do `contador` para o texto do chip ANTES do mock**) e **D48** (frase fiscal no critério 12b sem parecer que a carimbe → pergunta aberta nº 3). Detalhe em `docs/backlog/23-2026-08-23-gate4-contai-027.md` |
 | **2** | **025** | ***"Paguei, mas não sei a data"* — o terceiro estado** | P1 · **P0 por dependência** | 🟡 | **Sobe de "Depois" e vira PRÉ-REQUISITO do `032`** (§3 do parecer de 23/08). O **Gate Fiscal dele está RESPONDIDO**: *registrar pago-sem-data é melhor que não registrar* — preserva o comprovante, **não entra em ano nenhum** e **não afirma nada falso** (IN SRF 84/2001, art. 17). Ganhou **emenda** do parecer: no formulário direto a data decide **entidade**, então *"pago, não sei a data"* cai **SEMPRE em `pagamento`, nunca em `compromisso`**. ⚠️ **O `🔴 sem arquivo` que este mapa exibia era falso**: `CONTAI-025.md` existe desde 19/08 (`b514f7d`), como minuta. **Trava: o `po` fechar os 6 critérios da minuta + o `designer` dizer o nível de proposta** (o ticket aposta em "sem mock novo" e isso precisa de confirmação). **É o único item da classe P0 cuja trava não é o dedo do Mateus** |
 | **3** | **032** | **Tirar `data = hoje` e `meio = "pix"` do formulário de pagamento** | **P0** | 🔴 sem arquivo | **Nasce do adendo de 23/08, e a D44 foi confirmada nos DOIS campos.** Em produção, `app/adicionar/pagamento/page.tsx` nasce com `data = hoje` (`:163`) e `meio = "pix"` (`:169`) — e um campo intocado afirma **três** coisas: o **ano-calendário** (regime de caixa), a **entidade** (`decidirRegistro` escolhe `pagamento` × `compromisso` pela mesma data) e o **meio**. Pior: com `pix` pré-selecionado, a `RECUSA_CARTAO` (critério 27 do `019`) vira **código inalcançável pela inação** — guarda que depende de escolher o que já está escolhido **não é guarda**. **Trava: `/tickets-req` + o `025` na frente.** Entrar sozinho troca *data errada em silêncio* por *data inventada pelo dedo*, e a segunda é pior. ⚠️ **Recomendação do `po` ao `contador`, uma linha**: a metade `meio` **não** depende do `025` (não existe "não sei o meio" — quem afirma o meio é o comprovante) e poderia ir na frente, sozinha; a condição de aprovação do parecer foi escrita para o ticket inteiro, então quem a solta é o `contador`, não eu |
 | **4** | **022** | **Cartão de crédito (compra → fatura)** | **P0** | 🔴 sem arquivo | **Item mais velho em aberto do projeto — reservado em 18/08.** ⚠️ **O diagnóstico mudou em 23/08, o posto não**: não é verdade que a compra no cartão *"não é registrada em lugar nenhum"* — hoje ela é registrada **como PIX**, por causa do default do `032`. A recusa só alcança quem toca no campo. **O bloqueio caiu** (dependia da entidade `compromisso`, entregue pelo `019`) e **não espera nada do Mateus**: a Q4 fechou em 08/08 e o §B do parecer de 18/08 traz os **10 critérios já redigidos**. Precisa de `/tickets-req` e de `/design` (o mock do 019 não tem uma única tela de cartão). Única decisão de escopo, e é do `po`: **parcelado entra na v1 ou é recusado na entrada com mensagem explícita** |
@@ -253,6 +255,21 @@ fila acima esvaziar** — e três deles estão propostos para corte.*
 `US-004` (relatórios anuais) · `US-005` (migrar planilha) · `US-006` (prestador
 PF) · `US-008` (extração automática — **Gate Fiscal já fechado**, parecer de
 17/08) · `US-009` a `US-012`.
+
+⚠️ **A `US-004` já nasce com três obrigações herdadas, e elas NÃO podem viver só
+no ticket que as transferiu** (registrado no Gate 4 do `CONTAI-027`, 23/08):
+
+1. **D28** — a tela promete que o relatório trava e nada trava: a `US-004` **tem
+   de** chamar `podeGerarRelatorioAnual`.
+2. **Critério 12c do `CONTAI-027`, terceira superfície** — a pendência *"Um
+   lançamento, mais de uma data"* aparece na **lista de revisão
+   pré-declaração**, e ali ela **não é dispensável, adiável nem colapsável**.
+3. **Critério 12d do `CONTAI-027`** — **nenhum** texto de pendência, alerta ou
+   instrução nossa entra em **área copiável**, neste ou em qualquer relatório: o
+   bloco é colado literalmente na ficha Bens e Direitos e aviso lá dentro vira
+   **texto declarado à RFB** (IN SRF 84/2001, art. 17). **Regra geral, não
+   exceção de um ticket.** Texto no §4c de
+   `docs/pareceres/2026-08-21-gate-fiscal-contai-027-criterio-13.md`.
 
 **Dores novas de 18/08, do fechamento do `CONTAI-019`**: **D26** — compra no
 cartão não tem onde morar, e o comentário do código culpa uma pergunta (Q4) que

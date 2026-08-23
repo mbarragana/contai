@@ -72,6 +72,16 @@ Telas: 13   Aprovado pelo Mateus em 2026-08-21 (v1)
 - **A pendência "pago e sem papel nenhum" muda de fonte, não de cara**: passa de "a coluna do arquivo está vazia" para "este desembolso não tem nenhuma linha de anexo" — a migration não pode apagar a dívida junto com a coluna.
 - **O bloqueio do critério 13 foi retirado desta rodada**: bloqueio sem caminho de baixa produz a resposta mentirosa; a pendência fica indispensável (sem "ok, entendi") e o bloqueio volta com a correção de valor, em ticket novo.
 
+## ⚠️ Argumento rejeitado, presente no HTML
+
+O bloco que justifica o corte do critério 13 no `CONTAI-027.html` contém
+*"a discriminação não é transmitida pelo app"*. Esse argumento está **REJEITADO
+pelo §2** de `docs/pareceres/2026-08-21-gate-fiscal-contai-027-criterio-13.md` —
+ele derrubaria junto o **bloqueio do compromisso vencido**, que está de pé.
+**Não reusar em ticket, mock ou tela.** O corte se sustenta pelo **§3.1/§3.2**.
+O HTML foi marcado com tachado e nota de recusa em 2026-08-23; o parágrafo não
+foi apagado porque o mock é registro do que o Mateus aprovou.
+
 ## Dúvidas
 - `inpDataS2` tem `value="2026-08-21"` no HTML, o que contraria o texto da própria tela ("O app nunca inventa a data"). Interpreto como artefato do mock (serve ao eco da data no botão da pergunta) — confirmar que na implementação o campo nasce **vazio**.
 - O mock não define o **texto do papel de exemplo** nem a duração do link assinado (só "temporário"); o TTL do `createSignedUrl` não aparece em tela.
