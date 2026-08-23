@@ -10,18 +10,38 @@ import {
   ACERVO_NEGADO,
   classificarFalhaDeAbertura,
 } from "@/lib/acervo";
+import {
+  agruparVinculos,
+  indexarDiferencas,
+  paraAnoAfetado,
+  paraAnosJson,
+  paraCompromisso,
+  paraDesembolsoTerreno,
+  paraDocumento,
+  paraFinanciamento,
+  paraInforme,
+  paraLinhaObra,
+  paraObra,
+  paraPagamento,
+} from "@/lib/dados/comum";
+import type {
+  ComFavorecido,
+  ComFavorecidoSimples,
+  ComFavorecidoTipado,
+  EntradaObraBanco,
+  TerrenoDesembolsoComAnexos,
+} from "@/lib/dados/comum";
 import { podeQuitar } from "@/lib/fiscal/compromisso";
 import type {
   EscolhaDePagamento,
   LinhaDeAnoDaPendencia,
 } from "@/lib/fiscal/revisao";
 import { podeVincular } from "@/lib/fiscal/vinculo";
-import { numericParaCentavos, centavosParaNumeric } from "@/lib/money";
+import { centavosParaNumeric } from "@/lib/money";
 import {
   BUCKET_ACERVO,
   getSupabase,
   getUsuarioId,
-  SemSessaoError,
 } from "@/lib/supabase";
 import type {
   AnoAfetado,
@@ -39,9 +59,7 @@ import type {
   FinanciamentoInforme,
   FinanciamentoInformeRow,
   FinanciamentoRow,
-  NaturezaAquisicaoTerreno,
   Obra,
-  ObraInsert,
   ObraRow,
   OrigemCompromisso,
   OrigemRecursoEntrada,
@@ -62,31 +80,10 @@ import type {
   RevisaoRow,
   PapelDeAnexo,
   TerrenoDesembolso,
-  TerrenoDesembolsoAnexo,
-  TerrenoDesembolsoAnexoRow,
-  TerrenoDesembolsoRow,
   TerrenoDesembolsoUpdate,
   TipoDesembolsoTerreno,
   TipoFavorecido,
 } from "@/lib/types";
-
-/**
- * O emitente do documento, com o CNPJ/CPF junto: quem registra o pagamento a
- * partir da nota precisa dos DOIS para não recriar o favorecido com typo.
- */
-type ComFavorecido = {
-  favorecido: { nome: string; documento: string } | null;
-};
-/** Pagamento também precisa do tipo: PF espera recibo, PJ espera NF. */
-type ComFavorecidoTipado = {
-  favorecido: { nome: string; tipo: TipoFavorecido } | null;
-};
-/**
- * Compromisso só precisa do NOME para a agenda. O `favorecido_id` continua
- * sendo a identidade — o casamento da sugestão de quitação é por ele, nunca
- * por nome (adendo §C: "CNPJ errado não é typo, é outro favorecido").
- */
-type ComFavorecidoSimples = { favorecido: { nome: string } | null };
 
 /**
  * Obra pedida por id que não existe (link velho, obra apagada em outro
@@ -98,81 +95,6 @@ export class ObraNaoEncontradaError extends Error {
     super("Obra não encontrada nesta conta.");
     this.name = "ObraNaoEncontradaError";
   }
-}
-
-function paraObra(row: ObraRow): Obra {
-  return {
-    id: row.id,
-    nome: row.nome,
-    cno: row.cno,
-    matricula: row.matricula,
-    cartorio: row.cartorio,
-    municipio: row.municipio,
-    naturezaAquisicaoTerreno: row.natureza_aquisicao_terreno,
-    dataInicioObra: row.data_inicio_obra,
-    cnoRegistradoEm: row.cno_registrado_em,
-    unidadesAutonomas: row.unidades_autonomas,
-    origemDesmembramentoLoteamento: row.origem_desmembramento_loteamento,
-  };
-}
-
-function paraDocumento(row: DocumentoRow & ComFavorecido): Documento {
-  return {
-    id: row.id,
-    obraId: row.obra_id,
-    tipo: row.tipo,
-    status: row.status,
-    valorCentavos: numericParaCentavos(row.valor),
-    vencimento: row.vencimento,
-    classificacao: row.classificacao,
-    destinatarioCpfOk: row.destinatario_cpf_ok,
-    retencao11: row.retencao_11,
-    motivoQuarentena: row.motivo_quarentena,
-    favorecidoId: row.favorecido_id,
-    favorecidoNome: row.favorecido?.nome ?? null,
-    favorecidoDocumento: row.favorecido?.documento ?? null,
-    arquivoPath: row.arquivo_path,
-  };
-}
-
-/**
- * A composição do desembolso vem da tabela `pagamento_diferenca` (1:1), e não
- * de colunas de `pagamento` — critério 2 do CONTAI-019. Quem não tem linha lá
- * chega aqui com 0/0/null, que é o caso da esmagadora maioria dos pagamentos.
- */
-const SEM_DIFERENCA = {
-  encargosCentavos: 0,
-  naoExplicadoCentavos: 0,
-  resolucaoDiferenca: null,
-} as const;
-
-function paraDiferenca(row: PagamentoDiferencaRow) {
-  return {
-    encargosCentavos: numericParaCentavos(row.encargos) ?? 0,
-    naoExplicadoCentavos: numericParaCentavos(row.nao_explicado) ?? 0,
-    resolucaoDiferenca: row.resolucao,
-  };
-}
-
-function paraPagamento(
-  row: PagamentoRow & ComFavorecidoTipado,
-  documentoIds: string[],
-  diferenca: PagamentoDiferencaRow | undefined,
-): Pagamento {
-  return {
-    ...(diferenca ? paraDiferenca(diferenca) : SEM_DIFERENCA),
-    id: row.id,
-    obraId: row.obra_id,
-    valorCentavos: numericParaCentavos(row.valor) ?? 0,
-    dataPagamento: row.data_pagamento,
-    meio: row.meio,
-    status: row.status,
-    favorecidoId: row.favorecido_id,
-    favorecidoNome: row.favorecido?.nome ?? null,
-    favorecidoTipo: row.favorecido?.tipo ?? null,
-    comprovantePath: row.comprovante_path,
-    documentoIds,
-  };
 }
 
 /**
@@ -209,35 +131,6 @@ export async function carregarObra(id: string): Promise<Obra> {
   const row = (data as ObraRow[] | null)?.[0];
   if (!row) throw new ObraNaoEncontradaError();
   return paraObra(row);
-}
-
-export interface EntradaObraBanco {
-  nome: string;
-  municipio: string | null;
-  matricula: string | null;
-  cartorio: string | null;
-  cno: string | null;
-  cnoRegistradoEm: string | null;
-  dataInicioObra: string;
-  /** `null` = ainda não respondida — pendência de complemento, não bloqueio. */
-  naturezaAquisicaoTerreno: NaturezaAquisicaoTerreno | null;
-  unidadesAutonomas: number;
-  origemDesmembramentoLoteamento: boolean;
-}
-
-function paraLinhaObra(entrada: EntradaObraBanco): ObraInsert {
-  return {
-    nome: entrada.nome,
-    municipio: entrada.municipio,
-    matricula: entrada.matricula,
-    cartorio: entrada.cartorio,
-    cno: entrada.cno,
-    cno_registrado_em: entrada.cnoRegistradoEm,
-    data_inicio_obra: entrada.dataInicioObra,
-    natureza_aquisicao_terreno: entrada.naturezaAquisicaoTerreno,
-    unidades_autonomas: entrada.unidadesAutonomas,
-    origem_desmembramento_loteamento: entrada.origemDesmembramentoLoteamento,
-  };
 }
 
 export async function criarObra(entrada: EntradaObraBanco): Promise<string> {
@@ -297,96 +190,6 @@ export interface PainelDados {
  * esconde não aparece aninhado.
  */
 const DESEMBOLSO_COM_ANEXOS = "*, terreno_desembolso_anexo(*)";
-
-type TerrenoDesembolsoComAnexos = TerrenoDesembolsoRow & {
-  terreno_desembolso_anexo: TerrenoDesembolsoAnexoRow[] | null;
-};
-
-function paraDesembolsoTerreno(
-  row: TerrenoDesembolsoComAnexos,
-): TerrenoDesembolso {
-  return {
-    id: row.id,
-    obraId: row.obra_id,
-    tipo: row.tipo,
-    valorCentavos: numericParaCentavos(row.valor) ?? 0,
-    dataPagamento: row.data_pagamento,
-    estado: row.estado,
-    origemRecurso: row.origem_recurso,
-    anexos: (row.terreno_desembolso_anexo ?? [])
-      // Do mais antigo para o mais novo: é essa ordem que a re-pergunta do §6
-      // lê, e é a ordem em que os papéis chegaram ao acervo.
-      .slice()
-      .sort((a, b) => a.created_at.localeCompare(b.created_at))
-      .map(paraAnexoDeDesembolso),
-    debitosMesmoDia: row.debitos_mesmo_dia,
-    debitosMesmoDiaRespondidoEm: row.debitos_mesmo_dia_respondido_em,
-  };
-}
-
-/**
- * `papel` volta do PostgREST como `text` — o banco é quem o fecha, pelo check
- * `terreno_anexo_papel` da 0010 (e não um enum, porque `alter type add value`
- * não convive com a transação única da migration). O cast é o ponto onde a
- * garantia do banco vira a garantia do tipo, e ele mora aqui, sozinho.
- */
-function paraAnexoDeDesembolso(
-  row: TerrenoDesembolsoAnexoRow,
-): TerrenoDesembolsoAnexo {
-  return {
-    id: row.id,
-    arquivoPath: row.arquivo_path,
-    papel: row.papel as PapelDeAnexo,
-    createdAt: row.created_at,
-  };
-}
-
-function paraFinanciamento(row: FinanciamentoRow): Financiamento {
-  return {
-    id: row.id,
-    obraId: row.obra_id,
-    instituicao: row.instituicao,
-    numeroContrato: row.numero_contrato,
-    dataContrato: row.data_contrato,
-    precoContratadoCentavos: numericParaCentavos(row.preco_contratado) ?? 0,
-    numeroParcelas: row.numero_parcelas,
-  };
-}
-
-function paraInforme(row: FinanciamentoInformeRow): FinanciamentoInforme {
-  return {
-    id: row.id,
-    financiamentoId: row.financiamento_id,
-    anoBase: row.ano_base,
-    amortizacaoCentavos: numericParaCentavos(row.amortizacao) ?? 0,
-    jurosCorrecaoCentavos: numericParaCentavos(row.juros_correcao) ?? 0,
-    segurosCentavos: numericParaCentavos(row.seguros) ?? 0,
-    taxasFcvsCentavos: numericParaCentavos(row.taxas_fcvs) ?? 0,
-    moraCentavos: numericParaCentavos(row.mora) ?? 0,
-    multaCentavos: numericParaCentavos(row.multa) ?? 0,
-    diferencaTeoricoPagoCentavos:
-      numericParaCentavos(row.diferenca_teorico_pago) ?? 0,
-    totalPagoCentavos: numericParaCentavos(row.total_pago) ?? 0,
-    saldoDevedorCentavos: numericParaCentavos(row.saldo_devedor) ?? 0,
-    arquivoPath: row.arquivo_path,
-  };
-}
-
-function indexarDiferencas(
-  linhas: PagamentoDiferencaRow[],
-): Map<string, PagamentoDiferencaRow> {
-  return new Map(linhas.map((d) => [d.pagamento_id, d]));
-}
-
-function agruparVinculos(linhas: PagamentoDocumentoRow[]): Map<string, string[]> {
-  const docsPorPagamento = new Map<string, string[]>();
-  for (const v of linhas) {
-    const lista = docsPorPagamento.get(v.pagamento_id) ?? [];
-    lista.push(v.documento_id);
-    docsPorPagamento.set(v.pagamento_id, lista);
-  }
-  return docsPorPagamento;
-}
 
 /**
  * Tudo que a home precisa, SEMPRE de uma obra só — nada é somado entre obras
@@ -598,20 +401,6 @@ export async function carregarPagamento(id: string): Promise<Pagamento> {
     ((vinculos.data ?? []) as PagamentoDocumentoRow[]).map((v) => v.documento_id),
     ((diferenca.data ?? []) as PagamentoDiferencaRow[])[0],
   );
-}
-
-/**
- * O snapshot de anos afetados, no formato que a migration 0009 recebe.
- * Centavos viram `numeric(14,2)` aqui, e só aqui.
- */
-function paraAnosJson(anos: readonly AnoAfetado[]) {
-  return anos.map((a) => ({
-    ano: a.ano,
-    obra_id: a.obraId,
-    custo_antes: centavosParaNumeric(a.antesCentavos),
-    custo_depois: centavosParaNumeric(a.depoisCentavos),
-    pendencia: a.pendencia,
-  }));
 }
 
 /**
@@ -953,16 +742,6 @@ export async function carregarRevisoesPorId(ids: string[]): Promise<Revisao[]> {
     motivoTexto: r.motivo_texto,
     anosAfetados: porRevisao.get(r.id) ?? [],
   }));
-}
-
-function paraAnoAfetado(row: RevisaoAnoAfetadoRow): AnoAfetado {
-  return {
-    obraId: row.obra_id,
-    ano: row.ano,
-    antesCentavos: numericParaCentavos(row.custo_antes) ?? 0,
-    depoisCentavos: numericParaCentavos(row.custo_depois) ?? 0,
-    pendencia: row.pendencia_id !== null,
-  };
 }
 
 /**
@@ -1446,28 +1225,6 @@ export async function apagarVinculo(
 // viajaria por esse spread até a porta do cálculo de custo. A agenda tem
 // carregador PRÓPRIO — o compromisso e os números da declaração nunca chegam
 // juntos na mesma variável (critério 3; parecer §2).
-
-function paraCompromisso(
-  row: CompromissoRow & ComFavorecidoSimples,
-  pagamentoIds: string[],
-  adiamentos: number,
-): Compromisso {
-  return {
-    id: row.id,
-    obraId: row.obra_id,
-    favorecidoId: row.favorecido_id,
-    favorecidoNome: row.favorecido?.nome ?? null,
-    valorPrevistoCentavos: numericParaCentavos(row.valor_previsto) ?? 0,
-    dataPrevista: row.data_prevista,
-    origem: row.origem,
-    documentoOrigemId: row.documento_origem_id,
-    situacao: row.situacao,
-    motivoCancelamento: row.motivo_cancelamento,
-    dataCompra: row.data_compra,
-    pagamentoIds,
-    adiamentos,
-  };
-}
 
 /**
  * A agenda de UMA obra. Sem sessão, `getUsuarioId` já falha explicitamente —
@@ -2026,40 +1783,21 @@ export async function criarInforme(entrada: EntradaInforme): Promise<string> {
   return (data as { id: string }).id;
 }
 
-/**
- * Mensagem de erro para a UI, sem vazar detalhe técnico irrelevante.
- *
- * O PostgREST NÃO devolve `error` como `Error`: sem `throwOnError`, o que vem
- * é um objeto simples (`{ message, details, hint, code }`), e é ele que os
- * `throw error` daqui propagam. Só o ramo `instanceof Error` fazia toda
- * violação de RLS, de check constraint (`documento_quarentena_coerente`) e de
- * unicidade (`favorecido_dono_documento_unico`) chegar ao Mateus como "não foi
- * possível falar com o servidor" — ou seja, como problema de rede. Ele tentaria
- * de novo para sempre, e o registro nunca entraria.
- */
-export function mensagemDeErro(erro: unknown): string {
-  if (erro instanceof Error && erro.message) return erro.message;
-  if (typeof erro === "object" && erro !== null && "message" in erro) {
-    const { message } = erro as { message?: unknown };
-    if (typeof message === "string" && message.trim() !== "") return message;
-  }
-  return "Não foi possível falar com o servidor. Tente de novo.";
-}
+// ══ CONTAI-028 · barrel ═════════════════════════════════════════════════
+//
+// `@/lib/data` continua sendo o caminho de import de todas as telas: este
+// ticket MOVE código, e mover código não pode aparecer no diff de quem chama.
+// Código novo importa do módulo específico (`@/lib/dados/...`); página migra o
+// import quando outro ticket já a tocar por outro motivo.
+//
+// O que este barrel reexporta é EXATAMENTE a superfície que já existia — nada
+// mais. Os 14 mappers e os tipos auxiliares de linha do PostgREST
+// (`ComFavorecido*`, `TerrenoDesembolsoComAnexos`) ficam de fora de propósito:
+// nenhum consumidor os importa daqui, e reexport sem consumidor não é
+// compatibilidade, é superfície nova. Pior: com `paraDocumento` alcançável por
+// `@/lib/data`, uma tela poderia mapear a row na mão e pular o escopo de obra
+// e de contrato que os carregadores garantem. Quem precisar deles — o teste
+// unitário do CONTAI-029, por exemplo — importa de `@/lib/dados/comum`.
 
-/**
- * Critério 5 do CONTAI-002: "sem sessão" e "banco fora" NÃO são o mesmo erro.
- *
- * Os dois davam a mesma tela com o mesmo botão "Tentar de novo" — e tentar de
- * novo nunca resolveu falta de sessão: o Mateus ficaria batendo no botão até
- * desistir de registrar. Cada causa leva à ação que resolve ela (entrar de
- * novo × repetir a chamada), e quem decide isso é o TIPO do erro, nunca o
- * texto da mensagem.
- */
-export type ErroDeTela =
-  | { tipo: "sem_sessao" }
-  | { tipo: "falha"; mensagem: string };
-
-export function classificarErro(erro: unknown): ErroDeTela {
-  if (erro instanceof SemSessaoError) return { tipo: "sem_sessao" };
-  return { tipo: "falha", mensagem: mensagemDeErro(erro) };
-}
+export * from "@/lib/dados/erros";
+export type { EntradaObraBanco } from "@/lib/dados/comum";

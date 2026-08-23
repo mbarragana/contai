@@ -102,7 +102,8 @@ que segurar).
 | **Fila de tickets vigente** | `docs/backlog/08-2026-08-17-incidente-producao-e-fila-vigente.md` → *"Fila revista — 2026-08-18 (6ª revisão)"* |
 | Decisões travando avanço | bloco **DECISÕES PENDENTES DO MATEUS**, acima neste arquivo |
 | Última adjudicação fiscal | `docs/backlog/15-2026-08-21-adjudicacao-fiscal-contai-027.md` |
-| Ticket ainda por criar | `15-…-adjudicacao-fiscal-contai-027.md` → *"Ticket novo a criar — correção de valor de desembolso do terreno"* |
+| Ticket ainda por criar | `15-…-adjudicacao-fiscal-contai-027.md` → *"Ticket novo a criar — correção de valor de desembolso do terreno"*; e **`CONTAI-022`** (D26, cartão de crédito, **P0 fiscal**), que não existe como arquivo |
+| Último gate fechado | `18-2026-08-23-gate4-contai-028-fatia1.md` — `CONTAI-028` **parcialmente entregue** (fatia 1 de 7); `CONTAI-029` **destravado**; fatias 2-7 no fim da fila |
 
 ⚠️ **Existem 6 "Fila revista" no diário e só a 6ª vale.** As anteriores ficam
 como registro do raciocínio e estão marcadas como superadas na própria entrada:
@@ -136,7 +137,7 @@ no bloco de decisões pendentes acima.
 | D35 | `14-2026-08-21-relato-004.md` |
 | D39 | `15-2026-08-21-adjudicacao-fiscal-contai-027.md` |
 | D41 — 4 textos desatualizados em mocks aprovados (login, defaults, carimbo) | `17-2026-08-22-o-que-a-extracao-dos-specs-achou.md` |
-| D40 — `lib/data.ts` monolítico (2065 linhas, 44 importadores) | `16-2026-08-22-custo-de-contexto-do-pipeline.md` → **`CONTAI-028`** |
+| D40 — `lib/data.ts` monolítico (2065 linhas, 44 importadores) | `16-2026-08-22-custo-de-contexto-do-pipeline.md` → **`CONTAI-028`**; status em `18-2026-08-23-gate4-contai-028-fatia1.md` (**parcialmente paga**: 2065 → 1803) |
 
 O status de cada uma está na própria entrada — este índice aponta, não duplica.
 
@@ -286,6 +287,17 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
 - O erro estava no PARECER também — e a ordem de conserto importa
 - Os outros quatro achados, todos ainda abertos
 - A lição de processo
+
+### `18-2026-08-23-gate4-contai-028-fatia1.md` — 147 linhas
+**Gate 4 do `CONTAI-028` — 2026-08-23 — fatia 1 ACEITA, ticket segue ABERTO**
+- O que este gate provou por conta própria (não por relato)
+- Dois números do ticket que estavam errados, e devem ser corrigidos
+- Os critérios que NÃO fecham com a fatia 1
+- Os dois desvios, julgados
+- Prioridade — as fatias 2-7 VOLTAM PARA O FIM DA FILA
+- O preço de parar na fatia 1, dito por extenso
+- Pendências que este gate abre
+- D40 — status
 
 ---
 

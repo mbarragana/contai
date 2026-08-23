@@ -13,6 +13,25 @@
   tela importa; em paralelo com qualquer ticket de dados, o merge escolhe um
   lado e uma regra do `CONTAI-021` volta em silêncio para a versão antiga
 
+## Estado em 2026-08-23
+
+**Fatia 1 de 7: ENTREGUE.** Gates 0-4 fechados — Gate 2 com APPROVE do
+`cto-obra` e do `contador` (1 loop), Gate 3 com 131 E2E verdes, Gate 4 **PASS**
+pelo `po`. Registro completo em
+`docs/backlog/18-2026-08-23-gate4-contai-028-fatia1.md`.
+
+**O ticket segue ABERTO**: fatias 2-7 no fim da fila, atrás dos itens fiscais.
+Critérios **7 e 9 são PARCIAIS** — só fecham quando os módulos de entidade
+existirem (`lib/data.ts` ainda tem 1803 linhas e é módulo resultante).
+
+⚠️ **O critério 3 foi cumprido AO PÉ DA LETRA** (barrel 63 → 63). Durante a
+fatia 1 chegou a ser cogitado afrouxá-lo para "63 + os 14 mappers"; o Gate 2
+tornou isso desnecessário e **o afrouxamento não vale**. O motivo é fiscal: com
+`paraDocumento` alcançável por `@/lib/data`, uma tela pode mapear row na mão e
+**pular o escopo de obra e de contrato** que os carregadores garantem. Os
+mappers se importam de `@/lib/dados/comum`. **A fatia 2 não reexporta mapper
+pelo barrel.**
+
 ## Tipo e Prioridade
 chore — P2 — dívida **D40**, registrada em
 `docs/backlog/16-2026-08-22-custo-de-contexto-do-pipeline.md`.
@@ -74,7 +93,7 @@ comportamento provada por ausência de mudança**.
        `carregarCorrecoesDoDocumento()` e `carregarAlcanceDoFavorecido()` em
        JSON com chaves ordenadas. Depois: **igualdade byte a byte**. Um centavo,
        uma ordem ou um `null`→`0` que mude **reprova**
-6. [ ] **Inventário de conversão**: hoje há **38** ocorrências de
+6. [x] **Inventário de conversão**: hoje há **37** ocorrências de
        `numericParaCentavos`/`centavosParaNumeric` em `lib/data.ts`. A contagem
        por call-site bate antes e depois, campo por campo. Conversão que sumiu
        ou dobrou é erro de 100×
@@ -241,6 +260,13 @@ ordem em fatias do `cto-obra`**, porque cada fatia é revertível sozinha e o
 critério 5 (golden snapshot) roda por fatia — mas a objeção é legítima e o
 ticket **tem que fechar no mesmo dia**, sem fatia dormindo na árvore.
 
+⚠️ **Esta frase não se cumpriu, e fica como registro em vez de ser apagada.** A
+fatia 1 rodou em 2026-08-22/23 e as fatias 2-7 voltaram para o fim da fila por
+decisão do `po` no Gate 4 — há item **fiscal** aberto na 6ª revisão (Q14, D26 →
+`CONTAI-022` P0, D24, D25, D-018.1/2/9), e custo de leitura de agente não
+disputa com isso. A fatia 1 **foi commitada**, então não há fatia dormindo na
+árvore; o que existe é um ticket parcialmente entregue e explicitamente aberto.
+
 ### Modelo de dados
 
 **Nenhum impacto.** Sem tabela, coluna, view ou função nova → **sem `GRANT`, sem
@@ -281,7 +307,7 @@ Medida em 2026-08-22, para o Gate 2 conferir contra:
 | `lib/data.ts` | 2065 linhas, 63 exports |
 | `lib/data.test.ts` | 62 linhas |
 | Importadores reais | **36** (35 em `app/` + `lib/data.test.ts`) |
-| `numericParaCentavos`/`centavosParaNumeric` em `data.ts` | 38 ocorrências |
+| `numericParaCentavos`/`centavosParaNumeric` em `data.ts` | **37** call-sites (o "38" original contava a linha de `import` — corrigido pelo `contador` no Gate 2) |
 | RPCs chamados | `baixar_pendencia`, `corrigir_documento`, `corrigir_nome_favorecido`, `marcar_emitente_errado`, `mover_documento_de_obra`, `terreno_desembolso_gravar` |
 | `npm run typecheck` | limpo |
 | `npm run test` (Vitest) | 412 testes, 14 arquivos, verde |
