@@ -1,5 +1,22 @@
 # CONTAI-029 Teste unitário para os mappers da camada de dados
 
+**ENTREGUE — 2026-08-23.** Gates 1-4 fechados. 76 casos, **14 de 14** mappers,
+`lib/dados/comum.test.ts` (único arquivo do diff — zero código de produção).
+Gate 2: `REQUEST CHANGES` dos dois revisores, correção só de rótulo e nome,
+**APPROVE dos dois sobre o diff final**. Gate 4 em
+`docs/backlog/20-2026-08-23-gate4-contai-029.md`.
+
+⚠️ **O critério 2 tem leitura fixada no Gate 4**: "cada condição do Gate Fiscal
+do `CONTAI-028`" vale para as **alcançáveis por mapper puro**. As outras 10 são
+de I/O e o Out of Scope deste ticket as exclui — a prova de cobertura é o **mapa
+das 16 condições** no cabeçalho do arquivo de teste, e ele vale mais que o
+critério pedia.
+
+⚠️ **Dois achados de Gate 2 viraram dor, não conserto** (critério 7):
+**D42** (condição 6 sem rede nenhuma → pede ticket de E2E próprio) e **D43**
+(formato do rastro protegido por uma única asserção E2E frágil), em
+`docs/backlog/19-2026-08-23-duas-condicoes-fiscais-sem-rede.md`.
+
 ## Roteamento do `/develop`
 - **Tipo**: chore (cobertura de teste)
 - **Prioridade**: **P1** — não é P0 porque nenhum bug conhecido está aberto
@@ -44,9 +61,13 @@ que moram condições fiscais que hoje ninguém observa:
 - **`paraDocumento`** — `documento.valor` `null` → `valorCentavos` fica `null`,
   enquanto pagamento e desembolso caem em `?? 0`. **A assimetria é deliberada**:
   unificar em `?? 0` faz nota sem valor virar **R$ 0,00 declarado**
-- **`paraAnosJson`** — o antes→depois do rastro vai como **texto** `.toFixed(2)`.
-  Trocar por `String(n)` corrompe a pendência de retificadora
-  (`docs/pareceres/2026-08-18-correcao-de-documento-registrado.md` §5)
+- **`paraAnosJson`** — ⚠️ **corrigido em 2026-08-23 (Gate 4)**: esta linha dizia
+  que o mapper emite texto `.toFixed(2)`. **Não emite** — emite **número**, e
+  está certo (destino `numeric(14,2)`). O texto de duas casas mora no `p_depois`
+  de `corrigirValorDoDocumento`, que é I/O. Trocá-lo por `String(n)` corrompe a
+  pendência de retificadora
+  (`docs/pareceres/2026-08-18-correcao-de-documento-registrado.md` §5). Ver o
+  critério 4 reescrito e as condições **4a/4b** do `CONTAI-028`
 - **`paraAnoAfetado`** — o `?? 0` só é seguro porque o par antes/depois já existe
 - **`agruparVinculos`** / **`indexarDiferencas`** — agrupamento que decide qual
   documento aparece ligado a qual pagamento
@@ -81,21 +102,40 @@ alguém "simplificar", em vez de virarem R$ 0,00 numa declaração.
 
 ## Critérios de Aceite
 
-1. [ ] `lib/dados/comum.ts` (e os módulos que ficarem com mapper próprio) têm
+1. [x] `lib/dados/comum.ts` (e os módulos que ficarem com mapper próprio) têm
        teste unitário para **cada uma das 14 funções**
-2. [ ] Cada condição fiscal listada no Gate Fiscal do `CONTAI-028` tem **um
+2. [x] Cada condição fiscal listada no Gate Fiscal do `CONTAI-028` tem **um
        caso de teste nomeado**, e o nome do teste diz a consequência, não a
        mecânica — *"nota sem valor não vira R$ 0,00 declarado"*, e não
        *"retorna null"*
-3. [ ] A assimetria `documento.valor null → null` × `pagamento → ?? 0` tem teste
+3. [x] A assimetria `documento.valor null → null` × `pagamento → ?? 0` tem teste
        **dos dois lados**, com comentário explicando que é deliberada. É o caso
        que mais convida a "consertar"
-4. [ ] `paraAnosJson` tem teste de que o valor sai como **string** `.toFixed(2)`
-       — número, `String(n)` ou `toString()` reprovam
-5. [ ] Nenhum teste novo faz I/O: sem client Supabase, sem rede, sem Postgres.
+4. [x] ⚠️ **REESCRITO em 2026-08-23, no Gate 4, pelo `po`. A redação original
+       estava errada e apontava para o call-site errado** — dizia *"`paraAnosJson`
+       tem teste de que o valor sai como string `.toFixed(2)`"*. `paraAnosJson`
+       emite **número** (`centavosParaNumeric`, sem `.toFixed`), e isso está
+       **certo**: o destino é `revisao_ano_afetado.custo_*`, `numeric(14,2)`.
+       Quem emite texto de duas casas é `p_depois` em `corrigirValorDoDocumento`
+       (`lib/data.ts:504`), porque `revisao.antes`/`depois` são colunas `text`
+       (migration 0009). O `lead-engineer` pegou o erro, **anotou e não
+       consertou** (critério 7); o `contador` desdobrou a condição em **4a/4b**
+       no `docs/tickets/CONTAI-028.md`. Redação que vale:
+
+       **4a** — o formato **texto de duas casas** do rastro tem caso nomeado que
+       diz a consequência (`String(n)` → `"4850"`, `toString()` → `"4850.5"`,
+       ambos corrompem o antes→depois). ⚠️ O call-site é I/O e está **fora**
+       deste ticket: o caso unitário trava a **composição de formato**, não a
+       chamada, e **tem que dizer isso no próprio nome/comentário**. Quem prova
+       o call-site é `e2e/correcao.spec.ts:96`.
+
+       **4b** — `paraAnosJson` tem teste de que o valor sai como **número**, com
+       os centavos preservados. ⚠️ **Não introduzir `.toFixed(2)` "por simetria"
+       com o 4a** — os dois formatos estão certos para os seus destinos.
+5. [x] Nenhum teste novo faz I/O: sem client Supabase, sem rede, sem Postgres.
        Mapper é puro; teste de mapper é puro
-6. [ ] `npm run quality` verde
-7. [ ] **Nenhuma alteração em `lib/data.ts` nem em qualquer módulo de
+6. [x] `npm run quality` verde
+7. [x] **Nenhuma alteração em `lib/data.ts` nem em qualquer módulo de
        `lib/dados/`** além do necessário. Este ticket escreve teste; se um teste
        novo revelar bug, ele **é registrado como dor no backlog e não é
        consertado aqui** — bug consertado junto de teste novo nasce sem gate

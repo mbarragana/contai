@@ -126,6 +126,23 @@ Só spawne agente novo quando não houver um vivo para aquele papel neste ticket
 - Bug encontrado → Gate 1 pelo `SendMessage`, com report
 
 ### Gate 4: Validação do PO
+
+**Campo obrigatório, antes de qualquer coisa — "Arquivos alterados após o último
+APPROVE":** `nenhum`, ou a lista. Havendo lista, **cada revisor que aprovou
+devolve uma linha sobre o diff final**, transcrita no gate. **Campo em branco =
+Gate 4 não fecha.**
+
+Vale para **documentação também**: ticket, backlog e parecer são onde a
+adjudicação fiscal mora. Redação de condição fiscal alterada depois do APPROVE
+**exige** a linha do `contador`, **citando a redação nova**.
+
+Por que é campo e não lembrete (regra escrita pelo `po` em 2026-08-23, depois de
+duas ocorrências no mesmo dia): no `CONTAI-028` a árvore mudou depois do APPROVE
+do Gate 2 e ninguém percebeu até o Gate 4; no `CONTAI-029` uma afirmação fiscal
+errada tinha **duas cópias** no ticket, e os dois revisores passaram por cima da
+segunda porque liam os critérios. **Campo obrigatório é mecânico; "lembrar de
+perguntar" não é.**
+
 - 🎭 Rode como subagent `po`
 - Passe critério por critério do ticket: PASS/FAIL explícito. Ele lê os
   critérios do ticket e o spec do mock — não a base de código

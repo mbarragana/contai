@@ -133,12 +133,19 @@ em `lib/fiscal/vinculo.ts:413`, puro e com teste unitário. O que `data.ts` det�
 
 ### As condições que o refactor preserva
 
+⚠️ **A condição 4 foi desdobrada em 4a e 4b em 2026-08-23, pelo `contador`, no
+Gate 2 do `CONTAI-029`.** A redação original juntava duas coisas que o banco
+separa — uma coluna `text` e uma `numeric(14,2)` — e o `CONTAI-029` chegou a
+nascer com um critério apontando para o call-site errado. O erro era da redação,
+não da implementação.
+
 | Função | Apuração | Se X → Y |
 |---|---|---|
 | `carregarPainel` / `carregarPaineis` | custo IRPF + INSS + acervo | se `numeric(14,2)` volta do PostgREST ora `number` ora `"4850.00"` → continua passando por `numericParaCentavos` (aceita os dois, `Math.round(n*100)`), **nunca** `Number(x)*100` nem `parseFloat`. Incidente registrado no `CLAUDE.md` |
 | idem | custo IRPF | se um informe pertence a contrato de **outra** obra → continua filtrado por `contratosDaObra`; e se há N obras → **nada soma entre matrículas** (Bens e Direitos é por matrícula) |
 | idem | custo IRPF | se `documento.valor` é `null` → `valorCentavos` fica `null`, mas pagamento/desembolso caem em `?? 0`. Essa **assimetria é deliberada**: unificar em `?? 0` faz nota sem valor virar R$ 0,00 declarado |
-| `corrigirValorDoDocumento` | custo IRPF + pendência de retificadora | se o valor muda → `p_depois` vai como **texto** `.toFixed(2)` e `p_anos` **não vazio**, por RPC transacional. Perder o `toFixed(2)` ou trocar por `String(n)` corrompe o antes→depois do rastro (`docs/pareceres/2026-08-18-correcao-de-documento-registrado.md` §5) |
+| **4a** — `corrigirValorDoDocumento` (`lib/data.ts:504`, I/O) | custo IRPF + pendência de retificadora | se o valor muda → `p_depois` sai como **texto de duas casas**, `centavosParaNumeric(c).toFixed(2)`, e `p_anos` **não vazio**, por RPC transacional. O motivo é a coluna: `revisao.antes`/`revisao.depois` são **`text`** (migration 0009), e texto é o que preserva `null` — o "(em branco)" da tela s3c —, zeros à esquerda e enum (`docs/pareceres/2026-08-18-correcao-de-documento-registrado.md` §5). `String(n)` publica `"4850"`, `toString()` publica `"4850.5"`: os dois quebram o antes→depois que sustenta a conversa de retificadora. **Prova hoje: `e2e/correcao.spec.ts:96`, não teste unitário** |
+| **4b** — `paraAnosJson` (mapper puro) | custo IRPF | os anos afetados saem como **número**, `centavosParaNumeric` **sem** `.toFixed`, e isso está **certo**: o destino é `revisao_ano_afetado.custo_antes/custo_depois`, `numeric(14,2) not null`, com cast `::numeric` na RPC. Não há formato de texto a preservar aqui — ⚠️ **não introduzir `.toFixed(2)` "por simetria" com 4a**. Garantir `p_anos` não vazio é do call-site, não do mapper |
 | idem | custo IRPF | se `motivo = emitente_corrigiu_a_nota` → `anexoPath` é exigido **pela função**, não pela tela, e entra como anexo **adicional** (`arquivo_path` não se substitui) |
 | `corrigirClassificacaoDoDocumento` | discriminação (material × mão de obra) + INSS | se só a classificação muda → `p_anos: []`. Nenhum total se move, logo **nenhuma pendência nasce** (mesmo parecer, §1). Passar `anos` aqui inventa retificadora |
 | `corrigirNomeDoFavorecido` | Pagamentos Efetuados | se o nome muda → CPF/CNPJ **não é parâmetro** e não se reescreve; sem pendência (mesmo parecer, §1, §4.2, adendo §4) |

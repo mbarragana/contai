@@ -137,6 +137,8 @@ no bloco de decisões pendentes acima.
 | D35 | `14-2026-08-21-relato-004.md` |
 | D39 | `15-2026-08-21-adjudicacao-fiscal-contai-027.md` |
 | D41 — 4 textos desatualizados em mocks aprovados (login, defaults, carimbo) | `17-2026-08-22-o-que-a-extracao-dos-specs-achou.md` |
+| **D42 — condição fiscal 6 sem rede NENHUMA** (nem unit, nem E2E): correção de classificação pode inventar retificadora | `19-2026-08-23-duas-condicoes-fiscais-sem-rede.md` → **`CONTAI-031` (E2E), P1**, decidido em `20-2026-08-23-gate4-contai-029.md`. **Bloqueia a fatia 5 do `CONTAI-028`** |
+| D43 — formato do rastro (`p_depois`) é expressão anônima dentro da RPC, com **uma única** asserção E2E a protegê-lo | `19-…-duas-condicoes-fiscais-sem-rede.md`; **dividida em duas no Gate 4** (`20-…-gate4-contai-029.md`): o comentário-guarda em `e2e/correcao.spec.ts:96` vai no **`CONTAI-031`** (custo zero, hoje); a extração de `textoDoRastro` fica na **fatia 5 do `CONTAI-028`** |
 | D40 — `lib/data.ts` monolítico (2065 linhas, 44 importadores) | `16-2026-08-22-custo-de-contexto-do-pipeline.md` → **`CONTAI-028`**; status em `18-2026-08-23-gate4-contai-028-fatia1.md` (**parcialmente paga**: 2065 → 1803) |
 
 O status de cada uma está na própria entrada — este índice aponta, não duplica.
@@ -298,6 +300,21 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
 - O preço de parar na fatia 1, dito por extenso
 - Pendências que este gate abre
 - D40 — status
+
+### `19-2026-08-23-duas-condicoes-fiscais-sem-rede.md` — 96 linhas
+**Duas condições fiscais sem rede — 2026-08-23 — achado do Gate 2 do `CONTAI-029`**
+- D42 — a condição 6 não tem rede NENHUMA, nem unitária nem E2E ⚠️
+- D43 — o formato do rastro é uma expressão anônima dentro de uma RPC
+- O mapa que sobrou: 10 das 16 condições só têm E2E
+- A correção da condição 4, e o erro era de redação
+
+### `20-2026-08-23-gate4-contai-029.md` — 88 linhas
+**Gate 4 do `CONTAI-029` — 2026-08-23 — ENTREGUE, com um critério reescrito**
+- O critério 4 estava errado (pedia bug); reescrito em 4a/4b
+- O critério 2 era literalmente impossível — o mapa das 16 condições vale mais
+- Duas ressalvas que viram trabalho de outro ticket
+- O que este gate decidiu sobre a fila: **D42 → `CONTAI-031` P1**, D43 dividida
+- Redação proposta para o Gate 4 do `develop.md`
 
 ---
 
