@@ -27,14 +27,41 @@ import { expect, test } from "./fixtures";
 const CNPJ_AJE_DIGITOS = "11222333000181";
 const EMAIL_SEM_CONTA = "nao-sou-o-dono@contai.local";
 
-/** Login pela tela, um passo só. */
+/**
+ * Login pela tela — e o laço de preenchimento NÃO é paranoia.
+ *
+ * O formulário é controlado: `email` sai de `emailDigitado ?? emailConhecido ??
+ * ""` (app/_components/entrar.tsx), e quem valida é `entrar()`, lendo o ESTADO
+ * do React, não o DOM. O `fill()` do Playwright escreve no DOM; se a página
+ * ainda não hidratou, o `onChange` não dispara, `emailDigitado` continua `null`
+ * e o submit vê e-mail vazio — a tela responde "Digite um e-mail válido", a URL
+ * não muda, e o teste falha apontando para o lugar errado.
+ *
+ * Foi o que derrubou o CI em 2026-08-23 (run 32640902865): 1 vermelho e 4
+ * flaky, todos aqui, todos com essa mensagem. Na máquina do Mateus a hidratação
+ * ganha a corrida; no runner frio do GitHub, às vezes não.
+ *
+ * O `toPass` conserta porque o input é controlado: se a hidratação chegar
+ * depois do `fill`, o React repinta o campo com o estado dele (vazio) e o
+ * `toHaveValue` reprova — a iteração seguinte preenche com a página já viva.
+ * Esperar por `networkidle` ou por um `waitForTimeout` não serviria: nenhum dos
+ * dois diz que o React assumiu o campo.
+ */
 async function entrarPelaTela(
   page: Page,
   email: string = EMAIL_SEED,
   senha: string = SENHA_SEED,
 ) {
-  await page.getByLabel("Seu e-mail").fill(email);
-  await page.getByLabel("Sua senha").fill(senha);
+  const campoEmail = page.getByLabel("Seu e-mail");
+  const campoSenha = page.getByLabel("Sua senha");
+
+  await expect(async () => {
+    await campoEmail.fill(email);
+    await campoSenha.fill(senha);
+    await expect(campoEmail).toHaveValue(email, { timeout: 1_000 });
+    await expect(campoSenha).toHaveValue(senha, { timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+
   await page.getByRole("button", { name: "Entrar", exact: true }).click();
 }
 

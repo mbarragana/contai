@@ -97,6 +97,15 @@ jobs:
       # WebKit, não Chromium: o config usa devices["iPhone SE"], cujo
       # defaultBrowserType é webkit. É o motor do alvo real do produto —
       # celular no canteiro, 375px.
+      # ~29s por rodada sem cache (medido no run 32640902865). A chave leva a
+      # versão do Playwright: browser velho com CLI nova é falha silenciosa.
+      - name: Cache do WebKit
+        id: cache-webkit
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: webkit-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - name: Instala o WebKit do Playwright
         run: npx playwright install --with-deps webkit
 

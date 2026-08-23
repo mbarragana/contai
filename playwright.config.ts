@@ -19,6 +19,10 @@ export default defineConfig({
   workers: 1,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
+  // O runner do GitHub roda a suíte em ~5,1 min contra ~2,2 min na máquina do
+  // Mateus. Os 5s padrão do `expect` são folgados aqui e apertados lá; medido
+  // no run 32640902865.
+  expect: { timeout: process.env.CI ? 15_000 : 5_000 },
   // No CI sai também o HTML, que é o que o workflow guarda como artefato
   // quando quebra — "list" sozinho não deixa nada para depurar depois.
   reporter: process.env.CI
