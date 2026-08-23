@@ -104,6 +104,11 @@ que segurar).
 | Última adjudicação fiscal | `docs/backlog/15-2026-08-21-adjudicacao-fiscal-contai-027.md` |
 | Ticket ainda por criar | `15-…-adjudicacao-fiscal-contai-027.md` → *"Ticket novo a criar — correção de valor de desembolso do terreno"*; e **`CONTAI-022`** (D26, cartão de crédito, **P0 fiscal**) e **`CONTAI-031`** (E2E da condição 6, P1, que **bloqueia a fatia 5 do `CONTAI-028`**) — nenhum dos dois existe como arquivo |
 
+✅ **7ª revisão aplicada em 2026-08-23**, direto em `docs/tickets/README.md`. O
+**porquê** — movimentos, cortes, a dívida da premissa paga e a **D44** — está em
+`docs/backlog/21-2026-08-23-setima-revisao-da-fila.md`, que **não repete a
+ordem**.
+
 ⚠️ **As 6 "Fila revista" do diário são REGISTRO HISTÓRICO, não a ordem de hoje.**
 Desde 2026-08-23 a ordem vive em `docs/tickets/README.md`, e só lá. As filas do
 diário ficam como o raciocínio datado de cada reordenação — 1ª e 2ª em
@@ -150,6 +155,7 @@ no bloco de decisões pendentes acima.
 | D41 — 4 textos desatualizados em mocks aprovados (login, defaults, carimbo) | `17-2026-08-22-o-que-a-extracao-dos-specs-achou.md` |
 | **D42 — condição fiscal 6 sem rede NENHUMA** (nem unit, nem E2E): correção de classificação pode inventar retificadora | `19-2026-08-23-duas-condicoes-fiscais-sem-rede.md` → **`CONTAI-031` (E2E), P1**, decidido em `20-2026-08-23-gate4-contai-029.md`. **Bloqueia a fatia 5 do `CONTAI-028`** |
 | D43 — formato do rastro (`p_depois`) é expressão anônima dentro da RPC, com **uma única** asserção E2E a protegê-lo | `19-…-duas-condicoes-fiscais-sem-rede.md`; **dividida em duas no Gate 4** (`20-…-gate4-contai-029.md`): o comentário-guarda em `e2e/correcao.spec.ts:96` vai no **`CONTAI-031`** (custo zero, hoje); a extração de `textoDoRastro` fica na **fatia 5 do `CONTAI-028`** |
+| **D44 — default em campo fiscal, EM PRODUÇÃO** (`app/adicionar/pagamento/page.tsx:163`, `:169`): a data do pagamento nasce `hoje` e o meio nasce `pix`. **Corrige o enquadramento da D41** | `21-2026-08-23-setima-revisao-da-fila.md` → **aguarda uma linha do `contador`**; se confirmada, vira `CONTAI-032` |
 | D40 — `lib/data.ts` monolítico (2065 linhas, 44 importadores) | `16-2026-08-22-custo-de-contexto-do-pipeline.md` → **`CONTAI-028`**; status em `18-2026-08-23-gate4-contai-028-fatia1.md` (**parcialmente paga**: 2065 → 1803) |
 
 O status de cada uma está na própria entrada — este índice aponta, não duplica.
@@ -326,6 +332,16 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
 - Duas ressalvas que viram trabalho de outro ticket
 - O que este gate decidiu sobre a fila: **D42 → `CONTAI-031` P1**, D43 dividida
 - Redação proposta para o Gate 4 do `develop.md`
+
+### `21-2026-08-23-setima-revisao-da-fila.md` — 206 linhas
+**7ª revisão da fila — 2026-08-23 — a primeira que não mora aqui**
+- O que mudou em relação à 6ª revisão, e por quê (sete movimentos)
+- ⛔ A ordem do release foi invertida — `0009`/`0010` e código já pushado
+- 🕯️ D44 — default em campo fiscal, em produção
+- O que eu cortei, e por quê · a dívida da premissa de 18/08, PAGA caso a caso
+- O que continua parado esperando o Mateus · o que a revisão NÃO fez
+
+⚠️ **A ordem NÃO está nesta entrada** — está em `docs/tickets/README.md`.
 
 ---
 

@@ -18,11 +18,11 @@ Quem guarda o quê, e é para ficar assim:
 Reordenar é ato do `po`, e ele escreve o **porquê** como entrada nova no diário —
 mas a ordem em si se aplica **aqui**, e em nenhum outro lugar.
 
-⚠️ **Pendente: a 7ª revisão.** A ordem abaixo é a 6ª (18/08) com os entregues
-removidos por mim. Ela **não** absorveu o que mudou desde então — D41, D42, D43,
-os dois P0 sem arquivo (`CONTAI-022`, `CONTAI-031`) nem o `CONTAI-031` bloqueando
-a fatia 5 do `CONTAI-028`. Até o `po` reordenar, trate isto como inventário
-ordenado, não como decisão de prioridade.*
+✅ **7ª revisão da fila — aplicada em 2026-08-23 pelo `po`.** É a primeira que
+nasce aqui em vez de nascer no diário. O **porquê** de cada movimento está em
+`../backlog/21-2026-08-23-setima-revisao-da-fila.md` — inclusive o que foi
+cortado e o que continua parado esperando o Mateus. A ordem, o status e os
+hashes são deste arquivo.
 
 **Legenda**: ✅ done · 🔨 em desenvolvimento · 🟢 pronto para `/develop`
 · 🟡 bloqueado por gate · 🔴 sem arquivo (só backlog)
@@ -59,6 +59,26 @@ de quem escreveu a linha.
 
 ---
 
+## ⚠️ BLOQUEIO DE RELEASE — código pushado exigindo migration que pode não estar no remoto
+
+*Levantado na 7ª revisão (23/08). É o item nº 1 do projeto, e não é ticket.*
+
+A regra do `CLAUDE.md` é **`npx supabase db push` ANTES de `git push`**, sem
+exceção. Hoje `origin/main` está **0 commits atrás de `main`** — ou seja, tudo
+foi pushado, e na Vercel push é deploy. Mas:
+
+| Migration | Quem exige | O que este arquivo afirmava |
+|---|---|---|
+| `0009_correcao_documento.sql` | `CONTAI-021` (em produção desde 21/08) | *"NÃO está no ar … `db push` quando o Mateus autorizar"* |
+| `0010_terreno_anexo.sql` | `CONTAI-027` rodada 2 (commitada e pushada em 21/08) | nunca registrada como aplicada |
+
+**Se as duas não estiverem no remoto, a correção de documento e o anexo do
+terreno estão quebrando em produção desde 21/08** — e quebrando do jeito que o
+`CLAUDE.md` descreve: não aparece no build, não aparece no teste, aparece no
+dedo do Mateus. **Uma linha do Mateus fecha isto**: *as migrations 0009 e 0010
+já foram aplicadas no projeto remoto?* Se não, `npx supabase db push` antes de
+qualquer outra coisa.
+
 ## Em produção — o que já está no ar
 
 | # | Ticket | Status | Ressalva viva |
@@ -67,38 +87,62 @@ de quem escreveu a linha.
 | 002 | Autenticação | ⚠️ **rebaixado em 18/08** (era "done") | mesmos quatro hashes ausentes. Ressalva **aberta**: R2 (prova no aparelho real) **transferida ao 014**, não resolvida. **Método trocado para e-mail+senha em 18/08** — reabre a validação de tela |
 | 018 | Vínculo pagamento↔nota | ⚠️ `G1:b574316 G2:22279c0 G3:1710dc6 G4:3b9c26e` | **Quatro gates fechados e em produção** (push de 18/08, `b807901`). Fica ⚠️ e não ✅ porque os hashes acima foram **reconstruídos das mensagens de commit**, não lidos de um log de gate no ticket. Vira ✅ quando o `/develop` registrar os quatro no corpo do `CONTAI-018.md`. Corte vivo: critério 18 → `CONTAI-020` |
 | 003 | Cadastro de obra e obra ativa | ⚠️ `G1:5550d11 G2:e72bf35 G3:papel G4:papel` | **Desempatado em 18/08**: o `cto-obra` adotou a posição do `lead`. G3 fecha por **evidência transitiva** (o quality do CONTAI-002 rodou sobre árvore que já continha o 003 — hash no ticket), G4 vira **passe de papel em paralelo**. Vira ✅ só **junto com o commit de registro** |
+| 019 | Pagamento agendado (compromisso × pagamento) | ⚠️ `G1:df36b41 G2:50958a1 G3:3ec2913 G4:7c37b45` | **Entregue em 18/08, 49/49 critérios**, depois de um FAIL de Gate 4 por lastro documental (fechado pelo ADENDO 4, `d69a3cf`). Migration **0007**. Fica ⚠️ porque o hash do G4 foi **reconstruído da mensagem de commit** — vira ✅ quando o corpo do ticket registrar os quatro. Ressalva viva: **o mock v2 está DEFASADO em 4 pontos** (borda sólida no vencido, data pré-preenchida, s12 sem as cinco resoluções, sem a tela `/compromisso`) — não bloqueia o PASS, bloqueia quem for desenhar em cima. Ressalva **D28**: a `US-004` tem de chamar `podeGerarRelatorioAnual`. **Destravou o `CONTAI-022`** |
+| 010 | Terreno financiado (Passo 1: captura) | ✅ `G1:ebe0bfc G2:be31bc4 G3:f54751c G4:960578c` | **DONE em 19/08**, com o log no corpo do ticket. Migration **0008** — a primeira destrutiva do projeto, **sem backfill**, descarte autorizado pelo Mateus. ⚠️ **Ressalva viva, e não é de software**: a obra está com terreno **R$ 0,00** até o Mateus redigitar os três desembolsos com as datas e lançar o informe de 2025 — e o ano-base 2025 **já foi declarado com o terreno dentro**. Seguros seguem em aberto (ADENDO 4). Passo 2 (critérios 17 e 20) foi para a **US-004** |
+| 021 | Corrigir documento já registrado | ✅ `G1:2cefc62 G2:29d6144 G3:e517cc2 G4:32914b1` | **DONE em 21/08 — os quatro gates, com o log no corpo do ticket.** Mock v2 aprovado em 19/08 (`ad07fd8`, 27 telas). Gate 2 fechou depois de um loop de **seis bloqueantes**, o primeiro fiscal: a tela do desfecho misto afirmava número **falso, sempre para MAIS**. Entregou o **critério 13** (conserto de bug em produção, `moverDocumentoDeObra`) — **só do lado do documento**; o espelho é o `008`. ⚠️ **Exige a migration `0009` no remoto** — ver o BLOQUEIO DE RELEASE no topo. Ressalvas **R1-R5** no backlog; **R1-R3 viraram os critérios 13-15 do `008`** |
+| 030 | Prazo de guarda que o app afirma depois de todo registro | ⚠️ `934f81a` **(rebaixado na 7ª revisão)** | **Entregue em 22/08** e corrigiu **erro fiscal em produção**: a confirmação de TODO registro dizia *"Original guardado no acervo — fica disponível até a venda + 5 anos"* — errado no prazo **e** na palavra *Original*. Texto novo sancionado pelo `contador`, sem número de prazo em tela; o **parecer foi corrigido primeiro**, porque o LEIA-ME do `011` o copia literalmente. **Fica ⚠️, não verde**: entregue em commit único, sem os quatro hashes de gate. É a regra do `cto-obra` aplicada a quem a escreveu depois — o `grep` de verificação acusava esta linha hoje |
+| 029 | Teste unitário para os mappers da camada de dados | ⚠️ `20d4d0e` **(rebaixado na 7ª revisão)** | **Entregue em 23/08**: 76 casos, 14/14 mappers, Vitest 412→488, zero código de produção no diff. Achou **D42** (condição fiscal 6 sem rede nenhuma → `CONTAI-031`) e **D43** (formato do rastro protegido por uma única asserção E2E). O critério 4 estava **pedindo um bug** e foi reescrito em 4a/4b. **Fica ⚠️, não verde**: quatro gates rodaram, um hash só foi registrado |
+| 028 | Quebrar `lib/data.ts` em módulos por entidade — **fatia 1 de 7** | 🔨 `a9ef819` | **Só a fatia 1 está entregue** (23/08): os 14 mappers puros foram para `lib/dados/comum.ts`, barrel de volta a **63 exports exatos**, golden snapshot byte a byte. O ticket **segue aberto** e as fatias 2-7 estão no fim da fila — ver a proposta de corte em "Depois" |
 
 ## Fila de implementação
 
-*Renumerada em 2026-08-23: começava em 4 porque os itens 1-3 foram entregues e
-migraram para "Em produção". Fechar o buraco é manutenção; **reordenar é ato do
-`po`**, e a 7ª revisão continua devendo.*
+*7ª revisão, 2026-08-23. Renumerada de ponta a ponta — a numeração anterior era
+a 6ª com os entregues removidos, o que é **inventário**, não decisão. Raciocínio
+em `../backlog/21-2026-08-23-setima-revisao-da-fila.md`.*
+
+**O critério de ordenação, dito uma vez**: primeiro o que já está **em voo**
+(código sem revisor é a dívida mais cara do projeto), depois o **P0 fiscal** que
+falha por fora (fato que não tem onde ser registrado), depois o **P0 fiscal** que
+falha por dentro (registro que grava estado inválido), depois o resto.
 
 | Ordem | # | Ticket | P | Status | O que trava |
 |---|---|---|---|---|---|
-| **1** | **021** | **Corrigir documento já registrado** | P1 | ✅ `G1:2cefc62 G2:29d6144 G3:e517cc2 G4:32914b1` | **DONE em 21/08 — os quatro gates, com o log no corpo do ticket.** Mock **v2** aprovado pelo Mateus em 19/08 (`ad07fd8`, 27 telas); Gate Fiscal em arquivo, com adendo de 19/08 (§5.1-5.5). Gate 2 fechou com **APPROVE dos dois revisores** depois de um loop de **seis bloqueantes** — o primeiro deles fiscal: a tela do desfecho misto afirmava número **falso, sempre para MAIS**. Gate 4 teve **um loop** (`3f04536`): o histórico mostrava o **token do enum** onde o mock mostra a frase do Mateus. Entregou o **critério 13**, que é conserto de bug **em produção** (`moverDocumentoDeObra`) — e **só do lado do documento**. ⚠️ **NÃO está no ar**: migration **0009** e assinatura de função alterada, `db push` **antes** do `git push`, quando o Mateus autorizar. Ressalvas vivas: **R1-R5** no backlog, das quais **R1-R3 viraram os critérios 13-15 do `008`**; **D35** (o app não abre anexo nenhum) virou dor P1 → **`CONTAI-027`, rodada 1** |
-| **2** | **008** | **Mover PAGAMENTO entre obras sem quebrar o vínculo** | **P0** | 🟡 | **REABERTO em 19/08** — a condição que o segurava ("defeito inatingível pela interface") **caducou** quando o `CONTAI-018` foi ao ar em 18/08. `moverPagamentoDeObra` é o **mesmo `UPDATE` seco** do critério 13 do `021`, na direção espelhada: custo cai na origem, **"pago sem nota" sobe no destino** por um fato que não aconteceu, e sobra vínculo cruzando duas obras. **Trava**: mock (a tela espelhada não existe) + **pergunta 1 do Gate Fiscal**, aberta desde 10/08 (NF de serviço + CNO). **Dependência do `021` SATISFEITA em 21/08** (os quatro gates fechados) — a máquina que ele reusa (`revisao`, `ato_id`, função transacional, pendência por ano) existe. **Passa a ser a ordem 1 da fila.** Herdou do Gate 4 do `021` os **critérios 13-15**: dedupe do array de decisões, rastro do vínculo legível (UUID cru e hora **UTC**) e a morte do `corrigir-obra.tsx`. O critério 12 mudou de verbo: `alocarCusto` **reporta** o vínculo órfão, não basta comentário honesto |
-| **3** | **019** | **Pagamento agendado (compromisso × pagamento)** | P1 | 🔨 | **G4 fechado em 18/08 após um FAIL e o conserto.** G1a `0441187` · G1b `df36b41` · G2 `50958a1` · G3 `3ec2913` · G4 `po`. O FAIL foi por **lastro documental** — a quinta resolução da diferença estava no enum e **não no parecer**; fechado pelo **ADENDO 4** (`d69a3cf`). ⚠️ **Ressalva viva: o mock v2 está DEFASADO em 4 pontos** (borda sólida no vencido, data pré-preenchida, s12 sem as cinco resoluções, sem a tela `/compromisso`) — tarefa do `designer`, **não bloqueia o PASS**, bloqueia quem for desenhar em cima. Ressalva **D28**: a `US-004` tem de chamar `podeGerarRelatorioAnual` |
-| 1 | 014 | Manifest de PWA + prova no aparelho | P1 | 🟢 | Gate 0 substituído por aprovação de ícone |
-| 2 | 004 | Nº do documento e data de emissão | P0 | 🟡 | **mock pendente** — mesmo passe do 007 |
-| 2 | 007 | CNO referenciado na NF de serviço | P0 | 🟡 | **mock pendente** + **6 pontos a reescrever** |
-| 3 | 009 | Detalhe do pagamento | P0 | 🟡 | Gate 0 aprovado 16/08; **5 perguntas em aberto** |
-| 4 | 005 | Headline da home (reduzido a corte) | P0 | 🟡 | **mock v5 pendente**. Decisão nº 1 fechada em 17/08: R$ 49.850 |
+| **1** | **027** | **Ver o anexo, e anexar mais de um** | P1 | 🔨 **EM VOO** | ⚠️ **Gate 1 das DUAS rodadas está commitado E PUSHADO desde 21/08 (`1ff74c9`…`53acc37`, migration `0010`), e os Gates 2, 3 e 4 NUNCA RODARAM.** Não há nada travando: o mock foi **aprovado em 21/08** (a linha antiga deste arquivo dizia *"mock não existe — rodar `/design`"*, e era falsa), o Gate Fiscal está em arquivo e o critério 1 está marcado `[x]` no ticket. **Retomar no Gate 2.** É o único item da fila cujo código já está na frente do Mateus sem ter passado por revisor — a regra do projeto é que quem implementa nunca revisa o próprio código, e hoje ninguém revisou |
+| **2** | **022** | **Cartão de crédito (compra → fatura)** | **P0** | 🔴 sem arquivo | **Item mais velho em aberto do projeto — reservado em 18/08, cinco dias sem existir.** `meio = cartao` é **recusado na entrada**, então a compra no cartão **não é registrada em lugar nenhum**: é a meta 1 falhando pelo lado de fora. **O bloqueio caiu**: dependia da entidade `compromisso`, que o `CONTAI-019` entregou. **Não espera nada do Mateus** — a Q4 fechou em 08/08 e o §B do parecer de 18/08 traz os **10 critérios já redigidos**. Precisa de `/tickets-req` e de `/design` (o mock do 019 não tem uma única tela de cartão). Única decisão de escopo, e é do `po`: **parcelado entra na v1 ou é recusado na entrada com mensagem explícita** (o §B autoriza as duas) |
+| **3** | **008** | **Mover PAGAMENTO entre obras sem quebrar o vínculo** | **P0** | 🟡 | Bug **alcançável pela interface** desde que o `CONTAI-018` foi ao ar: `/pagamento/[id]/obra` grava estado inválido em silêncio — custo cai na origem, *"pago sem nota"* sobe no destino por um fato que não aconteceu, e sobra vínculo cruzando duas obras. **Dependência do `021` satisfeita em 21/08.** **Trava**: mock da tela espelhada + **pergunta 1 do Gate Fiscal** (NF de serviço + CNO), aberta desde 10/08 e **prima da Q14**. Herdou os **critérios 13-15** do Gate 4 do `021` |
+| **4** | **004** + **007** | Nº do documento e data de emissão · CNO referenciado na NF de serviço | **P0** | 🟡 | **Dividem a ordem de propósito**: mesmo formulário, mesmo passe de mock. **Trava: mock.** ⚠️ O `007` ganhou uma trava a mais nesta revisão: a contradição interna dele (*"não precisa de mock, a tela é mínima para o polegar"*) **caiu junto com a régua velha** — sob a régua de gestão, **ele precisa de mock**, e a revisão de Passo 1 (6 pontos) começa por aí |
+| **5** | **009** | Detalhe do pagamento | **P0** | 🟡 | Gate 0 aprovado em 16/08; **5 perguntas em aberto**. Nesta revisão ganhou vizinho: o texto *"o ano sai da data do pagamento, não a da nota"* do `#s7` é **redação do `designer` sem carimbo do `contador`** (D41) |
+| **6** | **005** | Headline da home (reduzido a corte) | **P0** | 🟡 | **mock v5 pendente**. Decisão nº 1 fechada em 17/08: R$ 49.850. É o último P0 da fila que depende **só de mock** |
+| **7** | **031** | E2E da condição fiscal 6 | P1 | 🔴 sem arquivo | Precisa de `/tickets-req`. O código está **certo** hoje — falta rede. **Bloqueia a fatia 5 do `CONTAI-028`**: rede antes do refactor, nunca depois. Leva junto o comentário-guarda de `e2e/correcao.spec.ts:96` (D43) |
+| **8** | **014** | Manifest de PWA + prova no aparelho | P1 | 🟢 | **Único 🟢 da fila inteira.** Gate 0 substituído por aprovação de ícone. Fica em 8 e não em 1 de propósito: nenhuma das três metas depende dele |
+| **9** | **006** | Estados de rede lenta/indisponível | P1 | 🟢 | Sem bloqueio. ⚠️ **rodar sozinho na árvore** — toca muitos arquivos |
 
-*O `004` e o `007` dividem a ordem 5 de propósito: mesmo formulário, mesmo passe
-de mock. O `008` entrou na ordem 2 em 19/08 e empurrou todos os demais um degrau:
-não é preferência, é a **outra metade** do bug que o `021` conserta — deixá-lo
-para depois de cinco tickets é manter a porta dos fundos aberta com a da frente
-consertada, que é a pior combinação possível.*
+### ⚠️ O que a fila diz de si mesma, e é desconfortável
 
-⚠️ **`CONTAI-022` está RESERVADO e não tem arquivo** — é o **fluxo do cartão de
-crédito** (dor **D26**), aberto pelo `contador` no adendo §B de 18/08: a compra
-**nasce compromisso**, e o custo é do ano em que a **fatura** é paga. **P0
-fiscal** — hoje essas compras não são registradas em lugar nenhum —, **bloqueado
-pelo `CONTAI-019`** (precisa da entidade `compromisso`) e **precisa de mock
-próprio**: o mock do 019 não tem uma única tela de cartão. A **regra fiscal já
-está escrita**; falta ticket e Gate 0. O 019 fica com a **guarda** (critérios
-25-27), que impede o custo de cair no mês errado enquanto isso.
+**Sete dos nove itens não podem entrar no `/develop` hoje.** Cinco travam em
+**mock** (`008`, `004`, `007`, `005`, e o `022` que ainda nem tem ticket) e dois
+travam em **arquivo de ticket** (`022`, `031`). **Mock é aprovação do Mateus** —
+o gargalo do projeto não é capacidade de implementar, é a fila de mocks
+esperando o dedo dele. Isso não se resolve reordenando; está dito aqui para não
+ser descoberto de novo daqui a cinco dias.
+
+### 🕯️ Candidato a P0 aguardando UMA linha do `contador` — D44
+
+Achado nesta revisão, e **não** é dor de mock: `app/adicionar/pagamento/page.tsx`
+**em produção** nasce com `data = hoje` (`:163`) e `meio = "pix"` (`:169`). O
+spec do mock do `CONTAI-019` diz, do mesmo campo: *"`fData` … **SEM DEFAULT —
+campo fiscal**"*, e a decisão nº 1 de fechamento do `019` já julgou o caso irmão
+(a data prevista na confirmação) com a frase *"preencher afirma fato
+inexistente"*. **A data do pagamento é a chave do regime de caixa** — um PIX de
+30/12 registrado em 03/01 sem tocar no campo cai no ano errado, calado.
+
+O que salvava o pré-preenchimento era *"captura no canteiro, com pressa"* — a
+régua que **caiu em 18/08**. **Pergunta ao `contador`, uma linha**: a proibição
+de default em campo fiscal alcança a data e o meio do formulário de registro
+direto? Se sim, é `CONTAI-032`, entra na **ordem 2** (é da classe do
+`CONTAI-030`: texto/estado errado em produção, conserto de um dia) e o `meio`
+vai junto, porque PIX pré-selecionado é o caminho por onde uma compra no cartão
+vira PIX sem ninguém decidir.
 
 ⚠️ **`CONTAI-020` está RESERVADO e não tem arquivo** — é a **fila de
 conciliação**, cortada do critério 18 do `CONTAI-018` (ver
@@ -107,32 +151,32 @@ disser que a home não basta. Não reutilizar o ID.
 
 ## Bloco de deploy — fora da fila de implementação
 
+*Ordem alterada na 7ª revisão: o item **0** não é ticket e vem antes de tudo.*
+
 | # | Ticket | P | Status | Nota |
 |---|---|---|---|---|
+| **0** | **Aplicar `0009` e `0010` no projeto remoto** | **P0** | ⛔ | **Não é ticket, é a ordem obrigatória do release invertida.** Ver o BLOQUEIO DE RELEASE no topo deste arquivo. `npx supabase db push`, conferir em Database → Migrations, e só então seguir. **Bloqueia o `013` e qualquer deploy novo** |
 | 012 | Manter o Supabase acordado | P1 | 🟢 | sem tela, sem impacto fiscal |
 | 013 | Configuração de produção do login | P0 | 🟢 | **encolheu** — SMTP e template saíram com a troca para senha |
 | 014 | Prova no aparelho real | P1 | 🟢 | mesmo deploy de preview do 013 |
 
 ## Depois
 
+*Reordenado na 7ª revisão. **Nenhum item daqui entra no `/develop` antes de a
+fila acima esvaziar** — e três deles estão propostos para corte.*
+
 | # | Ticket | P | Status | Nota |
 |---|---|---|---|---|
-| 010 | Terreno financiado (Passo 1: captura) | P0 | ✅ `G1:ebe0bfc G2:be31bc4 G3:f54751c G4:960578c` | **DONE em 19/08 — os cinco gates, com o log no corpo do ticket.** Migration **0008** (a primeira destrutiva do projeto: as tres colunas de terreno morrem, **sem backfill** — descarte autorizado pelo Mateus em 19/08). O Gate 2 deu **REQUEST CHANGES** nos dois: os bloqueadores eram o mesmo defeito **D34** em dois lugares — numero menor que a realidade **sem dizer que era menor**. ⚠️ **Ressalva viva, e nao e de software**: a obra esta com terreno **R$ 0,00** ate o Mateus redigitar os tres desembolsos com as datas e lancar o informe de 2025 — e o ano-base 2025 **ja foi declarado com o terreno dentro**. Seguros seguem **em aberto** (ADENDO 4). Passo 2 (criterios 17 e 20) foi para a **US-004** no backlog |
-| 011 | Export do acervo | P0 | 🟡 | Gate 0 aprovado 16/08; **P1 do CTO** (fonte do estado) pendente. ⚠️ **Restrição nova de 21/08** (§4 do Gate Fiscal do `027`): com N anexos por lançamento, o índice do dossiê põe **cada anexo em linha própria com hash**, o **valor uma única vez na linha do lançamento** e a declaração de que os N anexos compõem **um** desembolso — *"um dossiê que induz soma errada é pior que um incompleto"* |
-| 016 | Tipo de empreitada na obra | P0 | 🟡 | ramo `total` **bloqueado** — o texto do contador não está em arquivo. Não exige mock |
+| 011 | Export do acervo | **P0** | 🟡 | **O único P0 desta seção, e ele serve a META 3 diretamente.** Gate 0 aprovado em 16/08; trava é a **P1 do CTO** (fonte do estado) — decisão do `cto-obra`, **não do Mateus**. ⚠️ **Restrição nova de 21/08** (§4 do Gate Fiscal do `027`): com N anexos por lançamento, o índice do dossiê põe **cada anexo em linha própria com hash**, o **valor uma única vez** na linha do lançamento e a declaração de que os N anexos compõem **um** desembolso — *"um dossiê que induz soma errada é pior que um incompleto"*. **Sobe para a fila assim que a P1 do CTO for respondida** |
+| 016 | Tipo de empreitada na obra | P0 | 🟡 | Ramo `total` **bloqueado** pela mesma coisa há 13 dias: o parecer de **empreitada total × parcial** (10/08) **só existe em transcript**. Não exige mock. ⚠️ **Amarrado à Q14** — as duas se resolvem com a mesma resposta |
+| 024 | Corrigir informe/contrato do financiamento, **com rastro** | P1 | 🔴 | Criado no Gate 2 do `010`. O Gate 2 **tirou o `grant update`** de `financiamento` e `financiamento_informe`: grant sem tela não entrega o remédio que promete — informe com **duas rubricas trocadas entre si** fecha a soma, então nem a trava nem o CHECK acusam, e o `unique` trava o ano-base **para sempre**. Grant volta no mesmo diff que a tela e o histórico. Inclui `previsto` → `pago` |
+| 025 | *"Paguei, mas não sei a data"* — o terceiro estado | P1 | 🔴 | Criado no Gate 2 do `010`. O estado `(pago, sem data)` **já é representável e já foi testado**, mas ficou inalcançável depois do descarte do backfill. O formulário, diante de quem não lembra o dia, **convida a inventar uma data**. ⚠️ **Parente direto da D44** (o `data = hoje` do formulário direto): se o `contador` julgar a D44, julga os dois — considerar fundir |
 | 017 | Lista de notas a cobrar (tela 14) | — | 🟡 | **cortado**, com condição de volta escrita. Depende de 004 + 007 |
-| 006 | Estados de rede lenta/indisponível | P1 | 🟢 | sem bloqueio. ⚠️ **rodar sozinho na árvore** — toca muitos arquivos |
-| 015 | Captcha no login | P2 | 🟡 | mock pendente. `po` recomendou cortar; Mateus manteve como ticket |
-| 022 | Cartão de crédito (compra → fatura) | P0 | 🔴 | **reservado em 18/08**, sem arquivo. Bloqueado pelo 019; regra fiscal pronta (adendo §B) |
-| 023 | Tirar "regime de caixa" das 4 telas restantes | P2 | 🟢 | **criado no Gate 4 do 019** (18/08), da dor **D31**. Sem mock e sem Gate Fiscal — texto já ratificado no §F.5. **S.** Dos primeiros a ceder se a fila apertar |
-| 024 | Corrigir informe/contrato do financiamento, **com rastro** | P1 | 🔴 | **criado no Gate 2 do 010** (19/08). O Gate 2 **tirou o `grant update`** de `financiamento` e `financiamento_informe`: grant sem tela nao entrega o remedio que promete — informe com **duas rubricas trocadas entre si** fecha a soma, entao nem a trava nem o CHECK acusam, e o `unique` trava o ano-base **para sempre**. Grant volta no mesmo diff que a tela e o historico. Inclui `previsto` -> `pago` |
-| 025 | *"Paguei, mas nao sei a data"* — o terceiro estado | P1 | 🔴 | **criado no Gate 2 do 010** (19/08). O estado `(pago, sem data)` **ja e representavel e ja foi testado**, mas ficou inalcancavel depois do descarte do backfill. O formulario, diante de quem nao lembra o dia, **convida a inventar uma data**. Desempatar o criterio 3 do 010 contra o *"nao bloqueie quando o fato ja aconteceu"* do 019 e de `po` + `contador` |
-| 026 | Terreno recebido (heranca, doacao, permuta) | P2 | 🔴 | **criado no Gate 2 do 010** (19/08). A natureza e oferecida e a tela explica que ha **data de aquisicao sem desembolso**, mas nao ha onde registrar o valor: quem escolher fica com **custo zero**. Nao afeta o Mateus (financiado) |
-| 027 | **Ver o anexo, e anexar mais de um** | P1 | 🟡 | **criado em 21/08**, do **relato 004** (*"eu fiz mais de uma transferência"*). **Duas rodadas**: a **1** é a **D35** — o app não abre anexo nenhum, em tela nenhuma — e **vai primeiro**, sem migration; a **2** é a **D37**, N anexos por lançamento, começando pelo terreno. **Gate Fiscal fechado** (21/08): derrubou a trava de soma e o campo de data por anexo, e pôs no lugar **uma pergunta binária no 2º anexo** cuja pendência **bloqueia a discriminação do ano**. **Viabilidade fechada**: molde é **tabela filha por entidade** (no padrão de `documento_anexo`) — decisão de arquitetura para o modelo inteiro, aplicada **só ao terreno** agora. ⚠️ **Trava: mock (Gate 0) não existe** — rodar `/design`. ⚠️ A rodada 2 exige a **`0009` no remoto**: as duas migrations sobem no **mesmo `db push`**. **M**
-| 028 | **Quebrar `lib/data.ts` em módulos por entidade** | P2 | 🟡 | **FATIA 1 DE 7 ENTREGUE em 23/08** (`a9ef819`): os 14 mappers puros foram para `lib/dados/comum.ts`, barrel de volta a **63 exports exatos**, golden snapshot byte a byte, 4 gates fechados. **Fatias 2-7 no fim da fila** (atrás do bloco fiscal). ⚠️ A **fatia 5 está bloqueada pelo `CONTAI-031`** — rede antes do refactor. | **criado em 22/08**, da dívida **D40** (`docs/backlog/16-2026-08-22-custo-de-contexto-do-pipeline.md`). Chore de **movimentação pura**: 2065 linhas / 63 exports / 36 importadores viram `lib/dados/` com 13 módulos, e `lib/data.ts` fica como **barrel** — nenhum importador no diff. **Sem UI**, sem mock, sem migration, sem `GRANT`. **Tem Gate Fiscal**: o arquivo é a única fronteira entre o banco e as duas apurações, e o `contador` nomeou 16 condições que o refactor preserva (`numericParaCentavos` aceitando `number` e string, `p_anos: []` na classificação, `ignoreDuplicates` em `garantirFavorecido`, o ato atômico do desembolso do terreno). Prova de equivalência = `npm run quality` verde **sem editar teste** + **golden snapshot byte a byte** contra o Postgres local. ⚠️ **Roda sozinho, com a fila parada** — toca o arquivo que quase toda tela importa. ⚠️ **P2 que cede a qualquer item fiscal em aberto**: a dor é do time de agentes, não do Mateus |
-| 029 | Teste unitário para os **mappers** da camada de dados | P1 | ✅ `20d4d0e` | **DONE em 23/08**, 4 gates. 76 casos, 14/14 mappers, Vitest 412→488. Achou **D42** (condição fiscal 6 sem rede nenhuma → `CONTAI-031`) e **D43** (formato do rastro protegido por uma única asserção E2E). | **criado em 22/08**, do out-of-scope do `028`. ⚠️ **Corrige uma premissa errada**: `lib/data.test.ts` **não é monolítico** — tem **62 linhas**. O buraco são as **14 funções puras** de `row`→domínio dentro de `data.ts` (`paraObra`, `paraDocumento`, `paraAnosJson`, `paraAnoAfetado`, `agruparVinculos`…), **nenhuma exportada, nenhuma testada** — e é nelas que mora a assimetria deliberada `documento.valor null → null` × `pagamento → ?? 0` (unificar faz nota sem valor virar **R$ 0,00 declarado**). `lib/fiscal/*` já tem 5.400+ linhas de teste e `lib/money.ts` já cobre `numeric`↔centavos. **Bloqueado pelo `028` fatia 1**: testar antes exigiria exportar privado só para o teste ver, quebrando o critério 3 do `028`. Sem UI, sem migration |
-| 030 | **Prazo de guarda que o app afirma depois de todo registro** | **P0** | ✅ | **criado e corrigido em 22/08.** Achado extraindo os specs dos mocks: `app/_components/registrado.tsx` dizia *"Original guardado no acervo — fica disponível até a **venda + 5 anos**"* **em produção**, depois de TODO registro. **Dois** erros: o prazo (atalho errado, corrigido em 16/08 — o relógio é o CTN art. 173, I; obra não vendida = **indefinido**) e a palavra *Original* (F3: *o papel é a prova, o arquivo é o localizador*) — a frase autorizava descartar o documento **e** o papel. Texto novo sancionado pelo `contador`, sem número de prazo em tela. ⚠️ O erro estava **no parecer** também (*"declaração que informar a venda"* × *última que informar **qualquer parcela***): corrigido **primeiro**, porque o LEIA-ME do `011` o copia literalmente. Nível 3 (só texto), sem mock. E2E `ingestao.spec.ts` reforçado com 2 asserções negativas |
-| 031 | **E2E da condição fiscal 6 — a correção de classificação que não pode inventar retificadora** | P1 | 🔴 | **reservado em 23/08 no Gate 4 do `029`, ainda SEM ARQUIVO — precisa de `/tickets-req`.** Da dívida **D42**. O `contador` achou no Gate 2 do `029`: a condição *"só a classificação muda → `p_anos: []`, nenhuma pendência nasce"* **não tem rede nenhuma** — nem unitária (o call-site é I/O) nem E2E (`acervo.spec.ts:205` só abre a tela, não submete). Se quebrar, corrigir material↔mão de obra passa a **abrir pendência de retificadora sobre ano já declarado** por uma correção que não move um centavo; e o inverso, pendência que devia nascer e não nasce, é pior. Escopo: E2E que submete a correção de classificação e confere `revisao_ano_afetado` **vazio**, mais o **comentário-guarda** em `e2e/correcao.spec.ts:96` (D43) avisando que `depois` é **texto** e que uniformizar a asserção para `Number(...)` derruba a única rede do formato do rastro. **P1, não P0** — o código está certo hoje, falta rede. Entra **atrás** do bloco fiscal (Q14, `CONTAI-022` P0, D24, D25, D-018.1/2/9), mas **BLOQUEIA a fatia 5 do `CONTAI-028`**: rede antes do refactor, porque teste escrito por quem acabou de mover a linha prova a movimentação, não a regra |
+| 023 | Tirar "regime de caixa" das 4 telas restantes | P2 | 🟢 | Da dor **D31**. Sem mock e sem Gate Fiscal — texto já ratificado no §F.5. **S.** Segue sendo dos primeiros a ceder se a fila apertar |
+| 028 | Quebrar `lib/data.ts` — **fatias 2-7** | P2 | 🟡 | ⚠️ **CORTE PROPOSTO na 7ª revisão, com uma exceção.** As seis fatias restantes entregam **custo de leitura de agente** — que não serve a nenhuma das três metas. A fatia 1 tinha consumidor (`029`) e foi entregue; as outras não têm. **Exceção que sobrevive**: a extração de `textoDoRastro` (fatia 5), que é a cura da **D43** e tem consequência fiscal — ela se agrega ao próximo ticket que tocar aquele call-site. **Condição de volta**: um ticket fiscal medir de novo o custo de leitura de `lib/data.ts` e achá-lo proibitivo. Enquanto isso, a trava do `erros.ts` continua valendo (não ganha export novo antes do reexport nomeado) |
+| 015 | Captcha no login | P2 | 🟡 | ⚠️ **CORTE RE-RECOMENDADO na 7ª revisão, com argumento novo.** O `po` já recomendara cortar por fricção com uma mão — **esse argumento morreu** com a régua de 18/08. O que o substitui é mais forte: o captcha existia para proteger o **limite de 2 e-mails/hora** do envio de código, e o login **virou e-mail+senha em 18/08** — não há mais envio a proteger. Não serve a nenhuma das três metas. **Decisão do Mateus**, que já o manteve uma vez |
+| 026 | Terreno recebido (herança, doação, permuta) | P2 | 🔴 | ⚠️ **CORTE PROPOSTO na 7ª revisão.** O sistema existe para **esta** obra: o terreno **já foi adquirido e é financiado**, e nenhuma das três naturezas pode ocorrer nela. Manter o item é escrever produto para construtora, que é o escopo declarado fora. **Condição de volta escrita**: uma segunda obra cujo terreno venha por herança, doação ou permuta. O buraco real que ele nomeia — *quem escolher essa natureza fica com custo zero* — se fecha hoje **não oferecendo a natureza**, e isso é uma linha, não um ticket |
+
 
 ## Stories ainda sem ticket
 
@@ -194,14 +238,25 @@ regra de o parecer citar o identificador entre crases).
 3. **CONTAI-007 precisa de revisão de Passo 1** — seis pontos, incluindo uma
    contradição interna (declara que não precisa de mock e condiciona a própria
    aprovação a um).
-4. **Decisões tomadas sob a régua velha de cenário** — as três mais afetadas,
-   nomeadas pelo `cto-obra` em 18/08, **a reavaliar caso a caso**:
-   1. **corte do Google Calendar** — o veto era *"não abre agenda no canteiro"*;
-   2. **CONTAI-015 (captcha)** — o `po` recomendou cortar por fricção com uma
-      mão; **em casa a objeção enfraquece**;
-   3. **a contradição do CONTAI-007 sobre precisar de mock** — o *"não precisa,
-      a tela é mínima para o polegar"* **perde o fundamento**. A revisão de
-      Passo 1 do 007 deve reabrir este ponto primeiro.
+4. ~~**Decisões tomadas sob a régua velha de cenário**~~ — **PAGA na 7ª revisão
+   (23/08)**, caso a caso como o `cto-obra` pediu, e não em bloco. As três
+   julgadas, com o resultado:
+   1. **corte do Google Calendar — MANTIDO, com o fundamento trocado.** O veto
+      original (*"não abre agenda no canteiro"*) **morreu** junto com a régua.
+      O que sustenta o corte é outra coisa, e independe de onde ele usa o app:
+      *"não pagar juros"* é **gestão de caixa** e não serve a nenhuma das três
+      metas. O que serve — *data prevista passou sem confirmação* — o
+      `CONTAI-019` já entrega **in-app, custo zero, sem OAuth**. Corte
+      confirmado; o argumento do canteiro **não pode ser reusado**.
+   2. **CONTAI-015 (captcha) — CORTE RE-RECOMENDADO, com argumento novo.** A
+      objeção de fricção com uma mão caiu, mas a **razão de existir** do ticket
+      caiu junto: ele protegia o limite de 2 e-mails/hora do código por e-mail,
+      e o login virou **e-mail+senha em 18/08**. Ver a linha dele em "Depois".
+      **Decisão do Mateus.**
+   3. **CONTAI-007 — a contradição está RESOLVIDA: ele PRECISA de mock.** O
+      *"não precisa, a tela é mínima para o polegar"* era argumento de captura
+      aplicado a uma tela de **gestão**. A revisão de Passo 1 (dívida 3 acima)
+      começa por este ponto, e a fila já o registra como travado em mock.
 5. ~~**Dois briefs de agente contradizem o `CLAUDE.md`**~~ — **PAGA em 18/08**
    pelo Mateus, no commit `f7c22e6`: `.claude/agents/po.md` não diz mais
    *"venda + 5 anos"* e `.claude/agents/designer.md` não diz mais *"no canteiro…
