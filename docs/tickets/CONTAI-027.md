@@ -799,12 +799,16 @@ as duas rodadas.
 | **0 — mock** | aprovado pelo Mateus, `design/mocks/CONTAI-027.html` | 21/08 |
 | **1 — implementar** | duas rodadas, `1ff74c9`…`53acc37`, **commitado E PUSHADO sem revisor** | 21/08 |
 | **2 — review (pós-fato)** | `REQUEST CHANGES` do `cto-obra` + `APROVADO COM RESSALVAS` do `contador`; **os dois acharam o mesmo defeito, independentemente** | 23/08 |
-| **2b — retrabalho** | migration `0011`, `lib/data.ts`, `e2e/terreno-anexo.spec.ts`; APPROVE dos dois sobre o diff final. ⛔ **SEM HASH — nada foi commitado** | 23/08 |
-| **3 — quality** | 488 unitários + 132 E2E. ⛔ **SEM HASH — nada foi commitado** | 23/08 |
-| **4 — validação do `po`** | **PASS COM RESSALVA** (esta seção). ⛔ **SEM HASH — nada foi commitado** | 23/08 |
+| **2b — retrabalho** | migration `0011`, `lib/data.ts`, `e2e/terreno-anexo.spec.ts`; APPROVE dos dois sobre o diff final. `02fd6fb` | 23/08 |
+| **3 — quality** | 488 unitários + 132 E2E. `02fd6fb` | 23/08 |
+| **4 — validação do `po`** | **PASS COM RESSALVA** (esta seção). `02fd6fb` | 23/08 |
 
-⛔ **Os três `SEM HASH` são a condição de saída deste gate, não um detalhe de
-formatação.** Enquanto eles existirem, este ticket **não pode receber ✅** em
+✅ **Os três `SEM HASH` foram substituídos por `02fd6fb` em 2026-08-23**, na mesma
+passada do commit, como esta seção exigia. O que segue é o texto original da
+condição de saída, mantido porque a regra vale para o próximo ticket:
+
+> ⛔ **Os três `SEM HASH` eram a condição de saída deste gate, não um detalhe de
+> formatação.** Enquanto eles existirem, este ticket **não pode receber ✅** em
 `docs/tickets/README.md` — a coluna de lá é `G1:… G2:… G3:… G4:…`, e o
 `CONTAI-019` já ficou com ⚠️ permanente por ter **um** hash reconstruído da
 mensagem de commit. O estado correto é **🔨 fechado, aguardando commit**: quem

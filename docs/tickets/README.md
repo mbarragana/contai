@@ -1,6 +1,6 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 22 tickets
+## 🔎 O que está em aberto — 21 tickets
 
 *Uma linha por ticket, sem justificativa. O **porquê** de cada posição está nas
 seções longas abaixo; o **porquê da decisão** está em `../backlog.md`.
@@ -10,18 +10,17 @@ Atualizado em 2026-08-23.*
 
 | # | ID | O que é | P |
 |---|---|---|---|
-| 1 | **027** | Ver o anexo, e anexar mais de um | P1 |
-| 2 | **025** | *"Paguei, mas não sei a data"* — o terceiro estado | P0 por dependência |
-| 3 | **032** | Tirar `data = hoje` e `meio = "pix"` do formulário de pagamento | **P0** |
-| 4 | **022** | Cartão de crédito (compra → fatura) | **P0** |
-| 5 | **008** | Mover pagamento entre obras sem quebrar o vínculo | **P0** |
-| 6 | **004** | Nº do documento e data de emissão | **P0** |
-| 6 | **007** | CNO referenciado na NF de serviço | **P0** |
-| 7 | **009** | Detalhe do pagamento | **P0** |
-| 8 | **005** | Headline da home | **P0** |
-| 9 | **031** | E2E da condição fiscal 6 | P1 |
-| 10 | **014** | Manifest de PWA + prova no aparelho | P1 |
-| 11 | **006** | Estados de rede lenta/indisponível | P1 |
+| 1 | **025** | *"Paguei, mas não sei a data"* — o terceiro estado | P0 por dependência |
+| 2 | **032** | Tirar `data = hoje` e `meio = "pix"` do formulário de pagamento | **P0** |
+| 3 | **022** | Cartão de crédito (compra → fatura) | **P0** |
+| 4 | **008** | Mover pagamento entre obras sem quebrar o vínculo | **P0** |
+| 5 | **004** | Nº do documento e data de emissão | **P0** |
+| 5 | **007** | CNO referenciado na NF de serviço | **P0** |
+| 6 | **009** | Detalhe do pagamento | **P0** |
+| 7 | **005** | Headline da home | **P0** |
+| 8 | **031** | E2E da condição fiscal 6 | P1 |
+| 9 | **014** | Manifest de PWA + prova no aparelho | P1 |
+| 10 | **006** | Estados de rede lenta/indisponível | P1 |
 
 ### Bloco de deploy — fora da fila
 
@@ -151,6 +150,7 @@ qualquer outra coisa.
 
 | # | Ticket | Status | Ressalva viva |
 |---|---|---|---|
+| 027 | **Ver o anexo, e anexar mais de um** | ✅ `G1:1ff74c9…53acc37 G2-G4:02fd6fb` | **Duas dívidas vivas: D47** (`perguntaPendente` sem superfície de tela — ticket novo, e o `contador` exige parecer do texto do chip ANTES do mock) e **D48** (a justificativa de `completarDesembolsoTerreno` não ser atômico invoca uma tela que não existe). ⚠️ **Item 12d PENDENTE**, critério 13 CORTADO. Placar: 22 itens — 20 PASS. O Gate 1 ficou **2 dias pushado sem revisor**; os Gates 2-4 rodaram em 23/08 e acharam um defeito de rastro fiscal que **nunca virou dado** só porque o banco de produção está vazio |
 | 001 | Ingestão de NF/boleto | ⚠️ **rebaixado em 18/08** (era "done") | os quatro hashes **não estão registrados**. O ticket está em produção e ninguém duvida disso — o que falta é a prova em formato auditável. Ressalva viva: critério 7 (≤3 interações) transferido à US-008 |
 | 002 | Autenticação | ⚠️ **rebaixado em 18/08** (era "done") | mesmos quatro hashes ausentes. Ressalva **aberta**: R2 (prova no aparelho real) **transferida ao 014**, não resolvida. **Método trocado para e-mail+senha em 18/08** — reabre a validação de tela |
 | 018 | Vínculo pagamento↔nota | ⚠️ `G1:b574316 G2:22279c0 G3:1710dc6 G4:3b9c26e` | **Quatro gates fechados e em produção** (push de 18/08, `b807901`). Fica ⚠️ e não ✅ porque os hashes acima foram **reconstruídos das mensagens de commit**, não lidos de um log de gate no ticket. Vira ✅ quando o `/develop` registrar os quatro no corpo do `CONTAI-018.md`. Corte vivo: critério 18 → `CONTAI-020` |
