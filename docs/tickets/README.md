@@ -94,6 +94,31 @@ qualquer outra coisa.
 | 029 | Teste unitário para os mappers da camada de dados | ⚠️ `20d4d0e` **(rebaixado na 7ª revisão)** | **Entregue em 23/08**: 76 casos, 14/14 mappers, Vitest 412→488, zero código de produção no diff. Achou **D42** (condição fiscal 6 sem rede nenhuma → `CONTAI-031`) e **D43** (formato do rastro protegido por uma única asserção E2E). O critério 4 estava **pedindo um bug** e foi reescrito em 4a/4b. **Fica ⚠️, não verde**: quatro gates rodaram, um hash só foi registrado |
 | 028 | Quebrar `lib/data.ts` em módulos por entidade — **fatia 1 de 7** | 🔨 `a9ef819` | **Só a fatia 1 está entregue** (23/08): os 14 mappers puros foram para `lib/dados/comum.ts`, barrel de volta a **63 exports exatos**, golden snapshot byte a byte. O ticket **segue aberto** e as fatias 2-7 estão no fim da fila — ver a proposta de corte em "Depois" |
 
+## ⚠️ Adendo de 2026-08-23 — o `contador` respondeu, e a ordem abaixo ficou desatualizada em três pontos
+
+*Parecer: `../pareceres/2026-08-23-default-em-campo-fiscal-e-cno-na-correcao-de-obra.md`.
+Registrado aqui como FATO; **reordenar é ato do `po`** e ainda não foi feito.*
+
+1. **`CONTAI-008` está DESTRAVADO** — a pergunta 1 do Gate Fiscal dele é
+   **independente da Q14**. A Q14 decide **de quem é a obrigação** do CNO; a
+   pergunta 1 decide **a que CNO o valor se vincula**, e a regra é a mesma com o
+   CNO em qualquer nome. A 7ª revisão o listava como travado.
+2. **`CONTAI-032` nasce, e NÃO entra sozinho** — a D44 foi confirmada nos dois
+   campos, mas ele **depende do `CONTAI-025`** (o terceiro estado, *"pago, não
+   sei a data"*). Tirar o default sem oferecer o terceiro estado troca *data
+   errada em silêncio* por *data inventada pelo dedo*, e a segunda é pior porque
+   campo preenchido **afirma**. O `CONTAI-025` deixa de ser P1 solto e vira
+   **pré-requisito**.
+3. **`CONTAI-004` e `CONTAI-007` ganham escopo** — a trava da aferição sai do
+   `podeCorrigirObra` e vai para a apuração (`004`); a nota movida entra na lista
+   de cobrança (`007`). A trava nova é **mais forte**: pega também a nota
+   arquivada errada **sem nenhum move**, caso que a recusa de hoje não alcança.
+
+⚠️ **Achado de processo**: a restrição que o `contador` derrubou veio do critério
+13 do `CONTAI-003`, redigida pelo `po` como *"restrição fiscal"* — e **nenhum
+parecer a carimbou**. Regra fiscal escrita por quem não é a autoridade fiscal
+sobreviveu 13 dias e travou um P0.
+
 ## Fila de implementação
 
 *7ª revisão, 2026-08-23. Renumerada de ponta a ponta — a numeração anterior era
