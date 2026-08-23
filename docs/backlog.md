@@ -103,7 +103,7 @@ que segurar).
 | Decisões travando avanço | bloco **DECISÕES PENDENTES DO MATEUS**, acima neste arquivo |
 | Última adjudicação fiscal | `docs/backlog/15-2026-08-21-adjudicacao-fiscal-contai-027.md` |
 | Último Gate 4 fechado | `docs/backlog/23-2026-08-23-gate4-contai-027.md` — `CONTAI-027`, **PASS COM RESSALVA**, veredito critério a critério **no corpo do ticket** |
-| Ticket ainda por criar | `15-…-adjudicacao-fiscal-contai-027.md` → *"Ticket novo a criar — correção de valor de desembolso do terreno"*; e **`CONTAI-022`** (D26, cartão de crédito, **P0 fiscal**) e **`CONTAI-031`** (E2E da condição 6, P1, que **bloqueia a fatia 5 do `CONTAI-028`**) e **`CONTAI-032`** (D44, default de `data` e `meio`, **P0**, dependente do `CONTAI-025`) — nenhum dos três existe como arquivo |
+| Ticket ainda por criar | `15-…-adjudicacao-fiscal-contai-027.md` → *"Ticket novo a criar — correção de valor de desembolso do terreno"*; e **`CONTAI-022`** (D26, cartão de crédito, **P0 fiscal**) e **`CONTAI-031`** (E2E da condição 6, P1, que **bloqueia a fatia 5 do `CONTAI-028`**) e **`CONTAI-032`** (D44, default de `data` e `meio`, **P0**, dependente do `CONTAI-025`) — nenhum dos três existe como arquivo. ➕ **`CONTAI-033`** (D49/D52, *nota grava sem o arquivo*, **P0**, com as **três guardas** do parecer como critério) |
 
 ✅ **7ª revisão aplicada em 2026-08-23**, direto em `docs/tickets/README.md`. O
 **porquê** — movimentos, cortes, a dívida da premissa paga e a **D44** — está em
@@ -146,6 +146,7 @@ que já existem estão em:
 | `03-2026-08-07-relato-002.md` | Perguntas fechadas pelo contador (2026-08-08) |
 | `05-2026-08-09-relato-003.md` | Perguntas Q11–Q13 — respondidas pelo Mateus em 2026-08-09 |
 | `14-2026-08-21-relato-004.md` | Fato da obra registrado (para não ser reperguntado) |
+| `24-2026-08-23-relato-005.md` | Fato da obra registrado — **de que conta saiu o dinheiro do terreno** |
 
 Perguntas **ainda abertas**: `03-…-relato-002.md` → *"Perguntas abertas"*;
 `05-…-relato-003.md` → *"Perguntas e riscos que o 2º parecer abriu"*; e a Q14
@@ -169,6 +170,10 @@ no bloco de decisões pendentes acima.
 | **D46 — condição fiscal em ticket sem parecer que a carimbe** (classe, não incidente — a **D32** já nomeara a mesma forma): o critério 13 do `CONTAI-003` levava *"**Restrição fiscal**"* em negrito citando **um ticket**, nenhum parecer; o código a endureceu de *revalidar* para **recusar** e ela travou um **P0** por 13 dias | `22-2026-08-23-adendo-a-setima-revisao.md` → *"O achado de processo"*. **Remédio redigido** (três inserções no `/tickets-req`); **instalar em `.claude/commands/tickets-req.md` é do Mateus**. Varredura retroativa: **uma** linha ofensora hoje, já revogada |
 | **D47 — a pergunta que o app sabe que deve fazer, e não faz em superfície nenhuma**: `perguntaPendente`/`perguntaRepresada` só são lidas pelo formulário de anexar — um "sim" superado **não acende em card nem na home**. Agravante: `completarDesembolsoTerreno` faz **duas escritas sem transação**, e a justificativa escrita para isso invoca uma superfície que não existe | `23-2026-08-23-gate4-contai-027.md`. → **ticket novo**, que ⛔ **nasce com parecer do `contador` para o texto do chip ANTES do mock** |
 | **D48 — o critério 12b do `CONTAI-027` carrega frase que nenhum parecer carimbou** (*"a resposta nova é gravada sem apagar a anterior"*, atribuída ao §4d **sem estar lá**). É a **D46 na forma inversa** — e **muda a contagem da varredura retroativa da D46: são duas linhas ofensoras, não uma, e a segunda está viva** | `23-2026-08-23-gate4-contai-027.md`. → **pergunta aberta nº 3 ao `contador`**, no corpo do `CONTAI-027` |
+| **D49 — travas de anexo-PROVA recusando fato consumado, sem parecer que as carimbe** (superfícies 3 e 4). **Terceira ofensora da classe D46/D48**, e a de espécie diferente: as outras produziram texto errado, esta **produziu abandono do produto** | `24-2026-08-23-relato-005.md`. Resolvida pelo parecer `docs/pareceres/2026-08-23-anexo-no-desembolso-do-terreno.md` (**ADENDO 1 vence o corpo**) → **US-A** no `CONTAI-025`, **US-B** em ticket novo |
+| **D50 — `lib/fiscal/terreno.ts` soma por `estado`+`data`, sem olhar anexo**: liberada a gravação, passa a somar custo não demonstrável **em silêncio**, na direção do **D34** | `24-…-relato-005.md` → **mesma entrega da D49**, não depois |
+| **D51 — não existe onde registrar de qual conta o dinheiro saiu** (parte dos desembolsos do terreno saiu da conta do cônjuge). Comprovante de terceiro *não se descarta e não se converte* | `24-…-relato-005.md` → **US-D**, ⛔ **bloqueada pelas 3 perguntas ao Mateus** |
+| **D52 — a superfície 3 exige migration**: `documento.arquivo_path` é `not null` na `0001` e `status_documento` não tem valor para "registrado sem arquivo"; ⚠️ **`quarentena` não pode ser reaproveitada** | `24-…-relato-005.md` → dentro do ticket da **US-B**; a decisão de modelo é do `cto-obra`, não do `po` |
 | D40 — `lib/data.ts` monolítico (2065 linhas, 44 importadores) | `16-2026-08-22-custo-de-contexto-do-pipeline.md` → **`CONTAI-028`**; status em `18-2026-08-23-gate4-contai-028-fatia1.md` (**parcialmente paga**: 2065 → 1803) |
 
 O status de cada uma está na própria entrada — este índice aponta, não duplica.
@@ -373,6 +378,15 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
 - **D48** — frase fiscal no critério 12b **sem parecer que a carimbe** (D46 invertida); a varredura da D46 passa a ter **duas** ofensoras
 - A lição de processo: *"Gate 1 não é fim de nada"* é necessária e **insuficiente** — as quatro recomendações, sendo a primeira **tirar o `git push` do Gate 1**
 - Pré-autorização de revisor **adjudicada**, com a fronteira escrita
+
+### `24-2026-08-23-relato-005.md` — 328 linhas
+**Relato 005 — 2026-08-23 — *"fui bloqueado pelos comprovantes e daí parei de usar"*** ⚠️ **o Mateus abandonou o app**
+- A dor relatada não é a dor — e o texto de bloqueio citado é de **outra entidade**
+- A régua que faltava: anexo-**PROVA** × anexo-**FONTE**, e o teste de duas perguntas
+- **Inventário das 6 superfícies de registro**, com veredito uma a uma (2 já certas, 2 liberar, **2 mantêm a recusa**)
+- Dores **D49–D52** · US-A a US-E · o que eu **recusei** ao Mateus, contra o pedido explícito dele
+- Fato da obra: **parte dos desembolsos do terreno saiu da conta do cônjuge**
+- Achado de processo: a **D46 tem terceira ofensora**, e duas lições novas (critério que **viaja entre entidades**; **falta de inventário** de regra transversal)
 
 ---
 
