@@ -165,6 +165,25 @@ perguntar" não é.**
 | # | Ticket | Status | Gate atual | Notas |
 |---|--------|--------|-----------|-------|
 
+## Ticket que fecha, ou que PARA no meio
+
+**Gate fechado atualiza `docs/tickets/README.md` — o resumo do topo E a seção
+longa.** O resumo é cópia declarada; cópia que ninguém atualiza é a próxima a
+mentir.
+
+⚠️ **Gate 1 não é fim de nada.** Se o pipeline não vai continuar — limite de
+cota, fim de sessão, o Mateus pediu para parar — o estado vai para o **corpo do
+ticket** ANTES de qualquer push: em que gate parou, o que falta, e o hash do que
+foi feito.
+
+*Por que esta regra existe: em 2026-08-21 às 23:28 o Gate 1 do `CONTAI-027` foi
+commitado; às 23:42 a sessão bateu o limite de cota e escreveu o checkpoint. O
+Gate 2 nunca rodou. O ticket no disco continuou com 1 de 16 critérios marcados e
+nenhum log de gate — parecendo intocado. Consequências, todas descobertas dois
+dias depois: código pushado que nenhum revisor viu, a migration `0010` fora do
+banco remoto com o código dependente no ar, e a fila listando o ticket como se
+esperasse mock. O estado do pipeline vivia na conversa, e a conversa morreu.*
+
 ## Ao Terminar a Fila
 
 Resumo final: tickets entregues (complexidade, loops de feedback), arquivos

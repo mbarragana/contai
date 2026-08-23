@@ -1,5 +1,62 @@
 # Índice de tickets — por ordem de execução
 
+## 🔎 O que está em aberto — 22 tickets
+
+*Uma linha por ticket, sem justificativa. O **porquê** de cada posição está nas
+seções longas abaixo; o **porquê da decisão** está em `../backlog.md`.
+Atualizado em 2026-08-23.*
+
+### Fila de implementação — nesta ordem
+
+| # | ID | O que é | P |
+|---|---|---|---|
+| 1 | **027** | Ver o anexo, e anexar mais de um | P1 |
+| 2 | **025** | *"Paguei, mas não sei a data"* — o terceiro estado | P0 por dependência |
+| 3 | **032** | Tirar `data = hoje` e `meio = "pix"` do formulário de pagamento | **P0** |
+| 4 | **022** | Cartão de crédito (compra → fatura) | **P0** |
+| 5 | **008** | Mover pagamento entre obras sem quebrar o vínculo | **P0** |
+| 6 | **004** | Nº do documento e data de emissão | **P0** |
+| 6 | **007** | CNO referenciado na NF de serviço | **P0** |
+| 7 | **009** | Detalhe do pagamento | **P0** |
+| 8 | **005** | Headline da home | **P0** |
+| 9 | **031** | E2E da condição fiscal 6 | P1 |
+| 10 | **014** | Manifest de PWA + prova no aparelho | P1 |
+| 11 | **006** | Estados de rede lenta/indisponível | P1 |
+
+### Bloco de deploy — fora da fila
+
+| ID | O que é | P |
+|---|---|---|
+| **012** | Manter o Supabase acordado | P1 |
+| **013** | Configuração de produção do login | **P0** |
+| **014** | Prova no aparelho real | P1 |
+
+### Depois
+
+| ID | O que é | P | |
+|---|---|---|---|
+| **011** | Export do acervo | **P0** | serve à meta 3 |
+| **016** | Tipo de empreitada na obra | **P0** | ramo `total` travado pela **Q14** |
+| **024** | Corrigir informe/contrato do financiamento, com rastro | P1 | |
+| **023** | Tirar "regime de caixa" das 4 telas restantes | P2 | |
+| **017** | Lista de notas a cobrar | — | **corte**, com condição de volta |
+| **028** | Quebrar `lib/data.ts` — fatias 2-7 | P2 | **corte proposto** |
+| **015** | Captcha no login | P2 | **corte re-recomendado** |
+| **026** | Terreno recebido (herança, doação, permuta) | P2 | **corte proposto** |
+
+### O que segura a fila hoje
+
+| | |
+|---|---|
+| **Espera o Mateus** | **mock** de `008`, `004`+`007`, `005` · a **Q14** (13 dias, trava o `016`) |
+| **Espera `/tickets-req`** | `032`, `022`, `031` — não têm arquivo |
+| **Espera só o `/develop`** | `027` (no Gate 2), `025`, `014`, `006` |
+
+⚠️ **Esta tabela é resumo, não fonte.** Ela repete o que está abaixo — se
+divergir, **vale o de baixo**, e o resumo é que está errado.
+
+---
+
 **Este arquivo é a FONTE DA ORDEM.** Mudou em 2026-08-23: antes a ordem canônica
 vivia numa "fila revista" dentro de uma entrada datada do diário, e este arquivo
 só a espelhava. Os dois divergiram — a 6ª revisão passou cinco dias dizendo que
@@ -169,7 +226,7 @@ disser que a home não basta. Não reutilizar o ID.
 
 | # | Ticket | P | Status | Nota |
 |---|---|---|---|---|
-| **0** | **Aplicar `0009` e `0010` no projeto remoto** | **P0** | ⛔ | **Não é ticket, é a ordem obrigatória do release invertida.** Ver o BLOQUEIO DE RELEASE no topo deste arquivo. `npx supabase db push`, conferir em Database → Migrations, e só então seguir. **Bloqueia o `013` e qualquer deploy novo** |
+| **0** | ~~Aplicar `0009` e `0010` no projeto remoto~~ | **P0** | ✔️ **FEITO em 23/08** | **Não é ticket, é a ordem obrigatória do release invertida.** Ver o BLOQUEIO DE RELEASE no topo deste arquivo. `npx supabase db push`, conferir em Database → Migrations, e só então seguir. **Bloqueia o `013` e qualquer deploy novo** |
 | 012 | Manter o Supabase acordado | P1 | 🟢 | sem tela, sem impacto fiscal |
 | 013 | Configuração de produção do login | P0 | 🟢 | **encolheu** — SMTP e template saíram com a troca para senha |
 | 014 | Prova no aparelho real | P1 | 🟢 | mesmo deploy de preview do 013 |
