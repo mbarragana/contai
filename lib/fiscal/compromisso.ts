@@ -35,8 +35,10 @@ import type {
   Compromisso,
   MeioPagamento,
   Pagamento,
+  TerrenoDesembolso,
 } from "@/lib/types";
 import { centavosParaInput, formatarBRL } from "@/lib/money";
+import { bloqueioDaSaidaAnual, type BloqueioDaSaidaAnual } from "./terreno";
 import type { Permissao } from "./vinculo";
 
 // ── Data: utilitários locais (ISO yyyy-mm-dd compara lexicograficamente) ──
@@ -167,9 +169,33 @@ export function compromissosQueBloqueiam(
   return cs.filter((c) => ehVencidoSemResposta(c, hojeIso));
 }
 
+/**
+ * ⚠️ **DOIS PORTÕES, UMA PORTA.** O relatório anual tem hoje duas travas de
+ * origens diferentes, e elas **se conhecem de propósito**:
+ *
+ * 1. `faltamResponder` — compromisso vencido sem resposta (CONTAI-019,
+ *    critério 21). Sem a resposta ninguém sabe a que ano o desembolso pertence.
+ * 2. `terrenoSemComprovante` — desembolso do terreno pago sem comprovante
+ *    (CONTAI-025, **critério 16**). Enquanto a linha nomeada do §4.5 não
+ *    existir no relatório, gerar o texto produziria um total que não diz o que
+ *    deixou de fora.
+ *
+ * ⚠️ **Dois portões que NÃO se conhecem é exatamente como a D47 nasceu.** Uma
+ * segunda função "que também decide se o relatório sai" seria a mesma falha com
+ * outro nome: a chamada passaria por um e não pelo outro, e a guarda ficaria
+ * satisfeita **por vacuidade**. Há uma porta só, e ela nomeia as duas faltas ao
+ * mesmo tempo — nunca uma de cada vez, que ensinaria a resolver em série e
+ * descobrir a segunda depois de comemorar a primeira.
+ */
 export type PermissaoRelatorio =
   | { ok: true }
-  | { ok: false; faltamResponder: Compromisso[] };
+  | {
+      ok: false;
+      /** CONTAI-019, critério 21. Vazio quando o bloqueio é só do terreno. */
+      faltamResponder: Compromisso[];
+      /** CONTAI-025, critério 16. `null` quando o bloqueio é só de compromisso. */
+      terrenoSemComprovante: BloqueioDaSaidaAnual | null;
+    };
 
 /**
  * ⚠️ **O DENTE DO MECANISMO — critério 21.** É o único ponto do sistema que
@@ -200,14 +226,35 @@ export type PermissaoRelatorio =
  * deliberado — o custo é um toque, e a resposta é justamente o dado que decide
  * o ano.
  */
+/**
+ * ⚠️ **CONTAI-025, critério 16 — `desembolsosTerreno` é OBRIGATÓRIO, e não
+ * opcional.** Mesmo motivo de `desembolsosTerreno` em `EntradaResumo`: um
+ * parâmetro opcional faria a guarda do terreno sumir em silêncio de qualquer
+ * chamador que esquecesse de passá-lo — e "esquecer" aqui é gerar uma
+ * discriminação com um total que não diz o que deixou de fora. Quebrar a
+ * assinatura é o ponto: quem for gerar relatório anual tem de dizer, no ato,
+ * de quais desembolsos está falando.
+ *
+ * ⚠️ `ano` continua sem recortar NADA (ver acima) — e a guarda do terreno
+ * também não recorta: um desembolso pago sem comprovante em qualquer ano
+ * trava qualquer relatório, porque o valor sem data não tem ano-calendário e o
+ * com data pode ter o ano corrigido depois.
+ */
 export function podeGerarRelatorioAnual(
   cs: readonly Compromisso[],
   hojeIso: string,
   ano: number,
+  desembolsosTerreno: readonly TerrenoDesembolso[],
 ): PermissaoRelatorio {
   void ano; // ver acima: existe para ser PROVADAMENTE ignorado.
   const faltamResponder = compromissosQueBloqueiam(cs, hojeIso);
-  return faltamResponder.length === 0 ? { ok: true } : { ok: false, faltamResponder };
+  const terreno = bloqueioDaSaidaAnual(desembolsosTerreno, ano);
+  if (faltamResponder.length === 0 && !terreno.bloqueada) return { ok: true };
+  return {
+    ok: false,
+    faltamResponder,
+    terrenoSemComprovante: terreno.bloqueada ? terreno : null,
+  };
 }
 
 // ── As quatro marcas e o bloco da home (critérios 8, 8b, 42, 43) ─────────

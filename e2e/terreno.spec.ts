@@ -13,6 +13,14 @@ import {
 import { expect, test } from "./fixtures";
 
 /**
+ * ⚠️ **O rótulo do Gravar deixou de ser fixo no CONTAI-025**: ele nomeia a
+ * consequência do que está faltando (Gate Fiscal §4), e por isso o locator é o
+ * `data-gravar` do rodapé — o rótulo em si é asserção de teste, não âncora.
+ */
+const gravar = (page: Page) => page.locator("[data-gravar]");
+
+
+/**
  * CONTAI-010 contra o Postgres LOCAL: contrato, desembolsos datados e o informe
  * anual de verdade, com RLS ligada, e as asserções olhando o **ESTADO GRAVADO**
  * pelo MESMO client autenticado que o app usa.
@@ -387,9 +395,7 @@ test.describe("desembolsos do terreno", () => {
       "guia-itbi.pdf",
       "Comprovante do pagamento",
     );
-    await page
-      .getByRole("button", { name: "Registrar desembolso", exact: true })
-      .click();
+    await gravar(page).click();
 
     await expect(
       page.getByText("registrado no custo de", { exact: false }),
@@ -418,7 +424,18 @@ test.describe("desembolsos do terreno", () => {
     expect(papeis[0].arquivo_path).toContain("/terreno/");
   });
 
-  test("desembolso PAGO sem data é recusado pela tela — a data é o ano", async ({
+  /**
+   * ⚠️ **ESTE TESTE VIROU O CONTRÁRIO no CONTAI-025, e é o ticket inteiro.**
+   *
+   * Ele afirmava *"desembolso PAGO sem data é recusado pela tela"*. A recusa
+   * **nunca teve parecer** (D49): ela foi generalizada, sem gate fiscal, do
+   * texto do **informe anual** — outra entidade, onde o anexo é FONTE e a
+   * recusa continua de pé. Aqui o dado é um fato que o Mateus conhece, e
+   * *"bloquear anexo-PROVA não evita erro nenhum: evita o registro"* (§A.0).
+   *
+   * O preço: ele **parou de usar o app** e o banco de produção está vazio.
+   */
+  test("desembolso PAGO sem data GRAVA — e a data continua sem default", async ({
     page,
     db,
   }) => {
@@ -432,14 +449,28 @@ test.describe("desembolsos do terreno", () => {
       .getByRole("group", { name: "Este valor já foi pago?" })
       .getByText("Já paguei", { exact: true })
       .click();
-    await page
-      .getByRole("button", { name: "Registrar desembolso", exact: true })
-      .click();
 
-    await expect(
-      page.getByText("não tem ano-calendário", { exact: false }),
-    ).toBeVisible();
-    expect(await desembolsosTerreno(db)).toHaveLength(0);
+    // O rótulo NOMEIA a consequência — nunca "gravar mesmo assim".
+    await expect(gravar(page)).toHaveText("Gravar — e abrir as duas pendências");
+    await expect(gravar(page)).toBeEnabled();
+    await gravar(page).click();
+
+    // ⚠️ O efeito OBSERVÁVEL da gravação, antes de olhar o Postgres — e ele
+    // tem de ser uma frase que só existe DEPOIS de gravar. "não tem
+    // ano-calendário" também está na caixa de consequência do formulário, que
+    // aparece ANTES do toque: esperar por ela lê o banco com o insert em voo.
+    await expect(page.getByText("registrado — sem a data")).toBeVisible();
+
+    // ⚠️ O ESTADO GRAVADO: `pago` com `data_pagamento` NULO. Nada de hoje,
+    // nada de `created_at` — critério 4.
+    const [gravado] = await desembolsosTerreno(db);
+    expect(gravado).toMatchObject({
+      tipo: "itbi",
+      valor: 12600,
+      estado: "pago",
+      data_pagamento: null,
+    });
+    expect(await anexosDeDesembolso(db)).toHaveLength(0);
   });
 
   test("o previsto grava SEM data — previsto não é pago", async ({
@@ -459,9 +490,7 @@ test.describe("desembolsos do terreno", () => {
     await expect(
       page.getByText("não entra em ano nenhum", { exact: false }),
     ).toBeVisible();
-    await page
-      .getByRole("button", { name: "Registrar desembolso", exact: true })
-      .click();
+    await gravar(page).click();
 
     // Espera o efeito OBSERVÁVEL da gravação antes de olhar o Postgres — sem
     // isto o teste lê o banco com o insert ainda em voo. O teste de cima (o do
@@ -512,18 +541,47 @@ test.describe("desembolsos do terreno", () => {
       exact: true,
     });
     await expect(campoData).toBeVisible();
+
+    // ⚠️ Data futura no COMPLEMENTO tem texto PRÓPRIO (Gate 2): aqui "deixe o
+    // campo vazio" não cabe — o ato existe para informar a data. A saída
+    // segura é SAIR SEM GRAVAR, e ela precisava ser nomeada.
+    await campoData.fill("2099-01-01");
+    await cartao
+      .getByRole("button", { name: "Informar a data", exact: true })
+      .click();
+    await expect(cartao.getByText("saia sem gravar")).toBeVisible();
+    await expect(cartao.getByText("nada se perde")).toBeVisible();
+    // ⚠️ E não oferece `previsto`: quem completa a data já disse que pagou
+    // (critério 6). **Escopado no CARTÃO, e o escopo é a prova**: na `page`
+    // inteira esta asserção media a coisa errada — casava a opção legítima
+    // "Ainda não paguei" do formulário de REGISTRO, que o critério 6 manda
+    // manter (`previsto` é estado legítimo; o que se proíbe é oferecê-lo como
+    // SAÍDA a quem já disse que pagou). O que se prova aqui é que a mensagem
+    // DESTE fluxo não o oferece.
+    await expect(cartao.getByText("ainda não paguei")).toHaveCount(0);
+    // E o texto do REGISTRO (que cita "ainda não paguei" de propósito, como
+    // última saída) não vaza para cá — são dois atos, dois textos.
+    await expect(cartao.getByText("corrija-a")).toHaveCount(0);
+    await expect(cartao.getByText("deixe o campo vazio")).toHaveCount(0);
+
     await campoData.fill(`${ANO_BASE}-09-12`);
     await cartao
       .getByRole("button", { name: "Informar a data", exact: true })
       .click();
 
-    // O efeito observável da gravação, antes de olhar o banco.
+    // ⚠️ **CONTAI-025, critério 13 — este texto MUDOU, e a mudança é o
+    // conserto.** Este desembolso não tem comprovante, e a mensagem anterior
+    // era escolhida só por `faltaData`: ela afirmava que *"o valor passa a
+    // compor o custo de {ano}"* quando o portão do critério 8 o mantém FORA.
+    // Mensagem de sucesso que mente sobre consequência fiscal fecha a
+    // pendência na cabeça do Mateus, e é a única metade que ele nunca revisa.
     await expect(
       page.getByText(
-        `Data informada — o valor passa a compor o custo de ${ANO_BASE}.`,
+        `Data informada — o valor é de ${ANO_BASE}. Falta o comprovante:`,
         { exact: false },
       ),
     ).toBeVisible();
+    await expect(page.getByText("passa a compor o custo")).toHaveCount(0);
 
     const gravados = await desembolsosTerreno(db);
     expect(gravados).toHaveLength(1);

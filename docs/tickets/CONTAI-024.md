@@ -52,6 +52,18 @@ quitação é ticket com parecer; privilégio sem caminho é superfície à toa"
        vale na transição, ao contrário do "completar a data" de uma linha que
        já nasceu `pago`. **Esta diferença é o ponto que precisa de decisão
        registrada, não de palpite de quem implementar.**
+
+       > ⚠️ **Nota de 2026-08-23 (`CONTAI-025`, Gate 2) — a decisão registrada
+       > que este critério pedia agora EXISTE, e ela contraria o "obrigatório
+       > no ato" acima.** O parecer
+       > `docs/pareceres/2026-08-23-anexo-no-desembolso-do-terreno.md`
+       > (**ADENDO 1, §A.2, superfície 4**) põe o desembolso do terreno em
+       > *"grava e cobra"*: o anexo ali é **prova**, não fonte, e bloquear
+       > anexo-prova *"não evita erro nenhum: evita o registro"*. O
+       > `CONTAI-025` já removeu a trava da linha que nasce `pago`.
+       > **Esta linha NÃO foi reescrita aqui de propósito** — o critério é de
+       > outro ticket e quem o reescreve é o `po`. Fica o ponteiro para a
+       > decisão não ser tomada de novo por palpite, que é como nasceu a D49.
 5. [ ] `grant update` volta para `financiamento` e `financiamento_informe`
        **no mesmo diff** que as telas, com o mapa de `e2e/privilegios.spec.ts`
        atualizado junto. Nunca antes.

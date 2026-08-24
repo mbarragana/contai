@@ -126,6 +126,33 @@ esse comentário e o trecho da migration `0008`.
         real (§2.1): mostra os dois números, e a escolha é do Mateus com o
         profissional com CRC
 
+        > **Dívida nomeada em 2026-08-23 (Gate 2 da fatia 1) — e ela é
+        > FEATURE, não defeito.** Entregar o critério 17 exige **três** mexidas
+        > conscientes, e nenhuma delas acontece por descuido:
+        > 1. usar `FORA_DO_CUSTO_CONFIRMADO_DECIDA_NO_RELATORIO` (a segunda
+        >    metade do §4.5 — o **handoff ao CRC**, que a home não mostra).
+        >    Colar só a primeira metade lá **dropa o handoff em silêncio**;
+        > 2. remover a guarda do critério 16 de `podeGerarRelatorioAnual`
+        >    (`lib/fiscal/compromisso.ts`) — **a porta é única**, e o portão do
+        >    compromisso (CONTAI-019, critério 21) **fica**;
+        > 3. **editar o teste de blindagem** `terreno.test.ts` › *"nenhum
+        >    produtor de saída anual existe fora da porta única"*, que hoje
+        >    obriga todo gerador a passar pela porta.
+        >
+        > O item 3 é de propósito: **a remoção tem de ser consciente**. Guarda
+        > que some sozinha quando alguém escreve o gerador é guarda que nunca
+        > existiu — foi assim que a D47 nasceu.
+        >
+        > ⚠️ **E o ticket da fatia 2 tem de CITAR A PORTA PELO NOME** (nota do
+        > `cto-obra`, Gate 2): a tela do relatório anual **nasce chamando
+        > `podeGerarRelatorioAnual`** (`lib/fiscal/compromisso.ts`) — não uma
+        > verificação própria, não `bloqueioDaSaidaAnual` direto. Hoje ela está
+        > **sem consumidor de produção, e isso é correto por construção**: a
+        > tela é da fatia 2, e a blindagem obriga qualquer produtor futuro a
+        > nascer na porta. Escrito aqui para que a fatia 2 não invente a
+        > segunda verificação — **dois portões que não se conhecem é como a
+        > D47 nasceu**, e foi o bloqueante desta rodada.
+
 ## Out of Scope
 
 - **US-D / `origem_conta` e a titularidade repartida** — fora, e **cresceu de

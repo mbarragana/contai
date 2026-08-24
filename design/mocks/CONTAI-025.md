@@ -1,7 +1,40 @@
 # CONTAI-025 — spec do mock
 Nível: 1 (HTML navegável)   Cenário: gestão (casa, sentado; 375px = piso, 720px = mesa)   Arquivo: CONTAI-025.html
 Telas: 4 (+1 fluxo ASCII) — 1 Home/painel · 2 Formulário do desembolso · 3 Lista de desembolsos · 4 Revisão anual
-Status: **v2** AGUARDANDO APROVAÇÃO do Mateus · 2 perguntas em aberto (1 ao `po`, 2 ao `contador`)
+Status: **v2.1** — v2 **APROVADA pelo Mateus em 2026-08-23**; a v2.1 recolhe três adjudicações do
+`contador` no Gate 2 do `/develop` (nenhuma muda layout, hierarquia ou fluxo — só texto)
+
+## v2.1 — o que mudou da v2 (2026-08-23, Gate 2 do `/develop`)
+1. **O terceiro rótulo do Gravar foi ADJUDICADO** — era a pergunta 2, e o `contador` **recusou a
+   simetria óbvia** que eu havia proposto. Vale *"Gravar — e abrir a pendência da data **que
+   falta**"*. Razão: *"da data" × "de datas"* faria uma distinção fiscal real depender de **uma
+   letra**, no mesmo formulário em que nasce a pendência *"um lançamento, mais de uma data"*
+   (CONTAI-027). A palavra carrega a distinção, não o singular/plural. ⚠️ O rótulo do CONTAI-027
+   **não** se alinha a este agora — é ticket P2 próprio.
+2. **A recusa de DATA NO FUTURO tem texto novo** (não aparecia em tela no mock v2 — é erro de
+   validação). O texto antigo oferecia **só** *"registre como 'ainda não paguei'"*, e isso ganhou um
+   defeito quando o campo vazio passou a gravar: o erro mais provável deixou de ser "ainda não
+   pagou" e passou a ser **data errada num pagamento real**, para o qual `previsto` é a pior saída
+   possível (tira o valor de **todo** ano-calendário). Redação do `contador`, literal:
+   "**Data no futuro — o dinheiro não pode ter saído depois de hoje. Se você errou a data,
+   corrija-a; se não lembra, deixe o campo vazio: o valor grava assim mesmo e a data fica como
+   pendência. Só marque 'ainda não paguei' se o dinheiro realmente não saiu — isso tira este valor
+   de todo ano-calendário.**"
+   ⚠️ Isto **não** contraria o critério 6: ali o próprio dado diz que o dinheiro não saiu — é
+   contradição interna, não `previsto` oferecido como fuga a valor já pago.
+3. **A recusa de data no futuro tem DOIS textos, um por ato** — e são **constantes separadas**, não
+   uma reaproveitada. Palavras do `contador`: *"são dois atos diferentes, e colapsar os dois textos
+   é o que faria o 'deixe vazio' aparecer onde não cabe"*. No **registro**, campo vazio **grava** e
+   abre a pendência; no **complemento** ("Informar a data", `s2d` do CONTAI-027) o ato **existe para
+   informar a data**, e a saída segura é **sair sem gravar** — a pendência continua aberta e nada se
+   perde. Texto do complemento, literal: "**Data no futuro — o dinheiro não pode ter saído depois de
+   hoje. Confira a data no extrato: é ela que decide o ano-calendário deste custo. Se não achar
+   agora, saia sem gravar — a pendência continua aberta e nada se perde.**"
+   ⚠️ Ele **não** menciona `previsto` (critério 6): quem completa a data **já disse que pagou** — ali
+   não há a contradição interna que justifica a menção no texto do registro. O texto anterior
+   (*"informe a data real do pagamento"*) mandava acertar **sem nomear o que faz quem não sabe**.
+   Nenhuma das duas telas do mock renderiza validação de data futura: é registro de texto, sem
+   mudança de layout.
 
 ## v2 — o que mudou da v1 (2026-08-23)
 1. **"Falta a data" vira VERMELHA** (s1 e s3) — veredito do `po` na pergunta 3. Régua binária, **sem
@@ -42,7 +75,7 @@ nova; o que nasce é a **exclusão da soma** e a **superfície agregada**.
 - `fTipo` — escolha 1-de-3 (Entrada / ITBI / Escritura e registro) — obrigatório — sem escolha o Gravar fica desabilitado — SEM DEFAULT
 - `fValor` — texto `inputmode="decimal"` — obrigatório — vazio desabilita o Gravar — SEM DEFAULT
 - `fEstado` — escolha 1-de-2 (Já saiu da conta / Ainda vou pagar) — obrigatório — sem escolha o Gravar fica desabilitado — SEM DEFAULT
-- `fData` — date — opcional no desembolso pago — vazia grava e abre a pendência da data, **vermelha** (v2); em `previsto` o campo não existe (constraint `terreno_desembolso_previsto_sem_data`) — SEM DEFAULT
+- `fData` — date — opcional no desembolso pago — vazia grava e abre a pendência da data, **vermelha** (v2); data **no futuro** é a única recusa que sobrou, com o texto novo da v2.1; em `previsto` o campo não existe (constraint `terreno_desembolso_previsto_sem_data`) — SEM DEFAULT
 - `fPapeis` — `input[type=file][multiple]` — opcional — zero papéis grava, e é o ponto do ticket — SEM DEFAULT
 - `fPapel` — escolha 1-de-3 por papel (Comprovante do pagamento / Nota ou recibo / Contrato ou escritura) — obrigatório para o papel que existir — validação `PAPEL_SEM_RESPOSTA` do CONTAI-027, crit. 14 — SEM DEFAULT
 
@@ -64,8 +97,17 @@ Fonte: `docs/pareceres/2026-08-23-anexo-no-desembolso-do-terreno.md` (ADENDO 1 v
   confirmado nem no ano em que a data o puser. / Comece pela data: ela está no extrato, no mesmo lugar em
   que o comprovante está — as duas costumam voltar da mesma busca."
 - Rótulos do Gravar: "Gravar o desembolso" · "**Gravar — e abrir a pendência do comprovante**" ·
+  "**Gravar — e abrir a pendência da data que falta**" (adjudicado em 23/08, v2.1) ·
   "**Gravar — e abrir as duas pendências**" · "Diga o que é cada papel para gravar (N sem resposta)" ·
   "Preencha o desembolso para gravar" · "Gravar o compromisso" (`previsto`)
+- Recusa de **data no futuro** (v2.1, `contador`): "Data no futuro — o dinheiro não pode ter saído
+  depois de hoje. Se você errou a data, corrija-a; se não lembra, deixe o campo vazio: o valor grava
+  assim mesmo e a data fica como pendência. Só marque 'ainda não paguei' se o dinheiro realmente não
+  saiu — isso tira este valor de todo ano-calendário."
+- Recusa de **data no futuro NO COMPLEMENTO** (v2.1, `contador`) — **texto diferente do de cima, de
+  propósito**: "Data no futuro — o dinheiro não pode ter saído depois de hoje. Confira a data no
+  extrato: é ela que decide o ano-calendário deste custo. Se não achar agora, saia sem gravar — a
+  pendência continua aberta e nada se perde."
 - Mensagem de sucesso, **dois textos** (§5, crit. 13): "Data informada — o valor passa a compor o custo de
   {ano}." (só com `comprovantesDe(d).length > 0`) · "Data informada — o valor é de {ano}. Falta o
   comprovante: até ele chegar, este desembolso não entra no custo confirmado."
@@ -107,9 +149,8 @@ Fonte: `docs/pareceres/2026-08-23-anexo-no-desembolso-do-terreno.md` (ADENDO 1 v
 
 ## Perguntas em aberto — nenhuma delas eu decido sozinho
 1. **`po`** — o card agregado é **um só**, com o chip do §4.1, contando também os zero-anexo? (Desenhei sim)
-2. **`contador` via `po`** — falta o **terceiro rótulo do Gravar**: tem comprovante, falta a data. Os dois
-   adjudicados cobrem só "sem comprovante" e "as duas". Pus "Gravar — e abrir a pendência da data"
-   **marcado em tela como não adjudicado**. Não redijo texto fiscal de memória
+2. ✅ **RESPONDIDA pelo `contador` em 23/08, e ele RECUSOU a minha proposta.** O rótulo é
+   "Gravar — e abrir a pendência da data **que falta**" — ver v2.1, item 1. Aplicada.
 3. ✅ **RESPONDIDA pelo `po` em 23/08** — vermelho, régua binária, sem terceiro nível. Aplicada na v2.
 4. ✅ **DECIDIDA pelo Mateus em 23/08** — a linha sai; virou a **D53**. Aplicada na v2.
 

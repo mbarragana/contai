@@ -763,8 +763,9 @@ describe("pendência 'Diferença sem explicação' (critérios 31, 31c, 31e)", (
     const r = cenario();
     expect(r.pendencias.some((p) => p.tipo === "diferenca_sem_explicacao")).toBe(true);
     expect(
-      podeGerarRelatorioAnual([], "2026-08-18", 2026),
-      "o bloqueio anual só conhece COMPROMISSO — pagamento com diferença não entra nele",
+      podeGerarRelatorioAnual([], "2026-08-18", 2026, []),
+      "o bloqueio anual conhece COMPROMISSO e DESEMBOLSO DO TERRENO sem " +
+        "comprovante — pagamento com diferença não entra em nenhum dos dois",
     ).toEqual({ ok: true });
   });
 });
@@ -1014,6 +1015,104 @@ describe("terreno e financiamento fora das pendências (critério 21)", () => {
       ],
     });
     expect(r.terrenoMaisDeUmaData).toHaveLength(0);
+  });
+
+  // ══ CONTAI-025, critério 11 — a superfície agregada do pago-sem-comprovante
+  //
+  // ⚠️ Até 23/08 esta pendência só existia DENTRO da linha do desembolso, que é
+  // a **D47 com outro nome**. Liberada a gravação sem superfície, "custo não
+  // registrado" viraria "custo registrado que ninguém vai completar" (§1.5 do
+  // parecer) — e na venda dá no mesmo, com a agravante de parecer resolvido.
+  describe("pago sem comprovante — campo próprio, fora de TODA soma", () => {
+    /** Tem a escritura, não tem o comprovante: o caso literal do relato 005. */
+    const SO_ESCRITURA: TerrenoDesembolso = {
+      ...TERRENO,
+      id: "t-escritura",
+      valorCentavos: 6_000_000,
+      dataPagamento: "2026-03-12",
+      anexos: [
+        {
+          id: "a-esc",
+          arquivoPath: "u/terreno/escritura.pdf",
+          papel: "contrato",
+          createdAt: "2026-03-12T12:00:00Z",
+        },
+      ],
+    };
+
+    it("aparece agregado, com valor total e contagem — e inclui o zero-anexo", () => {
+      // Decisão 3 do mock: o agregado inclui o caso zero-anexo. Se ele ficasse
+      // de fora, os dois números deixariam de fechar com o que o portão
+      // exclui, e o buraco não teria nome em tela nenhuma (pre-mortem 2).
+      const r = resumo({ desembolsosTerreno: [SO_ESCRITURA, SEM_DATA] });
+      const agregado = r.terrenoPagoSemComprovante!;
+      expect(agregado.quantidade).toBe(2);
+      expect(agregado.totalCentavos).toBe(6_000_000 + 1_260_000);
+      // ⚠️ **Nenhum TEXTO passa por aqui.** O chip (§4.1), a pendência (§4.2)
+      // e a linha do §4.3 são lidos das constantes pelo componente único que
+      // desenha o card. Um segundo caminho para o mesmo texto fiscal diverge
+      // no dia em que só um for atualizado — é a D46. O teste de string dos
+      // textos mora em `terreno.test.ts`, onde as constantes moram.
+      expect(Object.keys(agregado).sort()).toEqual([
+        "href",
+        "quantidade",
+        "totalCentavos",
+      ]);
+      expect(agregado.href).toContain("/terreno/desembolsos");
+    });
+
+    it("⚠️ FORA de `pendencias`, de `emPendenciaCentavos` e do custo do ano", () => {
+      const r = resumo({ desembolsosTerreno: [SO_ESCRITURA, SEM_DATA] });
+      expect(r.pendencias).toHaveLength(0);
+      expect(r.emPendenciaCentavos).toBe(0);
+      expect(r.custoConfirmadoAnoCentavos).toBe(0);
+      expect(r.notasSemPagamento).toHaveLength(0);
+      expect(r.despesas).toHaveLength(0);
+      expect(r.terrenoMaisDeUmaData).toHaveLength(0);
+    });
+
+    it("⚠️ o valor NÃO entra no acumulado — e a exclusão é NOMEADA", () => {
+      // A metade automática do §2.1: o custo confirmado não o soma. E o §2.4:
+      // "item incluído em silêncio é o pior dos mundos; nomeado, é posição
+      // declarada" — e ele diz que vale nos DOIS sentidos, excluído em
+      // silêncio também. Por isso a linha nomeada existe no mesmo resumo.
+      const r = resumo({ desembolsosTerreno: [TERRENO, SO_ESCRITURA] });
+      expect(r.acumuladoImovelCentavos).toBe(TERRENO_CENTAVOS);
+      expect(r.terrenoForaDoAcumuladoCentavos).toBe(6_000_000);
+    });
+
+    it("o sem data está no agregado da OBRA e FORA do número do ano", () => {
+      // O card do ano é por ANO; o agregado é da OBRA. Sem data não há
+      // ano-calendário, então ele não entra no segundo número do ano — e a
+      // diferença entre os dois é dita em tela (decisão 2 do mock).
+      const r = resumo({ desembolsosTerreno: [SEM_DATA] });
+      expect(r.terrenoPagoSemComprovante!.totalCentavos).toBe(1_260_000);
+      expect(r.terrenoForaDoAcumuladoCentavos).toBe(0);
+      expect(r.terrenoSemData).toHaveLength(1);
+    });
+
+    it("sem nenhum, o campo é `null` e a linha do acumulado é zero", () => {
+      const r = resumo({ desembolsosTerreno: [TERRENO] });
+      expect(r.terrenoPagoSemComprovante).toBeNull();
+      expect(r.terrenoForaDoAcumuladoCentavos).toBe(0);
+    });
+
+    it("`previsto` não entra no agregado — nada saiu da conta", () => {
+      const r = resumo({
+        desembolsosTerreno: [
+          { ...SEM_DATA, id: "t-prev", estado: "previsto", anexos: [] },
+        ],
+      });
+      expect(r.terrenoPagoSemComprovante).toBeNull();
+    });
+
+    it("⚠️ com desembolso sem comprovante, o app NÃO diz 'nada registrado'", () => {
+      // O zero do confirmado seria verdade e mentira ao mesmo tempo: o terreno
+      // ESTÁ registrado. Trocar um zero que mente por outro não é conserto.
+      const r = resumo({ desembolsosTerreno: [SO_ESCRITURA] });
+      expect(r.acumuladoImovelCentavos).toBe(0);
+      expect(r.terrenoSemRegistro).toBeNull();
+    });
   });
 
   it("as duas pendências do terreno nunca aparecem no MESMO desembolso", () => {

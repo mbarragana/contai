@@ -79,6 +79,13 @@ async function preencherDesembolso(page: Page, valor: string, data = DATA) {
 }
 
 const pergunta = (page: Page) => page.locator('[data-pergunta="quando-saiu"]');
+/**
+ * ⚠️ **O rótulo do Gravar deixou de ser fixo no CONTAI-025**: ele nomeia a
+ * consequência do que está faltando (Gate Fiscal §4), e por isso o locator é o
+ * `data-gravar` do rodapé — o rótulo em si é asserção de teste, não âncora.
+ */
+const gravar = (page: Page) => page.locator("[data-gravar]");
+
 
 // ══ Critério 8 — o caminho de captura NÃO alonga ════════════════════════
 
@@ -98,9 +105,7 @@ test.describe("um papel só: os passos de hoje (critério 8)", () => {
     // ⚠️ Uma tela, um Gravar. Nenhuma confirmação nova, nenhuma navegação
     // nova, nenhuma pergunta nova.
     await expect(pergunta(page)).toHaveCount(0);
-    await page
-      .getByRole("button", { name: "Registrar desembolso", exact: true })
-      .click();
+    await gravar(page).click();
     await expect(page.getByText("registrado no custo de")).toBeVisible();
 
     const [gravado] = await desembolsosTerreno(db);
@@ -122,9 +127,7 @@ test.describe("um papel só: os passos de hoje (critério 8)", () => {
     await anexar(corpo, "Papéis deste desembolso", "recibo.pdf", "Nota ou recibo");
 
     await expect(pergunta(page)).toHaveCount(0);
-    await page
-      .getByRole("button", { name: "Registrar desembolso", exact: true })
-      .click();
+    await gravar(page).click();
     await expect(page.getByText("registrado no custo de")).toBeVisible();
 
     const [gravado] = await desembolsosTerreno(db);
@@ -137,15 +140,18 @@ test.describe("um papel só: os passos de hoje (critério 8)", () => {
     page,
     db,
   }) => {
+    // ⚠️ Critério 5 do CONTAI-025: **zero papel grava; papel sem classificação,
+    // não.** O critério 14 do CONTAI-027 não foi tocado — e o botão diz QUAL
+    // falta, porque botão cinza mudo faz achar que quebrou.
     await preencherDesembolso(page, "60.000,00");
     await page
       .getByLabel("Papéis deste desembolso", { exact: true })
       .setInputFiles(pdf("pix.pdf"));
-    await page
-      .getByRole("button", { name: "Registrar desembolso", exact: true })
-      .click();
 
-    await expect(page.getByText("sem isso ele não grava")).toBeVisible();
+    await expect(gravar(page)).toHaveText(
+      "Diga o que é o papel que falta para gravar",
+    );
+    await expect(gravar(page)).toBeDisabled();
     expect(await desembolsosTerreno(db)).toHaveLength(0);
     expect(await anexosDeDesembolso(db)).toHaveLength(0);
   });
@@ -168,9 +174,7 @@ test.describe("um papel só: os passos de hoje (critério 8)", () => {
       .click();
     await expect(page.locator('[data-anexo-novo="errado.pdf"]')).toHaveCount(0);
 
-    await page
-      .getByRole("button", { name: "Registrar desembolso", exact: true })
-      .click();
+    await gravar(page).click();
     await expect(page.getByText("registrado no custo de")).toBeVisible();
 
     const papeis = await anexosDeDesembolso(db);
@@ -212,9 +216,7 @@ test.describe("dois comprovantes: a pergunta do critério 12", () => {
     );
 
     // Sem responder, não grava — e o fato não se perde: ele continua na tela.
-    await page
-      .getByRole("button", { name: "Registrar desembolso", exact: true })
-      .click();
+    await gravar(page).click();
     await expect(
       page.getByText("Responda quando esse dinheiro saiu da sua conta."),
     ).toBeVisible();
@@ -229,9 +231,7 @@ test.describe("dois comprovantes: a pergunta do critério 12", () => {
     // consumado". O dinheiro saiu; o app registra e nomeia o problema.
     await doisComprovantes(page);
     await pergunta(page).getByText("Em mais de um dia", { exact: true }).click();
-    await page
-      .getByRole("button", { name: "Registrar desembolso", exact: true })
-      .click();
+    await gravar(page).click();
     await expect(page.getByText("registrado no custo de")).toBeVisible();
 
     const [gravado] = await desembolsosTerreno(db);
@@ -253,9 +253,7 @@ test.describe("dois comprovantes: a pergunta do critério 12", () => {
     await pergunta(page)
       .getByText("Tudo em 12/08/" + ANO, { exact: true })
       .click();
-    await page
-      .getByRole("button", { name: "Registrar desembolso", exact: true })
-      .click();
+    await gravar(page).click();
     await expect(page.getByText("registrado no custo de")).toBeVisible();
 
     const [gravado] = await desembolsosTerreno(db);
@@ -774,4 +772,217 @@ test("responder sem data é recusado pelo banco — a represa é estrutural", as
   expect(error?.code).toBe("23514");
   const [gravado] = await desembolsosTerreno(db);
   expect(gravado.debitos_mesmo_dia).toBeNull();
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// CONTAI-025 — as QUATRO combinações do critério 2, contra o Postgres local
+//
+// ⚠️ **A trava saiu, e ela nunca teve parecer** (D49). O ADENDO 1 do parecer de
+// 23/08 é literal: superfícies 1-4 **gravam**; 5 e 6 recusam, e por motivo
+// diferente (ali o anexo é FONTE do dado, não prova do fato). Bloquear
+// anexo-PROVA *"não evita erro nenhum: evita o registro"* — e evitou: o Mateus
+// parou de usar o app, e o banco de produção está vazio.
+//
+// A cobertura não foi apagada: ela passou a afirmar o **ESTADO QUE NASCE**.
+// ══════════════════════════════════════════════════════════════════════════
+
+test.describe("as quatro combinações de data × comprovante (critério 2)", () => {
+  /** O formulário até o estado `pago`, SEM data e SEM papel nenhum. */
+  async function pagoSemNada(page: Page, valor: string) {
+    await page.goto(`/obras/${OBRA_ID_SEED}/terreno/desembolsos`);
+    await page
+      .getByRole("group", { name: "O que é este desembolso?" })
+      .getByText("Entrada", { exact: true })
+      .click();
+    await page.getByLabel("Valor", { exact: true }).fill(valor);
+    await page
+      .getByRole("group", { name: "Este valor já foi pago?" })
+      .getByText("Já paguei", { exact: true })
+      .click();
+  }
+
+  test("1 · com data + com comprovante — nada nasce pendente", async ({
+    page,
+    db,
+  }) => {
+    await preencherDesembolso(page, "3.150,00");
+    await anexar(
+      page.locator("body"),
+      "Papéis deste desembolso",
+      "custas.pdf",
+      "Comprovante do pagamento",
+    );
+    await expect(gravar(page)).toHaveText("Gravar o desembolso");
+    await gravar(page).click();
+    await expect(page.getByText("registrado no custo de")).toBeVisible();
+
+    const [gravado] = await desembolsosTerreno(db);
+    expect(gravado).toMatchObject({ estado: "pago", data_pagamento: DATA });
+    expect(await anexosDeDesembolso(db)).toHaveLength(1);
+  });
+
+  test("2 · com data, SEM comprovante — grava e abre a pendência", async ({
+    page,
+    db,
+  }) => {
+    // ⚠️ Este é o caso literal do relato: ele tem a escritura, **não tem os
+    // comprovantes**. Repare que o desembolso TEM papel — e mesmo assim está
+    // fora do custo confirmado, porque *"a escritura prova o preço, não o
+    // pagamento"* (§4.3). É o portão do critério 8, e é por isso que
+    // `pagoSemPapel` (zero anexo) não podia ser reaproveitado.
+    await preencherDesembolso(page, "60.000,00");
+    await anexar(
+      page.locator("body"),
+      "Papéis deste desembolso",
+      "escritura.pdf",
+      "Contrato ou escritura",
+    );
+    await expect(
+      page.getByText("A escritura prova o preço, não o pagamento.", {
+        exact: false,
+      }),
+    ).toBeVisible();
+    await expect(gravar(page)).toHaveText(
+      "Gravar — e abrir a pendência do comprovante",
+    );
+    await gravar(page).click();
+
+    // ⚠️ O efeito OBSERVÁVEL da gravação — e a mensagem NÃO afirma que o valor
+    // passa a compor o custo (critério 13). "no custo de" seria mentira aqui.
+    await expect(
+      page.getByText("registrado — o valor é de", { exact: false }),
+    ).toBeVisible();
+    await expect(page.getByText("registrado no custo de")).toHaveCount(0);
+
+    const [gravado] = await desembolsosTerreno(db);
+    expect(gravado).toMatchObject({ estado: "pago", data_pagamento: DATA });
+    const papeis = await anexosDeDesembolso(db);
+    expect(papeis).toHaveLength(1);
+    expect(papeis[0].papel).toBe("contrato");
+  });
+
+  test("3 · SEM data, com comprovante — grava e abre a pendência da data", async ({
+    page,
+    db,
+  }) => {
+    await pagoSemNada(page, "25.000,00");
+    await anexar(
+      page.locator("body"),
+      "Papéis deste desembolso",
+      "pix.pdf",
+      "Comprovante do pagamento",
+    );
+    // ⚠️ O rótulo adjudicado pelo `contador` em 23/08, com o "que falta": ele
+    // RECUSOU a simetria óbvia ("a pendência da data") porque a distinção
+    // fiscal não pode depender de uma letra ("da data" × "de datas"), no mesmo
+    // formulário em que nasce a pendência "mais de uma data".
+    await expect(gravar(page)).toHaveText(
+      "Gravar — e abrir a pendência da data que falta",
+    );
+    await gravar(page).click();
+    // Frase que só existe DEPOIS de gravar: "não tem ano-calendário" também
+    // está na caixa de consequência do formulário, ANTES do toque.
+    await expect(page.getByText("registrado — sem a data")).toBeVisible();
+
+    const [gravado] = await desembolsosTerreno(db);
+    expect(gravado).toMatchObject({
+      estado: "pago",
+      data_pagamento: null,
+      valor: 25000,
+    });
+    expect(await anexosDeDesembolso(db)).toHaveLength(1);
+  });
+
+  test("4 · SEM data e SEM comprovante — grava, com UM chip e as duas frases", async ({
+    page,
+    db,
+  }) => {
+    await pagoSemNada(page, "4.200,00");
+
+    // A consequência é dita ANTES do toque: UMA caixa, nunca duas empilhadas,
+    // ordem data → comprovante, e "Comece pela data" literal (Gate Fiscal §4).
+    const caixa = page.locator("[data-consequencia-do-formulario]");
+    await expect(caixa).toBeVisible();
+    await expect(
+      caixa.getByText("Pago — falta a data e o comprovante", { exact: true }),
+    ).toBeVisible();
+    await expect(caixa.getByText("Comece pela data", { exact: false })).toBeVisible();
+
+    await expect(gravar(page)).toHaveText("Gravar — e abrir as duas pendências");
+    await gravar(page).click();
+    await expect(page.getByText("registrado — sem a data")).toBeVisible();
+
+    // ⚠️ O ESTADO GRAVADO: `pago`, `data_pagamento` NULO e ZERO linhas em
+    // `terreno_desembolso_anexo`. É o que o banco sempre aceitou (0008/0010).
+    const [gravado] = await desembolsosTerreno(db);
+    expect(gravado).toMatchObject({
+      estado: "pago",
+      data_pagamento: null,
+      valor: 4200,
+    });
+    expect(await anexosDeDesembolso(db)).toHaveLength(0);
+  });
+
+  test("data no FUTURO continua recusada — e o texto oferece as 3 saídas", async ({
+    page,
+    db,
+  }) => {
+    // ⚠️ A única recusa de data que sobrou, e o texto MUDOU no Gate 2: agora
+    // que o campo vazio grava, o erro mais provável é **data errada num
+    // pagamento real** — e a redação anterior oferecia SÓ `previsto`, a saída
+    // que tira o valor de todo ano-calendário. Ordem: corrigir · deixar vazio ·
+    // e só então `previsto`, com a consequência dita.
+    await pagoSemNada(page, "4.200,00");
+    await page
+      .getByLabel("Data em que saiu da conta", { exact: true })
+      .fill("2099-01-01");
+    await gravar(page).click();
+
+    const erro = page.getByText("Data no futuro — o dinheiro não pode ter saído");
+    await expect(erro).toBeVisible();
+    await expect(page.getByText("Se você errou a data, corrija-a")).toBeVisible();
+    await expect(page.getByText("deixe o campo vazio")).toBeVisible();
+    await expect(
+      page.getByText("isso tira este valor de todo ano-calendário"),
+    ).toBeVisible();
+    // A recusa é da DATA, não do registro: nada foi gravado.
+    expect(await desembolsosTerreno(db)).toHaveLength(0);
+  });
+
+  test("⚠️ o desembolso sem comprovante fica FORA do custo confirmado, nomeado", async ({
+    page,
+    db,
+  }) => {
+    // A D50: `custoTerrenoAteOAno` somava por `estado === "pago"` + data e NÃO
+    // olhava anexo. Liberada a gravação, isso somaria custo não demonstrável
+    // em silêncio — e o §2.4 proíbe o silêncio nos DOIS sentidos: o segundo
+    // número existe para o total não encolher calado.
+    const id = await criarDesembolsoTerreno(db, {
+      tipo: "entrada",
+      valor: 60000,
+      estado: "pago",
+      data_pagamento: DATA,
+    });
+    await criarAnexoDeDesembolso(db, {
+      desembolso_id: id,
+      arquivo_path: await subirParaOAcervo(db, "terreno", "escritura.txt", "esc"),
+      papel: "contrato",
+    });
+
+    await page.goto(`/obras/${OBRA_ID_SEED}/terreno`);
+    await expect(
+      page.getByText("Já desembolsado até 31/12/"),
+    ).toBeVisible();
+    // O confirmado não o inclui...
+    await expect(page.locator("[data-fora-do-custo-confirmado]")).toContainText(
+      "Fora do custo confirmado por falta de comprovante",
+    );
+    await expect(page.locator("[data-fora-do-custo-confirmado]")).toContainText(
+      "R$ 60.000,00",
+    );
+    // ...e a pendência tem SUPERFÍCIE PRÓPRIA (critério 11, antídoto da D47).
+    const card = page.locator('[data-pendencia="terreno-sem-comprovante"]').first();
+    await expect(card).toContainText("Pago sem comprovante");
+    await expect(card).toContainText("não está demonstrável");
+  });
 });

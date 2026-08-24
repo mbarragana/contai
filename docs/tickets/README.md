@@ -10,7 +10,6 @@ Atualizado em 2026-08-23.*
 
 | # | ID | O que é | P |
 |---|---|---|---|
-| 1 | **025** | **Desembolso do terreno sem data, sem comprovante, ou sem os dois** | **P0** |
 | 2 | **033** | **Nota sem arquivo** — registrar a NF sem o PDF/XML dela | **P0** |
 | 3 | **032** | Tirar `data = hoje` e `meio = "pix"` do formulário de pagamento | **P0** |
 | 3 | **022** | Cartão de crédito (compra → fatura) | **P0** |
@@ -21,6 +20,7 @@ Atualizado em 2026-08-23.*
 | 7 | **005** | Headline da home | **P0** |
 | 8 | **031** | E2E da condição fiscal 6 | P1 |
 | 9 | **035** | **Reconciliar a régua de cor com a D39 revisada** | P1 |
+| 10 | **036** | **Fatia 2 do `CONTAI-025` — a linha do §4.5 nas saídas anuais** | P1 |
 | 10 | **034** | **Campo fiscal não nasce preenchido, e o teste prova** | P1 |
 | 9 | **014** | Manifest de PWA + prova no aparelho | P1 |
 | 10 | **006** | Estados de rede lenta/indisponível | P1 |
@@ -153,6 +153,7 @@ qualquer outra coisa.
 
 | # | Ticket | Status | Ressalva viva |
 |---|---|---|---|
+| 025 | **Desembolso do terreno sem data, sem comprovante, ou sem os dois** | ⚠️ **fatia 1 de 2** | **Fatia 1 ENTREGUE, 16/16** (Gate 4 em 24/08). ⚠️ **NÃO é ✅**: a **fatia 2** — a linha do §4.5 nas saídas anuais — é o **`CONTAI-036`**, e está travada por **portão real** em `podeGerarRelatorioAnual`, não por promessa. Regra que nasce aqui: **⚠️ é o estado de ticket fatiado com fatia aberta, sempre; ✅ só quando o último critério fecha.** Resolveu a dor do relato 005 — o Mateus voltou a poder registrar. Fecha **D49**, **D50** e **D47**. Sem migration. |
 | 027 | **Ver o anexo, e anexar mais de um** | ✅ `G1:1ff74c9…53acc37 G2-G4:02fd6fb` | **Duas dívidas vivas: D47** (`perguntaPendente` sem superfície de tela — ticket novo, e o `contador` exige parecer do texto do chip ANTES do mock) e **D48** (a justificativa de `completarDesembolsoTerreno` não ser atômico invoca uma tela que não existe). ⚠️ **Item 12d PENDENTE**, critério 13 CORTADO. Placar: 22 itens — 20 PASS. O Gate 1 ficou **2 dias pushado sem revisor**; os Gates 2-4 rodaram em 23/08 e acharam um defeito de rastro fiscal que **nunca virou dado** só porque o banco de produção está vazio |
 | 001 | Ingestão de NF/boleto | ⚠️ **rebaixado em 18/08** (era "done") | os quatro hashes **não estão registrados**. O ticket está em produção e ninguém duvida disso — o que falta é a prova em formato auditável. Ressalva viva: critério 7 (≤3 interações) transferido à US-008 |
 | 002 | Autenticação | ⚠️ **rebaixado em 18/08** (era "done") | mesmos quatro hashes ausentes. Ressalva **aberta**: R2 (prova no aparelho real) **transferida ao 014**, não resolvida. **Método trocado para e-mail+senha em 18/08** — reabre a validação de tela |

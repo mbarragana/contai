@@ -54,6 +54,7 @@ import {
   ESTIMATIVA_NAO_E_APURACAO,
   faltaLancarInforme,
   NOME_DO_DESEMBOLSO,
+  pagosSemComprovante,
   pendenciaDeDatasAberta,
   TERRENO_ZERO_NAO_E_NADA_PAGO,
 } from "./terreno";
@@ -227,6 +228,45 @@ export interface TerrenoMaisDeUmaData {
   href: string;
 }
 
+/**
+ * **CONTAI-025, critério 11** — o desembolso do terreno **pago sem
+ * comprovante**, agregado da OBRA inteira.
+ *
+ * ⚠️ **A superfície é o critério.** Até aqui `pagoSemPapel` só existia DENTRO
+ * da linha do desembolso (`terreno/page.tsx`) — que é a **D47 com outro nome**:
+ * pendência sem superfície é buraco silencioso, e liberar a gravação sem ela
+ * trocaria *"custo não registrado"* por *"custo registrado que ninguém vai
+ * completar"* (§1.5 do parecer). Na venda dá no mesmo, com a agravante de
+ * parecer resolvido.
+ *
+ * ⚠️ **Campo próprio, fora de `pendencias`, fora de `emPendenciaCentavos` e
+ * fora de `custoConfirmadoAnoCentavos`** (critério 21 do CONTAI-010), com teste
+ * afirmando cada "não".
+ *
+ * ⚠️ **VERMELHO** (D39): *vermelho = fato consumado com consequência fiscal
+ * aberta*. O dinheiro saiu.
+ *
+ * ⚠️ **É da OBRA, não do ano** — inclui os `pago` **sem data**, que não caem em
+ * ano nenhum. É por isso que este total pode ser maior que o segundo número do
+ * card do ano, e a diferença é dita em tela.
+ */
+/**
+ * ⚠️ **Só DADO, nenhum texto — e a ausência é deliberada.** O chip (§4.1), a
+ * pendência (§4.2) e a linha do §4.3 são lidos das constantes de
+ * `lib/fiscal/terreno.ts` pelo componente único que desenha este card
+ * (`app/_components/pago-sem-comprovante.tsx`). Repassá-los por aqui criaria
+ * um SEGUNDO caminho para o mesmo texto — e dois caminhos para o mesmo texto
+ * fiscal divergem no dia em que só um for atualizado, que é como nasce a D46.
+ *
+ * (`terrenoSemData` carrega `consequencia` por herança do CONTAI-010; não é
+ * padrão a copiar.)
+ */
+export interface TerrenoPagoSemComprovante {
+  totalCentavos: number;
+  quantidade: number;
+  href: string;
+}
+
 export interface TerrenoSemRegistro {
   /** A parte do terreno dentro do acumulado — zero, e é esse o ponto. */
   terrenoNoAcumuladoCentavos: number;
@@ -253,6 +293,22 @@ export interface ResumoObra {
    * afirmando cada um desses "não", como para `terrenoSemData`.
    */
   terrenoMaisDeUmaData: TerrenoMaisDeUmaData[];
+  /**
+   * CONTAI-025, critério 11. `null` quando não há nenhum. Fora de
+   * `pendencias`, de `emPendenciaCentavos` e de `custoConfirmadoAnoCentavos` —
+   * com teste afirmando cada um desses "não".
+   */
+  terrenoPagoSemComprovante: TerrenoPagoSemComprovante | null;
+  /**
+   * **Critério 9** — o que o portão do comprovante TIROU de
+   * `acumuladoImovelCentavos`, para o card do acumulado nunca encolher em
+   * silêncio. É a parte **datada** até 31/12 do ano em tela; os sem data estão
+   * em `terrenoPagoSemComprovante`, que é da obra.
+   *
+   * ⚠️ Este número **não soma** com o acumulado em lugar nenhum: ele é a linha
+   * nomeada logo abaixo dele (§2.4).
+   */
+  terrenoForaDoAcumuladoCentavos: number;
   financiamentoAguardandoInforme: FinanciamentoAguardandoInforme | null;
   /** Anos já fechados sem informe — do mais antigo para o mais recente. */
   financiamentoFaltaLancar: FinanciamentoFaltaLancar[];
@@ -646,24 +702,51 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
             href: `/obras/${obra.id}/terreno/informe/${a.ano}`,
           }));
 
-  // O R$ 0,00 do terreno: ausência de registro, nunca ausência de pagamento.
-  // A condição é "nenhum valor DATADO e nenhum informe" — é a mesma coisa que
-  // `custoTerrenoAteOAno === 0`, e é deliberadamente mais larga que "nenhum
-  // desembolso": uma linha `pago` sem data também deixa o acumulado em zero, e
-  // nesse caso o zero mente exatamente igual.
-  const terrenoNoAcumuladoCentavos = custoTerrenoAteOAno(
+  // ── CONTAI-025 · o custo do terreno passa a ser DOIS números ───────────
+  //
+  // ⚠️ **A D50 se conserta AQUI, no cálculo puro** — nunca na query. Filtrar o
+  // desembolso sem comprovante na leitura esconderia justamente o número que o
+  // §2.4 manda mostrar em linha nomeada, e o app voltaria a decidir em
+  // silêncio — só que para baixo.
+  const custoDoTerreno = custoTerrenoAteOAno(
     desembolsosTerreno,
     informesFinanciamento,
     ano,
   );
+
+  // O R$ 0,00 do terreno: ausência de registro, nunca ausência de pagamento.
+  // A condição é "nenhum valor DATADO e nenhum informe", e é deliberadamente
+  // mais larga que "nenhum desembolso": uma linha `pago` sem data também deixa
+  // o acumulado em zero, e nesse caso o zero mente exatamente igual.
+  //
+  // ⚠️ **O sem-comprovante entra nesta condição, e não pode sair dela**: com um
+  // desembolso datado e sem comprovante, o confirmado é zero mas o terreno
+  // ESTÁ registrado — dizer "nada foi registrado" ali seria trocar um zero que
+  // mente por outro.
+  const terrenoNoAcumuladoCentavos = custoDoTerreno.confirmadoCentavos;
   const terrenoSemRegistro: TerrenoSemRegistro | null =
-    terrenoNoAcumuladoCentavos === 0
+    terrenoNoAcumuladoCentavos === 0 &&
+    custoDoTerreno.semComprovanteCentavos === 0
       ? {
           terrenoNoAcumuladoCentavos,
           aviso: TERRENO_ZERO_NAO_E_NADA_PAGO,
           href: `/obras/${obra.id}/terreno`,
         }
       : null;
+
+  // Critério 11 — o agregado da OBRA, a superfície que faltava (D47).
+  const semComprovante = pagosSemComprovante(desembolsosTerreno);
+  const terrenoPagoSemComprovante: TerrenoPagoSemComprovante | null =
+    semComprovante.length === 0
+      ? null
+      : {
+          totalCentavos: semComprovante.reduce(
+            (s, d) => s + d.valorCentavos,
+            0,
+          ),
+          quantidade: semComprovante.length,
+          href: `/obras/${obra.id}/terreno/desembolsos`,
+        };
 
   return {
     ano,
@@ -675,6 +758,9 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
     pendencias,
     terrenoSemData,
     terrenoMaisDeUmaData,
+    terrenoPagoSemComprovante,
+    // ⚠️ Linha nomeada, NUNCA somada ao acumulado (§2.4).
+    terrenoForaDoAcumuladoCentavos: custoDoTerreno.semComprovanteCentavos,
     financiamentoAguardandoInforme,
     financiamentoFaltaLancar,
     terrenoSemRegistro,

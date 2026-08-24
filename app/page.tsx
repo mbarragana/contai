@@ -25,6 +25,7 @@ import {
 } from "@/app/_components/ui";
 import { BlocoAgendados } from "@/app/_components/agendado";
 import { PendenciaDeDatas } from "@/app/_components/datas-do-desembolso";
+import { CardPagoSemComprovante } from "@/app/_components/pago-sem-comprovante";
 import {
   carregarCompromissos,
   carregarObras,
@@ -37,6 +38,10 @@ import {
 import { montarAgendaDaHome, type AgendaHome } from "@/lib/fiscal/compromisso";
 import { escolherObraAtiva } from "@/lib/fiscal/obra";
 import { calcularResumo, type Pendencia, type ResumoObra } from "@/lib/fiscal/resumo";
+import {
+  FORA_DO_CUSTO_CONFIRMADO,
+  FORA_DO_CUSTO_CONFIRMADO_PORQUE,
+} from "@/lib/fiscal/terreno";
 import {
   AVISO_ANO_ANTERIOR,
   EMITENTE_ERRADO_O_QUE_FALTA,
@@ -230,6 +235,27 @@ export default function Home() {
                 <Dica>
                   = situação em 31/12 na ficha Bens e Direitos (terreno + obra)
                 </Dica>
+              ) : null}
+              {/* ── CONTAI-025, critério 9 · o SEGUNDO número ───────────────
+                  O acumulado passou a excluir o desembolso do terreno pago sem
+                  comprovante (critério 8). Sem esta linha ele encolheria em
+                  SILÊNCIO, e o §2.4 do parecer diz que "item incluído em
+                  silêncio é o pior dos mundos; nomeado, é posição declarada" —
+                  e que isso vale nos DOIS sentidos, excluído também. O rótulo é o do §4.5,
+                  o mesmo do relatório anual — dois nomes para o mesmo número é
+                  como nasce a D46. */}
+              {estado.resumo.terrenoForaDoAcumuladoCentavos > 0 ? (
+                <div className="mt-1.5" data-fora-do-custo-confirmado>
+                  <div className="text-[13px] font-semibold text-red">
+                    {FORA_DO_CUSTO_CONFIRMADO}:{" "}
+                    <span className="mono">
+                      {formatarBRL(
+                        estado.resumo.terrenoForaDoAcumuladoCentavos,
+                      )}
+                    </span>
+                  </div>
+                  <Dica>{FORA_DO_CUSTO_CONFIRMADO_PORQUE}</Dica>
+                </div>
               ) : null}
               {/* ⚠️ O R$ 0,00 do terreno NÃO é apuração — é a ausência dela.
                   A parte do terreno aparece nomeada logo abaixo do acumulado
@@ -466,17 +492,42 @@ export default function Home() {
                 não muda de código. O primeiro é pendência de COMPLEMENTO (falta
                 um dado que só o Mateus tem); o segundo é o calendário do banco.
                 Nenhum dos dois é bloqueio. */}
+            {/* ── CONTAI-025, critério 11 · o card agregado da pendência ───
+                A superfície que faltava (D47): "pago sem papel" só existia
+                DENTRO da linha do desembolso. Sem card próprio, liberar a
+                gravação trocaria "custo não registrado" por "custo registrado
+                que ninguém vai completar" (§1.5), que na venda dá no mesmo.
+                VERMELHO (D39): o dinheiro saiu. Valor total + contagem + link
+                para a lista, e a linha do §4.3 junto da pendência. */}
+            {estado.resumo.terrenoPagoSemComprovante ? (
+              <>
+                <Passo>Terreno — pago sem comprovante</Passo>
+                <CardPagoSemComprovante
+                  totalCentavos={
+                    estado.resumo.terrenoPagoSemComprovante.totalCentavos
+                  }
+                  quantidade={
+                    estado.resumo.terrenoPagoSemComprovante.quantidade
+                  }
+                  href={estado.resumo.terrenoPagoSemComprovante.href}
+                />
+              </>
+            ) : null}
+
+            {/* ⚠️ **VERMELHO desde 23/08 (D39 revisada)** — o valor está pago e
+                não cai em ano nenhum: é a pendência MAIS grave da tela, não a
+                mais leve. Era âmbar por herança do CONTAI-027. */}
             {estado.resumo.terrenoSemData.length > 0 ? (
               <>
                 <Passo>Terreno — valores sem data</Passo>
                 {estado.resumo.terrenoSemData.map((t) => (
-                  <Card key={t.id} className="border-amb">
-                    <Chip cor="amb">Falta a data</Chip>
+                  <Card key={t.id} className="border-red">
+                    <Chip cor="red">Falta a data</Chip>
                     <div className="mt-1.5 font-semibold">{t.titulo}</div>
                     <Dica>
                       <span className="mono">{formatarBRL(t.valorCentavos)}</span>
                     </Dica>
-                    <Consequencia cor="amb">
+                    <Consequencia cor="red">
                       {t.consequencia}. <strong>Não bloqueia o app</strong> —
                       fica como pendência até você preencher.
                     </Consequencia>

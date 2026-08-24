@@ -45,17 +45,31 @@ import {
 import { ehDataValida } from "@/lib/fiscal/pagamento";
 import {
   A_DATA_QUE_VALE,
+  ANTES_DE_DIZER_O_QUE_E_CADA_PAPEL,
   APP_NAO_INVENTA_DATA,
+  CHIP_FALTA_DATA_E_COMPROVANTE,
+  CHIP_PAGO_SEM_COMPROVANTE,
+  COMECE_PELA_DATA,
+  COMPROVANTE_POR_TIPO,
+  DATA_NO_FUTURO,
+  DATA_NO_FUTURO_NO_COMPLEMENTO,
+  dataInformada,
+  desembolsoRegistrado,
   DESEMBOLSO_SEM_DATA,
+  estadoDoGravar,
+  FALTA_DATA_E_COMPROVANTE,
   FGTS_NA_ENTRADA_ENTRA,
   NOME_DO_DESEMBOLSO,
+  PAGO_SEM_COMPROVANTE,
   PAGO_SEM_PAPEL,
+  pagoSemComprovante,
   pagoSemPapel,
   PAPEL_NOVO_E_ACRESCIMO,
   pendenciaDeDatasAberta,
   perguntaNoComplemento,
   perguntaNoRegistro,
   PREVISTO_NAO_E_PAGO,
+  temComprovante,
   tiposDeDesembolsoPara,
 } from "@/lib/fiscal/terreno";
 import { hojeIso } from "@/lib/hoje";
@@ -224,31 +238,46 @@ export default function DesembolsosDoTerreno() {
       });
     }
     if (estado === "pago") {
-      // ⚠️ A data é OBRIGATÓRIA no desembolso pago, e não tem default: é ela
-      // que decide o ano-calendário do custo. Campo vazio pergunta; data de
-      // memória afirma.
-      if (!ehDataValida(data)) {
+      // ══ CONTAI-025 · A TRAVA SAIU DAQUI, e o comentário que a carimbava
+      // saiu com ela. ═══════════════════════════════════════════════════════
+      //
+      // Estavam aqui duas recusas, e **nenhuma das duas tinha parecer**:
+      // `!ehDataValida(data)` e `anexos.length === 0`. A segunda é a **D49** —
+      // o texto que parecia justificá-la (*"sem o extrato anexado, este
+      // lançamento não grava"*) é de OUTRA entidade, o informe anual, onde o
+      // anexo é FONTE do dado e a recusa continua de pé (§1.2 e §A.2 do
+      // parecer de 23/08). Aqui o anexo é **PROVA** de um fato que o Mateus
+      // conhece sem ele: *"bloquear anexo-PROVA não evita erro nenhum: evita o
+      // registro"*. Ele parou de usar o app por causa dela, e o banco de
+      // produção está vazio.
+      //
+      // ⚠️ **O que NÃO saiu**: (a) a data continua **perguntada e sem
+      // default** — nenhum caminho aqui a preenche, nem com `created_at` nem
+      // com hoje (critério 4; `APP_NAO_INVENTA_DATA` segue em tela); (b) o
+      // `papel` do anexo que EXISTIR continua obrigatório (critério 14 do
+      // CONTAI-027); (c) data no FUTURO continua recusada, porque aí não é
+      // ausência de fato — é fato contraditado.
+      //
+      // ⚠️ E nenhum texto desta tela oferece `previsto` como SAÍDA a quem já
+      // disse que pagou (§1.4.1): isso tiraria o custo de todo ano-calendário
+      // e é **pior** que a trava.
+      if (data !== "" && !ehDataValida(data)) {
         encontrados.push({
           campo: "data",
-          mensagem: `Informe a data em que o dinheiro saiu da conta. ${DESEMBOLSO_SEM_DATA}.`,
+          mensagem: `Data incompleta. Deixe vazia se ainda não sabe — ${DESEMBOLSO_SEM_DATA}.`,
         });
-      } else if (data > hoje) {
-        encontrados.push({
-          campo: "data",
-          mensagem:
-            "Data no futuro — se ainda não saiu da conta, registre como 'ainda não paguei'.",
-        });
+      } else if (ehDataValida(data) && data > hoje) {
+        // ⚠️ Redação nova do `contador` (Gate 2 do CONTAI-025). A anterior
+        // oferecia SÓ `previsto` — a saída que tira o valor de todo
+        // ano-calendário — para o erro que hoje é o mais provável: data errada
+        // num pagamento real. Agora que o campo vazio grava, "deixe vazio" é a
+        // saída certa, e ela precisava estar dita.
+        encontrados.push({ campo: "data", mensagem: DATA_NO_FUTURO });
       }
-      // Anexo obrigatório para toda linha NOVA paga (disciplina do anexo no ato
-      // do registro). Linha `previsto` não tem o que anexar: nada foi pago.
-      if (anexos.length === 0) {
-        encontrados.push({
-          campo: "anexos",
-          mensagem: "Anexe o comprovante — é ele que sustenta este custo na venda.",
-        });
-      } else if (semPapel(anexos) > 0) {
+      if (semPapel(anexos) > 0) {
         // Critério 14: `papel` é obrigatório e sem default. O papel que não foi
-        // respondido não grava — nem com um palpite do app.
+        // respondido não grava — nem com um palpite do app. Zero papel grava;
+        // papel sem classificação, não.
         encontrados.push({
           campo: "anexos",
           mensagem:
@@ -295,7 +324,11 @@ export default function DesembolsosDoTerreno() {
         tipo: tipo!,
         valorCentavos: parseValorInput(valor)!,
         // Previsto NUNCA leva data (constraint da 0008): previsto não é pago.
-        dataPagamento: estado === "pago" ? data : null,
+        // ⚠️ **`pago` sem data é LEGAL** e vai como `null` — o banco sempre
+        // aceitou (o comentário da 0008 já previa "linhas `pago` sem data").
+        // Aqui é onde a tentação mora: `?? hoje` ou `?? created_at` fariam o
+        // app inventar o ano-calendário do custo. Critério 4.
+        dataPagamento: estado === "pago" && data !== "" ? data : null,
         estado: estado!,
         origemRecurso: tipo === "entrada" ? origem : null,
         anexos: gravar,
@@ -304,9 +337,16 @@ export default function DesembolsosDoTerreno() {
         debitosMesmoDia: perguntaDoRegistro ? resposta === "mesmo_dia" : null,
       });
       await recarregar();
+      // ⚠️ Critério 13 — a mensagem de sucesso **não pode mentir**. A anterior
+      // afirmava "registrado no custo de {ano}" olhando só a data; com o
+      // portão do comprovante, isso é falso metade das vezes.
       setSalvo(
         estado === "pago"
-          ? `${NOME_DO_DESEMBOLSO[tipo!]} registrado no custo de ${data.slice(0, 4)}.`
+          ? desembolsoRegistrado(
+              NOME_DO_DESEMBOLSO[tipo!],
+              data === "" ? null : data.slice(0, 4),
+              comprovantesEscolhidos(anexos) > 0,
+            )
           : `${NOME_DO_DESEMBOLSO[tipo!]} registrado como previsto — não entra em ano nenhum.`,
       );
       setTipo(null);
@@ -331,6 +371,67 @@ export default function DesembolsosDoTerreno() {
     estado === "pago" &&
     perguntaNoRegistro(data, comprovantesEscolhidos(anexos));
 
+  // ── CONTAI-025 · o rótulo do Gravar e a consequência do que falta ──────
+  //
+  // ⚠️ **O botão GRAVA SEMPRE** (ADENDO 2 §5 de 18/08: *"o botão grava
+  // sempre; o que muda é o estado que nasce"*). O que o desabilita é só (a) o
+  // desembolso ainda não estar preenchido e (b) papel escolhido sem `papel`
+  // respondido — critério 14 do CONTAI-027, que este ticket não toca. Falta de
+  // data ou de comprovante **nunca** desabilita: isso seria a trava de volta
+  // com rótulo novo, que é exatamente o que o relato 005 descreve.
+  const valorEmCentavos = parseValorInput(valor);
+  const temComprovanteAqui = comprovantesEscolhidos(anexos) > 0;
+  const temDataAqui = ehDataValida(data);
+  const botaoGravar = estadoDoGravar({
+    preenchido:
+      tipo !== null &&
+      valorEmCentavos !== null &&
+      valorEmCentavos > 0 &&
+      estado !== null,
+    estado,
+    papeisSemResposta: estado === "pago" ? semPapel(anexos) : 0,
+    temData: temDataAqui,
+    temComprovante: temComprovanteAqui,
+  });
+
+  /**
+   * A consequência do que está faltando — **UMA caixa, nunca duas
+   * empilhadas** (Gate Fiscal §4), e só depois de o desembolso estar
+   * preenchido: antes disso ela cobraria papel de um lançamento que ainda não
+   * existe.
+   */
+  const consequenciaDoFormulario =
+    estado !== "pago" ||
+    !botaoGravar.habilitado ||
+    (temDataAqui && temComprovanteAqui) ? null : (
+      <div
+        className="rounded-[10px] border border-red px-[14px] py-3"
+        data-consequencia-do-formulario
+      >
+        {!temDataAqui && !temComprovanteAqui ? (
+          <>
+            <Chip cor="red">{CHIP_FALTA_DATA_E_COMPROVANTE}</Chip>
+            <Consequencia cor="red">
+              {FALTA_DATA_E_COMPROVANTE} {COMECE_PELA_DATA}
+            </Consequencia>
+          </>
+        ) : !temComprovanteAqui ? (
+          <>
+            <Chip cor="red">{CHIP_PAGO_SEM_COMPROVANTE}</Chip>
+            <Consequencia cor="red">
+              <strong>{CHIP_PAGO_SEM_COMPROVANTE}.</strong>{" "}
+              {PAGO_SEM_COMPROVANTE}
+            </Consequencia>
+          </>
+        ) : (
+          <>
+            <Chip cor="red">Falta a data</Chip>
+            <Consequencia cor="red">{DESEMBOLSO_SEM_DATA}.</Consequencia>
+          </>
+        )}
+      </div>
+    );
+
   /**
    * Completar a data **e/ou** anexar o papel que chegou depois — critério 9b.
    * É a MESMA ação: o que muda é o que falta naquele desembolso.
@@ -348,7 +449,11 @@ export default function DesembolsosDoTerreno() {
         return;
       }
       if (dataCompletar > hoje) {
-        setErroCompletar("Data no futuro — informe a data real do pagamento.");
+        // ⚠️ Texto PRÓPRIO deste ato (`contador`, Gate 2): aqui "deixe o campo
+        // vazio" não cabe — o ato existe para informar a data. A saída segura
+        // é SAIR SEM GRAVAR, e o texto anterior não a nomeava. E não oferece
+        // `previsto`: quem completa a data já disse que pagou (critério 6).
+        setErroCompletar(DATA_NO_FUTURO_NO_COMPLEMENTO);
         return;
       }
     }
@@ -393,9 +498,17 @@ export default function DesembolsosDoTerreno() {
       setDataCompletar("");
       setAnexosCompletar([]);
       setRespostaCompletar(null);
+      // ⚠️ **Critério 13 — a mensagem não pode mentir.** A anterior escolhia
+      // só por `faltaData` e afirmava que *"o valor passa a compor o custo de
+      // {ano}"* ignorando o comprovante: com o portão do critério 8, ele **não
+      // passa** se não houver papel `comprovante`. Mensagem de sucesso que
+      // mente sobre consequência fiscal fecha a pendência na cabeça do Mateus.
+      // Os dois textos são cópia literal do §5 do parecer.
+      const temComprovanteAgora =
+        temComprovante(d) || comprovantesEscolhidos(anexosCompletar) > 0;
       setSalvo(
         faltaData
-          ? `Data informada — o valor passa a compor o custo de ${dataCompletar.slice(0, 4)}.`
+          ? dataInformada(dataCompletar.slice(0, 4), temComprovanteAgora)
           : gravar.length === 1
             ? "Papel anexado — o acervo deste desembolso cresceu."
             : `${gravar.length} papéis anexados — o acervo deste desembolso cresceu.`,
@@ -543,14 +656,37 @@ export default function DesembolsosDoTerreno() {
           <>
             <Passo>Valores sem data — falta completar</Passo>
             {semData.map((d) => (
-              <Card key={d.id} className="border-amb" data-sem-data={d.tipo}>
-                <Chip cor="amb">Falta a data</Chip>
+              // ⚠️ **VERMELHO desde 23/08 (D39 revisada)**: o dinheiro saiu e
+              // o valor não cai em ano nenhum. Era âmbar por herança do
+              // CONTAI-027, não por critério.
+              <Card key={d.id} className="border-red" data-sem-data={d.tipo}>
+                {/* ── CONTAI-025, critério 10 · o ESTADO COMBINADO ──────────
+                    **UM chip que nomeia os DOIS fatos** (mock v2): com os dois
+                    eixos em vermelho, dois chips lado a lado viram mancha e o
+                    olho lê *um* problema borrado. A fusão é só de
+                    APRESENTAÇÃO — a consequência **não funde**: continuam as
+                    duas frases do parecer, ordem data → comprovante, e
+                    "Comece pela data" é literal. Nunca dois blocos
+                    empilhados. */}
+                {temComprovante(d) ? (
+                  <Chip cor="red">Falta a data</Chip>
+                ) : (
+                  <Chip cor="red">{CHIP_FALTA_DATA_E_COMPROVANTE}</Chip>
+                )}
                 <Linha rotulo={NOME_DO_DESEMBOLSO[d.tipo]}>
                   <span className="mono font-semibold">
                     {formatarBRL(d.valorCentavos)}
                   </span>
                 </Linha>
-                <Consequencia cor="amb">{DESEMBOLSO_SEM_DATA}.</Consequencia>
+                {temComprovante(d) ? (
+                  <Consequencia cor="red">{DESEMBOLSO_SEM_DATA}.</Consequencia>
+                ) : (
+                  <div data-pendencia="terreno-data-e-comprovante">
+                    <Consequencia cor="red">
+                      {FALTA_DATA_E_COMPROVANTE} {COMECE_PELA_DATA}
+                    </Consequencia>
+                  </div>
+                )}
                 {/* Falta a data, não o papel: quem já anexou tem o que abrir. */}
                 <ListaDeAnexos
                   titulo="Papéis anexados"
@@ -584,7 +720,7 @@ export default function DesembolsosDoTerreno() {
                 key={d.id}
                 data-desembolso-gravado={d.id}
                 className={
-                  pendenciaDeDatasAberta(d) || pagoSemPapel(d)
+                  pendenciaDeDatasAberta(d) || pagoSemComprovante(d)
                     ? "border-red"
                     : undefined
                 }
@@ -612,6 +748,21 @@ export default function DesembolsosDoTerreno() {
                   titulo="Papéis deste desembolso"
                   itens={papeisDoDesembolso(d)}
                 />
+                {/* ── CONTAI-025, critério 8 · "tem papel, e nenhum deles é
+                    comprovante". É o caso literal do relato: ele tem a
+                    escritura, não tem os comprovantes — e a escritura prova o
+                    preço, não o pagamento (§4.3).
+                    ⚠️ Chip DIFERENTE do de baixo, e a diferença é o conjunto,
+                    não o fato fiscal (§3 do Gate Fiscal). */}
+                {pagoSemComprovante(d) && !pagoSemPapel(d) ? (
+                  <div data-pendencia="terreno-sem-comprovante">
+                    <Chip cor="red">{CHIP_PAGO_SEM_COMPROVANTE}</Chip>
+                    <Consequencia cor="red">
+                      <strong>{CHIP_PAGO_SEM_COMPROVANTE}.</strong>{" "}
+                      {PAGO_SEM_COMPROVANTE}
+                    </Consequencia>
+                  </div>
+                ) : null}
                 {/* Critério 15 — "pago, e sem papel nenhum" continua visível,
                     agora derivado de "não existe linha de anexo". */}
                 {pagoSemPapel(d) ? (
@@ -625,10 +776,12 @@ export default function DesembolsosDoTerreno() {
                 ) : (
                   <div className="mt-2.5">
                     <Botao
-                      variante={pagoSemPapel(d) ? "primary" : "ghost"}
+                      variante={pagoSemComprovante(d) ? "primary" : "ghost"}
                       onClick={() => abrirComplemento(d.id)}
                     >
-                      Anexar um papel
+                      {pagoSemComprovante(d)
+                        ? "Anexar o comprovante"
+                        : "Anexar um papel"}
                     </Botao>
                   </div>
                 )}
@@ -679,17 +832,37 @@ export default function DesembolsosDoTerreno() {
                 ajuda={A_DATA_QUE_VALE}
                 erro={erroDe("data")}
               />
-              {/* ⚠️ Critério 8 + Teste do Canteiro: com UM papel, esta tela
-                  tem exatamente os passos de hoje — um campo de arquivo, uma
-                  pergunta sobre o que ele é, e o Gravar. O `multiple` não custa
-                  toque nenhum a quem leva um arquivo só. */}
+              {/* ⚠️ CONTAI-025 — a ajuda deixou de dizer "obrigatório", e não
+                  é ajuste de tom: **zero papel grava**, e é o ponto do ticket.
+                  O que o comprovante decide é se o valor entra no custo
+                  CONFIRMADO, não se o registro existe. */}
               <EscolhaDeAnexos
                 rotulo="Papéis deste desembolso"
-                ajuda="Obrigatório: é o que sustenta este custo no dia da venda. Pode ser mais de um."
+                ajuda="Pode ser mais de um. Não são obrigatórios para gravar — é o comprovante que decide se este valor entra no custo confirmado."
                 itens={anexos}
                 onChange={setAnexos}
                 erro={erroDe("anexos")}
               />
+              {/* ── §4.3 NO MOMENTO DE ESCOLHER O PAPEL (critério 12) ────────
+                  ⚠️ É o remédio do defeito derivado nomeado no Gate Fiscal §1:
+                  `ROTULO_DO_PAPEL.nota = "Nota ou recibo"` captura o **recibo
+                  do vendedor**, que pelo §4.3 é comprovante de entrada. Papel
+                  mal escolhido joga desembolso legítimo para fora do custo
+                  confirmado **em silêncio** — e é aqui que o erro nasce. A
+                  mesma linha aparece junto da pendência. */}
+              {anexos.length > 0 ? (
+                <div className="rounded-lg border border-line px-2.5 py-2 text-[12px]">
+                  <strong>{ANTES_DE_DIZER_O_QUE_E_CADA_PAPEL}</strong>
+                  {COMPROVANTE_POR_TIPO.map((c) => (
+                    <p key={c.titulo} className="mt-1">
+                      <strong>{c.titulo}</strong> — {c.texto}
+                    </p>
+                  ))}
+                </div>
+              ) : null}
+              {/* ── A consequência do que está faltando: UMA caixa, nunca duas
+                  empilhadas. Ordem data → comprovante. */}
+              {consequenciaDoFormulario}
               {/* A pergunta do critério 12. ⚠️ Ela NÃO aparece para quem anexou
                   um só papel, nem para comprovante + recibo: a régua é o PAPEL
                   (dois `comprovante`), nunca a contagem de arquivos. */}
@@ -731,12 +904,20 @@ export default function DesembolsosDoTerreno() {
       </Corpo>
 
       <Rodape>
+        {/* ⚠️ **O rótulo NOMEIA A CONSEQUÊNCIA** (Gate Fiscal §4), nunca diz
+            "gravar mesmo assim". São quatro, um por combinação de data ×
+            comprovante, e os três de pendência foram adjudicados pelo
+            `contador` — o de "tem comprovante, falta a data" em 23/08, com o
+            *"que falta"* recusando a simetria óbvia: *"da data" vs "de datas"
+            faria uma distinção fiscal real depender de uma letra*, no mesmo
+            formulário em que nasce a pendência "mais de uma data". */}
         <Botao
           variante="primary"
+          data-gravar
           onClick={() => void salvar()}
-          disabled={fase.nome === "salvando"}
+          disabled={fase.nome === "salvando" || !botaoGravar.habilitado}
         >
-          {fase.nome === "salvando" ? "Salvando…" : "Registrar desembolso"}
+          {fase.nome === "salvando" ? "Salvando…" : botaoGravar.rotulo}
         </Botao>
         <Botao
           variante="ghost"

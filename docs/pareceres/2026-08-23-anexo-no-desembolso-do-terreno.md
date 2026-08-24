@@ -722,3 +722,99 @@ interno**, não de tributação.
 
 **Continua "confirmar"**
 Nada novo. As pendências de confirmação são as já listadas no §5 do corpo.
+
+---
+
+# ADENDO 2 — 2026-08-24 — os três textos adjudicados no Gate 2 do `CONTAI-025`
+
+⚠️ **Por que este adendo existe, e a crítica é do `po` no Gate 4:**
+
+> *"Os três textos que o `contador` adjudicou no Gate 2 deste ticket estão no mock
+> e em comentário de código, **e não em `docs/pareceres/`**. O `CLAUDE.md` diz, em
+> letras: 'parecer que só existe no transcript é a mesma falha que a regra proíbe,
+> com outro nome'. **Fechamos a D49 abrindo a semente da próxima.**"*
+
+Transcritos aqui, literais, na mesma sessão em que foram adjudicados.
+
+## A.1 — O quarto rótulo do botão Gravar
+
+O ticket grava **quatro** combinações (com/sem data × com/sem comprovante) e o
+corpo deste parecer só dava três rótulos. O que faltava:
+
+> **Gravar — e abrir a pendência da data que falta**
+
+**A simetria óbvia foi RECUSADA**, e o fundamento vale para além deste caso:
+
+> *"'da data' vs 'de datas' faz uma distinção fiscal real depender de **uma
+> letra**, no mesmo botão, no mesmo formulário — no `CONTAI-027` o estado 'mais de
+> uma data' nasce de uma resposta **nessa mesma tela**. É a D46 com outro nome."*
+
+**O singular/plural não pode carregar a distinção — a palavra tem que carregar.**
+O *"que falta"* nomeia `DESEMBOLSO_SEM_DATA` (**valor sem ano-calendário**) e o
+separa de `PENDENCIA_MAIS_DE_UMA_DATA` (**valor no custo, ano em aberto**), que é
+fato diferente e mais brando.
+
+⚠️ O rótulo do `CONTAI-027` (*"pendência de datas"*) **ficou ambíguo** com a
+existência de um segundo estado de data. Alinhá-lo é **ticket P2 próprio** — está
+em mock aprovado e em código. **Não bloqueia.**
+
+**Os quatro rótulos, completos:**
+
+| Data | Comprovante | Rótulo |
+|---|---|---|
+| tem | tem | `Gravar o desembolso` |
+| tem | falta | `Gravar — e abrir a pendência do comprovante` |
+| **falta** | tem | **`Gravar — e abrir a pendência da data que falta`** |
+| falta | falta | `Gravar — e abrir as duas pendências` |
+
+## A.2 — Data no futuro, no formulário de REGISTRO
+
+O texto anterior vinha do `CONTAI-010` e oferecia **só** a saída que apaga o
+custo. Com a liberação da gravação, **o erro mais provável passou a ser data
+errada num pagamento real** — e a mensagem empurrava para `previsto`.
+
+> **Data no futuro — o dinheiro não pode ter saído depois de hoje. Se você errou
+> a data, corrija-a; se não lembra, deixe o campo vazio: o valor grava assim mesmo
+> e a data fica como pendência. Só marque 'ainda não paguei' se o dinheiro
+> realmente não saiu — isso tira este valor de todo ano-calendário.**
+
+**Três saídas, na ordem certa**, e a que apaga o custo vem **por último, com a
+consequência dita**. Sem jargão de ficha (§A.7.5).
+
+⚠️ **Isto NÃO viola o critério 6 / §1.4.1.** A proibição é oferecer `previsto`
+como fuga a **valor já pago**; aqui o **próprio dado do usuário** diz que o
+dinheiro não saiu — é **contradição interna, não escape**.
+
+## A.3 — Data no futuro, no ato de COMPLETAR
+
+**Constante SEPARADA, não a mesma renomeada.** O ato é outro: aqui a linha **já
+está gravada como paga**, `previsto` não é alcançável, e *"deixe o campo vazio"*
+seria contraditório — o ato existe **para informar a data**.
+
+> **Data no futuro — o dinheiro não pode ter saído depois de hoje. Confira a data
+> no extrato: é ela que decide o ano-calendário deste custo. Se não achar agora,
+> saia sem gravar — a pendência continua aberta e nada se perde.**
+
+**A saída segura é SAIR SEM GRAVAR**, e o texto anterior não a nomeava.
+
+> *"São dois atos diferentes, e colapsar os dois textos é o que faria o 'deixe
+> vazio' aparecer onde não cabe."*
+
+⚠️ **Texto que nomeia uma saída obriga a saída a existir.** No Gate 3 foi
+conferido que o botão `Cancelar` está no mesmo formulário, **visível no instante
+em que o erro aparece** — *"texto que nomeia controle inexistente seria regressão
+pior que a redação antiga"*.
+
+## A.4 — A régua de cor, revisada no mesmo dia
+
+Registrada por extenso em
+`docs/backlog/25-2026-08-23-a-regua-de-cor-e-o-que-ela-escondia.md`. A **D39**
+original tinha dois níveis para três fatos e atropelava a gradação já ratificada
+no parecer de 2026-08-18 (§601-602): **PJ pago sem comprovante é âmbar** (a NF
+hábil já sustenta o custo), **PF é vermelho** (o comprovante é constitutivo).
+
+> **saiu? → tem apoio hábil no ano certo? → não = vermelho**
+
+**"Falta a data" é vermelho**: o valor não cai em **ano nenhum**, enquanto *"mais
+de uma data"* — **menos grave**, valor no custo com o ano em aberto — já era
+vermelha. O app pintava **o caso pior de âmbar e o brando de vermelho**.

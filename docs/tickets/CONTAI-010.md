@@ -133,9 +133,26 @@ tinha efetivamente desembolsado até ali.
        instituição / parcelado direto com o vendedor / recebido (herança,
        doação, permuta). **É ele que decide qual regra roda.** Hoje o app não
        pergunta e por isso respondeu errado sozinho.
-3. [ ] Entrada, ITBI e escritura/registro: cada componente com valor > 0
-       **exige a sua data de pagamento**. Valor sem data é o defeito que este
-       ticket conserta — não é gravável.
+3. [x] ⚠️ **REESCRITO em 2026-08-23 pelo `CONTAI-025`, critério 15 — não
+       contornado.** A redação anterior dizia *"cada componente com valor > 0
+       **exige a sua data de pagamento** (…) não é gravável"*, e ela **nunca
+       teve parecer**: era a mesma configuração que produziu a **D49** — texto
+       vivo virando regra dura sem gate fiscal. Ela custou o usuário: o Mateus
+       parou de usar o app ao ser recusado, e o banco de produção está vazio.
+       Redação vigente, do parecer de 23/08
+       (`docs/pareceres/2026-08-23-anexo-no-desembolso-do-terreno.md`, §1.4.2 e
+       §2.1):
+
+       > **Valor sem data não entra em ano nenhum; valor sem comprovante não
+       > entra no custo confirmado; nenhum dos dois recusa a gravação.**
+
+       Cada componente continua **perguntando** a data e o comprovante, e
+       continua **sem default** — o app nunca inventa a data (nem hoje, nem
+       `created_at`). O que mudou é a consequência da ausência: **pendência
+       fiscal explícita e nomeada, nunca recusa do registro**. A recusa que
+       **fica de pé** é a do **informe anual** (critério 10), e por motivo
+       diferente e legítimo: ali o anexo é **fonte** do dado, não prova do fato
+       (§1.2 e §A.2 do mesmo parecer).
 4. [ ] O critério 3 vale **só para aquisição onerosa**. Terreno **recebido**
        tem data de aquisição **sem desembolso**, e o custo é o valor constante
        na declaração do doador/de cujus — o critério 3 não pode ser absoluto.

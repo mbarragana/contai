@@ -235,6 +235,37 @@ export function mensagemDaTrava(diferencaCentavos: number): string {
 // ── O custo do terreno até 31/12 de um ano (critérios 6 e 24a) ──────────
 
 /**
+ * **CONTAI-025, critérios 7 e 9 — o custo do terreno são DOIS números.**
+ *
+ * Fonte: `docs/pareceres/2026-08-23-anexo-no-desembolso-do-terreno.md`, §2.1
+ * (*"soma apenas desembolso pago, **com data** e **com comprovante**"*) e §2.4
+ * (*"no relatório anual, nunca um número só"*).
+ *
+ * ⚠️ **O segundo número não é cortável, e a razão é simétrica**: liberada a
+ * gravação sem comprovante, um número só faria o custo **encolher em
+ * silêncio** — e o §2.4 diz *"item incluído em silêncio é o pior dos mundos;
+ * nomeado, é posição declarada"*, e que isso **vale nos dois sentidos:
+ * excluído em silêncio também**. Somar seria a D34 (ganho de capital
+ * inflado); subtrair calado é o mesmo defeito virado ao contrário.
+ *
+ * ⚠️ **O que fica FORA dos dois**: desembolso `pago` **sem data**. Ele não tem
+ * ano-calendário e por isso não entra em ano nenhum — nem no confirmado, nem
+ * no sem-comprovante **deste ano**. Ele aparece no agregado da OBRA
+ * (`pagosSemComprovante`), que não é por ano. A diferença entre os dois
+ * números é dita em tela; número que não bate sem explicação é pior que
+ * número ausente.
+ */
+export interface CustoDoTerreno {
+  /** Pago, **com data** e **com comprovante** — o que a ficha soma. */
+  confirmadoCentavos: number;
+  /**
+   * Pago e datado, **sem papel `comprovante`** no acervo. Registrado, real, e
+   * fora da soma acima — nomeado em linha própria (§4.5), nunca suprimido.
+   */
+  semComprovanteCentavos: number;
+}
+
+/**
  * A situação em 31/12 do ano declarado, pela parte do TERRENO.
  *
  * Soma:
@@ -259,18 +290,25 @@ export function custoTerrenoAteOAno(
   desembolsos: readonly TerrenoDesembolso[],
   informes: readonly FinanciamentoInforme[],
   ano: number,
-): number {
-  let total = 0;
+): CustoDoTerreno {
+  let confirmadoCentavos = 0;
+  let semComprovanteCentavos = 0;
   for (const d of desembolsos) {
     const anoDele = anoDoDesembolso(d);
     if (anoDele === null || anoDele > ano) continue;
-    total += d.valorCentavos;
+    if (temComprovante(d)) confirmadoCentavos += d.valorCentavos;
+    else semComprovanteCentavos += d.valorCentavos;
   }
+  // ⚠️ O informe NÃO passa pelo portão do comprovante, e não é esquecimento: a
+  // trava do critério 10 do CONTAI-010 continua de pé, e sem o extrato anexado
+  // ele não grava (§1.2 — ali o anexo é FONTE, não prova). Informe gravado é
+  // informe com anexo; aplicar o portão aqui seria conferir duas vezes o que o
+  // formulário já recusa, e a segunda conferência não tem contra o que fechar.
   for (const i of informes) {
     if (i.anoBase > ano) continue;
-    total += custoDoInformeCentavos(i);
+    confirmadoCentavos += custoDoInformeCentavos(i);
   }
-  return total;
+  return { confirmadoCentavos, semComprovanteCentavos };
 }
 
 /** A parte do terreno que caiu DENTRO de um ano-calendário específico. */
@@ -278,17 +316,19 @@ export function custoTerrenoDoAno(
   desembolsos: readonly TerrenoDesembolso[],
   informes: readonly FinanciamentoInforme[],
   ano: number,
-): number {
-  let total = 0;
+): CustoDoTerreno {
+  let confirmadoCentavos = 0;
+  let semComprovanteCentavos = 0;
   for (const d of desembolsos) {
     if (anoDoDesembolso(d) !== ano) continue;
-    total += d.valorCentavos;
+    if (temComprovante(d)) confirmadoCentavos += d.valorCentavos;
+    else semComprovanteCentavos += d.valorCentavos;
   }
   for (const i of informes) {
     if (i.anoBase !== ano) continue;
-    total += custoDoInformeCentavos(i);
+    confirmadoCentavos += custoDoInformeCentavos(i);
   }
-  return total;
+  return { confirmadoCentavos, semComprovanteCentavos };
 }
 
 // ── O painel ano a ano (D2.2) ────────────────────────────────────────────
@@ -680,6 +720,62 @@ export function comprovantesDe(
 }
 
 /**
+ * **CONTAI-025, critério 8 — o PORTÃO do custo confirmado.**
+ *
+ * Fonte: §2.1 do parecer de 23/08 (*"soma apenas desembolso pago, com data e
+ * com comprovante"*). O §4.3 **corrobora pelo fato** (*"a escritura prova o
+ * preço, não o pagamento"*) e **não define o portão** — atribuir a regra a ele
+ * é a D46 na forma inversa.
+ *
+ * ⚠️ **NÃO reaproveite `pagoSemPapel` aqui, e a diferença é o caso do
+ * Mateus.** `pagoSemPapel` é `anexos.length === 0`; este portão é
+ * `comprovantesDe().length > 0`, e o primeiro é **subconjunto estrito** do
+ * segundo. Um desembolso com a escritura anexada e nenhum comprovante tem
+ * papel e **não** tem prova do pagamento: trocar um predicado pelo outro por
+ * dentro reintroduz a **D49 invertida** — o registro passa a somar custo não
+ * demonstrável em silêncio, que é a direção cara (D34).
+ */
+export function temComprovante(d: TerrenoDesembolso): boolean {
+  return comprovantesDe(d).length > 0;
+}
+
+/**
+ * **Critério 9/11** — o desembolso **pago** que não tem comprovante nenhum.
+ *
+ * É o conjunto que o portão exclui, e por isso ele é **um só card agregado**
+ * (decisão 3 do mock v2): inclui o zero-anexo. Se o zero-anexo ficasse de
+ * fora, os dois números deixariam de fechar com o que o portão exclui, e o
+ * buraco não teria nome em tela nenhuma — pre-mortem 2 do ticket.
+ *
+ * A distinção entre *"tem papel, nenhum comprovante"* (§4.2) e *"pago, e sem
+ * papel nenhum"* (`PAGO_SEM_PAPEL`, critério 15 do CONTAI-027) vive **na
+ * linha**, com chip próprio: são **conjuntos diferentes**, mesmo fato fiscal.
+ *
+ * ⚠️ Inclui os **sem data**: o dinheiro saiu e não há comprovante — as duas
+ * faltas são independentes e coexistem (§1.4.2).
+ */
+export function pagoSemComprovante(d: TerrenoDesembolso): boolean {
+  return d.estado === "pago" && !temComprovante(d);
+}
+
+/** Os pagos sem comprovante da obra inteira — agregado, não por ano. */
+export function pagosSemComprovante(
+  desembolsos: readonly TerrenoDesembolso[],
+): TerrenoDesembolso[] {
+  return desembolsos.filter(pagoSemComprovante);
+}
+
+/** Quanto está fora do custo confirmado por falta de comprovante, na obra. */
+export function totalPagoSemComprovanteCentavos(
+  desembolsos: readonly TerrenoDesembolso[],
+): number {
+  return pagosSemComprovante(desembolsos).reduce(
+    (s, d) => s + d.valorCentavos,
+    0,
+  );
+}
+
+/**
  * A pendência **"Um lançamento, mais de uma data"** está aberta?
  *
  * ⚠️ É exatamente `debitosMesmoDia === false`, e nada mais. Ela **não tem
@@ -900,3 +996,430 @@ export const PAPEL_NOVO_E_ACRESCIMO =
   "Cada papel novo é acréscimo — nunca substituição, nunca remoção. Nada " +
   "sobe para o acervo enquanto você não gravar; depois de gravado, o acervo " +
   "só cresce.";
+
+// ══ CONTAI-025 · gravar sem data, sem comprovante, ou sem os dois ═══════
+//
+// Fonte: docs/pareceres/2026-08-23-anexo-no-desembolso-do-terreno.md
+// (⚠️ **ADENDO 1 vence o corpo**) e o mock v2 aprovado pelo Mateus em 23/08.
+//
+// ⚠️ **A trava de `anexos.length === 0` do formulário SAIU, e o comentário que
+// a carimbava saiu com ela.** Ela nunca teve parecer (dívida D49): o texto que
+// parecia justificá-la é de OUTRA entidade (o informe anual, onde o anexo é
+// FONTE e a recusa fica de pé — §1.2 e §A.2). Aqui o anexo é PROVA de um fato
+// que o Mateus conhece sem ele, e *"bloquear anexo-PROVA não evita erro
+// nenhum: evita o registro"* (§A.0). O preço já foi pago — ele parou de usar o
+// app e o banco de produção está vazio.
+//
+// Quem for mexer nestes textos: eles são CÓPIA do parecer, não redação.
+
+/** §4.1 — o chip. O mesmo nas outras superfícies: nomeia o FATO fiscal. */
+export const CHIP_PAGO_SEM_COMPROVANTE = "Pago sem comprovante";
+
+/**
+ * §4.2 — a pendência do desembolso do terreno, literal.
+ *
+ * ⚠️ **Não é o mesmo texto que `PAGO_SEM_PAPEL`, e os conjuntos são
+ * diferentes**: lá é zero anexo (critério 15 do CONTAI-027), aqui é *"tem
+ * papel, nenhum comprovante"*. Mesma exclusão da soma, buraco de acervo
+ * diferente — e a diferença vive na consequência, não no chip (ADENDO 3 §G.3).
+ */
+export const PAGO_SEM_COMPROVANTE =
+  "O valor e a data ficam registrados — o custo existe, ainda não está " +
+  "demonstrável. Enquanto faltar o papel, este desembolso não entra no custo " +
+  "confirmado. Recupere o comprovante enquanto o banco ainda o mostra: ele é " +
+  "o documento do acervo que expira primeiro.";
+
+/**
+ * §4.3 — o que serve como comprovante, por tipo.
+ *
+ * ⚠️ **Aparece em DOIS lugares** (critério 12): junto da pendência **e no
+ * momento de escolher o papel**. O segundo é o remédio de um defeito derivado
+ * nomeado no Gate Fiscal §1: `ROTULO_DO_PAPEL.nota = "Nota ou recibo"` captura
+ * o **recibo do vendedor**, que pelo §4.3 é comprovante de entrada — papel mal
+ * escolhido põe desembolso legítimo fora do custo confirmado **em silêncio**.
+ *
+ * `[Likely]` quanto à reemissão pela prefeitura e pelo cartório: é prática
+ * corrente, e o parecer manda **confirmar antes de prometer prazo** — por isso
+ * o texto diz *"costuma"* e nenhuma tela promete prazo nenhum.
+ */
+export const COMPROVANTE_POR_TIPO: readonly {
+  titulo: string;
+  texto: string;
+}[] = [
+  {
+    titulo: "Entrada ou sinal",
+    texto:
+      "comprovante da transferência, ou recibo do vendedor. A escritura prova " +
+      "o preço, não o pagamento.",
+  },
+  {
+    titulo: "ITBI",
+    texto:
+      "a guia paga, com a autenticação. A prefeitura costuma reemitir a " +
+      "segunda via.",
+  },
+  {
+    titulo: "Escritura e registro",
+    texto: "o recibo de custas do cartório, que costuma reemitir.",
+  },
+];
+
+/** O título da linha auxiliar quando ela acompanha a pendência. */
+export const O_QUE_SERVE_COMO_COMPROVANTE =
+  "O que serve como comprovante, por tipo";
+
+/** O mesmo, no momento de escolher o papel — é ali que o erro nasce. */
+export const ANTES_DE_DIZER_O_QUE_E_CADA_PAPEL =
+  "Antes de dizer o que é cada papel — o que serve como comprovante, por tipo";
+
+/**
+ * O chip do estado combinado — **UM chip, e ele nomeia os DOIS fatos**
+ * (mock v2, decisão de 23/08). Com os dois eixos em vermelho, dois chips lado
+ * a lado viram mancha e o olho lê *um* problema borrado. A fusão é só de
+ * APRESENTAÇÃO: a consequência continua sendo as duas frases do parecer.
+ */
+export const CHIP_FALTA_DATA_E_COMPROVANTE =
+  "Pago — falta a data e o comprovante";
+
+/**
+ * Gate Fiscal §4 — o estado combinado, literal. **Uma** consequência, nunca
+ * dois blocos empilhados, ordem **data → comprovante**: a data decide se entra
+ * em algum ano; o comprovante, se o ano em que entrou é demonstrável.
+ */
+export const FALTA_DATA_E_COMPROVANTE =
+  "Pago — falta a data e falta o comprovante. As duas faltas são " +
+  "independentes e nenhuma delas apaga o registro. Sem a data, este valor não " +
+  "tem ano-calendário e não entra em ano nenhum. Sem o comprovante, ele não " +
+  "entra no custo confirmado nem no ano em que a data o puser.";
+
+/**
+ * A segunda frase do §4, e ela é **literal por adjudicação**: o que o parecer
+ * de 21/08 decidiu é justamente **por onde começar**. Não a resuma.
+ */
+export const COMECE_PELA_DATA =
+  "Comece pela data: ela está no extrato, no mesmo lugar em que o comprovante " +
+  "está — as duas costumam voltar da mesma busca.";
+
+/**
+ * §4.5 — o rótulo do segundo número. **O mesmo na home e no relatório anual**
+ * (decisão 1 do mock): texto de consequência fiscal se copia, e dois nomes
+ * para o mesmo número é como nasce a D46.
+ */
+export const FORA_DO_CUSTO_CONFIRMADO =
+  "Fora do custo confirmado por falta de comprovante";
+
+/**
+ * §4.5, **primeira metade** — o FATO. É o que a home mostra, e o corte ali é o
+ * do mock aprovado: a home nomeia o número, não instrui sobre a declaração.
+ */
+export const FORA_DO_CUSTO_CONFIRMADO_PORQUE =
+  "Foi pago e está registrado, mas ainda não tem o papel que o demonstra, e " +
+  "por isso não entra na soma acima.";
+
+/**
+ * §4.5, **segunda metade** — e ela é a **metade NÃO AUTOMÁTICA do §2.1**: o
+ * handoff ao profissional com CRC.
+ *
+ * ⚠️ **Constante separada de propósito, e a separação é fiscal.** A home usa
+ * só a primeira metade (mock aprovado); o **relatório anual** (critério 17,
+ * fatia 2) precisa das duas. Reusar `FORA_DO_CUSTO_CONFIRMADO_PORQUE` sozinha
+ * lá **dropa o handoff em silêncio** — e é exatamente aí que ele importa: o
+ * §2.1 diz que *"omitir o valor da discriminação da DAA não é decisão do
+ * app"*. O app mostra os dois números e **nomeia a escolha como do Mateus com
+ * o CRC**; escolher calado, para cima ou para baixo, é o que o parecer proíbe.
+ *
+ * ⚠️ **Nome diz onde mora**: quem a colar na home está mudando o mock.
+ */
+export const FORA_DO_CUSTO_CONFIRMADO_DECIDA_NO_RELATORIO =
+  "Decida com seu contador antes de declarar: deixar de discriminar na " +
+  "declaração um custo real também custa caro — o custo que não é " +
+  "discriminado não existe na venda.";
+
+/**
+ * Card do ano (mock tela 1): o desembolso **sem data** está fora do card
+ * inteiro, e isso é dito. Número que não bate sem explicação é pior que
+ * número ausente.
+ */
+export function foraDesteCardPorFaltaDeData(valorCentavos: number): string {
+  return (
+    `Um valor de ${formatarBRL(valorCentavos)} está fora deste card inteiro: ` +
+    "sem data, ele não tem ano-calendário e não entra em ano nenhum. Ele " +
+    "aparece no card da pendência, que é da obra e não do ano."
+  );
+}
+
+/**
+ * Data no futuro — a única recusa de data que sobrou, e ela **mudou de
+ * redação no Gate 2 do CONTAI-025**. Texto do `contador`, literal.
+ *
+ * ⚠️ **O defeito que a redação anterior ganhou quando o campo vazio passou a
+ * gravar.** Ela dizia apenas *"se ainda não saiu da conta, registre como
+ * 'ainda não paguei'"* — e oferecia **só** a saída que apaga o custo de
+ * **todo** ano-calendário. Antes, o erro provável era o de quem ainda não
+ * pagou; agora que a ausência de data é gravável, o erro mais provável é
+ * **data errada num pagamento real**, e para esse caso `previsto` é a saída
+ * pior que existe (§1.4.1).
+ *
+ * ⚠️ Isto **não** viola o critério 6: aqui o próprio dado diz que o dinheiro
+ * não saiu (a data é posterior a hoje) — é contradição interna, não escape da
+ * trava. O que o texto passa a fazer é oferecer as três saídas na ordem certa:
+ * corrigir · deixar vazio · e só então `previsto`, com a consequência dita.
+ */
+export const DATA_NO_FUTURO =
+  "Data no futuro — o dinheiro não pode ter saído depois de hoje. Se você " +
+  "errou a data, corrija-a; se não lembra, deixe o campo vazio: o valor grava " +
+  "assim mesmo e a data fica como pendência. Só marque 'ainda não paguei' se " +
+  "o dinheiro realmente não saiu — isso tira este valor de todo " +
+  "ano-calendário.";
+
+/**
+ * Data no futuro **no complemento** — quando ele está informando a data de um
+ * desembolso que já nasceu `pago`.
+ *
+ * ⚠️ **CONSTANTE PRÓPRIA, e não `DATA_NO_FUTURO` reaproveitada.** Palavras do
+ * `contador`: *"são dois atos diferentes, e colapsar os dois textos é o que
+ * faria o 'deixe vazio' aparecer onde não cabe"*. No registro, deixar o campo
+ * vazio **grava** e abre a pendência; aqui o ato **existe para informar a
+ * data** — "deixe vazio" seria mandar não fazer o que ele veio fazer.
+ *
+ * ⚠️ **A saída segura é OUTRA, e ela precisava ser nomeada: sair sem gravar.**
+ * A pendência continua aberta e nada se perde. O texto anterior
+ * (*"informe a data real do pagamento"*) não a nomeava — mandava acertar sem
+ * dizer o que fazer quem não sabe.
+ *
+ * ⚠️ E ele **não oferece `previsto`** (critério 6): quem completa a data já
+ * disse que pagou. Oferecer `previsto` aqui tiraria o valor de todo
+ * ano-calendário — é a fuga que o §1.4.1 proíbe, sem a contradição interna que
+ * justifica a menção em `DATA_NO_FUTURO`.
+ *
+ * Economizar uma constante aqui criaria o segundo caminho para textos que
+ * precisam **divergir** — a D46 com outro rosto.
+ */
+export const DATA_NO_FUTURO_NO_COMPLEMENTO =
+  "Data no futuro — o dinheiro não pode ter saído depois de hoje. Confira a " +
+  "data no extrato: é ela que decide o ano-calendário deste custo. Se não " +
+  "achar agora, saia sem gravar — a pendência continua aberta e nada se perde.";
+
+// ── Os quatro rótulos do Gravar (Gate Fiscal §4) ─────────────────────────
+//
+// ⚠️ **O rótulo NOMEIA A CONSEQUÊNCIA — nunca "gravar mesmo assim".** O botão
+// grava sempre; o que muda é o estado que nasce (ADENDO 2 §5 de 18/08).
+
+/** Data e comprovante presentes: nada nasce pendente. */
+export const GRAVAR_O_DESEMBOLSO = "Gravar o desembolso";
+
+/** Tem data, falta o comprovante. */
+export const GRAVAR_E_ABRIR_A_PENDENCIA_DO_COMPROVANTE =
+  "Gravar — e abrir a pendência do comprovante";
+
+/**
+ * Tem comprovante, falta a data. **Adjudicado pelo `contador` em 23/08**, e o
+ * *"que falta"* não é enfeite:
+ *
+ * ⚠️ **O `contador` recusou a simetria óbvia** (*"a pendência da data"*), e a
+ * razão é a D46 com outro nome: *"'da data' vs 'de datas' faz uma distinção
+ * fiscal real depender de uma letra, no mesmo botão, no mesmo formulário"* — o
+ * estado `PENDENCIA_MAIS_DE_UMA_DATA` do CONTAI-027 nasce de uma resposta
+ * **nesta mesma tela**. O singular/plural não pode carregar a distinção: a
+ * **palavra** tem que carregar. *"Que falta"* nomeia a consequência do §1.4.2
+ * (`DESEMBOLSO_SEM_DATA` — valor sem ano-calendário) e a separa de *"mais de
+ * uma data"* (valor NO custo, só o ano em aberto), que é fato mais brando.
+ *
+ * ⚠️ **Não alinhe o rótulo do CONTAI-027 a este.** Ele está em mock aprovado e
+ * em código; o `contador` reconheceu a ambiguidade e a correção é **ticket P2
+ * próprio**, que não bloqueia este.
+ */
+export const GRAVAR_E_ABRIR_A_PENDENCIA_DA_DATA =
+  "Gravar — e abrir a pendência da data que falta";
+
+/** Faltam os dois. */
+export const GRAVAR_E_ABRIR_AS_DUAS_PENDENCIAS =
+  "Gravar — e abrir as duas pendências";
+
+/** `previsto` — não há data nem papel a exigir: nada foi pago. */
+export const GRAVAR_O_COMPROMISSO = "Gravar o compromisso";
+
+/** O botão antes de o desembolso estar preenchido. */
+export const PREENCHA_O_DESEMBOLSO = "Preencha o desembolso para gravar";
+
+/**
+ * Critério 5/14 — **zero papel grava; papel sem classificação, não.** O rótulo
+ * diz qual falta: botão cinza mudo faz achar que quebrou (decisão 8 do mock).
+ */
+export function digaOQueECadaPapel(semResposta: number): string {
+  return semResposta === 1
+    ? "Diga o que é o papel que falta para gravar"
+    : `Diga o que é cada papel para gravar (${semResposta} sem resposta)`;
+}
+
+export interface EstadoDoGravar {
+  rotulo: string;
+  habilitado: boolean;
+}
+
+/**
+ * O rótulo e o estado do botão Gravar — **as quatro combinações do critério 2**
+ * e os dois casos em que o botão ainda não pode gravar.
+ *
+ * ⚠️ **A ausência de data ou de comprovante NUNCA desabilita o botão.** O que
+ * desabilita é (a) o desembolso não estar preenchido e (b) papel escolhido sem
+ * `papel` respondido (critério 14 do CONTAI-027, intocado). Confundir os dois
+ * é reinstalar a trava com rótulo novo.
+ */
+export function estadoDoGravar(e: {
+  /** tipo, valor e estado escolhidos. */
+  preenchido: boolean;
+  estado: "pago" | "previsto" | null;
+  /** Quantos papéis escolhidos ainda estão sem `papel` respondido. */
+  papeisSemResposta: number;
+  temData: boolean;
+  temComprovante: boolean;
+}): EstadoDoGravar {
+  if (!e.preenchido) {
+    return { rotulo: PREENCHA_O_DESEMBOLSO, habilitado: false };
+  }
+  if (e.papeisSemResposta > 0) {
+    return {
+      rotulo: digaOQueECadaPapel(e.papeisSemResposta),
+      habilitado: false,
+    };
+  }
+  if (e.estado === "previsto") {
+    return { rotulo: GRAVAR_O_COMPROMISSO, habilitado: true };
+  }
+  if (e.temData && e.temComprovante) {
+    return { rotulo: GRAVAR_O_DESEMBOLSO, habilitado: true };
+  }
+  if (e.temData) {
+    return {
+      rotulo: GRAVAR_E_ABRIR_A_PENDENCIA_DO_COMPROVANTE,
+      habilitado: true,
+    };
+  }
+  if (e.temComprovante) {
+    return { rotulo: GRAVAR_E_ABRIR_A_PENDENCIA_DA_DATA, habilitado: true };
+  }
+  return { rotulo: GRAVAR_E_ABRIR_AS_DUAS_PENDENCIAS, habilitado: true };
+}
+
+// ── Critério 13 · a mensagem de sucesso não pode mentir ──────────────────
+
+/**
+ * Gate Fiscal §5 — **dois textos, por caso**.
+ *
+ * ⚠️ O defeito que isto conserta: a mensagem era escolhida **só por
+ * `faltaData`** e ignorava o comprovante, afirmando que *"o valor passa a
+ * compor o custo de {ano}"* quando ele **não passa** — o portão do critério 8
+ * o mantém fora. Mensagem de sucesso que mente sobre consequência fiscal é
+ * pior que mensagem nenhuma: ela fecha a pendência na cabeça do Mateus.
+ */
+export function dataInformada(ano: string, temComprovanteAgora: boolean): string {
+  return temComprovanteAgora
+    ? `Data informada — o valor passa a compor o custo de ${ano}.`
+    : `Data informada — o valor é de ${ano}. Falta o comprovante: até ele ` +
+        "chegar, este desembolso não entra no custo confirmado.";
+}
+
+/**
+ * A mensagem de sucesso do REGISTRO, nas quatro combinações do critério 2.
+ *
+ * ⚠️ **Composta de fragmentos ADJUDICADOS, não redigida**: *"o valor é de
+ * {ano}. Falta o comprovante: até ele chegar, este desembolso não entra no
+ * custo confirmado"* é literal do §5; *"sem a data, este valor não tem
+ * ano-calendário e a discriminação não pode ser gerada"* é o
+ * `DESEMBOLSO_SEM_DATA` do critério 23. Nenhuma frase nova afirma consequência
+ * fiscal aqui.
+ *
+ * `ano` vem `null` quando a data ficou vazia — e isso é estado legítimo, não
+ * erro.
+ */
+export function desembolsoRegistrado(
+  nome: string,
+  ano: string | null,
+  temComprovanteAgora: boolean,
+): string {
+  const semComprovante =
+    " Falta o comprovante: até ele chegar, este desembolso não entra no " +
+    "custo confirmado.";
+  if (ano === null) {
+    return (
+      `${nome} registrado — ${DESEMBOLSO_SEM_DATA}.` +
+      (temComprovanteAgora ? "" : semComprovante)
+    );
+  }
+  return temComprovanteAgora
+    ? `${nome} registrado no custo de ${ano}.`
+    : `${nome} registrado — o valor é de ${ano}.${semComprovante}`;
+}
+
+// ══ Critério 16 · A GUARDA DA FATIA 2 ══════════════════════════════════
+//
+// ⛔ **Enquanto o critério 17 não entrar, nenhuma saída anual é gerada
+// existindo desembolso pago-sem-comprovante.**
+//
+// Por que uma guarda, e não uma linha a mais no relatório: o §2.4 manda o
+// relatório mostrar **os dois números**, em linha nomeada. Gerar o texto da
+// discriminação hoje — com a exclusão do critério 8 já valendo e a linha do
+// §4.5 ainda não escrita — produziria **um total que não diz o que deixou de
+// fora**. Isso é a metade automática do §2.1 decidindo em silêncio para baixo,
+// que o parecer proíbe nos dois sentidos.
+//
+// ⚠️ É o antídoto do padrão que já produziu a **D47** nesta base (pendência
+// gravada, superfície nunca entregue). A falha é **NOMEADA**: ela diz quantos
+// são, quanto somam e por que a saída não sai. Número mudo, nunca.
+//
+// Quando a fatia 2 entrar, esta guarda **sai junto** — ela é temporária por
+// desenho, e o teste que a acompanha é quem cobra isso.
+
+export interface BloqueioDaSaidaAnual {
+  bloqueada: boolean;
+  /** A falha, com nome, contagem e valor. Vazia quando não há bloqueio. */
+  motivo: string;
+  quantidade: number;
+  totalCentavos: number;
+}
+
+/**
+ * A saída anual (discriminação de Bens e Direitos, Pagamentos Efetuados,
+ * posição da aferição) **pode ser gerada** para este ano?
+ *
+ * ⚠️ **Todo gerador de saída anual tem de passar por aqui**, e há teste de
+ * blindagem varrendo `lib/` e `app/` atrás de gerador que não passe — no mesmo
+ * padrão da blindagem da estimativa (`resumo.test.ts`). Sem isso a fatia 2 vira
+ * dívida eterna e a fatia 1 entrega um número novo com uma declaração que não
+ * o menciona.
+ */
+export function bloqueioDaSaidaAnual(
+  desembolsos: readonly TerrenoDesembolso[],
+  ano: number,
+): BloqueioDaSaidaAnual {
+  const pendentes = pagosSemComprovante(desembolsos);
+  const totalCentavos = pendentes.reduce((s, d) => s + d.valorCentavos, 0);
+  if (pendentes.length === 0) {
+    return { bloqueada: false, motivo: "", quantidade: 0, totalCentavos: 0 };
+  }
+  return {
+    bloqueada: true,
+    motivo: motivoDoBloqueioDaSaidaAnual(ano, pendentes.length, totalCentavos),
+    quantidade: pendentes.length,
+    totalCentavos,
+  };
+}
+
+/** A falha nomeada do critério 16 — mock tela 4, fatia 1. */
+export function motivoDoBloqueioDaSaidaAnual(
+  ano: number,
+  quantidade: number,
+  totalCentavos: number,
+): string {
+  const quantos =
+    quantidade === 1
+      ? "1 desembolso pago sem comprovante"
+      : `${quantidade} desembolsos pagos sem comprovante`;
+  return (
+    `A discriminação de ${ano} não vai ser gerada ainda. Existem ${quantos}, ` +
+    `somando ${formatarBRL(totalCentavos)}. Enquanto a linha que os nomeia ` +
+    "não existir no relatório, gerar o texto produziria um total que não diz " +
+    "o que deixou de fora."
+  );
+}

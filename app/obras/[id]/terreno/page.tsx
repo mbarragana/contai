@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { ListaDeAnexos, papeisDoDesembolso } from "@/app/_components/anexo";
+import { CardPagoSemComprovante } from "@/app/_components/pago-sem-comprovante";
 import { PendenciaDeDatas } from "@/app/_components/datas-do-desembolso";
 import {
   AppBar,
@@ -33,15 +34,22 @@ import {
   AGUARDANDO_INFORME,
   anosDoFinanciamento,
   APP_NAO_INVENTA_DATA,
+  CHIP_PAGO_SEM_COMPROVANTE,
   custoTerrenoAteOAno,
   DESEMBOLSO_SEM_DATA,
   ESTIMATIVA_NAO_E_APURACAO,
   faltaLancarInforme,
+  foraDesteCardPorFaltaDeData,
+  FORA_DO_CUSTO_CONFIRMADO,
+  FORA_DO_CUSTO_CONFIRMADO_PORQUE,
   INSUMO_PARA_REVISAO_CRC,
   NOME_DA_NATUREZA,
   NOME_DO_DESEMBOLSO,
+  PAGO_SEM_COMPROVANTE,
   PAGO_SEM_PAPEL,
+  pagoSemComprovante,
   pagoSemPapel,
+  pagosSemComprovante,
   pendenciaDeDatasAberta,
   PRECO_CONTRATADO_NAO_E_CUSTO,
   PREVISTO_NAO_E_PAGO,
@@ -144,7 +152,29 @@ export default function PainelDoTerreno() {
 
   // A situação em 31/12 deste ano, pela parte do terreno. Insumo para revisão
   // profissional (critério 19) — nunca veredito.
-  const acumulado = custoTerrenoAteOAno(desembolsos, informes, anoCorrente);
+  //
+  // ⚠️ **CONTAI-025, critério 9: são DOIS números, e o de baixo não é
+  // cortável.** Sem ele, o portão do comprovante faria o total encolher em
+  // silêncio — e o §2.4 diz *"item incluído em silêncio é o pior dos mundos;
+  // nomeado, é posição declarada"*, e que isso **vale nos dois sentidos:
+  // excluído em silêncio também**.
+  const custo = custoTerrenoAteOAno(desembolsos, informes, anoCorrente);
+  const acumulado = custo.confirmadoCentavos;
+
+  /**
+   * O agregado da OBRA — inclui os `pago` **sem data**, que não caem em ano
+   * nenhum e por isso ficam fora do card do ano inteiro. A diferença entre os
+   * dois números é dita em tela: número que não bate sem explicação é pior que
+   * número ausente (decisão 2 do mock).
+   */
+  const semComprovante = pagosSemComprovante(desembolsos);
+  const semComprovanteSemDataCentavos = semComprovante
+    .filter((d) => d.dataPagamento === null)
+    .reduce((s, d) => s + d.valorCentavos, 0);
+  const semComprovanteTotalCentavos = semComprovante.reduce(
+    (s, d) => s + d.valorCentavos,
+    0,
+  );
 
   const anos = financiamento
     ? anosDoFinanciamento(financiamento.dataContrato, informes, anoCorrente)
@@ -174,7 +204,7 @@ export default function PainelDoTerreno() {
               "= situação em 31/12 na ficha Bens e Direitos" em cima disso é o
               app dizendo fato falso, na direção irreversível: custo
               subestimado vira ganho de capital inflado na venda. */}
-          {acumulado === 0 ? (
+          {acumulado === 0 && custo.semComprovanteCentavos === 0 ? (
             <Consequencia cor="amb">{TERRENO_ZERO_NAO_E_NADA_PAGO}</Consequencia>
           ) : (
             <Dica>
@@ -182,8 +212,43 @@ export default function PainelDoTerreno() {
               parte do terreno.
             </Dica>
           )}
+          {/* ── Critério 9: o SEGUNDO número, nomeado e vermelho. ──────────
+              O rótulo é o do §4.5, o MESMO do relatório anual (decisão 1 do
+              mock): dois nomes para o mesmo número é como nasce a D46. */}
+          {custo.semComprovanteCentavos > 0 ? (
+            <div
+              className="mt-2.5 border-t border-line pt-2.5"
+              data-fora-do-custo-confirmado
+            >
+              <p className="text-[13px] font-semibold text-red">
+                {FORA_DO_CUSTO_CONFIRMADO}:{" "}
+                <span className="mono">
+                  {formatarBRL(custo.semComprovanteCentavos)}
+                </span>
+              </p>
+              <Dica>{FORA_DO_CUSTO_CONFIRMADO_PORQUE}</Dica>
+            </div>
+          ) : null}
+          {/* O sem data está fora do card INTEIRO — e isso se diz. */}
+          {semComprovanteSemDataCentavos > 0 ? (
+            <Dica>
+              {foraDesteCardPorFaltaDeData(semComprovanteSemDataCentavos)}
+            </Dica>
+          ) : null}
           <Consequencia cor="amb">{INSUMO_PARA_REVISAO_CRC}</Consequencia>
         </Card>
+
+        {/* ── Critério 11 · o card agregado da pendência ─────────────────
+            A superfície que faltava (D47): até aqui "pago sem papel" só
+            existia DENTRO da linha do desembolso. VERMELHO pela D39 —
+            vermelho = fato consumado com consequência fiscal aberta. */}
+        {semComprovante.length > 0 ? (
+          <CardPagoSemComprovante
+            totalCentavos={semComprovanteTotalCentavos}
+            quantidade={semComprovante.length}
+            href={`/obras/${obra.id}/terreno/desembolsos`}
+          />
+        ) : null}
 
         {obra.naturezaAquisicaoTerreno === null ? (
           <Card className="border-amb">
@@ -350,7 +415,11 @@ export default function PainelDoTerreno() {
           <Card
             key={d.id}
             data-desembolso={d.tipo}
-            className={pendenciaDeDatasAberta(d) || pagoSemPapel(d) ? "border-red" : undefined}
+            className={
+              pendenciaDeDatasAberta(d) || pagoSemComprovante(d)
+                ? "border-red"
+                : undefined
+            }
           >
             {/* ── Critério 12c: o CARD DO DESEMBOLSO é uma das duas superfícies
                 onde a pendência é indispensável (a outra é a home). Ela vem
@@ -376,6 +445,30 @@ export default function PainelDoTerreno() {
             {/* Mock tela 1 — "Papéis deste desembolso", agora com N linhas e o
                 papel de cada uma (critério 14). */}
             <ListaDeAnexos titulo="Papéis deste desembolso" itens={papeisDoDesembolso(d)} />
+            {/* ── CONTAI-025, critério 8 · "tem papel, e nenhum é comprovante"
+                — o estado que NÃO EXISTIA em tela nenhuma até aqui, porque a
+                trava garantia o comprovante. É o caso literal do Mateus: ele
+                tem a escritura, não tem os comprovantes.
+                ⚠️ Chip DIFERENTE do de baixo, de propósito: são conjuntos
+                diferentes (§3 do Gate Fiscal). O fato fiscal é o mesmo; o
+                buraco de acervo, não. */}
+            {pagoSemComprovante(d) && !pagoSemPapel(d) ? (
+              <div data-pendencia="terreno-sem-comprovante">
+                <Chip cor="red">{CHIP_PAGO_SEM_COMPROVANTE}</Chip>
+                <Consequencia cor="red">
+                  <strong>{CHIP_PAGO_SEM_COMPROVANTE}.</strong>{" "}
+                  {PAGO_SEM_COMPROVANTE}
+                </Consequencia>
+                <div className="mt-2.5">
+                  <BotaoLink
+                    href={`/obras/${obra.id}/terreno/desembolsos`}
+                    variante="primary"
+                  >
+                    Anexar o comprovante
+                  </BotaoLink>
+                </div>
+              </div>
+            ) : null}
             {/* ── Critério 15 + mock tela 1c: "pago, e sem papel nenhum"
                 continua VISÍVEL depois de a coluna morrer. Deriva de "não
                 existe linha de anexo", nunca de coluna vazia. */}
@@ -396,9 +489,16 @@ export default function PainelDoTerreno() {
           </Card>
         ))}
 
+        {/* ⚠️ **VERMELHO desde 23/08 (D39 revisada, veredito do `po`)** — era
+            âmbar por herança do CONTAI-027, não por critério. A régua é
+            binária, sem terceiro nível: *saiu? → tem apoio hábil no ano certo?
+            → não = vermelho*. E corrige a inversão que estava de pé: "mais de
+            uma data" (valor NO custo, só o ano em aberto) era vermelha e
+            "falta a data" (valor em ANO NENHUM) era âmbar. Esforço de
+            resolução é roteamento de ação — já é o botão —, não cor. */}
         {semData.length > 0 ? (
-          <Card className="border-amb" data-pendencia="terreno-sem-data">
-            <Chip cor="amb">Falta a data</Chip>
+          <Card className="border-red" data-pendencia="terreno-sem-data">
+            <Chip cor="red">Falta a data</Chip>
             {semData.map((d) => (
               <div key={d.id}>
                 <Linha rotulo={NOME_DO_DESEMBOLSO[d.tipo]}>
@@ -409,7 +509,7 @@ export default function PainelDoTerreno() {
                 <ListaDeAnexos titulo="Papéis anexados" itens={papeisDoDesembolso(d)} />
               </div>
             ))}
-            <Consequencia cor="amb">
+            <Consequencia cor="red">
               {DESEMBOLSO_SEM_DATA}. <strong>Não bloqueia o app</strong> — fica
               como pendência até você preencher.
             </Consequencia>

@@ -3,6 +3,7 @@ import type { Page } from "@playwright/test";
 import { OBRA_ID_SEED, URL_SUPABASE_LOCAL, USER_ID_SEED } from "./ambiente";
 import {
   arquivosNoAcervo,
+  criarAnexoDeDesembolso,
   criarDesembolsoTerreno,
   criarDocumento,
   criarFavorecido,
@@ -10,6 +11,7 @@ import {
   documentos,
   favorecidos,
   pagamentos,
+  subirParaOAcervo,
 } from "./banco";
 import { expect, test } from "./fixtures";
 
@@ -114,11 +116,22 @@ test.describe("home de pendências", () => {
 
     // O terreno, no modelo novo: um desembolso pago e DATADO dentro do ano em
     // teste — é a data que o põe na situação de 31/12 deste ano.
-    await criarDesembolsoTerreno(db, {
+    const terreno = await criarDesembolsoTerreno(db, {
       tipo: "pagamento_terreno",
       valor: 800000,
       estado: "pago",
       data_pagamento: `${ANO}-01-15`,
+    });
+    // ⚠️ **O COMPROVANTE passou a ser o portão do custo confirmado**
+    // (CONTAI-025, critério 8): desde 23/08 o app soma apenas desembolso pago,
+    // **com data e com comprovante** (§2.1 do parecer). Sem esta linha o
+    // terreno sairia do acumulado e apareceria, nomeado, na linha do §4.5 —
+    // que é comportamento certo, e é coberto em `terreno-anexo.spec.ts`.
+    // Aqui o assunto é a home de pendências da OBRA, e o terreno é cenário.
+    await criarAnexoDeDesembolso(db, {
+      desembolso_id: terreno,
+      arquivo_path: await subirParaOAcervo(db, "terreno", "pix.txt", "pix"),
+      papel: "comprovante",
     });
 
     await page.goto("/");
