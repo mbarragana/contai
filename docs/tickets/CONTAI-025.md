@@ -4,8 +4,8 @@
 - **Tipo**: feature — **P0**. Nasceu P1 em 19/08 com **um eixo** (a data); o
   relato 005 trouxe o outro (o comprovante) e o desfecho: **o Mateus parou de
   usar o app**, e continua parado. Dor **ativa**, no presente do indicativo
-- **UI**: **SIM** — proposta **nível 1**, **4 telas**. ⛔ **PENDENTE: rodar
-  `/design` e obter aprovação do Mateus antes do `/develop`**
+- **UI**: **SIM** — proposta **nível 1**, 4 telas. ✅ **MOCK v2 APROVADO PELO
+  MATEUS EM 2026-08-23** — `design/mocks/CONTAI-025.md`. Gate 0 satisfeito
 - **Gate Fiscal**: **SIM, e FECHADO** —
   `docs/pareceres/2026-08-23-anexo-no-desembolso-do-terreno.md`
   (⚠️ o **ADENDO 1 vence o corpo** onde divergir). Estava aberto desde 19/08
@@ -53,8 +53,10 @@ esse comentário e o trecho da migration `0008`.
 
 ### Fatia 1 — destrava
 
-1. [ ] **Proposta nível 1 (4 telas) em `design/mocks/CONTAI-025.md` aprovada
-       pelo Mateus** — ⛔ sem isto, o `/develop` não começa
+1. [x] **Proposta nível 1 aprovada pelo Mateus em 2026-08-23** — mock **v2**,
+       `design/mocks/CONTAI-025.html` + `.md`. Aprovado depois da revisão de cor
+       (D39 revisada), do chip único no estado combinado e da remoção da linha de
+       titularidade repartida (→ D53)
 2. [ ] Desembolso `pago` **grava** nas **quatro combinações**: com/sem data ×
        com/sem comprovante. E2E cobrindo as quatro, conferindo o estado gravado
        (`data_pagamento` nulo, zero linhas em `terreno_desembolso_anexo`), no
