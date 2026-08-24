@@ -14,6 +14,7 @@ import {
   PERGUNTA_QUITACAO,
   preposicaoDeTempo,
   perguntaQuitacao,
+  desembolsosCarregados,
   podeGerarRelatorioAnual,
   podeQuitar,
   QUITACAO_CONSEQUENCIA_DO_NAO,
@@ -25,6 +26,25 @@ import {
 } from "@/lib/fiscal/compromisso";
 import { formatarBRL } from "@/lib/money";
 import type { Compromisso, CompromissoRow, Pagamento } from "@/lib/types";
+import type { PermissaoRelatorio } from "@/lib/fiscal/compromisso";
+
+/**
+ * ⚠️ **O `[]` não typecheca mais** (CONTAI-036, critério 10 — residual 1 do
+ * CONTAI-025). Antes, `podeGerarRelatorioAnual(cs, hoje, ano, [])` passava e
+ * devolvia `ok: true`: "nenhum desembolso" e "não fui buscar os desembolsos"
+ * tinham a mesma forma. Agora o 4º parâmetro é opaco, e um teste que queira
+ * dizer "a obra não tem desembolso" tem de dizê-lo passando pelo construtor.
+ */
+const SEM_DESEMBOLSO = desembolsosCarregados([]);
+
+/** As três saídas liberadas, cada uma com a marca da SUA saída. */
+function liberaAsTres(p: PermissaoRelatorio): boolean {
+  if (!p.ok) return false;
+  return (
+    p.bensEDireitos.ano === p.pagamentosEfetuados.ano &&
+    p.pagamentosEfetuados.ano === p.afericaoInss.ano
+  );
+}
 
 const OBRA = "obra-1";
 const HOJE = "2026-08-18";
@@ -182,7 +202,7 @@ describe("vencido sem resposta", () => {
   it("data prevista no futuro não é vencido e não bloqueia (critério 21b)", () => {
     const c = comp({ id: "c1", dataPrevista: "2026-09-15" });
     expect(ehVencidoSemResposta(c, HOJE)).toBe(false);
-    expect(podeGerarRelatorioAnual([c], HOJE, 2026, [])).toEqual({ ok: true });
+    expect(liberaAsTres(podeGerarRelatorioAnual([c], HOJE, 2026, SEM_DESEMBOLSO))).toBe(true);
   });
 
   it("hoje ainda não venceu — venceu é ONTEM", () => {
@@ -194,7 +214,7 @@ describe("vencido sem resposta", () => {
     // alcançável só pelo saldo de uma quitação parcial, nunca na criação.
     const c = comp({ id: "c1", dataPrevista: null });
     expect(ehVencidoSemResposta(c, HOJE)).toBe(false);
-    expect(podeGerarRelatorioAnual([c], HOJE, 2026, [])).toEqual({ ok: true });
+    expect(liberaAsTres(podeGerarRelatorioAnual([c], HOJE, 2026, SEM_DESEMBOLSO))).toBe(true);
   });
 
   it("cancelado e quitado não bloqueiam — são as respostas (critério 21c)", () => {
@@ -206,9 +226,11 @@ describe("vencido sem resposta", () => {
       motivoCancelamento: "obra parou",
     });
     const quitado = comp({ id: "c2", ...vencido, situacao: "quitado" });
-    expect(podeGerarRelatorioAnual([cancelado, quitado], HOJE, 2026, [])).toEqual({
-      ok: true,
-    });
+    expect(
+      liberaAsTres(
+        podeGerarRelatorioAnual([cancelado, quitado], HOJE, 2026, SEM_DESEMBOLSO),
+      ),
+    ).toBe(true);
   });
 });
 
@@ -219,17 +241,18 @@ describe("⚠️ bloqueio anual — o `ano` NÃO recorta nada (critério 21, ade
   const vencido2025 = comp({ id: "c-2025", dataPrevista: "2025-12-28" });
 
   it("bloqueia o relatório do ano da data prevista", () => {
-    expect(podeGerarRelatorioAnual([vencido2025], HOJE, 2025, [])).toEqual({
+    // ⚠️ O payload do `ok: false` NÃO carrega mais o termo do terreno: no
+    // CONTAI-036 o veto passou a ser POR SAÍDA, e o do terreno deixou de ser
+    // veto — virou obrigação tipada dentro do bloco `bensEDireitos`. O que
+    // sobrou aqui é o portão TRANSVERSAL, e ele veta as três.
+    expect(podeGerarRelatorioAnual([vencido2025], HOJE, 2025, SEM_DESEMBOLSO)).toEqual({
       ok: false,
       faltamResponder: [vencido2025],
-      // CONTAI-025, critério 16: sem desembolso do terreno, este portão não
-      // fecha — e o outro fecha sozinho. As duas faltas são independentes.
-      terrenoSemComprovante: null,
     });
   });
 
   it("⚠️ bloqueia TAMBÉM o relatório de 2026, e é esse o ponto", () => {
-    const r = podeGerarRelatorioAnual([vencido2025], HOJE, 2026, []);
+    const r = podeGerarRelatorioAnual([vencido2025], HOJE, 2026, SEM_DESEMBOLSO);
     expect(
       r.ok,
       "recortar o bloqueio pela data prevista devolve efeito fiscal à PREVISÃO — " +
@@ -240,21 +263,23 @@ describe("⚠️ bloqueio anual — o `ano` NÃO recorta nada (critério 21, ade
 
   it("bloqueia qualquer ano, inclusive um em que nada foi previsto", () => {
     for (const ano of [2024, 2025, 2026, 2027, 2030]) {
-      expect(podeGerarRelatorioAnual([vencido2025], HOJE, ano, []).ok).toBe(false);
+      expect(podeGerarRelatorioAnual([vencido2025], HOJE, ano, SEM_DESEMBOLSO).ok).toBe(false);
     }
   });
 
   it("devolve a lista do que falta responder, não só o `false`", () => {
     const outro = comp({ id: "c-b", dataPrevista: "2026-07-01" });
     const emDia = comp({ id: "c-c", dataPrevista: "2026-12-01" });
-    const r = podeGerarRelatorioAnual([vencido2025, outro, emDia], HOJE, 2026, []);
+    const r = podeGerarRelatorioAnual([vencido2025, outro, emDia], HOJE, 2026, SEM_DESEMBOLSO);
     expect(r.ok).toBe(false);
     if (r.ok) return;
     expect(r.faltamResponder.map((c) => c.id).sort()).toEqual(["c-2025", "c-b"]);
   });
 
   it("sem compromisso nenhum, o relatório gera", () => {
-    expect(podeGerarRelatorioAnual([], HOJE, 2026, [])).toEqual({ ok: true });
+    expect(
+      liberaAsTres(podeGerarRelatorioAnual([], HOJE, 2026, SEM_DESEMBOLSO)),
+    ).toBe(true);
   });
 });
 

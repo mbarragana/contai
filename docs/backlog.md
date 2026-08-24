@@ -102,7 +102,7 @@ que segurar).
 | **Ordem de execução e status dos tickets** | **`docs/tickets/README.md`** — é o dono. Não mora aqui |
 | Decisões travando avanço | bloco **DECISÕES PENDENTES DO MATEUS**, acima neste arquivo |
 | Última adjudicação fiscal | `docs/backlog/15-2026-08-21-adjudicacao-fiscal-contai-027.md` |
-| Último Gate 4 fechado | `docs/backlog/23-2026-08-23-gate4-contai-027.md` — `CONTAI-027`, **PASS COM RESSALVA**, veredito critério a critério **no corpo do ticket** |
+| Último Gate 4 fechado | `docs/backlog/28-2026-08-24-gate4-contai-036.md` — `CONTAI-036`, **ENTREGUE**, veredito critério a critério **no corpo do ticket**. Diff ainda **não commitado** — README da fila não tem linha própria dele ainda (falta hash) |
 | Ticket ainda por criar | `15-…-adjudicacao-fiscal-contai-027.md` → *"Ticket novo a criar — correção de valor de desembolso do terreno"*; e **`CONTAI-022`** (D26, cartão de crédito, **P0 fiscal**) e **`CONTAI-031`** (E2E da condição 6, P1, que **bloqueia a fatia 5 do `CONTAI-028`**) e **`CONTAI-032`** (D44, default de `data` e `meio`, **P0**, dependente do `CONTAI-025`) — nenhum dos três existe como arquivo. ➕ **`CONTAI-033`** (D49/D52, *nota grava sem o arquivo*, **P0**, com as **três guardas** do parecer como critério) |
 
 ✅ **7ª revisão aplicada em 2026-08-23**, direto em `docs/tickets/README.md`. O
@@ -174,6 +174,7 @@ no bloco de decisões pendentes acima.
 | **D49 — travas de anexo-PROVA recusando fato consumado, sem parecer que as carimbe** (superfícies 3 e 4). **Terceira ofensora da classe D46/D48**, e a de espécie diferente: as outras produziram texto errado, esta **produziu abandono do produto** | `24-2026-08-23-relato-005.md`. Resolvida pelo parecer `docs/pareceres/2026-08-23-anexo-no-desembolso-do-terreno.md` (**ADENDO 1 vence o corpo**) → **US-A** no `CONTAI-025`, **US-B** em ticket novo |
 | **D50 — `lib/fiscal/terreno.ts` soma por `estado`+`data`, sem olhar anexo**: liberada a gravação, passa a somar custo não demonstrável **em silêncio**, na direção do **D34** | `24-…-relato-005.md` → **mesma entrega da D49**, não depois |
 | **D54 — a régua de cor não tem gate**: a D39 manda toda pendência nova declarar a metade que a colore, e isso é **norma sem verificador** — a D44 outra vez | `25-2026-08-23-a-regua-de-cor-e-o-que-ela-escondia.md` → teste que trava a régua, no **`CONTAI-035`** |
+| **D55 — `composicaoDaDiscriminacao` (tela do `CONTAI-021`, em produção) pondera documento individual por ordem de `id` "sem efeito fiscal nenhum"** | `27-2026-08-24-defeito-vivo-composicao-material-mao-de-obra.md` — decisão do `po`, muda número em tela já entregue |
 | **D53 — quem pagou o quê: pessoas ligadas à obra, co-pagamento em percentual/valor/partes, e apuração POR NOME** | `24-2026-08-23-relato-005.md` — **ticket próprio, decisão do Mateus em 23/08**. ⚠️ **Não é a US-D** (aquilo era um campo): é **modelo de dados, RLS e as três saídas anuais** mudando de "por obra" para "por obra **E por pessoa**". A US-D é subconjunto e provavelmente deixa de existir sozinha. Carrega o alerta de **equiparação a PJ** (art. 166+ RIR/2018, `[Likely]`) |
 | **D51 — não existe onde registrar de qual conta o dinheiro saiu** (parte dos desembolsos do terreno saiu da conta do cônjuge). Comprovante de terceiro *não se descarta e não se converte* | `24-…-relato-005.md` → **US-D**, ⛔ **bloqueada pelas 3 perguntas ao Mateus** |
 | **D52 — a superfície 3 exige migration**: `documento.arquivo_path` é `not null` na `0001` e `status_documento` não tem valor para "registrado sem arquivo"; ⚠️ **`quarentena` não pode ser reaproveitada** | `24-…-relato-005.md` → dentro do ticket da **US-B**; a decisão de modelo é do `cto-obra`, não do `po` |
@@ -401,6 +402,24 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
 - A divergência com o `designer`, e como ela fechou
 - O que ficou para o `designer`, e é dele
 - D54 — a régua não tem gate
+
+### `27-2026-08-24-defeito-vivo-composicao-material-mao-de-obra.md` — 52 linhas
+**Defeito vivo em `composicaoDaDiscriminacao` — 2026-08-24 — achado ao construir o CONTAI-036**
+
+- O defeito, tal como o `contador` nomeou
+- Por que não foi corrigido no `CONTAI-036`
+- D55 — a dívida
+
+### `28-2026-08-24-gate4-contai-036.md` — 83 linhas
+**Gate 4 do CONTAI-036 — 2026-08-24 — a primeira saída anual do produto fecha**
+
+- Os 16 critérios originais — todos PASS (crit. 13d: prova em Vitest, não E2E)
+- Dois critérios novos (15, 16) — retrofit pela régua do CONTAI-004: composição
+  material×mão de obra por ano, e a marca da porta não pode ser forjada
+- As três perguntas do gate — entregue? dor resolvida? critérios retroativos?
+- O que não foi reaberto: critério 3, D55
+- Pendência: `docs/tickets/README.md` ainda não tem linha própria do `036`
+  (falta hash — diff não commitado)
 
 ## Ao acrescentar ao backlog
 

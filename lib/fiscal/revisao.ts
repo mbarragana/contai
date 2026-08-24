@@ -31,6 +31,7 @@ import { anoCalendario } from "./pagamento";
 import {
   alocarCusto,
   custoComprovadoDoAno,
+  ehDocumentoHabil,
   type Alocacao,
   type EntradaAlocacao,
 } from "./vinculo";
@@ -457,6 +458,20 @@ export function anosDaAlocacao(...alocacoes: readonly Alocacao[]): number[] {
 
 // ── Composição da discriminação (critério 5) ─────────────────────────────
 
+// ⚠️ **DUAS composições moram neste arquivo, e elas NÃO usam a mesma regra.**
+// Ficam lado a lado de propósito: separá-las é como a defeituosa sobreviveria
+// sem ninguém notar. Leia as duas antes de mexer em qualquer uma.
+//
+// - `composicaoDaDiscriminacao` — a antiga (CONTAI-021), sem recorte de ano,
+//   ponderada por `cobertoCentavos`. ⛔ O parecer de 24/08 §0 a nomeia como
+//   **defeito vivo**. Não foi corrigida aqui: corrigi-la muda o número de uma
+//   tela já entregue, o que é escopo do `po`, não do CONTAI-036.
+// - `composicaoDoAno` — a nova, do parecer
+//   `docs/pareceres/2026-08-24-composicao-material-mao-de-obra.md` §1, com
+//   recorte de ano e ponderada pelo **valor integral** dos documentos hábeis.
+//   É esta que a discriminação anual usa.
+
+
 export interface Composicao {
   materialCentavos: number;
   maoObraCentavos: number;
@@ -497,6 +512,171 @@ export function composicaoDaDiscriminacao(alocacao: Alocacao): Composicao {
     if (a.documento.classificacao === "material") material += a.cobertoCentavos;
     else if (a.documento.classificacao === "mao_obra") maoObra += a.cobertoCentavos;
     else sem += a.cobertoCentavos;
+  }
+
+  return {
+    materialCentavos: material,
+    maoObraCentavos: maoObra,
+    semClassificacaoCentavos: sem,
+    totalCentavos: material + maoObra + sem,
+  };
+}
+
+/**
+ * A repartição do custo comprovado **do ano** entre material e mão de obra —
+ * a cláusula *"sendo R$ X em materiais e R$ Y em mão de obra e serviços"* do
+ * Bloco A da discriminação (CONTAI-036, critério 3).
+ *
+ * **Regra fiscal, com parecer próprio**:
+ * `docs/pareceres/2026-08-24-composicao-material-mao-de-obra.md` §1. Não é
+ * decisão de implementação e não se troca por "o que parece mais justo".
+ * Literal:
+ *
+ *     O custo comprovado de cada pagamento (`comprovadoCentavos`) é repartido
+ *     pro rata pelo valor dos documentos HÁBEIS do componente conexo a que o
+ *     pagamento pertence — pelos VALORES INTEGRAIS desses documentos, NUNCA
+ *     por `cobertoCentavos`.
+ *
+ * ⚠️ **Por que nunca `cobertoCentavos`** (§0 do parecer — defeito vivo, não
+ * hipótese): `cobertoCentavos` é distribuído em `alocarCusto` por **ordem de
+ * `id`**, que o próprio `vinculo.ts` declara *"sem efeito fiscal nenhum"*. Num
+ * componente subcoberto essa ordem decidiria, por id, se o que está coberto é
+ * a nota de material ou a de serviço.
+ *
+ * ⚠️ **Não é o pro-rata recusado no ADENDO de 18/08** (§2.3): aquele movia
+ * custo **entre anos** e contradiria DAA entregue; este **não toca o total do
+ * ano** — `custoComprovadoDoAno` continua intocado e cronológico.
+ *
+ * ⚠️ **Alternativa recusada** (§2.1): repartir pela classificação dos
+ * documentos ligados a **cada pagamento** não é função total — a repartição
+ * cronológica pode dar `comprovadoCentavos > 0` a um pagamento ligado só a
+ * documento **não hábil** (boleto, quarentena), e ali a regra não responde.
+ *
+ * `material + maoObra + semClassificacao ≡ total`, ao centavo (§3): maior
+ * resto, resíduo fixo em **mão de obra e serviços**. A palavra *"sendo"*
+ * afirma uma partição; partição que não fecha se contradiz dentro da DAA.
+ *
+ * ⚠️ `semClassificacaoCentavos > 0` **SUSPENDE a cláusula** (§4) — quem gera o
+ * texto não escolhe um balde. Ver `discriminacao.ts`.
+ */
+/**
+ * Os componentes conexos que puseram custo comprovado **neste ano**, com
+ * quanto cada um pôs.
+ *
+ * ⚠️ **Existe para ser o ÚNICO laço**, e a razão é do Gate 2 do CONTAI-036:
+ * `composicaoDoAno` suspende a cláusula por componente, com valor **integral**
+ * e centavo **no ano**; a contagem de notas que a tela exibe estava sendo
+ * tirada de uma varredura **separada** do acervo inteiro, por
+ * `cobertoCentavos > 0`. Dois números do mesmo fato, por dois caminhos —
+ * e as duas maneiras de errar apareceram:
+ *
+ * 1. **"0 notas … compõem o total"** — nota sem classificação cujo
+ *    `cobertoCentavos` é zero suspendia a cláusula e não era contada;
+ * 2. **nota contada sem ter posto centavo no ano** — componente cujos
+ *    pagamentos caem todos em outro ano entrava na contagem.
+ *
+ * Quem consome a suspensão e quem a explica leem o mesmo laço, ou voltam a
+ * divergir na primeira mudança.
+ */
+function componentesDoAno(
+  alocacao: Alocacao,
+  ano: number,
+): { documentos: readonly Documento[]; doAno: number }[] {
+  const doAno: { documentos: readonly Documento[]; doAno: number }[] = [];
+  for (const c of alocacao.componentes) {
+    let total = 0;
+    for (const p of c.pagamentos) {
+      if (anoCalendario(p.dataPagamento) !== ano) continue;
+      total += alocacao.porPagamento.get(p.id)?.comprovadoCentavos ?? 0;
+    }
+    // Componente que não contribui com centavo nenhum aqui é ignorado —
+    // inclusive para a suspensão do §4.1: "alarme sem consequência ensina a
+    // ignorar alarme".
+    if (total === 0) continue;
+    doAno.push({ documentos: c.documentos, doAno: total });
+  }
+  return doAno;
+}
+
+/**
+ * As notas hábeis **sem classificação** que compõem o total do ano — as que
+ * suspendem a cláusula (parecer de 24/08 §4), e as mesmas que o texto da
+ * suspensão conta.
+ *
+ * ⚠️ Sai do **mesmo laço** de `composicaoDoAno`, e é isso que garante que a
+ * frase *"N notas que compõem o total de {ano}"* nunca discorde da suspensão
+ * que ela explica. Nunca uma varredura do acervo inteiro.
+ */
+export function notasSemClassificacaoDoAno(
+  alocacao: Alocacao,
+  ano: number,
+): Documento[] {
+  const vistas = new Map<string, Documento>();
+  for (const c of componentesDoAno(alocacao, ano)) {
+    for (const d of c.documentos) {
+      if (!ehDocumentoHabil(d) || d.classificacao !== null) continue;
+      vistas.set(d.id, d);
+    }
+  }
+  return [...vistas.values()];
+}
+
+export function composicaoDoAno(alocacao: Alocacao, ano: number): Composicao {
+  // ⚠️ `BigInt(0)` e não `0n`: o `target` do projeto é ES2017 e literal de
+  // BigInt só existe de ES2020 em diante. O tipo inteiro é necessário — o
+  // produto `total × numerador` estoura `Number.MAX_SAFE_INTEGER` bem dentro
+  // da ordem de grandeza desta obra, e um centavo perdido aqui quebra a
+  // identidade `X + Y ≡ total` que o §3 do parecer torna inegociável.
+  const ZERO = BigInt(0);
+  const UM = BigInt(1);
+
+  let material = 0;
+  let maoObra = 0;
+  let sem = 0;
+
+  for (const { documentos, doAno } of componentesDoAno(alocacao, ano)) {
+    // Denominador: o conjunto de notas HÁBEIS do componente, pelos valores
+    // INTEGRAIS. A proporção é do conjunto, e por isso é uniforme entre todos
+    // os pagamentos dele, caiam no ano que caírem (§1).
+    let dMaoObra = ZERO;
+    let dMaterial = ZERO;
+    let dSem = ZERO;
+    for (const d of documentos) {
+      if (!ehDocumentoHabil(d)) continue;
+      const v = BigInt(d.valorCentavos ?? 0);
+      if (d.classificacao === "material") dMaterial += v;
+      else if (d.classificacao === "mao_obra") dMaoObra += v;
+      else dSem += v;
+    }
+    const denominador = dMaoObra + dMaterial + dSem;
+    if (denominador === ZERO) {
+      // Inalcançável pela álgebra de `alocarCusto` (sem nota hábil o custo
+      // comprovado do componente é zero) — e tratado assim mesmo, na direção
+      // que SUSPENDE a cláusula. Nunca na que inventa um balde.
+      sem += doAno;
+      continue;
+    }
+
+    // Maior resto, em inteiro — `doAno * n / D` sem ponto flutuante. Ordem de
+    // desempate FIXA, mão de obra primeiro (§3), para o número não dançar
+    // entre dois carregamentos.
+    const total = BigInt(doAno);
+    const baldes = [dMaoObra, dMaterial, dSem].map((numerador) => {
+      const produto = total * numerador;
+      const base = produto / denominador;
+      return { base, resto: produto - base * denominador };
+    });
+    let sobra = total - baldes.reduce((acc, b) => acc + b.base, ZERO);
+    for (const b of [...baldes].sort((x, y) =>
+      x.resto === y.resto ? 0 : x.resto > y.resto ? -1 : 1,
+    )) {
+      if (sobra === ZERO) break;
+      b.base += UM;
+      sobra -= UM;
+    }
+    maoObra += Number(baldes[0].base);
+    material += Number(baldes[1].base);
+    sem += Number(baldes[2].base);
   }
 
   return {

@@ -61,6 +61,7 @@ export default function DadosDaObra() {
   const [tentativa, setTentativa] = useState(0);
 
   const hoje = hojeIso();
+  const anoCorrente = Number(hoje.slice(0, 4));
 
   useEffect(() => {
     let cancelado = false;
@@ -164,6 +165,27 @@ export default function DadosDaObra() {
         <CamposTerreno {...props} />
         <BotaoLink href={`/obras/${id}/terreno`}>
           Terreno — desembolsos, contrato e informes
+        </BotaoLink>
+        {/*
+          ⚠️ A PRIMEIRA SAÍDA ANUAL DO PRODUTO (CONTAI-036). Sem esta porta ela
+          nasceria inalcançável, que é o formato exato da D47: superfície
+          gravada e caminho nunca entregue.
+
+          ⚠️ **DOIS ANOS, e o de baixo é o que importa na hora certa.** A
+          primeira versão linkava só o ano corrente, e isso é beco sem saída na
+          janela real: em **março e abril de N+1** se declara **N**, e o link do
+          ano corrente ofereceria justamente o ano que ainda não fechou. A tela
+          **não tem seletor de ano** — o mock aprovado (tela 4) não desenhou
+          um —, então quem abre o caminho é esta lista.
+
+          O ano não recorta nada na porta: `podeGerarRelatorioAnual` ignora o
+          `ano` para efeito de veto, e ele só diz de que ano é o texto.
+        */}
+        <BotaoLink href={`/obras/${id}/discriminacao/${anoCorrente}`}>
+          Discriminação de {anoCorrente} — antes de declarar
+        </BotaoLink>
+        <BotaoLink href={`/obras/${id}/discriminacao/${anoCorrente - 1}`}>
+          Discriminação de {anoCorrente - 1} — o ano que você declara agora
         </BotaoLink>
         <CamposPremissas {...props} />
 

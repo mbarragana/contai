@@ -38,7 +38,10 @@ import type {
   TerrenoDesembolso,
 } from "@/lib/types";
 import { centavosParaInput, formatarBRL } from "@/lib/money";
-import { bloqueioDaSaidaAnual, type BloqueioDaSaidaAnual } from "./terreno";
+import {
+  pagosSemComprovante,
+  totalPagoSemComprovanteCentavos,
+} from "./terreno";
 import type { Permissao } from "./vinculo";
 
 // ── Data: utilitários locais (ISO yyyy-mm-dd compara lexicograficamente) ──
@@ -169,32 +172,133 @@ export function compromissosQueBloqueiam(
   return cs.filter((c) => ehVencidoSemResposta(c, hojeIso));
 }
 
+// ══ A PORTA ÚNICA DAS SAÍDAS ANUAIS ═════════════════════════════════════
+//
+// ⚠️ **"A porta é única; o veto é por saída."** — reconciliação entre o
+// `contador` e o `cto-obra` no CONTAI-036, critério 8. Duas coisas, e elas não
+// se contradizem:
+//
+// 1. **Porta única no MECANISMO.** Continua existindo uma função só que decide
+//    se uma saída anual pode nascer. Uma segunda função "que também decide" é
+//    exatamente como a **D47** nasceu: a chamada passaria por uma e não pela
+//    outra, e a guarda ficaria satisfeita **por vacuidade**.
+// 2. **Veto por SAÍDA no resultado.** O que sai da porta não é mais um booleano
+//    só: são **três blocos independentes**, um por saída anual, cada um com
+//    **marca própria**. `bensEDireitos` carrega o termo do terreno; os outros
+//    dois, não.
+//
+// ⚠️ **A destravagem do critério 16 NÃO foi um `delete`.** A guarda da fatia 1
+// (`bloqueioDaSaidaAnual` / `motivoDoBloqueioDaSaidaAnual`) existia para impedir
+// que a discriminação saísse com um total que não dissesse o que deixou de
+// fora. Ela não foi apagada: virou **obrigação tipada**. Quem gera Bens e
+// Direitos recebe o número do §4.5 **dentro da marca**, e não tem como
+// renderizar a ficha sem tê-lo em mãos — pre-mortem 1 do CONTAI-036:
+//
+//     "Alguém apaga a guarda e escreve a tela; a linha do §4.5 vira uma <div>
+//     que o próximo refactor remove sem nada ficar vermelho. Por isso a
+//     obrigação mora no RETORNO TIPADO da porta, não na boa vontade de quem
+//     escreve JSX."
+
 /**
- * ⚠️ **DOIS PORTÕES, UMA PORTA.** O relatório anual tem hoje duas travas de
- * origens diferentes, e elas **se conhecem de propósito**:
+ * A marca. **`declare const`**: existe só no tipo, nunca em runtime — não há
+ * valor a importar, e por isso não há como um módulo de fora montar um objeto
+ * que a satisfaça sem escrever um `as` explícito, que é greppável.
+ */
+declare const MARCA_DA_SAIDA: unique symbol;
+
+/**
+ * §4.5 — o que ficou **fora do custo confirmado por falta de comprovante**.
  *
- * 1. `faltamResponder` — compromisso vencido sem resposta (CONTAI-019,
- *    critério 21). Sem a resposta ninguém sabe a que ano o desembolso pertence.
- * 2. `terrenoSemComprovante` — desembolso do terreno pago sem comprovante
- *    (CONTAI-025, **critério 16**). Enquanto a linha nomeada do §4.5 não
- *    existir no relatório, gerar o texto produziria um total que não diz o que
- *    deixou de fora.
+ * ⚠️ Mora **dentro** da marca de `bensEDireitos`, e não ao lado dela, porque é
+ * assim que a linha do §4.5 deixa de ser opcional: quem tem a marca tem o
+ * número, e quem não tem a marca não gera a ficha.
+ */
+export interface ForaDoCustoConfirmado {
+  quantidade: number;
+  totalCentavos: number;
+}
+
+/**
+ * Marca da **discriminação de Bens e Direitos**. Único bloco que carrega o
+ * termo do terreno (critério 8): desembolso de terreno pago sem comprovante
+ * não tem CPF a listar nem base de retenção a reduzir.
+ */
+export interface LiberadoBensEDireitos {
+  readonly [MARCA_DA_SAIDA]: "bensEDireitos";
+  readonly ano: number;
+  readonly foraDoCustoConfirmado: ForaDoCustoConfirmado;
+}
+
+/** Marca da ficha **Pagamentos Efetuados**. Sem termo de terreno — critério 8. */
+export interface LiberadoPagamentosEfetuados {
+  readonly [MARCA_DA_SAIDA]: "pagamentosEfetuados";
+  readonly ano: number;
+}
+
+/** Marca da posição da **aferição INSS (SERO)**. Sem termo de terreno. */
+export interface LiberadoAfericaoInss {
+  readonly [MARCA_DA_SAIDA]: "afericaoInss";
+  readonly ano: number;
+}
+
+/**
+ * ⚠️ **RESIDUAL 1 do CONTAI-025, e ele fecha por TIPO** (critério 10).
  *
- * ⚠️ **Dois portões que NÃO se conhecem é exatamente como a D47 nasceu.** Uma
- * segunda função "que também decide se o relatório sai" seria a mesma falha com
- * outro nome: a chamada passaria por um e não pelo outro, e a guarda ficaria
- * satisfeita **por vacuidade**. Há uma porta só, e ela nomeia as duas faltas ao
- * mesmo tempo — nunca uma de cada vez, que ensinaria a resolver em série e
- * descobrir a segunda depois de comemorar a primeira.
+ * Antes deste ticket, `podeGerarRelatorioAnual(cs, hoje, ano, [])` typechecava
+ * e devolvia `ok: true` — a guarda do terreno sumia sem ninguém apagar nada,
+ * porque um literal vazio é um argumento perfeitamente válido. O tipo era
+ * `readonly TerrenoDesembolso[]`, e "nenhum desembolso" e "não fui buscar os
+ * desembolsos" **têm a mesma forma**.
+ *
+ * Agora não têm. Este tipo é **opaco** e só a camada de dados o produz
+ * (`lib/dados/saida-anual.ts`). O literal `[]` deixa de compilar, e há teste
+ * com `@ts-expect-error` afirmando isso.
+ */
+declare const MARCA_DOS_DESEMBOLSOS: unique symbol;
+
+export interface DesembolsosDoTerrenoCarregados {
+  readonly [MARCA_DOS_DESEMBOLSOS]: true;
+  readonly lista: readonly TerrenoDesembolso[];
+}
+
+/**
+ * ⚠️ **O ÚNICO ponto do sistema que produz `DesembolsosDoTerrenoCarregados`.**
+ * Mora aqui, e não em `lib/dados`, para o tipo e o construtor nascerem juntos;
+ * quem o chama é a **porta composta** (`lib/dados/saida-anual.ts`), e a
+ * blindagem de `terreno.test.ts` proíbe `app/` de chamá-lo.
+ *
+ * Não é cerimônia: é a diferença entre "a obra não tem desembolso" e "esqueci
+ * de buscar os desembolsos", que o `[]` colapsava.
+ */
+export function desembolsosCarregados(
+  lista: readonly TerrenoDesembolso[],
+): DesembolsosDoTerrenoCarregados {
+  return { lista } as DesembolsosDoTerrenoCarregados;
+}
+
+/**
+ * ⚠️ **O PORTÃO TRANSVERSAL — crit. 21 do CONTAI-019, e ele NÃO migra.**
+ *
+ * Compromisso vencido sem resposta veta **as três** saídas, e não só a de Bens
+ * e Direitos. O `contador` foi explícito no Gate Fiscal do CONTAI-036:
+ *
+ *     "a incerteza dele pode virar qualquer um dos três tipos de saída" — um
+ *     vencido sem resposta pode virar pagamento a PF (Pagamentos Efetuados) ou
+ *     serviço PJ com retenção (aferição), além de custo.
+ *
+ * Por isso ele fica **acima** dos três blocos, e não dentro de um deles.
  */
 export type PermissaoRelatorio =
-  | { ok: true }
   | {
+      /** Nenhuma das três sai: o portão transversal está fechado. */
       ok: false;
-      /** CONTAI-019, critério 21. Vazio quando o bloqueio é só do terreno. */
       faltamResponder: Compromisso[];
-      /** CONTAI-025, critério 16. `null` quando o bloqueio é só de compromisso. */
-      terrenoSemComprovante: BloqueioDaSaidaAnual | null;
+    }
+  | {
+      ok: true;
+      bensEDireitos: LiberadoBensEDireitos;
+      pagamentosEfetuados: LiberadoPagamentosEfetuados;
+      afericaoInss: LiberadoAfericaoInss;
     };
 
 /**
@@ -217,43 +321,40 @@ export type PermissaoRelatorio =
  * mesmo tempo. Recortando por ano, o relatório de 2026 sairia liberado com um
  * desembolso possivelmente dele, não registrado, e sem ninguém perguntar nada.
  *
- * O parâmetro fica na assinatura para que o teste possa PROVAR que ele não
- * recorta, e para que quem tentar "otimizar" filtrando por ano tenha de apagar
- * um teste com nome próprio para conseguir.
+ * O parâmetro **entra no payload** das três marcas (é ele que diz de que ano é
+ * a saída), e continua sem recortar o veto — há teste afirmando as duas coisas.
  *
  * Sobre-bloqueio consciente (corolário 5): gerar o relatório de 2025 em 2027
  * com um compromisso de 2026 vencido e sem resposta também trava. É
  * deliberado — o custo é um toque, e a resposta é justamente o dado que decide
  * o ano.
- */
-/**
- * ⚠️ **CONTAI-025, critério 16 — `desembolsosTerreno` é OBRIGATÓRIO, e não
- * opcional.** Mesmo motivo de `desembolsosTerreno` em `EntradaResumo`: um
- * parâmetro opcional faria a guarda do terreno sumir em silêncio de qualquer
- * chamador que esquecesse de passá-lo — e "esquecer" aqui é gerar uma
- * discriminação com um total que não diz o que deixou de fora. Quebrar a
- * assinatura é o ponto: quem for gerar relatório anual tem de dizer, no ato,
- * de quais desembolsos está falando.
  *
- * ⚠️ `ano` continua sem recortar NADA (ver acima) — e a guarda do terreno
- * também não recorta: um desembolso pago sem comprovante em qualquer ano
- * trava qualquer relatório, porque o valor sem data não tem ano-calendário e o
- * com data pode ter o ano corrigido depois.
+ * ⚠️ **O termo do terreno NÃO recorta por ano tampouco**: um desembolso pago
+ * sem comprovante em qualquer ano entra na linha do §4.5, porque o sem data não
+ * tem ano-calendário e o com data pode ter o ano corrigido depois. É o mesmo
+ * agregado do card da home (decisão de design 2 do mock).
  */
 export function podeGerarRelatorioAnual(
   cs: readonly Compromisso[],
   hojeIso: string,
   ano: number,
-  desembolsosTerreno: readonly TerrenoDesembolso[],
+  desembolsosTerreno: DesembolsosDoTerrenoCarregados,
 ): PermissaoRelatorio {
-  void ano; // ver acima: existe para ser PROVADAMENTE ignorado.
   const faltamResponder = compromissosQueBloqueiam(cs, hojeIso);
-  const terreno = bloqueioDaSaidaAnual(desembolsosTerreno, ano);
-  if (faltamResponder.length === 0 && !terreno.bloqueada) return { ok: true };
+  if (faltamResponder.length > 0) return { ok: false, faltamResponder };
+
+  const pendentes = pagosSemComprovante(desembolsosTerreno.lista);
   return {
-    ok: false,
-    faltamResponder,
-    terrenoSemComprovante: terreno.bloqueada ? terreno : null,
+    ok: true,
+    bensEDireitos: {
+      ano,
+      foraDoCustoConfirmado: {
+        quantidade: pendentes.length,
+        totalCentavos: totalPagoSemComprovanteCentavos(desembolsosTerreno.lista),
+      },
+    } as LiberadoBensEDireitos,
+    pagamentosEfetuados: { ano } as LiberadoPagamentosEfetuados,
+    afericaoInss: { ano } as LiberadoAfericaoInss,
   };
 }
 

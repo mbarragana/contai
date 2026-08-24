@@ -14,8 +14,13 @@ import {
   semNotaDoAno,
   simularMoveDeObra,
   type LinhaDeAnoDaPendencia,
+  composicaoDoAno,
+  notasSemClassificacaoDoAno,
 } from "@/lib/fiscal/revisao";
-import { alocarCusto } from "@/lib/fiscal/vinculo";
+import {
+  alocarCusto,
+  custoComprovadoDoAno,
+} from "@/lib/fiscal/vinculo";
 import { formatarBRL } from "@/lib/money";
 import type {
   Documento,
@@ -746,5 +751,286 @@ describe("montarPendenciasDeAno — o acumulado do ano (critério 20a)", () => {
       revisoes: [],
     });
     expect(montadas).toEqual([]);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// COMPOSIÇÃO DO ANO — material × mão de obra
+//
+// Regra fiscal com parecer próprio:
+// `docs/pareceres/2026-08-24-composicao-material-mao-de-obra.md`.
+// Ela nasceu no Gate 1 do CONTAI-036: o Bloco A da discriminação pede
+// *"sendo R$ X em materiais e R$ Y em mão de obra e serviços"*, e NÃO HAVIA
+// regra para cruzar os dois eixos — o regime de caixa fixa o ANO pela data do
+// pagamento; material × mão de obra é atributo do DOCUMENTO.
+// ════════════════════════════════════════════════════════════════════════
+
+describe("composicaoDoAno — parecer de 2026-08-24", () => {
+  const material = (id: string, valorCentavos: number) =>
+    doc({ id, valorCentavos, tipo: "nf_material", classificacao: "material" });
+  const servico = (id: string, valorCentavos: number) =>
+    doc({ id, valorCentavos, tipo: "nf_servico", classificacao: "mao_obra" });
+
+  it("componente HOMOGÊNEO devolve o número exato, não uma convenção", () => {
+    // §2.2: no caso normal — fornecedor de material de um lado, empreiteiro do
+    // outro — a regra é exata. A convenção só age no cruzamento emaranhado.
+    const nota = material("d1", 100_000);
+    const p = pag({
+      id: "p1",
+      valorCentavos: 100_000,
+      dataPagamento: "2026-04-10",
+      documentoIds: ["d1"],
+    });
+    const c = composicaoDoAno(alocarCusto({ documentos: [nota], pagamentos: [p] }), 2026);
+    expect(c).toEqual({
+      materialCentavos: 100_000,
+      maoObraCentavos: 0,
+      semClassificacaoCentavos: 0,
+      totalCentavos: 100_000,
+    });
+  });
+
+  it("componente emaranhado reparte pro rata pelo valor INTEGRAL das notas", () => {
+    // Duas notas no mesmo conjunto conexo, 60/40, e um pagamento que cobre
+    // tudo. A proporção é a do CONJUNTO DE NOTAS — nunca `cobertoCentavos`,
+    // que é distribuído por ordem de id e o código declara sem efeito fiscal.
+    const m = material("d1", 60_000);
+    const s = servico("d2", 40_000);
+    const p = pag({
+      id: "p1",
+      valorCentavos: 100_000,
+      dataPagamento: "2026-04-10",
+      documentoIds: ["d1", "d2"],
+    });
+    const c = composicaoDoAno(alocarCusto({ documentos: [m, s], pagamentos: [p] }), 2026);
+    expect(c.materialCentavos).toBe(60_000);
+    expect(c.maoObraCentavos).toBe(40_000);
+    expect(c.totalCentavos).toBe(100_000);
+  });
+
+  it("⚠️ SUBCOBERTO — o denominador continua sendo o conjunto de notas", () => {
+    // Σ pagamentos (50.000) < Σ hábeis (100.000). A proporção NÃO passa a ser
+    // "qual nota o id cobriu": permanece 60/40, do conjunto. É o §0 do
+    // parecer, o defeito vivo que esta regra corrige na raiz.
+    const m = material("d1", 60_000);
+    const s = servico("d2", 40_000);
+    const p = pag({
+      id: "p1",
+      valorCentavos: 50_000,
+      dataPagamento: "2026-04-10",
+      documentoIds: ["d1", "d2"],
+    });
+    const c = composicaoDoAno(alocarCusto({ documentos: [m, s], pagamentos: [p] }), 2026);
+    expect(c.materialCentavos).toBe(30_000);
+    expect(c.maoObraCentavos).toBe(20_000);
+    expect(c.totalCentavos).toBe(50_000);
+  });
+
+  it("⚠️ a proporção é UNIFORME entre os pagamentos do componente, mesmo cruzando anos", () => {
+    // Consequência aritmética do §1, e é ela que faz o gatilho do §4.1
+    // coincidir nas duas formulações: massa não classificada não "fica em
+    // outro ano" dentro do mesmo componente.
+    const m = material("d1", 60_000);
+    const s = servico("d2", 40_000);
+    const p2025 = pag({
+      id: "p1",
+      valorCentavos: 40_000,
+      dataPagamento: "2025-12-20",
+      documentoIds: ["d1", "d2"],
+    });
+    const p2026 = pag({
+      id: "p2",
+      valorCentavos: 60_000,
+      dataPagamento: "2026-01-05",
+      documentoIds: ["d1", "d2"],
+    });
+    const a = alocarCusto({ documentos: [m, s], pagamentos: [p2025, p2026] });
+    const de2025 = composicaoDoAno(a, 2025);
+    const de2026 = composicaoDoAno(a, 2026);
+    expect(de2025.materialCentavos / de2025.totalCentavos).toBeCloseTo(0.6, 10);
+    expect(de2026.materialCentavos / de2026.totalCentavos).toBeCloseTo(0.6, 10);
+    // E o TOTAL de cada ano continua o cronológico, intocado (§2.3).
+    expect(de2025.totalCentavos).toBe(custoComprovadoDoAno(a, 2025));
+    expect(de2026.totalCentavos).toBe(custoComprovadoDoAno(a, 2026));
+  });
+
+  it("⚠️ §3 — X + Y ≡ total ao centavo, com resíduo em MÃO DE OBRA", () => {
+    // Um terço não é redondo: 100 centavos repartidos 1/3 × 2/3. A palavra
+    // "sendo" afirma uma partição — partição que não fecha se contradiz
+    // dentro do corpo da DAA.
+    const m = material("d1", 1);
+    const s = servico("d2", 2);
+    const p = pag({
+      id: "p1",
+      valorCentavos: 3,
+      dataPagamento: "2026-04-10",
+      documentoIds: ["d1", "d2"],
+    });
+    const a = alocarCusto({ documentos: [m, s], pagamentos: [p] });
+    const c = composicaoDoAno(a, 2026);
+    expect(c.materialCentavos + c.maoObraCentavos).toBe(c.totalCentavos);
+    expect(c.totalCentavos).toBe(custoComprovadoDoAno(a, 2026));
+
+    // E o resíduo é FIXO, não sorteado: 10 centavos em 1/3 × 2/3 dá 3,33 e
+    // 6,66 — o centavo que sobra vai para mão de obra e serviços.
+    const dez = pag({
+      id: "p2",
+      valorCentavos: 10,
+      dataPagamento: "2026-04-10",
+      documentoIds: ["d3", "d4"],
+    });
+    const c2 = composicaoDoAno(
+      alocarCusto({
+        documentos: [material("d3", 10), servico("d4", 20)],
+        pagamentos: [dez],
+      }),
+      2026,
+    );
+    expect(c2).toEqual({
+      materialCentavos: 3,
+      maoObraCentavos: 7,
+      semClassificacaoCentavos: 0,
+      totalCentavos: 10,
+    });
+  });
+
+  it("⚠️ §4 — documento hábil SEM classificação cai no balde próprio", () => {
+    // Nunca empurrado para material nem para mão de obra: seria DEFAULT EM
+    // CAMPO FISCAL, e campo vazio pergunta. Quem consome suspende a cláusula.
+    const semClasse = doc({ id: "d1", valorCentavos: 50_000, classificacao: null });
+    const s = servico("d2", 50_000);
+    const p = pag({
+      id: "p1",
+      valorCentavos: 100_000,
+      dataPagamento: "2026-04-10",
+      documentoIds: ["d1", "d2"],
+    });
+    const c = composicaoDoAno(alocarCusto({ documentos: [semClasse, s], pagamentos: [p] }), 2026);
+    expect(c.semClassificacaoCentavos).toBe(50_000);
+    expect(c.materialCentavos).toBe(0);
+    expect(c.maoObraCentavos).toBe(50_000);
+  });
+
+  it("⚠️ §4.1 — componente que não contribui com o ano NÃO suspende a cláusula", () => {
+    // "Alarme sem consequência ensina a ignorar alarme." Um componente com
+    // nota sem classificação, cujos pagamentos caem TODOS em outro ano, não
+    // toca o número deste ano e não pode suspender a frase dele.
+    const outroAno = pag({
+      id: "p-2024",
+      valorCentavos: 50_000,
+      dataPagamento: "2024-05-05",
+      documentoIds: ["d-sem"],
+    });
+    const doAno = pag({
+      id: "p-2026",
+      valorCentavos: 30_000,
+      dataPagamento: "2026-05-05",
+      documentoIds: ["d-mat"],
+    });
+    const c = composicaoDoAno(
+      alocarCusto({
+        documentos: [
+          doc({ id: "d-sem", valorCentavos: 50_000, classificacao: null }),
+          material("d-mat", 30_000),
+        ],
+        pagamentos: [outroAno, doAno],
+      }),
+      2026,
+    );
+    expect(c.semClassificacaoCentavos).toBe(0);
+    expect(c.materialCentavos).toBe(30_000);
+  });
+
+  it("documento NÃO hábil não entra no denominador nem no numerador", () => {
+    // Quarentena e boleto não são documentação hábil: não compõem custo e não
+    // podem influenciar a proporção de quem compõe.
+    const quarentena = doc({
+      id: "d-q",
+      valorCentavos: 90_000,
+      status: "quarentena",
+      destinatarioCpfOk: false,
+      motivoQuarentena: "CPF do destinatário não é o do dono",
+      classificacao: "mao_obra",
+    });
+    const m = material("d1", 40_000);
+    const p = pag({
+      id: "p1",
+      valorCentavos: 40_000,
+      dataPagamento: "2026-04-10",
+      documentoIds: ["d1", "d-q"],
+    });
+    const c = composicaoDoAno(
+      alocarCusto({ documentos: [m, quarentena], pagamentos: [p] }),
+      2026,
+    );
+    expect(c.materialCentavos).toBe(40_000);
+    expect(c.maoObraCentavos).toBe(0);
+  });
+
+  it("⛔ notasSemClassificacaoDoAno sai do MESMO laço — coberto zero também conta", () => {
+    // O defeito do Gate 2: contar por `cobertoCentavos > 0` varrendo o acervo.
+    // O lado do documento é repartido por ORDEM DE ID, declarada sem efeito
+    // fiscal — num componente subcoberto a nota sem classificação de id maior
+    // recebe coberto ZERO e sumia da contagem, enquanto SUSPENDIA a cláusula.
+    const a = doc({ id: "a-mat", valorCentavos: 100_000, classificacao: "material" });
+    const b = doc({ id: "b-sem", valorCentavos: 100_000, classificacao: null });
+    const p = pag({
+      id: "p1",
+      valorCentavos: 100_000,
+      dataPagamento: "2026-04-10",
+      documentoIds: ["a-mat", "b-sem"],
+    });
+    const alocacao = alocarCusto({ documentos: [a, b], pagamentos: [p] });
+    expect(alocacao.porDocumento.get("b-sem")!.cobertoCentavos).toBe(0);
+    expect(notasSemClassificacaoDoAno(alocacao, 2026).map((d) => d.id)).toEqual([
+      "b-sem",
+    ]);
+    // E o que ela conta é exatamente o que suspende a cláusula.
+    expect(composicaoDoAno(alocacao, 2026).semClassificacaoCentavos).toBeGreaterThan(0);
+  });
+
+  it("⛔ nota de componente que não pôs centavo no ano fica FORA da contagem", () => {
+    const outroAno = pag({
+      id: "p-2024",
+      valorCentavos: 50_000,
+      dataPagamento: "2024-05-05",
+      documentoIds: ["d-sem-2024"],
+    });
+    const doAno = pag({
+      id: "p-2026",
+      valorCentavos: 30_000,
+      dataPagamento: "2026-05-05",
+      documentoIds: ["d-sem-2026"],
+    });
+    const alocacao = alocarCusto({
+      documentos: [
+        doc({ id: "d-sem-2024", valorCentavos: 50_000, classificacao: null }),
+        doc({ id: "d-sem-2026", valorCentavos: 30_000, classificacao: null }),
+      ],
+      pagamentos: [outroAno, doAno],
+    });
+    expect(notasSemClassificacaoDoAno(alocacao, 2026).map((d) => d.id)).toEqual([
+      "d-sem-2026",
+    ]);
+    // Documento NÃO hábil nunca entra: não compõe custo e não suspende nada.
+    const comBoleto = alocarCusto({
+      documentos: [
+        doc({ id: "d-bol", tipo: "boleto", valorCentavos: 10_000, classificacao: null }),
+      ],
+      pagamentos: [
+        pag({ id: "p-b", valorCentavos: 10_000, dataPagamento: "2026-05-05", documentoIds: ["d-bol"] }),
+      ],
+    });
+    expect(notasSemClassificacaoDoAno(comBoleto, 2026)).toEqual([]);
+  });
+
+  it("ano sem custo comprovado nenhum devolve tudo zerado", () => {
+    const c = composicaoDoAno(alocarCusto({ documentos: [], pagamentos: [] }), 2026);
+    expect(c).toEqual({
+      materialCentavos: 0,
+      maoObraCentavos: 0,
+      semClassificacaoCentavos: 0,
+      totalCentavos: 0,
+    });
   });
 });

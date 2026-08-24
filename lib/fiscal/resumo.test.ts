@@ -2,7 +2,10 @@ import { readdirSync, readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { podeGerarRelatorioAnual } from "@/lib/fiscal/compromisso";
+import {
+  desembolsosCarregados,
+  podeGerarRelatorioAnual,
+} from "@/lib/fiscal/compromisso";
 import { calcularResumo, type EntradaResumo } from "@/lib/fiscal/resumo";
 import type {
   Documento,
@@ -766,10 +769,15 @@ describe("pendência 'Diferença sem explicação' (critérios 31, 31c, 31e)", (
     const r = cenario();
     expect(r.pendencias.some((p) => p.tipo === "diferenca_sem_explicacao")).toBe(true);
     expect(
-      podeGerarRelatorioAnual([], "2026-08-18", 2026, []),
-      "o bloqueio anual conhece COMPROMISSO e DESEMBOLSO DO TERRENO sem " +
-        "comprovante — pagamento com diferença não entra em nenhum dos dois",
-    ).toEqual({ ok: true });
+      podeGerarRelatorioAnual(
+        [],
+        "2026-08-18",
+        2026,
+        desembolsosCarregados([]),
+      ).ok,
+      "o portão transversal do relatório anual conhece COMPROMISSO VENCIDO — " +
+        "pagamento com diferença não é compromisso e não veta saída nenhuma",
+    ).toBe(true);
   });
 });
 

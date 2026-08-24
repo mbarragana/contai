@@ -44,19 +44,25 @@ radicais fiscais.
 
 ## Critérios de Aceite
 
-1. [ ] Tela nova *"Discriminação de {ano} — antes de declarar"* — **tela 4 do
-       mock `CONTAI-025` v2** (Gate 0 parcialmente satisfeito; falta aprovar o
-       critério 6). Cenário **gestão**, 375px como piso
-2. [ ] **Nasce chamando a porta única `podeGerarRelatorioAnual`**
+1. [x] Tela nova *"Discriminação de {ano} — antes de declarar"* — **tela 4 do
+       mock `CONTAI-025` v2**, Gate 0 satisfeito por inteiro desde a aprovação
+       da alteração do critério 6 em 24/08 (ver Dependências). Cenário
+       **gestão**, 375px como piso — `app/obras/[id]/discriminacao/[ano]/page.tsx`
+       reusa os primitivos de `app/_components/ui` do resto do produto
+2. [x] **Nasce chamando a porta única `podeGerarRelatorioAnual`**
        (`lib/fiscal/compromisso.ts`) — nunca `bloqueioDaSaidaAnual` direto, nunca
        verificação própria. *"Dois portões que não se conhecem é como a D47
        nasceu."*
-3. [ ] Bloco copiável = **Bloco A literal**
+3. [x] Bloco copiável = **Bloco A literal**
        (`docs/pareceres/2026-08-16-gate-fiscal-contai-004-005.md` §2 + emenda
-       `2026-08-17-terreno-financiado.md` §4). **Bloco B não é gerado**
-       (`numero`/`data_emissao` só existem se o `CONTAI-004` estiver entregue) —
-       a ausência é **nomeada em tela**, nunca placeholder vazio
-4. [ ] **A linha do §4.5, literal, FORA do bloco copiável e imediatamente
+       `2026-08-17-terreno-financiado.md` §4). **Bloco B não é gerado**.
+       ⚠️ **Razão corrigida em 24/08** — não é mais falta de `numero`/`data_emissao`
+       (o `CONTAI-004` já os entrega, no ar desde este mesmo dia). O que falta é
+       **atribuição conjunta pagamento×documento×ano por nota**
+       (`"pago R$ Y em {ano}"` por documento) — `alocarCusto` não produz isso hoje.
+       A ausência é **nomeada em tela** (`BLOCO_B_NAO_GERADO`), nunca placeholder
+       vazio
+4. [x] **A linha do §4.5, literal, FORA do bloco copiável e imediatamente
        abaixo dele** (decisão de design 5 do mock). Constante em
        `lib/fiscal/terreno.ts`, com teste de string:
        > *"Fora do custo confirmado por falta de comprovante: R$ 0.000,00. Foi
@@ -64,11 +70,11 @@ radicais fiscais.
        > por isso não entra na soma acima. Decida com seu contador antes de
        > declarar: deixar de discriminar na declaração um custo real também
        > custa caro — o custo que não é discriminado não existe na venda."*
-5. [ ] **A segunda metade do §4.5 vai junto** — `FORA_DO_CUSTO_CONFIRMADO_DECIDA_NO_RELATORIO`,
+5. [x] **A segunda metade do §4.5 vai junto** — `FORA_DO_CUSTO_CONFIRMADO_DECIDA_NO_RELATORIO`,
        criada na fatia 1 **com teste de que nenhuma tela da fatia 1 a usa**. É
        aqui, e só aqui, que ela entra. Teste afirma a **string inteira**, as
        três constantes na ordem certa
-6. [ ] ⚠️ **Muda o mock aprovado**: o banner *"Revise antes de copiar"* deixa de
+6. [x] ⚠️ **Muda o mock aprovado**: o banner *"Revise antes de copiar"* deixa de
        ser condicional (hoje só aparece havendo lançamento fora da soma) e passa
        a ser **incondicional**, sempre **acima** do bloco:
        > *"Revise antes de copiar. Este texto é insumo para a sua conferência
@@ -77,9 +83,9 @@ radicais fiscais.
        da soma.`)* — critério 19 do `CONTAI-010` chegando à tela. **Não afirma
        fato sobre matrícula, cônjuge ou quem paga** — não é a linha da
        titularidade voltando por outro nome
-7. [ ] **Nunca um número só** (§2.4): total confirmado e, em linha nomeada, o
+7. [x] **Nunca um número só** (§2.4): total confirmado e, em linha nomeada, o
        pago-sem-comprovante — valor, contagem, link para a lista
-8. [ ] **A destravagem não é `delete` — é obrigação tipada, e o veto é POR
+8. [x] **A destravagem não é `delete` — é obrigação tipada, e o veto é POR
        SAÍDA, não único.** `podeGerarRelatorioAnual` continua sendo **porta
        única no mecanismo**, mas devolve um payload com **três blocos
        independentes**, cada um com brand distinto:
@@ -93,35 +99,86 @@ radicais fiscais.
        bloco errado não compila. `bloqueioDaSaidaAnual`/
        `motivoDoBloqueioDaSaidaAnual` e o banner vermelho da fatia 1 saem
        juntos, substituídos pelo payload
-9. [ ] **O portão do compromisso (crit. 21 do `CONTAI-019`) continua
+9. [x] **O portão do compromisso (crit. 21 do `CONTAI-019`) continua
        transversal aos três blocos** — vencido sem resposta pode virar
        pagamento a PF (Pagamentos Efetuados) ou serviço PJ (aferição), então
        não migra só para `bensEDireitos`. Teste afirmando o veto nos três
        blocos depois da mudança
-10. [ ] **Residual 1 — o `[]` fecha por TIPO.** Hoje
+10. [x] **Residual 1 — o `[]` fecha por TIPO.** Hoje
        `podeGerarRelatorioAnual(cs, hoje, ano, [])` typecheca e devolve
        `ok:true`. O 4º parâmetro passa a exigir tipo opaco que **só a camada de
        dados produz**. Teste: literal `[]` **não typecheca**
        (`@ts-expect-error`)
-11. [ ] **Residual 2 — a blindagem varre por SÍMBOLO, não por arquivo.** Hoje
+11. [x] **Residual 2 — a blindagem varre por SÍMBOLO, não por arquivo.** Hoje
         um arquivo que mencione a porta passa mesmo ganhando gerador que não a
         chame — *"hoje é teórico, e deixa de ser no dia em que a tela do
         relatório existir: é este ticket."* Cada declaração casada trata o
         retorno da porta; fixture negativa (arquivo com um chamador e um
         não-chamador **reprova**)
-12. [ ] **Blindagem intacta como porta única**: um nome só na regex
+12. [x] **Blindagem intacta como porta única**: um nome só na regex
         `NA_PORTA`, radicais como estão, porta composta em `lib/dados`
         carregando tudo numa passada — **não** três varreduras, três
         carregadores. *"É a extensão natural do item 1a de hoje, não um
         redesenho."* (`cto-obra`)
-13. [ ] E2E contra o Postgres local: (a) com pago-sem-comprovante → bloco sai,
+13. [x] E2E contra o Postgres local: (a) com pago-sem-comprovante → bloco sai,
         linha §4.5 com o valor certo, valor **não** está no total; (b) sem
         nenhum → linha **não** aparece, total bate com o painel; (c) com
         compromisso vencido → a saída **não** sai (nos três blocos); (d) gerar
         Pagamentos Efetuados **com** terreno pago-sem-comprovante na base →
-        **não** veta (prova do critério 8)
-14. [ ] **Sem migration, sem `GRANT`** — só leitura. `privilegios.spec.ts`
+        **não** veta (prova do critério 8).
+        ⚠️ **(d) provado em Vitest, não em E2E** — `terreno.test.ts`,
+        *"crit. 13d"*. Não há rota a navegar: as telas de Pagamentos
+        Efetuados e aferição INSS estão fora de escopo deste ticket (ver
+        Out of Scope), só os portões nascem aqui. Documentado no cabeçalho de
+        `e2e/discriminacao.spec.ts`; a prova em si é sobre o mesmo
+        `podeGerarRelatorioAnual` que o E2E exercita para (a)-(c), então o
+        caminho real está coberto — só não pela rota HTTP, que não existe.
+14. [x] **Sem migration, sem `GRANT`** — só leitura. `privilegios.spec.ts`
         intacto
+15. [x] **NOVO — achado fiscal no meio do Gate 1, promovido a critério no
+        Gate 4** (mesma régua do `CONTAI-004`, hoje: *"substantivo concreto
+        descoberto depois do Gate 1 vira critério antes de fechar, nunca fica
+        só no comentário do diff"*). **A cláusula de composição material ×
+        mão de obra, por ano, no Bloco A** — *"sendo R$X em materiais e R$Y em
+        mão de obra e serviços"*. Regra normativa em
+        `docs/pareceres/2026-08-24-composicao-material-mao-de-obra.md` §1-§4,
+        §6:
+        - repartição **pro rata pelo valor INTEGRAL** dos documentos hábeis do
+          componente, **nunca por `cobertoCentavos`/ordem de `id`**
+          (`composicaoDaDiscriminacao` já tinha esse defeito — nomeado como
+          **D55**, não corrigido aqui de propósito: mudaria número de tela em
+          produção, é escopo do `po`)
+        - `material + maoObra + semClassificacao ≡ total`, ao centavo (maior
+          resto, `BigInt`)
+        - **existindo nota hábil sem classificação no ano, a cláusula é
+          SUSPENSA por inteiro** — nunca `X+Y≠total`, nunca balde para o não
+          classificado (default em campo fiscal, proibido) — e a ausência é
+          nomeada (`composicaoNaoGerada`), nunca omitida em silêncio
+        - a contagem de notas na frase de suspensão sai do **mesmo laço** que
+          calcula a composição (`componentesDoAno`) — correção de Gate 2: uma
+          contagem separada por `cobertoCentavos > 0` divergia da suspensão em
+          dois sentidos (*"0 notas… compõem o total"* com nota de coberto
+          zero; nota contada sem pôr centavo no ano). Teste com os dois casos
+          negativos, nomeados
+        Testado em `lib/fiscal/revisao.test.ts` (`composicaoDoAno`,
+        `notasSemClassificacaoDoAno`) e `lib/fiscal/discriminacao.test.ts`
+        (`describe("a cláusula da composição — parecer de 2026-08-24")`)
+16. [x] **NOVO — a marca da porta única não pode ser forjada, e a proteção é
+        estrutural, não de boa-fé.** Achado do `cto-obra` no Gate 2 rodada 1:
+        `{ ano } as LiberadoBensEDireitos` **compila** (o `unique symbol` só
+        existe no tipo). A blindagem original aprovava o forjador porque só
+        conferia **menção** ao nome da marca em qualquer ponto do corpo;
+        corrigida para exigir a marca **em posição de parâmetro**
+        (`EXIGE_A_MARCA`) e para reprovar qualquer `as`/`as unknown as` para
+        uma das marcas **fora do berço** (`lib/fiscal/compromisso.ts`), scan
+        por `FORJA` em `lib/` e `app/`. **Provado com exploit plantado**: o
+        `lead-engineer` escreveu o forjador, viu `tsc` compilar limpo, só
+        reverteu depois da correção — o mesmo protocolo do `CONTAI-004`
+        (introduzir a regra proibida de propósito, ver vermelho, reverter).
+        Testado em `lib/fiscal/terreno.test.ts`,
+        `describe("residual 2 — a blindagem é por símbolo")`, casos
+        *"FIXTURE NEGATIVA — o FORJADOR é pego"* e *"nenhum arquivo FORJA a
+        marca fora do berço dela"*
 
 ## Out of Scope
 
@@ -248,3 +305,35 @@ não se aplica.** Serve à **meta 2** de forma direta: é o primeiro relatório
 anual do produto, e paga a dívida que a fatia 1 abriu de propósito.
 
 **Veredito: APROVADO, P0.** Condicionado à aprovação da frase alterada no mock.
+
+## Log de Gates
+
+- **Gate 0**: mock v2 (tela 4) + alteração do critério 6 — ✅ **APROVADO em
+  2026-08-24**
+- **Gate 1**: implementado. Achado fiscal no meio da implementação —
+  composição material×mão de obra por ano não tinha regra ratificada;
+  `contador` escreveu `docs/pareceres/2026-08-24-composicao-material-mao-de-obra.md`
+  no mesmo diff. Achado de produto no mesmo diff: `composicaoDaDiscriminacao`
+  (CONTAI-021, em produção) tem o mesmo defeito de ponderação por `id` sem
+  efeito fiscal — não corrigida aqui (mudaria número de tela entregue),
+  registrada como **D55**, backlog em
+  `docs/backlog/27-2026-08-24-defeito-vivo-composicao-material-mao-de-obra.md`
+- **Gate 2, rodada 1**: `REQUEST CHANGES` dos dois. `cto-obra`: a marca de
+  liberação podia ser **forjada** com um `as` que compila, e a blindagem
+  aprovava o forjador por citação, não por exigência. `contador`: `quantasNotas`
+  reintroduzia por outro caminho o defeito que o próprio parecer de 24/08
+  nomeou (contagem por varredura separada, divergente da suspensão)
+- **Retrabalho**: forja provada com exploit plantado (revertido só depois da
+  correção); `EXIGE_A_MARCA` passou a casar só em posição de parâmetro; a
+  contagem de notas passou a sair do mesmo laço de `composicaoDoAno`
+- **Gate 2, rodada 2**: `APPROVE` dos dois sobre o diff final, cada um
+  re-executando a suíte por conta própria
+- **Gate 3**: Vitest 591/591, `e2e/discriminacao.spec.ts` 5/5,
+  `e2e/privilegios.spec.ts` 5/5, `typecheck` limpo — todos re-executados no
+  Gate 4, independentemente
+- **Gate 4 (`po`, 2026-08-24)**: 16 critérios originais + **2 novos**
+  (15, 16), retrofit dos achados de Gate 1 e Gate 2 pela régua instalada hoje
+  no `CONTAI-004`. Nenhum FAIL. Critério 13(d) é PASS com nota: prova em
+  Vitest, não em E2E, porque a rota de Pagamentos Efetuados não existe (fora
+  de escopo declarado). Critério 3 (D55) e critério 16 (marca) **não
+  reabertos** — já fechados nesta mesma sessão. **Ticket ENTREGUE.**

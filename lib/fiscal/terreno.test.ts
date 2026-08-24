@@ -4,12 +4,15 @@ import { describe, expect, it } from "vitest";
 
 import { formatarBRL } from "@/lib/money";
 import * as terreno from "@/lib/fiscal/terreno";
-import { podeGerarRelatorioAnual } from "@/lib/fiscal/compromisso";
+import {
+  desembolsosCarregados,
+  podeGerarRelatorioAnual,
+  type LiberadoBensEDireitos,
+} from "@/lib/fiscal/compromisso";
 import {
   acaoDaPendenciaDeDatas,
   ANTES_DE_DIZER_O_QUE_E_CADA_PAPEL,
   anosDoFinanciamento,
-  bloqueioDaSaidaAnual,
   CHIP_FALTA_DATA_E_COMPROVANTE,
   CHIP_PAGO_SEM_COMPROVANTE,
   COMECE_PELA_DATA,
@@ -25,6 +28,7 @@ import {
   FORA_DO_CUSTO_CONFIRMADO,
   FORA_DO_CUSTO_CONFIRMADO_DECIDA_NO_RELATORIO,
   FORA_DO_CUSTO_CONFIRMADO_PORQUE,
+  linhaForaDoCustoConfirmado,
   GRAVAR_E_ABRIR_A_PENDENCIA_DA_DATA,
   GRAVAR_E_ABRIR_A_PENDENCIA_DO_COMPROVANTE,
   GRAVAR_E_ABRIR_AS_DUAS_PENDENCIAS,
@@ -59,6 +63,7 @@ import {
   travaDaSoma,
 } from "@/lib/fiscal/terreno";
 import type {
+  Compromisso,
   FinanciamentoInforme,
   PapelDeAnexo,
   TerrenoDesembolso,
@@ -1079,6 +1084,43 @@ describe("critério 12 — textos COPIADOS do parecer, não redigidos", () => {
     ).toContain("não entra na soma acima. Decida com seu contador");
   });
 
+  it("⚠️ CONTAI-036 crit. 4 e 5 — a linha do §4.5 INTEIRA, na ordem certa", () => {
+    // Literal do parecer `2026-08-23-anexo-no-desembolso-do-terreno.md` §4.5.
+    // Afirma a STRING INTEIRA de propósito: a linha se compõe de três
+    // constantes, e colar só as duas primeiras dropa o handoff ao CRC em
+    // silêncio — que é o único ponto do texto em que a decisão é nomeada como
+    // do Mateus com o profissional, e não do app.
+    // ⚠️ `formatarBRL` interpolado, e não "R$ 89.200,00" digitado: o `Intl`
+    // pt-BR põe ESPAÇO NÃO SEPARÁVEL (U+00A0) depois do "R$", e um literal
+    // digitado à mão nunca bate. A prosa — que é a parte fiscal — continua
+    // literal, palavra por palavra.
+    expect(linhaForaDoCustoConfirmado(89_200_00)).toBe(
+      `Fora do custo confirmado por falta de comprovante: ${formatarBRL(89_200_00)}. ` +
+        "Foi pago e está registrado, mas ainda não tem o papel que o " +
+        "demonstra, e por isso não entra na soma acima. Decida com seu " +
+        "contador antes de declarar: deixar de discriminar na declaração um " +
+        "custo real também custa caro — o custo que não é discriminado não " +
+        "existe na venda.",
+    );
+    // As três constantes, na ordem — e a ordem é fiscal, não estética.
+    const linha = linhaForaDoCustoConfirmado(1_00);
+    for (const [i, parte] of [
+      FORA_DO_CUSTO_CONFIRMADO,
+      FORA_DO_CUSTO_CONFIRMADO_PORQUE,
+      FORA_DO_CUSTO_CONFIRMADO_DECIDA_NO_RELATORIO,
+    ].entries()) {
+      expect(linha, `parte ${i} sumiu da linha`).toContain(parte);
+    }
+    expect(linha.indexOf(FORA_DO_CUSTO_CONFIRMADO)).toBeLessThan(
+      linha.indexOf(FORA_DO_CUSTO_CONFIRMADO_PORQUE),
+    );
+    expect(linha.indexOf(FORA_DO_CUSTO_CONFIRMADO_PORQUE)).toBeLessThan(
+      linha.indexOf(FORA_DO_CUSTO_CONFIRMADO_DECIDA_NO_RELATORIO),
+    );
+    // O valor entra formatado, entre o rótulo e o porquê.
+    expect(linhaForaDoCustoConfirmado(0)).toContain(formatarBRL(0));
+  });
+
   it("⚠️ o handoff ao CRC NÃO está em tela nenhuma da fatia 1", () => {
     // Ele é do relatório anual, que o critério 16 ainda não deixa gerar. Se
     // aparecer numa tela desta fatia, o mock aprovado foi contrariado.
@@ -1090,12 +1132,18 @@ describe("critério 12 — textos COPIADOS do parecer, não redigidos", () => {
             ? [`${dir}/${e.name}`]
             : [],
       );
+    // ⚠️ **Mudou no CONTAI-036, e a mudança é o ticket inteiro**: agora existe
+    // UM lugar onde ele entra — a tela do relatório anual —, e ele entra
+    // dentro de `linhaForaDoCustoConfirmado`, nunca colado à mão. Nenhuma tela
+    // monta a linha do §4.5 juntando constante por conta própria: fosse assim,
+    // esquecer a terceira dropa o handoff sem nada ficar vermelho.
     for (const arquivo of varrer("app")) {
       expect(
         readFileSync(arquivo, "utf-8").includes(
           "FORA_DO_CUSTO_CONFIRMADO_DECIDA_NO_RELATORIO",
         ),
-        `${arquivo} usa o handoff ao CRC, que é do relatório anual (fatia 2)`,
+        `${arquivo} monta a linha do §4.5 à mão — use ` +
+          "`linhaForaDoCustoConfirmado`, que é a única montagem autorizada",
       ).toBe(false);
     }
   });
@@ -1327,166 +1375,407 @@ describe("critério 13 — a mensagem de sucesso não pode mentir", () => {
 });
 
 // ════════════════════════════════════════════════════════════════════════
-// ⛔ CRITÉRIO 16 — A GUARDA DA FATIA 2
+// ⛔ CONTAI-036 — A PORTA ÚNICA, E O VETO POR SAÍDA
 //
-// Enquanto o critério 17 (a linha nomeada do §4.5 no relatório anual) não
-// entrar, NENHUMA saída anual é gerada existindo desembolso pago sem
-// comprovante. É o antídoto do padrão que já produziu a D47 nesta base:
-// pendência gravada, superfície nunca entregue.
+// O critério 16 do CONTAI-025 vetava QUALQUER saída anual havendo desembolso
+// pago sem comprovante. Era guarda **temporária por desenho**: existia só
+// enquanto a linha do §4.5 não existisse no relatório.
+//
+// A fatia 2 escreveu a linha, e o veto do terreno virou **obrigação tipada**:
+//   "A porta é única; o veto é por saída."
+//
+// - `podeGerarRelatorioAnual` continua PORTA ÚNICA no mecanismo;
+// - o `ok: true` carrega TRÊS blocos, cada um com MARCA distinta;
+// - só `bensEDireitos` carrega o termo do terreno — Pagamentos Efetuados e
+//   aferição INSS **não são vetados** por ele (não têm CPF a listar nem base
+//   de retenção a reduzir);
+// - o portão do COMPROMISSO VENCIDO continua **transversal aos três**.
 // ════════════════════════════════════════════════════════════════════════
 
-describe("critério 16 — nenhuma saída anual com pago-sem-comprovante", () => {
-  it("sem pendência, não bloqueia", () => {
-    const d = desembolso({ id: "d1" });
-    expect(bloqueioDaSaidaAnual([d], 2026)).toEqual({
-      bloqueada: false,
-      motivo: "",
+describe("CONTAI-036 · o veto é por saída, e a porta continua única", () => {
+  const SEM_DESEMBOLSO = desembolsosCarregados([]);
+  const HOJE = "2026-08-24";
+
+  const vencidoSemResposta: Compromisso = {
+    id: "c1",
+    obraId: "obra-1",
+    favorecidoId: null,
+    favorecidoNome: "AJE",
+    valorPrevistoCentavos: 15_000_00,
+    dataPrevista: "2026-08-10",
+    origem: "boleto",
+    documentoOrigemId: null,
+    situacao: "aberto",
+    motivoCancelamento: null,
+    dataCompra: null,
+    pagamentoIds: [],
+    adiamentos: 0,
+  };
+
+  it("⚠️ terreno pago sem comprovante NÃO veta mais NENHUMA saída", () => {
+    // Era o critério 16, e ele foi PAGO — não apagado. O número que vetava
+    // agora viaja DENTRO da marca de `bensEDireitos`, e quem gera a ficha o
+    // recebe pronto.
+    const a = desembolso({ id: "d1", valorCentavos: 60_000_00, anexos: [anexo("contrato")] });
+    const b = desembolso({ id: "d2", valorCentavos: 25_000_00, anexos: [] });
+    const c = desembolso({ id: "d3", valorCentavos: 4_200_00, dataPagamento: null, anexos: [] });
+    const r = podeGerarRelatorioAnual([], HOJE, 2026, desembolsosCarregados([a, b, c]));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.bensEDireitos.foraDoCustoConfirmado.quantidade).toBe(3);
+    expect(r.bensEDireitos.foraDoCustoConfirmado.totalCentavos).toBe(89_200_00);
+    expect(r.bensEDireitos.ano).toBe(2026);
+  });
+
+  it("⚠️ crit. 13d — Pagamentos Efetuados e aferição NÃO carregam o termo", () => {
+    // "Vetar as três é o defeito que este próprio parecer já nomeou noutra
+    // tela: aviso sem consequência ensina a ignorar aviso." (`contador`)
+    // Desembolso de terreno não é pagamento a PF prestador nem NF de serviço
+    // PJ sujeita a retenção: não há o que vetar nessas duas saídas.
+    const r = podeGerarRelatorioAnual(
+      [],
+      HOJE,
+      2026,
+      desembolsosCarregados([desembolso({ id: "d1", anexos: [] })]),
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect("foraDoCustoConfirmado" in r.pagamentosEfetuados).toBe(false);
+    expect("foraDoCustoConfirmado" in r.afericaoInss).toBe(false);
+    expect(r.pagamentosEfetuados.ano).toBe(2026);
+    expect(r.afericaoInss.ano).toBe(2026);
+  });
+
+  it("sem pendência nenhuma, o termo é zero — e não some do payload", () => {
+    // Zero NOMEADO, nunca campo ausente: campo que some quando o valor é zero
+    // faz o consumidor escrever `?.` e a linha do §4.5 vira opcional de novo.
+    const r = podeGerarRelatorioAnual(
+      [],
+      HOJE,
+      2026,
+      desembolsosCarregados([desembolso({ id: "d1" })]),
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.bensEDireitos.foraDoCustoConfirmado).toEqual({
       quantidade: 0,
       totalCentavos: 0,
     });
   });
 
-  it("com pendência, bloqueia — e a falha é NOMEADA, nunca número mudo", () => {
-    const a = desembolso({
-      id: "d1",
-      valorCentavos: 60_000_00,
-      anexos: [anexo("contrato")],
-    });
-    const b = desembolso({ id: "d2", valorCentavos: 25_000_00, anexos: [] });
-    const c = desembolso({
-      id: "d3",
-      valorCentavos: 4_200_00,
-      dataPagamento: null,
-      anexos: [],
-    });
-    const r = bloqueioDaSaidaAnual([a, b, c], 2026);
-    expect(r.bloqueada).toBe(true);
-    expect(r.quantidade).toBe(3);
-    expect(r.totalCentavos).toBe(89_200_00);
-    // A falha diz QUANTOS, QUANTO e POR QUÊ — as três coisas.
-    expect(r.motivo).toContain("3 desembolsos pagos sem comprovante");
-    expect(r.motivo).toContain(formatarBRL(89_200_00));
-    expect(r.motivo).toContain("A discriminação de 2026 não vai ser gerada");
-    expect(r.motivo).toContain("um total que não diz o que deixou de fora");
+  it("`previsto` não entra no termo — nada saiu da conta", () => {
+    const d = desembolso({ id: "d1", estado: "previsto", dataPagamento: null, anexos: [] });
+    const r = podeGerarRelatorioAnual([], HOJE, 2026, desembolsosCarregados([d]));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.bensEDireitos.foraDoCustoConfirmado.quantidade).toBe(0);
   });
 
-  it("o singular também é nomeado", () => {
-    const d = desembolso({ id: "d1", anexos: [] });
-    expect(bloqueioDaSaidaAnual([d], 2026).motivo).toContain(
-      "1 desembolso pago sem comprovante",
-    );
-  });
-
-  it("`previsto` NÃO bloqueia — nada saiu da conta", () => {
-    const d = desembolso({
-      id: "d1",
-      estado: "previsto",
-      dataPagamento: null,
-      anexos: [],
-    });
-    expect(bloqueioDaSaidaAnual([d], 2026).bloqueada).toBe(false);
-  });
-
-  // ⚠️ **A GUARDA TEM DE TER CONSUMIDOR DE PRODUÇÃO.** Guarda satisfeita por
-  // vacuidade — função nomeada que ninguém chama — é pior que guarda nenhuma:
-  // ela põe selo de resolvido no pre-mortem 3 e o deixa aberto por baixo.
-  //
-  // A porta do relatório anual JÁ EXISTIA: `podeGerarRelatorioAnual`
-  // (`lib/fiscal/compromisso.ts`, CONTAI-019 critério 21). Compor os dois
-  // portões numa porta só é o conserto; **dois portões que não se conhecem é
-  // exatamente como a D47 nasceu**.
-  it("a porta do relatório anual CONSULTA a guarda — sem compromisso nenhum", () => {
-    const soEscritura = desembolso({
-      id: "d1",
-      valorCentavos: 60_000_00,
-      anexos: [anexo("contrato")],
-    });
-    // Zero compromissos: o portão do CONTAI-019 está aberto. Se a guarda do
-    // terreno não fosse consultada, isto devolveria `{ ok: true }` e a
-    // discriminação sairia com um total que não diz o que deixou de fora.
-    const r = podeGerarRelatorioAnual([], "2026-08-23", 2026, [soEscritura]);
-    expect(r.ok).toBe(false);
-    if (r.ok) return;
-    expect(r.faltamResponder).toHaveLength(0);
-    expect(r.terrenoSemComprovante!.totalCentavos).toBe(60_000_00);
-    expect(r.terrenoSemComprovante!.motivo).toContain(
-      "1 desembolso pago sem comprovante",
-    );
-  });
-
-  it("as duas faltas aparecem JUNTAS — nunca uma de cada vez", () => {
-    // Nomear uma só ensinaria a resolver em série: ele fecha a primeira,
-    // comemora, e descobre a segunda no toque seguinte.
+  it("⚠️ crit. 9 — compromisso vencido veta os TRÊS blocos, e não só um", () => {
+    // Ele NÃO migra para `bensEDireitos`: a incerteza dele pode virar
+    // pagamento a PF (Pagamentos Efetuados) ou serviço PJ (aferição), além de
+    // custo. É por isso que o portão fica ACIMA dos três, e não dentro de um.
     const r = podeGerarRelatorioAnual(
-      [
-        {
-          id: "c1",
-          obraId: "obra-1",
-          favorecidoId: null,
-          favorecidoNome: "AJE",
-          valorPrevistoCentavos: 15_000_00,
-          dataPrevista: "2026-08-10", // vencido em 23/08, sem resposta
-          origem: "boleto",
-          documentoOrigemId: null,
-          situacao: "aberto",
-          motivoCancelamento: null,
-          dataCompra: null,
-          pagamentoIds: [],
-          adiamentos: 0,
-        },
-      ],
-      "2026-08-23",
+      [vencidoSemResposta],
+      HOJE,
       2026,
-      [desembolso({ id: "d1", anexos: [] })],
+      desembolsosCarregados([desembolso({ id: "d1" })]),
     );
     expect(r.ok).toBe(false);
     if (r.ok) return;
-    expect(r.faltamResponder).toHaveLength(1);
-    expect(r.terrenoSemComprovante).not.toBeNull();
+    expect(r.faltamResponder.map((c) => c.id)).toEqual(["c1"]);
+    // Os três blocos não existem no payload de veto — não há como "pegar só
+    // o de Pagamentos Efetuados" e gerar assim mesmo.
+    expect("bensEDireitos" in r).toBe(false);
+    expect("pagamentosEfetuados" in r).toBe(false);
+    expect("afericaoInss" in r).toBe(false);
   });
 
-  it("com tudo comprovado e nada vencido, o relatório gera", () => {
-    expect(
-      podeGerarRelatorioAnual([], "2026-08-23", 2026, [desembolso({ id: "d1" })]),
-    ).toEqual({ ok: true });
+  it("⚠️ pre-mortem 3 — a guarda por saída NÃO volta a ser booleano único", () => {
+    // "Alguém 'simplifica' e volta a vetar as três." O antídoto é este teste:
+    // com terreno pendente e ZERO compromisso vencido, as três saem.
+    const r = podeGerarRelatorioAnual(
+      [],
+      HOJE,
+      2026,
+      desembolsosCarregados([desembolso({ id: "d1", anexos: [] })]),
+    );
+    expect(r.ok, "terreno pendente voltou a vetar as três saídas").toBe(true);
   });
 
-  // ⚠️ BLINDAGEM POR AUSÊNCIA DE CAMINHO, no padrão da blindagem da estimativa
-  // (`resumo.test.ts`) — e com a correção que a estimativa já tinha e esta não:
-  // **ancora em RADICAIS do domínio, não numa lista de nomes exatos.** A versão
-  // anterior greppava `gerarRelatorioAnual` e não casava com
-  // `podeGerarRelatorioAnual` por causa do prefixo `pode` — a guarda existia e
-  // não guardava o alvo que já estava na base.
+  // ── Residual 1: o `[]` fecha por TIPO (critério 10) ───────────────────
+  it("⚠️ residual 1 — o literal `[]` NÃO typecheca mais", () => {
+    // Antes deste ticket, `podeGerarRelatorioAnual(cs, hoje, ano, [])` passava
+    // e devolvia `ok: true`: a guarda do terreno sumia sem ninguém apagar
+    // linha nenhuma, porque "nenhum desembolso" e "não fui buscar os
+    // desembolsos" tinham a MESMA FORMA.
+    //
+    // ⚠️ A prova é de TIPO, e por isso as chamadas ficam dentro de uma função
+    // que ninguém chama: `@ts-expect-error` derruba o `typecheck` no dia em
+    // que voltarem a compilar, e EXECUTÁ-LAS não provaria nada — só estouraria
+    // no acesso a `.lista`.
+    function naoCompila() {
+      // @ts-expect-error — o 4º parâmetro é opaco: só a camada de dados o produz
+      podeGerarRelatorioAnual([], HOJE, 2026, []);
+      // E a lista crua também não passa: não basta ter desembolsos na mão.
+      // @ts-expect-error — `TerrenoDesembolso[]` não é `DesembolsosDoTerrenoCarregados`
+      podeGerarRelatorioAnual([], HOJE, 2026, [desembolso({ id: "d1" })]);
+    }
+    expect(typeof naoCompila).toBe("function");
+    expect(podeGerarRelatorioAnual([], HOJE, 2026, SEM_DESEMBOLSO).ok).toBe(true);
+  });
+
+  it("⚠️ a marca de um bloco NÃO serve para outro — o gerador errado não compila", () => {
+    const r = podeGerarRelatorioAnual([], HOJE, 2026, SEM_DESEMBOLSO);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const geraFicha = (l: LiberadoBensEDireitos) => l.foraDoCustoConfirmado;
+    expect(geraFicha(r.bensEDireitos)).toEqual({ quantidade: 0, totalCentavos: 0 });
+    // @ts-expect-error — Pagamentos Efetuados não é Bens e Direitos
+    geraFicha(r.pagamentosEfetuados);
+    // @ts-expect-error — aferição INSS não é Bens e Direitos
+    geraFicha(r.afericaoInss);
+    // @ts-expect-error — e não se forja a marca com um objeto qualquer
+    geraFicha({ ano: 2026, foraDoCustoConfirmado: { quantidade: 0, totalCentavos: 0 } });
+  });
+
+  // ── Residual 2: a blindagem varre por SÍMBOLO, não por arquivo ────────
   //
-  // O que este teste prova não é que a guarda funciona: é que NÃO EXISTE módulo
-  // produzindo saída anual fora da porta única. Quem escrever
-  // `gerarDossieDeAquisicao` ou `textoDeBensEDireitos` deixa a suíte vermelha
-  // COM O NOME DO ARQUIVO — antes de o número chegar a uma declaração.
-  it("nenhum produtor de saída anual existe fora da porta única", () => {
+  // ⚠️ **O defeito que isto conserta.** A versão anterior perguntava
+  // `NA_PORTA.test(fonte)` — sobre o ARQUIVO INTEIRO. Um arquivo que
+  // mencionasse a porta em qualquer linha passava, **mesmo ganhando um gerador
+  // novo que não a chamasse**. Era teórico enquanto não existisse tela de
+  // relatório; deixou de ser no dia em que ela existiu, que é este ticket:
+  // `discriminacao.ts` tem gerador E constantes, e `saida-anual.ts` tem a
+  // porta composta.
+  describe("residual 2 — a blindagem é por símbolo", () => {
     const RADICAIS =
       "(discrimina|saida.?anual|relatorio.?anual|pagamentos.?efetuados|" +
       "dossie|declaracao|bens.?e.?direitos|afericao|sero)";
-    // Casa em DECLARAÇÃO (`function|const|class X`) e em EXPORT (`export { X }`).
-    const declara = new RegExp(
-      `(?:export\\s+)?(?:async\\s+)?(?:function|const|class)\\s+([A-Za-z0-9_]*${RADICAIS}[A-Za-z0-9_]*)\\b`,
-      "i",
-    );
-    const exporta = new RegExp(
-      `export\\s*\\{[^}]*\\b([A-Za-z0-9_]*${RADICAIS}[A-Za-z0-9_]*)\\b`,
-      "i",
-    );
-    /** Passa pela porta única — direto, ou delegando a quem a consulta. */
-    const NA_PORTA = /bloqueioDaSaidaAnual|podeGerarRelatorioAnual/;
     /**
-     * ⚠️ Exceção **declarada e argumentada**, nunca silenciada por regex frouxa.
-     * Entrada nova aqui exige a mesma frase: *por que isto NÃO é saída anual*.
+     * ⚠️ Ancorado em **início de linha** (`^`, flag `m`): o alvo é declaração
+     * de MÓDULO, que é onde gerador mora e a única que outro arquivo consegue
+     * importar. Sem a âncora, um `const discriminacao = …` local **dentro** de
+     * uma função que já passa pela porta cai aqui — ruído que ensina a
+     * silenciar o teste, e teste que se aprende a silenciar não guarda nada.
+     */
+    const DECLARA = `^(?:export\\s+)?(?:default\\s+)?(?:async\\s+)?(?:function|const|class)\\s+([A-Za-z0-9_]*${RADICAIS}[A-Za-z0-9_]*)\\b`;
+    /**
+     * ⚠️ **UM NOME SÓ** (critério 12). Era `bloqueioDaSaidaAnual|
+     * podeGerarRelatorioAnual`; a primeira saiu com a guarda da fatia 1, e a
+     * regex encolheu junto. Lista de apelidos crescendo é como a porta deixa
+     * de ser única sem ninguém decidir isso.
+     */
+    const NA_PORTA = /podeGerarRelatorioAnual/;
+    /** As três marcas, mais o tipo opaco do 4º parâmetro da porta. */
+    const MARCAS =
+      "(?:Liberado(?:BensEDireitos|PagamentosEfetuados|AfericaoInss)|" +
+      "DesembolsosDoTerrenoCarregados)";
+    /**
+     * A outra forma de passar pela porta, e ela é a do CONTAI-036: **receber a
+     * marca**. Um gerador que exige `Liberado*` na assinatura não tem como ser
+     * chamado sem a porta ter dito sim — é proteção MAIS forte que chamar a
+     * porta, não mais fraca.
+     *
+     * ⚠️ **ANCORADA EM POSIÇÃO DE PARÂMETRO** (`(` ou `,` · nome · `:`), e a
+     * correção é do Gate 2. A versão anterior casava **qualquer menção** ao
+     * nome da marca em qualquer ponto do corpo — então quem **forjava** a
+     * marca com um `as` passava justamente por **citá-la**. A blindagem
+     * aprovava o forjador. Menção não é exigência: só quem a pede na
+     * assinatura fica impedido de rodar sem ela.
+     */
+    const EXIGE_A_MARCA = new RegExp(
+      `[(,]\\s*(?:readonly\\s+)?[A-Za-z0-9_]+\\s*:\\s*${MARCAS}\\b`,
+    );
+    /**
+     * ⛔ **O FURO QUE O `cto-obra` ACHOU NO GATE 2, e ele não era teórico.**
+     *
+     * A marca é um `unique symbol` declarado só no tipo — mas o alvo do `as`
+     * é *comparável* ao literal, então **`{ ano } as LiberadoPagamentosEfetuados`
+     * COMPILA**. Forjar a liberação da porta era uma linha, e a proteção de
+     * tipo que sustenta a arquitetura inteira não impedia nada.
+     *
+     * O conserto tem de ser um scan, porque o compilador não fecha isto:
+     * **nenhum `as` para marca fora de `lib/fiscal/compromisso.ts`**, que é o
+     * único lugar onde ela nasce legitimamente — a porta e o construtor do
+     * tipo opaco. Um `as unknown as` no meio também não escapa.
+     */
+    const FORJA = new RegExp(`\\bas\\s+(?:unknown\\s+as\\s+)?${MARCAS}\\b`);
+    /** O berço legítimo da marca: a porta e o construtor do tipo opaco. */
+    const BERCO_DA_MARCA = "lib/fiscal/compromisso.ts";
+    /**
+     * A terceira forma, e é a que `app/` usa: **delegar à porta composta**.
+     *
+     * ⚠️ Isto NÃO é um apelido de `podeGerarRelatorioAnual` — `NA_PORTA`
+     * continua com **um nome só** (critério 12). `carregarSaidaAnual` é ela
+     * própria varrida por este teste, no mesmo diff, e só passa porque chama a
+     * porta: quem delega a ela está a **um salto verificado** da porta, e não
+     * a um segundo portão que não a conhece.
+     */
+    const PELA_PORTA_COMPOSTA = /carregarSaidaAnual/;
+
+    /**
+     * Comentário **não é código**. Sem isto, a menção ao nome da porta numa
+     * linha de documentação satisfaz — ou reprova — a blindagem por engano, e
+     * nos dois sentidos o teste passa a medir prosa.
+     */
+    function semComentarios(fonte: string): string {
+      let fora = "";
+      let modo: "codigo" | "linha" | "bloco" | '"' | "'" | "`" = "codigo";
+      for (let i = 0; i < fonte.length; i += 1) {
+        const c = fonte[i];
+        const par = c + (fonte[i + 1] ?? "");
+        if (modo === "codigo") {
+          if (par === "//") { modo = "linha"; i += 1; continue; }
+          if (par === "/*") { modo = "bloco"; i += 1; continue; }
+          if (c === '"' || c === "'" || c === "`") modo = c;
+          fora += c;
+          continue;
+        }
+        if (modo === "linha") {
+          if (c === "\n") { modo = "codigo"; fora += c; }
+          continue;
+        }
+        if (modo === "bloco") {
+          if (par === "*/") { modo = "codigo"; i += 1; }
+          else if (c === "\n") fora += c;
+          continue;
+        }
+        // dentro de string: `\\` escapa o próximo caractere
+        if (c === "\\") { fora += c + (fonte[i + 1] ?? ""); i += 1; continue; }
+        if (c === modo) modo = "codigo";
+        fora += c;
+      }
+      return fora;
+    }
+
+    /** O corpo do símbolo, por contagem de chaves — não o arquivo inteiro. */
+    function corpoDoSimbolo(fonte: string, inicio: number): string {
+      const abre = fonte.indexOf("{", inicio);
+      if (abre === -1) return fonte.slice(inicio, fonte.indexOf("\n\n", inicio) + 1);
+      let nivel = 0;
+      for (let i = abre; i < fonte.length; i += 1) {
+        if (fonte[i] === "{") nivel += 1;
+        else if (fonte[i] === "}") {
+          nivel -= 1;
+          if (nivel === 0) return fonte.slice(inicio, i + 1);
+        }
+      }
+      return fonte.slice(inicio);
+    }
+
+    function simbolosForaDaPorta(fonte: string): string[] {
+      const re = new RegExp(DECLARA, "gim");
+      const fora: string[] = [];
+      let achado: RegExpExecArray | null;
+      while ((achado = re.exec(fonte)) !== null) {
+        const corpo = corpoDoSimbolo(fonte, achado.index);
+        if (
+          !NA_PORTA.test(corpo) &&
+          !EXIGE_A_MARCA.test(corpo) &&
+          !PELA_PORTA_COMPOSTA.test(corpo)
+        ) {
+          fora.push(achado[1]);
+        }
+      }
+      return fora;
+    }
+
+    it("⛔ FIXTURE NEGATIVA — o FORJADOR é pego, e citar a marca não o salva", () => {
+      // Era exatamente assim que se burlava a arquitetura de ontem: um `as` de
+      // uma linha, que COMPILA, e a blindagem lendo a citação da marca como
+      // "este arquivo passa pela porta".
+      const forjador = [
+        "export function gerarDiscriminacaoDoAno(ano: number) {",
+        "  const liberado = { ano } as LiberadoBensEDireitos;",
+        "  return liberado.ano;",
+        "}",
+      ].join("\n");
+      expect(FORJA.test(forjador), "o scan não pegou o `as` da marca").toBe(true);
+      // E a citação NÃO o salva mais: `EXIGE_A_MARCA` só casa em posição de
+      // parâmetro, então o forjador continua caindo como fora da porta.
+      expect(EXIGE_A_MARCA.test(forjador)).toBe(false);
+      expect(simbolosForaDaPorta(forjador)).toEqual(["gerarDiscriminacaoDoAno"]);
+
+      // O `as unknown as` no meio também não escapa.
+      expect(
+        FORJA.test("const x = {} as unknown as DesembolsosDoTerrenoCarregados;"),
+      ).toBe(true);
+      // E quem pede a marca no PARÂMETRO continua passando — é o caminho certo.
+      expect(
+        EXIGE_A_MARCA.test(
+          "export function gerarBensEDireitos(l: LiberadoBensEDireitos) {",
+        ),
+      ).toBe(true);
+      expect(
+        FORJA.test("export function gerarBensEDireitos(l: LiberadoBensEDireitos) {"),
+      ).toBe(false);
+    });
+
+    it("⛔ nenhum arquivo FORJA a marca fora do berço dela", () => {
+      const forjadores: string[] = [];
+      for (const arquivo of [...varrer("lib"), ...varrer("app")]) {
+        if (arquivo === BERCO_DA_MARCA) continue;
+        const fonte = semComentarios(readFileSync(arquivo, "utf-8"));
+        if (FORJA.test(fonte)) forjadores.push(arquivo);
+      }
+      expect(
+        forjadores,
+        "forjar a liberação da porta é um `as` de uma linha que COMPILA — o " +
+          "compilador não fecha isto, e este scan é o que fecha. A marca só " +
+          `nasce em \`${BERCO_DA_MARCA}\`: a porta e o construtor do tipo ` +
+          "opaco. Precisa de uma marca? Chame `podeGerarRelatorioAnual`.",
+      ).toEqual([]);
+      // ⚠️ E o berço tem de continuar forjando — se ele parar, o scan acima
+      // passa por vacuidade e ninguém nota que a marca virou objeto comum.
+      expect(FORJA.test(semComentarios(readFileSync(BERCO_DA_MARCA, "utf-8")))).toBe(
+        true,
+      );
+    });
+
+    it("⚠️ FIXTURE NEGATIVA — um chamador e um não-chamador no mesmo arquivo REPROVA", () => {
+      // É exatamente o caso que a varredura por arquivo deixava passar.
+      const fonte = [
+        "export function gerarDiscriminacaoDoAno(l: LiberadoBensEDireitos) {",
+        "  return l.ano;",
+        "}",
+        "",
+        "export function gerarPagamentosEfetuados(ano: number) {",
+        '  return `lista de ${ano}`;',
+        "}",
+      ].join("\n");
+      // O arquivo MENCIONA a marca — e mesmo assim o segundo símbolo cai.
+      expect(EXIGE_A_MARCA.test(fonte)).toBe(true);
+      expect(simbolosForaDaPorta(fonte)).toEqual(["gerarPagamentosEfetuados"]);
+    });
+
+    it("fixture positiva — os dois passam quando os dois passam pela porta", () => {
+      const fonte = [
+        "export function gerarDiscriminacaoDoAno(l: LiberadoBensEDireitos) {",
+        "  return l.ano;",
+        "}",
+        "",
+        "export function gerarPagamentosEfetuados(l: LiberadoPagamentosEfetuados) {",
+        "  return l.ano;",
+        "}",
+      ].join("\n");
+      expect(simbolosForaDaPorta(fonte)).toEqual([]);
+    });
+
+    /**
+     * ⚠️ Exceção **declarada e argumentada**, nunca silenciada por regex
+     * frouxa. Entrada nova exige a mesma frase: *por que isto NÃO é saída
+     * anual*. A chave é `arquivo::simbolo` — o arquivo inteiro nunca é
+     * dispensado de uma vez, que era o buraco de ontem.
      */
     const FORA_COM_MOTIVO: Record<string, string> = {
-      "lib/fiscal/revisao.ts":
-        "`composicaoDaDiscriminacao` não gera saída nenhuma: é o antes→depois " +
-        "de material × mão de obra DENTRO da tela de correção (CONTAI-021). " +
-        "Ela reparte um total que já existe; não produz texto de declaração, " +
-        "não soma terreno e não é lida por nenhuma saída.",
+      "lib/fiscal/revisao.ts::composicaoDaDiscriminacao":
+        "não gera saída nenhuma: é o antes→depois de material × mão de obra " +
+        "DENTRO da tela de correção (CONTAI-021). Reparte um total que já " +
+        "existe; não produz texto de declaração e não é lida por saída nenhuma. " +
+        "⛔ É o DEFEITO VIVO do §0 do parecer de 24/08 — ponderada por " +
+        "`cobertoCentavos`, que o próprio código declara sem efeito fiscal. " +
+        "Corrigi-la muda o número de tela já entregue: é escopo do `po`.",
     };
 
     const varrer = (dir: string): string[] =>
@@ -1497,32 +1786,47 @@ describe("critério 16 — nenhuma saída anual com pago-sem-comprovante", () =>
             ? [`${dir}/${e.name}`]
             : [],
       );
-    const arquivos = [...varrer("lib"), ...varrer("app")];
-    expect(arquivos.length).toBeGreaterThan(10); // o teste vale alguma coisa
 
-    const pegos: string[] = [];
-    for (const arquivo of arquivos) {
-      const fonte = readFileSync(arquivo, "utf-8");
-      const achado = declara.exec(fonte) ?? exporta.exec(fonte);
-      if (!achado) continue;
-      pegos.push(arquivo);
-      if (FORA_COM_MOTIVO[arquivo]) continue;
-      expect(
-        NA_PORTA.test(fonte),
-        `${arquivo} produz saída anual (\`${achado[1]}\`) sem passar pela porta ` +
-          "única (`podeGerarRelatorioAnual` / `bloqueioDaSaidaAnual`) — a linha " +
-          "nomeada do §4.5 ainda não existe, e o critério 16 do CONTAI-025 " +
-          "proíbe gerar um total que não diz o que deixou de fora. Se este " +
-          "símbolo NÃO é saída anual, declare-o em `FORA_COM_MOTIVO` com a razão.",
-      ).toBe(true);
-    }
-    // A regex tem de estar pegando alguma coisa — inclusive a própria porta.
-    expect(pegos).toContain("lib/fiscal/compromisso.ts");
-    // Exceção obsoleta não fica de graça: o arquivo tem de continuar existindo.
-    for (const arquivo of Object.keys(FORA_COM_MOTIVO)) {
-      expect(pegos, `${arquivo} não casa mais — remova a exceção`).toContain(
-        arquivo,
-      );
-    }
+    it("nenhum produtor de saída anual existe fora da porta única", () => {
+      const arquivos = [...varrer("lib"), ...varrer("app")];
+      expect(arquivos.length).toBeGreaterThan(10); // o teste vale alguma coisa
+
+      const pegos: string[] = [];
+      for (const arquivo of arquivos) {
+        const fonte = semComentarios(readFileSync(arquivo, "utf-8"));
+        for (const nome of simbolosForaDaPorta(fonte)) {
+          const chave = `${arquivo}::${nome}`;
+          pegos.push(chave);
+          expect(
+            FORA_COM_MOTIVO[chave] !== undefined,
+            `${chave} produz saída anual sem passar pela porta única ` +
+              "(`podeGerarRelatorioAnual`) e sem exigir a marca dela " +
+              "(`LiberadoBensEDireitos` / `LiberadoPagamentosEfetuados` / " +
+              "`LiberadoAfericaoInss`) e sem delegar à porta composta " +
+              "(`carregarSaidaAnual`). Se este símbolo NÃO é saída anual, " +
+              "declare-o em `FORA_COM_MOTIVO` com a razão.",
+          ).toBe(true);
+        }
+      }
+      // Exceção obsoleta não fica de graça.
+      for (const chave of Object.keys(FORA_COM_MOTIVO)) {
+        expect(pegos, `${chave} não casa mais — remova a exceção`).toContain(chave);
+      }
+    });
+
+    it("⚠️ `app/` importa a porta COMPOSTA, nunca a pura", () => {
+      // Cláusula nova do CONTAI-036 (Viabilidade). A tela passa `obraId`; quem
+      // monta argumento é a camada de dados. Uma tela que importe a porta pura
+      // volta a poder escrever o `[]` — só que agora com um `as` para forjar o
+      // tipo opaco, e é isso que este teste procura.
+      for (const arquivo of varrer("app")) {
+        const fonte = semComentarios(readFileSync(arquivo, "utf-8"));
+        expect(
+          /podeGerarRelatorioAnual|desembolsosCarregados/.test(fonte),
+          `${arquivo} importa a porta PURA — use \`carregarSaidaAnual\` de ` +
+            "`lib/dados/saida-anual.ts`, que carrega e consulta numa passada",
+        ).toBe(false);
+      }
+    });
   });
 });

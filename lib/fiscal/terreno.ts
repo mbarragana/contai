@@ -1136,6 +1136,32 @@ export const FORA_DO_CUSTO_CONFIRMADO_DECIDA_NO_RELATORIO =
   "discriminado não existe na venda.";
 
 /**
+ * ⚠️ **O §4.5 INTEIRO — a linha do relatório anual** (CONTAI-036, critérios 4
+ * e 5). É **a única** montagem autorizada das três constantes, e a ordem é
+ * fiscal, não estética:
+ *
+ *     FORA_DO_CUSTO_CONFIRMADO + valor · _PORQUE · _DECIDA_NO_RELATORIO
+ *
+ * A terceira é a **metade não automática do §2.1** — o handoff ao profissional
+ * com CRC. Montar a linha à mão com as duas primeiras **dropa o handoff em
+ * silêncio**, e é exatamente onde ele importa: o §2.1 diz que *"omitir o valor
+ * da discriminação da DAA não é decisão do app"*.
+ *
+ * ⚠️ **Fora do bloco copiável, imediatamente abaixo dele** (decisão de design
+ * 5 do mock, Gate Fiscal §3): dentro do bloco é texto de declaração; o §4.5 é
+ * orientação, e colá-lo na ficha seria o app escrevendo na DAA uma frase que
+ * não é do contribuinte. *"Logo abaixo do total"* fica atendido — o total é a
+ * última linha do bloco.
+ */
+export function linhaForaDoCustoConfirmado(valorCentavos: number): string {
+  return (
+    `${FORA_DO_CUSTO_CONFIRMADO}: ${formatarBRL(valorCentavos)}. ` +
+    `${FORA_DO_CUSTO_CONFIRMADO_PORQUE} ` +
+    FORA_DO_CUSTO_CONFIRMADO_DECIDA_NO_RELATORIO
+  );
+}
+
+/**
  * Card do ano (mock tela 1): o desembolso **sem data** está fora do card
  * inteiro, e isso é dito. Número que não bate sem explicação é pior que
  * número ausente.
@@ -1352,74 +1378,22 @@ export function desembolsoRegistrado(
     : `${nome} registrado — o valor é de ${ano}.${semComprovante}`;
 }
 
-// ══ Critério 16 · A GUARDA DA FATIA 2 ══════════════════════════════════
+// ══ Critério 16 · A GUARDA DA FATIA 2 — CUMPRIDA E RECOLHIDA ═══════════
 //
-// ⛔ **Enquanto o critério 17 não entrar, nenhuma saída anual é gerada
-// existindo desembolso pago-sem-comprovante.**
+// ⚠️ **`bloqueioDaSaidaAnual` e `motivoDoBloqueioDaSaidaAnual` moravam aqui, e
+// saíram no CONTAI-036 (critério 8) — de propósito, não por limpeza.**
 //
-// Por que uma guarda, e não uma linha a mais no relatório: o §2.4 manda o
-// relatório mostrar **os dois números**, em linha nomeada. Gerar o texto da
-// discriminação hoje — com a exclusão do critério 8 já valendo e a linha do
-// §4.5 ainda não escrita — produziria **um total que não diz o que deixou de
-// fora**. Isso é a metade automática do §2.1 decidindo em silêncio para baixo,
-// que o parecer proíbe nos dois sentidos.
+// Elas eram **temporárias por desenho**: existiam para impedir que a
+// discriminação saísse com um total que não dissesse o que deixou de fora,
+// enquanto a linha do §4.5 não existisse no relatório. A fatia 2 escreveu essa
+// linha, e a guarda perdeu o objeto.
 //
-// ⚠️ É o antídoto do padrão que já produziu a **D47** nesta base (pendência
-// gravada, superfície nunca entregue). A falha é **NOMEADA**: ela diz quantos
-// são, quanto somam e por que a saída não sai. Número mudo, nunca.
+// ⛔ **Isto NÃO é a guarda apagada.** Ela não sumiu: virou **obrigação
+// tipada**, em `lib/fiscal/compromisso.ts`. A porta única
+// (`podeGerarRelatorioAnual`) devolve o número do §4.5 **dentro da marca de
+// `bensEDireitos`**, e quem não passa pela porta não tem o dado para gerar a
+// ficha. Pre-mortem 1 do CONTAI-036, por extenso lá.
 //
-// Quando a fatia 2 entrar, esta guarda **sai junto** — ela é temporária por
-// desenho, e o teste que a acompanha é quem cobra isso.
-
-export interface BloqueioDaSaidaAnual {
-  bloqueada: boolean;
-  /** A falha, com nome, contagem e valor. Vazia quando não há bloqueio. */
-  motivo: string;
-  quantidade: number;
-  totalCentavos: number;
-}
-
-/**
- * A saída anual (discriminação de Bens e Direitos, Pagamentos Efetuados,
- * posição da aferição) **pode ser gerada** para este ano?
- *
- * ⚠️ **Todo gerador de saída anual tem de passar por aqui**, e há teste de
- * blindagem varrendo `lib/` e `app/` atrás de gerador que não passe — no mesmo
- * padrão da blindagem da estimativa (`resumo.test.ts`). Sem isso a fatia 2 vira
- * dívida eterna e a fatia 1 entrega um número novo com uma declaração que não
- * o menciona.
- */
-export function bloqueioDaSaidaAnual(
-  desembolsos: readonly TerrenoDesembolso[],
-  ano: number,
-): BloqueioDaSaidaAnual {
-  const pendentes = pagosSemComprovante(desembolsos);
-  const totalCentavos = pendentes.reduce((s, d) => s + d.valorCentavos, 0);
-  if (pendentes.length === 0) {
-    return { bloqueada: false, motivo: "", quantidade: 0, totalCentavos: 0 };
-  }
-  return {
-    bloqueada: true,
-    motivo: motivoDoBloqueioDaSaidaAnual(ano, pendentes.length, totalCentavos),
-    quantidade: pendentes.length,
-    totalCentavos,
-  };
-}
-
-/** A falha nomeada do critério 16 — mock tela 4, fatia 1. */
-export function motivoDoBloqueioDaSaidaAnual(
-  ano: number,
-  quantidade: number,
-  totalCentavos: number,
-): string {
-  const quantos =
-    quantidade === 1
-      ? "1 desembolso pago sem comprovante"
-      : `${quantidade} desembolsos pagos sem comprovante`;
-  return (
-    `A discriminação de ${ano} não vai ser gerada ainda. Existem ${quantos}, ` +
-    `somando ${formatarBRL(totalCentavos)}. Enquanto a linha que os nomeia ` +
-    "não existir no relatório, gerar o texto produziria um total que não diz " +
-    "o que deixou de fora."
-  );
-}
+// O que ficou aqui é o que a home também usa e nunca foi da guarda:
+// `pagosSemComprovante` e `totalPagoSemComprovanteCentavos` — o agregado da
+// obra, que a porta agora lê.
