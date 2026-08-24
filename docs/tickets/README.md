@@ -10,8 +10,9 @@ Atualizado em 2026-08-23.*
 
 | # | ID | O que é | P |
 |---|---|---|---|
-| 1 | **025** | *"Paguei, mas não sei a data"* — o terceiro estado | P0 por dependência |
-| 2 | **032** | Tirar `data = hoje` e `meio = "pix"` do formulário de pagamento | **P0** |
+| 1 | **025** | **Desembolso do terreno sem data, sem comprovante, ou sem os dois** | **P0** |
+| 2 | **033** | **Nota sem arquivo** — registrar a NF sem o PDF/XML dela | **P0** |
+| 3 | **032** | Tirar `data = hoje` e `meio = "pix"` do formulário de pagamento | **P0** |
 | 3 | **022** | Cartão de crédito (compra → fatura) | **P0** |
 | 4 | **008** | Mover pagamento entre obras sem quebrar o vínculo | **P0** |
 | 5 | **004** | Nº do documento e data de emissão | **P0** |
