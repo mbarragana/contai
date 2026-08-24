@@ -36,6 +36,7 @@ import type {
   EscolhaDePagamento,
   LinhaDeAnoDaPendencia,
 } from "@/lib/fiscal/revisao";
+import type { DocumentoRegistrado } from "@/lib/fiscal/documento";
 import { podeVincular } from "@/lib/fiscal/vinculo";
 import { centavosParaNumeric } from "@/lib/money";
 import {
@@ -841,13 +842,15 @@ export async function carregarCorrecoesDoDocumento(
 /**
  * "Onde este nome aparece hoje" (tela s5): o alcance da correção de nome.
  *
- * ⚠️ Os documentos vêm SEM quebra por ano, e a divergência em relação ao mock é
- * deliberada: `documento` **não tem data de emissão no schema** — ela é o
- * CONTAI-004, que ainda não entrou (Out of Scope deste ticket). Usar
- * `created_at` como "ano do documento" seria afirmar um fato fiscal que o app
- * não tem. Os pagamentos SIM quebram por ano, porque `data_pagamento` é data
- * fiscal de verdade — é dela que sai o ano-calendário do custo — e é ela que
- * decide se o aviso do adendo §4 aparece.
+ * ⚠️ Os documentos continuam vindo SEM quebra por ano, e a divergência em
+ * relação ao mock segue deliberada — **mudou o motivo, não a decisão**. Até o
+ * CONTAI-004 o motivo era a ausência da coluna; agora `documento.data_emissao`
+ * existe, e usá-la para quebrar por ano seria pior do que não ter: emissão
+ * **não decide ano nenhum** (parecer 2026-08-16, Parte 1, §3 — "nenhum
+ * relatório anual é filtrado ou ordenado por `data_emissao`"). Os pagamentos
+ * SIM quebram por ano, porque `data_pagamento` é data fiscal de verdade — é
+ * dela que sai o ano-calendário do custo — e é ela que decide se o aviso do
+ * adendo §4 aparece.
  */
 export async function carregarAlcanceDoFavorecido(favorecidoId: string): Promise<{
   documentos: number;
@@ -1063,6 +1066,36 @@ export async function carregarFavorecido(
     (data as { id: string; nome: string; tipo: TipoFavorecido }[] | null)?.[0] ??
     null
   );
+}
+
+/**
+ * Notas JÁ REGISTRADAS nesta obra com este número (CONTAI-004, critério 11).
+ *
+ * ⚠️ A consulta é por obra + número; **quem decide se é duplicidade é
+ * `duplicataDe`**, comparando também o EMITENTE e a SÉRIE — número não é único
+ * globalmente, é único por emitente + série + modelo. Trazer o candidato do
+ * banco e decidir na regra pura é o que permite testar a decisão sem banco.
+ *
+ * Nada aqui bloqueia nada: o resultado vira aviso âmbar na tela, com link para
+ * o registro existente. Bloquear recusaria nota legítima de outro emitente.
+ */
+export async function buscarNotasComNumero(
+  obraId: string,
+  numero: string,
+): Promise<DocumentoRegistrado[]> {
+  const { data, error } = await getSupabase()
+    .from("documento")
+    .select("*, favorecido(nome, documento)")
+    .eq("obra_id", obraId)
+    .eq("numero", numero);
+  if (error) throw error;
+  return ((data ?? []) as (DocumentoRow & ComFavorecido)[]).map((row) => ({
+    id: row.id,
+    numero: row.numero,
+    serie: row.serie,
+    emitenteDocumento: row.favorecido?.documento ?? null,
+    registradoEm: row.created_at.slice(0, 10),
+  }));
 }
 
 export async function criarDocumento(

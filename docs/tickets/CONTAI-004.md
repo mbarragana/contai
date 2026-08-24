@@ -9,7 +9,7 @@ revisão da fila). Custo agora: dois campos no formulário que já existe. Custo
 depois: reabrir documento por documento — e o `numero` está no papel que ele
 fotografou, ou seja, **o dado só é barato enquanto a nota está na mão**.
 
-- **Gate 0 (mock)**: **OBRIGATÓRIO — PENDENTE.** Ver critério 1.
+- **Gate 0 (mock)**: ✅ **APROVADO em 2026-08-24** — `design/mocks/CONTAI-004.md`.
 - **Gate Fiscal**: `docs/pareceres/2026-08-16-gate-fiscal-contai-004-005.md`,
   Parte 1 — APROVADO COM RESSALVAS (R1–R5 bloqueantes, incorporadas abaixo).
 
@@ -43,60 +43,61 @@ que reabrir cada documento em abril.
 
 ## Critérios de Aceite
 
-1. [ ] **Mock aprovado pelo Mateus** antes do desenvolvimento. **Não existe mock
+1. [x] **Mock aprovado pelo Mateus em 2026-08-24** — `design/mocks/CONTAI-004.html`
+   (8 telas, mesmo passe do `CONTAI-007`). **Antes existia nenhum mock
    com estes campos**: `design/mocks/CONTAI-001.html` não tem "nº da nota", e o
    mock do CONTAI-003 só cobre as telas 13 e 14. O mock é **o mesmo passe do
    CONTAI-007** — os dois mexem no mesmo formulário (`/adicionar/documento`), e
    duas levas de campo novo são duas levas de mock a aprovar
-2. [ ] **(R5 do contador)** `numero` e `data_emissao` capturados no registro,
+2. [x] **(R5 do contador)** `numero` e `data_emissao` capturados no registro,
    **obrigatórios e bloqueantes** em `nf_material` e `nf_servico`; **não
    perguntados** em boleto (o campo obrigatório do boleto segue `vencimento`)
-3. [ ] **(R5)** A obrigatoriedade vale **inclusive em documento com
+3. [x] **(R5)** A obrigatoriedade vale **inclusive em documento com
    `status = 'quarentena'`.** Contraintuitivo e correto: é justamente a nota
    errada que precisa ser identificada para ser **cancelada e reemitida** junto
    ao fornecedor — em NF-e, carta de correção **não** altera destinatário. Sem
    número não há o que pedir
-4. [ ] **(R3)** **Sem valor padrão em `data_emissao`.** Nenhuma tela pré-preenche
+4. [x] **(R3)** **Sem valor padrão em `data_emissao`.** Nenhuma tela pré-preenche
    com "hoje", `created_at` ou `data_pagamento`. Fundamento já exercido:
    *"data inventada em campo fiscal é pior do que campo vazio — vazio pergunta,
    preenchido afirma"* (Gate 2 do CONTAI-003)
-5. [ ] **(R4)** `data_emissao` **futura é recusada**, com **mensagem própria** —
+5. [x] **(R4)** `data_emissao` **futura é recusada**, com **mensagem própria** —
    proibido reaproveitar a mensagem de data de pagamento futura. São regras
    diferentes: esta é coerência documental, aquela é regime de caixa.
    `data_emissao` **anterior ao início da obra é legítima** e não gera aviso
    (projeto, ART, ITBI e escritura antecedem a obra)
-6. [ ] **(R1 — a ressalva mais cara)** **É PROIBIDA a validação
+6. [x] **(R1 — a ressalva mais cara)** **É PROIBIDA a validação
    `data_pagamento >= data_emissao`.** Ela parece higiene e **quebra o caso mais
    frequente do projeto**: PIX mensal à AJE e NF consolidada meses depois
    (Relato 002, D6). **Exigir teste unitário que falhe se alguém a
    introduzir** — comentário não protege nada, lição do `cnoReferenciado`
    hard-coded (Gate 2 do CONTAI-003)
-7. [ ] **(R2)** `numero` é **texto preservado literalmente** — zeros à esquerda,
+7. [x] **(R2)** `numero` é **texto preservado literalmente** — zeros à esquerda,
    letras, barras e pontos. Proibida conversão numérica ou normalização: NFS-e
    municipal usa numeração própria e converter destrói a identificação da nota
-8. [ ] O rótulo do campo diz **o que a data é e o que ela não é**: a data de
+8. [x] O rótulo do campo diz **o que a data é e o que ela não é**: a data de
    emissão **não decide o ano do custo** (Q6 — quem decide é a data do
    pagamento). Verificável em tela: o campo não pode ser lido como "a data que
    vale para o IR"
-9. [ ] Os dois campos aparecem no detalhe do documento (`/documento/[id]`) —
+9. [x] Os dois campos aparecem no detalhe do documento (`/documento/[id]`) —
    dado que entra e não se confere é dado que não entrou
 10. [ ] Os dois campos aparecem por extenso na **tela 14 do mock aprovado**
     ("Notas a cobrar"), quando o CONTAI-007 a implementar:
     `NF 1042 · 20/03 · R$ 18.000,00`
-11. [ ] **(R7 do contador)** **Aviso de duplicidade, não bloqueio**: mesmo
+11. [x] **(R7 do contador)** **Aviso de duplicidade, não bloqueio**: mesmo
     `numero` + mesmo **emitente** (+ série, quando houver) na mesma obra →
     *"essa nota já foi registrada em DD/MM"*, com link para o registro
     existente. É a **primeira defesa do produto contra custo contado duas
     vezes** — e custo inflado em Bens e Direitos vai para a declaração, cobrado
     com multa. **Não existe unicidade global de `numero`**: número é único por
     emitente + série + modelo
-12. [ ] **(R3)** **Estado do banco verificado por consulta, não por suposição**,
+12. [x] **(R3)** **Estado do banco verificado por consulta, CONFIRMADO EM 24/08 pelo Mateus** —
     antes do merge: quantas linhas tem `documento` no projeto REMOTO? Se zero, a
     migration adiciona as colunas e **não há backfill nem pendência**. Se não for
     zero, o ticket volta ao PO — nem backfill (data inventada) nem `not null` sem
     saída. Este critério existe por um motivo nomeado: no Gate 2 do CONTAI-003
     dois agentes propagaram uma suposição sobre o estado do banco sem consultá-lo
-13. [ ] **Pendência de campo faltante é âmbar e fica FORA do headline** do
+13. [x] **Pendência de campo faltante é âmbar e fica FORA do headline** do
     CONTAI-005 (R7 do parecer). Texto de tela, copiado do parecer:
     > **Falta o número ou a data da nota**
     > [fornecedor] · R$ [valor]
@@ -104,10 +105,10 @@ que reabrir cada documento em abril.
     > valendo. Sem o número e a data, a discriminação do ano sai sem identificar
     > esta nota, e ela fica de fora da lista de cobrança do CNO.
     > [Abrir o anexo e completar]
-14. [ ] Rótulo **"Interação X de 3" → "Passo X de 3"** (backlog, ajustes em itens
+14. [x] Rótulo **"Interação X de 3" → "Passo X de 3"** (backlog, ajustes em itens
     existentes). Está em `app/adicionar/documento/page.tsx:239`, `:240` e `:391`.
     A tela afirma um número que ela não cumpre (o caminho comum tem ~10)
-15. [ ] E2E afirma o **estado gravado**: NF salva sem número **não gera linha**
+15. [x] E2E afirma o **estado gravado**: NF salva sem número **não gera linha**
     em `documento` nem objeto no bucket
 
 ## Gate Fiscal (Contador) — FECHADO
@@ -189,6 +190,33 @@ existir. **Este ticket cria a coluna; não cria o trabalho de preenchê-la.**
   a **obra** é corrigível. **Dívida conhecida, não esquecimento**: número
   digitado errado produz discriminação errada e hoje não tem conserto pela
   interface. Vira ticket se acontecer uma vez
+
+16. [x] **`serie` — campo próprio, opcional, sem default, jamais concatenado no
+       número, entra na comparação de duplicidade.** Coluna `serie text`
+       nullable na migration `0012` (sem default, sem check); campo separado
+       no formulário, entre número e data de emissão; `serieParaBanco` só faz
+       trim (zero normalização); `validarDocumento` nunca a exige;
+       `duplicataDe` compara `numero + serie + emitente`.
+       *Achado faltando pelo `po` no Gate 4, rodada 1 — estava só em prosa
+       (Ressalva R6) e nunca virou critério numerado. Implementado na rodada 2
+       do Gate 1; APPROVE do `cto-obra` e do `contador`.*
+17. [x] **A comparação de duplicidade tem uma assimetria aceita, e ela é
+       critério, não só comentário de código.** A mesma nota digitada duas
+       vezes — uma com série preenchida, outra em branco — **não dispara
+       aviso**: série ausente e série preenchida contam como identidades
+       diferentes. É **falso-negativo aceito de propósito**: o aviso nunca
+       bloqueia `salvar`, e falso-positivo (duas notas legítimas de séries
+       diferentes acusadas como duplicata) é pior — ensina o Mateus a ignorar
+       o aviso. Documentado em `duplicataDe`
+       (`lib/fiscal/documento.ts`) e travado pelo teste
+       `"⚠️ mesmo número e emitente, SÉRIES diferentes, não é duplicidade"`
+       (`lib/fiscal/documento.test.ts`). **Fechamento definitivo**: a coluna
+       `chave_acesso` (já criada, nullable) resolve isto quando a `US-008`
+       (extração automática) a preencher — identidade por chave não depende
+       de série digitada certa.
+       *Achado pelo `contador` no Gate 2, rodada 2 — a assimetria já existia
+       no comportamento, mas só virou fato conferível quando promovida a
+       critério aqui, na mesma régua da regra nova do `/tickets-req`.*
 
 ## Pre-mortem
 

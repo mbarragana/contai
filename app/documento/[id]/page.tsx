@@ -30,7 +30,12 @@ import {
   type PainelDados,
 } from "@/lib/data";
 import { formatarDocumento } from "@/lib/fiscal/identificacao";
-import { CONSEQUENCIA_SEM_RETENCAO } from "@/lib/fiscal/documento";
+import {
+  CONSEQUENCIA_SEM_RETENCAO,
+  exigeIdentificacaoDaNota,
+  PENDENCIA_IDENTIFICACAO_EFEITO,
+  PENDENCIA_IDENTIFICACAO_TITULO,
+} from "@/lib/fiscal/documento";
 import { formatarDataBR } from "@/lib/fiscal/obra";
 import {
   alocarCusto,
@@ -342,6 +347,62 @@ function DetalheDocumento() {
   );
 
   /**
+   * CONTAI-004, critério 9 — a identificação da nota, em TODAS as telas deste
+   * detalhe. "Dado que entra e não se confere é dado que não entrou": o número
+   * é o que identifica a nota na discriminação anual e numa intimação, e é por
+   * ele que se acha o papel no meio de 400-600 arquivos daqui a oito anos.
+   *
+   * ⚠️ O rótulo da data repete aqui o que o formulário diz: ela NÃO decide o
+   * ano do custo. Quem decide é a data do pagamento (regime de caixa) — e é
+   * exatamente nesta tela, com as duas datas por perto, que a troca
+   * aconteceria.
+   *
+   * Boleto não tem bloco: os campos não são perguntados nele (R5).
+   */
+  const faltaIdentificacao =
+    exigeIdentificacaoDaNota(d.tipo) && (!d.numero || !d.dataEmissao);
+
+  const blocoIdentificacao = exigeIdentificacaoDaNota(d.tipo) ? (
+    <>
+      <Card>
+        {/* Literal, como foi digitado: zeros à esquerda e letras contam. E a
+            série aparece SEPARADA do número (R6) — juntá-las numa string só é
+            a mesma confusão que a coluna própria evita.
+
+            Sem série, o rótulo nem menciona série e o "/ —" some: a maioria
+            das NFS-e municipais não tem série, e um traço fixo no caso comum
+            é ruído que se lê como dado faltando. */}
+        <Linha rotulo={d.serie ? "Nº / série" : "Nº da nota"}>
+          <span className="mono">
+            {d.serie ? `${d.numero ?? "—"} / ${d.serie}` : (d.numero ?? "—")}
+          </span>
+        </Linha>
+        <Linha rotulo="Emissão">
+          <span className="mono">
+            {d.dataEmissao ? formatarDataBR(d.dataEmissao) : "—"}
+          </span>
+        </Linha>
+        <Dica>
+          A emissão identifica a nota e a janela do CNO. O ano do custo é o do
+          pagamento.
+        </Dica>
+      </Card>
+      {faltaIdentificacao ? (
+        // Critério 13 / parecer §4: ÂMBAR, nunca vermelha, e sem "custo em
+        // risco" — seria falso. O documento hábil está no acervo e continua
+        // valendo; o que se perde é a identificação na discriminação e a
+        // presença na lista de cobrança do CNO.
+        <Card className="border-amb">
+          <Chip cor="amb">{PENDENCIA_IDENTIFICACAO_TITULO}</Chip>
+          <p className="mt-2.5 text-[13.5px]">
+            {PENDENCIA_IDENTIFICACAO_EFEITO}
+          </p>
+        </Card>
+      ) : null}
+    </>
+  ) : null;
+
+  /**
    * A obra deste registro, sempre visível e sempre corrigível: o erro de obra é
    * silencioso, descoberto tarde, e sem conserto pela interface voltaria a
    * exigir SQL (dor D9).
@@ -426,6 +487,7 @@ function DetalheDocumento() {
             saída que preserva o custo. Enquanto isso o documento fica no
             acervo, mas fora do IR.
           </Dica>
+          {blocoIdentificacao}
           {blocoAnexos}
           {/* Critério 8: vincular quarentena é permitido — é o que evita
               contar a mesma despesa duas vezes — e não gera custo. */}
@@ -472,6 +534,7 @@ function DetalheDocumento() {
             <strong>você</strong> pagar na regularização da obra. Confira com o
             empreiteiro se a retenção sairá nas próximas notas.
           </Banner>
+          {blocoIdentificacao}
           {blocoAnexos}
           {blocoPagamentos}
           {blocoObra}
@@ -516,6 +579,7 @@ function DetalheDocumento() {
             NF e a prova de pagamento.
           </Banner>
         ) : null}
+        {blocoIdentificacao}
         {blocoAnexos}
         {blocoPagamentos}
         {blocoObra}

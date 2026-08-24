@@ -11,6 +11,7 @@ import {
   type Db,
 } from "./banco";
 import { expect, test } from "./fixtures";
+import { preencherDocumentoBasico } from "./formularios";
 
 /**
  * CONTAI-003 contra o Postgres LOCAL: obras de verdade, RLS ligada, e as
@@ -58,12 +59,19 @@ async function preencherDocumento(
   page: Page,
   dados: { tipo: string; nome: string; valor: string; arquivo: string },
 ) {
-  await page.getByLabel("Arquivo").setInputFiles(pdf(dados.arquivo));
-  await escolher(page, "Tipo", dados.tipo);
-  await page.getByLabel("Emitente", { exact: true }).fill(dados.nome);
-  await page.getByLabel("CNPJ / CPF do emitente").fill(CNPJ_AJE);
-  await page.getByLabel("Valor").fill(dados.valor);
-  await escolher(page, "A nota está no seu CPF?", "Sim");
+  // Número e data de emissão entram porque são bloqueantes em NF desde o
+  // CONTAI-004 — sem eles estes testes de OBRA morreriam na validação de um
+  // campo que eles não estão testando.
+  await preencherDocumentoBasico(page, {
+    tipo: dados.tipo,
+    emitente: dados.nome,
+    documento: CNPJ_AJE,
+    valor: dados.valor,
+    numero: "1042",
+    dataEmissao: "2026-03-20",
+    arquivo: pdf(dados.arquivo),
+    noCpf: "Sim",
+  });
 }
 
 // ── Critério 12 — usuário novo não cai em tela de erro ───────────────────

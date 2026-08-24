@@ -24,6 +24,7 @@ import {
   Rodape,
 } from "@/app/_components/ui";
 import {
+  buscarNotasComNumero,
   carregarPainel,
   classificarErro,
   criarDocumento,
@@ -34,15 +35,23 @@ import {
   type PainelDados,
 } from "@/lib/data";
 import {
+  AJUDA_DATA_EMISSAO,
+  AJUDA_NUMERO,
+  AJUDA_SERIE,
   avisaInss,
   classificacaoProposta,
   CONSEQUENCIA_QUARENTENA,
   CONSEQUENCIA_SEM_RETENCAO,
+  duplicataDe,
+  exigeIdentificacaoDaNota,
   exigeRetencao,
   motivoQuarentena,
+  numeroParaBanco,
   retencaoParaBanco,
+  serieParaBanco,
   statusDocumento,
   validarDocumento,
+  type DocumentoRegistrado,
   type EntradaDocumento,
   type ErroCampo,
   type RespostaCpf,
@@ -50,6 +59,7 @@ import {
 } from "@/lib/fiscal/documento";
 import { soDigitos, tipoPorDocumento } from "@/lib/fiscal/identificacao";
 import {
+  formatarDataBR,
   NF_SERVICO_SEM_CNO_ALAVANCA,
   NF_SERVICO_SEM_CNO_EFEITO,
   NF_SERVICO_SEM_CNO_TITULO,
@@ -127,6 +137,14 @@ export default function RegistrarDocumento() {
   const [nome, setNome] = useState("");
   const [documento, setDocumento] = useState("");
   const [valor, setValor] = useState("");
+  const [numero, setNumero] = useState("");
+  // Opcional: nem toda NFS-e municipal tem série. Campo PRÓPRIO (R6) — grudar
+  // "1042/2" no número é gravar dois dados num só, sem volta.
+  const [serie, setSerie] = useState("");
+  // ⚠️ Nasce VAZIO e continua vazio até o dedo do Mateus (R3): nada de "hoje",
+  // de `created_at` nem da data do pagamento. Data inventada em campo fiscal é
+  // pior do que campo vazio — vazio pergunta, preenchido afirma.
+  const [dataEmissao, setDataEmissao] = useState("");
   const [vencimento, setVencimento] = useState("");
   const [classificacao, setClassificacao] = useState<Classificacao | null>(null);
   const [notaNoCpf, setNotaNoCpf] = useState<RespostaCpf | null>(null);
@@ -146,6 +164,9 @@ export default function RegistrarDocumento() {
       favorecidoNome: nome,
       favorecidoDocumento: documento,
       valorCentavos: parseValorInput(valor),
+      numero,
+      serie,
+      dataEmissao,
       vencimento: vencimento || null,
       classificacao,
       notaNoCpf,
@@ -157,6 +178,9 @@ export default function RegistrarDocumento() {
       nome,
       documento,
       valor,
+      numero,
+      serie,
+      dataEmissao,
       vencimento,
       classificacao,
       notaNoCpf,
@@ -191,6 +215,64 @@ export default function RegistrarDocumento() {
     };
   }, [jaPaguei, obra]);
 
+  // ── Aviso de possível duplicidade (critério 11 / R7) ───────────────────
+  //
+  // AVISO, nunca bloqueio: número não é único globalmente, e recusar aqui
+  // impediria o registro de uma nota legítima de outro emitente. É a primeira
+  // defesa do produto contra custo contado DUAS VEZES — e custo inflado em
+  // Bens e Direitos vai para a declaração, cobrado com multa.
+  //
+  // A busca só sai quando os DOIS dados que identificam a nota estão na tela
+  // (número e CNPJ/CPF do emitente): sem emitente não há duplicidade a afirmar.
+  // Falha de rede aqui é SILENCIOSA de propósito — a ausência do aviso não
+  // pode virar um erro que impede o registro do fato consumado.
+  const numeroLimpo = numeroParaBanco(numero);
+  const emitenteDigitos = soDigitos(documento);
+  // A resposta viaja COM a pergunta que a produziu: mudou o número ou o
+  // emitente, o aviso some no mesmo render, sem precisar de um `setState` de
+  // limpeza dentro do efeito. Aviso de duplicidade apontando para o número
+  // anterior seria pior do que aviso nenhum.
+  const chaveDaBusca = `${obra?.id ?? ""}|${numeroLimpo ?? ""}|${serie.trim()}|${emitenteDigitos}`;
+  const [achado, setAchado] = useState<{
+    chave: string;
+    documento: DocumentoRegistrado | null;
+  } | null>(null);
+  const duplicata = achado?.chave === chaveDaBusca ? achado.documento : null;
+
+  useEffect(() => {
+    if (!obra || !exigeIdentificacaoDaNota(tipo)) return;
+    if (!numeroLimpo || tipoPorDocumento(emitenteDigitos) === null) return;
+    let cancelado = false;
+    const chave = `${obra.id}|${numeroLimpo}|${serie.trim()}|${emitenteDigitos}`;
+    // Meio segundo depois da última tecla: o número da nota é digitado dígito
+    // a dígito, e uma consulta por dígito é ruído no canteiro.
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const registradas = await buscarNotasComNumero(obra.id, numeroLimpo);
+          if (cancelado) return;
+          setAchado({
+            chave,
+            documento: duplicataDe(
+              {
+                numero: numeroLimpo,
+                serie,
+                emitenteDocumento: emitenteDigitos,
+              },
+              registradas,
+            ),
+          });
+        } catch {
+          // Sem aviso é o estado seguro: o registro segue.
+        }
+      })();
+    }, 500);
+    return () => {
+      cancelado = true;
+      clearTimeout(timer);
+    };
+  }, [obra, tipo, numeroLimpo, serie, emitenteDigitos]);
+
   /**
    * O documento ainda não existe no banco — os candidatos são ordenados contra
    * um documento PROVISÓRIO montado com o que já está na tela, pela mesma
@@ -205,6 +287,11 @@ export default function RegistrarDocumento() {
       tipo: tipo ?? "nf_material",
       status: statusDocumento(tipo, notaNoCpf),
       valorCentavos: parseValorInput(valor),
+      // A identificação da nota não entra na ordenação dos candidatos: quem
+      // casa pagamento com documento é valor + favorecido, nunca o número.
+      numero: null,
+      serie: null,
+      dataEmissao: null,
       vencimento: null,
       classificacao,
       destinatarioCpfOk: notaNoCpf === "sim",
@@ -226,7 +313,7 @@ export default function RegistrarDocumento() {
   }, [painelDaObra, obra, tipo, notaNoCpf, valor, classificacao, nome, documento]);
 
   async function salvar() {
-    const encontrados = validarDocumento(entrada);
+    const encontrados = validarDocumento(entrada, hojeIso());
     setErros(encontrados);
     setErroSalvar(null);
     if (encontrados.length > 0 || !obra || !arquivo) return;
@@ -252,6 +339,11 @@ export default function RegistrarDocumento() {
         tipo: tipo as TipoDocumento,
         arquivo_path: arquivoPath,
         valorCentavos: entrada.valorCentavos as number,
+        // Boleto não é perguntado, logo não grava (R5). NF grava o número tal
+        // como foi digitado — `numeroParaBanco` só tira o espaço em volta.
+        numero: exigeIdentificacaoDaNota(tipo) ? numeroParaBanco(numero) : null,
+        serie: exigeIdentificacaoDaNota(tipo) ? serieParaBanco(serie) : null,
+        data_emissao: exigeIdentificacaoDaNota(tipo) ? dataEmissao : null,
         vencimento: tipo === "boleto" ? vencimento : null,
         classificacao,
         destinatario_cpf_ok: notaNoCpf === "sim",
@@ -398,8 +490,8 @@ export default function RegistrarDocumento() {
         titulo="Registrar documento"
         sub={
           arquivo
-            ? "Interação 2 de 3 — arquivo anexado ✓"
-            : "Interação 2 de 3 — anexe o arquivo"
+            ? "Passo 2 de 3 — arquivo anexado ✓"
+            : "Passo 2 de 3 — anexe o arquivo"
         }
       />
 
@@ -444,6 +536,41 @@ export default function RegistrarDocumento() {
                 onChange={escolherTipo}
                 erro={erroDe("tipo")}
               />
+              {/* Critério 2 (R5): os dois campos ficam NO MESMO PASSO do
+                  valor — nenhum passo novo (pre-mortem 1). E não aparecem em
+                  boleto: título de cobrança não compõe discriminação nenhuma. */}
+              {exigeIdentificacaoDaNota(tipo) ? (
+                <>
+                  <CampoTexto
+                    rotulo="Número da nota"
+                    valor={numero}
+                    onChange={setNumero}
+                    ajuda={AJUDA_NUMERO}
+                    placeholder="Como está impresso"
+                    erro={erroDe("numero")}
+                  />
+                  {/* R6: campo próprio, NUNCA concatenada no número. Opcional
+                      e sem erro possível — nem toda NFS-e tem série, e exigir
+                      aqui faria o Mateus inventar um valor para poder salvar. */}
+                  <CampoTexto
+                    rotulo="Série (quando houver)"
+                    valor={serie}
+                    onChange={setSerie}
+                    ajuda={AJUDA_SERIE}
+                  />
+                  {/* Critério 8: o rótulo diz o que a data É e o que ela NÃO
+                      É. Sem esta frase o campo é lido como "a data que vale
+                      para o IR" — e quem decide o ano do custo é o pagamento. */}
+                  <CampoTexto
+                    rotulo="Data de emissão"
+                    tipo="date"
+                    valor={dataEmissao}
+                    onChange={setDataEmissao}
+                    ajuda={AJUDA_DATA_EMISSAO}
+                    erro={erroDe("dataEmissao")}
+                  />
+                </>
+              ) : null}
               <CampoTexto
                 rotulo="Emitente"
                 valor={nome}
@@ -459,6 +586,29 @@ export default function RegistrarDocumento() {
                 placeholder="00.000.000/0000-00"
                 erro={erroDe("favorecidoDocumento")}
               />
+              {/* ⚠️ DIVERGÊNCIA DELIBERADA DO MOCK, e ela é de regra, não de
+                  gosto: o mock escreve "registrada em 15/03", e aqui sai
+                  "15/03/2026". A fonte é o ADENDO 3 §G.2 do parecer
+                  docs/pareceres/2026-08-18-compromisso-versus-pagamento.md,
+                  que se declara GERAL — "vale para todos, não só para este
+                  texto": data sem ano, num produto cujo invariante é regime de
+                  caixa, é defeito onde quer que apareça. `formatarDataBR` é
+                  hoje o único formato de data de toda tela fiscal do app;
+                  encurtar só neste banner criaria a única exceção do projeto. */}
+              {duplicata ? (
+                <Banner cor="amb" role="status">
+                  Essa nota já foi registrada em{" "}
+                  {formatarDataBR(duplicata.registradoEm)}. Confira antes de
+                  salvar — a mesma nota registrada duas vezes conta o custo em
+                  dobro na declaração.{" "}
+                  <a
+                    className="font-semibold underline"
+                    href={`/documento/${duplicata.id}`}
+                  >
+                    Ver registro existente
+                  </a>
+                </Banner>
+              ) : null}
               <CampoTexto
                 rotulo="Valor"
                 valor={valor}
@@ -653,7 +803,7 @@ export default function RegistrarDocumento() {
 
       {registro.fase === "pronta" ? (
         <Rodape>
-          <Passo>Interação 3 de 3 ↓</Passo>
+          <Passo>Passo 3 de 3 ↓</Passo>
           <Botao
             variante="primary"
             onClick={salvar}

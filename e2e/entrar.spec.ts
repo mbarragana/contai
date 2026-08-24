@@ -1,4 +1,3 @@
-import type { Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 
 import {
@@ -11,6 +10,7 @@ import {
 import { COOKIE_SESSAO } from "../lib/auth";
 import { criarDocumento, criarFavorecido, criarPagamento } from "./banco";
 import { expect, test } from "./fixtures";
+import { entrarPelaTela } from "./formularios";
 
 /**
  * CONTAI-002 contra o stack LOCAL: GoTrue de verdade, senha de verdade, cookie
@@ -47,24 +47,6 @@ const EMAIL_SEM_CONTA = "nao-sou-o-dono@contai.local";
  * Esperar por `networkidle` ou por um `waitForTimeout` não serviria: nenhum dos
  * dois diz que o React assumiu o campo.
  */
-async function entrarPelaTela(
-  page: Page,
-  email: string = EMAIL_SEED,
-  senha: string = SENHA_SEED,
-) {
-  const campoEmail = page.getByLabel("Seu e-mail");
-  const campoSenha = page.getByLabel("Sua senha");
-
-  await expect(async () => {
-    await campoEmail.fill(email);
-    await campoSenha.fill(senha);
-    await expect(campoEmail).toHaveValue(email, { timeout: 1_000 });
-    await expect(campoSenha).toHaveValue(senha, { timeout: 1_000 });
-  }).toPass({ timeout: 15_000 });
-
-  await page.getByRole("button", { name: "Entrar", exact: true }).click();
-}
-
 test.describe("entrar no app", () => {
   // Estes testes precisam do estado que todos os outros evitam: sem sessão.
   test.use({ sessao: false });
@@ -325,71 +307,5 @@ test.describe("a RLS é a guarda do acervo", () => {
       .from("obra")
       .insert({ nome: "Obra de estranho", data_inicio_obra: "2026-01-01" });
     expect(erroInsert).not.toBeNull();
-  });
-});
-
-/**
- * Tela 6 do mock e a única consequência fiscal registrada no ticket: sessão
- * que cai no meio do preenchimento não pode levar o formulário junto
- * (IN SRF 84/2001 art. 17 — custo não comprovado não existe).
- */
-test.describe("sessão que cai no meio do formulário", () => {
-  test("o que foi digitado sobrevive à reautenticação e o registro entra no banco", async ({
-    page,
-    db,
-  }) => {
-    await page.goto("/adicionar/pagamento");
-    await expect(
-      page.getByRole("heading", { name: "Registrar pagamento" }),
-    ).toBeVisible();
-
-    await page.getByLabel("Favorecido", { exact: true }).fill("José da Silva");
-    await page.getByLabel("CNPJ / CPF do favorecido").fill("529.982.247-25");
-    await page.getByLabel("Valor").fill("1.250,00");
-    await page.getByLabel("Data do pagamento").fill("2026-05-06");
-    await page.getByLabel("Comprovante").setInputFiles({
-      name: "pix-jose.png",
-      mimeType: "image/png",
-      buffer: Buffer.from("PNG pix-jose"),
-    });
-
-    // A sessão morre em silêncio — é assim que ela morre de verdade: cookie
-    // expirado, ou apagado pelo ITP do Safari depois de dias sem abrir o app.
-    await page.context().clearCookies();
-
-    await page.getByRole("button", { name: /^Salvar/ }).click();
-
-    // Sobreposto, não navegação: o formulário continua montado atrás.
-    await expect(
-      page.getByText("Sua sessão terminou enquanto você preenchia."),
-    ).toBeVisible();
-    await expect(page).toHaveURL(/\/adicionar\/pagamento$/);
-
-    await entrarPelaTela(page);
-
-    // O sobreposto some e os campos estão como ele deixou.
-    await expect(
-      page.getByText("Sua sessão terminou enquanto você preenchia."),
-    ).toHaveCount(0);
-    await expect(page.getByLabel("Favorecido", { exact: true })).toHaveValue(
-      "José da Silva",
-    );
-    await expect(page.getByLabel("Valor")).toHaveValue("1.250,00");
-    await expect(page.getByLabel("Data do pagamento")).toHaveValue("2026-05-06");
-    await expect(page.getByText("pix-jose.png")).toBeVisible();
-
-    await page.getByRole("button", { name: /^Salvar/ }).click();
-
-    // E o que interessa: a linha existe no Postgres, com o valor certo.
-    await expect
-      .poll(async () => {
-        const { data } = await db.from("pagamento").select("valor");
-        return data?.length ?? 0;
-      }, { timeout: 15_000 })
-      .toBe(1);
-
-    const { data } = await db.from("pagamento").select("valor, data_pagamento");
-    expect(Number(data![0].valor)).toBe(1250);
-    expect(data![0].data_pagamento).toBe("2026-05-06");
   });
 });

@@ -166,14 +166,18 @@ export type Database = {
       documento: {
         Row: {
           arquivo_path: string
+          chave_acesso: string | null
           classificacao: Database["public"]["Enums"]["classificacao"] | null
           created_at: string
+          data_emissao: string | null
           destinatario_cpf_ok: boolean
           favorecido_id: string | null
           id: string
           motivo_quarentena: string | null
+          numero: string | null
           obra_id: string
           retencao_11: boolean | null
+          serie: string | null
           status: Database["public"]["Enums"]["status_documento"]
           tipo: Database["public"]["Enums"]["tipo_documento"]
           user_id: string
@@ -182,14 +186,18 @@ export type Database = {
         }
         Insert: {
           arquivo_path: string
+          chave_acesso?: string | null
           classificacao?: Database["public"]["Enums"]["classificacao"] | null
           created_at?: string
+          data_emissao?: string | null
           destinatario_cpf_ok: boolean
           favorecido_id?: string | null
           id?: string
           motivo_quarentena?: string | null
+          numero?: string | null
           obra_id: string
           retencao_11?: boolean | null
+          serie?: string | null
           status?: Database["public"]["Enums"]["status_documento"]
           tipo: Database["public"]["Enums"]["tipo_documento"]
           user_id?: string
@@ -198,14 +206,18 @@ export type Database = {
         }
         Update: {
           arquivo_path?: string
+          chave_acesso?: string | null
           classificacao?: Database["public"]["Enums"]["classificacao"] | null
           created_at?: string
+          data_emissao?: string | null
           destinatario_cpf_ok?: boolean
           favorecido_id?: string | null
           id?: string
           motivo_quarentena?: string | null
+          numero?: string | null
           obra_id?: string
           retencao_11?: boolean | null
+          serie?: string | null
           status?: Database["public"]["Enums"]["status_documento"]
           tipo?: Database["public"]["Enums"]["tipo_documento"]
           user_id?: string

@@ -15,6 +15,9 @@ CONTAI-003, de propósito e documentada, que só este ticket desarma. **A ordem
 `003 → 007` continua**; o que muda é que o 007 não é mais só "uma coluna e uma
 validação".
 
+
+⚠️ **Gate 0 satisfeito em 2026-08-24** — mesmo mock do `CONTAI-004`, que é o passe único para o formulário `/adicionar/documento` (`design/mocks/CONTAI-004.html`). Regra do próprio `CONTAI-004`: "duas levas de campo novo são duas levas de mock a aprovar".
+
 ## Dor de Origem
 **Não veio do relato do Mateus.** Veio do parecer do contador de 2026-08-09
 (Q8b), disparado pelo relato 003. Registro isso porque a origem muda o peso: é

@@ -14,6 +14,7 @@ import {
   subirParaOAcervo,
 } from "./banco";
 import { expect, test } from "./fixtures";
+import { escolher, preencherDocumentoBasico } from "./formularios";
 
 /**
  * Fluxo de ingestão contra o Supabase LOCAL: sessão de verdade, linhas de
@@ -53,13 +54,6 @@ function hojeIso(): string {
 }
 
 /** Toca na opção como o Mateus tocaria: no rótulo, não no input escondido. */
-async function escolher(page: Page, grupo: string, opcao: string) {
-  await page
-    .getByRole("group", { name: grupo })
-    .getByText(opcao, { exact: true })
-    .click();
-}
-
 test.describe("home de pendências", () => {
   test("mostra acumulado, exposição e a consequência de cada pendência", async ({
     page,
@@ -254,11 +248,15 @@ test.describe("registrar documento", () => {
     const arquivo = pdf("NF-nao-deve-subir.pdf");
     await irParaFormulario(page);
 
-    await page.getByLabel("Arquivo").setInputFiles(arquivo);
-    await escolher(page, "Tipo", "NF material");
-    await page.getByLabel("Emitente", { exact: true }).fill("Casa do Construtor Ltda");
-    await page.getByLabel("CNPJ / CPF do emitente").fill(CNPJ_AJE);
-    await page.getByLabel("Valor").fill("4.850,00");
+    await preencherDocumentoBasico(page, {
+      tipo: "NF material",
+      emitente: "Casa do Construtor Ltda",
+      documento: CNPJ_AJE,
+      valor: "4.850,00",
+      numero: "1042",
+      dataEmissao: "2026-03-20",
+      arquivo,
+    });
 
     await page.getByRole("button", { name: "Salvar registro" }).click();
 
@@ -302,6 +300,13 @@ test.describe("registrar documento", () => {
       }),
     ).toBeChecked();
 
+    // CONTAI-004: número LITERAL (com zeros à esquerda) e data de emissão
+    // ANTERIOR ao início da obra do seed — que é legítima e não avisa nada.
+    await page.getByLabel("Número da nota").fill("000123/A");
+    // R6: a série vai no campo DELA. "000123/A-2" no número seriam dois dados
+    // grudados, e é isso que a coluna própria existe para impedir.
+    await page.getByLabel("Série (quando houver)").fill("2");
+    await page.getByLabel("Data de emissão").fill("2026-03-20");
     await page.getByLabel("Emitente", { exact: true }).fill("Casa do Construtor Ltda");
     await page.getByLabel("CNPJ / CPF do emitente").fill(CNPJ_AJE);
     await page.getByLabel("Valor").fill("4.850,00");
@@ -330,6 +335,11 @@ test.describe("registrar documento", () => {
       user_id: USER_ID_SEED,
       tipo: "nf_material",
       valor: 4850,
+      // ⚠️ O número entra como TEXTO e volta idêntico: `000123/A`, não `123`.
+      // Conversão numérica aqui destruiria a identificação da nota (R2).
+      numero: "000123/A",
+      serie: "2",
+      data_emissao: "2026-03-20",
       classificacao: "material",
       destinatario_cpf_ok: true,
       status: "registrado",
@@ -363,12 +373,18 @@ test.describe("registrar documento", () => {
     const arquivo = pdf("NF-fora-do-cpf.pdf");
     await irParaFormulario(page);
 
-    await page.getByLabel("Arquivo").setInputFiles(arquivo);
-    await escolher(page, "Tipo", "NF material");
-    await page.getByLabel("Emitente", { exact: true }).fill("Casa do Construtor Ltda");
-    await page.getByLabel("CNPJ / CPF do emitente").fill(CNPJ_AJE);
-    await page.getByLabel("Valor").fill("4.850,00");
-    await escolher(page, "A nota está no seu CPF?", "Não");
+    // ⚠️ Número e data são obrigatórios TAMBÉM aqui (R5): é a nota errada que
+    // precisa ser identificada para ser cancelada e reemitida.
+    await preencherDocumentoBasico(page, {
+      tipo: "NF material",
+      emitente: "Casa do Construtor Ltda",
+      documento: CNPJ_AJE,
+      valor: "4.850,00",
+      numero: "7788",
+      dataEmissao: "2026-04-02",
+      arquivo,
+      noCpf: "Não",
+    });
 
     // Aviso antes mesmo de salvar.
     await expect(page.getByText(/Vai para/)).toContainText("quarentena");
@@ -383,6 +399,8 @@ test.describe("registrar documento", () => {
     expect(gravados[0]).toMatchObject({
       destinatario_cpf_ok: false,
       status: "quarentena",
+      numero: "7788",
+      data_emissao: "2026-04-02",
     });
     expect(gravados[0].motivo_quarentena).toBeTruthy();
     // A tela aberta é a do documento que acabou de ser gravado.
@@ -396,12 +414,16 @@ test.describe("registrar documento", () => {
     const arquivo = pdf("NF-servico-0007.pdf");
     await irParaFormulario(page);
 
-    await page.getByLabel("Arquivo").setInputFiles(arquivo);
-    await escolher(page, "Tipo", "NF serviço");
-    await page.getByLabel("Emitente", { exact: true }).fill("AJE Construções");
-    await page.getByLabel("CNPJ / CPF do emitente").fill(CNPJ_AJE);
-    await page.getByLabel("Valor").fill("18.000,00");
-    await escolher(page, "A nota está no seu CPF?", "Sim");
+    await preencherDocumentoBasico(page, {
+      tipo: "NF serviço",
+      emitente: "AJE Construções",
+      documento: CNPJ_AJE,
+      valor: "18.000,00",
+      numero: "1042",
+      dataEmissao: "2026-03-20",
+      arquivo,
+      noCpf: "Sim",
+    });
     await escolher(page, "NF de serviço: tem retenção de 11%?", "Não sei");
 
     await expect(
@@ -420,7 +442,353 @@ test.describe("registrar documento", () => {
       valor: 18000,
       retencao_11: null,
       status: "registrado",
+      numero: "1042",
+      data_emissao: "2026-03-20",
     });
+  });
+});
+
+// ── CONTAI-004 — número e data de emissão ────────────────────────────────
+
+test.describe("identificação da nota (CONTAI-004)", () => {
+  async function irParaFormulario(page: Page) {
+    await page.goto("/adicionar/documento");
+    await expect(
+      page.getByRole("heading", { name: "Registrar documento" }),
+    ).toBeVisible();
+  }
+
+  test("(critério 15) NF sem número NÃO gera linha nem objeto no acervo", async ({
+    page,
+    db,
+  }) => {
+    const arquivo = pdf("NF-sem-numero-nao-deve-subir.pdf");
+    await irParaFormulario(page);
+
+    // Tudo preenchido, MENOS o número. O anexo já está escolhido: o teste
+    // afirma que nem ele sobe — meio-registro no acervo com linha nenhuma no
+    // banco é arquivo órfão que ninguém acha em 2034.
+    await preencherDocumentoBasico(page, {
+      tipo: "NF material",
+      emitente: "Casa do Construtor Ltda",
+      documento: CNPJ_AJE,
+      valor: "4.850,00",
+      dataEmissao: "2026-03-20",
+      arquivo,
+      noCpf: "Sim",
+    });
+
+    await page.getByRole("button", { name: "Salvar registro" }).click();
+
+    await expect(
+      page.getByText("Informe o número da nota, como está impresso nela."),
+    ).toBeVisible();
+
+    expect(await documentos(db)).toHaveLength(0);
+    expect(
+      (await arquivosNoAcervo(db, "documento")).filter((n) =>
+        n.endsWith(arquivo.name),
+      ),
+    ).toHaveLength(0);
+  });
+
+  test("(R3) a data de emissão nasce VAZIA — nenhuma tela pré-preenche com hoje", async ({
+    page,
+  }) => {
+    await irParaFormulario(page);
+    await escolher(page, "Tipo", "NF material");
+    // Data inventada em campo fiscal é pior do que campo vazio: vazio
+    // pergunta, preenchido afirma. Um default de "hoje" mandaria a nota para
+    // a janela errada do CNO sem ninguém perceber.
+    await expect(page.getByLabel("Data de emissão")).toHaveValue("");
+    await expect(page.getByLabel("Número da nota")).toHaveValue("");
+    await expect(page.getByLabel("Série (quando houver)")).toHaveValue("");
+  });
+
+  test("(R4) emissão no futuro é recusada com mensagem PRÓPRIA", async ({
+    page,
+    db,
+  }) => {
+    const amanha = new Date(Date.now() + 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    await irParaFormulario(page);
+
+    await preencherDocumentoBasico(page, {
+      tipo: "NF material",
+      emitente: "Casa do Construtor Ltda",
+      documento: CNPJ_AJE,
+      valor: "4.850,00",
+      numero: "1042",
+      dataEmissao: amanha,
+      arquivo: pdf("NF-emitida-amanha.pdf"),
+      noCpf: "Sim",
+    });
+
+    await page.getByRole("button", { name: "Salvar registro" }).click();
+
+    await expect(
+      page.getByText(
+        "Data de emissão não pode ser depois de hoje — documento não existe antes de ser emitido.",
+      ),
+    ).toBeVisible();
+    // ⚠️ NÃO é a mensagem da data de PAGAMENTO futura: aquela fala de regime
+    // de caixa, esta de coerência documental. Reaproveitar uma na outra é o
+    // defeito que a R4 nomeia.
+    await expect(page.getByText(/o custo entra no ano do pagamento/)).toHaveCount(
+      0,
+    );
+    expect(await documentos(db)).toHaveLength(0);
+  });
+
+  test("(R4) emissão ANTERIOR ao início da obra grava sem aviso nenhum", async ({
+    page,
+    db,
+  }) => {
+    await irParaFormulario(page);
+
+    // Projeto, ART, ITBI e escritura antecedem a obra — data legítima.
+    await preencherDocumentoBasico(page, {
+      tipo: "NF serviço",
+      emitente: "AJE Construções",
+      documento: CNPJ_AJE,
+      valor: "3.200,00",
+      numero: "0001",
+      dataEmissao: "2019-02-11",
+      arquivo: pdf("ART-projeto.pdf"),
+      noCpf: "Sim",
+    });
+    await escolher(page, "NF de serviço: tem retenção de 11%?", "Sim");
+
+    // Nenhum aviso: o alerta do dev overlay do Next vive fora do `main`, por
+    // isso a busca é escopada — foi o que enganou a primeira versão do teste.
+    await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+    await page.getByRole("button", { name: "Salvar registro" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Registrado ✓" }),
+    ).toBeVisible();
+
+    const gravados = await documentos(db);
+    expect(gravados).toHaveLength(1);
+    // Zero à esquerda preservado (R2): `0001`, nunca `1`.
+    expect(gravados[0]).toMatchObject({
+      numero: "0001",
+      data_emissao: "2019-02-11",
+    });
+  });
+
+  test("(R5) boleto NÃO é perguntado — e grava sem os dois campos", async ({
+    page,
+    db,
+  }) => {
+    await irParaFormulario(page);
+
+    await page.getByLabel("Arquivo").setInputFiles(pdf("boleto-88.pdf"));
+    await escolher(page, "Tipo", "Boleto");
+
+    // Título de cobrança não é documentação hábil e não compõe discriminação
+    // nenhuma: exigir campo aqui é atrito sem consequência.
+    await expect(page.getByLabel("Número da nota")).toHaveCount(0);
+    await expect(page.getByLabel("Série (quando houver)")).toHaveCount(0);
+    await expect(page.getByLabel("Data de emissão")).toHaveCount(0);
+
+    await page.getByLabel("Emitente", { exact: true }).fill("Casa do Construtor Ltda");
+    await page.getByLabel("CNPJ / CPF do emitente").fill(CNPJ_AJE);
+    await page.getByLabel("Valor").fill("1.200,00");
+    await page.getByLabel("Vencimento").fill("2026-09-10");
+    await escolher(page, "Classificação", "Material");
+    await escolher(page, "A nota está no seu CPF?", "Sim");
+
+    await page.getByRole("button", { name: "Salvar registro" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Registrado ✓" }),
+    ).toBeVisible();
+
+    const gravados = await documentos(db);
+    expect(gravados).toHaveLength(1);
+    expect(gravados[0]).toMatchObject({
+      tipo: "boleto",
+      numero: null,
+      serie: null,
+      data_emissao: null,
+      status: "aguardando_pagamento",
+    });
+  });
+
+  test("(critério 9) o detalhe do documento mostra número e emissão", async ({
+    page,
+    db,
+  }) => {
+    const favorecido = await criarFavorecido(db, {
+      nome: "AJE Construções",
+      documento: CNPJ_AJE_DIGITOS,
+      tipo: "pj",
+    });
+    const id = await criarDocumento(db, {
+      tipo: "nf_servico",
+      valor: 18000,
+      classificacao: "mao_obra",
+      destinatario_cpf_ok: true,
+      retencao_11: true,
+      status: "registrado",
+      favorecido_id: favorecido,
+      numero: "000.001.042",
+      serie: "3",
+      data_emissao: "2026-03-20",
+    });
+
+    await page.goto(`/documento/${id}`);
+
+    // Dado que entra e não se confere é dado que não entrou.
+    // Número e série SEPARADOS, como no bloco do mock: "Nº / série".
+    await expect(page.getByText("000.001.042 / 3")).toBeVisible();
+    await expect(page.getByText("20/03/2026")).toBeVisible();
+    // E o rótulo continua dizendo o que a data NÃO decide.
+    await expect(page.getByText(/O ano do custo é o do pagamento/)).toBeVisible();
+
+    // Nota SEM série — o caso comum da NFS-e municipal. O "/ —" não aparece:
+    // traço fixo no caso comum se lê como dado faltando (Gate 2, cosmético).
+    const semSerie = await criarDocumento(db, {
+      tipo: "nf_material",
+      valor: 4850,
+      classificacao: "material",
+      destinatario_cpf_ok: true,
+      status: "registrado",
+      favorecido_id: favorecido,
+      numero: "1042",
+      serie: null,
+      data_emissao: "2026-04-02",
+    });
+
+    await page.goto(`/documento/${semSerie}`);
+    await expect(page.getByText("1042", { exact: true })).toBeVisible();
+    await expect(page.getByText("/ —")).toHaveCount(0);
+  });
+
+  test("(critério 13) documento antigo sem número mostra pendência ÂMBAR, sem 'custo em risco'", async ({
+    page,
+    db,
+  }) => {
+    const id = await criarDocumento(db, {
+      tipo: "nf_material",
+      valor: 4850,
+      classificacao: "material",
+      destinatario_cpf_ok: true,
+      status: "registrado",
+      // Registro anterior ao ticket: null nas duas colunas, sem backfill —
+      // data inventada seria pior do que a ausência.
+      numero: null,
+      data_emissao: null,
+    });
+
+    await page.goto(`/documento/${id}`);
+
+    await expect(page.getByText("Falta o número ou a data da nota")).toBeVisible();
+    await expect(
+      page.getByText(/O custo não está em risco: o documento está no acervo/),
+    ).toBeVisible();
+  });
+
+  test("(R6/R7) mesmo número e emitente, SÉRIE diferente: nenhum aviso", async ({
+    page,
+    db,
+  }) => {
+    const favorecido = await criarFavorecido(db, {
+      nome: "AJE Construções",
+      documento: CNPJ_AJE_DIGITOS,
+      tipo: "pj",
+    });
+    await criarDocumento(db, {
+      tipo: "nf_material",
+      valor: 4850,
+      classificacao: "material",
+      destinatario_cpf_ok: true,
+      status: "registrado",
+      favorecido_id: favorecido,
+      numero: "1042",
+      serie: "1",
+      data_emissao: "2026-03-20",
+    });
+
+    await irParaFormulario(page);
+    await preencherDocumentoBasico(page, {
+      tipo: "NF material",
+      emitente: "AJE Construções",
+      documento: CNPJ_AJE,
+      valor: "990,00",
+      numero: "1042",
+      // Série 2 do MESMO emitente: nota legítima e diferente. Avisar aqui
+      // treinaria o Mateus a ignorar o aviso que protege contra custo em
+      // dobro — número é único por emitente + série + modelo.
+      serie: "2",
+      dataEmissao: "2026-04-10",
+      arquivo: pdf("NF-1042-serie-2.pdf"),
+      noCpf: "Sim",
+    });
+
+    await expect(page.getByText(/Essa nota já foi registrada em/)).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Salvar registro" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Registrado ✓" }),
+    ).toBeVisible();
+
+    const gravados = await documentos(db);
+    expect(gravados).toHaveLength(2);
+    // A série entrou em campo PRÓPRIO — nunca grudada no número (R6).
+    const nova = gravados.find((d) => d.serie === "2");
+    expect(nova).toMatchObject({ numero: "1042", serie: "2" });
+  });
+
+  test("(critério 11) mesma nota do mesmo emitente AVISA e não bloqueia", async ({
+    page,
+    db,
+  }) => {
+    const favorecido = await criarFavorecido(db, {
+      nome: "AJE Construções",
+      documento: CNPJ_AJE_DIGITOS,
+      tipo: "pj",
+    });
+    await criarDocumento(db, {
+      tipo: "nf_servico",
+      valor: 18000,
+      classificacao: "mao_obra",
+      destinatario_cpf_ok: true,
+      retencao_11: true,
+      status: "registrado",
+      favorecido_id: favorecido,
+      numero: "1042",
+      serie: "1",
+      data_emissao: "2026-03-20",
+    });
+
+    await irParaFormulario(page);
+    await preencherDocumentoBasico(page, {
+      tipo: "NF serviço",
+      emitente: "AJE Construções",
+      documento: CNPJ_AJE,
+      valor: "18.000,00",
+      numero: "1042",
+      serie: "1",
+      dataEmissao: "2026-03-20",
+      arquivo: pdf("NF-1042-de-novo.pdf"),
+      noCpf: "Sim",
+    });
+    await escolher(page, "NF de serviço: tem retenção de 11%?", "Sim");
+
+    // Aviso ÂMBAR, com link para o registro que já existe.
+    await expect(page.getByText(/Essa nota já foi registrada em/)).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Ver registro existente" }),
+    ).toBeVisible();
+
+    // E NÃO bloqueia: número não é único globalmente, e recusar aqui
+    // impediria o registro de um fato consumado.
+    await page.getByRole("button", { name: "Salvar registro" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Registrado ✓" }),
+    ).toBeVisible();
+    expect(await documentos(db)).toHaveLength(2);
   });
 });
 

@@ -7,10 +7,8 @@
   fatia 1 em produção, a meta 2 do produto está fechada por uma trava minha.
   Este ticket é o pagamento dela — não uma melhoria."* (`po`)
 - **UI**: **SIM** — tela nova, *"Discriminação de {ano} — antes de declarar"`.
-  ⛔ **Gate 0 parcialmente satisfeito**: a **tela 4** do mock `CONTAI-025` v2
-  (aprovado 23/08) já cobre o essencial atrás de um seletor de fatia
-  (`design/mocks/CONTAI-025.md:71-72`). **Falta aprovação de uma frase alterada**
-  (o aviso vira incondicional — ver critério 6) antes do `/develop`
+  ✅ **Gate 0 satisfeito** — tela 4 do mock `CONTAI-025` v2 (23/08) + a
+  alteração do critério 6 aprovada em 2026-08-24
 - **Gate Fiscal**: **SIM, e FECHADO** — corpo + **ADENDO 2** de
   `docs/pareceres/2026-08-23-anexo-no-desembolso-do-terreno.md`
 - **Migration**: **NENHUMA**
@@ -235,9 +233,7 @@ as duas primeiras dropa o handoff em silêncio.
 
 ## Dependências
 
-- **Bloqueado por**: aprovação da alteração do critério 6 no mock
-  (`design/mocks/CONTAI-025.html`, s4) — troca de uma frase, não nova rodada de
-  `/design`
+- **Bloqueado por**: ~~aprovação da alteração do critério 6 no mock~~ ✅ **APROVADO em 2026-08-24**
 - **Bloqueia**: `CONTAI-004` (Bloco B completo) e `CONTAI-011` (pacote do
   dossiê) herdam a porta; nenhum dos dois é bloqueado por este ticket em si
 

@@ -120,6 +120,37 @@ pareceres e nos tickets primeiro. Fato da obra se consulta, não se pergunta.
   roda**.
 - Veredito: APROVADO / PRECISA MUDAR / REJEITADO
 
+## Regra dura — todo substantivo concreto vira critério, sem exceção
+
+*Instalada em 2026-08-24, depois de o mesmo defeito aparecer três vezes no
+mesmo dia: `chave_acesso` no `CONTAI-004` (achada pelo `cto-obra` lendo o
+ticket inteiro no Gate 2), `serie` no mesmo ticket (achada pelo `po` lendo o
+ticket inteiro no Gate 4 — e só depois de dois APPROVEs), e a segunda cópia da
+D46 no `CONTAI-029` (achada pelo `po`, também fora dos critérios numerados).
+"Três vezes é padrão, não coincidência."*
+
+**Toda coluna, campo, índice ou texto que a prosa do ticket promete — mesmo
+dentro de uma seção de "por que isto vale a pena" ou "ressalva" — vira
+critério numerado antes do Gate 1.** Prosa sem número é prosa que ninguém
+confere sistematicamente: cada revisor confere a lista, não o parágrafo.
+
+Antes de fechar o ticket, releia o corpo inteiro (não só os critérios que
+você acabou de escrever) e pergunte: *"todo substantivo concreto aqui tem um
+critério com o número dele?"* Se a resposta for prosa ("nasce como coluna",
+"é ressalva do contador"), ela vira linha numerada — mesmo que pareça óbvia.
+
+⚠️ **O furo não fecha só no `/tickets-req`, e a prova é o mesmo dia.** A
+`serie` foi achada faltando no Gate 4 (rodada 1) — retrofit aplicado. Mas a
+**regra de comparação de duplicidade** (série ausente × preenchida é
+identidade diferente, aceito de propósito) só apareceu depois, no Gate 2 da
+rodada 2, como comentário de código — e ficaria assim, "documentada", se o
+Gate 4 (rodada 2) não tivesse perguntado de novo. **Substantivo concreto
+descoberto DEPOIS do Gate 1 — em review, em teste, em Gate 4 — tem o mesmo
+destino: o ticket ganha um critério novo antes de fechar, nunca fica só no
+comentário do diff.** Comentário de código explica a regra para quem lê o
+código; critério de ticket é o que o Gate 4 confere. As duas coisas não são a
+mesma proteção, e só a segunda é *"antes de fechar"*.
+
 ## Formato de Saída
 
 ```markdown

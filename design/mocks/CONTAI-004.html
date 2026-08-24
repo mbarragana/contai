@@ -1,0 +1,435 @@
+<meta charset="utf-8">
+<title>contai — Mock CONTAI-004 · Nº/data da nota + CNO referenciado</title>
+<style>
+  :root{
+    --bd-bg:#d8d5cd; --bd-ink:#3a382f; --bd-mut:#6f6b60;
+    --paper:#faf9f6; --ink:#23221d; --mut:#716c61; --line:#e6e3da; --soft:#f1efe9;
+    --red:#b91c1c; --red-bg:#fbecec; --amb:#92600a; --amb-bg:#fdf3df; --grn:#15803d; --grn-bg:#e9f5ed;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bd-bg:#211f1b; --bd-ink:#e8e5dc; --bd-mut:#9b968a; }
+  }
+  :root[data-theme="dark"]{ --bd-bg:#211f1b; --bd-ink:#e8e5dc; --bd-mut:#9b968a; }
+  :root[data-theme="light"]{ --bd-bg:#d8d5cd; --bd-ink:#3a382f; --bd-mut:#6f6b60; }
+
+  *{box-sizing:border-box; margin:0}
+  body{background:var(--bd-bg); color:var(--bd-ink);
+    font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:24px 12px 48px; gap:16px}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-variant-numeric:tabular-nums}
+
+  /* ── barra de avaliação ─────────────────────────── */
+  .evalbar{max-width:760px; width:100%; text-align:center}
+  .evalbar h1{font-size:15px; font-weight:600}
+  .evalbar p{font-size:12.5px; color:var(--bd-mut); margin-top:2px}
+  .tabs{display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-top:12px}
+  .tab{border:1px solid color-mix(in srgb, var(--bd-ink) 25%, transparent); background:transparent;
+    color:var(--bd-ink); border-radius:999px; padding:4px 10px; font-size:12px; cursor:pointer}
+  .tab:hover{background:color-mix(in srgb, var(--bd-ink) 8%, transparent)}
+  .tab.on{background:var(--bd-ink); color:var(--bd-bg); border-color:var(--bd-ink)}
+  .tab:focus-visible,.btn:focus-visible{outline:2px solid var(--bd-ink); outline-offset:2px}
+
+  /* ── celular ────────────────────────────────────── */
+  .phone{width:375px; max-width:100%; height:740px; background:var(--paper); color:var(--ink);
+    border-radius:30px; border:6px solid #16150f; overflow:hidden; display:flex; flex-direction:column;
+    box-shadow:0 18px 40px rgba(0,0,0,.28)}
+  .screen{display:none; flex-direction:column; height:100%}
+  .screen.on{display:flex}
+  .appbar{padding:14px 18px 10px; border-bottom:1px solid var(--line); flex:none}
+  .appbar .brand{font-weight:700; font-size:16px; letter-spacing:-.01em}
+  .appbar .sub{font-size:11.5px; color:var(--mut); margin-top:1px}
+  .body{flex:1; overflow-y:auto; padding:16px 18px; display:flex; flex-direction:column; gap:12px}
+  .foot{flex:none; padding:12px 18px 18px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:8px}
+  .step{font-size:11px; color:var(--mut); text-transform:uppercase; letter-spacing:.08em}
+
+  .card{border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:#fff}
+  .card.tap{cursor:pointer} .card.tap:hover{background:var(--soft)}
+  .card.tap.sel{border-color:var(--ink); background:var(--soft)}
+  .chip{display:inline-block; font-size:11px; font-weight:600; border-radius:999px; padding:2px 9px}
+  .chip.red{color:var(--red); background:var(--red-bg)}
+  .chip.amb{color:var(--amb); background:var(--amb-bg)}
+  .chip.grn{color:var(--grn); background:var(--grn-bg)}
+  .consequencia{font-size:12.5px; margin-top:6px; padding:8px 10px; border-radius:8px}
+  .consequencia.red{background:var(--red-bg); color:var(--red)}
+  .consequencia.amb{background:var(--amb-bg); color:var(--amb)}
+
+  .btn{display:block; width:100%; text-align:center; border-radius:10px; padding:13px 14px;
+    font-size:14.5px; font-weight:600; cursor:pointer; border:1px solid transparent}
+  .btn.primary{background:var(--ink); color:var(--paper)}
+  .btn.primary.disabled{background:var(--soft); color:var(--bd-mut); cursor:not-allowed}
+  .btn.ghost{background:transparent; color:var(--ink); border-color:var(--line)}
+  .btn.danger-ghost{background:transparent; color:var(--red); border-color:var(--red-bg)}
+  .btn:hover{filter:brightness(1.12)}
+  .btn.sm{padding:8px 12px; font-size:13px; width:auto; display:inline-block}
+
+  .row{display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:9px 0; border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:none}
+  .row .lbl{font-size:12px; color:var(--mut); flex:none}
+  .row .val{font-size:13.5px; text-align:right}
+  .ok{color:var(--grn); font-weight:600}
+  .warn{color:var(--amb); font-weight:600}
+  .bad{color:var(--red); font-weight:600}
+
+  .hint{font-size:12px; color:var(--mut)}
+  .hint.erro{color:var(--red); font-weight:600}
+  .banner{border-radius:10px; padding:12px 14px; font-size:13.5px}
+  .banner.red{background:var(--red-bg); color:var(--red)}
+  .banner.amb{background:var(--amb-bg); color:var(--amb)}
+  .banner.grn{background:var(--grn-bg); color:var(--grn)}
+  .big{font-size:26px; font-weight:700; letter-spacing:-.02em}
+
+  .campo{display:flex; flex-direction:column; gap:4px}
+  .campo label{font-size:12px; color:var(--mut)}
+  .campo .inp{border:1px solid var(--line); border-radius:8px; padding:10px 12px; background:#fff; font-size:14px}
+  .campo .inp.vazio{color:#b3ada0}
+  .campo .inp.erro{border-color:var(--red); background:var(--red-bg)}
+  .obrig{color:var(--red)}
+  .linklike{text-decoration:underline; cursor:pointer}
+  .parecer{font-size:11px; color:var(--mut); margin-top:6px; font-style:italic}
+</style>
+
+<div class="evalbar">
+  <h1>Mock CONTAI-004 — Nº/data da nota + CNO referenciado</h1>
+  <p>Cobre <strong>CONTAI-004</strong> (número e data de emissão da nota) e <strong>CONTAI-007</strong>
+     (CNO referenciado na NF de serviço) — <strong>mesmo formulário, mesmo passe</strong>, por exigência do
+     critério 1 do CONTAI-004: os dois tickets mexem em <code>/adicionar/documento</code> (tela #s9 do
+     CONTAI-001), e duas levas de campo novo seriam duas levas de mock. Navegável: use as abas ou toque nos
+     botões das telas. Fidelidade média. Textos com consequência fiscal são cópia literal dos pareceres
+     citados no spec.</p>
+  <div class="tabs" id="tabs"></div>
+</div>
+
+<div class="phone">
+
+  <!-- 1 · FORMULÁRIO — NF DE SERVIÇO (caminho feliz: desta obra, tudo certo) -->
+  <section class="screen" id="s1">
+    <div class="appbar">
+      <div class="brand">Registrar documento</div>
+      <div class="sub">Passo 2 de 3 · NF de serviço · arquivo anexado ✓</div>
+    </div>
+    <div class="body">
+      <div class="row"><span class="lbl">Arquivo</span><span class="val ok">NF-AJE-1042.pdf ✓ no acervo</span></div>
+
+      <div class="campo">
+        <label>Tipo <span class="obrig">*</span></label>
+        <div class="inp">NF de serviço</div>
+      </div>
+
+      <div class="campo">
+        <label>Número da nota <span class="obrig">*</span></label>
+        <div class="inp mono">1042</div>
+        <div class="hint">Copie como está impresso — zeros à esquerda e letras contam. Nunca é normalizado.</div>
+      </div>
+
+      <div class="campo">
+        <label>Série <span class="hint">(quando houver)</span></label>
+        <div class="inp mono vazio">—</div>
+        <div class="hint">Campo próprio — nunca junto do número.</div>
+      </div>
+
+      <div class="campo">
+        <label>Data de emissão <span class="obrig">*</span></label>
+        <div class="inp mono">20/03/2026</div>
+        <div class="hint">Identifica a nota e a janela do CNO. <strong>Não decide o ano do custo</strong> —
+          quem decide é a data do pagamento.</div>
+      </div>
+
+      <div class="campo">
+        <label>Emitente <span class="obrig">*</span></label>
+        <div class="inp">AJE Construções Ltda</div>
+      </div>
+      <div class="campo">
+        <label>CNPJ <span class="obrig">*</span></label>
+        <div class="inp mono">11.222.333/0001-81</div>
+      </div>
+      <div class="campo">
+        <label>Valor <span class="obrig">*</span></label>
+        <div class="inp mono">R$ 18.000,00</div>
+      </div>
+      <div class="campo">
+        <label>Classificação <span class="obrig">*</span></label>
+        <div class="inp">Mão de obra e serviços</div>
+      </div>
+
+      <div class="row"><span class="lbl">A nota está no seu CPF?</span><span class="val ok">Sim ✓</span></div>
+      <div class="row"><span class="lbl">Retenção 11% INSS?</span><span class="val ok">Sim ✓</span></div>
+
+      <div class="campo">
+        <label>Qual CNO está impresso nesta nota? <span class="obrig">*</span></label>
+      </div>
+      <div class="card tap sel">
+        <div style="font-weight:600">É o CNO desta obra <span class="ok">✓ selecionado</span></div>
+        <div class="hint">Casa Cachoeira · CNO 12.345.67890/26</div>
+      </div>
+      <div class="card tap" onclick="go(5)">
+        <div style="font-weight:600">É o CNO de outra obra</div>
+        <div class="hint">A nota não abate a aferição desta obra</div>
+      </div>
+      <div class="card tap" onclick="go(7)">
+        <div style="font-weight:600">A nota não traz CNO</div>
+        <div class="hint">Salva com pendência — não bloqueia</div>
+      </div>
+      <div class="hint">Três opções tocáveis, zero digitação — o CNO não se digita aqui.</div>
+    </div>
+    <div class="foot">
+      <div class="step">Passo 3 de 3 ↓</div>
+      <button class="btn primary" onclick="go(8)">Salvar registro</button>
+      <button class="btn ghost">Voltar</button>
+    </div>
+  </section>
+
+  <!-- 2 · DATA DE EMISSÃO NO FUTURO (erro, mensagem própria) -->
+  <section class="screen" id="s2">
+    <div class="appbar">
+      <div class="brand">Registrar documento</div>
+      <div class="sub">Passo 2 de 3 · NF de serviço · arquivo anexado ✓</div>
+    </div>
+    <div class="body">
+      <div class="row"><span class="lbl">Arquivo</span><span class="val ok">NF-AJE-1042.pdf ✓ no acervo</span></div>
+      <div class="campo">
+        <label>Tipo <span class="obrig">*</span></label>
+        <div class="inp">NF de serviço</div>
+      </div>
+      <div class="campo">
+        <label>Número da nota <span class="obrig">*</span></label>
+        <div class="inp mono">1042</div>
+      </div>
+      <div class="campo">
+        <label>Data de emissão <span class="obrig">*</span></label>
+        <div class="inp mono erro">25/08/2026</div>
+        <div class="hint erro">Data de emissão não pode ser depois de hoje — documento não existe antes de ser
+          emitido.</div>
+      </div>
+      <div class="hint">(demais campos omitidos nesta tela — o foco é a validação nova; o resto do
+        formulário é igual à tela 1)</div>
+      <div class="banner red">Esta mensagem é <strong>própria</strong> desta validação — nunca reaproveita a
+        mensagem de data de pagamento futura. São regras diferentes: aqui é coerência documental
+        ("o documento existe?"); lá é regime de caixa.</div>
+      <div class="parecer">Fundamento literal: "Documento não existe antes de ser emitido" —
+        docs/pareceres/2026-08-16-gate-fiscal-contai-004-005.md, Parte 1, item 1 (Bloqueantes). Não confundir
+        com <code>data_pagamento &gt;= data_emissao</code>, que é PROIBIDA (R1) — o caso central do produto
+        é PIX mensal e NF consolidada meses depois.</div>
+    </div>
+    <div class="foot">
+      <button class="btn primary disabled">Salvar registro</button>
+      <div class="hint" style="text-align:center">Corrija a data de emissão para salvar.</div>
+    </div>
+  </section>
+
+  <!-- 3 · FORMULÁRIO — NF DE MATERIAL, COM AVISO DE DUPLICIDADE -->
+  <section class="screen" id="s3">
+    <div class="appbar">
+      <div class="brand">Registrar documento</div>
+      <div class="sub">Passo 2 de 3 · NF de material · arquivo anexado ✓</div>
+    </div>
+    <div class="body">
+      <div class="row"><span class="lbl">Arquivo</span><span class="val ok">NF-CASACONSTRUTOR-0089.pdf ✓ no acervo</span></div>
+      <div class="campo">
+        <label>Tipo <span class="obrig">*</span></label>
+        <div class="inp">NF de material</div>
+      </div>
+      <div class="campo">
+        <label>Número da nota <span class="obrig">*</span></label>
+        <div class="inp mono">000.089</div>
+        <div class="hint">Copie como está impresso — zeros à esquerda e letras contam. Nunca é normalizado.</div>
+      </div>
+      <div class="campo">
+        <label>Série <span class="hint">(quando houver)</span></label>
+        <div class="inp mono vazio">—</div>
+      </div>
+      <div class="campo">
+        <label>Data de emissão <span class="obrig">*</span></label>
+        <div class="inp mono">15/03/2026</div>
+        <div class="hint">Identifica a nota. <strong>Não decide o ano do custo</strong> — quem decide é a
+          data do pagamento.</div>
+      </div>
+      <div class="campo">
+        <label>Emitente <span class="obrig">*</span></label>
+        <div class="inp">Casa do Construtor Ltda</div>
+      </div>
+      <div class="campo">
+        <label>CNPJ <span class="obrig">*</span></label>
+        <div class="inp mono">12.345.678/0001-90</div>
+      </div>
+
+      <div class="banner amb">Essa nota já foi registrada em <strong>15/03</strong>.
+        <span class="linklike">Ver registro existente</span></div>
+      <div class="hint">Aviso, não bloqueio — mesmo <strong>número + emitente</strong> (e série, quando
+        houver) já existe nesta obra. Não há unicidade global de número: ele é único por emitente + série +
+        modelo.</div>
+
+      <div class="campo">
+        <label>Valor <span class="obrig">*</span></label>
+        <div class="inp mono">R$ 4.850,00</div>
+      </div>
+      <div class="campo">
+        <label>Classificação <span class="obrig">*</span></label>
+        <div class="inp">Material de construção</div>
+      </div>
+      <div class="row"><span class="lbl">A nota está no seu CPF?</span><span class="val ok">Sim ✓</span></div>
+    </div>
+    <div class="foot">
+      <div class="step">Passo 3 de 3 ↓</div>
+      <button class="btn primary" onclick="go(8)">Salvar registro</button>
+      <button class="btn ghost">Voltar</button>
+    </div>
+  </section>
+
+  <!-- 4 · FORMULÁRIO — BOLETO (número/data não perguntados) -->
+  <section class="screen" id="s4">
+    <div class="appbar">
+      <div class="brand">Registrar documento</div>
+      <div class="sub">Passo 2 de 3 · Boleto · arquivo anexado ✓</div>
+    </div>
+    <div class="body">
+      <div class="row"><span class="lbl">Arquivo</span><span class="val ok">boleto-aje-092026.pdf ✓ no acervo</span></div>
+      <div class="campo">
+        <label>Tipo <span class="obrig">*</span></label>
+        <div class="inp">Boleto</div>
+      </div>
+      <div class="campo">
+        <label>Beneficiário <span class="obrig">*</span></label>
+        <div class="inp">AJE Construções</div>
+      </div>
+      <div class="campo">
+        <label>CNPJ <span class="obrig">*</span></label>
+        <div class="inp mono">98.765.432/0001-10</div>
+      </div>
+      <div class="campo">
+        <label>Valor <span class="obrig">*</span></label>
+        <div class="inp mono">R$ 25.000,00</div>
+      </div>
+      <div class="campo">
+        <label>Vencimento <span class="obrig">*</span></label>
+        <div class="inp mono warn">15/09/2026</div>
+      </div>
+      <div class="hint">Número e data de emissão <strong>não são pedidos</strong> para boleto — ele não é
+        documentação hábil e não compõe a discriminação anual. O campo obrigatório do boleto continua sendo o
+        vencimento.</div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" onclick="go(8)">Confirmar — lembrar do vencimento</button>
+      <button class="btn ghost">Voltar</button>
+    </div>
+  </section>
+
+  <!-- 5 · BLOQUEIO — CNO DE OUTRA OBRA -->
+  <section class="screen" id="s5">
+    <div class="appbar">
+      <div class="brand">CNO impresso é de outra obra</div>
+      <div class="sub">NF de serviço 1042 · AJE Construções · Casa Cachoeira</div>
+    </div>
+    <div class="body">
+      <div class="card" style="border-color:var(--red)">
+        <span class="chip red">Bloqueado — não é aviso</span>
+        <p style="margin-top:10px; font-size:13.5px">
+          <strong>Esta nota não abate a aferição desta obra.</strong> Sem a aferição fechada não há
+          regularização, e sem regularização a construção não é averbada na matrícula.
+        </p>
+      </div>
+      <div class="hint">A nota continua sendo <strong>documentação hábil para o custo de aquisição no
+        IRPF</strong> — o que ela não faz é reduzir a base de INSS de uma obra que ela não referencia. Por
+        isso o registro é barrado aqui, e não vira pendência: não há conserto depois da emissão.</div>
+      <div class="parecer">Texto copiado literalmente de docs/tickets/CONTAI-007.md, critério 2 — não
+        reescrever. Erro de CNO não é erro de imposto: é impedimento de venda (parecer 2026-08-09).</div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" onclick="go(6)">Registrar na outra obra</button>
+      <button class="btn ghost" onclick="go(1)">Voltar e corrigir a resposta</button>
+    </div>
+  </section>
+
+  <!-- 6 · TROCAR OBRA (saída real, pre-mortem 2 do CONTAI-007; mesmo padrão do #s12 do CONTAI-003) -->
+  <section class="screen" id="s6">
+    <div class="appbar">
+      <div class="brand">Trocar obra</div>
+      <div class="sub">Este registro vai para a obra do CNO impresso na nota</div>
+    </div>
+    <div class="body">
+      <div class="card tap sel" onclick="go(8)">
+        <div style="font-weight:600">Terreno Vista Mar <span class="ok">✓ é este CNO</span></div>
+        <div class="hint mono">CNO 08.765.43210/26</div>
+      </div>
+      <div class="card tap" onclick="go(5)">
+        <div style="font-weight:600">Casa Cachoeira</div>
+        <div class="hint mono">CNO 12.345.67890/26 · obra atual</div>
+      </div>
+      <div class="hint">Escape sem sair do formulário: você volta para o mesmo registro, com a obra trocada.
+        O que for salvo usa a obra que estava na tela — não a preferência guardada no aparelho.</div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" onclick="go(5)">Cancelar</button>
+    </div>
+  </section>
+
+  <!-- 7 · SALVO COM PENDÊNCIA — NOTA NÃO TRAZ CNO -->
+  <section class="screen" id="s7">
+    <div class="appbar">
+      <div class="brand">Registrado — com pendência</div>
+      <div class="sub">NF de serviço 1078 · AJE Construções · Casa Cachoeira</div>
+    </div>
+    <div class="body">
+      <div class="banner amb"><strong>Salvo.</strong> A nota não traz CNO impresso — nunca em branco
+        silencioso: a pendência foi criada.</div>
+      <div class="card">
+        <div class="row"><span class="lbl">Documento</span><span class="val">NF de serviço 1078</span></div>
+        <div class="row"><span class="lbl">Emissão</span><span class="val mono">18/04/2026</span></div>
+        <div class="row"><span class="lbl">Valor</span><span class="val mono">R$ 22.500,00</span></div>
+      </div>
+      <div class="consequencia amb">
+        <strong>Esta nota não abate a aferição desta obra.</strong> Sem a aferição fechada não há
+        regularização, e sem regularização a construção não é averbada na matrícula.
+      </div>
+      <div class="hint">A nota continua valendo integralmente como custo de aquisição no IRPF. A pendência
+        some ao conjunto de pendências desta obra — ação sugerida: <strong>pedir nota com o CNO ao
+        prestador</strong>.</div>
+      <div class="parecer">Mesmo texto de consequência do bloqueio (critério 3 do CONTAI-007) — a diferença
+        entre bloquear e apenas registrar pendência é se ainda há conserto: aqui há (pedir a nota certa),
+        lá não. Ação sugerida: critério 4 do CONTAI-007.</div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" onclick="go(1)">Entendi — manter registro</button>
+    </div>
+  </section>
+
+  <!-- 8 · REGISTRADO ✓ -->
+  <section class="screen" id="s8">
+    <div class="appbar"><div class="brand">Registrado ✓</div><div class="sub">Passo 3 de 3 — pronto</div></div>
+    <div class="body">
+      <div class="banner grn"><strong>Salvo.</strong> Arquivo guardado no acervo — nada se apaga.</div>
+      <div class="card">
+        <div class="row"><span class="lbl">Documento</span><span class="val">NF de serviço 1042</span></div>
+        <div class="row"><span class="lbl">Emitente</span><span class="val">AJE Construções Ltda</span></div>
+        <div class="row"><span class="lbl">Valor</span><span class="val mono">R$ 18.000,00</span></div>
+        <div class="row"><span class="lbl">Nº / emissão</span><span class="val mono">1042 · 20/03/2026</span></div>
+        <div class="row"><span class="lbl">CNO</span><span class="val ok">Desta obra ✓</span></div>
+      </div>
+      <div class="hint">Número, data de emissão e CNO referenciado também aparecem no detalhe do documento
+        (<code>/documento/[id]</code>) — critério 9 do CONTAI-004. Ver spec: essa tela não tem mock aprovado
+        ainda, então este mock só documenta o bloco em ASCII.</div>
+    </div>
+    <div class="foot"><button class="btn primary" onclick="go(1)">Voltar ao início</button></div>
+  </section>
+
+</div>
+
+<script>
+  const telas = [
+    [1,"NF serviço — feliz"],[2,"Emissão futura (erro)"],[3,"NF material — duplicidade"],
+    [4,"Boleto"],[5,"CNO de outra obra (bloqueio)"],[6,"Trocar obra"],
+    [7,"Sem CNO (pendência)"],[8,"Registrado ✓"]
+  ];
+  const tabs = document.getElementById("tabs");
+  telas.forEach(([n,nome])=>{
+    const b=document.createElement("button");
+    b.className="tab"; b.textContent=`${n} · ${nome}`; b.id=`t${n}`;
+    b.onclick=()=>go(n); tabs.appendChild(b);
+  });
+  function go(n){
+    document.querySelectorAll(".screen").forEach(s=>s.classList.remove("on"));
+    document.querySelectorAll(".tab").forEach(t=>t.classList.remove("on"));
+    document.getElementById(`s${n}`).classList.add("on");
+    document.getElementById(`t${n}`).classList.add("on");
+  }
+  go(1);
+</script>

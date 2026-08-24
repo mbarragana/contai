@@ -91,6 +91,12 @@ function rowDocumento(over: Partial<DocumentoRow & ComFavorecido> = {}): Documen
     tipo: "nf_material",
     status: "registrado",
     valor: 4850,
+    numero: "1042",
+    serie: null,
+    data_emissao: "2026-03-20",
+    // Coluna criada pelo CONTAI-004 e preenchida só pela US-008: nasce vazia,
+    // e o mapeamento nem a conhece — nada no app a lê ou escreve hoje.
+    chave_acesso: null,
     vencimento: "2026-03-20",
     classificacao: "material",
     destinatario_cpf_ok: true,

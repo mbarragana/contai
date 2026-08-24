@@ -926,7 +926,7 @@ function RegistrarPagamento() {
 
       {registro.fase === "pronta" ? (
         <Rodape>
-          <Passo>{vaiAgendar ? "Nada sai da conta hoje ↓" : "Interação 3 de 3 ↓"}</Passo>
+          <Passo>{vaiAgendar ? "Nada sai da conta hoje ↓" : "Passo 3 de 3 ↓"}</Passo>
           {/* MUDANÇA 3 DAS TRÊS: o botão troca de VERBO e de PESO. "Salvar
               pagamento" (primary) vira "Agendar" (ghost) — o agendamento não
               é o ato de peso da tela, e o verbo diferente é a última chance de

@@ -17,7 +17,7 @@ import { AppBar, BotaoLink, Corpo, Dica, Rodape } from "@/app/_components/ui";
 export default function Adicionar() {
   return (
     <>
-      <AppBar titulo="Adicionar" sub="Interação 1 de 3" />
+      <AppBar titulo="Adicionar" sub="Passo 1 de 3" />
       <Corpo>
         <BotaoLink href="/adicionar/documento" variante="primary">
           📄 Documento — PDF, XML ou foto

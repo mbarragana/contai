@@ -110,6 +110,26 @@ export interface Documento {
   tipo: TipoDocumento;
   status: StatusDocumento;
   valorCentavos: number | null;
+  /**
+   * Número impresso na nota — LITERAL (CONTAI-004, R2). `null` só em boleto
+   * (não é perguntado) e em registro anterior ao ticket, que vira pendência
+   * âmbar: sem ele a discriminação anual não identifica a nota.
+   */
+  numero: string | null;
+  /**
+   * Série da nota — campo próprio, nunca concatenada no número (R6). `null`
+   * quando a nota não tem série, que é o comum na NFS-e municipal.
+   */
+  serie: string | null;
+  /**
+   * Data de emissão da nota (ISO).
+   *
+   * ⚠️ **Não é o ano do custo.** Governa identificação, janela sem CNO e
+   * competência da aferição do INSS; o ano-calendário do custo é o de
+   * `Pagamento.dataPagamento` — regime de caixa, e nenhum relatório anual é
+   * filtrado ou ordenado por esta data (parecer 2026-08-16, Parte 1, §3).
+   */
+  dataEmissao: string | null;
   vencimento: string | null;
   classificacao: Classificacao | null;
   destinatarioCpfOk: boolean;

@@ -1,5 +1,3 @@
-import type { Page } from "@playwright/test";
-
 import {
   OBRA_ID_SEED,
   URL_SUPABASE_LOCAL,
@@ -17,6 +15,7 @@ import {
   type Db,
 } from "./banco";
 import { expect, test } from "./fixtures";
+import { escolher, preencherDocumentoBasico } from "./formularios";
 
 /**
  * O vínculo pagamento↔documento contra o Postgres LOCAL (critério 16 do
@@ -46,13 +45,6 @@ function pdf(nome: string) {
     mimeType: "application/pdf",
     buffer: Buffer.from(`%PDF-1.4 ${nome}`),
   };
-}
-
-async function escolher(page: Page, grupo: string, opcao: string) {
-  await page
-    .getByRole("group", { name: grupo })
-    .getByText(opcao, { exact: true })
-    .click();
 }
 
 /** A NF da WK e o PIX correspondente, os dois soltos — o estado de hoje. */
@@ -230,12 +222,17 @@ test.describe("caminho A — vínculo no ato do registro", () => {
     });
 
     await page.goto("/adicionar/documento");
-    await page.getByLabel("Arquivo").setInputFiles(pdf("NF-WK-3000.pdf"));
-    await escolher(page, "Tipo", "NF serviço");
-    await page.getByLabel("Emitente", { exact: true }).fill("WK Construções LTDA");
-    await page.getByLabel("CNPJ / CPF do emitente").fill(CNPJ_WK);
-    await page.getByLabel("Valor").fill("3.000,00");
-    await escolher(page, "A nota está no seu CPF?", "Sim");
+    await preencherDocumentoBasico(page, {
+      tipo: "NF serviço",
+      emitente: "WK Construções LTDA",
+      documento: CNPJ_WK,
+      valor: "3.000,00",
+      // Bloqueantes desde o CONTAI-004 — inclusive no caminho A do vínculo.
+      numero: "3000",
+      dataEmissao: "2026-05-04",
+      arquivo: pdf("NF-WK-3000.pdf"),
+      noCpf: "Sim",
+    });
     await escolher(page, "NF de serviço: tem retenção de 11%?", "Sim");
 
     await page.getByRole("checkbox", { name: "Já paguei esta nota" }).check();
@@ -284,14 +281,18 @@ test.describe("caminho A — vínculo no ato do registro", () => {
     });
 
     await page.goto("/adicionar/documento");
-    await page.getByLabel("Arquivo").setInputFiles(pdf("NF-DEPOSITO.pdf"));
-    await escolher(page, "Tipo", "NF material");
-    await page
-      .getByLabel("Emitente", { exact: true })
-      .fill("Depósito Cachoeira ME");
-    await page.getByLabel("CNPJ / CPF do emitente").fill("11.444.777/0001-61");
-    await page.getByLabel("Valor").fill("800,00");
-    await escolher(page, "A nota está no seu CPF?", "Não");
+    // ⚠️ Quarentena TAMBÉM exige número e data (R5 do CONTAI-004): é a nota
+    // errada que precisa ser identificada para ser cancelada e reemitida.
+    await preencherDocumentoBasico(page, {
+      tipo: "NF material",
+      emitente: "Depósito Cachoeira ME",
+      documento: "11.444.777/0001-61",
+      valor: "800,00",
+      numero: "800",
+      dataEmissao: "2026-05-04",
+      arquivo: pdf("NF-DEPOSITO.pdf"),
+      noCpf: "Não",
+    });
 
     await page.getByRole("checkbox", { name: "Já paguei esta nota" }).check();
     // O texto do parecer é dito na hora do vínculo, não depois.
@@ -366,14 +367,18 @@ test.describe("caminho A — vínculo no ato do registro", () => {
     );
 
     await page.goto("/adicionar/documento");
-    await page.getByLabel("Arquivo").setInputFiles(pdf("NF-DEPOSITO.pdf"));
-    await escolher(page, "Tipo", "NF material");
-    await page
-      .getByLabel("Emitente", { exact: true })
-      .fill("Depósito Cachoeira ME");
-    await page.getByLabel("CNPJ / CPF do emitente").fill("11.444.777/0001-61");
-    await page.getByLabel("Valor").fill("800,00");
-    await escolher(page, "A nota está no seu CPF?", "Não");
+    // ⚠️ Quarentena TAMBÉM exige número e data (R5 do CONTAI-004): é a nota
+    // errada que precisa ser identificada para ser cancelada e reemitida.
+    await preencherDocumentoBasico(page, {
+      tipo: "NF material",
+      emitente: "Depósito Cachoeira ME",
+      documento: "11.444.777/0001-61",
+      valor: "800,00",
+      numero: "800",
+      dataEmissao: "2026-05-04",
+      arquivo: pdf("NF-DEPOSITO.pdf"),
+      noCpf: "Não",
+    });
 
     await page.getByRole("checkbox", { name: "Já paguei esta nota" }).check();
     const candidato = page
