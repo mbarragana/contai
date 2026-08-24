@@ -57,40 +57,40 @@ esse comentário e o trecho da migration `0008`.
        `design/mocks/CONTAI-025.html` + `.md`. Aprovado depois da revisão de cor
        (D39 revisada), do chip único no estado combinado e da remoção da linha de
        titularidade repartida (→ D53)
-2. [ ] Desembolso `pago` **grava** nas **quatro combinações**: com/sem data ×
+2. [x] Desembolso `pago` **grava** nas **quatro combinações**: com/sem data ×
        com/sem comprovante. E2E cobrindo as quatro, conferindo o estado gravado
        (`data_pagamento` nulo, zero linhas em `terreno_desembolso_anexo`), no
        padrão de `e2e/ingestao.spec.ts:439`
-3. [ ] A trava `anexos.length === 0` (`desembolsos/page.tsx:244`) sai, **e o
+3. [x] A trava `anexos.length === 0` (`desembolsos/page.tsx:244`) sai, **e o
        comentário que a carimbava também**
-4. [ ] Data e comprovante continuam **perguntados e sem default** (§1.4.2;
+4. [x] Data e comprovante continuam **perguntados e sem default** (§1.4.2;
        critério 22 do `CONTAI-010` intocado): nenhum caminho preenche data — nem
        `created_at`, nem hoje. A ausência **não bloqueia**
-5. [ ] **`papel` continua obrigatório para o anexo que EXISTIR** (critério 14 do
+5. [x] **`papel` continua obrigatório para o anexo que EXISTIR** (critério 14 do
        `CONTAI-027`): zero anexo grava; anexo sem papel respondido, não
-6. [ ] **`previsto` nunca é oferecido como SAÍDA** (§1.4.1): nenhum texto, ajuda
+6. [x] **`previsto` nunca é oferecido como SAÍDA** (§1.4.1): nenhum texto, ajuda
        ou erro sugere marcar *"ainda não paguei"* a quem já disse que pagou —
        isso tiraria o custo de **todo** ano-calendário, e é **pior** que a trava.
        `previsto` continua ofertado no formulário: é estado legítimo (ITBI a
        recolher)
-7. [ ] **D50, nesta mesma entrega.** `custoTerrenoAteOAno` e `custoTerrenoDoAno`
+7. [x] **D50, nesta mesma entrega.** `custoTerrenoAteOAno` e `custoTerrenoDoAno`
        (`lib/fiscal/terreno.ts:258,275`) hoje somam por `estado === "pago"` +
        `dataPagamento`, **sem olhar anexo**. Passam a exigir comprovante. Testes
        unitários afirmando **cada "não"**, no padrão de `terrenoSemData`
-8. [ ] **O portão é o papel `comprovante`, não anexo qualquer** —
+8. [x] **O portão é o papel `comprovante`, não anexo qualquer** —
        `comprovantesDe(d).length > 0`. **Fonte: §2.1** do parecer
        (*"soma apenas desembolso pago, com data e com comprovante"*).
        ⚠️ **`pagoSemPapel` NÃO pode ser reaproveitado**: ele é
        `anexos.length === 0`, subconjunto estrito — trocá-lo por dentro
        reintroduz a **D49 invertida**. Predicado **novo**, ao lado dele
-9. [ ] **Card do ano mostra DOIS números** — confirmado (principal) e, logo
+9. [x] **Card do ano mostra DOIS números** — confirmado (principal) e, logo
        abaixo, nomeado e vermelho, o registrado sem comprovante. **Não é
        cortável**: sem ele a D50 faz o total encolher em silêncio, e o §2.4 diz
        que *"excluído em silêncio é tão ruim quanto incluído em silêncio"*
-10. [ ] **Duas pendências independentes e SIMULTÂNEAS** no mesmo lançamento,
+10. [x] **Duas pendências independentes e SIMULTÂNEAS** no mesmo lançamento,
         ordem **data → comprovante** (§4 do gate abaixo), com **uma** consequência
         e nunca dois blocos empilhados. Teste do caso duplo
-11. [ ] **Superfície (US-C, fatia terreno)**: campo próprio no `ResumoObra`, no
+11. [x] **Superfície (US-C, fatia terreno)**: campo próprio no `ResumoObra`, no
         padrão de `terrenoSemData`/`terrenoMaisDeUmaData`
         (`lib/fiscal/resumo.ts:249`) — **fora** de `custoConfirmadoAnoCentavos`,
         de `pendencias` e de `emPendenciaCentavos` (critério 21 do `CONTAI-010`),
@@ -99,28 +99,28 @@ esse comentário e o trecho da migration `0008`.
         aberta*; o dinheiro saiu), com **valor total + contagem** e link para a
         lista. Hoje `pagoSemPapel` só existe **dentro da linha**
         (`terreno/page.tsx:382`): é a **D47** com outro nome
-12. [ ] **Textos COPIADOS do parecer, não redigidos**: chip **§4.1**, texto da
+12. [x] **Textos COPIADOS do parecer, não redigidos**: chip **§4.1**, texto da
         pendência **§4.2**, linha auxiliar **§4.3** — esta exibida **junto da
         pendência** *e* **no momento de escolher o papel** (ver defeito derivado
         no gate). Constantes em `lib/fiscal/terreno.ts`, com teste de string
-13. [ ] **A mensagem de sucesso não pode mentir.** Hoje
+13. [x] **A mensagem de sucesso não pode mentir.** Hoje
         `desembolsos/page.tsx:397` afirma *"Data informada — o valor passa a
         compor o custo de {ano}"*, escolhida só por `faltaData`, ignorando o
         comprovante. Dois textos, no gate abaixo
-14. [ ] **Baixa sem tela nova**: `completarDesembolsoTerreno` (critério 9b do
+14. [x] **Baixa sem tela nova**: `completarDesembolsoTerreno` (critério 9b do
         `CONTAI-027`, mock `s2d`) já anexa depois — é o caminho de baixa dos dois
         eixos, com mais um uso
-15. [ ] **Critério 3 do `CONTAI-010` reescrito, não contornado**: *"valor sem
+15. [x] **Critério 3 do `CONTAI-010` reescrito, não contornado**: *"valor sem
         data não entra em ano nenhum; valor sem comprovante não entra no custo
         confirmado; nenhum dos dois recusa a gravação"*
-16. [ ] ⛔ **GUARDA DA FATIA 2**: enquanto o critério 17 não entrar, **nenhuma
+16. [x] ⛔ **GUARDA DA FATIA 2**: enquanto o critério 17 não entrar, **nenhuma
         saída anual é gerada** existindo desembolso pago-sem-comprovante — falha
         **nomeada**, nunca número mudo. É o antídoto do padrão que já produziu a
         D47 nesta base
 
 ### Fatia 2 — saídas anuais
 
-17. [ ] Linha nomeada do **§4.5** logo abaixo do total no relatório anual
+17. [ ] **→ `CONTAI-036`** (fatia 2). Linha nomeada do **§4.5** logo abaixo do total no relatório anual
         (critério 20 do `CONTAI-010`) e destaque na revisão pré-declaração.
         **O app NÃO suprime** da discriminação de Bens e Direitos um custo pago e
         real (§2.1): mostra os dois números, e a escolha é do Mateus com o
@@ -369,3 +369,38 @@ documento hábil e produziu **nenhum registro** — o app não tem pagamento sem
 documento porque não tem pagamento nenhum.
 
 **Veredito: APROVADO, P0**, condicionado ao mock.
+
+
+## Log de gates — fatia 1
+
+| Gate | Resultado | Hash | Data |
+|---|---|---|---|
+| **0 — proposta** | mock **v2** aprovado pelo Mateus (o `.md` foi a v2.1 depois: 3 textos, zero mudança de layout) | `46a02aa` | 23/08 |
+| **1 — implementar** | DONE, **3 rodadas** | `9351450` | 23-24/08 |
+| **2 — review** | `REQUEST CHANGES` do `cto-obra` + `APROVADO com 3 pendências` do `contador` → **APPROVE dos dois**, e **APPROVE dos dois sobre o diff final** | `9351450` | 24/08 |
+| **3 — testes** | PASS — reprovou com 2 vermelhos e os dois foram resolvidos **sem suposição**. 534 unitários, 138 E2E, `EXIT=0` | `9351450` | 24/08 |
+| **4 — `po`** | **PASS, 16/16** | `9351450` | 24/08 |
+
+**Campo obrigatório — "Arquivos alterados após o último APPROVE"**: houve lista
+(teste, constante, mock `.md`, ticket), e **as duas linhas foram pedidas e
+obtidas** — `cto-obra`: *"nada de produção mudou desde o meu APPROVE"*;
+`contador`: *"Gate Fiscal fechado; a fatia 2 continua travada pelo critério 16,
+agora com portão real"*.
+
+### Desvios deliberados, registrados a pedido do `po`
+
+1. **`desembolsosTerreno` obrigatório** em `podeGerarRelatorioAnual` — o `po`
+   chamou de *"a coisa mais valiosa do diff"*: opcional **satisfaz o compilador**
+   para quem escrever a fatia 2 sem ter lido este ticket. ⚠️ **Residual**:
+   `podeGerarRelatorioAnual(cs, hoje, ano, [])` typecheca e devolve `ok:true` —
+   **eleva a barra, não fecha a porta**. O `CONTAI-036` herda isso por escrito
+2. **`TerrenoPagoSemComprovante` sem campos de texto** — o critério 11 mandava
+   seguir *"o padrão de `terrenoSemData`"*, que carrega `consequencia` **por
+   herança, não por decisão**. Copiar criaria o segundo caminho para um texto
+   fiscal (D46). **Cumprido com desvio deliberado**, travado por asserção
+
+### Residual do critério 16, herdado pelo `CONTAI-036`
+
+A blindagem varre **por arquivo, não por símbolo**: um arquivo que já mencione a
+porta passa mesmo ganhando um gerador novo que não a chame. Hoje é teórico — só
+`compromisso.ts` casa —, e deixa de ser no dia em que a tela do relatório existir.
