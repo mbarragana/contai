@@ -46,6 +46,13 @@ Telas: 13   Aprovado pelo Mateus em 2026-08-21 (v1)
 - "Falta a data" (chip) + "Sem a data, este valor não tem ano-calendário e a discriminação não pode ser gerada." — s3
 - "Não dá para dispensar, adiar ou esconder. Ela fecha quando o fato mudar — e hoje, honestamente, não fecha. Pendência fiscal baixada por declaração de intenção é o mesmo defeito do campo preenchido que afirma o que ninguém conferiu, com um botão na frente." — s3
 - Regra de cor (nova, do `po` em 21/08): "**vermelho = fato consumado com consequência fiscal aberta; âmbar = nada saiu ainda**" — s3
+- ⚠️ **NOTA DE 2026-08-23 — o HTML deste mock NÃO foi reescrito, e a cor de "Falta a data" nele está
+  SUPERADA.** O `po` fechou a régua por extenso: *saiu? → tem apoio hábil no ano certo? → não = vermelho*,
+  binária, **sem terceiro nível**. Por ela, o chip **"Falta a data" é VERMELHO**, não cinza — o desembolso
+  está pago e o valor não cai em ano nenhum. O `s3` deste arquivo (aprovado pelo Mateus em 21/08) segue
+  mostrando cinza; **o carimbo válido é o mock do CONTAI-025 v2**, e é ele que o `/develop` obedece neste
+  ponto. Quem implementar: não copie a cor daqui. As outras cinco divergências de cor do inventário
+  (inclusive "Pago sem comprovante" em âmbar no PJ do CONTAI-019) são o **CONTAI-035**.
 - "**O link de leitura é temporário e só seu.** O acervo é privado: nada aqui vira endereço público, e o link expira sozinho." — s1
 - "**O valor aparece uma vez só, no desembolso — nunca por papel.** Dois papéis não são dois custos." — s1
 - "**Dois comprovantes, um custo.** O limite do PIX quebrou a transferência; não quebrou o desembolso." — s2b

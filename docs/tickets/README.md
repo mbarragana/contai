@@ -20,7 +20,8 @@ Atualizado em 2026-08-23.*
 | 6 | **009** | Detalhe do pagamento | **P0** |
 | 7 | **005** | Headline da home | **P0** |
 | 8 | **031** | E2E da condição fiscal 6 | P1 |
-| 9 | **034** | **Campo fiscal não nasce preenchido, e o teste prova** | P1 |
+| 9 | **035** | **Reconciliar a régua de cor com a D39 revisada** | P1 |
+| 10 | **034** | **Campo fiscal não nasce preenchido, e o teste prova** | P1 |
 | 9 | **014** | Manifest de PWA + prova no aparelho | P1 |
 | 10 | **006** | Estados de rede lenta/indisponível | P1 |
 

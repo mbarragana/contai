@@ -1,0 +1,902 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>contai — Mock CONTAI-025 v2 · Registrar o desembolso sem data, sem comprovante, ou sem os dois</title>
+<style>
+  :root{
+    --bd-bg:#d8d5cd; --bd-ink:#3a382f; --bd-mut:#6f6b60;
+    --paper:#faf9f6; --ink:#23221d; --mut:#716c61; --line:#e6e3da; --soft:#f1efe9;
+    --red:#b91c1c; --red-bg:#fbecec; --amb:#92600a; --amb-bg:#fdf3df; --grn:#15803d; --grn-bg:#e9f5ed;
+    --blu:#1d4ed8; --blu-bg:#eaeffb;
+  }
+  @media (prefers-color-scheme: dark){ :root{ --bd-bg:#211f1b; --bd-ink:#e8e5dc; --bd-mut:#9b968a; } }
+  :root[data-theme="dark"]{ --bd-bg:#211f1b; --bd-ink:#e8e5dc; --bd-mut:#9b968a; }
+  :root[data-theme="light"]{ --bd-bg:#d8d5cd; --bd-ink:#3a382f; --bd-mut:#6f6b60; }
+
+  *{box-sizing:border-box; margin:0}
+  body{background:var(--bd-bg); color:var(--bd-ink);
+    font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:24px 12px 48px; gap:16px}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-variant-numeric:tabular-nums}
+  code{overflow-wrap:anywhere; word-break:break-word}
+
+  .evalbar{max-width:820px; width:100%}
+  .evalbar h1{font-size:15px; font-weight:600; text-align:center}
+  .evalbar p{font-size:12.5px; color:var(--bd-mut); margin-top:4px; text-align:center}
+  .grupo{font-size:11px; color:var(--bd-mut); text-transform:uppercase; letter-spacing:.08em;
+    width:100%; text-align:left; margin:10px 0 -2px}
+  .tabs{display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-start; margin-top:4px}
+  .tab{border:1px solid color-mix(in srgb, var(--bd-ink) 25%, transparent); background:transparent;
+    color:var(--bd-ink); border-radius:999px; padding:4px 10px; font-size:12px; cursor:pointer; font-family:inherit}
+  .tab:hover{background:color-mix(in srgb, var(--bd-ink) 8%, transparent)}
+  .tab.on{background:var(--bd-ink); color:var(--bd-bg); border-color:var(--bd-ink)}
+  .tab:focus-visible,.btn:focus-visible,.inp:focus-visible,.lnk:focus-visible,.opt:focus-visible,
+  .fake-file:focus-within{outline:2px solid var(--bd-ink); outline-offset:2px}
+
+  /* ╔══════════════════════════════════════════════════════════════════════╗
+     ║  APROVAÇÃO — para aprovar são TRÊS edições, todas obrigatórias:       ║
+     ║   1. class="aprov nao"  →  class="aprov sim"                          ║
+     ║   2. o TEXTO de dentro  →  "Mock APROVADO pelo Mateus em AAAA-MM-DD"  ║
+     ║   3. o card deste mock em design/mocks/index.html (linha "Status:")   ║
+     ╚══════════════════════════════════════════════════════════════════════╝ */
+  .aprov{max-width:820px; width:100%; border-radius:10px; padding:10px 14px; font-size:12.5px;
+    text-align:center; font-weight:600}
+  .aprov.nao{background:var(--amb-bg); color:var(--amb); border:1px dashed var(--amb)}
+  .aprov.sim{background:var(--grn-bg); color:var(--grn); border:1px solid var(--grn)}
+  .novo{border:1px solid var(--bd-ink); border-radius:10px; padding:11px 14px; font-size:12.5px;
+    line-height:1.5; margin-top:10px}
+  .novo ul{margin:6px 0 0 17px; padding:0}
+  .novo li{margin-top:5px}
+
+  /* ── CONTROLES DE SIMULAÇÃO — FORA do quadro da tela ────────────────────
+     Nada aqui é componente do app. Só força estados que um arquivo estático
+     não produz sozinho. Na tela 2 o anexo é <input type="file" multiple> DE
+     VERDADE: escolher arquivo muda o rótulo do Gravar de verdade.          */
+  .simbar{max-width:820px; width:100%; border:2px dashed var(--bd-mut); border-radius:12px;
+    padding:11px 14px; display:flex; flex-wrap:wrap; gap:14px; align-items:center;
+    background:color-mix(in srgb, var(--bd-ink) 5%, transparent)}
+  .simbar .selo{font-size:10.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--bd-mut); flex:none; width:100%}
+  .simbar .nota{font-size:11.5px; color:var(--bd-mut); width:100%; line-height:1.45}
+  .simgrupo{display:flex; gap:6px; align-items:center; flex-wrap:wrap}
+  .simgrupo > span{font-size:11.5px; color:var(--bd-mut)}
+
+  .phone{width:375px; max-width:100%; height:820px; background:var(--paper); color:var(--ink);
+    border-radius:30px; border:6px solid #16150f; overflow:hidden; display:flex; flex-direction:column;
+    box-shadow:0 18px 40px rgba(0,0,0,.28)}
+  .phone.mesa{width:720px; height:880px; border-radius:14px; border-width:4px}
+  .screen{display:none; flex-direction:column; height:100%}
+  .screen.on{display:flex}
+  .appbar{padding:14px 18px 10px; border-bottom:1px solid var(--line); flex:none}
+  .appbar .brand{font-weight:700; font-size:16px; letter-spacing:-.01em}
+  .appbar .sub{font-size:11.5px; color:var(--mut); margin-top:1px}
+  .body{flex:1; overflow-y:auto; padding:16px 18px; display:flex; flex-direction:column; gap:12px}
+  .foot{flex:none; padding:12px 18px 18px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:8px}
+  .phone.mesa .body{padding:22px 0; align-items:stretch}
+  .phone.mesa .body > *{max-width:580px; width:100%; margin-left:auto; margin-right:auto}
+  .phone.mesa .foot{padding:14px calc(50% - 290px) 20px}
+
+  .card{border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:#fff}
+  .card.red{border-color:var(--red)}
+  .chip{display:inline-block; font-size:11px; font-weight:600; border-radius:999px; padding:2px 9px}
+  .chip.red{color:var(--red); background:var(--red-bg)}
+  .chip.amb{color:var(--amb); background:var(--amb-bg)}
+  .chip.grn{color:var(--grn); background:var(--grn-bg)}
+  .chip.blu{color:var(--blu); background:var(--blu-bg)}
+  .chip.mud{color:var(--mut); background:var(--soft)}
+  .chips{display:flex; flex-wrap:wrap; gap:5px}
+  .consequencia{font-size:12.5px; margin-top:6px; padding:8px 10px; border-radius:8px}
+  .consequencia.red{background:var(--red-bg); color:var(--red)}
+  .consequencia.amb{background:var(--amb-bg); color:var(--amb)}
+  .consequencia.grn{background:var(--grn-bg); color:var(--grn)}
+  .consequencia.mud{background:var(--soft); color:var(--mut)}
+
+  .btn{display:block; width:100%; text-align:center; border-radius:10px; padding:13px 14px;
+    font-size:14.5px; font-weight:600; cursor:pointer; border:1px solid transparent; font-family:inherit}
+  .btn.primary{background:var(--ink); color:var(--paper)}
+  .btn.ghost{background:transparent; color:var(--ink); border-color:var(--line)}
+  .btn:hover{filter:brightness(1.12)}
+  .btn[disabled]{opacity:.42; cursor:not-allowed; filter:none}
+  .btn.mini{padding:9px 10px; font-size:13px}
+
+  .row{display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:9px 0; border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:none}
+  .row .lbl{font-size:12px; color:var(--mut); flex:none}
+  .row .val{font-size:13.5px; text-align:right; overflow-wrap:anywhere}
+  .bad{color:var(--red); font-weight:600}
+
+  .hint{font-size:12px; color:var(--mut)}
+  .banner{border-radius:10px; padding:12px 14px; font-size:13.5px}
+  .banner.red{background:var(--red-bg); color:var(--red)}
+  .banner.amb{background:var(--amb-bg); color:var(--amb)}
+  .banner.grn{background:var(--grn-bg); color:var(--grn)}
+  .banner.mud{background:var(--soft); color:var(--mut)}
+  .big{font-size:27px; font-weight:700; letter-spacing:-.02em}
+  .parecer{font-size:10.5px; color:var(--mut); margin-top:6px; font-style:italic; line-height:1.4}
+  .secao{font-size:11px; color:var(--mut); text-transform:uppercase; letter-spacing:.07em}
+
+  /* Pendência PERSISTENTE — linha de dívida documental, não aviso de clique. */
+  .divida{border:1px solid var(--red); border-left:4px solid var(--red); background:#fffaf9;
+    border-radius:10px; padding:11px 13px}
+  .divida.mud{border-color:var(--mut); border-left-color:var(--mut); background:#fff}
+
+  /* citação literal do parecer — não se reescreve */
+  .literal{border-left:3px solid var(--blu); background:var(--blu-bg); color:var(--blu);
+    border-radius:0 8px 8px 0; padding:11px 13px; font-size:12.5px}
+  .literal b{display:block; margin-top:6px}
+  .literal b:first-child{margin-top:0}
+
+  /* PERGUNTA EM ABERTO — o que eu NÃO tenho autoridade para decidir */
+  .aberta{border:1px dashed var(--amb); background:var(--amb-bg); color:var(--amb);
+    border-radius:10px; padding:11px 13px; font-size:12.5px; line-height:1.5}
+  .aberta strong{display:block; margin-bottom:4px}
+
+  /* DECIDIDA — pergunta que voltou respondida; fica em tela para o Mateus ver o
+     que mudou e por quê, sem parecer que ainda depende dele. */
+  .decidida{border:1px solid var(--grn); background:var(--grn-bg); color:var(--grn);
+    border-radius:10px; padding:11px 13px; font-size:12.5px; line-height:1.5}
+  .decidida strong{display:block; margin-bottom:4px}
+
+  .lab{display:block; font-size:12px; color:var(--mut); margin-bottom:5px}
+  .inp{width:100%; font-family:inherit; font-size:16px; padding:11px 12px; border:1px solid var(--line);
+    border-radius:9px; background:#fff; color:var(--ink)}
+  .oculto{display:none !important}
+
+  /* escolha exclusiva: NADA nasce marcado — campo fiscal não tem default */
+  .opts{display:flex; flex-direction:column; gap:8px; margin-top:8px}
+  .opt{display:flex; gap:11px; align-items:flex-start; width:100%; text-align:left;
+    border:1px solid var(--line); border-radius:10px; padding:11px 12px; background:#fff;
+    cursor:pointer; font:inherit; color:inherit}
+  .opt:hover{background:var(--soft)}
+  .opt .bola{width:22px; height:22px; flex:none; border:2px solid var(--mut); border-radius:999px;
+    display:flex; align-items:center; justify-content:center; margin-top:1px}
+  .opt .bola i{width:10px; height:10px; border-radius:999px; background:transparent; display:block}
+  .opt.on{border-color:var(--ink); box-shadow:inset 0 0 0 1px var(--ink); background:var(--soft)}
+  .opt.on .bola{border-color:var(--ink)}
+  .opt.on .bola i{background:var(--ink)}
+  .opt .tt{font-size:13.5px; font-weight:600}
+  .opt .ss{display:block; font-size:12px; color:var(--mut); margin-top:2px}
+
+  .anexo-cx{border:1px dashed var(--mut); border-radius:10px; padding:12px; background:#fff}
+  .anx-tit{font-size:13.5px; font-weight:600}
+  .anx-sub{font-size:11.5px; color:var(--mut); margin-top:2px}
+  .anx-bts{display:flex; gap:6px; margin-top:10px}
+  .fake-file{flex:1; min-width:0; display:block; text-align:center; border-radius:10px;
+    padding:11px 6px; font-size:13px; font-weight:600; cursor:pointer; position:relative;
+    border:1px solid var(--line); background:transparent; color:var(--ink)}
+  .fake-file:hover{filter:brightness(1.12)}
+  .fake-file input{position:absolute; width:1px; height:1px; opacity:0; pointer-events:none}
+
+  .anx{display:flex; gap:10px; align-items:flex-start; border:1px solid var(--line);
+    border-radius:10px; padding:10px 11px; background:#fff}
+  .anx + .anx{margin-top:8px}
+  .anx-thumb{width:40px; height:50px; flex:none; border-radius:6px; border:1px solid var(--line);
+    background:var(--soft); display:flex; align-items:center; justify-content:center; overflow:hidden;
+    font-size:10px; font-weight:700; color:var(--mut); font-family:ui-monospace,Menlo,monospace}
+  .anx-thumb img{width:100%; height:100%; object-fit:cover}
+  .anx-info{flex:1; min-width:0}
+  .anx-nome{font-size:13px; font-weight:600; overflow-wrap:anywhere}
+  .anx-meta{font-size:11.5px; color:var(--mut); margin-top:2px}
+
+  /* PAPEL do anexo — 3 valores, NADA pré-selecionado (crit. 14 do CONTAI-027) */
+  .papel-campo{margin-top:7px}
+  .papel-lab{font-size:11px; color:var(--mut)}
+  .papel-ops{display:flex; flex-wrap:wrap; gap:5px; margin-top:4px}
+  .papel-op{border:1px solid var(--line); background:#fff; color:var(--ink); border-radius:999px;
+    padding:5px 10px; font:inherit; font-size:11.5px; cursor:pointer}
+  .papel-op:hover{background:var(--soft)}
+  .papel-op.on{background:var(--ink); color:var(--paper); border-color:var(--ink)}
+  .papel-falta{font-size:11px; color:var(--amb); margin-top:4px}
+
+  .ascii{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; line-height:1.5;
+    white-space:pre; overflow-x:auto; background:#fff; border:1px solid var(--line); border-radius:8px; padding:12px}
+  .copia{background:var(--soft); border:1px solid var(--line); border-radius:8px; padding:11px 12px;
+    font-size:12.5px; line-height:1.55}
+</style>
+
+<div class="evalbar">
+  <h1>Mock CONTAI-025 — Registrar sem data, sem comprovante, ou sem os dois · v2</h1>
+  <p><strong>Hoje no mock: 23/08/2026.</strong> Obra <strong>Casa Tanheiros</strong>. Dados fictícios.<br>
+     O ticket nasceu do pior desfecho deste backlog: <strong>o Mateus parou de usar o app</strong> porque
+     a trava do comprovante recusou o registro da entrada do terreno. O desenho aqui tem
+     <strong>um</strong> trabalho — deixar o fato entrar, e cobrar o que falta com o custo dito em voz alta.<br>
+     <strong>Cenário: gestão</strong> — em casa, sentado, transcrevendo um lote de desembolsos antigos.
+     375&nbsp;px é <strong>piso</strong>, não alvo; o Teste do Canteiro <strong>não se aplica</strong>.
+     O caminho de captura fica <strong>mais curto</strong>: some uma obrigação.</p>
+
+  <div class="novo">
+    <strong>O que muda, em uma frase por tela</strong>
+    <ul>
+      <li><strong>1 · Home</strong> — o card do ano deixa de ter <strong>um</strong> número. Confirmado
+        em cima; <strong>fora do custo confirmado por falta de comprovante</strong> logo abaixo, nomeado e
+        vermelho. E nasce o <strong>card agregado</strong> da pendência, com valor total e contagem.</li>
+      <li><strong>2 · Formulário</strong> — o botão grava sempre. O que muda é o
+        <strong>rótulo dele</strong>, que nomeia a pendência que vai nascer.</li>
+      <li><strong>3 · Lista</strong> — o <strong>estado combinado</strong>: <strong>um</strong> chip que
+        nomeia os dois fatos, e <strong>uma</strong> consequência com as <strong>duas</strong> frases do
+        parecer, ordem data&nbsp;→&nbsp;comprovante — nunca dois blocos empilhados.</li>
+      <li><strong>4 · Revisão anual</strong> — a linha do §4.5 em vermelho <strong>abaixo</strong> do
+        total. Só isso: a titularidade repartida saiu.</li>
+    </ul>
+  </div>
+
+  <div class="novo" style="border-color:var(--red)">
+    <strong>v2 — o que mudou da v1 (23/08), e por quê</strong>
+    <ul>
+      <li><strong>“Falta a data” é VERMELHA</strong>, na home e na lista. Veredito do <code>po</code> na
+        pergunta 3, com a régua binária dita por extenso: <strong>saiu? → tem apoio hábil no ano certo?
+        → não = vermelho</strong>. Sem terceiro nível. Na v1 ela era cinza por <em>herança</em> do
+        CONTAI-027, não por critério — e isso deixava a inversão de pé: “mais de uma data” (valor no
+        custo, só o ano em aberto) vermelha, e “falta a data” (valor em <strong>ano nenhum</strong>)
+        cinza.</li>
+      <li><strong>O estado combinado tem UM chip</strong>: “Pago — falta a data e o comprovante”. Com os
+        dois eixos vermelhos, dois chips lado a lado viram mancha. O chip funde a apresentação e
+        <strong>nomeia os dois fatos</strong>; a consequência <strong>não</strong> funde — duas frases, e
+        <strong>“Comece pela data”</strong> literal.</li>
+      <li><strong>A linha da titularidade repartida SAIU</strong> — virou a <strong>D53</strong>, ticket
+        próprio (rateio por pagador, não só “dois nomes na matrícula”).</li>
+      <li><strong>O CONTAI-027 não foi reescrito.</strong> O “Falta a data” cinza que está lá é da versão
+        aprovada em 21/08; ele leva <strong>nota datada de 23/08</strong>, e o carimbo novo é este mock.
+        Os outros cinco itens do inventário de cor viraram o <strong>CONTAI-035</strong>.</li>
+    </ul>
+  </div>
+
+  <div class="aprov nao">Mock AGUARDANDO APROVAÇÃO do Mateus — nenhuma linha entra em /develop antes disso</div>
+
+  <div class="grupo">0 · O fluxo, antes de qualquer tela</div><div class="tabs" id="g0"></div>
+  <div class="grupo">1 · Onde o número aparece</div><div class="tabs" id="g1"></div>
+  <div class="grupo">2 · Onde o fato entra</div><div class="tabs" id="g2"></div>
+  <div class="grupo">3 · Onde a dívida vive</div><div class="tabs" id="g3"></div>
+  <div class="grupo">4 · Onde ela vira declaração</div><div class="tabs" id="g4"></div>
+
+  <div class="tabs" style="margin-top:12px">
+    <button class="tab on" id="w375">375 px — piso</button>
+    <button class="tab" id="w720">720 px — mesa (cenário principal)</button>
+  </div>
+</div>
+
+<div class="simbar">
+  <span class="selo">Barra de simulação — não é componente do app</span>
+  <div class="simgrupo" data-so="s3">
+    <span>Tela 3 · mensagem depois de “Informar a data”:</span>
+    <button class="tab" data-msg="nenhuma">nenhuma</button>
+    <button class="tab" data-msg="com">com comprovante (§5, 1º texto)</button>
+    <button class="tab" data-msg="sem">sem comprovante (§5, 2º texto)</button>
+  </div>
+  <div class="simgrupo" data-so="s4">
+    <span>Tela 4 · fatia:</span>
+    <button class="tab on" data-fatia="f1">fatia 1 — a saída não é gerada (crit. 16)</button>
+    <button class="tab" data-fatia="f2">fatia 2 — a linha do §4.5 (crit. 17)</button>
+  </div>
+  <div class="nota">Na <strong>tela 2</strong> não há simulação: o anexo é
+    <code>&lt;input type="file" multiple&gt;</code> de verdade, a data é um <code>type="date"</code> vazio,
+    e o rótulo do Gravar recalcula sozinho. É o ponto do ticket — <strong>experimente gravar sem nada</strong>.</div>
+</div>
+
+<div class="phone" id="phone">
+
+  <!-- ══════════════════ 0 · FLUXO (ASCII) ══════════════════ -->
+  <section class="screen" id="s0">
+    <div class="appbar">
+      <div class="brand">Fluxo — leia antes das telas</div>
+      <div class="sub">o botão grava sempre; o que muda é o estado que nasce</div>
+    </div>
+    <div class="body">
+      <div class="banner grn"><strong>A regra inteira em uma linha.</strong> Data e comprovante continuam
+        <strong>perguntados e sem default</strong>. A ausência de qualquer um deles <strong>não recusa
+        a gravação</strong> — ela nomeia uma pendência e tira o valor do custo confirmado.</div>
+
+      <div class="ascii">Registrar desembolso  ── valor + tipo + "já saiu da conta?"
+        │
+        ├─ data? ─── sim ──┐
+        │                  │
+        └─ data? ─── NÃO ──┤   (não bloqueia · o app nunca inventa data)
+                           │
+        ┌──────────────────┴──────────────────┐
+        │ comprovante entre os papéis?        │
+        └───┬──────────────────┬──────────────┘
+            │ sim              │ NÃO (zero papéis OU papéis sem comprovante)
+            │                  │
+   ┌────────┴───────┐   ┌──────┴────────────────────────────┐
+   │ tem data       │   │ tem data                          │
+   │  → CONFIRMADO  │   │  → "Pago sem comprovante"         │
+   │                │   │     entra no ANO, fora do custo   │
+   │ sem data       │   │     confirmado                    │
+   │  → "Falta a    │   │ sem data                          │
+   │     data"      │   │  → ESTADO COMBINADO, 2 chips,     │
+   │    fora de     │   │    ordem data → comprovante,      │
+   │    todo ano    │   │    UMA consequência               │
+   └────────────────┘   └───────────────────────────────────┘
+
+  Baixa dos dois eixos: "Informar a data" / anexar depois
+  (completarDesembolsoTerreno — CONTAI-027, tela s2d. NÃO se redesenha aqui.)</div>
+
+      <div class="literal">
+        <b>§1.1 do parecer — por que o botão grava</b>
+        Não existe dispositivo que exija a apresentação simultânea do comprovante para que o dispêndio
+        exista. A comprovação é exigível <em>quando o custo for oposto ao Fisco</em>. “A trava não impediu
+        nenhum erro fiscal — impediu o registro.”
+      </div>
+
+      <div class="card">
+        <div class="secao">Duas coisas que este mock NÃO faz</div>
+        <div class="hint" style="margin-top:6px">
+          <strong>1.</strong> Não oferece <em>“ainda não paguei”</em> como saída de quem já disse que pagou.
+          O <code>previsto</code> continua no formulário — é estado legítimo (ITBI a recolher) — mas
+          nenhum texto, ajuda ou erro sugere marcá-lo para escapar da pendência. Isso tiraria o custo de
+          <strong>todo</strong> ano-calendário, e é <strong>pior</strong> que a trava.<br>
+          <strong>2.</strong> Não redesenha <em>“Informar a data”</em>: ela já foi aprovada no
+          <code>CONTAI-027</code> e é o caminho de baixa dos dois eixos, com mais um uso.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 1 · HOME / PAINEL DA OBRA ══════════════════ -->
+  <section class="screen" id="s1">
+    <div class="appbar">
+      <div class="brand">Casa Tanheiros</div>
+      <div class="sub">Terreno · 23/08/2026</div>
+    </div>
+    <div class="body">
+
+      <!-- ── CARD DO ANO — DOIS números. O de baixo não é cortável. ────────── -->
+      <div class="card">
+        <div class="secao">Terreno — já desembolsado até 31/12/2026</div>
+        <div class="big mono" style="margin-top:4px">R$ 3.150,00</div>
+        <div class="hint" style="margin-top:2px">= situação em 31/12/2026 na ficha Bens e Direitos,
+          pela parte do terreno.</div>
+
+        <div style="border-top:1px solid var(--line); margin-top:11px; padding-top:10px">
+          <div class="bad" style="font-size:13px">Fora do custo confirmado por falta de comprovante:
+            <span class="mono">R$ 85.000,00</span></div>
+          <div class="hint" style="margin-top:4px">2 desembolsos. Foi pago e está registrado, mas ainda
+            não tem o papel que o demonstra, e por isso não entra na soma acima.</div>
+        </div>
+
+        <div class="consequencia mud">Um terceiro desembolso — <span class="mono">R$ 4.200,00</span> —
+          está <strong>fora deste card inteiro</strong>: sem data, ele não tem ano-calendário e não entra
+          em ano nenhum. Ele aparece no card abaixo, que é da obra e não do ano.</div>
+
+        <div class="parecer">§2.4 do parecer: “no relatório anual, <strong>nunca um número só</strong>”.
+          O de cima encolheria em silêncio no dia em que a regra do comprovante entrasse —
+          <em>“excluído em silêncio é tão ruim quanto incluído em silêncio”</em>.</div>
+      </div>
+
+      <!-- ── CARD AGREGADO DA PENDÊNCIA — a superfície que faltava (D47) ───── -->
+      <div class="divida">
+        <div class="chips"><span class="chip red">Pago sem comprovante</span></div>
+        <div class="big mono" style="margin-top:7px; font-size:22px">R$ 89.200,00</div>
+        <div class="hint">3 desembolsos do terreno</div>
+
+        <div class="consequencia red" style="margin-top:9px">
+          <strong>Pago sem comprovante.</strong>
+          O valor e a data ficam registrados — o custo existe, ainda não está demonstrável. Enquanto
+          faltar o papel, este desembolso não entra no custo confirmado.<br>
+          Recupere o comprovante enquanto o banco ainda o mostra: ele é o documento do acervo que
+          expira primeiro.
+        </div>
+
+        <div class="copia" style="margin-top:9px">
+          <strong>O que serve como comprovante, por tipo</strong><br>
+          <strong>Entrada ou sinal</strong> — comprovante da transferência, ou recibo do vendedor. A
+          escritura prova o preço, não o pagamento.<br>
+          <strong>ITBI</strong> — a guia paga, com a autenticação. A prefeitura costuma reemitir a
+          segunda via.<br>
+          <strong>Escritura e registro</strong> — o recibo de custas do cartório, que costuma reemitir.
+        </div>
+
+        <button class="btn ghost mini" style="margin-top:9px" data-ir="s3">Ver os 3 desembolsos</button>
+        <div class="parecer">Vermelho pela regra do <code>po</code> de 21/08: <strong>vermelho = fato
+          consumado com consequência fiscal aberta</strong>. O dinheiro saiu.</div>
+      </div>
+
+      <!-- ── a pendência de data continua existindo, e é OUTRA ─────────────── -->
+      <div class="divida">
+        <div class="chips"><span class="chip red">Falta a data</span></div>
+        <div class="anx-tit" style="margin-top:6px">1 desembolso · <span class="mono">R$ 4.200,00</span></div>
+        <div class="hint" style="margin-top:4px">Sem a data, este valor não tem ano-calendário e a
+          discriminação não pode ser gerada.</div>
+        <div class="parecer"><strong>Vermelho desde 23/08</strong> — veredito do <code>po</code> sobre a
+          pergunta 3 desta v1, com a régua binária dita por extenso: <strong>saiu? → tem apoio hábil no ano
+          certo? → não = vermelho</strong>. Era cinza na v1 por herança do CONTAI-027, não por critério.
+          O desembolso está pago: o dinheiro saiu, e sem data ele não cai em ano nenhum — é a pendência
+          <em>mais</em> grave da tela, não a mais leve. Pendência que já existia (CONTAI-010); aparece aqui
+          para mostrar que as duas <strong>convivem</strong> e são contadas separado — o ITBI de
+          R$ 4.200,00 está nas duas.</div>
+      </div>
+
+      <div class="aberta">
+        <strong>Pergunta ao <code>po</code> — 1 de 4</strong>
+        O agregado de <span class="mono">R$ 89.200,00</span> inclui o desembolso <strong>sem papel
+        nenhum</strong> (zero anexos), que hoje tem chip próprio na linha (“Pago, e sem papel nenhum”).
+        Desenhei assim porque, se ele ficasse de fora, os dois números <strong>deixariam de fechar</strong>
+        com o que o portão do custo confirmado exclui — e o buraco não teria nome em tela nenhuma
+        (pre-mortem 2 do ticket). Confirma que o card agregado é <strong>um só</strong>, com o chip do
+        §4.1, e que a distinção fica na linha da lista?
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" data-ir="s2">Registrar um desembolso</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 2 · FORMULÁRIO DO DESEMBOLSO (interativa) ══════════════════ -->
+  <section class="screen" id="s2">
+    <div class="appbar">
+      <div class="brand">Registrar um desembolso</div>
+      <div class="sub">Terreno · Casa Tanheiros</div>
+    </div>
+    <div class="body">
+      <div class="banner grn"><strong>O botão grava sempre.</strong> O que muda é o rótulo dele — e o
+        rótulo <strong>nomeia a consequência</strong>, nunca diz “gravar mesmo assim”. Deixe a data vazia,
+        não escolha papel nenhum, e veja o rodapé.</div>
+
+      <div class="card">
+        <label class="lab">O que é este desembolso?</label>
+        <div class="opts" data-radio="tipo" data-campo="fTipo">
+          <button class="opt" data-v="entrada"><span class="bola"><i></i></span>
+            <span><span class="tt">Entrada</span><span class="ss">o que você pagou do próprio bolso na compra</span></span></button>
+          <button class="opt" data-v="itbi"><span class="bola"><i></i></span>
+            <span><span class="tt">ITBI</span><span class="ss">imposto de transmissão, pago na prefeitura</span></span></button>
+          <button class="opt" data-v="escritura"><span class="bola"><i></i></span>
+            <span><span class="tt">Escritura e registro</span><span class="ss">cartório</span></span></button>
+        </div>
+
+        <div style="margin-top:12px">
+          <label class="lab" for="fValor">Valor</label>
+          <input class="inp mono" id="fValor" data-campo="fValor" inputmode="decimal" placeholder="0,00">
+        </div>
+
+        <div style="margin-top:12px">
+          <label class="lab">Este valor já foi pago?</label>
+          <div class="opts" data-radio="estado" data-campo="fEstado">
+            <button class="opt" data-v="pago"><span class="bola"><i></i></span>
+              <span><span class="tt">Já saiu da conta</span></span></button>
+            <button class="opt" data-v="previsto"><span class="bola"><i></i></span>
+              <span><span class="tt">Ainda vou pagar</span><span class="ss">ex.: ITBI a recolher</span></span></button>
+          </div>
+          <div class="parecer">As duas opções continuam aqui: <code>previsto</code> é estado legítimo.
+            O que o app <strong>nunca</strong> faz é oferecer “ainda vou pagar” como <strong>saída</strong>
+            de quem já disse que pagou — repare que nenhum texto abaixo sugere voltar aqui.</div>
+        </div>
+      </div>
+
+      <!-- só existe para o desembolso PAGO: previsto não tem data (constraint) nem papel -->
+      <div id="soPago" class="oculto" style="display:flex; flex-direction:column; gap:12px">
+        <div class="card">
+          <label class="lab" for="fData">Data em que saiu da conta</label>
+          <input class="inp" id="fData" data-campo="fData" type="date">
+          <div class="hint" style="margin-top:5px">A data que vale é a do débito no extrato — não a do
+            contrato, não a da escritura, não a do vencimento.</div>
+          <div class="hint" style="margin-top:6px">Não sabe agora? <strong>Deixe vazio e grave.</strong>
+            O app nunca inventa a data: nem a de hoje, nem a do cadastro. Data ausente continua ausente
+            e visível.</div>
+        </div>
+
+        <div class="anexo-cx">
+          <div class="anx-tit">Papéis deste desembolso</div>
+          <div class="anx-sub">Pode ser mais de um. <strong>Não são obrigatórios para gravar</strong> —
+            é o comprovante que decide se este valor entra no custo confirmado.</div>
+          <div class="anx-bts">
+            <label class="fake-file">📷 Tirar foto
+              <input type="file" accept="image/*" capture="environment" multiple data-alvo="listaS2"></label>
+            <label class="fake-file">📎 Escolher arquivos
+              <input type="file" multiple data-alvo="listaS2"></label>
+          </div>
+          <div id="listaS2" style="margin-top:10px"></div>
+          <div class="hint" id="vazioS2" style="margin-top:8px">Nenhum papel escolhido ainda.</div>
+
+          <!-- ⚠️ A LINHA DO §4.3 NO MOMENTO DE ESCOLHER O PAPEL.
+               É o remédio do defeito derivado: "Nota ou recibo" captura o RECIBO DO
+               VENDEDOR, que é comprovante de entrada. Papel mal escolhido joga
+               desembolso legítimo para fora do custo confirmado, EM SILÊNCIO. -->
+          <div class="copia" style="margin-top:10px">
+            <strong>Antes de dizer o que é cada papel — o que serve como comprovante, por tipo</strong><br>
+            <strong>Entrada ou sinal</strong> — comprovante da transferência, ou recibo do vendedor. A
+            escritura prova o preço, não o pagamento.<br>
+            <strong>ITBI</strong> — a guia paga, com a autenticação. A prefeitura costuma reemitir a
+            segunda via.<br>
+            <strong>Escritura e registro</strong> — o recibo de custas do cartório, que costuma reemitir.
+          </div>
+          <div class="parecer">A mesma linha aparece <strong>duas vezes</strong> no app: aqui e junto da
+            pendência. Aqui porque é aqui que o erro nasce — <em>recibo do vendedor</em> classificado como
+            “Nota ou recibo” some do custo confirmado sem ninguém ver.</div>
+        </div>
+
+        <!-- consequência do que está faltando: UMA caixa, nunca duas empilhadas -->
+        <div class="divida oculto" id="conseqS2"></div>
+      </div>
+
+      <div class="aberta">
+        <strong>Pergunta ao <code>po</code> — 2 de 4</strong>
+        O <code>contador</code> adjudicou <strong>dois</strong> rótulos de Gravar (“…a pendência do
+        comprovante” e “…as duas pendências”). Falta o terceiro caso, que o critério 2 manda gravar:
+        <strong>tem comprovante, falta a data</strong>. Pus a simetria óbvia —
+        <em>“Gravar — e abrir a pendência da data”</em> — <strong>marcada como não adjudicada</strong>.
+        Não a redijo de memória: preciso do texto do <code>contador</code> ou da sua confirmação.
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" id="btnGravarS2" disabled>Preencha o desembolso para gravar</button>
+      <div class="hint" id="avisoRotulo" style="text-align:center"></div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 3 · LISTA DE DESEMBOLSOS ══════════════════ -->
+  <section class="screen" id="s3">
+    <div class="appbar">
+      <div class="brand">Desembolsos do terreno</div>
+      <div class="sub">Casa Tanheiros · 4 lançamentos</div>
+    </div>
+    <div class="body">
+
+      <!-- mensagem de sucesso depois de "Informar a data" — DOIS textos, por caso (§5) -->
+      <div class="banner grn oculto" id="msgCom"><strong>Data informada</strong> — o valor passa a compor
+        o custo de 2026.</div>
+      <div class="banner amb oculto" id="msgSem"><strong>Data informada</strong> — o valor é de 2026.
+        Falta o comprovante: até ele chegar, este desembolso não entra no custo confirmado.
+        <div class="parecer">Hoje a mensagem é escolhida só por <code>faltaData</code> e ignora o
+          comprovante — ela afirma que o valor “passa a compor o custo” quando não passa. É o critério 13.
+          Use a barra de simulação para alternar os dois textos.</div>
+      </div>
+
+      <!-- ★ O ITEM DA PROPOSTA — estado combinado -->
+      <div class="divida">
+        <div class="chips">
+          <span class="chip red">Pago — falta a data e o comprovante</span>
+        </div>
+        <div class="anx-tit" style="margin-top:7px">ITBI · <span class="mono">R$ 4.200,00</span></div>
+        <div class="hint" style="margin-top:2px">1 papel no acervo: <code>guia-itbi.pdf</code> — classificado
+          como “Nota ou recibo”</div>
+
+        <div class="consequencia red" style="margin-top:9px">
+          <strong>Pago — falta a data e falta o comprovante.</strong>
+          As duas faltas são independentes e nenhuma delas apaga o registro. Sem a data, este valor não tem
+          ano-calendário e não entra em ano nenhum. Sem o comprovante, ele não entra no custo confirmado nem
+          no ano em que a data o puser.<br>
+          Comece pela data: ela está no extrato, no mesmo lugar em que o comprovante está — as duas costumam
+          voltar da mesma busca.
+        </div>
+
+        <div style="display:flex; gap:6px; margin-top:9px">
+          <button class="btn primary mini" style="flex:1" data-msg-ir="s3">Informar a data</button>
+          <button class="btn ghost mini" style="flex:1">Anexar o comprovante</button>
+        </div>
+        <div class="parecer"><strong>UM chip, duas frases</strong> (decisão de 23/08). Com os dois eixos
+          em vermelho, dois chips lado a lado viram mancha e o olho lê <em>um</em> problema borrado. O chip
+          funde a <strong>apresentação</strong> e <strong>nomeia os dois fatos</strong> — nenhum some na
+          fusão. O que <strong>não</strong> funde é a consequência: continuam as duas frases do parecer, e
+          <strong>“Comece pela data”</strong> fica literal, porque a adjudicação de 21/08 é justamente
+          <em>por onde começar</em>. Ordem <strong>data → comprovante</strong> em tudo: a data decide se
+          entra em algum ano; o comprovante, se o ano em que entrou é demonstrável. Os botões seguem a
+          mesma ordem.</div>
+      </div>
+
+      <div class="secao" style="margin-top:4px">As outras três linhas — contexto, não proposta</div>
+
+      <div class="divida">
+        <div class="chips"><span class="chip red">Pago sem comprovante</span></div>
+        <div class="anx-tit" style="margin-top:7px">Entrada · <span class="mono">R$ 60.000,00</span> · 12/03/2026</div>
+        <div class="hint" style="margin-top:2px">1 papel no acervo: <code>escritura.pdf</code> — “Contrato
+          ou escritura”</div>
+        <div class="consequencia red" style="margin-top:9px">
+          <strong>Pago sem comprovante.</strong>
+          O valor e a data ficam registrados — o custo existe, ainda não está demonstrável. Enquanto faltar
+          o papel, este desembolso não entra no custo confirmado.<br>
+          Recupere o comprovante enquanto o banco ainda o mostra: ele é o documento do acervo que expira
+          primeiro.
+        </div>
+        <div class="parecer">Este é o caso que <strong>não existia</strong> em tela nenhuma até hoje: tem
+          papel, e nenhum dele é comprovante. A escritura prova o preço, não o pagamento.</div>
+      </div>
+
+      <div class="divida">
+        <div class="chips"><span class="chip red">Pago, e sem papel nenhum</span></div>
+        <div class="anx-tit" style="margin-top:7px">Entrada (2ª parcela) · <span class="mono">R$ 25.000,00</span> · 05/05/2026</div>
+        <div class="consequencia red" style="margin-top:9px">
+          Este valor está gravado como pago e não tem nenhum papel no acervo. O custo é real, mas não é
+          comprovável — e é você quem prova, não a memória.
+        </div>
+        <div class="parecer">Chip <strong>diferente</strong>, de propósito (crit. 15 do CONTAI-027): aqui é
+          <strong>zero anexo</strong>; acima é <em>tem papel, nenhum comprovante</em>. Os dois estão fora do
+          custo confirmado e os dois entram no agregado de R$ 89.200,00 — o que muda é o buraco de acervo,
+          não o fato fiscal.</div>
+      </div>
+
+      <div class="card">
+        <div class="chips"><span class="chip grn">No custo confirmado</span></div>
+        <div class="anx-tit" style="margin-top:7px">Escritura e registro · <span class="mono">R$ 3.150,00</span> · 20/04/2026</div>
+        <div class="hint" style="margin-top:2px">2 papéis: <code>custas-cartorio.pdf</code> (“Comprovante do
+          pagamento”) e <code>escritura.pdf</code> (“Contrato ou escritura”)</div>
+      </div>
+
+      <div class="decidida">
+        <strong>Respondida pelo <code>po</code> em 23/08 — era a pergunta 3 de 4</strong>
+        “Falta a data” <strong>vira vermelho</strong>, aqui e na home. A régua fica binária, sem terceiro
+        nível: <strong>saiu? → tem apoio hábil no ano certo? → não = vermelho</strong>. Dois pontos do
+        veredito que este mock passa a obedecer: (a) <em>“depende de terceiro” × “fecha sozinho”</em> é
+        roteamento de ação, não consequência fiscal — isso já é o <strong>botão</strong> de cada card, e
+        promover esforço a cor faria o app dizer “isto é leve” sobre um valor que não cai em ano nenhum;
+        (b) o relato 005 mostra que essa ausência dura <strong>meses</strong> (o comprovante está na conta
+        de outra pessoa), não 30 segundos. E corrige a inversão que estava de pé: “mais de uma data”
+        (valor no custo, só o ano em aberto) era vermelha, e “falta a data” (valor em <strong>ano
+        nenhum</strong>) era âmbar.
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 4 · REVISÃO ANUAL ══════════════════ -->
+  <section class="screen" id="s4">
+    <div class="appbar">
+      <div class="brand">Discriminação de 2026</div>
+      <div class="sub">Bens e Direitos · antes de declarar</div>
+    </div>
+    <div class="body">
+
+      <!-- ── FATIA 1 — a saída NÃO é gerada, e a falha tem NOME (crit. 16) ── -->
+      <div id="fatia1" style="display:flex; flex-direction:column; gap:12px">
+        <div class="banner red">
+          <strong>A discriminação de 2026 não vai ser gerada ainda.</strong>
+          Existem <strong>3 desembolsos pagos sem comprovante</strong>, somando
+          <span class="mono">R$ 89.200,00</span>. Enquanto a linha que os nomeia não existir no relatório,
+          gerar o texto produziria um total que não diz o que deixou de fora.
+        </div>
+
+        <div class="card">
+          <div class="secao">O que falta, nominalmente</div>
+          <div class="row"><span class="lbl">Entrada · 12/03/2026</span>
+            <span class="val mono bad">R$ 60.000,00</span></div>
+          <div class="row"><span class="lbl">Entrada (2ª parcela) · 05/05/2026</span>
+            <span class="val mono bad">R$ 25.000,00</span></div>
+          <div class="row"><span class="lbl">ITBI · sem data</span>
+            <span class="val mono bad">R$ 4.200,00</span></div>
+          <button class="btn ghost mini" style="margin-top:10px" data-ir="s3">Abrir a lista</button>
+        </div>
+
+        <div class="parecer">Esta tela é a guarda do critério 16, e ela é <strong>temporária por
+          desenho</strong>: some quando a fatia 2 entrar. Falha <strong>nomeada</strong> — nunca um número
+          mudo, que é o padrão que já produziu a D47 nesta base.</div>
+      </div>
+
+      <!-- ── FATIA 2 — a linha do §4.5 abaixo do total ─────────────────────── -->
+      <div id="fatia2" class="oculto" style="flex-direction:column; gap:12px">
+        <div class="banner amb"><strong>Revise antes de copiar — 3 lançamentos ficaram de fora da soma.</strong>
+          O aviso fica <strong>acima</strong> deste bloco, nunca dentro dele: o que está dentro é o que você
+          cola na declaração.</div>
+
+        <div class="copia mono">TERRENO SITUADO EM CACHOEIRA DO BOM JESUS, FLORIANOPOLIS/SC,
+MATRICULA 00.000 DO 2 RGI. ADQUIRIDO EM 12/03/2026.
+CUSTO DE AQUISICAO ATE 31/12/2026: R$ 3.150,00.</div>
+
+        <!-- ⚠️ A LINHA DO §4.5: logo ABAIXO do total, e FORA do bloco copiável. -->
+        <div class="consequencia red" style="margin-top:0">
+          <strong>Fora do custo confirmado por falta de comprovante: R$ 89.200,00.</strong>
+          Foi pago e está registrado, mas ainda não tem o papel que o demonstra, e por isso não entra na
+          soma acima. Decida com seu contador antes de declarar: deixar de discriminar na declaração um
+          custo real também custa caro — o custo que não é discriminado não existe na venda.
+        </div>
+
+        <div class="card">
+          <div class="secao">Por que a linha está fora do bloco copiável</div>
+          <div class="hint" style="margin-top:6px">O que está dentro do bloco é texto de declaração. O §4.5
+            é <strong>orientação para decidir</strong> — colá-lo na ficha seria o app escrevendo na DAA uma
+            frase que não é do contribuinte. <strong>“Logo abaixo do total”</strong> é atendido: o total é a
+            última linha do bloco.</div>
+          <div class="parecer">§2.1: o app <strong>não suprime</strong> da discriminação um custo pago e
+            real. Ele mostra os dois números; a escolha é do Mateus com o profissional com CRC.</div>
+        </div>
+
+        <div class="decidida">
+          <strong>Decidido pelo Mateus em 23/08 — era a pergunta 4 de 4 · virou a D53</strong>
+          A linha da titularidade repartida <strong>SAIU deste mock</strong>, e não volta como condicional:
+          ela virou ticket próprio. Palavras dele: <em>“isso é um outro ticket completo, sobre tudo da
+          obra… qualquer coisa pode ser paga por qualquer pessoa linkada àquela obra, inclusive um item por
+          mais de uma pessoa em percentuais, ou valores, ou partes”</em>. O problema é maior do que “a
+          matrícula está em dois nomes”: é <strong>rateio por pagador em cada lançamento</strong>. Enquanto
+          a D53 não existir, exibir a frase seria o app afirmando um fato que ninguém informou — exatamente
+          o que este projeto proíbe.
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+(function () {
+  /* ══ NAVEGAÇÃO ═════════════════════════════════════════════════════════ */
+  var TABS = [
+    { g: "g0", id: "s0", t: "Fluxo (ASCII) — leia primeiro" },
+    { g: "g1", id: "s1", t: "★ 1 · Home — o card do ano com dois números" },
+    { g: "g2", id: "s2", t: "★ 2 · Formulário (interativa — file e data reais)" },
+    { g: "g3", id: "s3", t: "★ 3 · Lista — o estado combinado" },
+    { g: "g4", id: "s4", t: "★ 4 · Revisão anual — a linha do §4.5" }
+  ];
+  var botoes = {};
+  TABS.forEach(function (tab) {
+    var b = document.createElement("button");
+    b.className = "tab";
+    b.textContent = tab.t;
+    b.onclick = function () { mostrar(tab.id); };
+    document.getElementById(tab.g).appendChild(b);
+    botoes[tab.id] = b;
+  });
+  function mostrar(id) {
+    document.querySelectorAll(".screen").forEach(function (s) { s.classList.remove("on"); });
+    var alvo = document.getElementById(id);
+    if (alvo) { alvo.classList.add("on"); var c = alvo.querySelector(".body"); if (c) c.scrollTop = 0; }
+    for (var k in botoes) botoes[k].classList.toggle("on", k === id);
+  }
+  document.addEventListener("click", function (e) {
+    var alvo = e.target.closest("[data-ir]");
+    if (!alvo || alvo.disabled) return;
+    mostrar(alvo.getAttribute("data-ir"));
+  });
+  mostrar("s0");
+
+  var phone = document.getElementById("phone");
+  var w375 = document.getElementById("w375"), w720 = document.getElementById("w720");
+  w375.onclick = function () { phone.classList.remove("mesa"); w375.classList.add("on"); w720.classList.remove("on"); };
+  w720.onclick = function () { phone.classList.add("mesa"); w720.classList.add("on"); w375.classList.remove("on"); };
+
+  /* ══ BARRA DE SIMULAÇÃO ════════════════════════════════════════════════ */
+  document.querySelectorAll("[data-msg]").forEach(function (bt) {
+    bt.onclick = function () {
+      document.querySelectorAll("[data-msg]").forEach(function (o) { o.classList.toggle("on", o === bt); });
+      var v = bt.getAttribute("data-msg");
+      document.getElementById("msgCom").classList.toggle("oculto", v !== "com");
+      document.getElementById("msgSem").classList.toggle("oculto", v !== "sem");
+      mostrar("s3");
+    };
+  });
+  document.querySelectorAll("[data-fatia]").forEach(function (bt) {
+    bt.onclick = function () {
+      document.querySelectorAll("[data-fatia]").forEach(function (o) { o.classList.toggle("on", o === bt); });
+      var f2 = bt.getAttribute("data-fatia") === "f2";
+      document.getElementById("fatia1").style.display = f2 ? "none" : "flex";
+      document.getElementById("fatia2").classList.toggle("oculto", !f2);
+      document.getElementById("fatia2").style.display = f2 ? "flex" : "none";
+      mostrar("s4");
+    };
+  });
+
+  /* ══ TELA 2 — o coração do ticket ═══════════════════════════════════════
+     Nada aqui é simulação: file real, date real, e o rótulo do Gravar sai do
+     estado do formulário. É esse rótulo que o Mateus precisa VER — ele é a
+     única coisa na tela que nomeia a pendência antes de ela existir.        */
+  var PAPEIS = [
+    { v: "comprovante", t: "Comprovante do pagamento" },
+    { v: "nota",        t: "Nota ou recibo" },
+    { v: "contrato",    t: "Contrato ou escritura" }
+  ];
+  var papeis = [];   /* { nome, tam, papel } */
+
+  document.querySelectorAll("[data-radio]").forEach(function (grupo) {
+    grupo.querySelectorAll(".opt").forEach(function (bt) {
+      bt.onclick = function () {
+        grupo.querySelectorAll(".opt").forEach(function (o) { o.classList.remove("on"); });
+        bt.classList.add("on");
+        grupo.setAttribute("data-valor", bt.getAttribute("data-v"));
+        recalcular();
+      };
+    });
+  });
+  document.getElementById("fValor").oninput = recalcular;
+  document.getElementById("fData").onchange = recalcular;
+
+  document.addEventListener("change", function (e) {
+    var inp = e.target;
+    if (!inp.matches || !inp.matches('input[type="file"][data-alvo]')) return;
+    Array.prototype.forEach.call(inp.files, function (arq) {
+      papeis.push({ nome: arq.name, tam: Math.max(1, Math.round(arq.size / 1024)), papel: null });
+    });
+    inp.value = "";
+    desenharPapeis();
+    recalcular();
+  });
+
+  function desenharPapeis() {
+    var lista = document.getElementById("listaS2");
+    lista.innerHTML = "";
+    papeis.forEach(function (p, i) {
+      var el = document.createElement("div");
+      el.className = "anx";
+      el.innerHTML =
+        '<div class="anx-thumb">PDF</div>' +
+        '<div class="anx-info">' +
+          '<div class="anx-nome"></div>' +
+          '<div class="anx-meta">' + p.tam + ' KB</div>' +
+          '<div class="papel-campo" data-campo="fPapel">' +
+            '<div class="papel-lab">O que é este papel?</div>' +
+            '<div class="papel-ops">' +
+              PAPEIS.map(function (q) {
+                return '<button class="papel-op' + (p.papel === q.v ? " on" : "") +
+                       '" data-p="' + q.v + '">' + q.t + "</button>";
+              }).join("") +
+            "</div>" +
+            (p.papel ? "" : '<div class="papel-falta">Escolha um — sem isso este papel não grava.</div>') +
+          "</div>" +
+        "</div>";
+      el.querySelector(".anx-nome").textContent = p.nome;
+      el.querySelectorAll(".papel-op").forEach(function (bt) {
+        bt.onclick = function () { papeis[i].papel = bt.getAttribute("data-p"); desenharPapeis(); recalcular(); };
+      });
+      lista.appendChild(el);
+    });
+    document.getElementById("vazioS2").classList.toggle("oculto", papeis.length > 0);
+  }
+
+  function recalcular() {
+    var tipo   = document.querySelector('[data-radio="tipo"]').getAttribute("data-valor");
+    var estado = document.querySelector('[data-radio="estado"]').getAttribute("data-valor");
+    var valor  = document.getElementById("fValor").value.trim();
+    var data   = document.getElementById("fData").value;
+
+    document.getElementById("soPago").classList.toggle("oculto", estado !== "pago");
+
+    var btn = document.getElementById("btnGravarS2");
+    var aviso = document.getElementById("avisoRotulo");
+    var conseq = document.getElementById("conseqS2");
+    aviso.textContent = "";
+    conseq.classList.add("oculto");
+
+    if (!tipo || !valor || !estado) {
+      btn.disabled = true; btn.textContent = "Preencha o desembolso para gravar"; return;
+    }
+    if (estado === "previsto") {
+      btn.disabled = false; btn.textContent = "Gravar o compromisso";
+      aviso.textContent = "Previsto não tem data nem papel: nada saiu da conta ainda.";
+      return;
+    }
+
+    var semResposta = papeis.filter(function (p) { return !p.papel; }).length;
+    if (semResposta > 0) {
+      btn.disabled = true;
+      btn.textContent = semResposta === 1
+        ? "Diga o que é o papel que falta para gravar"
+        : "Diga o que é cada papel para gravar (" + semResposta + " sem resposta)";
+      aviso.textContent = "Zero papéis grava. Papel sem resposta, não.";
+      return;
+    }
+
+    var temComprovante = papeis.some(function (p) { return p.papel === "comprovante"; });
+    var faltaData = !data;
+    btn.disabled = false;
+
+    if (!faltaData && temComprovante) { btn.textContent = "Gravar o desembolso"; return; }
+
+    conseq.classList.remove("oculto");
+    if (faltaData && !temComprovante) {
+      btn.textContent = "Gravar — e abrir as duas pendências";
+      conseq.innerHTML =
+        '<div class="chips"><span class="chip red">Pago — falta a data e o comprovante</span></div>' +
+        '<div class="consequencia red" style="margin-top:8px">' +
+        '<strong>Pago — falta a data e falta o comprovante.</strong> ' +
+        'As duas faltas são independentes e nenhuma delas apaga o registro. Sem a data, este valor não ' +
+        'tem ano-calendário e não entra em ano nenhum. Sem o comprovante, ele não entra no custo ' +
+        'confirmado nem no ano em que a data o puser.<br>' +
+        'Comece pela data: ela está no extrato, no mesmo lugar em que o comprovante está — as duas ' +
+        'costumam voltar da mesma busca.</div>';
+    } else if (!temComprovante) {
+      btn.textContent = "Gravar — e abrir a pendência do comprovante";
+      conseq.innerHTML =
+        '<div class="chips"><span class="chip red">Pago sem comprovante</span></div>' +
+        '<div class="consequencia red" style="margin-top:8px">' +
+        '<strong>Pago sem comprovante.</strong> ' +
+        'O valor e a data ficam registrados — o custo existe, ainda não está demonstrável. Enquanto ' +
+        'faltar o papel, este desembolso não entra no custo confirmado.<br>' +
+        'Recupere o comprovante enquanto o banco ainda o mostra: ele é o documento do acervo que ' +
+        'expira primeiro.</div>';
+    } else {
+      btn.textContent = "Gravar — e abrir a pendência da data";
+      aviso.textContent = "⚠️ rótulo NÃO adjudicado pelo contador — ver a pergunta em aberto acima";
+      conseq.innerHTML =
+        '<div class="chips"><span class="chip red">Falta a data</span></div>' +
+        '<div class="consequencia red" style="margin-top:8px">' +
+        'Sem a data, este valor não tem ano-calendário e a discriminação não pode ser gerada.</div>';
+    }
+  }
+  desenharPapeis();
+  recalcular();
+})();
+</script>

@@ -173,6 +173,8 @@ no bloco de decisões pendentes acima.
 | **D48 — o critério 12b do `CONTAI-027` carrega frase que nenhum parecer carimbou** (*"a resposta nova é gravada sem apagar a anterior"*, atribuída ao §4d **sem estar lá**). É a **D46 na forma inversa** — e **muda a contagem da varredura retroativa da D46: são duas linhas ofensoras, não uma, e a segunda está viva** | `23-2026-08-23-gate4-contai-027.md`. → **pergunta aberta nº 3 ao `contador`**, no corpo do `CONTAI-027` |
 | **D49 — travas de anexo-PROVA recusando fato consumado, sem parecer que as carimbe** (superfícies 3 e 4). **Terceira ofensora da classe D46/D48**, e a de espécie diferente: as outras produziram texto errado, esta **produziu abandono do produto** | `24-2026-08-23-relato-005.md`. Resolvida pelo parecer `docs/pareceres/2026-08-23-anexo-no-desembolso-do-terreno.md` (**ADENDO 1 vence o corpo**) → **US-A** no `CONTAI-025`, **US-B** em ticket novo |
 | **D50 — `lib/fiscal/terreno.ts` soma por `estado`+`data`, sem olhar anexo**: liberada a gravação, passa a somar custo não demonstrável **em silêncio**, na direção do **D34** | `24-…-relato-005.md` → **mesma entrega da D49**, não depois |
+| **D54 — a régua de cor não tem gate**: a D39 manda toda pendência nova declarar a metade que a colore, e isso é **norma sem verificador** — a D44 outra vez | `25-2026-08-23-a-regua-de-cor-e-o-que-ela-escondia.md` → teste que trava a régua, no **`CONTAI-035`** |
+| **D53 — quem pagou o quê: pessoas ligadas à obra, co-pagamento em percentual/valor/partes, e apuração POR NOME** | `24-2026-08-23-relato-005.md` — **ticket próprio, decisão do Mateus em 23/08**. ⚠️ **Não é a US-D** (aquilo era um campo): é **modelo de dados, RLS e as três saídas anuais** mudando de "por obra" para "por obra **E por pessoa**". A US-D é subconjunto e provavelmente deixa de existir sozinha. Carrega o alerta de **equiparação a PJ** (art. 166+ RIR/2018, `[Likely]`) |
 | **D51 — não existe onde registrar de qual conta o dinheiro saiu** (parte dos desembolsos do terreno saiu da conta do cônjuge). Comprovante de terceiro *não se descarta e não se converte* | `24-…-relato-005.md` → **US-D**, ⛔ **bloqueada pelas 3 perguntas ao Mateus** |
 | **D52 — a superfície 3 exige migration**: `documento.arquivo_path` é `not null` na `0001` e `status_documento` não tem valor para "registrado sem arquivo"; ⚠️ **`quarentena` não pode ser reaproveitada** | `24-…-relato-005.md` → dentro do ticket da **US-B**; a decisão de modelo é do `cto-obra`, não do `po` |
 | D40 — `lib/data.ts` monolítico (2065 linhas, 44 importadores) | `16-2026-08-22-custo-de-contexto-do-pipeline.md` → **`CONTAI-028`**; status em `18-2026-08-23-gate4-contai-028-fatia1.md` (**parcialmente paga**: 2065 → 1803) |
@@ -390,6 +392,15 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
 - Achado de processo: a **D46 tem terceira ofensora**, e duas lições novas (critério que **viaja entre entidades**; **falta de inventário** de regra transversal)
 
 ---
+
+### `25-2026-08-23-a-regua-de-cor-e-o-que-ela-escondia.md` — 92 linhas
+**A régua de cor — 2026-08-23 — seis pendências com o dinheiro fora do bolso pintadas de âmbar**
+
+- A D39 revisada — binária, com o eixo que faltava
+- O inventário — 13 call sites em 5 arquivos
+- A divergência com o `designer`, e como ela fechou
+- O que ficou para o `designer`, e é dele
+- D54 — a régua não tem gate
 
 ## Ao acrescentar ao backlog
 
