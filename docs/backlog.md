@@ -102,7 +102,7 @@ que segurar).
 | **Ordem de execução e status dos tickets** | **`docs/tickets/README.md`** — é o dono. Não mora aqui |
 | Decisões travando avanço | bloco **DECISÕES PENDENTES DO MATEUS**, acima neste arquivo |
 | Última adjudicação fiscal | `docs/backlog/15-2026-08-21-adjudicacao-fiscal-contai-027.md` |
-| Último Gate 4 fechado | `docs/backlog/28-2026-08-24-gate4-contai-036.md` — `CONTAI-036`, **ENTREGUE**, veredito critério a critério **no corpo do ticket**. Diff ainda **não commitado** — README da fila não tem linha própria dele ainda (falta hash) |
+| Último Gate 4 fechado | `docs/backlog/28-2026-08-24-gate4-contai-036.md` — `CONTAI-036`, **ENTREGUE e COMMITADO** (`2240931`). `CONTAI-004` entregue no mesmo dia, antes (`05cb1e7`). `docs/tickets/README.md` tem linha própria dos dois |
 | Ticket ainda por criar | `15-…-adjudicacao-fiscal-contai-027.md` → *"Ticket novo a criar — correção de valor de desembolso do terreno"*; e **`CONTAI-022`** (D26, cartão de crédito, **P0 fiscal**) e **`CONTAI-031`** (E2E da condição 6, P1, que **bloqueia a fatia 5 do `CONTAI-028`**) e **`CONTAI-032`** (D44, default de `data` e `meio`, **P0**, dependente do `CONTAI-025`) — nenhum dos três existe como arquivo. ➕ **`CONTAI-033`** (D49/D52, *nota grava sem o arquivo*, **P0**, com as **três guardas** do parecer como critério) |
 
 ✅ **7ª revisão aplicada em 2026-08-23**, direto em `docs/tickets/README.md`. O
