@@ -86,7 +86,7 @@ gestão em 2026-08-17/18, decidindo no texto o que só a tela mostra.
    ## Telas e estados
    - [tela]: loading | vazio (CTA "…") | erro (retry "…") | sucesso
    ## Campos
-   - [nome] — [tipo] — [obrigatório?] — [validação] — [sem default se for fiscal]
+   - `[nome]` — [tipo] — [obrigatório?] — [validação] — SEM DEFAULT (se fiscal)
    ## Textos com consequência fiscal
    - "[texto exato]" — origem: docs/pareceres/[arquivo].md
    ## Navegação

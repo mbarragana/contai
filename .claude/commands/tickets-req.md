@@ -88,6 +88,13 @@ pareceres e nos tickets primeiro. Fato da obra se consulta, não se pergunta.
    pelo HTML, ou marque "PENDENTE: rodar /design antes de /develop"
 4. Diga qual dos dois cenários a tela serve: **gestão** (em casa, sentado — o
    principal) ou **captura** (canteiro, celular, uma mão — eventual)
+5. **Campo fiscal não vira dezesseis critérios.** A proibição de default em campo
+   fiscal é **invariante de projeto**, não requisito de ticket — o ticket ganha
+   **UM** critério (*"nenhum campo fiscal nasce preenchido; divergência do spec
+   exige entrada declarada e justificada"*), do mesmo naipe de "append-only" e
+   "anexo obrigatório no ato". Quem prova é o `CONTAI-034`, não o `po` relendo.
+   *Medido: promover linha a linha daria **16 critérios só no `CONTAI-003`**, e a
+   validação do `po` piora quando fica mais longa.*
 
 ### Passo 5: Checagem final
 - Isso serve a uma das três metas? (nenhum pagamento sem documento hábil /
