@@ -1,10 +1,12 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 21 tickets
+## 🔎 O que está em aberto — 19 tickets
 
 *Uma linha por ticket, sem justificativa. O **porquê** de cada posição está nas
 seções longas abaixo; o **porquê da decisão** está em `../backlog.md`.
-Atualizado em 2026-08-23.*
+Atualizado em 2026-08-24 — `004` e `036` saíram da fila (entregues e
+commitados); `027` saiu de "esperando commit" (commitado em 21/08, hash
+`53acc37`).*
 
 ### Fila de implementação — nesta ordem
 
@@ -14,7 +16,6 @@ Atualizado em 2026-08-23.*
 | 3 | **032** | Tirar `data = hoje` e `meio = "pix"` do formulário de pagamento | **P0** |
 | 3 | **022** | Cartão de crédito (compra → fatura) | **P0** |
 | 4 | **008** | Mover pagamento entre obras sem quebrar o vínculo | **P0** |
-| 5 | **004** | Nº do documento e data de emissão | **P0** |
 | 5 | **007** | CNO referenciado na NF de serviço | **P0** |
 | 6 | **009** | Detalhe do pagamento | **P0** |
 | 7 | **005** | Headline da home | **P0** |
@@ -50,10 +51,9 @@ Atualizado em 2026-08-23.*
 
 | | |
 |---|---|
-| **Espera o Mateus** | **mock** de `008`, `004`+`007`, `005` · a **Q14** (13 dias, trava o `016`) |
+| **Espera o Mateus** | **mock** de `008`, `007` (mock aprovado junto com o `004`, mas ainda não construído), `005` · a **Q14** (13 dias, trava o `016`) |
 | **Espera `/tickets-req`** | `032`, `022`, `031` — não têm arquivo |
-| **Espera só o `/develop`** | `025`, `014`, `006` |
-| **Fechado, esperando COMMIT** | `027` — os quatro gates rodaram (Gate 4 em 23/08, **PASS COM RESSALVA**); o retrabalho da `0011` **não está commitado**, e por isso não há hash de G2b/G3/G4 |
+| **Espera só o `/develop`** | `014`, `006` |
 
 ⚠️ **Esta tabela é resumo, não fonte.** Ela repete o que está abaixo — se
 divergir, **vale o de baixo**, e o resumo é que está errado.
@@ -128,32 +128,27 @@ de quem escreveu a linha.
 
 ---
 
-## ⚠️ BLOQUEIO DE RELEASE — código pushado exigindo migration que pode não estar no remoto
+## ✅ RESOLVIDO em 24/08 — migrations 0009-0012 confirmadas no remoto
 
-*Levantado na 7ª revisão (23/08). É o item nº 1 do projeto, e não é ticket.*
+*Levantado na 7ª revisão (23/08), fechado em 24/08. Histórico, não é mais
+bloqueio.*
 
-A regra do `CLAUDE.md` é **`npx supabase db push` ANTES de `git push`**, sem
-exceção. Hoje `origin/main` está **0 commits atrás de `main`** — ou seja, tudo
-foi pushado, e na Vercel push é deploy. Mas:
-
-| Migration | Quem exige | O que este arquivo afirmava |
-|---|---|---|
-| `0009_correcao_documento.sql` | `CONTAI-021` (em produção desde 21/08) | *"NÃO está no ar … `db push` quando o Mateus autorizar"* |
-| `0010_terreno_anexo.sql` | `CONTAI-027` rodada 2 (commitada e pushada em 21/08) | nunca registrada como aplicada |
-| `0011_resposta_recarimbada.sql` | `CONTAI-027`, retrabalho do Gate 2 (23/08) | **não commitada ainda** — sobe junto com a `0010`, e antes do código |
-
-**Se as duas não estiverem no remoto, a correção de documento e o anexo do
-terreno estão quebrando em produção desde 21/08** — e quebrando do jeito que o
-`CLAUDE.md` descreve: não aparece no build, não aparece no teste, aparece no
-dedo do Mateus. **Uma linha do Mateus fecha isto**: *as migrations 0009 e 0010
-já foram aplicadas no projeto remoto?* Se não, `npx supabase db push` antes de
-qualquer outra coisa.
+`npx supabase migration list` em 24/08 confirma `0001`-`0012` **iguais** entre
+Local e Remote — inclui `0009_correcao_documento.sql` (CONTAI-021),
+`0010_terreno_anexo.sql` + `0011_resposta_recarimbada.sql` (CONTAI-027, que
+ficaram pushadas em código sem a migration aplicada por 2-3 dias) e a nova
+`0012_documento_numero_emissao.sql` (CONTAI-004, `db push` autorizado pelo
+Mateus antes do `git push`, ordem respeitada). A regra do `CLAUDE.md`
+(**migration antes de código, sempre**) segue valendo para toda migration
+futura — este bloco fica só como prova de que o furo de 21-23/08 foi fechado.
 
 ## Em produção — o que já está no ar
 
 | # | Ticket | Status | Ressalva viva |
 |---|---|---|---|
-| 025 | **Desembolso do terreno sem data, sem comprovante, ou sem os dois** | ⚠️ **fatia 1 de 2** | **Fatia 1 ENTREGUE, 16/16** (Gate 4 em 24/08). ⚠️ **NÃO é ✅**: a **fatia 2** — a linha do §4.5 nas saídas anuais — é o **`CONTAI-036`**, e está travada por **portão real** em `podeGerarRelatorioAnual`, não por promessa. Regra que nasce aqui: **⚠️ é o estado de ticket fatiado com fatia aberta, sempre; ✅ só quando o último critério fecha.** Resolveu a dor do relato 005 — o Mateus voltou a poder registrar. Fecha **D49**, **D50** e **D47**. Sem migration. |
+| 025 | **Desembolso do terreno sem data, sem comprovante, ou sem os dois** | ⚠️ `f5cc0ac` | **Fatia 1 ENTREGUE, 16/16** (Gate 4 em 24/08). A fatia 2 é o `CONTAI-036`, entregue no mesmo dia — ver linha própria abaixo. Resolveu a dor do relato 005 — o Mateus voltou a poder registrar. Fecha **D49**, **D50** e **D47**. Sem migration. Fica ⚠️ (um hash só, não os quatro de gate) pela mesma régua do `018`/`019`/`003` |
+| 036 | **Fatia 2 do 025 — a linha do §4.5 nas saídas anuais, e a primeira tela de relatório anual do produto** | ⚠️ `2240931` | **Gates 0-4 fechados em 24/08, 16/16 critérios** (14 originais + 2 promovidos retroativamente no próprio Gate 4: 15 = composição material/mão-de-obra por ano, 16 = marca da porta não pode ser forjada — achado do `cto-obra`, provado com exploit plantado antes do fix pelo `lead-engineer`). `podeGerarRelatorioAnual` virou porta única com veto por bloco (`bensEDireitos`/`pagamentosEfetuados`/`afericaoInss`), destravando os dois portões que o `025` deixou fechados por tipo. Nova rota `/obras/[id]/discriminacao/[ano]`. Registrou **D55** (defeito vivo em `composicaoDaDiscriminacao`, no ar desde o `CONTAI-021` — agregado bate, peso por documento é arbitrário; não corrigido aqui, decisão do `po`). Vitest 591/591, Playwright 152/152. Sem migration. Fica ⚠️ (um hash só, não os quatro de gate) pela mesma régua do `018`/`019`/`003` |
+| 004 | **Nº do documento, data de emissão e série** | ⚠️ `05cb1e7` | **17/17 critérios** (2 promovidos retroativamente: 16 = coluna `serie`, 17 = limitação assimétrica da detecção de duplicata). Migration `0012` (4 colunas nullable, sem default, sem backfill — `select count(*) from documento` no remoto confirmou zero linhas antes do push). `db push` autorizado pelo Mateus, aplicado **antes** do `git push`. `007` (CNO na NF de serviço) compartilha o mock e segue **não construído**. Fica ⚠️ pela mesma régua acima |
 | 027 | **Ver o anexo, e anexar mais de um** | ✅ `G1:1ff74c9…53acc37 G2-G4:02fd6fb` | **Duas dívidas vivas: D47** (`perguntaPendente` sem superfície de tela — ticket novo, e o `contador` exige parecer do texto do chip ANTES do mock) e **D48** (a justificativa de `completarDesembolsoTerreno` não ser atômico invoca uma tela que não existe). ⚠️ **Item 12d PENDENTE**, critério 13 CORTADO. Placar: 22 itens — 20 PASS. O Gate 1 ficou **2 dias pushado sem revisor**; os Gates 2-4 rodaram em 23/08 e acharam um defeito de rastro fiscal que **nunca virou dado** só porque o banco de produção está vazio |
 | 001 | Ingestão de NF/boleto | ⚠️ **rebaixado em 18/08** (era "done") | os quatro hashes **não estão registrados**. O ticket está em produção e ninguém duvida disso — o que falta é a prova em formato auditável. Ressalva viva: critério 7 (≤3 interações) transferido à US-008 |
 | 002 | Autenticação | ⚠️ **rebaixado em 18/08** (era "done") | mesmos quatro hashes ausentes. Ressalva **aberta**: R2 (prova no aparelho real) **transferida ao 014**, não resolvida. **Método trocado para e-mail+senha em 18/08** — reabre a validação de tela |
@@ -193,33 +188,34 @@ revisão descreveu.
 
 | Ordem | # | Ticket | P | Status | O que trava |
 |---|---|---|---|---|---|
-| **1** | **027** | **Ver o anexo, e anexar mais de um** | P1 | ✔️ **FECHADO — aguardando commit** | **Gate 4 em 23/08: PASS COM RESSALVA** — 20 de 22 itens de aceite PASS, 1 PENDENTE (12d, dependência declarada da US-004), 1 CORTADO (13, em 21/08). Reverificado no gate: **488 unitários + 132 E2E**. ⛔ **Não recebe ✅ enquanto o retrabalho não for commitado**: os hashes de G2b, G3 e G4 **não existem** — o corpo do ticket os marca `SEM HASH`, e o `CONTAI-019` já ficou com ⚠️ permanente por **um** hash reconstruído. ⛔ **Release**: `npx supabase db push` das migrations **`0009`, `0010` e `0011` ANTES** de qualquer `git push` — o código que depende da `0010` está no ar desde 21/08 e a migration nunca foi registrada como aplicada. **Ressalvas vivas**: **D47** (a pergunta pendente não tem superfície em card nem na home → ticket novo, que **nasce com parecer do `contador` para o texto do chip ANTES do mock**) e **D48** (frase fiscal no critério 12b sem parecer que a carimbe → pergunta aberta nº 3). Detalhe em `docs/backlog/23-2026-08-23-gate4-contai-027.md` |
-| **2** | **025** | ***"Paguei, mas não sei a data"* — o terceiro estado** | P1 · **P0 por dependência** | 🟡 | **Sobe de "Depois" e vira PRÉ-REQUISITO do `032`** (§3 do parecer de 23/08). O **Gate Fiscal dele está RESPONDIDO**: *registrar pago-sem-data é melhor que não registrar* — preserva o comprovante, **não entra em ano nenhum** e **não afirma nada falso** (IN SRF 84/2001, art. 17). Ganhou **emenda** do parecer: no formulário direto a data decide **entidade**, então *"pago, não sei a data"* cai **SEMPRE em `pagamento`, nunca em `compromisso`**. ⚠️ **O `🔴 sem arquivo` que este mapa exibia era falso**: `CONTAI-025.md` existe desde 19/08 (`b514f7d`), como minuta. **Trava: o `po` fechar os 6 critérios da minuta + o `designer` dizer o nível de proposta** (o ticket aposta em "sem mock novo" e isso precisa de confirmação). **É o único item da classe P0 cuja trava não é o dedo do Mateus** |
-| **3** | **032** | **Tirar `data = hoje` e `meio = "pix"` do formulário de pagamento** | **P0** | 🔴 sem arquivo | **Nasce do adendo de 23/08, e a D44 foi confirmada nos DOIS campos.** Em produção, `app/adicionar/pagamento/page.tsx` nasce com `data = hoje` (`:163`) e `meio = "pix"` (`:169`) — e um campo intocado afirma **três** coisas: o **ano-calendário** (regime de caixa), a **entidade** (`decidirRegistro` escolhe `pagamento` × `compromisso` pela mesma data) e o **meio**. Pior: com `pix` pré-selecionado, a `RECUSA_CARTAO` (critério 27 do `019`) vira **código inalcançável pela inação** — guarda que depende de escolher o que já está escolhido **não é guarda**. **Trava: `/tickets-req` + o `025` na frente.** Entrar sozinho troca *data errada em silêncio* por *data inventada pelo dedo*, e a segunda é pior. ⚠️ **Recomendação do `po` ao `contador`, uma linha**: a metade `meio` **não** depende do `025` (não existe "não sei o meio" — quem afirma o meio é o comprovante) e poderia ir na frente, sozinha; a condição de aprovação do parecer foi escrita para o ticket inteiro, então quem a solta é o `contador`, não eu |
-| **4** | **022** | **Cartão de crédito (compra → fatura)** | **P0** | 🔴 sem arquivo | **Item mais velho em aberto do projeto — reservado em 18/08.** ⚠️ **O diagnóstico mudou em 23/08, o posto não**: não é verdade que a compra no cartão *"não é registrada em lugar nenhum"* — hoje ela é registrada **como PIX**, por causa do default do `032`. A recusa só alcança quem toca no campo. **O bloqueio caiu** (dependia da entidade `compromisso`, entregue pelo `019`) e **não espera nada do Mateus**: a Q4 fechou em 08/08 e o §B do parecer de 18/08 traz os **10 critérios já redigidos**. Precisa de `/tickets-req` e de `/design` (o mock do 019 não tem uma única tela de cartão). Única decisão de escopo, e é do `po`: **parcelado entra na v1 ou é recusado na entrada com mensagem explícita** |
-| **5** | **008** | **Mover PAGAMENTO entre obras sem quebrar o vínculo** | **P0** | 🟡 | Bug **alcançável pela interface** desde que o `018` foi ao ar: `/pagamento/[id]/obra` grava estado inválido em silêncio. 🔓 **DESTRAVADO no fiscal em 23/08 — a pergunta 1 é INDEPENDENTE da Q14** (a Q14 decide **de quem é a obrigação** do CNO; a pergunta 1 decide **a que CNO o valor se vincula**, e a regra é idêntica com o CNO em qualquer nome). **A regra emitida**: mover **é permitido**, com **marca permanente** *"CNO impresso ≠ CNO desta obra"*; a nota **não abate aferição de obra nenhuma** até reemissão ou retificação da R-2000, e entra na lista de cobrança do `007`. **O critério 3 muda de "recusar" para "permitir com marca"** e a trava migra para o `004`. **Trava que sobra: só o mock da tela espelhada.** Segue atrás do `022` porque destravar o fiscal encurtou a lista de travas dele, mas **não antecipou a data mais cedo em que ele pode entrar** — que continua sendo a do mock. Herdou os **critérios 13-15** do Gate 4 do `021` |
-| **6** | **004** + **007** | Nº do documento e data de emissão · CNO referenciado na NF de serviço | **P0** | 🟡 | **Dividem a ordem de propósito**: mesmo formulário, mesmo passe de mock. **Trava: mock.** ⚠️ **Os dois GANHARAM ESCOPO em 23/08**: o **`004`** recebe a trava da aferição que sai do `podeCorrigirObra` — *só abate a base da obra X a NF de serviço cujo CNO impresso seja o de X* —, e ela é **mais forte** que a recusa de hoje, porque pega também **a nota arquivada errada sem nenhum move**; o **`007`** recebe **a nota movida** na lista de cobrança. O `007` já carregava a trava de mock desta revisão: a contradição interna dele (*"não precisa de mock, a tela é mínima para o polegar"*) **caiu junto com a régua velha**, e a revisão de Passo 1 (6 pontos) começa por aí |
-| **7** | **009** | Detalhe do pagamento | **P0** | 🟡 | Gate 0 aprovado em 16/08; **5 perguntas em aberto**. Ganhou vizinho na 7ª revisão: o texto *"o ano sai da data do pagamento, não a da nota"* do `#s7` é **redação do `designer` sem carimbo do `contador`** (D41) |
-| **8** | **005** | Headline da home (reduzido a corte) | **P0** | 🟡 | **mock v5 pendente**. Decisão nº 1 fechada em 17/08: R$ 49.850. É o último P0 da fila que depende **só de mock** |
-| **9** | **031** | E2E da condição fiscal 6 | P1 | 🔴 sem arquivo | Precisa de `/tickets-req`. O código está **certo** hoje — falta rede. **Bloqueia a fatia 5 do `CONTAI-028`**: rede antes do refactor, nunca depois. Leva junto o comentário-guarda de `e2e/correcao.spec.ts:96` (D43) |
-| **10** | **014** | Manifest de PWA + prova no aparelho | P1 | 🟢 | **Único 🟢 da fila inteira.** Gate 0 substituído por aprovação de ícone. Fica no fim de propósito: nenhuma das três metas depende dele |
-| **11** | **006** | Estados de rede lenta/indisponível | P1 | 🟢 | Sem bloqueio. ⚠️ **rodar sozinho na árvore** — toca muitos arquivos |
+⚠️ **`027`, `025` e `036` saíram desta tabela em 24/08** — os três estão
+entregues e commitados; ver "Em produção" acima. `004` também saiu (entregue,
+commit `05cb1e7`) — só `007` (mesmo mock, ainda não construído) permanece
+abaixo.
+
+| **1** | **032** | **Tirar `data = hoje` e `meio = "pix"` do formulário de pagamento** | **P0** | 🔴 sem arquivo | **Nasce do adendo de 23/08, e a D44 foi confirmada nos DOIS campos.** Em produção, `app/adicionar/pagamento/page.tsx` nasce com `data = hoje` (`:163`) e `meio = "pix"` (`:169`) — e um campo intocado afirma **três** coisas: o **ano-calendário** (regime de caixa), a **entidade** (`decidirRegistro` escolhe `pagamento` × `compromisso` pela mesma data) e o **meio**. Pior: com `pix` pré-selecionado, a `RECUSA_CARTAO` (critério 27 do `019`) vira **código inalcançável pela inação** — guarda que depende de escolher o que já está escolhido **não é guarda**. **Trava: `/tickets-req` + o `025` na frente.** Entrar sozinho troca *data errada em silêncio* por *data inventada pelo dedo*, e a segunda é pior. ⚠️ **Recomendação do `po` ao `contador`, uma linha**: a metade `meio` **não** depende do `025` (não existe "não sei o meio" — quem afirma o meio é o comprovante) e poderia ir na frente, sozinha; a condição de aprovação do parecer foi escrita para o ticket inteiro, então quem a solta é o `contador`, não eu |
+| **2** | **022** | **Cartão de crédito (compra → fatura)** | **P0** | 🔴 sem arquivo | **Item mais velho em aberto do projeto — reservado em 18/08.** ⚠️ **O diagnóstico mudou em 23/08, o posto não**: não é verdade que a compra no cartão *"não é registrada em lugar nenhum"* — hoje ela é registrada **como PIX**, por causa do default do `032`. A recusa só alcança quem toca no campo. **O bloqueio caiu** (dependia da entidade `compromisso`, entregue pelo `019`) e **não espera nada do Mateus**: a Q4 fechou em 08/08 e o §B do parecer de 18/08 traz os **10 critérios já redigidos**. Precisa de `/tickets-req` e de `/design` (o mock do 019 não tem uma única tela de cartão). Única decisão de escopo, e é do `po`: **parcelado entra na v1 ou é recusado na entrada com mensagem explícita** |
+| **3** | **008** | **Mover PAGAMENTO entre obras sem quebrar o vínculo** | **P0** | 🟡 | Bug **alcançável pela interface** desde que o `018` foi ao ar: `/pagamento/[id]/obra` grava estado inválido em silêncio. 🔓 **DESTRAVADO no fiscal em 23/08 — a pergunta 1 é INDEPENDENTE da Q14** (a Q14 decide **de quem é a obrigação** do CNO; a pergunta 1 decide **a que CNO o valor se vincula**, e a regra é idêntica com o CNO em qualquer nome). **A regra emitida**: mover **é permitido**, com **marca permanente** *"CNO impresso ≠ CNO desta obra"*; a nota **não abate aferição de obra nenhuma** até reemissão ou retificação da R-2000, e entra na lista de cobrança do `007`. **O critério 3 muda de "recusar" para "permitir com marca"** e a trava migra para o `004` (já entregue — a trava agora é dado, não promessa). **Trava que sobra: só o mock da tela espelhada.** Herdou os **critérios 13-15** do Gate 4 do `021` |
+| **4** | **007** | CNO referenciado na NF de serviço | **P0** | 🟡 | **`004` (mesmo mock, mesmo formulário) foi entregue em 24/08** — o `007` fica sozinho na trava de mock que os dois dividiam. Recebe **a nota movida** (pelo `008`) na lista de cobrança. Já tinha a trava de mock própria desde a 7ª revisão (a contradição interna *"não precisa de mock, a tela é mínima para o polegar"* caiu junto com a régua de 18/08 sobre gestão×captura) |
+| **5** | **009** | Detalhe do pagamento | **P0** | 🟡 | Gate 0 aprovado em 16/08; **5 perguntas em aberto**. Ganhou vizinho na 7ª revisão: o texto *"o ano sai da data do pagamento, não a da nota"* do `#s7` é **redação do `designer` sem carimbo do `contador`** (D41) |
+| **6** | **005** | Headline da home (reduzido a corte) | **P0** | 🟡 | **mock v5 pendente**. Decisão nº 1 fechada em 17/08: R$ 49.850. É o último P0 da fila que depende **só de mock** |
+| **7** | **031** | E2E da condição fiscal 6 | P1 | 🔴 sem arquivo | Precisa de `/tickets-req`. O código está **certo** hoje — falta rede. **Bloqueia a fatia 5 do `CONTAI-028`**: rede antes do refactor, nunca depois. Leva junto o comentário-guarda de `e2e/correcao.spec.ts:96` (D43) |
+| **8** | **014** | Manifest de PWA + prova no aparelho | P1 | 🟢 | **Único 🟢 da fila inteira.** Gate 0 substituído por aprovação de ícone. Fica no fim de propósito: nenhuma das três metas depende dele |
+| **9** | **006** | Estados de rede lenta/indisponível | P1 | 🟢 | Sem bloqueio. ⚠️ **rodar sozinho na árvore** — toca muitos arquivos |
 
 ### ⚠️ O que a fila diz de si mesma, e é desconfortável
 
-**Oito dos onze itens não podem entrar no `/develop` hoje.** Cinco travam em
-**mock** (`008`, `004`, `007`, `005`, e o `022` que ainda nem tem ticket), três
-travam em **arquivo de ticket** (`022`, `031`, `032`) e o `025` trava em
-**critério não fechado**. **Mock é aprovação do Mateus** — o gargalo do projeto
-não é capacidade de implementar, é a fila de mocks esperando o dedo dele. Isso
-não se resolve reordenando; está dito aqui para não ser descoberto de novo daqui
-a cinco dias.
+**Seis dos nove itens não podem entrar no `/develop` hoje** (era oito de onze
+em 23/08; `025`, `036` e `004` saíram entregues em 24/08). Quatro travam em
+**mock** (`008`, `007`, `005`, e o `022` que ainda nem tem ticket), dois travam
+em **arquivo de ticket** (`022`, `031`, `032`). **Mock é aprovação do Mateus** —
+o gargalo do projeto não é capacidade de implementar, é a fila de mocks
+esperando o dedo dele. Isso não se resolve reordenando; está dito aqui para não
+ser descoberto de novo daqui a cinco dias.
 
-**O que o adendo de 23/08 mudou nesse quadro, e é a razão de o `025` ter subido**:
-ele é o primeiro item da classe P0 em muitos dias cuja trava **não** é o dedo do
-Mateus — o Gate Fiscal fechou hoje, o ticket já existe em minuta e a aposta do
-próprio ticket é que não precisa de mock novo. Enquanto a fila de mocks não anda,
-o par `025 + 032` é o que **pode** andar.
+*(Nota histórica, 23/08: o `025` foi o primeiro item da classe P0 em vários
+dias cuja trava não era o dedo do Mateus — Gate Fiscal fechado, sem mock novo.
+Entregue no dia seguinte, junto com a fatia 2, `036`.)*
 
 ⚠️ **`CONTAI-020` está RESERVADO e não tem arquivo** — é a **fila de
 conciliação**, cortada do critério 18 do `CONTAI-018` (ver
