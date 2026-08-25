@@ -76,10 +76,11 @@ sem nota" por um fato que não aconteceu.
 
 ## Critérios de Aceite
 
-1. [ ] **Gate 0 (mock) — PENDENTE**, e é bloqueante: a tela espelhada não existe
-   no mock v2 do `CONTAI-021` (a tela 8 de lá resolve **documento → N
-   pagamentos**; aqui é **pagamento → N documentos**). Rodar `/design`.
-   Cenário: **gestão em casa, sentado** — 375px é piso, não alvo.
+1. [x] **Gate 0 (mock) — nível 1, 8 telas, `design/mocks/CONTAI-008.md` (+
+   `.html`).** Espelho da tela 8 do mock v2 do `CONTAI-021` (lá é
+   **documento → N pagamentos**; aqui é **pagamento → N documentos**), mais
+   o estado de recusa por CNO incompatível (critério 16). Cenário: gestão
+   em casa, sentado — 375px é piso, não alvo. Mock aprovado em 2026-08-24.
 2. [ ] **Mover pagamento com vínculo em `pagamento_documento` é UM ato
    transacional que não conclui com documento indeciso.** Para **cada**
    documento vinculado, o Mateus escolhe **um a um, em ato explícito** (§4.4 do
@@ -94,13 +95,14 @@ sem nota" por um fato que não aconteceu.
 
    **Não existe terceira saída**, e **é proibido o caminho que grava e não
    avisa** (critério 1 da versão original deste ticket).
-3. [ ] ⚠️ **A revalidação de CNO tem de rodar no desfecho (i), e hoje ela não
-   roda neste caminho.** `podeCorrigirObra` (`lib/fiscal/obra.ts`) recusa mover
-   **NF de serviço** para obra cujo CNO ela não referencia — mas a tela do
-   pagamento a chama com `tipo: null` (`app/pagamento/[id]/obra/page.tsx`),
-   porque um pagamento não tem CNO. Levar a nota junto **pela porta do
-   pagamento** contrabandearia exatamente o que a porta do documento barra.
-   **Depende da pergunta 1 do Gate Fiscal, ainda aberta.**
+3. [ ] **A revalidação de CNO roda no desfecho (i), por documento.**
+   `podeCorrigirObra` (`lib/fiscal/obra.ts`) recusa mover **NF de serviço**
+   para obra cujo CNO ela não referencia — a tela do pagamento hoje a chama
+   com `tipo: null`; passa a chamar com `documento.cno_referenciado`
+   (`CONTAI-007`) e o CNO da obra de destino. Levar a nota junto **pela
+   porta do pagamento** não pode contrabandear o que a porta do documento
+   barra. Respondida pela pergunta 1 do Gate Fiscal (24/08) — ver critério
+   11 para o estado de tela que essa resposta abre.
 4. [ ] **Gravação atômica**: pagamento + N documentos + N rastros numa **única
    função Postgres**, com **`ato_id` compartilhado** — granular no banco, **uma**
    linha no histórico e **uma** na pendência. Reusa a função e a tabela `revisao`
@@ -115,8 +117,8 @@ sem nota" por um fato que não aconteceu.
    daquele ano efetivamente mudou. **Sem documento vinculado**: rastro e aviso,
    **sem pendência** — pagamento sozinho não comprova custo em obra nenhuma
    (`min(valor, 0) = 0` dos dois lados), então o delta é zero nas duas. É o
-   espelho exato da tela `s8b` do mock do 021, e está na **pergunta 4** do Gate
-   Fiscal para o `contador` ratificar.
+   espelho exato da tela `s8b` do mock do 021 — confirmado pela pergunta 4
+   do Gate Fiscal (24/08), sem emenda.
 8. [ ] **O par nunca fica atravessado sem registro**: não existe estado em que P
    (obra B, vinculado) aponte para D (obra A) e as duas obras se declarem em
    ordem.
@@ -181,6 +183,18 @@ ela não pode nascer com eles.*
     compartilhado que sobrou de uma bifurcação é o próximo a receber "só mais um
     parâmetro".
 
+16. [ ] **NOVO — estado de tela achado na resposta da pergunta 1 do Gate
+    Fiscal (24/08).** Quando a revalidação de CNO do critério 3 recusa o
+    desfecho (i) para um documento (CNO nulo na obra de destino, ou CNO
+    referenciado diferente do CNO da obra de destino), a opção "esta nota
+    também é da obra de destino" fica **indisponível** só na linha daquele
+    documento — com o texto de consequência do critério 2 do `CONTAI-007` —
+    e o desfecho (ii) ("esta nota é mesmo da obra de origem") permanece como
+    **único** caminho, ainda exigindo clique explícito (não é
+    auto-selecionado). Documentos sem essa restrição no mesmo ato continuam
+    com os dois desfechos disponíveis normalmente — a recusa é por
+    documento, nunca pelo ato inteiro.
+
 ⚠️ **Nota de concorrência, que NÃO vira critério**: o trigger
 `pendencia_uma_aberta` (`0009_correcao_documento.sql:354-383`) lê antes de o
 outro ter commitado, então dois atos simultâneos podem abrir duas pendências do
@@ -190,17 +204,20 @@ ser.
 
 ## Gate Fiscal (Contador)
 
-**Parcialmente respondido pelo adendo de 2026-08-19** ao parecer
-`docs/pareceres/2026-08-18-correcao-de-documento-registrado.md` (§5.1 a §5.5),
-que é **normativo** e foi escrito para o lado do documento — a simetria precisa
-de ratificação, não de reinvenção.
+**Fechado em 2026-08-24.** Parcialmente respondido pelo adendo de 2026-08-19
+ao parecer `docs/pareceres/2026-08-18-correcao-de-documento-registrado.md`
+(§5.1 a §5.5), que é **normativo** e foi escrito para o lado do documento —
+a simetria foi ratificada, não reinventada. As duas perguntas que
+permaneciam abertas foram respondidas em 24/08, aproveitando o `CONTAI-007`
+(CNO referenciado na NF de serviço, ticket escrito no mesmo dia) para tornar
+a pergunta 1 decidível.
 
 | # | Pergunta original (10/08) | Situação |
 |---|---|---|
-| 1 | Mover a **NF de serviço** de obra levando junto os pagamentos conciliados é admissível, sabendo que o CNO impresso continua sendo o da obra de origem? | **ABERTA — bloqueia o critério 3.** O código já responde "não" pela porta do documento (`podeCorrigirObra`), e o adendo §5 **não trata** disso. Aberta desde 10/08 |
+| 1 | Mover a **NF de serviço** de obra levando junto os pagamentos conciliados é admissível, sabendo que o CNO impresso continua sendo o da obra de origem? | **RESPONDIDA — 24/08.** Condicional, por documento, não por pagamento. No desfecho (i), a tela **REVALIDA** cada NF de serviço vinculada chamando `podeCorrigirObra` (reuso literal, `lib/fiscal/obra.ts:267-306`) com `cnoReferenciado = documento.cno_referenciado` (CONTAI-007) e `cnoDestino` = CNO da obra de destino: **(a)** `cno_referenciado` nulo → **AVISA** e permite; **(b)** obra de destino sem CNO, ou CNO diferente → **RECUSA** o desfecho (i) só daquele documento, com o texto de consequência do critério 2 do `CONTAI-007`; **(c)** CNO bate → ambos os desfechos liberados. NF de material/boleto: revalidação não roda, segue a regra geral do adendo §5.2. **Estado novo de tela** (critério 11 abaixo): quando (b), o desfecho (ii) fica **único** para aquele documento — não é terceira saída, é (i) bloqueada com (ii) remanescente, ainda exigindo clique explícito. Fonte: §5.2 + `CONTAI-007` critério 2 + `podeCorrigirObra`. |
 | 2 | Um pagamento que perde o documento que o sustentava volta a **"pago sem nota"** ou vira pendência de classe própria? | **RESPONDIDA** — adendo §5.2, desfecho (ii): volta a "pago sem nota", e **isso é registro verdadeiro, não perda de custo** |
 | 3 | Se o custo migrar de obra **entre anos já declarados**, é correção do app ou retificadora? | **RESPONDIDA** — adendo §5.3: o app **abre pendência por ano** e **não decide retificadora** (CRC) |
-| 4 | *(nova, 19/08)* Mover pagamento **sem** documento vinculado muda número em alguma obra? | **A CONFIRMAR** — a hipótese do `po` é que não (pagamento sozinho não comprova custo em obra nenhuma), o que faria dele o espelho exato da tela `s8b`. Se a hipótese cair, o critério 7 muda |
+| 4 | *(nova, 19/08)* Mover pagamento **sem** documento vinculado muda número em alguma obra? | **RESPONDIDA — 24/08. Confirma a hipótese do `po`: não muda número em obra nenhuma** (`min(valor, 0) = 0` nos dois lados, sem documento não há o que comprovar). **MARCA** rastro (`campo=obra`, `motivo=arquivamento_corrigido`) e **AVISA** que nada mudou; **sem RECUSA**, **sem pendência** — nenhum número declarado se move. É o espelho exato da tela `s8b` do mock do `CONTAI-021`. Critério 7 confirmado sem emenda. Fonte: §5.1 (`min(Σ pagamentos, Σ documentos)`) + §5.3. |
 
 ## Out of Scope
 
@@ -245,18 +262,19 @@ de ratificação, não de reinvenção.
 ## Dependências
 
 - **Bloqueado por**: **`CONTAI-021`** (tabela `revisao`, `ato_id`, função
-  transacional, detector de delta, pendência por ano com conjunto de obras) ·
-  **Gate 0 (mock)** · **pergunta 1 do Gate Fiscal**.
+  transacional, detector de delta, pendência por ano com conjunto de obras,
+  já entregue, `docs/tickets/CONTAI-021.md`) · **`CONTAI-007`**
+  (`cno_referenciado` precisa existir no documento para a revalidação do
+  critério 3 ter o que comparar — ticket escrito e mock aprovado em 24/08,
+  ainda não implementado) · **Gate 0 (mock)**, único item que segue aberto.
 - **Bloqueia**: nada formalmente — mas enquanto não entrar, o `CONTAI-021`
   entrega **meia correção**, e isso está escrito no `Out of Scope` de lá.
 - **Satisfeito**: a dependência da US-003, que chegou como `CONTAI-018` (18/08).
 
 ## Perguntas Abertas
 
-- Pergunta 1 do Gate Fiscal (NF de serviço + CNO no desfecho "a nota vai junto")
-  — **`contador`**, antes do `/develop`.
-- Pergunta 4 do Gate Fiscal (mover pagamento sem vínculo muda número?) —
-  **`contador`**, antes do `/develop`.
+Nenhuma — as duas perguntas do Gate Fiscal (pergunta 1 e pergunta 4) foram
+respondidas em 24/08, ver tabela acima. Falta só o Gate 0 (mock).
 
 ## Teste do Canteiro — **não se aplica como veto**
 

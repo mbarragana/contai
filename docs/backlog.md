@@ -103,7 +103,7 @@ que segurar).
 | Decisões travando avanço | bloco **DECISÕES PENDENTES DO MATEUS**, acima neste arquivo |
 | Última adjudicação fiscal | `docs/backlog/15-2026-08-21-adjudicacao-fiscal-contai-027.md` |
 | Último Gate 4 fechado | `docs/backlog/28-2026-08-24-gate4-contai-036.md` — `CONTAI-036`, **ENTREGUE e COMMITADO** (`2240931`). `CONTAI-004` entregue no mesmo dia, antes (`05cb1e7`). `docs/tickets/README.md` tem linha própria dos dois |
-| Ticket ainda por criar | `15-…-adjudicacao-fiscal-contai-027.md` → *"Ticket novo a criar — correção de valor de desembolso do terreno"*; e **`CONTAI-022`** (D26, cartão de crédito, **P0 fiscal**) e **`CONTAI-031`** (E2E da condição 6, P1, que **bloqueia a fatia 5 do `CONTAI-028`**) e **`CONTAI-032`** (D44, default de `data` e `meio`, **P0**, dependente do `CONTAI-025`) — nenhum dos três existe como arquivo. ➕ **`CONTAI-033`** (D49/D52, *nota grava sem o arquivo*, **P0**, com as **três guardas** do parecer como critério) |
+| Ticket ainda por criar | `15-…-adjudicacao-fiscal-contai-027.md` → *"Ticket novo a criar — correção de valor de desembolso do terreno"*; e **`CONTAI-022`** (D26, cartão de crédito, **P0 fiscal**) e **`CONTAI-031`** (E2E da condição 6, P1, que **bloqueia a fatia 5 do `CONTAI-028`**) e **`CONTAI-032`** (D44, default de `data` e `meio`, **P0**, dependente do `CONTAI-025`) — nenhum dos três existe como arquivo. ➕ **`CONTAI-033`** (D49/D52, *nota grava sem o arquivo*, **P0**, com as **três guardas** do parecer como critério). ➕ ticket pequeno (S, P1) do critério 8 do `29-…-reconciliacao-contai-009.md` — `/documento/[id]` lista os pagamentos vinculados, porta que falta para o pagamento CONCILIADO |
 
 ✅ **7ª revisão aplicada em 2026-08-23**, direto em `docs/tickets/README.md`. O
 **porquê** — movimentos, cortes, a dívida da premissa paga e a **D44** — está em
@@ -179,6 +179,7 @@ no bloco de decisões pendentes acima.
 | **D51 — não existe onde registrar de qual conta o dinheiro saiu** (parte dos desembolsos do terreno saiu da conta do cônjuge). Comprovante de terceiro *não se descarta e não se converte* | `24-…-relato-005.md` → **US-D**, ⛔ **bloqueada pelas 3 perguntas ao Mateus** |
 | **D52 — a superfície 3 exige migration**: `documento.arquivo_path` é `not null` na `0001` e `status_documento` não tem valor para "registrado sem arquivo"; ⚠️ **`quarentena` não pode ser reaproveitada** | `24-…-relato-005.md` → dentro do ticket da **US-B**; a decisão de modelo é do `cto-obra`, não do `po` |
 | D40 — `lib/data.ts` monolítico (2065 linhas, 44 importadores) | `16-2026-08-22-custo-de-contexto-do-pipeline.md` → **`CONTAI-028`**; status em `18-2026-08-23-gate4-contai-028-fatia1.md` (**parcialmente paga**: 2065 → 1803) |
+| **D56 — comprovante que falta em registro antigo não tem caminho de correção pela interface** (achada ao reconciliar o CONTAI-009 contra o código já em produção) | `29-2026-08-24-reconciliacao-contai-009.md` → precisa de mock próprio + checagem do `contador` (rastro de anexo tardio) antes de virar critério |
 
 O status de cada uma está na própria entrada — este índice aponta, não duplica.
 
@@ -420,6 +421,21 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
 - O que não foi reaberto: critério 3, D55
 - Pendência: `docs/tickets/README.md` ainda não tem linha própria do `036`
   (falta hash — diff não commitado)
+
+### `29-2026-08-24-reconciliacao-contai-009.md` — 78 linhas
+**Reconciliação do CONTAI-009 — 2026-08-24 — o ticket já foi implementado por baixo do nome de outro**
+
+- O achado: `/pagamento/[id]` já existe em produção, construído como critério 3
+  do `CONTAI-018` (incidente independente, 18/08), sem citar o CONTAI-009 —
+  que não aparece em lugar nenhum de `docs/tickets/README.md`
+- Verificação critério a critério do CONTAI-009 contra o código de hoje
+- As 4 decisões do designer (mock `CONTAI-009.md`): lista do grupo CORTADA
+  (já resolvida por outro caminho), vocabulário do chip = o do mock (já em
+  produção), anexar comprovante que falta = fora de escopo (**D56** nova),
+  pagamento conciliado sem porta = opção (a), lacuna REAL verificada
+- Critérios 2/5 reescritos e critério 8 novo, prontos para colar
+- Recomendação: fechar CONTAI-009 como SUPERADO pelo CONTAI-018; migrar o
+  critério 8 para ticket pequeno (S)
 
 ## Ao acrescentar ao backlog
 

@@ -56,7 +56,11 @@ a nenhuma linha de nenhuma declaração.
 
 ### Parte A — valem em qualquer resposta da decisão nº 1
 
-1. [ ] **Mock aprovado pelo Mateus** (v5 do card da home). Não desenhável antes
+1. [x] **Mock aprovado pelo Mateus** (v5 do card da home,
+   `design/mocks/CONTAI-005.md` + `.html`). Mock aprovado em 2026-08-24 —
+   headline "Custo em risco no IR" (R$ 49.850), card de INSS separado (em
+   base), boleto fora da soma. Texto do estado zero ratificado pelo
+   `contador` no mesmo dia. Não desenhável antes
    da resposta
 2. [ ] **Nenhum número da home soma entre obras.** Não regredir o critério 9 do
    CONTAI-003 — `app/page.tsx:129` já carrega `· {obra.nome}` e a dica *"Nada é
@@ -110,7 +114,7 @@ IR" = R$ 49.850**
 - Boleto **sai do headline** e continua como card, com a linha nova *"Não entra
   no total acima: enquanto não for pago, não houve dispêndio"*
 - **Textos de tela completos, prontos para copiar, estão no parecer** — Blocos 1
-  a 4. Não se reescrevem
+  a 3 (headline, INSS, boleto). Não se reescrevem
 - Trabalho: dois campos novos em `ResumoObra`, `emPendenciaCentavos` **removido
   do tipo** (não coexiste), rótulo da home, mock v5. **Complexidade S**
 

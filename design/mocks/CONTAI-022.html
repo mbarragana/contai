@@ -1,0 +1,771 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>contai — Mock CONTAI-022 · Cartão de crédito</title>
+<style>
+  :root{
+    --bd-bg:#d8d5cd; --bd-ink:#3a382f; --bd-mut:#6f6b60;
+    --paper:#faf9f6; --ink:#23221d; --mut:#716c61; --line:#e6e3da; --soft:#f1efe9;
+    --red:#b91c1c; --red-bg:#fbecec; --amb:#92600a; --amb-bg:#fdf3df; --grn:#15803d; --grn-bg:#e9f5ed;
+    --blu:#1d4ed8; --blu-bg:#eaeffb;
+  }
+  @media (prefers-color-scheme: dark){ :root{ --bd-bg:#211f1b; --bd-ink:#e8e5dc; --bd-mut:#9b968a; } }
+  :root[data-theme="dark"]{ --bd-bg:#211f1b; --bd-ink:#e8e5dc; --bd-mut:#9b968a; }
+  :root[data-theme="light"]{ --bd-bg:#d8d5cd; --bd-ink:#3a382f; --bd-mut:#6f6b60; }
+
+  *{box-sizing:border-box; margin:0}
+  body{background:var(--bd-bg); color:var(--bd-ink);
+    font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:24px 12px 48px; gap:16px}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-variant-numeric:tabular-nums}
+
+  .evalbar{max-width:820px; width:100%}
+  .evalbar h1{font-size:15px; font-weight:600; text-align:center}
+  .evalbar p{font-size:12.5px; color:var(--bd-mut); margin-top:4px; text-align:center}
+  .grupo{font-size:11px; color:var(--bd-mut); text-transform:uppercase; letter-spacing:.08em;
+    width:100%; text-align:left; margin:10px 0 -2px}
+  .tabs{display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-start; margin-top:4px}
+  .tab{border:1px solid color-mix(in srgb, var(--bd-ink) 25%, transparent); background:transparent;
+    color:var(--bd-ink); border-radius:999px; padding:4px 10px; font-size:12px; cursor:pointer; font-family:inherit}
+  .tab:hover{background:color-mix(in srgb, var(--bd-ink) 8%, transparent)}
+  .tab.on{background:var(--bd-ink); color:var(--bd-bg); border-color:var(--bd-ink)}
+  .tab:focus-visible,.btn:focus-visible,.inp:focus-visible,.lnk:focus-visible{outline:2px solid var(--bd-ink); outline-offset:2px}
+  .larg{display:flex; gap:6px; align-items:center; justify-content:center; margin-top:10px;
+    font-size:11.5px; color:var(--bd-mut); flex-wrap:wrap}
+
+  .aprov{max-width:820px; width:100%; border-radius:10px; padding:10px 14px; font-size:12.5px;
+    text-align:center; font-weight:600}
+  .aprov.nao{background:var(--amb-bg); color:var(--amb); border:1px dashed var(--amb)}
+  .aprov.sim{background:var(--grn-bg); color:var(--grn); border:1px solid var(--grn)}
+
+  .phone{width:375px; max-width:100%; height:768px; background:var(--paper); color:var(--ink);
+    border-radius:30px; border:6px solid #16150f; overflow:hidden; display:flex; flex-direction:column;
+    box-shadow:0 18px 40px rgba(0,0,0,.28)}
+  .phone.mesa{width:720px; height:860px; border-radius:14px; border-width:4px}
+  .screen{display:none; flex-direction:column; height:100%}
+  .screen.on{display:flex}
+  .appbar{padding:14px 18px 10px; border-bottom:1px solid var(--line); flex:none}
+  .appbar .brand{font-weight:700; font-size:16px; letter-spacing:-.01em}
+  .appbar .sub{font-size:11.5px; color:var(--mut); margin-top:1px}
+  .body{flex:1; overflow-y:auto; padding:16px 18px; display:flex; flex-direction:column; gap:12px}
+  .foot{flex:none; padding:12px 18px 18px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:8px}
+  .phone.mesa .body{padding:22px 0; align-items:stretch}
+  .phone.mesa .body > *{max-width:580px; width:100%; margin-left:auto; margin-right:auto}
+  .phone.mesa .foot{padding:14px calc(50% - 290px) 20px}
+
+  .card{border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:#fff}
+  .chip{display:inline-block; font-size:11px; font-weight:600; border-radius:999px; padding:2px 9px}
+  .chip.red{color:var(--red); background:var(--red-bg)}
+  .chip.amb{color:var(--amb); background:var(--amb-bg)}
+  .chip.grn{color:var(--grn); background:var(--grn-bg)}
+  .chip.blu{color:var(--blu); background:var(--blu-bg)}
+  .chip.mud{color:var(--mut); background:var(--soft)}
+  .consequencia{font-size:12.5px; margin-top:6px; padding:8px 10px; border-radius:8px}
+  .consequencia.red{background:var(--red-bg); color:var(--red)}
+  .consequencia.amb{background:var(--amb-bg); color:var(--amb)}
+  .consequencia.grn{background:var(--grn-bg); color:var(--grn)}
+  .consequencia.mud{background:var(--soft); color:var(--mut)}
+
+  .btn{display:block; width:100%; text-align:center; border-radius:10px; padding:13px 14px;
+    font-size:14.5px; font-weight:600; cursor:pointer; border:1px solid transparent; font-family:inherit}
+  .btn.primary{background:var(--ink); color:var(--paper)}
+  .btn.ghost{background:transparent; color:var(--ink); border-color:var(--line)}
+  .btn.danger{background:var(--red); color:#fff}
+  .btn.danger-ghost{background:transparent; color:var(--red); border-color:var(--red)}
+  .btn.leve{background:transparent; color:var(--amb); border-color:var(--amb)}
+  .btn:hover{filter:brightness(1.12)}
+  .btn[disabled]{opacity:.42; cursor:not-allowed; filter:none}
+  .btn.mini{padding:9px 10px; font-size:13px}
+  .lnk{background:none; border:none; padding:0; font:inherit; font-size:12.5px; color:var(--blu);
+    text-decoration:underline; cursor:pointer}
+
+  .row{display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:9px 0; border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:none}
+  .row .lbl{font-size:12px; color:var(--mut); flex:none}
+  .row .val{font-size:13.5px; text-align:right; overflow-wrap:anywhere}
+  .ok{color:var(--grn); font-weight:600}
+  .bad{color:var(--red); font-weight:600}
+
+  .hint{font-size:12px; color:var(--mut)}
+  .banner{border-radius:10px; padding:12px 14px; font-size:13.5px}
+  .banner.red{background:var(--red-bg); color:var(--red)}
+  .banner.amb{background:var(--amb-bg); color:var(--amb)}
+  .banner.grn{background:var(--grn-bg); color:var(--grn)}
+  .banner.blu{background:var(--blu-bg); color:var(--blu)}
+  .banner.mud{background:var(--soft); color:var(--mut)}
+  .parecer{font-size:10.5px; color:var(--mut); margin-top:6px; font-style:italic; line-height:1.4}
+  .secao{font-size:11px; color:var(--mut); text-transform:uppercase; letter-spacing:.07em; margin-top:4px}
+  .pendente{border:1px dashed var(--amb); background:var(--amb-bg); color:var(--amb);
+    border-radius:8px; padding:8px 10px; font-size:12px}
+
+  .agendado{border:1px dashed var(--amb); background:#fffdf7}
+  .valprev{color:var(--mut); font-weight:600}
+  .valpago{color:var(--ink); font-weight:700}
+
+  .lab{display:block; font-size:12px; color:var(--mut); margin-bottom:5px}
+  .inp{width:100%; font-family:inherit; font-size:16px; padding:11px 12px; border:1px solid var(--line);
+    border-radius:9px; background:#fff; color:var(--ink)}
+  .colado{font-size:12.5px; margin-top:6px; padding:8px 10px; border-radius:8px;
+    background:var(--amb-bg); color:var(--amb)}
+  .colado.red{background:var(--red-bg); color:var(--red)}
+  .colado.blu{background:var(--blu-bg); color:var(--blu)}
+  .oculto{display:none !important}
+  .seg{display:flex; gap:6px}
+  .seg .btn{flex:1; min-width:0; padding:10px 6px; font-size:13px; overflow-wrap:anywhere}
+
+  .anexo{border:1px dashed var(--mut); border-radius:10px; padding:12px; background:#fff}
+  .anexo[data-estado="anexado"]{border-style:solid; border-color:var(--grn); background:var(--grn-bg)}
+  .anexo[data-estado="falha"]{border-style:solid; border-color:var(--red); background:var(--red-bg)}
+  .anexo[data-estado="vazio"] .anx-cheio,
+  .anexo[data-estado="vazio"] .anx-falha,
+  .anexo[data-estado="anexado"] .anx-vazio,
+  .anexo[data-estado="anexado"] .anx-falha,
+  .anexo[data-estado="falha"] .anx-vazio,
+  .anexo[data-estado="falha"] .anx-cheio{display:none}
+  .anx-tit{font-size:13.5px; font-weight:600}
+  .anx-sub{font-size:11.5px; color:var(--mut); margin-top:2px}
+  .anx-bts{display:flex; gap:6px; margin-top:10px}
+  .anx-bts .btn{flex:1; min-width:0; padding:11px 6px; font-size:13px}
+  .anx-cheio{display:flex; gap:10px; align-items:center}
+  .anx-thumb{width:46px; height:56px; flex:none; border-radius:6px; border:1px solid var(--grn);
+    background:#fff; display:flex; align-items:center; justify-content:center;
+    font-size:10px; font-weight:700; color:var(--grn); font-family:ui-monospace,Menlo,monospace}
+  .anx-info{flex:1; min-width:0}
+  .anx-nome{font-size:13px; font-weight:600; overflow-wrap:anywhere}
+  .anx-links{display:flex; flex-direction:column; gap:5px; flex:none; text-align:right}
+
+  .perna{display:flex; flex-wrap:wrap; justify-content:space-between; gap:10px; font-size:12.5px;
+    padding:6px 0; border-bottom:1px dotted var(--line)}
+  .perna:last-child{border-bottom:none}
+
+  .aloca{display:flex; align-items:flex-start; gap:10px; padding:9px 0; border-bottom:1px dotted var(--line)}
+  .aloca:last-child{border-bottom:none}
+  .aloca input[type="checkbox"]{width:19px; height:19px; margin-top:1px; flex:none}
+  .aloca[data-off="1"]{opacity:.4}
+  .aloca .desc{flex:1; font-size:12.5px}
+  .aloca .desc .n{font-weight:600}
+  .aloca .v{font-size:13px; font-weight:700; font-family:ui-monospace,Menlo,monospace; flex:none}
+
+  .ascii{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; line-height:1.5;
+    white-space:pre; overflow-x:auto; background:#fff; border:1px solid var(--line); border-radius:8px; padding:12px}
+</style>
+
+<div class="evalbar">
+  <h1>Mock CONTAI-022 — Cartão de crédito (compra → fatura → pagamento) · v1</h1>
+  <p>Baixa fidelidade, navegável. <strong>Hoje congelado no mock: 24/10/2026</strong> (fictício, para as
+     três faturas do exemplo já poderem ter vencido).<br>
+     Cenário: <strong>gestão</strong> — conciliação de fatura, sentado, com calma. 375&nbsp;px é
+     <strong>piso</strong>, não alvo; 720&nbsp;px é a largura padrão de exibição.<br>
+     Este ticket preenche as <strong>duas lacunas que o próprio <code>CONTAI-019</code> devolveu sem
+     desenhar</strong> (mock v2, tela s18: "compra parcelada no cartão" e "fatura paga parcialmente —
+     rotativo"), e acrescenta o campo que faltava desde sempre: <strong>vencimento da fatura</strong> na
+     compra — sem ele a compra nunca vencia e nunca bloqueava relatório anual (achado do
+     <code>cto-obra</code>, Gate 1). Textos com consequência fiscal são cópia de
+     <code>2026-08-18-compromisso-versus-pagamento.md</code> (ADENDO §B, ADENDO 2 §5+§7, ADENDO 3
+     §G.1-G.2) — a origem está em itálico, na própria tela.</p>
+</div>
+
+<div class="aprov nao" id="barraAprovacao">
+  Mock AGUARDANDO APROVAÇÃO do Mateus.
+</div>
+
+<div class="evalbar">
+  <div class="grupo">0 · O fluxo inteiro, antes de qualquer tela</div>
+  <div class="tabs" id="g0"></div>
+  <div class="grupo">1 · Registrar a compra — o gate do parcelamento</div>
+  <div class="tabs" id="g1"></div>
+  <div class="grupo">2 · A fatura — onde as compras esperam</div>
+  <div class="tabs" id="g2"></div>
+  <div class="grupo">3 · Fatura paga integral — 1 documento, N pagamentos</div>
+  <div class="tabs" id="g3"></div>
+  <div class="grupo">4 · Fatura paga parcialmente — o rotativo nunca quita sozinho</div>
+  <div class="tabs" id="g4"></div>
+
+  <div class="larg">
+    <span>Largura:</span>
+    <button class="tab" id="w375">375 px (piso)</button>
+    <button class="tab on" id="w720">720 px (mesa — uso principal)</button>
+  </div>
+</div>
+
+<div class="phone mesa" id="phone">
+
+  <!-- ══════════ 0 · FLUXO ══════════ -->
+  <section class="screen on" id="s0">
+    <div class="appbar">
+      <div class="brand">Fluxo — cartão de crédito</div>
+      <div class="sub">Acordar isto antes de discutir tela</div>
+    </div>
+    <div class="body">
+      <div class="banner blu" style="font-size:12.5px">
+        <strong>Uma frase que resume o desenho:</strong> a compra sempre nasce agendamento; o
+        vencimento da fatura vira a data prevista; e só a fatura <strong>paga integralmente</strong>
+        confirma as compras sozinha. Paga em parte, <strong>ninguém</strong> é confirmado sem você
+        escolher quem.
+      </div>
+      <div class="ascii">          Registrar compra no cartão
+          favorecido = LOJISTA (nunca banco/administradora)
+          valor · data da compra · vencimento da fatura *
+                          │
+                    Parcelado?  ← SEM DEFAULT, nasce sem nenhum marcado
+              ┌───────────┴───────────┐
+             sim                      não
+              │                        │
+        RECUSADO NA ENTRADA      nasce AGENDAMENTO
+        "lance cada parcela      data prevista = vencimento da fatura
+        separada, pelo valor           │
+        dela, na fatura em     ┌───────┴────────┐
+        que ela vence"     fatura ainda      fatura vence,
+        (nenhuma linha       aberta          você confirma
+        é gravada)               │                │
+                                  │        ┌───────┴────────┐
+                                  │    paga TUDO        paga PARTE
+                                  │    (integral)        (rotativo)
+                                  │        │                │
+                                  │   1 anexo p/ fatura  valor SEMPRE gravado
+                                  │   N pagamentos       (fato consumado,
+                                  │   automáticos,       nunca recusado) —
+                                  │   1 por compra       NENHUMA compra
+                                  │        │             confirmada sozinha
+                                  │        │                │
+                                  │        │          Alocação manual:
+                                  │        │          você escolhe quais
+                                  │        │          compras aquele valor
+                                  │        │          cobriu
+                                  │        │                │
+                                  │        │      marcadas → viram pagamento
+                                  │        │      não marcadas → seguem
+                                  │        │      agendamento aberto
+                                  └────────┴────────────────┘
+                                       entram no custo do ANO em que
+                                       a fatura (ou a parte dela) foi paga
+
+   O QUE NUNCA ACONTECE NESTE DESENHO
+   · compra parcelada aceita como se fosse à vista
+   · fatura vira documento hábil ou ganha favorecido próprio
+   · pagamento parcial confirma compra sozinho, sem escolha do Mateus
+   · a soma alocada passar do valor efetivamente pago</div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" data-ir="s1">Começar pelo formulário</button>
+    </div>
+  </section>
+
+  <!-- ══════════ 1 · REGISTRAR A COMPRA (INTERATIVO) ══════════ -->
+  <section class="screen" id="s1">
+    <div class="appbar">
+      <div class="brand">Nova compra no cartão</div>
+      <div class="sub">Casa Cachoeira · hoje é 24/10/2026</div>
+    </div>
+    <div class="body">
+      <div class="banner blu" style="font-size:12.5px">
+        <strong>Esta compra nasce sempre agendamento</strong> — o dinheiro só sai quando a fatura for
+        paga. O favorecido é o <strong>lojista</strong>, nunca o banco nem a administradora.
+        <div class="parecer">Adendo §B: "o favorecido é o lojista/prestador, nunca a administradora do
+          cartão nem o banco — cartão é instrumento de pagamento."</div>
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Favorecido</span><span class="val">Depósito Bom Jesus</span></div>
+        <div class="row"><span class="lbl">CNPJ</span><span class="val mono">33.221.100/0001-45</span></div>
+      </div>
+
+      <div class="card">
+        <label class="lab">Parcelado? <span class="bad">*</span></label>
+        <div class="seg">
+          <button class="btn ghost" data-parc="vista" id="btnVista">À vista</button>
+          <button class="btn ghost" data-parc="parcelado" id="btnParc">Parcelado</button>
+        </div>
+        <div class="colado red oculto" id="avisoParc">
+          <strong>Compra parcelada não é aceita aqui.</strong> Lance cada parcela separada, pelo valor
+          dela, na fatura em que ela vence — cada parcela é uma compra própria, com sua própria data
+          de vencimento.
+          <div class="parecer">Adendo §B, crit. copiável: "Compra parcelada gera um compromisso por
+            parcela… Se o ticket não comportar, cartão parcelado é recusado na entrada com mensagem
+            explícita — nunca aceito como se fosse à vista." O texto exato do banner é redação do
+            designer — não há literal do <code>contador</code> para esta frase; ver Perguntas em
+            aberto.</div>
+        </div>
+      </div>
+
+      <div class="card oculto" id="cardResto">
+        <label class="lab" for="fValor">Valor da compra <span class="bad">*</span></label>
+        <input class="inp mono" type="number" step="0.01" id="fValor" placeholder="0,00">
+
+        <div style="margin-top:12px">
+          <label class="lab" for="fCompra">Data da compra <span class="bad">*</span></label>
+          <input class="inp" type="date" id="fCompra">
+          <div class="hint" style="margin-top:5px">Fica registrada e <strong>não decide ano
+            nenhum</strong> — serve para ligar a nota à fatura.</div>
+        </div>
+
+        <div style="margin-top:12px">
+          <label class="lab" for="fVenc">Vencimento da fatura <span class="bad">*</span></label>
+          <input class="inp" type="date" id="fVenc">
+          <div class="colado blu" style="margin-top:5px">
+            <strong>Esta é a data prevista do agendamento.</strong> Sem ela a compra nunca vence e
+            nunca bloqueia relatório anual nenhum — é o campo que faltava desde sempre.
+            <div class="parecer">Achado crítico do <code>cto-obra</code> no Gate 1 do CONTAI-019: sem
+              vencimento, "a compra não tem onde morar" e escapa do bloqueio do critério do parecer §A.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card oculto" id="cardAnexo">
+        <div class="secao">Nota fiscal ou recibo (opcional aqui)</div>
+        <div class="anexo" data-estado="vazio" id="anexoNota" style="margin-top:6px">
+          <div class="anx-vazio">
+            <div class="anx-tit">Nenhum anexo ainda</div>
+            <div class="anx-sub">Foto, PDF ou print do e-mail da loja</div>
+            <div class="anx-bts">
+              <button class="btn ghost" data-anx-nota="anexado">📷 Tirar foto</button>
+              <button class="btn ghost" data-anx-nota="anexado">📎 Escolher arquivo</button>
+            </div>
+          </div>
+          <div class="anx-cheio">
+            <div class="anx-thumb">NF</div>
+            <div class="anx-info">
+              <div class="anx-nome">nf-deposito-bomjesus.pdf</div>
+              <div class="hint">190 KB</div>
+            </div>
+            <div class="anx-links">
+              <button class="lnk" data-anx-nota="vazio">Trocar</button>
+              <button class="lnk" data-anx-nota="vazio">Remover</button>
+            </div>
+          </div>
+          <div class="anx-falha">
+            <div class="anx-tit bad">Não consegui anexar</div>
+            <div class="anx-sub">O arquivo tem 22 MB — o limite é 10 MB.</div>
+            <div class="anx-bts">
+              <button class="btn danger-ghost" data-anx-nota="vazio">Tentar de novo</button>
+              <button class="btn ghost" data-anx-nota="vazio">Salvar sem a nota</button>
+            </div>
+          </div>
+        </div>
+        <div class="hint" style="margin-top:8px">
+          <strong>Aqui o anexo não é exigido.</strong> Agendamento nasce sem anexo obrigatório — não
+          compõe custo até virar pagamento. Anexar agora é útil, nunca bloqueante.
+        </div>
+        <button class="lnk" style="margin-top:8px" data-anx-nota="falha">simular falha ao anexar ↻</button>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn leve" id="btnGravarCompra" disabled>Diga se é parcelado para continuar</button>
+      <button class="btn ghost" data-ir="s3">Voltar</button>
+    </div>
+  </section>
+
+  <!-- ══════════ 1b · COMPRA REGISTRADA ══════════ -->
+  <section class="screen" id="s2">
+    <div class="appbar">
+      <div class="brand">Agendado</div>
+      <div class="sub">Depósito Bom Jesus · cimento</div>
+    </div>
+    <div class="body">
+      <div class="banner amb">
+        <strong>Agendado para 10/11/2026.</strong> Nada entrou em custo.
+      </div>
+      <div class="card agendado">
+        <span class="chip amb">Agendado — ainda não pago</span>
+        <div class="row" style="margin-top:8px"><span class="lbl">Favorecido</span><span class="val">Depósito Bom Jesus</span></div>
+        <div class="row"><span class="lbl">Valor previsto</span><span class="val valprev mono">~ R$ 950,00</span></div>
+        <div class="row"><span class="lbl">Data da compra</span><span class="val mono">20/10/2026</span></div>
+        <div class="row"><span class="lbl">Quando o dinheiro sai</span><span class="val"><strong>para 10/11/2026</strong> <span class="hint">vencimento da fatura</span></span></div>
+        <div class="consequencia amb">
+          A data da compra <strong>não decide ano nenhum</strong>. Quem decide é o dia em que a fatura
+          (ou a parte dela) for paga.
+        </div>
+      </div>
+      <div class="banner red" style="font-size:12.5px">
+        ⚠️ <strong>Ressalva que viaja junto:</strong> a tese do ano do pagamento da fatura é
+        defensável, não pacífica. Exige confirmação de contador humano (CRC) antes da primeira
+        declaração que a use, e o relatório anual que contiver custo vindo de cartão exibe essa
+        ressalva.
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" data-ir="s3">Ver a fatura de novembro</button>
+      <button class="btn ghost" data-ir="s1">Registrar outra compra</button>
+    </div>
+  </section>
+
+  <!-- ══════════ 2a · FATURA — CARREGANDO ══════════ -->
+  <section class="screen" id="s3l">
+    <div class="appbar">
+      <div class="brand">Fatura · setembro</div>
+      <div class="sub">vence 10/09/2026</div>
+    </div>
+    <div class="body">
+      <div class="hint" role="status">Carregando as compras desta fatura…</div>
+    </div>
+  </section>
+
+  <!-- ══════════ 2b · FATURA — DETALHE (AINDA ABERTA) ══════════ -->
+  <section class="screen" id="s3">
+    <div class="appbar">
+      <div class="brand">Fatura · setembro</div>
+      <div class="sub">vence 10/09/2026 · 3 compras · ainda aberta</div>
+    </div>
+    <div class="body">
+      <div class="banner mud" style="font-size:12.5px">
+        A fatura <strong>não é documento hábil</strong> e não tem favorecido próprio — o custo se
+        atribui por compra, cada uma com seu favorecido, sua nota e sua classificação.
+      </div>
+      <div class="card">
+        <div class="secao">Compras vinculadas</div>
+        <div class="perna"><span><strong>Leroy Merlin</strong> — porcelanato<br><span class="hint">compra 14/08 · NF anexada</span></span><span class="mono valprev">R$ 4.180,00</span></div>
+        <div class="perna"><span><strong>Elétrica Ilha</strong> — cabos<br><span class="hint">compra 19/08 · NF anexada</span></span><span class="mono valprev">R$ 890,00</span></div>
+        <div class="perna"><span><strong>Depósito Bom Jesus</strong> — argamassa<br><span class="hint">compra 22/08 · <span class="bad">sem nota</span></span></span><span class="mono valprev">R$ 610,00</span></div>
+        <div class="row" style="margin-top:6px"><span class="lbl">Total previsto</span><span class="val valprev mono" style="font-weight:700">R$ 5.680,00</span></div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" data-ir="s4">Confirmar fatura paga (integral)</button>
+      <button class="btn ghost" data-ir="s6">Registrar pagamento parcial (rotativo)</button>
+      <button class="btn ghost" data-ir="s1">Voltar</button>
+    </div>
+  </section>
+
+  <!-- ══════════ 3 · CONFIRMAR FATURA PAGA — INTEGRAL ══════════ -->
+  <section class="screen" id="s4">
+    <div class="appbar">
+      <div class="brand">Fatura paga · integral</div>
+      <div class="sub">setembro · 3 compras · um comprovante para as três</div>
+    </div>
+    <div class="body">
+      <div class="banner amb" style="font-size:12.5px">
+        <strong>Aqui "um anexo por pagamento" não fecha</strong> — e o problema é do modelo, não seu.
+        A compra no cartão não tem comprovante e nunca terá; quem tem é a fatura.
+        <div class="parecer">Adendo 2 §5: "o comprovante é o da fatura — um documento para N
+          pagamentos. Exigir comprovante por compra no cartão é pedir um papel que não existe."</div>
+      </div>
+
+      <div class="card">
+        <label class="lab" for="fFaturaData">Data em que a fatura foi paga <span class="bad">*</span></label>
+        <input class="inp" type="date" id="fFaturaData" value="2026-09-10">
+        <div class="hint" style="margin-top:5px">Vira a data de <strong>cada um</strong> dos 3
+          pagamentos abaixo.</div>
+
+        <div class="secao" style="margin-top:12px">Comprovante da fatura</div>
+        <div class="anexo" data-estado="anexado" id="anexoFatura" style="margin-top:6px">
+          <div class="anx-vazio">
+            <div class="anx-tit">Nenhum anexo ainda</div>
+            <div class="anx-bts">
+              <button class="btn ghost" data-anx-fat="anexado">📷 Tirar foto</button>
+              <button class="btn ghost" data-anx-fat="anexado">📎 Escolher arquivo</button>
+            </div>
+          </div>
+          <div class="anx-cheio">
+            <div class="anx-thumb">PDF</div>
+            <div class="anx-info">
+              <div class="anx-nome">fatura-set2026-paga.pdf</div>
+              <div class="hint">340 KB · <strong>compartilhado por 3 pagamentos</strong></div>
+            </div>
+            <div class="anx-links"><button class="lnk" data-anx-fat="vazio">Trocar</button></div>
+          </div>
+          <div class="anx-falha">
+            <div class="anx-tit bad">Não consegui anexar</div>
+            <div class="anx-bts">
+              <button class="btn danger-ghost" data-anx-fat="vazio">Tentar de novo</button>
+              <button class="btn ghost" data-anx-fat="vazio">Salvar sem o comprovante</button>
+            </div>
+          </div>
+        </div>
+        <button class="lnk" style="margin-top:8px" data-anx-fat="falha">simular falha ao anexar ↻</button>
+      </div>
+
+      <div class="card">
+        <div class="secao">Vai criar 3 pagamentos — um por compra, nunca um pela fatura</div>
+        <div class="perna"><span><strong>Leroy Merlin</strong><br><span class="hint">NF anexada</span></span><span class="mono valpago">R$ 4.180,00</span></div>
+        <div class="perna"><span><strong>Elétrica Ilha</strong><br><span class="hint">NF anexada</span></span><span class="mono valpago">R$ 890,00</span></div>
+        <div class="perna"><span><strong>Depósito Bom Jesus</strong><br><span class="hint bad">sem nota</span></span><span class="mono valpago">R$ 610,00</span></div>
+        <div class="consequencia mud">
+          Cada um com <strong>seu favorecido, sua nota e sua classificação</strong> material × serviço.
+          <div class="parecer">Adendo §B(b), literal: "Cada compra daquela fatura é confirmada, uma a
+            uma, gerando um pagamento por compra — nunca um pagamento único pela fatura."</div>
+        </div>
+        <div class="consequencia red">
+          A argamassa vai entrar como <strong>pago sem nota</strong> — o comprovante da fatura prova
+          que o dinheiro saiu, não prova o que foi comprado.
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" data-ir="s5">Confirmar pagamento — 3 pagamentos</button>
+      <button class="btn ghost" data-ir="s3">Voltar sem salvar</button>
+    </div>
+  </section>
+
+  <!-- ══════════ 3b · FATURA PAGA — RESULTADO ══════════ -->
+  <section class="screen" id="s5">
+    <div class="appbar">
+      <div class="brand">3 pagamentos gerados</div>
+      <div class="sub">fatura de setembro, paga em 10/09/2026</div>
+    </div>
+    <div class="body">
+      <div class="banner grn" style="font-size:13px"><strong>Salvo.</strong> As 3 compras viraram pagamento, cada uma na data em que a fatura foi paga.</div>
+      <div class="card">
+        <div class="perna"><span><strong>Leroy Merlin</strong><br><span class="hint">pago em 10/09/2026</span></span><span class="mono valpago">R$ 4.180,00</span></div>
+        <div class="perna"><span><strong>Elétrica Ilha</strong><br><span class="hint">pago em 10/09/2026</span></span><span class="mono valpago">R$ 890,00</span></div>
+        <div class="perna"><span><strong>Depósito Bom Jesus</strong><br><span class="hint bad">pago em 10/09/2026 · sem nota</span></span><span class="mono valpago">R$ 610,00</span></div>
+      </div>
+      <div class="banner mud" style="font-size:12.5px">Juros de rotativo, juros de parcelamento, IOF, anuidade e multa ficam fora do custo, na mesma separação principal × encargos. Esta fatura não teve nenhum.</div>
+    </div>
+    <div class="foot"><button class="btn ghost" data-ir="s1">Voltar</button></div>
+  </section>
+
+  <!-- ══════════ 4a · FATURA PARCIAL — REGISTRAR O VALOR PAGO ══════════ -->
+  <section class="screen" id="s6">
+    <div class="appbar">
+      <div class="brand">Fatura paga · parcial</div>
+      <div class="sub">outubro · rotativo</div>
+    </div>
+    <div class="body">
+      <div class="banner amb" style="font-size:12.5px">
+        <strong>O valor pago é gravado sempre</strong> — é fato consumado, nunca recusado. O que muda
+        é que <strong>nenhuma compra é confirmada sozinha</strong>: na próxima tela você escolhe quais.
+        <div class="parecer">Adendo §B, crit. copiável: "Fatura paga parcialmente (rotativo) não quita
+          compromisso nenhum automaticamente — vai para revisão humana. Só a fatura paga integralmente
+          segue o caminho automático."</div>
+      </div>
+      <div class="card">
+        <div class="secao">Fatura de outubro — vence 10/10/2026</div>
+        <div class="perna"><span>Leroy Merlin — telhas</span><span class="mono valprev">R$ 1.200,00</span></div>
+        <div class="perna"><span>Elétrica Ilha — disjuntores</span><span class="mono valprev">R$ 480,00</span></div>
+        <div class="perna"><span>Ferragens Xavier — parafusos</span><span class="mono valprev">R$ 320,00</span></div>
+        <div class="row"><span class="lbl">Total previsto</span><span class="val valprev mono" style="font-weight:700">R$ 2.000,00</span></div>
+      </div>
+      <div class="card">
+        <label class="lab" for="fParcData">Data em que você pagou <span class="bad">*</span></label>
+        <input class="inp" type="date" id="fParcData" value="2026-10-08">
+        <div style="margin-top:12px">
+          <label class="lab" for="fParcValor">Valor pago <span class="bad">*</span></label>
+          <input class="inp mono" type="number" step="0.01" id="fParcValor" value="1500.00">
+          <div class="hint" style="margin-top:5px">Pagou <strong>menos</strong> que o previsto de
+            R$ 2.000,00 — é rotativo, não integral.</div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" id="btnGravarParcial" data-ir="s7">Salvar pagamento — R$ 1.500,00 registrado</button>
+      <button class="btn ghost" data-ir="s3">Voltar sem salvar</button>
+    </div>
+  </section>
+
+  <!-- ══════════ 4b · FATURA PARCIAL — ALOCAÇÃO MANUAL (INTERATIVO) ══════════ -->
+  <section class="screen" id="s7">
+    <div class="appbar">
+      <div class="brand">Alocar o pagamento</div>
+      <div class="sub">R$ 1.500,00 pagos em 08/10/2026</div>
+    </div>
+    <div class="body">
+      <div class="banner blu" style="font-size:12.5px">
+        <strong>Escolha quais compras este valor cobriu.</strong> Só a compra inteira pode ser
+        marcada — não dá para alocar metade de uma compra.
+      </div>
+      <div class="card">
+        <div class="aloca">
+          <input type="checkbox" data-aloca="1200" id="al1">
+          <div class="desc"><span class="n">Leroy Merlin</span> — telhas<br><span class="hint">compra 15/09</span></div>
+          <div class="v mono">R$ 1.200,00</div>
+        </div>
+        <div class="aloca">
+          <input type="checkbox" data-aloca="480" id="al2">
+          <div class="desc"><span class="n">Elétrica Ilha</span> — disjuntores<br><span class="hint">compra 20/09</span></div>
+          <div class="v mono">R$ 480,00</div>
+        </div>
+        <div class="aloca">
+          <input type="checkbox" data-aloca="320" id="al3">
+          <div class="desc"><span class="n">Ferragens Xavier</span> — parafusos<br><span class="hint">compra 28/09</span></div>
+          <div class="v mono">R$ 320,00</div>
+        </div>
+      </div>
+      <div class="banner mud" id="resumoAloca" style="font-size:13px"></div>
+      <div class="colado red oculto" id="avisoEstoura">
+        <strong>Passaria de R$ 1.500,00 pagos.</strong> Desmarque outra compra antes de marcar esta.
+      </div>
+      <div class="hint" id="sobra"></div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" data-ir="s8">Confirmar alocação</button>
+      <button class="btn ghost" data-ir="s3">Voltar — decidir depois</button>
+    </div>
+  </section>
+
+  <!-- ══════════ 4c · ALOCAÇÃO — VAZIO (nada elegível) ══════════ -->
+  <section class="screen" id="s7v">
+    <div class="appbar">
+      <div class="brand">Alocar o pagamento</div>
+      <div class="sub">R$ 1.500,00 pagos em 08/10/2026</div>
+    </div>
+    <div class="body">
+      <div class="banner mud">Nada para alocar aqui — todas as compras desta fatura já têm
+        pagamento vinculado. O valor fica registrado, sem compra associada.</div>
+    </div>
+    <div class="foot"><button class="btn ghost" data-ir="s3">Voltar</button></div>
+  </section>
+
+  <!-- ══════════ 4d · ALOCAÇÃO CONFIRMADA — RESULTADO ══════════ -->
+  <section class="screen" id="s8">
+    <div class="appbar">
+      <div class="brand">Alocação confirmada</div>
+      <div class="sub">fatura de outubro, rotativo</div>
+    </div>
+    <div class="body">
+      <div class="banner grn" style="font-size:13px"><strong>Salvo.</strong> 1 compra virou pagamento; 2 seguem agendamento aberto.</div>
+      <div class="card">
+        <span class="chip grn">Pago</span>
+        <div class="perna" style="margin-top:6px"><span><strong>Leroy Merlin</strong> — telhas</span><span class="mono valpago">R$ 1.200,00 · pago em 08/10</span></div>
+      </div>
+      <div class="card agendado">
+        <span class="chip amb">Seguem agendamento aberto</span>
+        <div class="perna" style="margin-top:6px"><span>Elétrica Ilha — disjuntores</span><span class="mono valprev">R$ 480,00</span></div>
+        <div class="perna"><span>Ferragens Xavier — parafusos</span><span class="mono valprev">R$ 320,00</span></div>
+        <div class="consequencia amb">
+          Continuam sujeitos ao bloqueio anual até você responder <strong>Foi pago / Não vai ser pago
+          / Mudou a data</strong> — o mesmo ciclo do CONTAI-019, tela "Venceu e não sei se foi pago".
+        </div>
+      </div>
+      <div class="hint">Os R$ 300,00 não alocados (R$ 1.500,00 pagos − R$ 1.200,00 confirmados) não
+        têm destino fiscal afirmado por esta tela — podem ser encargos do rotativo, podem ser parte de
+        uma das duas compras em aberto. Fica para revisão humana, sem chute do app.</div>
+    </div>
+    <div class="foot"><button class="btn ghost" data-ir="s1">Voltar</button></div>
+  </section>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var TABS = [
+    { g: "g0", id: "s0",  t: "Fluxo (ASCII) — ler primeiro" },
+
+    { g: "g1", id: "s1",  t: "★ 1 · Registrar a compra (interativo)" },
+    { g: "g1", id: "s2",  t: "Compra registrada" },
+
+    { g: "g2", id: "s3l", t: "Fatura — carregando" },
+    { g: "g2", id: "s3",  t: "★ 2 · Fatura — detalhe (ainda aberta)" },
+
+    { g: "g3", id: "s4",  t: "★ 3 · Confirmar fatura paga (integral)" },
+    { g: "g3", id: "s5",  t: "Resultado — 3 pagamentos gerados" },
+
+    { g: "g4", id: "s6",  t: "★ 4 · Registrar valor pago (parcial)" },
+    { g: "g4", id: "s7",  t: "★ 5 · Alocação manual (interativo)" },
+    { g: "g4", id: "s7v", t: "Alocação — nada elegível" },
+    { g: "g4", id: "s8",  t: "Resultado — alocação confirmada" }
+  ];
+
+  var botoes = {};
+  TABS.forEach(function (tab) {
+    var b = document.createElement("button");
+    b.className = "tab";
+    b.textContent = tab.t;
+    b.onclick = function () { mostrar(tab.id); };
+    document.getElementById(tab.g).appendChild(b);
+    botoes[tab.id] = b;
+  });
+
+  function mostrar(id) {
+    document.querySelectorAll(".screen").forEach(function (s) { s.classList.remove("on"); });
+    var alvo = document.getElementById(id);
+    if (alvo) { alvo.classList.add("on"); var b = alvo.querySelector(".body"); if (b) b.scrollTop = 0; }
+    for (var k in botoes) botoes[k].classList.toggle("on", k === id);
+  }
+
+  document.addEventListener("click", function (e) {
+    var alvo = e.target.closest("[data-ir]");
+    if (alvo) mostrar(alvo.getAttribute("data-ir"));
+  });
+
+  mostrar("s0");
+
+  var phone = document.getElementById("phone");
+  var w375 = document.getElementById("w375"), w720 = document.getElementById("w720");
+  w375.onclick = function () { phone.classList.remove("mesa"); w375.classList.add("on"); w720.classList.remove("on"); };
+  w720.onclick = function () { phone.classList.add("mesa"); w720.classList.add("on"); w375.classList.remove("on"); };
+
+  function brl(n) { return "R$ " + n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+  /* ══ TELA 1 — registrar a compra: o gate do parcelamento ══ */
+  var parc = null; /* null = SEM DEFAULT */
+  var btnVista = document.getElementById("btnVista"), btnParc = document.getElementById("btnParc");
+  var avisoParc = document.getElementById("avisoParc");
+  var cardResto = document.getElementById("cardResto"), cardAnexo = document.getElementById("cardAnexo");
+  var btnGravarCompra = document.getElementById("btnGravarCompra");
+  var fValor = document.getElementById("fValor"), fCompra = document.getElementById("fCompra"), fVenc = document.getElementById("fVenc");
+
+  function estadoCompra() {
+    if (parc === null) {
+      btnGravarCompra.textContent = "Diga se é parcelado para continuar";
+      btnGravarCompra.className = "btn leve"; btnGravarCompra.disabled = true;
+      avisoParc.classList.add("oculto"); cardResto.classList.add("oculto"); cardAnexo.classList.add("oculto");
+      return;
+    }
+    if (parc === "parcelado") {
+      avisoParc.classList.remove("oculto"); cardResto.classList.add("oculto"); cardAnexo.classList.add("oculto");
+      btnGravarCompra.textContent = "Compra parcelada não é aceita aqui";
+      btnGravarCompra.className = "btn danger-ghost"; btnGravarCompra.disabled = true;
+      return;
+    }
+    avisoParc.classList.add("oculto"); cardResto.classList.remove("oculto"); cardAnexo.classList.remove("oculto");
+    var falta = !fValor.value ? "o valor" : (!fCompra.value ? "a data da compra" : (!fVenc.value ? "o vencimento da fatura" : null));
+    if (falta) {
+      btnGravarCompra.textContent = "Informe " + falta + " para continuar";
+      btnGravarCompra.className = "btn leve"; btnGravarCompra.disabled = true;
+    } else {
+      btnGravarCompra.textContent = "Agendar — não entra no custo";
+      btnGravarCompra.className = "btn leve"; btnGravarCompra.disabled = false;
+      btnGravarCompra.setAttribute("data-ir", "s2");
+    }
+  }
+  btnVista.onclick = function () { parc = "vista"; btnVista.className = "btn primary"; btnParc.className = "btn ghost"; estadoCompra(); };
+  btnParc.onclick = function () { parc = "parcelado"; btnParc.className = "btn danger"; btnVista.className = "btn ghost"; estadoCompra(); };
+  [fValor, fCompra, fVenc].forEach(function (el) { el.addEventListener("input", estadoCompra); });
+  estadoCompra();
+
+  document.querySelectorAll("[data-anx-nota]").forEach(function (b) {
+    b.onclick = function () { document.getElementById("anexoNota").setAttribute("data-estado", b.getAttribute("data-anx-nota")); };
+  });
+  document.querySelectorAll("[data-anx-fat]").forEach(function (b) {
+    b.onclick = function () { document.getElementById("anexoFatura").setAttribute("data-estado", b.getAttribute("data-anx-fat")); };
+  });
+
+  /* ══ TELA 4b — alocação manual, com teto no valor pago ══ */
+  var VALOR_PAGO = 1500;
+  var caixas = document.querySelectorAll("[data-aloca]");
+  var resumo = document.getElementById("resumoAloca"), avisoEstoura = document.getElementById("avisoEstoura"), sobra = document.getElementById("sobra");
+
+  function somaSelecionada() {
+    var s = 0;
+    caixas.forEach(function (c) { if (c.checked) s += parseFloat(c.getAttribute("data-aloca")); });
+    return s;
+  }
+  function atualizarAloca() {
+    var s = somaSelecionada();
+    resumo.textContent = "Selecionado: " + brl(s) + " de " + brl(VALOR_PAGO) + " pagos";
+    var restante = VALOR_PAGO - s;
+    sobra.textContent = restante > 0 ? (brl(restante) + " ainda não alocado — fica sem destino fiscal até você decidir.") : "";
+    caixas.forEach(function (c) {
+      var v = parseFloat(c.getAttribute("data-aloca"));
+      var estouraria = !c.checked && (s + v > VALOR_PAGO);
+      c.closest(".aloca").setAttribute("data-off", estouraria ? "1" : "0");
+      c.disabled = estouraria;
+    });
+  }
+  caixas.forEach(function (c) {
+    c.addEventListener("change", function () {
+      var v = parseFloat(c.getAttribute("data-aloca"));
+      if (c.checked && somaSelecionada() > VALOR_PAGO) {
+        c.checked = false;
+        avisoEstoura.classList.remove("oculto");
+        setTimeout(function () { avisoEstoura.classList.add("oculto"); }, 2200);
+        return;
+      }
+      atualizarAloca();
+    });
+  });
+  atualizarAloca();
+
+})();
+</script>

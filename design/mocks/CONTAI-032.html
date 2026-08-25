@@ -1,0 +1,302 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>contai — Mock CONTAI-032 · Sem default em Data/Meio</title>
+<style>
+  :root{
+    --bd-bg:#d8d5cd; --bd-ink:#3a382f; --bd-mut:#6f6b60;
+    --paper:#faf9f6; --ink:#23221d; --mut:#716c61; --line:#e6e3da; --soft:#f1efe9;
+    --red:#b91c1c; --red-bg:#fbecec; --amb:#92600a; --amb-bg:#fdf3df; --grn:#15803d; --grn-bg:#e9f5ed;
+    --blu:#1d4ed8; --blu-bg:#eaeffb;
+  }
+  @media (prefers-color-scheme: dark){ :root{ --bd-bg:#211f1b; --bd-ink:#e8e5dc; --bd-mut:#9b968a; } }
+  :root[data-theme="dark"]{ --bd-bg:#211f1b; --bd-ink:#e8e5dc; --bd-mut:#9b968a; }
+  :root[data-theme="light"]{ --bd-bg:#d8d5cd; --bd-ink:#3a382f; --bd-mut:#6f6b60; }
+
+  *{box-sizing:border-box; margin:0}
+  body{background:var(--bd-bg); color:var(--bd-ink);
+    font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:24px 12px 48px; gap:16px}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-variant-numeric:tabular-nums}
+
+  .evalbar{max-width:600px; width:100%}
+  .evalbar h1{font-size:15px; font-weight:600; text-align:center}
+  .evalbar p{font-size:12.5px; color:var(--bd-mut); margin-top:4px; text-align:center}
+
+  /* ── ESTADO — fora do quadro da tela, só para o Mateus acompanhar ──
+     Não é componente do app. Lição de 2026-08-18: recurso de simulação
+     dentro da tela faz julgar a coisa errada.                          */
+  .simbar{max-width:600px; width:100%; border:2px dashed var(--bd-mut); border-radius:12px;
+    padding:11px 14px; display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+    background:color-mix(in srgb, var(--bd-ink) 5%, transparent); font-size:12px}
+  .simbar .selo{font-size:10.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--bd-mut); flex:none; width:100%}
+  .estadobadge{font-family:ui-monospace,monospace; font-weight:700; padding:3px 9px; border-radius:999px}
+  .estadobadge.indefinido{background:var(--soft); color:var(--mut)}
+  .estadobadge.recusado{background:var(--red-bg); color:var(--red)}
+  .estadobadge.pagamento{background:var(--grn-bg); color:var(--grn)}
+  .estadobadge.compromisso{background:var(--amb-bg); color:var(--amb)}
+  .simbtn{border:1px solid color-mix(in srgb, var(--bd-ink) 30%, transparent); background:transparent;
+    color:var(--bd-ink); border-radius:8px; padding:4px 9px; font-size:11.5px; cursor:pointer; font-family:inherit}
+  .simbtn:hover{background:color-mix(in srgb, var(--bd-ink) 10%, transparent)}
+
+  .phone{width:375px; max-width:100%; background:var(--paper); color:var(--ink);
+    border-radius:30px; border:6px solid #16150f; overflow:hidden; display:flex; flex-direction:column;
+    box-shadow:0 18px 40px rgba(0,0,0,.28)}
+  .appbar{padding:14px 18px 10px; border-bottom:1px solid var(--line); flex:none}
+  .appbar .brand{font-weight:700; font-size:16px; letter-spacing:-.01em}
+  .appbar .sub{font-size:11.5px; color:var(--mut); margin-top:1px}
+  .body{flex:1; padding:16px 18px; display:flex; flex-direction:column; gap:12px}
+  .foot{flex:none; padding:12px 18px 18px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:8px}
+
+  .card{border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:#fff}
+  .row{display:flex; justify-content:space-between; align-items:baseline; gap:12px}
+  .row .lbl{font-size:12px; color:var(--mut); flex:none}
+  .row .val{font-size:13.5px; text-align:right}
+
+  .btn{display:block; width:100%; text-align:center; border-radius:10px; padding:13px 14px;
+    font-size:14.5px; font-weight:600; cursor:pointer; border:1px solid transparent; font-family:inherit}
+  .btn.primary{background:var(--ink); color:var(--paper)}
+  .btn.ghost{background:transparent; color:var(--ink); border-color:var(--line)}
+  .btn.leve{background:transparent; color:var(--amb); border-color:var(--amb)}
+  .btn:hover{filter:brightness(1.12)}
+  .btn[disabled]{opacity:.42; cursor:not-allowed; filter:none}
+  .btn.mini{padding:9px 6px; font-size:13px}
+  .btn.mini:hover{filter:brightness(1.12)}
+
+  .lab{display:block; font-size:12px; color:var(--mut); margin-bottom:5px}
+  .inp{width:100%; font-family:inherit; font-size:16px; padding:11px 12px; border:1px solid var(--line);
+    border-radius:9px; background:#fff; color:var(--ink)}
+  .hint{font-size:12px; color:var(--mut); margin-top:5px}
+  .pergunta{font-size:12px; font-weight:600; color:var(--red); margin-top:5px}
+  .seg{display:flex; gap:6px}
+  .seg .btn{flex:1; min-width:0; padding:10px 6px; font-size:13px}
+  .seg.pergunta-borda{border:1px solid var(--red); border-radius:11px; padding:2px}
+
+  .banner{border-radius:10px; padding:12px 14px; font-size:13.5px}
+  .banner.red{background:var(--red-bg); color:var(--red)}
+  .banner.amb{background:var(--amb-bg); color:var(--amb)}
+  .banner.mud{background:var(--soft); color:var(--mut)}
+  .parecer{font-size:10.5px; color:var(--mut); margin-top:6px; font-style:italic; line-height:1.4}
+
+  .anexo{border:1px dashed var(--mut); border-radius:10px; padding:12px; background:#fff; text-align:center}
+  .anexo.anexado{border-style:solid; border-color:var(--grn); background:var(--grn-bg); text-align:left}
+  .oculto{display:none !important}
+</style>
+
+<div class="evalbar">
+  <h1>CONTAI-032 · Data e Meio nascem vazios, com estado indefinido</h1>
+  <p>Passo 4 do <code>/tickets-req</code> — mock do bloco que muda em
+    <code>app/adicionar/pagamento/page.tsx</code>. 375px, cenário de captura. Toque nos controles de
+    simulação abaixo (fora do quadro da tela) para mexer em Meio e Data como o Mateus mexeria.</p>
+</div>
+
+<div class="simbar">
+  <span class="selo">Simulação — não é UI do app</span>
+  <span>Estado interno: <strong class="estadobadge indefinido" id="badgeEstado">indefinido</strong></span>
+  <button class="simbtn" id="simLimpar">↺ Recomeçar vazio</button>
+  <button class="simbtn" id="simComprovante">📎 Alternar comprovante</button>
+</div>
+
+<div class="phone">
+  <div class="appbar">
+    <div class="brand">Pagamento</div>
+    <div class="sub">Casa Cachoeira · hoje é 24/08/2026</div>
+  </div>
+  <div class="body">
+    <div class="card">
+      <div class="row"><span class="lbl">Favorecido</span><span class="val">WK Construções LTDA</span></div>
+      <div class="row"><span class="lbl">CNPJ</span><span class="val mono">12.345.678/0001-90</span></div>
+    </div>
+
+    <div class="card">
+      <label class="lab">Como foi pago</label>
+      <div class="seg" id="segMeio">
+        <button class="btn ghost" data-meio="pix">PIX</button>
+        <button class="btn ghost" data-meio="boleto">Boleto</button>
+        <button class="btn ghost" data-meio="cartao">Cartão</button>
+      </div>
+      <div class="pergunta" id="perguntaMeio">Informe como foi pago — PIX, boleto ou cartão.</div>
+      <div class="banner red oculto" style="margin-top:9px" id="avisoCartao">
+        <strong>compra no cartão ainda não tem fluxo neste app</strong> — o custo é do ano em que a
+        fatura for paga. Registre depois que a fatura for paga, uma compra de cada vez, com a data em
+        que a fatura saiu da sua conta.
+        <div class="parecer"><code>RECUSA_CARTAO</code> + <code>RECUSA_CARTAO_ONDE_REGISTRAR</code>,
+          <code>lib/fiscal/compromisso.ts:93-105</code> — texto que já existe, agora alcançável mesmo
+          sem data preenchida: o meio decide sozinho, a data nem chega a ser olhada.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div>
+        <label class="lab" for="fData" id="labData">Data <span style="color:var(--red)">*</span></label>
+        <input class="inp" type="date" id="fData" min="0001-01-01">
+        <div class="pergunta" id="perguntaData">Informe a data em que o pagamento saiu.</div>
+        <div class="hint oculto" id="ajudaDataPagamento">A data que vale para o custo é a do
+          pagamento, não a da nota. Nota de dezembro paga em janeiro é custo do ano seguinte.</div>
+        <div class="banner amb oculto" style="margin-top:9px" id="avisoFutura">
+          <strong><span id="avisoFuturaData">—</span> ainda não aconteceu.</strong> Isto vai ser
+          gravado como <strong>agendamento</strong>: não entra no custo de aquisição e não aparece em
+          nenhum total até o dinheiro sair.
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <label class="lab" for="fValor" id="labValor">Valor <span style="color:var(--red)">*</span></label>
+        <input class="inp mono" type="number" step="0.01" id="fValor" placeholder="0,00">
+      </div>
+    </div>
+
+    <div class="card">
+      <label class="lab" id="labComprovante">Comprovante</label>
+      <div class="anexo" id="anexo">
+        <div id="anexoVazio">📎 Tirar foto ou escolher arquivo</div>
+        <div id="anexoCheio" class="oculto"><strong>comprovante-pix-24082026.pdf</strong> · anexado</div>
+      </div>
+      <div class="hint" id="ajudaComprovante"></div>
+    </div>
+
+    <div class="banner oculto" id="bannerSemComprovante"></div>
+    <div class="banner amb oculto" id="bannerAguardandoNF">
+      Vai nascer como <strong>aguardando NF</strong>. O custo só conta no IR com a nota hábil junto:
+      sem ela, este pagamento fica como pago sem nota.
+    </div>
+  </div>
+  <div class="foot">
+    <button class="btn ghost" id="btnGravar" disabled>Preencha como foi pago e a data para continuar</button>
+    <button class="btn ghost">Voltar</button>
+  </div>
+</div>
+
+<script>
+  var HOJE = "2026-08-24";
+  var meio = null;
+  var comprovante = false;
+
+  var fData = document.getElementById("fData");
+  var fValor = document.getElementById("fValor");
+  var segMeio = document.getElementById("segMeio");
+  var perguntaMeio = document.getElementById("perguntaMeio");
+  var avisoCartao = document.getElementById("avisoCartao");
+  var labData = document.getElementById("labData");
+  var perguntaData = document.getElementById("perguntaData");
+  var ajudaDataPagamento = document.getElementById("ajudaDataPagamento");
+  var avisoFutura = document.getElementById("avisoFutura");
+  var avisoFuturaData = document.getElementById("avisoFuturaData");
+  var labValor = document.getElementById("labValor");
+  var labComprovante = document.getElementById("labComprovante");
+  var ajudaComprovante = document.getElementById("ajudaComprovante");
+  var anexo = document.getElementById("anexo");
+  var anexoVazio = document.getElementById("anexoVazio");
+  var anexoCheio = document.getElementById("anexoCheio");
+  var bannerSemComprovante = document.getElementById("bannerSemComprovante");
+  var bannerAguardandoNF = document.getElementById("bannerAguardandoNF");
+  var btnGravar = document.getElementById("btnGravar");
+  var badgeEstado = document.getElementById("badgeEstado");
+
+  function ver(el, on) { el.classList.toggle("oculto", !on); }
+  function dm(iso) {
+    if (!iso) return "—";
+    var p = iso.split("-");
+    return p[2] + "/" + p[1];
+  }
+
+  /* ⚠️ O GATE — critério do CTO. `decidirRegistro` só roda depois de Meio E
+     Data existirem; cartão resolve sozinho, sem precisar de data nenhuma. */
+  function estado() {
+    if (meio === "cartao") return "recusado";
+    if (!meio || !fData.value) return "indefinido";
+    return fData.value <= HOJE ? "pagamento" : "compromisso";
+  }
+
+  function render() {
+    var e = estado();
+    badgeEstado.textContent = e;
+    badgeEstado.className = "estadobadge " + e;
+
+    document.querySelectorAll("[data-meio]").forEach(function (b) {
+      b.className = "btn " + (b.getAttribute("data-meio") === meio ? "primary" : "ghost");
+    });
+    ver(perguntaMeio, !meio);
+    ver(avisoCartao, e === "recusado");
+
+    var agenda = e === "compromisso";
+    var resolvido = e === "pagamento" || e === "recusado";
+
+    labData.innerHTML = e === "indefinido"
+      ? "Data <span style=\"color:var(--red)\">*</span>"
+      : (agenda ? "Data prevista <span style=\"color:var(--red)\">*</span>"
+                : "Data do pagamento <span style=\"color:var(--red)\">*</span>");
+    ver(perguntaData, !fData.value);
+    ver(ajudaDataPagamento, resolvido);
+    ver(avisoFutura, agenda);
+    avisoFuturaData.textContent = dm(fData.value);
+
+    labValor.innerHTML = e === "indefinido"
+      ? "Valor <span style=\"color:var(--red)\">*</span>"
+      : (agenda ? "Valor previsto <span style=\"color:var(--red)\">*</span>"
+                : "Valor <span style=\"color:var(--red)\">*</span>");
+
+    labComprovante.textContent = agenda ? "Comprovante (opcional)" : "Comprovante";
+    ajudaComprovante.textContent = e === "indefinido"
+      ? "Escolha como foi pago e informe a data — o app diz se este anexo é exigido."
+      : agenda
+        ? "Aqui o anexo não é exigido. Agendamento é a única coisa no app que nasce sem anexo obrigatório."
+        : "Anexe o comprovante do pagamento. O botão salva mesmo sem ele — o que muda é o estado que nasce.";
+    anexo.classList.toggle("anexado", comprovante);
+    ver(anexoVazio, !comprovante);
+    ver(anexoCheio, comprovante);
+
+    var semComprovante = resolvido && !comprovante;
+    ver(bannerSemComprovante, semComprovante);
+    if (semComprovante) {
+      bannerSemComprovante.className = "banner amb";
+      bannerSemComprovante.innerHTML = "<strong>Vai salvar assim mesmo.</strong> Fica como " +
+        "<strong>pago sem comprovante — o custo existe, ainda não está demonstrável</strong>, e não " +
+        "compõe custo confirmado até você anexar.";
+    }
+    ver(bannerAguardandoNF, resolvido);
+
+    if (e === "indefinido") {
+      btnGravar.disabled = true;
+      btnGravar.className = "btn ghost";
+      btnGravar.textContent = !meio && !fData.value
+        ? "Preencha como foi pago e a data para continuar"
+        : !meio
+          ? "Escolha como foi pago para continuar"
+          : "Informe a data para continuar";
+    } else if (e === "recusado") {
+      btnGravar.disabled = true;
+      btnGravar.className = "btn ghost";
+      btnGravar.textContent = "Cartão ainda não tem fluxo neste app";
+    } else if (e === "compromisso") {
+      btnGravar.disabled = false;
+      btnGravar.className = "btn leve";
+      btnGravar.textContent = "Agendar — não entra no custo";
+    } else {
+      btnGravar.disabled = false;
+      btnGravar.className = "btn primary";
+      btnGravar.textContent = "Salvar — aguardando NF";
+    }
+  }
+
+  document.querySelectorAll("[data-meio]").forEach(function (b) {
+    b.onclick = function () {
+      meio = b.getAttribute("data-meio") === meio ? null : b.getAttribute("data-meio");
+      render();
+    };
+  });
+  fData.oninput = render;
+  fValor.oninput = render;
+  document.getElementById("simComprovante").onclick = function () {
+    comprovante = !comprovante;
+    render();
+  };
+  document.getElementById("simLimpar").onclick = function () {
+    meio = null;
+    comprovante = false;
+    fData.value = "";
+    fValor.value = "";
+    render();
+  };
+
+  render();
+</script>

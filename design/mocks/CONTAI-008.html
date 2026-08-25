@@ -1,0 +1,831 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>contai — Mock CONTAI-008 · Corrigir a obra de um pagamento já ligado a notas</title>
+<style>
+  :root{
+    --bd-bg:#d8d5cd; --bd-ink:#3a382f; --bd-mut:#6f6b60;
+    --paper:#faf9f6; --ink:#23221d; --mut:#716c61; --line:#e6e3da; --soft:#f1efe9;
+    --red:#b91c1c; --red-bg:#fbecec; --amb:#92600a; --amb-bg:#fdf3df; --grn:#15803d; --grn-bg:#e9f5ed;
+    --blu:#1d4ed8; --blu-bg:#eaeffb;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bd-bg:#211f1b; --bd-ink:#e8e5dc; --bd-mut:#9b968a; }
+  }
+  :root[data-theme="dark"]{ --bd-bg:#211f1b; --bd-ink:#e8e5dc; --bd-mut:#9b968a; }
+  :root[data-theme="light"]{ --bd-bg:#d8d5cd; --bd-ink:#3a382f; --bd-mut:#6f6b60; }
+
+  *{box-sizing:border-box; margin:0}
+  body{background:var(--bd-bg); color:var(--bd-ink);
+    font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:24px 12px 48px; gap:16px}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-variant-numeric:tabular-nums}
+  code{overflow-wrap:anywhere; word-break:break-word}
+
+  .evalbar{max-width:820px; width:100%}
+  .evalbar h1{font-size:15px; font-weight:600; text-align:center}
+  .evalbar p{font-size:12.5px; color:var(--bd-mut); margin-top:4px; text-align:center}
+  .grupo{font-size:11px; color:var(--bd-mut); text-transform:uppercase; letter-spacing:.08em;
+    width:100%; text-align:left; margin:10px 0 -2px}
+  .tabs{display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-start; margin-top:4px}
+  .tab{border:1px solid color-mix(in srgb, var(--bd-ink) 25%, transparent); background:transparent;
+    color:var(--bd-ink); border-radius:999px; padding:4px 10px; font-size:12px; cursor:pointer; font-family:inherit}
+  .tab:hover{background:color-mix(in srgb, var(--bd-ink) 8%, transparent)}
+  .tab.on{background:var(--bd-ink); color:var(--bd-bg); border-color:var(--bd-ink)}
+  .tab:focus-visible,.btn:focus-visible,.opt:focus-visible{outline:2px solid var(--bd-ink); outline-offset:2px}
+  .larg{display:flex; gap:6px; align-items:center; justify-content:center; margin-top:10px;
+    font-size:11.5px; color:var(--bd-mut); flex-wrap:wrap}
+
+  .aprov{max-width:820px; width:100%; border-radius:10px; padding:10px 14px; font-size:12.5px;
+    text-align:center; font-weight:600}
+  .aprov.nao{background:var(--amb-bg); color:var(--amb); border:1px dashed var(--amb)}
+  .aprov.sim{background:var(--grn-bg); color:var(--grn); border:1px solid var(--grn)}
+  .novo{border:1px solid var(--bd-ink); border-radius:10px; padding:11px 14px; font-size:12.5px;
+    line-height:1.5; margin-top:10px}
+  .novo ul{margin:6px 0 0 17px; padding:0}
+  .novo li{margin-top:5px}
+
+  .phone{width:375px; max-width:100%; height:860px; background:var(--paper); color:var(--ink);
+    border-radius:30px; border:6px solid #16150f; overflow:hidden; display:flex; flex-direction:column;
+    box-shadow:0 18px 40px rgba(0,0,0,.28)}
+  .phone.mesa{width:720px; height:900px; border-radius:14px; border-width:4px}
+  .screen{display:none; flex-direction:column; height:100%}
+  .screen.on{display:flex}
+  .appbar{padding:14px 18px 10px; border-bottom:1px solid var(--line); flex:none}
+  .appbar .brand{font-weight:700; font-size:16px; letter-spacing:-.01em}
+  .appbar .sub{font-size:11.5px; color:var(--mut); margin-top:1px}
+  .body{flex:1; overflow-y:auto; padding:16px 18px; display:flex; flex-direction:column; gap:12px}
+  .foot{flex:none; padding:12px 18px 18px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:8px}
+  .phone.mesa .body{padding:22px 0; align-items:stretch}
+  .phone.mesa .body > *{max-width:580px; width:100%; margin-left:auto; margin-right:auto}
+  .phone.mesa .foot{padding:14px calc(50% - 290px) 20px}
+
+  .card{border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:#fff}
+  .chip{display:inline-block; font-size:11px; font-weight:600; border-radius:999px; padding:2px 9px}
+  .chip.red{color:var(--red); background:var(--red-bg)}
+  .chip.amb{color:var(--amb); background:var(--amb-bg)}
+  .chip.grn{color:var(--grn); background:var(--grn-bg)}
+  .consequencia{font-size:12.5px; margin-top:6px; padding:8px 10px; border-radius:8px}
+  .consequencia.red{background:var(--red-bg); color:var(--red)}
+  .consequencia.amb{background:var(--amb-bg); color:var(--amb)}
+  .consequencia.grn{background:var(--grn-bg); color:var(--grn)}
+  .consequencia.mud{background:var(--soft); color:var(--mut)}
+
+  .btn{display:block; width:100%; text-align:center; border-radius:10px; padding:13px 14px;
+    font-size:14.5px; font-weight:600; cursor:pointer; border:1px solid transparent; font-family:inherit}
+  .btn.primary{background:var(--ink); color:var(--paper)}
+  .btn.ghost{background:transparent; color:var(--ink); border-color:var(--line)}
+  .btn.danger{background:var(--red); color:#fff}
+  .btn:hover{filter:brightness(1.12)}
+  .btn[disabled]{opacity:.42; cursor:not-allowed; filter:none}
+  .btn.mini{padding:9px 10px; font-size:13px}
+
+  .row{display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:9px 0; border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:none}
+  .row .lbl{font-size:12px; color:var(--mut); flex:none}
+  .row .val{font-size:13.5px; text-align:right; overflow-wrap:anywhere}
+
+  .hint{font-size:12px; color:var(--mut)}
+  .banner{border-radius:10px; padding:12px 14px; font-size:13.5px}
+  .banner.red{background:var(--red-bg); color:var(--red)}
+  .banner.amb{background:var(--amb-bg); color:var(--amb)}
+  .banner.grn{background:var(--grn-bg); color:var(--grn)}
+  .banner.blu{background:var(--blu-bg); color:var(--blu)}
+  .parecer{font-size:10.5px; color:var(--mut); margin-top:6px; font-style:italic; line-height:1.4}
+  .secao{font-size:11px; color:var(--mut); text-transform:uppercase; letter-spacing:.07em; margin-top:4px}
+  .lab{display:block; font-size:12px; color:var(--mut); margin-bottom:5px}
+
+  .divida{border:1px solid var(--amb); border-left:4px solid var(--amb); background:#fffdf7;
+    border-radius:10px; padding:11px 13px}
+
+  .opts{display:flex; flex-direction:column; gap:8px; margin-top:8px}
+  .opt{display:flex; gap:11px; align-items:flex-start; width:100%; text-align:left;
+    border:1px solid var(--line); border-radius:10px; padding:11px 12px; background:#fff;
+    cursor:pointer; font:inherit; color:inherit}
+  .opt:hover{background:var(--soft)}
+  .opt .bola{width:22px; height:22px; flex:none; border:2px solid var(--mut); border-radius:999px;
+    display:flex; align-items:center; justify-content:center; margin-top:1px}
+  .opt .bola i{width:10px; height:10px; border-radius:999px; background:transparent; display:block}
+  .opt.on{border-color:var(--ink); box-shadow:inset 0 0 0 1px var(--ink); background:var(--soft)}
+  .opt.on .bola{border-color:var(--ink)}
+  .opt.on .bola i{background:var(--ink)}
+  .opt .tt{font-size:13.5px; font-weight:600}
+  .opt .ss{display:block; font-size:12px; color:var(--mut); margin-top:2px}
+  .opt[disabled]{cursor:not-allowed; opacity:.55; background:var(--red-bg); border-color:var(--red)}
+  .opt[disabled] .bola{border-color:var(--red)}
+  .opt[disabled] .tt{color:var(--red)}
+
+  .anos{width:100%; border-collapse:collapse; font-size:13px}
+  .anos th{font-size:11px; color:var(--mut); text-transform:uppercase; letter-spacing:.05em;
+    text-align:right; padding:0 0 6px; font-weight:600}
+  .anos th:first-child{text-align:left}
+  .anos td{padding:7px 0; border-top:1px solid var(--line); text-align:right}
+  .anos td:first-child{text-align:left; color:var(--mut); font-size:12.5px}
+  .anos .dep{font-weight:700}
+  .anos .sobe{color:var(--grn)} .anos .desce{color:var(--red)} .anos .igual{color:var(--mut)}
+  .anos tr.mexe td:first-child{color:var(--amb); font-weight:700}
+
+  .rastro{list-style:none; font-size:12.5px}
+  .rastro li{padding:9px 0; border-bottom:1px dotted var(--line)}
+  .rastro li:last-child{border-bottom:none}
+  .rastro .qd{font-size:11px; color:var(--mut)}
+  .rastro .campo{font-weight:600}
+  .rastro .ad{font-family:ui-monospace,Menlo,monospace; font-size:12px}
+  .rastro .ad s{color:var(--mut)}
+
+  .ascii{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; line-height:1.5;
+    white-space:pre; overflow-x:auto; background:#fff; border:1px solid var(--line); border-radius:8px; padding:12px}
+  .lista{list-style:none; font-size:12.5px}
+  .lista li{padding:7px 0; border-bottom:1px dotted var(--line); display:flex; gap:8px}
+  .lista li:last-child{border-bottom:none}
+  .lista .n{flex:none; font-weight:700; color:var(--red)}
+  .oculto{display:none !important}
+</style>
+
+<div class="evalbar">
+  <h1>Mock CONTAI-008 — Corrigir a obra de um pagamento já ligado a notas</h1>
+  <p><strong>Hoje no mock: 24/08/2026.</strong> É o <strong>espelho</strong> do CONTAI-021 (telas s8/s8b):
+     lá quem move é o <strong>documento</strong>, arrastando N pagamentos; aqui quem move é o
+     <strong>pagamento</strong>, arrastando N documentos. Mesma máquina (tabela <code>revisao</code>,
+     <code>ato_id</code>, pendência por ano) — <strong>reusada</strong>, não refeita.<br>
+     <strong>Cenário: gestão em casa, sentado.</strong> 375px é piso, não alvo — o Teste do Canteiro
+     não se aplica (crit. 1).<br>
+     Textos com consequência fiscal são <strong>cópia</strong> do adendo de 2026-08-19 §5.2 do
+     <code>contador</code> (mesma norma do CONTAI-021, aplicada ao lado do pagamento — Gate Fiscal,
+     pergunta 1, 24/08: “a simetria foi ratificada, não reinventada”), do critério 2 do
+     <code>CONTAI-007</code> (literal) e de <code>podeCorrigirObra</code>
+     (<code>lib/fiscal/obra.ts</code>). Origem citada em cada bloco.<br>
+     Dados de exemplo são <strong>fictícios</strong>.</p>
+
+  <div class="novo">
+    <strong>O que esta tela acrescenta que a s8/s8b do 021 não tinha</strong>
+    <ul>
+      <li><strong>Critério 16 — bloqueio de CNO por documento (tela p3).</strong> Quando a nota
+        vinculada é NF de serviço e o CNO impresso não bate com o CNO da obra de destino,
+        “esta nota também é da obra de destino” fica <strong>indisponível só naquela linha</strong>,
+        com o texto do critério 2 do <code>CONTAI-007</code>. O desfecho “é mesmo da obra de
+        origem” fica <strong>único</strong> — mas ainda exige clique, nunca se auto-marca.</li>
+      <li><strong>Sem pergunta de motivo</strong> (crit. 5) — grava <code>arquivamento_corrigido</code>
+        sozinho, igual ao lado do documento.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="aprov nao" id="barraAprovacao">
+  Mock AGUARDANDO APROVAÇÃO do Mateus.
+</div>
+
+<div class="evalbar">
+  <div class="grupo">0 · O fluxo, antes de qualquer tela</div>
+  <div class="tabs" id="g0"></div>
+  <div class="grupo">1 · Sem vínculo — 99% dos casos (cenário a)</div>
+  <div class="tabs" id="g1"></div>
+  <div class="grupo">2 · Com vínculo, sem restrição de CNO (cenário b)</div>
+  <div class="tabs" id="g2"></div>
+  <div class="grupo">3 · Com vínculo, um documento bloqueado por CNO — NOVO (cenário c)</div>
+  <div class="tabs" id="g3"></div>
+  <div class="grupo">4 · Gravando / falha (loading + erro com retry)</div>
+  <div class="tabs" id="g4"></div>
+
+  <div class="larg">
+    <span>Largura:</span>
+    <button class="tab" id="w375">375 px (piso — não pode quebrar)</button>
+    <button class="tab on" id="w720">720 px (mesa — uso principal)</button>
+  </div>
+</div>
+
+<div class="phone mesa" id="phone">
+
+  <!-- ══════════════════ 0 · FLUXO ══════════════════ -->
+  <section class="screen on" id="p0">
+    <div class="appbar">
+      <div class="brand">Fluxo — corrigir a obra de um pagamento</div>
+      <div class="sub">app/pagamento/[id]/obra/page.tsx</div>
+    </div>
+    <div class="body">
+      <div class="banner blu" style="font-size:12.5px">
+        <strong>Espelho do CONTAI-021.</strong> Lá o documento é o eixo e os pagamentos seguem ou
+        ficam; aqui o <strong>pagamento</strong> é o eixo — ele muda de obra sempre — e são as
+        <strong>notas</strong> que, uma a uma, decidem se seguem.
+        <div class="parecer">Adendo de 2026-08-19, §5.2 (mesma regra, direção espelhada) ·
+          CONTAI-008, Dor de Origem.</div>
+      </div>
+
+      <div class="ascii">              /pagamento/[id]  — detalhe
+                          │
+              "Corrigir a obra deste pagamento"
+                          │
+                 escolher OBRA DE DESTINO
+                    (nada nasce marcado)
+                          │
+              tem documento(s) vinculado(s)?
+                 ┌────────┴────────┐
+                não                sim
+                 │                  │
+          MOVE DIRETO          para CADA documento, um a um:
+          (crit. 11)           é NF de serviço com CNO ≠ destino?
+          rastro + aviso            ┌──────┴──────┐
+          SEM pendência            sim             não
+          (pergunta 4,              │               │
+           24/08)             podeCorrigirObra   as DUAS opções
+                               RECUSA (i)          livres:
+                               só (ii) fica,       (i) vai junto
+                               ainda exige          (ii) fica na
+                               clique explícito     origem
+                                    └──────┬────────┘
+                                   todos os documentos
+                                      respondidos?
+                                           │
+                             "O que isso muda no seu custo"
+                              (mesmo detector do crit. 4/021)
+                                           │
+                          GRAVAR — ato atômico único:
+                          pagamento + N documentos + N rastros,
+                          mesmo ato_id (crit. 4, 13)
+                                           │
+                         custo de algum ano mudou nas duas obras?
+                                 ┌─────────┴─────────┐
+                                sim                   não
+                                 │                     │
+                         pendência do ANO         só rastro + aviso
+                         (crit. 7, mesma          (caso sem vínculo,
+                          regra do 021 crit.20)    delta zero)</div>
+
+      <div class="card">
+        <div class="secao">O que este fluxo decide, e por quê</div>
+        <ul class="lista" style="margin-top:6px">
+          <li><span class="n">1</span><span><strong>Um a um, nunca em cascata.</strong> N documentos
+            vinculados = N perguntas, cada uma com rastro próprio (crit. 2, parecer §4.4).</span></li>
+          <li><span class="n">2</span><span><strong>A recusa é por documento, nunca pelo ato
+            inteiro.</strong> Um documento bloqueado por CNO não trava os outros do mesmo
+            pagamento (crit. 16).</span></li>
+          <li><span class="n">3</span><span><strong>Motivo não se pergunta</strong> — o papel não
+            tem obra, e a pergunta viraria clique sem leitura (crit. 5).</span></li>
+          <li><span class="n">4</span><span><strong>Pendência só nasce quando o custo declarado de
+            algum ano muda de verdade</strong> — nunca por arquivamento puro (crit. 7).</span></li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" data-ir="p1">Cenário a — sem vínculo</button>
+      <button class="btn ghost" data-ir="p2">Cenário b — vínculo simples</button>
+      <button class="btn ghost" data-ir="p3">Cenário c — vínculo com CNO bloqueado</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 1 · SEM VÍNCULO ══════════════════ -->
+  <section class="screen" id="p1">
+    <div class="appbar">
+      <div class="brand">Corrigir a obra deste pagamento</div>
+      <div class="sub">PIX · 02/02/2026 · R$ 3.200,00 · sem nota vinculada</div>
+    </div>
+    <div class="body">
+      <div class="banner grn" style="font-size:12.5px">
+        <strong>Caso simples — 99% dos pagamentos.</strong> Sem documento vinculado, mover de obra
+        <strong>não muda número nenhum</strong>: pagamento sozinho não comprova custo em obra
+        nenhuma. Move direto, sem perguntar mais nada (crit. 11).
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Obra hoje</span><span class="val">Casa Tanheiros</span></div>
+        <div class="row"><span class="lbl">Documentos vinculados</span><span class="val">nenhum</span></div>
+        <div class="lab" style="margin-top:12px">Mover para</div>
+        <div class="opts" id="obraDestinoA">
+          <button class="opt" data-obra="reforma"><span class="bola"><i></i></span>
+            <span><span class="tt">Reforma do apartamento</span>
+              <span class="ss">CNO próprio · iniciada em 03/2025</span></span></button>
+        </div>
+        <div class="hint" style="margin-top:8px">Nada nasce marcado.</div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:600">O que isso muda no seu custo</div>
+        <table class="anos" style="margin-top:9px">
+          <thead><tr><th>2026</th><th>hoje</th><th>depois</th></tr></thead>
+          <tbody>
+            <tr><td>Casa Tanheiros</td><td class="mono">R$ 58.400,00</td>
+                <td class="mono igual">R$ 58.400,00</td></tr>
+            <tr><td>Reforma do apartamento</td><td class="mono">R$ 12.000,00</td>
+                <td class="mono igual">R$ 12.000,00</td></tr>
+          </tbody>
+        </table>
+        <div class="consequencia grn">
+          <strong>Nada muda, e por isso NÃO abre pendência.</strong> Pagamento sozinho não comprova
+          custo: <code>min(valor, 0) = 0</code> nos dois lados. Fica o rastro e o aviso, e acabou.
+          <div class="parecer">Critério 7 do CONTAI-008 / Gate Fiscal, pergunta 4 (24/08): “não muda
+            número em obra nenhuma… é o espelho exato da tela s8b do mock do CONTAI-021.”</div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" id="btnA" disabled data-ir="p1b">Escolha a obra de destino</button>
+      <button class="btn ghost" data-ir="p0">Cancelar</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 1b · SEM VÍNCULO — GRAVADO ══════════════════ -->
+  <section class="screen" id="p1b">
+    <div class="appbar">
+      <div class="brand">Pagamento movido</div>
+      <div class="sub">Sem pendência — nada mudou no custo</div>
+    </div>
+    <div class="body">
+      <div class="banner grn" style="font-size:13.5px">✓ Movido para Reforma do apartamento.</div>
+      <div class="card">
+        <div class="secao">O que fica registrado</div>
+        <ul class="rastro" style="margin-top:6px">
+          <li><div class="campo">obra · do pagamento</div>
+            <div class="ad"><s>Casa Tanheiros</s> → Reforma do apartamento</div>
+            <div class="qd" style="margin-top:3px">motivo: <strong>arquivamento_corrigido</strong></div>
+            <div class="qd">anos afetados: nenhum — o custo não mudou em obra nenhuma</div></li>
+        </ul>
+        <div class="hint" style="margin-top:8px">
+          O rastro é <strong>sempre</strong>, com ou sem documento ligado — vínculo é estado futuro,
+          e rastro não gravado não se recupera.
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" data-ir="p0">Voltar ao fluxo</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 2 · VÍNCULO SIMPLES ══════════════════ -->
+  <section class="screen" id="p2">
+    <div class="appbar">
+      <div class="brand">Corrigir a obra deste pagamento</div>
+      <div class="sub">PIX · 10/09/2025 · R$ 12.500,00 · 2 notas ligadas</div>
+    </div>
+    <div class="body">
+      <div class="banner red" style="font-size:12.5px" role="alert">
+        <strong>Mover este pagamento muda número dos DOIS lados.</strong> É a única correção que
+        abre pendência persistente — porque muda um número declarado.
+        <div class="parecer">Adendo de 2026-08-19, §5 (ratificado para o pagamento — crit. 5 do
+          CONTAI-008).</div>
+      </div>
+
+      <div class="card">
+        <div class="secao">Esta tela não pergunta o motivo</div>
+        <div class="hint" style="margin-top:6px">O papel não tem obra — é arquivamento do app, e
+          não existe resposta possível a “o erro é do papel ou da digitação”.</div>
+        <div class="consequencia mud">
+          O rastro grava sozinho <strong><code>arquivamento_corrigido</code></strong>.
+          <div class="parecer">Critério 5 do CONTAI-008.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Obra hoje</span><span class="val">Casa Tanheiros</span></div>
+        <div class="lab" style="margin-top:12px">Mover para</div>
+        <div class="opts" id="obraDestinoB">
+          <button class="opt" data-obra="reforma"><span class="bola"><i></i></span>
+            <span><span class="tt">Reforma do apartamento</span>
+              <span class="ss">CNO próprio · iniciada em 03/2025</span></span></button>
+        </div>
+        <div class="hint" style="margin-top:8px">Nada nasce marcado.</div>
+      </div>
+
+      <div class="card" style="border-color:var(--amb)">
+        <div style="font-weight:600">As 2 notas ligadas a este pagamento</div>
+        <div class="hint" style="margin-top:4px">
+          Um pagamento e a nota dele <strong>não podem ficar em obras diferentes</strong>. A
+          resposta é <strong>por nota, uma a uma</strong>.
+        </div>
+
+        <div style="margin-top:12px">
+          <div class="lab">Nota 1 · NF de material · Casa do Cimento Ltda · <strong class="mono">R$ 8.000,00</strong></div>
+          <div class="opts" data-doc="d1">
+            <button class="opt" data-esc="junto"><span class="bola"><i></i></span>
+              <span><span class="tt">Esta nota também é da Reforma do apartamento</span>
+                <span class="ss">Vai junto com o pagamento. O par continua inteiro, só muda de
+                  imóvel — sai do custo de um bem e entra no do outro, sem que o gasto mude um
+                  centavo.</span></span></button>
+            <button class="opt" data-esc="desfaz"><span class="bola"><i></i></span>
+              <span><span class="tt">Esta nota é mesmo da Casa Tanheiros</span>
+                <span class="ss">O vínculo se desfaz, com registro. O pagamento volta a “pago sem
+                  nota” na Reforma do apartamento — a nota continua sendo documento hábil da Casa
+                  Tanheiros.</span></span></button>
+          </div>
+        </div>
+
+        <div style="margin-top:14px">
+          <div class="lab">Nota 2 · NF de material · Ferragens Sul Comércio · <strong class="mono">R$ 4.500,00</strong></div>
+          <div class="opts" data-doc="d2">
+            <button class="opt" data-esc="junto"><span class="bola"><i></i></span>
+              <span><span class="tt">Esta nota também é da Reforma do apartamento</span>
+                <span class="ss">Vai junto com o pagamento.</span></span></button>
+            <button class="opt" data-esc="desfaz"><span class="bola"><i></i></span>
+              <span><span class="tt">Esta nota é mesmo da Casa Tanheiros</span>
+                <span class="ss">O vínculo se desfaz, com registro.</span></span></button>
+          </div>
+        </div>
+
+        <div class="consequencia red">
+          <strong>Não existe uma terceira saída.</strong> Vínculo cruzando duas obras é o estado que
+          o critério 11 do CONTAI-018 proíbe pela porta da frente.
+          <div class="parecer">Critério 2 do CONTAI-008: “cascata silenciosa é proibida” — parecer
+            §4.4.</div>
+        </div>
+      </div>
+
+      <div class="card" id="cardDeltasB">
+        <div style="font-weight:600">O que isso muda no seu custo</div>
+        <div class="hint oculto" id="esperaB" style="margin-top:4px">
+          Responda a obra de destino e as 2 notas para ver a conta.
+        </div>
+        <div id="tabelasB" class="oculto">
+          <div class="secao" style="margin-top:8px">Casa Tanheiros — de onde sai</div>
+          <table class="anos" style="margin-top:6px">
+            <thead><tr><th>Ano</th><th>hoje</th><th>depois</th></tr></thead>
+            <tbody><tr class="mexe"><td>2025 ⚠</td><td class="mono">R$ 46.300,00</td>
+                <td class="mono dep desce">R$ 33.800,00</td></tr></tbody>
+          </table>
+          <div class="secao" style="margin-top:12px">Reforma do apartamento — para onde vai</div>
+          <table class="anos" style="margin-top:6px">
+            <thead><tr><th>Ano</th><th>hoje</th><th>depois</th></tr></thead>
+            <tbody>
+              <tr class="mexe"><td>2025 ⚠</td><td class="mono">R$ 0,00</td>
+                  <td class="mono dep" id="bEntraCusto">—</td></tr>
+              <tr><td>Pago sem nota em 2025</td><td class="mono">R$ 0,00</td>
+                  <td class="mono dep" id="bSemNota">—</td></tr>
+            </tbody>
+          </table>
+          <div class="consequencia amb" id="bResumo">—</div>
+          <div class="consequencia amb">
+            Esta correção mudou o custo de um ano anterior; se a DAA de 2025 já foi entregue,
+            avalie retificadora com seu contador.
+            <div class="parecer">Texto do crit. 4/021, mesmo detector.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" id="btnB" disabled data-ir="p2b">Faltam 3 respostas para ver a conta</button>
+      <button class="btn ghost" data-ir="p0">Cancelar</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 2b · VÍNCULO SIMPLES — GRAVADO ══════════════════ -->
+  <section class="screen" id="p2b">
+    <div class="appbar">
+      <div class="brand">Pagamento movido</div>
+      <div class="sub">Pendência de 2025 aberta nas duas obras</div>
+    </div>
+    <div class="body">
+      <div class="banner amb" style="font-size:12.5px">
+        <strong>Dos R$ 12.500,00, R$ 8.000,00 acompanham o pagamento e R$ 4.500,00 voltam a “pago
+        sem nota” na Reforma do apartamento.</strong> O custo confirmado somado das duas obras cai
+        R$ 4.500,00. Isso <strong>não é perda</strong>: esses R$ 4.500,00 continuam sendo dispêndio
+        — o que falta é a nota hábil que os comprove, e ela ficou na Casa Tanheiros.
+      </div>
+      <div class="card">
+        <div class="secao">O que fica registrado (mesmo ato_id)</div>
+        <ul class="rastro" style="margin-top:6px">
+          <li><div class="campo">obra · do pagamento</div>
+            <div class="ad"><s>Casa Tanheiros</s> → Reforma do apartamento</div>
+            <div class="qd" style="margin-top:3px">motivo: <strong>arquivamento_corrigido</strong></div></li>
+          <li><div class="campo">obra · Nota 1 (Casa do Cimento, R$ 8.000,00)</div>
+            <div class="ad"><s>Casa Tanheiros</s> → Reforma do apartamento</div></li>
+          <li><div class="campo">vínculo · Nota 2 (Ferragens Sul, R$ 4.500,00)</div>
+            <div class="ad">com o pagamento: <s>ligado</s> → desfeito</div>
+            <div class="qd">nota fica na Casa Tanheiros; pagamento entra “pago sem nota” na Reforma</div></li>
+        </ul>
+        <div class="hint" style="margin-top:8px">
+          As três linhas têm o <strong>mesmo identificador de ato</strong> — gravam juntas, numa
+          transação só (crit. 4). Na pendência do ano entram como <strong>uma</strong>, não três.
+        </div>
+      </div>
+      <div class="hint">
+        A pendência é a mesma máquina do CONTAI-021 (crit. 20) — chave por ano, conjunto de obras
+        afetadas, aparece nas duas homes. Não redesenhada aqui: ver telas s7b–s7f e s8c do 021.
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" data-ir="p2">Voltar à correção</button>
+      <button class="btn ghost" data-ir="p0">Voltar ao fluxo</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 3 · VÍNCULO COM CNO BLOQUEADO ══════════════════ -->
+  <section class="screen" id="p3">
+    <div class="appbar">
+      <div class="brand">Corrigir a obra deste pagamento</div>
+      <div class="sub">PIX · 22/09/2025 · R$ 12.500,00 · 2 notas ligadas</div>
+    </div>
+    <div class="body">
+      <div class="banner red" style="font-size:12.5px" role="alert">
+        <strong>Uma das notas ligadas é NF de serviço com CNO de outra obra.</strong> A revalidação
+        do critério 3 roda por documento: só aquela linha fica restrita.
+        <div class="parecer">Critério 16 do CONTAI-008, novo — resposta da pergunta 1 do Gate
+          Fiscal (24/08).</div>
+      </div>
+
+      <div class="card">
+        <div class="row"><span class="lbl">Obra hoje</span><span class="val">Casa Tanheiros</span></div>
+        <div class="lab" style="margin-top:12px">Mover para</div>
+        <div class="opts" id="obraDestinoC">
+          <button class="opt" data-obra="reforma"><span class="bola"><i></i></span>
+            <span><span class="tt">Reforma do apartamento</span>
+              <span class="ss">CNO próprio · iniciada em 03/2025</span></span></button>
+        </div>
+        <div class="hint" style="margin-top:8px">Nada nasce marcado.</div>
+      </div>
+
+      <div class="card" style="border-color:var(--amb)">
+        <div style="font-weight:600">As 2 notas ligadas a este pagamento</div>
+
+        <div style="margin-top:12px">
+          <div class="lab">Nota A · NF de material · Casa do Cimento Ltda · <strong class="mono">R$ 4.000,00</strong></div>
+          <div class="opts" data-doc="dA">
+            <button class="opt" data-esc="junto"><span class="bola"><i></i></span>
+              <span><span class="tt">Esta nota também é da Reforma do apartamento</span>
+                <span class="ss">Vai junto com o pagamento.</span></span></button>
+            <button class="opt" data-esc="desfaz"><span class="bola"><i></i></span>
+              <span><span class="tt">Esta nota é mesmo da Casa Tanheiros</span>
+                <span class="ss">O vínculo se desfaz, com registro.</span></span></button>
+          </div>
+        </div>
+
+        <div style="margin-top:16px">
+          <div class="lab">Nota B · NF de serviço · Empreiteira ABC Serviços Ltda ·
+            <strong class="mono">R$ 8.500,00</strong> · CNO impresso: o da Casa Tanheiros</div>
+          <div class="opts">
+            <button class="opt" disabled aria-disabled="true"><span class="bola"><i></i></span>
+              <span><span class="tt">Indisponível — esta nota também é da Reforma do apartamento</span>
+                <span class="ss">O CNO impresso é o da Casa Tanheiros, não o da Reforma do
+                  apartamento.</span></span></button>
+            <button class="opt" data-doc="dB" data-esc="desfaz"><span class="bola"><i></i></span>
+              <span><span class="tt">Esta nota é mesmo da Casa Tanheiros</span>
+                <span class="ss">Único caminho disponível para esta nota — ainda exige clique, não
+                  se marca sozinho.</span></span></button>
+          </div>
+          <div class="consequencia red">
+            <strong>Esta nota não abate a aferição desta obra.</strong> Sem a aferição fechada não
+            há regularização, e sem regularização a construção não é averbada na matrícula.
+            <div class="parecer">Texto literal do critério 2 do CONTAI-007. Recusa vem de
+              <code>podeCorrigirObra</code> (<code>lib/fiscal/obra.ts</code>): “o CNO desta NF de
+              serviço é diferente do CNO da obra de destino — mover inflaria a base de aferição do
+              CNO errado.”</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" id="cardDeltasC">
+        <div class="hint oculto" id="esperaC" style="margin-top:4px">
+          Responda a obra de destino, a Nota A e a Nota B para ver a conta.
+        </div>
+        <div id="tabelasC" class="oculto">
+          <div style="font-weight:600">O que isso muda no seu custo</div>
+          <div class="secao" style="margin-top:8px">Casa Tanheiros — de onde sai</div>
+          <table class="anos" style="margin-top:6px">
+            <thead><tr><th>Ano</th><th>hoje</th><th>depois</th></tr></thead>
+            <tbody><tr class="mexe"><td>2025 ⚠</td><td class="mono">R$ 51.900,00</td>
+                <td class="mono dep desce">R$ 39.400,00</td></tr></tbody>
+          </table>
+          <div class="secao" style="margin-top:12px">Reforma do apartamento — para onde vai</div>
+          <table class="anos" style="margin-top:6px">
+            <thead><tr><th>Ano</th><th>hoje</th><th>depois</th></tr></thead>
+            <tbody>
+              <tr class="mexe"><td>2025 ⚠</td><td class="mono">R$ 0,00</td>
+                  <td class="mono dep" id="cEntraCusto">—</td></tr>
+              <tr><td>Pago sem nota em 2025</td><td class="mono">R$ 0,00</td>
+                  <td class="mono dep" id="cSemNota">—</td></tr>
+            </tbody>
+          </table>
+          <div class="consequencia amb" id="cResumo">—</div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" id="btnC" disabled data-ir="p3b">Faltam 3 respostas para ver a conta</button>
+      <button class="btn ghost" data-ir="p0">Cancelar</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 3b · VÍNCULO COM CNO BLOQUEADO — GRAVADO ══════════════════ -->
+  <section class="screen" id="p3b">
+    <div class="appbar">
+      <div class="brand">Pagamento movido</div>
+      <div class="sub">Pendência de 2025 aberta nas duas obras</div>
+    </div>
+    <div class="body">
+      <div class="banner amb" style="font-size:12.5px">
+        <strong>Dos R$ 12.500,00, R$ 4.000,00 acompanham o pagamento e R$ 8.500,00 voltam a “pago
+        sem nota” na Reforma do apartamento.</strong> O custo confirmado somado das duas obras cai
+        R$ 8.500,00.
+      </div>
+      <div class="card">
+        <div class="secao">O que fica registrado (mesmo ato_id)</div>
+        <ul class="rastro" style="margin-top:6px">
+          <li><div class="campo">obra · do pagamento</div>
+            <div class="ad"><s>Casa Tanheiros</s> → Reforma do apartamento</div>
+            <div class="qd" style="margin-top:3px">motivo: <strong>arquivamento_corrigido</strong></div></li>
+          <li><div class="campo">obra · Nota A (Casa do Cimento, R$ 4.000,00)</div>
+            <div class="ad"><s>Casa Tanheiros</s> → Reforma do apartamento</div></li>
+          <li><div class="campo">vínculo · Nota B (Empreiteira ABC, R$ 8.500,00)</div>
+            <div class="ad">com o pagamento: <s>ligado</s> → desfeito</div>
+            <div class="qd">nota fica na Casa Tanheiros — CNO impresso não é o da Reforma do
+              apartamento (crit. 3/16); pagamento entra “pago sem nota” na Reforma</div></li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn ghost" data-ir="p3">Voltar à correção</button>
+      <button class="btn ghost" data-ir="p0">Voltar ao fluxo</button>
+    </div>
+  </section>
+
+  <!-- ══════════════════ 4 · GRAVANDO / FALHA ══════════════════ -->
+  <section class="screen" id="pG">
+    <div class="appbar">
+      <div class="brand">Corrigir a obra deste pagamento</div>
+      <div class="sub">Gravando, e o que aparece quando falha</div>
+    </div>
+    <div class="body">
+      <div class="secao">a) Gravando</div>
+      <div class="card">
+        <div class="hint">O pagamento, as notas e os rastros gravam juntos, numa operação só.</div>
+        <div style="margin-top:10px"><button class="btn primary" disabled>Gravando…</button></div>
+      </div>
+
+      <div class="secao" style="margin-top:6px">b) Falhou</div>
+      <div class="banner red" role="alert">
+        <strong>Não deu para gravar.</strong> A conexão caiu no meio. Nada foi alterado — o
+        pagamento continua na Casa Tanheiros e nenhum registro de correção foi criado.
+      </div>
+      <div class="card">
+        <div class="consequencia mud">
+          Ou as duas coisas acontecem — a correção <strong>e</strong> o registro dela — ou nenhuma
+          acontece. Não existe correção sem histórico.
+          <div class="parecer">Critério 4 do CONTAI-008: pagamento + N documentos + N rastros numa
+            única função Postgres transacional, mesmo <code>ato_id</code>.</div>
+        </div>
+        <div style="margin-top:10px"><button class="btn primary">Tentar de novo</button></div>
+        <div style="margin-top:7px"><button class="btn ghost" data-ir="p0">Voltar ao fluxo</button></div>
+      </div>
+    </div>
+    <div class="foot"><button class="btn ghost" data-ir="p2">Voltar à tela 2 (vínculo simples)</button></div>
+  </section>
+
+</div>
+
+<script>
+(function () {
+  var TABS = [
+    { g: "g0", id: "p0",  t: "Fluxo (ASCII)" },
+    { g: "g1", id: "p1",  t: "★ a · Sem vínculo (interativo)" },
+    { g: "g1", id: "p1b", t: "a · Gravado — sem pendência" },
+    { g: "g2", id: "p2",  t: "★ b · Vínculo simples (interativo)" },
+    { g: "g2", id: "p2b", t: "b · Gravado — pendência de 2025" },
+    { g: "g3", id: "p3",  t: "★ c · CNO bloqueado (interativo) — NOVO" },
+    { g: "g3", id: "p3b", t: "c · Gravado — nota ficou pelo CNO" },
+    { g: "g4", id: "pG",  t: "Gravando / falha" }
+  ];
+
+  var botoes = {};
+  TABS.forEach(function (tab) {
+    var b = document.createElement("button");
+    b.className = "tab";
+    b.textContent = tab.t;
+    b.onclick = function () { mostrar(tab.id); };
+    document.getElementById(tab.g).appendChild(b);
+    botoes[tab.id] = b;
+  });
+
+  function mostrar(id) {
+    document.querySelectorAll(".screen").forEach(function (s) { s.classList.remove("on"); });
+    var alvo = document.getElementById(id);
+    if (alvo) { alvo.classList.add("on"); alvo.querySelector(".body").scrollTop = 0; }
+    for (var k in botoes) botoes[k].classList.toggle("on", k === id);
+  }
+
+  document.addEventListener("click", function (e) {
+    var alvo = e.target.closest("[data-ir]");
+    if (!alvo || alvo.disabled) return;
+    mostrar(alvo.getAttribute("data-ir"));
+  });
+
+  mostrar("p0");
+
+  var phone = document.getElementById("phone");
+  var w375 = document.getElementById("w375");
+  var w720 = document.getElementById("w720");
+  w375.onclick = function () { phone.classList.remove("mesa"); w375.classList.add("on"); w720.classList.remove("on"); };
+  w720.onclick = function () { phone.classList.add("mesa"); w720.classList.add("on"); w375.classList.remove("on"); };
+
+  function brl(c) {
+    return "R$ " + (c / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  /* ══ Cenário A — sem vínculo: só a obra de destino ══ */
+  var obraA = null;
+  var btnA = document.getElementById("btnA");
+  document.querySelectorAll("#obraDestinoA .opt").forEach(function (bt) {
+    bt.onclick = function () {
+      document.querySelectorAll("#obraDestinoA .opt").forEach(function (o) { o.classList.remove("on"); });
+      bt.classList.add("on");
+      obraA = bt.dataset.obra;
+      btnA.disabled = false;
+      btnA.textContent = "Gravar — nada muda no seu custo";
+    };
+  });
+
+  /* ══ Cenário B — vínculo simples: obra + 2 notas livres ══ */
+  var VALOR_PAG_B = 1250000;
+  var DOCS_B = { d1: 800000, d2: 450000 };
+  var CUSTO_SAI_B = 4630000;
+  var obraB = null, escB = { d1: null, d2: null };
+  var btnB = document.getElementById("btnB");
+  var esperaB = document.getElementById("esperaB");
+  var tabelasB = document.getElementById("tabelasB");
+
+  function pintarB() {
+    document.querySelectorAll("#obraDestinoB .opt").forEach(function (o) { o.classList.toggle("on", o.dataset.obra === obraB); });
+    ["d1", "d2"].forEach(function (d) {
+      document.querySelectorAll('[data-doc="' + d + '"] .opt').forEach(function (o) {
+        o.classList.toggle("on", o.dataset.esc === escB[d]);
+      });
+    });
+    var faltam = (obraB ? 0 : 1) + (escB.d1 ? 0 : 1) + (escB.d2 ? 0 : 1);
+    esperaB.classList.toggle("oculto", faltam === 0);
+    tabelasB.classList.toggle("oculto", faltam !== 0);
+    if (faltam > 0) {
+      btnB.disabled = true;
+      btnB.textContent = faltam === 1 ? "Falta 1 resposta para ver a conta" : "Faltam " + faltam + " respostas para ver a conta";
+      return;
+    }
+    var junto = 0, desfaz = 0;
+    ["d1", "d2"].forEach(function (d) { if (escB[d] === "junto") junto += DOCS_B[d]; else desfaz += DOCS_B[d]; });
+    var entra = Math.min(junto, VALOR_PAG_B);
+    var semNota = VALOR_PAG_B - entra;
+    document.getElementById("bEntraCusto").textContent = brl(entra);
+    document.getElementById("bEntraCusto").className = "mono dep " + (entra > 0 ? "sobe" : "igual");
+    document.getElementById("bSemNota").textContent = brl(semNota);
+    document.getElementById("bSemNota").className = "mono dep " + (semNota > 0 ? "desce" : "igual");
+    var resumo = document.getElementById("bResumo");
+    if (desfaz === 0) {
+      resumo.className = "consequencia grn";
+      resumo.innerHTML = "<strong>O custo total não muda.</strong> Os " + brl(VALOR_PAG_B) + " saem de uma obra e entram na outra — o pagamento e as notas viajam juntos.";
+    } else if (junto === 0) {
+      resumo.className = "consequencia amb";
+      resumo.innerHTML = "<strong>O custo confirmado total cai " + brl(desfaz) + ".</strong> O pagamento vai sozinho para a Reforma, sem nota que o cubra, e volta a <strong>pago sem nota</strong>.";
+    } else {
+      resumo.className = "consequencia amb";
+      resumo.innerHTML = "Dos " + brl(VALOR_PAG_B) + ", <strong>" + brl(junto) + "</strong> acompanham o pagamento e <strong>" + brl(desfaz) + "</strong> voltam a <strong>pago sem nota</strong> na Reforma do apartamento. O custo confirmado somado das duas obras cai " + brl(desfaz) + ". Isso <strong>não é perda</strong>: continua sendo dispêndio — falta a nota hábil que o comprove.";
+    }
+    btnB.disabled = false;
+    btnB.textContent = "Gravar — e abrir a pendência de 2025";
+  }
+  document.querySelectorAll("#obraDestinoB .opt").forEach(function (bt) { bt.onclick = function () { obraB = bt.dataset.obra; pintarB(); }; });
+  ["d1", "d2"].forEach(function (d) {
+    document.querySelectorAll('[data-doc="' + d + '"] .opt').forEach(function (bt) { bt.onclick = function () { escB[d] = bt.dataset.esc; pintarB(); }; });
+  });
+  pintarB();
+
+  /* ══ Cenário C — vínculo restrito: Nota A livre, Nota B só (ii) ══ */
+  var VALOR_PAG_C = 1250000;
+  var DOCS_C = { dA: 400000, dB: 850000 };
+  var CUSTO_SAI_C = 5190000;
+  var obraC = null, escC = { dA: null, dB: null };
+  var btnC = document.getElementById("btnC");
+  var esperaC = document.getElementById("esperaC");
+  var tabelasC = document.getElementById("tabelasC");
+
+  function pintarC() {
+    document.querySelectorAll("#obraDestinoC .opt").forEach(function (o) { o.classList.toggle("on", o.dataset.obra === obraC); });
+    document.querySelectorAll('[data-doc="dA"] .opt').forEach(function (o) { o.classList.toggle("on", o.dataset.esc === escC.dA); });
+    var optB = document.querySelector('[data-doc="dB"]');
+    if (optB) optB.classList.toggle("on", escC.dB === "desfaz");
+
+    var faltam = (obraC ? 0 : 1) + (escC.dA ? 0 : 1) + (escC.dB ? 0 : 1);
+    esperaC.classList.toggle("oculto", faltam === 0);
+    tabelasC.classList.toggle("oculto", faltam !== 0);
+    if (faltam > 0) {
+      btnC.disabled = true;
+      btnC.textContent = faltam === 1 ? "Falta 1 resposta para ver a conta" : "Faltam " + faltam + " respostas para ver a conta";
+      return;
+    }
+    var junto = escC.dA === "junto" ? DOCS_C.dA : 0;
+    var desfaz = VALOR_PAG_C === junto ? 0 : (DOCS_C.dA - junto) + DOCS_C.dB;
+    var entra = Math.min(junto, VALOR_PAG_C);
+    var semNota = VALOR_PAG_C - entra;
+    document.getElementById("cEntraCusto").textContent = brl(entra);
+    document.getElementById("cEntraCusto").className = "mono dep " + (entra > 0 ? "sobe" : "igual");
+    document.getElementById("cSemNota").textContent = brl(semNota);
+    document.getElementById("cSemNota").className = "mono dep " + (semNota > 0 ? "desce" : "igual");
+    var resumo = document.getElementById("cResumo");
+    resumo.className = "consequencia amb";
+    if (junto > 0) {
+      resumo.innerHTML = "Dos " + brl(VALOR_PAG_C) + ", <strong>" + brl(junto) + "</strong> (Nota A) acompanham o pagamento e <strong>" + brl(semNota) + "</strong> voltam a <strong>pago sem nota</strong> na Reforma do apartamento — a Nota B ficou na Casa Tanheiros porque o CNO impresso não é o da obra de destino.";
+    } else {
+      resumo.innerHTML = "Nenhuma nota acompanha o pagamento. Os " + brl(VALOR_PAG_C) + " inteiros voltam a <strong>pago sem nota</strong> na Reforma do apartamento.";
+    }
+    btnC.disabled = false;
+    btnC.textContent = "Gravar — e abrir a pendência de 2025";
+  }
+  document.querySelectorAll("#obraDestinoC .opt").forEach(function (bt) { bt.onclick = function () { obraC = bt.dataset.obra; pintarC(); }; });
+  document.querySelectorAll('[data-doc="dA"] .opt').forEach(function (bt) { bt.onclick = function () { escC.dA = bt.dataset.esc; pintarC(); }; });
+  var optBBtn = document.querySelector('[data-doc="dB"]');
+  if (optBBtn) optBBtn.onclick = function () { escC.dB = "desfaz"; pintarC(); };
+  pintarC();
+})();
+</script>

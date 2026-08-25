@@ -1,6 +1,54 @@
 # CONTAI-009 — Detalhe do pagamento, com a correção de obra alcançável a partir dele
 
-## Tipo e Prioridade
+## ✅ SUPERADO pelo CONTAI-018 — fechado em 2026-08-24
+
+**Este ticket foi implementado sem citar o próprio nome.** `/pagamento/[id]`
+existe em produção desde 18/08 — construído como critério 3 do `CONTAI-018`
+(incidente independente, 2 dias depois do mock deste ticket ter sido
+aprovado), sem nunca referenciar o `CONTAI-009`. As duas dores de origem
+(D20, D21) foram resolvidas de carona. Reconciliação completa, critério a
+critério, em `docs/backlog/29-2026-08-24-reconciliacao-contai-009.md`.
+
+Os 4 pontos que o `designer` deixou em aberto no mock (`design/mocks/CONTAI-009.md`
+"Dúvidas") foram fechados no mesmo dia:
+- **Lista do grupo (`#s2`)**: não entra em lugar nenhum — o `CONTAI-018`
+  resolveu isso de outro jeito (a home já linka cada pagamento pendente
+  individualmente).
+- **Vocabulário do chip**: o do mock, e já está em produção
+  (`rotulosPagoSemNota`).
+- **Anexar comprovante que faltou**: fora de escopo, virou dívida nova
+  **D56** (mock e parecer próprios, quando priorizado).
+- **Pagamento conciliado sem porta**: é bug real, verificado no código —
+  virou o único trabalho vivo restante (ver critério 8 abaixo, migrado para
+  ticket próprio).
+- **Textos fiscais** (`#s12` prazo de guarda, `#s7` regime de caixa, `#s6`
+  favorecido ausente) — os 3 ratificados pelo `contador` em 2026-08-24: o
+  primeiro já estava certo (reaproveitava o texto do `CONTAI-030`), o segundo
+  confirmado sem alteração, o terceiro trocado (recusada a exceção de
+  "preencher favorecido vazio" — vira ticket próprio se a dor se confirmar).
+
+**Critérios 2 e 5, texto final reconciliado contra o código de hoje:**
+
+> 2. [x] Existe `/pagamento/[id]` (já em produção via CONTAI-018), com: valor,
+>    data efetiva do pagamento, favorecido, nome da obra por extenso, chip de
+>    status — Pago sem nota (PJ) / Pago sem recibo (PF) / Pago sem documento
+>    (indefinido) / Custo comprovado, vocabulário de
+>    `lib/fiscal/pagamento.ts::rotulosPagoSemNota` — e o comprovante anexado
+>
+> 5. [x] A tela é alcançável a partir de onde o pagamento aparece hoje: (a) a
+>    home já linka cada pagamento pendente individualmente — a "exposição por
+>    favorecido" (`lib/fiscal/resumo.ts` §3, herdada do CONTAI-018) emite um
+>    botão por item, N=1 ou N>1; (b) para o pagamento CONCILIADO, a porta é o
+>    critério 8 — hoje a home só leva ao documento
+
+**Não fica aberto neste ticket** — o único trabalho vivo (a porta que falta
+para o pagamento conciliado quando um documento tem mais de um pagamento
+vinculado) foi migrado para um ticket pequeno próprio (S, P1), para não
+reabrir os ~90% já entregues como se fossem net-new.
+
+---
+
+## Tipo e Prioridade (histórico, como escrito originalmente)
 feature — **P0, DENTRO da R1**.
 
 **Este ticket não é feature nova: é a metade não cumprida do critério 13 do
@@ -59,22 +107,21 @@ pressa não fique preso no imóvel errado até a hora da declaração.
        em "Perguntas Abertas") estiverem sem resposta: a tela 2 (lista do grupo)
        e a tela 14 (pagamentos vinculados no detalhe do documento) foram
        desenhadas **como proposta**, e podem não sobreviver
-2. [ ] Existe `/pagamento/[id]`, com: valor, data efetiva do pagamento,
-       favorecido, **nome da obra por extenso**, status (aguardando NF /
-       conciliado) e o comprovante anexado
-3. [ ] A partir desse detalhe, a **correção da obra** (`/pagamento/[id]/obra`,
+2. [x] ~~Existe `/pagamento/[id]`...~~ — ver texto reconciliado no topo do arquivo.
+3. [x] A partir desse detalhe, a **correção da obra** (`/pagamento/[id]/obra`,
        já implementada) é alcançável **sem digitar URL** — fecha o critério 13
-       do CONTAI-003 para pagamento
-4. [ ] O mesmo ponto de entrada existe no detalhe do **documento** e a
-       nomenclatura é idêntica nos dois — divergência de rótulo entre as duas
-       telas ensina que são coisas diferentes
-5. [ ] A tela é alcançável a partir de **onde o pagamento aparece hoje**: a
-       exposição por favorecido na home e as pendências. Detalhe que só existe
-       por URL é o defeito que este ticket conserta, não a solução
-6. [ ] E2E: registrar pagamento, **fechar a tela de salvo**, chegar ao detalhe
-       pela navegação, corrigir a obra e afirmar o **`obra_id` gravado**
-7. [ ] Nada de valor somado entre obras nesta tela — ela é de um registro só,
-       mas o rótulo da obra é obrigatório (critério 9 do CONTAI-003)
+       do CONTAI-003 para pagamento. Confirmado em produção, 24/08.
+4. [x] O mesmo ponto de entrada existe no detalhe do **documento** e a
+       nomenclatura é idêntica nos dois. Confirmado por `grep`, 24/08.
+5. [x] ~~A tela é alcançável a partir de onde o pagamento aparece hoje...~~ —
+       ver texto reconciliado no topo do arquivo.
+6. [x] E2E: registrar pagamento, **fechar a tela de salvo**, chegar ao detalhe
+       pela navegação, corrigir a obra e afirmar o **`obra_id` gravado**.
+       Coberto por `e2e/obra.spec.ts` e `e2e/vinculo.spec.ts`, confirmado
+       24/08.
+7. [x] Nada de valor somado entre obras nesta tela — ela é de um registro só,
+       mas o rótulo da obra é obrigatório (critério 9 do CONTAI-003).
+       Confirmado, 24/08.
 
 ## Gate Fiscal (Contador)
 **Não há regra fiscal nova neste ticket** e registro isso explicitamente em vez

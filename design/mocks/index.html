@@ -35,6 +35,11 @@
   <span class="st">Status: v1 AGUARDANDO APROVAÇÃO · 8 telas · mesmo passe por exigência do critério 1 do CONTAI-004 · 3 perguntas em aberto</span><br>
   <span class="st">📄 spec: <code>CONTAI-004.md</code> — é o que o <code>/develop</code> lê</span>
 </a>
+<a class="mock" href="CONTAI-005.html">
+  <span class="id">CONTAI-005</span> — Card "Em pendência" da home vira "Custo em risco no IR" (decomposição visível, INSS separado, boleto fora)<br>
+  <span class="st">Status: v1 AGUARDANDO APROVAÇÃO · nível 1, 1 tela/2 estados (cheio · zero) · gestão em casa, 375px é piso · textos dos Blocos 1-3 copiados literalmente do parecer de 2026-08-16 · 3 perguntas em aberto, a nº1 bloqueante de texto do <code>contador</code></span><br>
+  <span class="st">📄 spec: <code>CONTAI-005.md</code> — é o que o <code>/develop</code> lê</span>
+</a>
 <a class="mock" href="CONTAI-009.html">
   <span class="id">CONTAI-009</span> — Detalhe do pagamento, com a correção de obra alcançável a partir dele<br>
   <span class="st">Status: v1 APROVADA em 2026-08-16 · caminho crítico da R1 · 5 perguntas ainda em aberto</span><br>
@@ -74,4 +79,24 @@
   <span class="id">CONTAI-025</span> — Registrar o desembolso sem data, sem comprovante, ou sem os dois<br>
   <span class="st">Status: <strong>v2</strong> AGUARDANDO APROVAÇÃO · <strong>P0 — dor ativa: a trava do comprovante expulsou o Mateus do app</strong> · <strong>v2 (23/08)</strong>: “Falta a data” <strong>vira vermelha</strong> (régua binária do <code>po</code>, sem terceiro nível), estado combinado com <strong>um</strong> chip, e a <strong>titularidade repartida saiu</strong> (virou a D53) · nível 1, 4 telas (+1 fluxo ASCII), a do formulário interativa (<code>file</code> e <code>date</code> reais, rótulo do Gravar recalculado) · o botão <strong>grava sempre</strong>; o que muda é o rótulo, que nomeia a pendência que vai nascer · card do ano com <strong>dois</strong> números (crit. 9) + card agregado da pendência (crit. 11) · <strong>estado combinado</strong> com <strong>1 chip</strong> que nomeia os dois fatos, ordem data→comprovante e <strong>uma</strong> consequência com as duas frases do parecer (“Comece pela data” literal) · tela 4 traz as duas fatias (crit. 16 e 17) para não exigir 2ª rodada de <code>/design</code> · textos copiados do parecer de 2026-08-23 (ADENDO 1 vence o corpo) · <strong>2 perguntas em aberto</strong> (as nº 3 e 4 foram respondidas em 23/08), sendo a nº 2 bloqueante de texto e do <code>contador</code>: falta o rótulo do Gravar do caso “tem comprovante, falta a data”</span><br>
   <span class="st">📄 spec: <code>CONTAI-025.md</code> — é o que o <code>/develop</code> lê</span>
+</a>
+<a class="mock" href="CONTAI-032.html">
+  <span class="id">CONTAI-032</span> — Tirar o default de Data e Meio no pagamento avulso: nasce o estado "indefinido"<br>
+  <span class="st">Status: v1 AGUARDANDO APROVAÇÃO · P1 · nível 1, 1 tela interativa (5 estados internos) · cenário de captura · achado do <code>cto-obra</code>: <code>decidirRegistro</code> ganha um gate ANTES dele — "cartão" recusa sozinho, sem precisar de data · botão fica desabilitado com o motivo no rótulo (não validação-no-clique) · nota explícita de por que este bloqueio não contradiz o "nunca bloquear" do CONTAI-025</span><br>
+  <span class="st">📄 spec: <code>CONTAI-032.md</code> — é o que o <code>/develop</code> lê</span>
+</a>
+<a class="mock" href="CONTAI-022.html">
+  <span class="id">CONTAI-022</span> — Cartão de crédito: compra → fatura → pagamento (integral e rotativo)<br>
+  <span class="st">Status: v1 AGUARDANDO APROVAÇÃO · P0 fiscal · nível 1, 11 telas (5 ★ + 2 interativas) · cenário de gestão (conciliação de fatura, sentado) · preenche as duas lacunas que o CONTAI-019 (s18) devolveu sem desenhar — compra parcelada (recusada na entrada, com orientação) e fatura paga parcialmente/rotativo (alocação manual, teto dinâmico no checkbox) · acrescenta o campo "vencimento da fatura" (achado crítico do <code>cto-obra</code>) · 4 perguntas em aberto, a nº1 bloqueante de texto do <code>contador</code></span><br>
+  <span class="st">📄 spec: <code>CONTAI-022.md</code> — é o que o <code>/develop</code> lê</span>
+</a>
+<a class="mock" href="CONTAI-008.html">
+  <span class="id">CONTAI-008</span> — Mover pagamento entre obras sem quebrar o vínculo com N documentos (espelho do CONTAI-021 s8/s8b)<br>
+  <span class="st">Status: v1 AGUARDANDO APROVAÇÃO · P0 fiscal, dor em produção · nível 1, 8 telas (1 ASCII + 6 ★ interativas/estáticas + 1 gravando/falha) · gestão em casa, 375px é piso · escolha por documento, um a um, nunca em cascata (crit. 2) · NOVO: crit. 16 — CNO incompatível deixa a opção "vai junto" indisponível só naquela nota, com o texto literal do crit. 2 do CONTAI-007, via <code>podeCorrigirObra</code> · sem pergunta de motivo (crit. 5) · nenhuma pergunta em aberto</span><br>
+  <span class="st">📄 spec: <code>CONTAI-008.md</code> — é o que o <code>/develop</code> lê</span>
+</a>
+<a class="mock" href="CONTAI-033.html">
+  <span class="id">CONTAI-033</span> — Nota grava sem o arquivo, com três guardas<br>
+  <span class="st">Status: v1 AGUARDANDO APROVAÇÃO · P0 · nível 1, 5 telas (4 ★ + ASCII, 2 interativas: diálogo real e repergunta que revela ao escolher arquivo) · cenário misto (captura no formulário, gestão no resto) · destrava <code>/adicionar/documento</code> (D49/D52), com as três guardas do parecer 2026-08-23 (ADENDO 1 §A.3) como critério de aceite · card agregado corrigido para <code>app/page.tsx</code>, não <code>app/obras/[id]/page.tsx</code> · 4 perguntas em aberto</span><br>
+  <span class="st">📄 spec: <code>CONTAI-033.md</code> — é o que o <code>/develop</code> lê</span>
 </a>
