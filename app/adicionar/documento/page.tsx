@@ -72,8 +72,9 @@ import {
   VINCULO_QUARENTENA_NAO_GERA_CUSTO,
   type Candidato,
 } from "@/lib/fiscal/vinculo";
+import { paraCentavos, type ExtracaoDocumento } from "@/lib/extracao/schema";
 import { hojeIso } from "@/lib/hoje";
-import { formatarBRL, parseValorInput } from "@/lib/money";
+import { centavosParaInput, formatarBRL, parseValorInput } from "@/lib/money";
 import type { Classificacao, Documento, Pagamento, TipoDocumento } from "@/lib/types";
 
 const TIPOS = [
@@ -150,6 +151,59 @@ export default function RegistrarDocumento() {
   const [notaNoCpf, setNotaNoCpf] = useState<RespostaCpf | null>(null);
   const [retencao11, setRetencao11] = useState<RespostaRetencao | null>(null);
   const [erros, setErros] = useState<ErroCampo[]>([]);
+
+  // US-008 Fase 2 — extração automática (Gemini). Só sugere: quem afirma o
+  // campo continua sendo o dedo do Mateus em "Salvar registro". Nunca toca
+  // `notaNoCpf` nem `retencao11` — são pergunta fiscal, não leitura de PDF.
+  const [extraindo, setExtraindo] = useState(false);
+  const [erroExtracao, setErroExtracao] = useState<string | null>(null);
+  const [extracao, setExtracao] = useState<ExtracaoDocumento | null>(null);
+
+  async function extrairDaNota() {
+    if (!arquivo) return;
+    setExtraindo(true);
+    setErroExtracao(null);
+    setExtracao(null);
+    try {
+      const form = new FormData();
+      form.append("arquivo", arquivo);
+      const resposta = await fetch("/api/extrair-documento", {
+        method: "POST",
+        body: form,
+      });
+      const corpo = await resposta.json();
+      if (!resposta.ok) {
+        setErroExtracao(
+          typeof corpo?.erro === "string"
+            ? corpo.erro
+            : "Não foi possível extrair os dados desta nota.",
+        );
+        return;
+      }
+      const lido = corpo as ExtracaoDocumento;
+      setExtracao(lido);
+
+      // Só preenche campo VAZIO (mesma regra de `preencherValorDaNota` em
+      // adicionar/pagamento): extração não sobrescreve o que o Mateus já
+      // digitou.
+      if (lido.tipo && tipo === null) escolherTipo(lido.tipo);
+      if (lido.classificacao && classificacao === null) {
+        setClassificacao(lido.classificacao);
+      }
+      setNumero((atual) => atual || lido.numero || "");
+      setSerie((atual) => atual || lido.serie || "");
+      setDataEmissao((atual) => atual || lido.dataEmissao || "");
+      setVencimento((atual) => atual || lido.vencimento || "");
+      setNome((atual) => atual || lido.favorecidoNome || "");
+      setDocumento((atual) => atual || lido.favorecidoDocumento || "");
+      const centavos = paraCentavos(lido.valorReais);
+      setValor((atual) => atual || (centavos !== null ? centavosParaInput(centavos) : ""));
+    } catch {
+      setErroExtracao("Não foi possível falar com o Gemini agora.");
+    } finally {
+      setExtraindo(false);
+    }
+  }
 
   /** Proposta automática a partir do tipo; o humano pode corrigir. */
   function escolherTipo(novo: TipoDocumento) {
@@ -529,6 +583,35 @@ export default function RegistrarDocumento() {
                 onChange={setArquivo}
                 erro={erroDe("temArquivo")}
               />
+              {arquivo && arquivo.type === "application/pdf" ? (
+                <div className="flex flex-col gap-2">
+                  <Botao
+                    variante="ghost"
+                    type="button"
+                    onClick={extrairDaNota}
+                    disabled={extraindo}
+                  >
+                    {extraindo ? "Lendo o PDF…" : "🪄 Extrair dados da nota (beta)"}
+                  </Botao>
+                  {erroExtracao ? (
+                    <Banner cor="amb" role="status">
+                      {erroExtracao} Preencha os campos abaixo à mão.
+                    </Banner>
+                  ) : null}
+                  {extracao ? (
+                    <Banner
+                      cor={extracao.confianca === "baixa" ? "amb" : "grn"}
+                      role="status"
+                    >
+                      Dados extraídos automaticamente do PDF — confira cada
+                      campo antes de salvar.
+                      {extracao.confianca === "baixa"
+                        ? " O PDF não estava muito legível: confira com atenção redobrada."
+                        : null}
+                    </Banner>
+                  ) : null}
+                </div>
+              ) : null}
               <Escolha
                 rotulo="Tipo"
                 opcoes={TIPOS}

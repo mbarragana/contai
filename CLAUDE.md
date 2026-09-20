@@ -113,8 +113,15 @@ revisor (cto-obra) roda em modelo mais forte por design.
 - **Registro**: manual-first (decisão 2026-08-07, US-008) — formulário com
   anexo obrigatório e checks fiscais obrigatórios (nota no CPF? retenção 11%?).
   **Fase 2 (US-008)**: extração automática — XML NF-e via parse determinístico
-  (fast-xml-parser); PDF via Claude API (`claude-opus-4-8`, document block +
-  structured outputs Zod); boleto validado por dígito verificador
+  (fast-xml-parser); PDF via **Gemini** (`lib/extracao/`, decisão revista em
+  2026-09-19 — o plano original de 2026-08-07 era Claude API; trocado por
+  custo, é o provedor que o Mateus já tem de graça); boleto validado por
+  dígito verificador. `EXTRACAO_PROVIDER` segue o mesmo padrão de
+  `COACH_PROVIDER` do `../garmin-import`: hoje só `"gemini"` existe, Claude
+  API entra como `case` novo em `lib/extracao/provider.ts` se algum dia for
+  preciso, sem redesenho. A extração só sugere — nunca preenche `notaNoCpf`
+  nem `retencao11` (pergunta fiscal, não leitura de PDF) — e nunca grava nada
+  sozinha, quem afirma o registro continua sendo o "Salvar" manual.
 - **Lembretes**: Google Calendar API (agenda que o Mateus já usa)
 - **Hospedagem**: Vercel
 - **Testes**: Vitest (unit) + Playwright (E2E) — padrão dos outros projetos
