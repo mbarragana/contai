@@ -278,6 +278,16 @@ export interface ResumoObra {
   ano: number;
   custoConfirmadoAnoCentavos: number;
   acumuladoImovelCentavos: number;
+  /**
+   * Gasto real da obra — `acumuladoImovelCentavos` mais o que já foi pago mas
+   * ainda não tem nota/comprovante vinculado (obra + terreno). **Nunca é o
+   * valor da declaração**: existe só para o Mateus acompanhar o quanto de
+   * fato já saiu do bolso, comprovado ou não. Não soma com `emPendenciaCentavos`
+   * nem o substitui — `emPendenciaCentavos` inclui pendências que não são
+   * "dinheiro pago sem comprovante" (ex.: `diferenca_sem_explicacao`,
+   * `servico_sem_retencao`).
+   */
+  gastoRealComPendentesCentavos: number;
   emPendenciaCentavos: number;
   pendencias: Pendencia[];
   /**
@@ -579,6 +589,23 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
 
   const emPendencia = pendencias.reduce((s, p) => s + p.valorCentavos, 0);
 
+  // Gasto real da obra (relato do Mateus, 2026-09-18): pagamento feito sem
+  // comprovante ainda continua sendo dinheiro que saiu do bolso dele, e ele
+  // quer ver isso somado em algum lugar — só que não pode ser no
+  // `acumuladoImovelCentavos`, que É o valor da ficha Bens e Direitos e por
+  // isso só conta o que tem documento hábil vinculado. Este é um número
+  // PARALELO, só para acompanhamento pessoal: soma o acumulado oficial com o
+  // que está pago mas ainda bloqueado por falta de nota/comprovante
+  // (`pago_sem_nota` e `pago_sem_comprovante`, os dois tipos de pendência que
+  // representam dinheiro já desembolsado) mais o equivalente do terreno
+  // (`terrenoForaDoAcumuladoCentavos`, já isolado por decisão anterior).
+  // Deliberadamente NÃO inclui `diferenca_sem_explicacao` (erro de registro,
+  // não falta de documento) nem `servico_sem_retencao` (documentado, questão
+  // de INSS, não de comprovante de pagamento).
+  const pagoSemComprovanteCentavos = pendencias
+    .filter((p) => p.tipo === "pago_sem_nota" || p.tipo === "pago_sem_comprovante")
+    .reduce((s, p) => s + p.valorCentavos, 0);
+
   // O terceiro estado. Fica FORA de `pendencias` de propósito: o parecer §5.2
   // exige que este número não some com o confirmado nem com o em risco.
   const notasSemPagamento: NotaSemPagamento[] = documentosHabeisSemPagamento(
@@ -754,6 +781,11 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
     // Conserta de carona o defeito original (terreno inteiro em todo ano): só
     // o que foi efetivamente desembolsado até 31/12 deste ano entra.
     acumuladoImovelCentavos: terrenoNoAcumuladoCentavos + custoAteFimDoAno,
+    gastoRealComPendentesCentavos:
+      terrenoNoAcumuladoCentavos +
+      custoAteFimDoAno +
+      pagoSemComprovanteCentavos +
+      custoDoTerreno.semComprovanteCentavos,
     emPendenciaCentavos: emPendencia,
     pendencias,
     terrenoSemData,

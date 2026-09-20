@@ -257,6 +257,25 @@ export default function Home() {
                   <Dica>{FORA_DO_CUSTO_CONFIRMADO_PORQUE}</Dica>
                 </div>
               ) : null}
+              {/* Relato do Mateus, 2026-09-18: ele quer ver quanto já saiu do
+                  bolso, comprovado ou não — mas isso não pode virar o
+                  acumulado oficial (que É o valor da declaração e por isso só
+                  conta o que tem documento hábil). Linha nomeada e separada,
+                  só some quando não há diferença nenhuma a mostrar. */}
+              {estado.resumo.gastoRealComPendentesCentavos >
+              estado.resumo.acumuladoImovelCentavos ? (
+                <div className="mt-1.5">
+                  <div className="mono text-[13px]">
+                    Gasto real até agora (com o que ainda não tem
+                    comprovante):{" "}
+                    {formatarBRL(estado.resumo.gastoRealComPendentesCentavos)}
+                  </div>
+                  <Dica>
+                    Não é o valor da declaração — some quando o comprovante
+                    entrar.
+                  </Dica>
+                </div>
+              ) : null}
               {/* ⚠️ O R$ 0,00 do terreno NÃO é apuração — é a ausência dela.
                   A parte do terreno aparece nomeada logo abaixo do acumulado
                   para o "R$ 0,00 aqui" do aviso apontar para um número

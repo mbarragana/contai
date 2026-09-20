@@ -422,6 +422,53 @@ describe("pendências", () => {
     expect(p?.href).toBe("/documento/d1");
   });
 
+  it("relato do Mateus 2026-09-18: 'gasto real' soma o acumulado com o pago sem nota, sem tocar no acumulado oficial", () => {
+    const r = resumo({
+      pagamentos: [pag({ id: "p1", valorCentavos: 1_500_000 })],
+    });
+    expect(r.acumuladoImovelCentavos).toBe(TERRENO_CENTAVOS);
+    expect(r.gastoRealComPendentesCentavos).toBe(
+      TERRENO_CENTAVOS + 1_500_000,
+    );
+  });
+
+  it("'gasto real' não inclui diferença sem explicação nem serviço sem retenção — só pago_sem_nota/pago_sem_comprovante e o terreno", () => {
+    const r = resumo({
+      documentos: [
+        doc({
+          id: "d1",
+          tipo: "nf_servico",
+          classificacao: "mao_obra",
+          retencao11: null,
+          valorCentavos: 1_000_000,
+        }),
+      ],
+      pagamentos: [
+        pag({
+          id: "p1",
+          valorCentavos: 1_050_000,
+          encargosCentavos: 20_000,
+          naoExplicadoCentavos: 30_000,
+          documentoIds: ["d1"],
+        }),
+      ],
+    });
+    expect(r.pendencias.some((p) => p.tipo === "servico_sem_retencao")).toBe(
+      true,
+    );
+    expect(
+      r.pendencias.some((p) => p.tipo === "diferenca_sem_explicacao"),
+    ).toBe(true);
+    expect(r.pendencias.some((p) => p.tipo === "pago_sem_nota")).toBe(false);
+    expect(r.pendencias.some((p) => p.tipo === "pago_sem_comprovante")).toBe(
+      false,
+    );
+    // A NF de serviço já está confirmada no acumulado (nota + pagamento
+    // fecham por inteiro); o ponto do teste é que a diferença sem explicação
+    // e a falta de retenção não somam NADA além disso.
+    expect(r.gastoRealComPendentesCentavos).toBe(r.acumuladoImovelCentavos);
+  });
+
   it("agrupa 'pago sem nota' por favorecido com o acumulado", () => {
     const r = resumo({
       pagamentos: [
@@ -815,15 +862,26 @@ describe("os oito lugares (parecer §2, itens 1 a 8)", () => {
   it("2, 3 e 4 · discriminação, Pagamentos Efetuados e aferição INSS", () => {
     // ⚠️ AS TRÊS FUNÇÕES AINDA NÃO EXISTEM (US-004 e o SERO são tickets
     // futuros). O que este teste tranca é a AUSÊNCIA DE CAMINHO: nenhum módulo
-    // de `lib/fiscal/` além do próprio `compromisso.ts` sequer NOMEIA o tipo
-    // `Compromisso`. No dia em que a discriminação de Bens e Direitos nascer,
-    // ela só conseguirá receber um compromisso importando o tipo — e este
-    // teste fica vermelho com o nome do arquivo, ANTES de qualquer número
-    // errado ir para uma declaração.
+    // de CÁLCULO DE CUSTO em `lib/fiscal/` sequer NOMEIA o tipo `Compromisso`.
+    // No dia em que a discriminação de Bens e Direitos nascer, ela só
+    // conseguirá receber um compromisso importando o tipo — e este teste fica
+    // vermelho com o nome do arquivo, ANTES de qualquer número errado ir para
+    // uma declaração.
+    //
+    // `fatura.ts` (CONTAI-022) é a exceção nomeada, e não uma brecha: é
+    // módulo da MESMA FAMÍLIA de `compromisso.ts` — matemática de alocação do
+    // rotativo (teto dinâmico, compras abertas de uma fatura), nunca custo de
+    // aquisição. O custo continua saindo só dos N `Pagamento` gerados na
+    // confirmação, pela mesma esteira de sempre (`vinculo.ts`/`resumo.ts`, que
+    // não conhecem `Fatura` nem `Compromisso`) — `fatura.ts` não é chamado por
+    // nenhum dos dois.
     const dir = "lib/fiscal";
     const proibidos = readdirSync(dir).filter(
       (f) =>
-        f.endsWith(".ts") && !f.endsWith(".test.ts") && f !== "compromisso.ts",
+        f.endsWith(".ts") &&
+        !f.endsWith(".test.ts") &&
+        f !== "compromisso.ts" &&
+        f !== "fatura.ts",
     );
     expect(proibidos.length).toBeGreaterThan(3); // o teste vale alguma coisa
     for (const arquivo of proibidos) {

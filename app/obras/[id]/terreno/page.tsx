@@ -569,6 +569,7 @@ export default function PainelDoTerreno() {
           </BotaoLink>
         )}
         <BotaoLink href={`/obras/${obra.id}`}>Dados da obra</BotaoLink>
+        <BotaoLink href="/">Voltar ao início</BotaoLink>
       </Rodape>
     </>
   );
