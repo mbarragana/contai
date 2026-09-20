@@ -15,7 +15,11 @@ import {
   type Db,
 } from "./banco";
 import { expect, test } from "./fixtures";
-import { escolher, preencherDocumentoBasico } from "./formularios";
+import {
+  escolher,
+  preencherDocumentoBasico,
+  responderCnoDaNota,
+} from "./formularios";
 
 /**
  * O vínculo pagamento↔documento contra o Postgres LOCAL (critério 16 do
@@ -234,6 +238,8 @@ test.describe("caminho A — vínculo no ato do registro", () => {
       noCpf: "Sim",
     });
     await escolher(page, "NF de serviço: tem retenção de 11%?", "Sim");
+    // CONTAI-007: bloqueante em NF de serviço — a obra do seed tem CNO.
+    await responderCnoDaNota(page, "É o CNO desta obra");
 
     await page.getByRole("checkbox", { name: "Já paguei esta nota" }).check();
 

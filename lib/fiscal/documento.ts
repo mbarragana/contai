@@ -26,6 +26,7 @@ import type {
   TipoDocumento,
 } from "@/lib/types";
 import { tipoPorDocumento } from "./identificacao";
+import { CONSEQUENCIA_CNO_DA_NOTA } from "./obra";
 import { ehDataValida } from "./pagamento";
 
 /** Check fiscal obrigatório 1 — "esta nota está no seu CPF?" (critério 4). */
@@ -33,6 +34,26 @@ export type RespostaCpf = "sim" | "nao";
 
 /** Check fiscal obrigatório 2 — "tem retenção de 11%?" (critério 5). */
 export type RespostaRetencao = "sim" | "nao" | "nao_sei";
+
+/**
+ * Check fiscal obrigatório 3 — **"qual CNO está impresso nesta nota?"**
+ * (CONTAI-007, critério 1).
+ *
+ * ⚠️ **ESCOLHA, NUNCA DIGITAÇÃO** — é o pre-mortem 1 do ticket, e ele é
+ * bloqueante: *"se o mock trouxer campo livre de 14 dígitos, devolvo"*. O CNO
+ * das obras cadastradas o app já tem; o que ele não tem é o que está no papel,
+ * e isso se responde com um toque.
+ *
+ * Os três desfechos são fiscalmente distintos:
+ * - `desta_obra` → grava o CNO da obra como o impresso na nota; é o único que
+ *   abate a aferição;
+ * - `outra_obra` → **BLOQUEIO** (critério 2). Não vira pendência porque não há
+ *   conserto depois da emissão — a saída é registrar na obra do CNO impresso;
+ * - `nao_traz` → **PENDÊNCIA** (critério 3). Não abate a aferição, e continua
+ *   sendo documentação hábil para o custo de aquisição (IN SRF 84/2001,
+ *   art. 17). Bloquear aqui perderia o custo para salvar o INSS.
+ */
+export type RespostaCnoNota = "desta_obra" | "outra_obra" | "nao_traz";
 
 export interface EntradaDocumento {
   tipo: TipoDocumento | null;
@@ -64,6 +85,22 @@ export interface EntradaDocumento {
   classificacao: Classificacao | null;
   notaNoCpf: RespostaCpf | null;
   retencao11: RespostaRetencao | null;
+  /**
+   * CONTAI-007 — só NF de serviço. `null` é "ainda não respondeu", e não salva
+   * (critério 1): em branco silencioso é o estado que o ticket inteiro existe
+   * para impedir.
+   */
+  cnoNaNota: RespostaCnoNota | null;
+  /**
+   * O CNO da obra AFIRMADA NA TELA, ou `null` quando ela não tem CNO.
+   *
+   * Entra na validação, e não só na montagem do render, por decisão do Gate 2:
+   * é ele que torna *"é o CNO desta obra"* impossível de afirmar numa obra que
+   * não tem CNO. A tela já esconde a opção, mas esconder um botão é proteção de
+   * render — sobrevive até o primeiro refactor, e o check do banco só acusaria
+   * depois de o upload já ter ido para o acervo.
+   */
+  cnoDaObra: string | null;
 }
 
 export interface ErroCampo {
@@ -260,6 +297,84 @@ export function retencaoParaBanco(
 ): boolean | null {
   if (resposta === "sim") return true;
   if (resposta === "nao") return false;
+  return null;
+}
+
+// ── CONTAI-007 · o CNO impresso na nota ─────────────────────────────────
+
+/**
+ * A pergunta do CNO só existe em **NF de serviço** (critério 1).
+ *
+ * Material e boleto ficam de fora, e isso é regra, não esquecimento: a dedução
+ * da base de aferição do SERO é amarrada ao CNO impresso na NF de SERVIÇO com
+ * retenção de 11% — material não abate aferição nenhuma, e boleto não é
+ * documentação hábil. Perguntar ali é atrito sem consequência, que fabrica
+ * carimbo.
+ */
+export function exigeCnoReferenciado(tipo: TipoDocumento | null): boolean {
+  return tipo === "nf_servico";
+}
+
+/**
+ * **Critério 2 — bloqueio, não aviso.** O registro não acontece: sem linha em
+ * `documento` e sem objeto no acervo (critério 6).
+ *
+ * ⚠️ Não é pendência, e a assimetria com o critério 3 é a regra inteira (Gate
+ * Fiscal, 2ª condição): *"a pendência é o remédio para o que ainda dá para
+ * corrigir; esta não dá"*. Depois de emitida, a nota com o CNO da outra obra
+ * não se conserta — o que se conserta é ONDE ela é registrada.
+ */
+export function bloqueiaPorCnoDeOutraObra(
+  tipo: TipoDocumento | null,
+  resposta: RespostaCnoNota | null,
+): boolean {
+  return exigeCnoReferenciado(tipo) && resposta === "outra_obra";
+}
+
+/** Critério 3 — salva, com pendência e com a consequência dita na hora. */
+export function pendenteDeCno(
+  tipo: TipoDocumento | null,
+  resposta: RespostaCnoNota | null,
+): boolean {
+  return exigeCnoReferenciado(tipo) && resposta === "nao_traz";
+}
+
+/**
+ * O que vai para `documento.cno_referenciado` — **o número, nunca um "sim"**.
+ *
+ * `cnoDaObra` é o CNO da obra **afirmada na tela** no momento do registro, que
+ * é o que a resposta `desta_obra` afirma estar impresso no papel. Gravar o
+ * número (e não um booleano "é o desta obra") é o que faz a divergência
+ * aparecer se o cadastro da obra for corrigido depois: o papel não muda quando
+ * o cadastro muda.
+ *
+ * `outra_obra` devolve `null` porque **não existe gravação nesse caso** — o
+ * registro é barrado antes. Devolver aqui o CNO da outra obra seria oferecer a
+ * gravação que o critério 2 proíbe.
+ */
+export function cnoReferenciadoParaBanco(
+  tipo: TipoDocumento | null,
+  resposta: RespostaCnoNota | null,
+  cnoDaObra: string | null,
+): string | null {
+  if (!exigeCnoReferenciado(tipo)) return null;
+  return resposta === "desta_obra" ? cnoDaObra : null;
+}
+
+/**
+ * O que vai para `documento.nota_traz_cno` — tri-estado, igual a `retencao_11`.
+ *
+ * ⚠️ `nao_traz` vira `false`, **nunca `null`**: `null` significa "não foi
+ * perguntado", e colapsar os dois é o branco silencioso que o critério 3
+ * proíbe. É por esta distinção que existem duas colunas, e não uma.
+ */
+export function notaTrazCnoParaBanco(
+  tipo: TipoDocumento | null,
+  resposta: RespostaCnoNota | null,
+): boolean | null {
+  if (!exigeCnoReferenciado(tipo)) return null;
+  if (resposta === "desta_obra") return true;
+  if (resposta === "nao_traz") return false;
   return null;
 }
 
@@ -560,6 +675,43 @@ export function validarDocumento(
       campo: "retencao11",
       mensagem: "Responda sobre a retenção de 11% (vale responder 'não sei').",
     });
+  }
+
+  // CONTAI-007, critérios 1 e 2. Duas condições, e elas são diferentes:
+  //
+  // - sem resposta → não salva, como todo check fiscal deste formulário;
+  // - "é o CNO de outra obra" → **BLOQUEIO**, com a consequência escrita.
+  //
+  // ⚠️ O bloqueio está AQUI, e não só na tela, e a duplicação é deliberada: é
+  // esta linha que garante o critério 6 ("não gera linha em `documento` nem
+  // objeto no bucket"). A tela recusa o toque; esta função recusa o SALVAR — e
+  // é ela que roda antes do upload para o acervo, em `salvar()`. Uma guarda só
+  // na tela sobrevive até o primeiro refactor de render.
+  if (exigeCnoReferenciado(entrada.tipo)) {
+    if (entrada.cnoNaNota === null) {
+      erros.push({
+        campo: "cnoNaNota",
+        mensagem: "Responda qual CNO está impresso nesta nota.",
+      });
+    } else if (entrada.cnoNaNota === "outra_obra") {
+      erros.push({
+        campo: "cnoNaNota",
+        mensagem: CONSEQUENCIA_CNO_DA_NOTA,
+      });
+    } else if (
+      entrada.cnoNaNota === "desta_obra" &&
+      entrada.cnoDaObra === null
+    ) {
+      // Afirmação impossível: a obra não tem CNO, logo nenhuma nota pode trazer
+      // o CNO dela impresso. A tela nem oferece a opção — esta linha é o que
+      // impede a afirmação de chegar ao banco por outro caminho, e impede ANTES
+      // do upload para o acervo (o check da migration 0015 só acusaria depois).
+      erros.push({
+        campo: "cnoNaNota",
+        mensagem:
+          "Esta obra ainda não tem CNO — nenhuma nota pode trazer o CNO dela impresso.",
+      });
+    }
   }
 
   return erros;

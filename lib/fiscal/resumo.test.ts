@@ -7,6 +7,11 @@ import {
   documentosCarregados,
   podeGerarRelatorioAnual,
 } from "@/lib/fiscal/compromisso";
+import {
+  ACAO_NOTA_SEM_CNO,
+  CONSEQUENCIA_CNO_DA_NOTA,
+  notasEmitidasSemCno,
+} from "@/lib/fiscal/obra";
 import { calcularResumo, type EntradaResumo } from "@/lib/fiscal/resumo";
 import type {
   Documento,
@@ -71,6 +76,8 @@ function doc(over: Partial<Documento> & { id: string }): Documento {
     favorecidoId: "fav-emitente",
     destinatarioCpfOk: true,
     retencao11: null,
+    cnoReferenciado: null,
+    notaTrazCno: null,
     motivoQuarentena: null,
     favorecidoNome: "Casa do Construtor",
     favorecidoDocumento: "11444777000161",
@@ -561,6 +568,84 @@ describe("pendências", () => {
     const p = r.pendencias.find((x) => x.id === "sem-retencao:d1");
     expect(p?.consequencia).toContain("SERO");
     expect(p?.gravidade).toBe("amb");
+  });
+
+  // ══ CONTAI-007, critério 4 ═════════════════════════════════════════════
+
+  it("⚠️ NF de serviço sem CNO impresso vira pendência, com a ação óbvia", () => {
+    const r = resumo({
+      documentos: [
+        doc({
+          id: "d1",
+          tipo: "nf_servico",
+          retencao11: true,
+          notaTrazCno: false,
+          valorCentavos: 2_250_000,
+        }),
+      ],
+    });
+    const p = r.pendencias.find((x) => x.tipo === "nf_servico_sem_cno");
+    expect(p?.id).toBe("sem-cno:d1");
+    // A consequência é a redação do critério 2 — a mesma do bloqueio.
+    expect(p?.consequencia).toBe(CONSEQUENCIA_CNO_DA_NOTA);
+    // Critério 4: a ação óbvia vem JUNTO, não numa tela adiante.
+    expect(p?.detalhe).toContain(ACAO_NOTA_SEM_CNO);
+    // Âmbar: o dinheiro que saiu continua no custo; o que está aberto é o INSS.
+    expect(p?.gravidade).toBe("amb");
+    expect(p?.href).toBe("/documento/d1");
+  });
+
+  it("⚠️ 'não foi perguntado' NÃO abre pendência — só o `false` abre", () => {
+    // `null` é registro anterior ao CONTAI-007 (ou material/boleto) e não
+    // afirma nada; `false` é o Mateus tendo olhado o papel. Cobrar do prestador
+    // uma nota que ninguém conferiu é o aviso que erra — e aviso que erra se
+    // aprende a ignorar.
+    const r = resumo({
+      documentos: [
+        doc({ id: "d1", tipo: "nf_servico", retencao11: true, notaTrazCno: null }),
+        doc({
+          id: "d2",
+          tipo: "nf_servico",
+          retencao11: true,
+          notaTrazCno: true,
+          cnoReferenciado: "12.345.67890/26",
+        }),
+        doc({ id: "d3", tipo: "nf_material", notaTrazCno: null }),
+      ],
+    });
+    expect(r.pendencias.some((p) => p.tipo === "nf_servico_sem_cno")).toBe(false);
+  });
+
+  it("⚠️ obra SEM CNO não abre esta pendência — a ação seria inexequível", () => {
+    // Gate 2: não dá para pedir ao prestador que imprima um CNO que ainda não
+    // existe, e a obra sem CNO já tem a SUA pendência (CONTAI-003), com a única
+    // ação que destrava as outras. Uma linha por nota repetindo a mesma causa
+    // afogaria a pendência que resolve.
+    const r = resumo({
+      obra: { ...OBRA, cno: null, cnoRegistradoEm: null },
+      documentos: [
+        doc({
+          id: "d1",
+          tipo: "nf_servico",
+          retencao11: true,
+          notaTrazCno: false,
+          valorCentavos: 2_250_000,
+        }),
+      ],
+    });
+    expect(r.pendencias.some((p) => p.tipo === "nf_servico_sem_cno")).toBe(false);
+    // ⚠️ E o fato não se perde: `notaTrazCno === false` continua gravado, e a
+    // nota continua na lista de cobrança do critério 8. No dia em que o CNO for
+    // registrado, a pendência aparece sozinha — com a ação agora possível.
+    expect(
+      notasEmitidasSemCno({
+        obra: { ...OBRA, cno: null, cnoRegistradoEm: null },
+        documentos: [
+          doc({ id: "d1", tipo: "nf_servico", notaTrazCno: false }),
+        ],
+        hoje: "2026-08-24",
+      }).map((n) => n.id),
+    ).toEqual(["d1"]);
   });
 
   it("NF de serviço em quarentena aparece só como quarentena", () => {

@@ -15,6 +15,7 @@
  */
 
 import type {
+  Documento,
   NaturezaAquisicaoTerreno,
   Obra,
   TipoDocumento,
@@ -114,6 +115,22 @@ export function janelaSemCnoDias(
   return Math.max(0, diasEntre(dataInicio, cnoRegistradoEm));
 }
 
+/**
+ * O FIM da janela sem CNO (CONTAI-007, critério 8).
+ *
+ * ⚠️ Obra **sem CNO** não tem janela fechada: ela ainda está dentro dela, e o
+ * fim é HOJE. É esse o caso da tela 13 do mock do CONTAI-003 — o link *"Ver as
+ * N notas desta obra emitidas sem CNO"* aparece justamente no registro de NF de
+ * serviço em obra sem CNO, e uma janela vazia ali deixaria a lista de cobrança
+ * sem nenhuma linha exatamente na obra que mais precisa dela.
+ */
+export function fimDaJanelaSemCno(
+  obra: Pick<Obra, "cnoRegistradoEm">,
+  hoje: string,
+): string {
+  return obra.cnoRegistradoEm ?? hoje;
+}
+
 // ── Textos de tela com consequência fiscal (cópia do parecer) ────────────
 
 export const TITULO_PENDENCIA_CNO = "Obra sem CNO — pendência aberta";
@@ -197,6 +214,150 @@ export const NF_SERVICO_SEM_CNO_ALAVANCA =
  */
 export const ROTULO_SALVAR_SEM_CNO = "Salvar mesmo assim";
 
+// ── CONTAI-007 · o CNO impresso na nota ─────────────────────────────────
+
+/**
+ * ⚠️ **CÓPIA LITERAL do critério 2 do CONTAI-007** — não reescrever aqui.
+ *
+ * A MESMA frase serve aos DOIS desfechos, e a repetição é do ticket, não
+ * descuido: o bloqueio (critério 2, CNO de outra obra) e a pendência
+ * (critério 3, a nota não traz CNO) têm a mesma consequência fiscal. O que os
+ * separa não é o dano — é se ainda há conserto: pedir a nota certa ao
+ * prestador ainda é possível; reemitir a nota com o CNO da outra obra, não.
+ *
+ * Por que mora aqui e não na tela: o formulário, a tela do documento, a lista
+ * de pendências e a lista de cobrança dizem a mesma coisa — quatro cópias
+ * divergem, e a primeira coisa que diverge é a consequência fiscal.
+ */
+export const CONSEQUENCIA_CNO_DA_NOTA =
+  "Esta nota não abate a aferição desta obra. Sem a aferição fechada não há " +
+  "regularização, e sem regularização a construção não é averbada na " +
+  "matrícula.";
+
+/**
+ * O que o bloqueio do critério 2 **não** destrói, e dizer isso é parte da
+ * regra (Gate Fiscal, 4ª condição): são DUAS apurações distintas. O que se
+ * recusa é o registro nesta obra, nunca o custo — a saída é registrar na obra
+ * do CNO impresso (pre-mortem 2), e não desistir da nota.
+ */
+export const CNO_NAO_ALCANCA_O_CUSTO =
+  "A nota continua sendo documentação hábil para o custo de aquisição no " +
+  "IRPF — o que ela não faz é reduzir a base de INSS de uma obra que ela não " +
+  "referencia.";
+
+/** Critério 4 — a ação óbvia da pendência de CNO ausente. */
+export const ACAO_NOTA_SEM_CNO = "pedir nota com o CNO ao prestador";
+
+/**
+ * ⚠️ **CÓPIA LITERAL do parecer de 2026-09-20, §5** — o aviso que SUBSTITUIU os
+ * dois `motivo` de recusa de `podeCorrigirObra`. Não reescrever.
+ *
+ * As duas frases fazem trabalho diferente e nenhuma é enfeite: a primeira diz o
+ * que se perde (a aferição, nas DUAS obras, até reemissão/retificação); a
+ * segunda diz o que **não** se perde — e é ela que impede a leitura de que
+ * mover a nota estraga o custo de aquisição, que é justamente o medo que fazia
+ * a versão anterior bloquear.
+ *
+ * ⚠️ O parecer anota que a segunda frase "reusa `CNO_NAO_ALCANCA_O_CUSTO`", e
+ * ela reusa a IDEIA, não a string: aquela constante fala da tela de REGISTRO
+ * ("a nota continua sendo documentação hábil…"), esta fala da obra de DESTINO
+ * de um move. Concatenar as duas produziria uma terceira frase, que não é a que
+ * o parecer escreveu — e a regra do projeto é copiar o parecer, não montá-lo.
+ * `CNO_NAO_ALCANCA_O_CUSTO` continua viva na tela de registro, onde nasceu.
+ */
+export const AVISO_CNO_NA_CORRECAO_DE_OBRA =
+  "Esta NF de serviço não referencia o CNO da obra de destino. A nota não " +
+  "abate a aferição de nenhuma das duas obras até que a empreiteira reemita a " +
+  "nota ou retifique a EFD-Reinf com o CNO correto — mas o custo de aquisição " +
+  "segue registrado normalmente na obra para onde você a está movendo.";
+
+/** Banner da lista de cobrança — texto do mock do CONTAI-003, tela 14. */
+export const COBRANCA_SEM_CNO_INSTRUCAO =
+  "Notas de serviço desta obra emitidas enquanto ela não tinha CNO. Peça " +
+  "retificação da EFD-Reinf de cada uma antes de liberar a próxima parcela.";
+
+/**
+ * ⚠️ O limite da alavanca, e ele é o motivo de a lista existir (critério 8):
+ * *"é o único item deste lote que recupera valor em vez de só registrar
+ * perda, e vale só enquanto houver parcela a liberar"*.
+ */
+export const COBRANCA_SEM_CNO_LIMITE =
+  "O app gera a lista, como gera a discriminação anual. Ele não envia " +
+  "mensagem, não guarda conversa e não acompanha status — a cobrança é sua, e " +
+  "a força para fazê-la acaba no último pagamento.";
+
+/** Uma linha da lista de cobrança (tela 14 do mock do CONTAI-003). */
+export interface NotaSemCno {
+  id: string;
+  numero: string | null;
+  dataEmissao: string;
+  prestador: string | null;
+  valorCentavos: number | null;
+}
+
+/**
+ * **Critério 8** — as NF de serviço daquela obra emitidas DENTRO da janela sem
+ * CNO: do início da obra até o registro do CNO (ou até hoje, se ele ainda não
+ * saiu). São elas que se cobra da empreiteira, uma a uma, antes de liberar a
+ * próxima parcela.
+ *
+ * ⚠️ **Só NF de serviço.** Material não tem retenção de 11% nem entra em
+ * EFD-Reinf; cobrar retificação de nota de material é ruído, e ruído fabrica
+ * cegueira ao aviso.
+ *
+ * ⚠️ **Nota sem `dataEmissao` fica de fora**, e a ausência já está dita ao
+ * Mateus: é literalmente a segunda consequência de
+ * `PENDENCIA_IDENTIFICACAO_EFEITO` (CONTAI-004) — *"e ela fica de fora da lista
+ * de cobrança do CNO"*. Sem a data não há como afirmar que ela caiu na janela,
+ * e listar por suposição seria cobrar a nota errada.
+ *
+ * ⚠️ A nota que **afirma trazer o CNO desta obra** sai da lista: não há o que
+ * retificar nela. Hoje isso quase não acontece (dentro da janela o CNO ainda
+ * não existia para ser impresso), mas a regra é do dado, não do calendário — e
+ * o dia em que o CNO da obra for corrigido, é ela que mantém a lista honesta.
+ *
+ * ⚠️ **Nota em QUARENTENA sai da lista** — alinhado no Gate 2 do CONTAI-007 com
+ * as outras duas funções que decidem sobre NF de serviço (`posicaoDeAfericao` e
+ * a pendência `nf_servico_sem_cno` do `resumo.ts`), que já a excluíam. Três
+ * funções discordando sobre a mesma nota é como uma delas vira a exceção que
+ * ninguém lembra. E o mérito acompanha a consistência: a nota em quarentena
+ * está fora do CPF do dono, e o que se pede ao prestador ali é **a nota
+ * refeita no CPF certo** — pedido que a pendência de quarentena já faz. Cobrar
+ * retificação de EFD-Reinf de uma nota que vai ser reemitida inteira é o
+ * segundo pedido sobre o mesmo papel, e o errado dos dois.
+ */
+export function notasEmitidasSemCno(entrada: {
+  obra: Pick<Obra, "cno" | "dataInicioObra" | "cnoRegistradoEm">;
+  documentos: readonly Documento[];
+  hoje: string;
+}): NotaSemCno[] {
+  const { obra, documentos, hoje } = entrada;
+  const fim = fimDaJanelaSemCno(obra, hoje);
+  const daObra = cnoNormalizado(obra.cno);
+
+  return documentos
+    .filter((d) => d.tipo === "nf_servico")
+    .filter((d) => d.status !== "quarentena")
+    .filter((d) => d.dataEmissao !== null)
+    .filter((d) => d.dataEmissao! >= obra.dataInicioObra && d.dataEmissao! <= fim)
+    .filter(
+      (d) =>
+        !(
+          d.notaTrazCno === true &&
+          daObra !== null &&
+          cnoNormalizado(d.cnoReferenciado) === daObra
+        ),
+    )
+    .map((d) => ({
+      id: d.id,
+      numero: d.numero,
+      dataEmissao: d.dataEmissao as string,
+      prestador: d.favorecidoNome,
+      valorCentavos: d.valorCentavos,
+    }))
+    .sort((a, b) => a.dataEmissao.localeCompare(b.dataEmissao));
+}
+
 /** Critério 11 — aviso, nunca bloqueio. Redação literal do ticket. */
 export const AVISO_EQUIPARACAO =
   "a sua situação pode ser de incorporação imobiliária; os relatórios deste " +
@@ -243,26 +404,72 @@ export function escolherObraAtiva<T extends { id: string }>(
 
 // ── Correção da obra de um registro já salvo (critério 13) ───────────────
 
-export type ResultadoCorrecaoObra =
-  | { permitido: true; aviso: string | null }
-  | { permitido: false; motivo: string };
+/**
+ * ⚠️ **O ramo `{ permitido: false; motivo: string }` FOI APAGADO** em
+ * 2026-09-20, e o apagamento é a proteção (parecer
+ * `2026-09-20-cno-nao-bloqueia-correcao-de-obra.md`).
+ *
+ * Deixá-lo no tipo "para o dia em que precisar" manteria de pé a forma inteira
+ * da recusa — um `motivo`, um `Banner` vermelho e um botão desabilitado a um
+ * `if` de distância — e foi por reuso silencioso desta função que o bloqueio
+ * entrou da primeira vez. **Agora o compilador recusa a recusa**: quem quiser
+ * reintroduzi-la tem de reabrir este tipo, e reabrir este tipo é onde este
+ * comentário está esperando.
+ *
+ * `permitido: true` fica como literal, e não sai: os chamadores o leem, e é
+ * ele que declara, na assinatura, que esta função **não barra**.
+ */
+export type ResultadoCorrecaoObra = { permitido: true; aviso: string | null };
 
-function cnoNormalizado(cno: string | null): string | null {
+/**
+ * ⚠️ **A ÚNICA regra de comparação de CNO do sistema** — exportada desde o Gate
+ * 2 do CONTAI-007, quando `lib/fiscal/afericao.ts` nasceu com uma cópia dela.
+ *
+ * Duas cópias de "o que conta como o mesmo CNO" divergem no dia em que só uma
+ * for ajustada — e aqui divergir significa uma nota abatendo a aferição numa
+ * função e não abatendo na outra, pelo mesmo par de números. Quem compara CNO
+ * importa daqui.
+ *
+ * O CNO é impresso com pontos e barra (`12.345.67890/26`); só os dígitos
+ * identificam. String sem dígito nenhum é ausência, não um CNO vazio.
+ */
+export function cnoNormalizado(cno: string | null): string | null {
   if (!cno) return null;
   const digitos = cno.replace(/\D/g, "");
   return digitos === "" ? null : digitos;
 }
 
 /**
- * Mover uma NF de serviço de obra revalida o CNO referenciado na nota contra o
- * CNO da obra de destino: a correção não pode contrabandear uma nota para uma
- * obra cujo CNO ela não menciona — isso inflaria a base de aferição do CNO
- * errado, que é o dano que este ticket existe para evitar.
+ * ⚠️ **O CNO NÃO BLOQUEIA A CORREÇÃO DE OBRA, E ISSO É REGRA FISCAL** — parecer
+ * `docs/pareceres/2026-09-20-cno-nao-bloqueia-correcao-de-obra.md`, que é a
+ * autoridade vigente sobre este ponto e reafirma o de 2026-08-23 (§2).
  *
- * `cnoReferenciado` é o CNO impresso na nota. O campo nasce no CONTAI-007
- * (critério 2); até lá chega sempre `null` daqui, e o caso "não sei o que a
- * nota referencia" é permitido COM aviso — barrar por desconhecimento
- * transformaria a correção em beco sem saída, que é a dor D9 voltando.
+ * ⚠️ **Esta função JÁ RECUSOU por divergência de CNO, e a recusa estava
+ * fiscalmente errada.** Quem quiser reintroduzir o bloqueio tem de **citar e
+ * enfrentar** os dois pareceres acima — não reabri-lo por reuso silencioso
+ * desta função, que foi exatamente como ele entrou (Gate Fiscal do CONTAI-008,
+ * 24/08, respondido dentro da tabela de um ticket, sem parecer transcrito e sem
+ * citar o parecer de 23/08 que já tinha decidido o contrário).
+ *
+ * **Por que não bloqueia** (parecer de 20/09, §§1-3):
+ * - o CNO amarra valor à **aferição do INSS**, nunca o dispêndio ao **bem** no
+ *   sentido do art. 17 da IN SRF 84/2001. São as duas apurações do `CLAUDE.md`,
+ *   e uma função só não serve às duas com a mesma régua;
+ * - recusar tranca o custo de aquisição **no imóvel errado, para sempre**, sem
+ *   escape no produto — e a DAA segue descrevendo um bem que não recebeu o
+ *   gasto. Dano certo e imediato, em troca de nada;
+ * - **a trava real já existe e é outra**: `posicaoDeAfericao`
+ *   (`lib/fiscal/afericao.ts`) segrega a base pelo **CNO impresso**, não pelo
+ *   `obra_id`. Mover a nota não a faz abater a aferição de lugar nenhum: ela
+ *   continua fora, pelo mesmo motivo (`cno_divergente`), nas duas obras. O
+ *   bloqueio aqui não protegia nada que aquela função não proteja sozinha.
+ *
+ * ⚠️ **O critério 2 do CONTAI-007 continua sendo BLOQUEIO, e não é contradição**
+ * (parecer §4): lá é REGISTRO NOVO, onde recusar só custa escolher a obra certa
+ * na hora e nenhum custo se perde. Aqui é documento já lançado.
+ *
+ * `null` (registro anterior ao ticket, NF de material) sempre foi permitido com
+ * aviso — agora os três ramos de divergência são a mesma família.
  */
 export function podeCorrigirObra(entrada: {
   tipo: TipoDocumento | null;
@@ -284,22 +491,11 @@ export function podeCorrigirObra(entrada: {
     };
   }
 
-  if (noDestino === null) {
-    return {
-      permitido: false,
-      motivo:
-        "Esta NF de serviço referencia um CNO e a obra de destino não tem CNO — " +
-        "a nota entraria numa obra cujo CNO ela não menciona.",
-    };
-  }
-
-  if (naNota !== noDestino) {
-    return {
-      permitido: false,
-      motivo:
-        "O CNO desta NF de serviço é diferente do CNO da obra de destino — mover " +
-        "inflaria a base de aferição do CNO errado.",
-    };
+  // Os DOIS ramos que recusavam. Mesma consequência, mesmo aviso: o que muda
+  // entre "o destino não tem CNO" e "o destino tem outro CNO" não altera nada
+  // do que o Mateus precisa saber nem do que ele precisa fazer.
+  if (noDestino === null || naNota !== noDestino) {
+    return { permitido: true, aviso: AVISO_CNO_NA_CORRECAO_DE_OBRA };
   }
 
   return { permitido: true, aviso: null };

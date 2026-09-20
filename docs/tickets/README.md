@@ -1,6 +1,6 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 17 tickets
+## 🔎 O que está em aberto — 16 tickets
 
 *Uma linha por ticket, sem justificativa. O **porquê** de cada posição está nas
 seções longas abaixo; o **porquê da decisão** está em `../backlog.md`.
@@ -30,23 +30,32 @@ nível 1, repeater inédito). Os outros 9 itens da fila continuam prontos.
 revisado (`cto-obra`, APROVADO COM RESSALVAS não bloqueantes) e testado no
 browser (639 unitários + 180 E2E, incluindo 3 bugs achados no teste manual e
 corrigidos na hora — `docs/backlog/33-2026-09-20-tres-bugs-achados-no-teste-manual-do-contai-033.md`).
-**Ainda não commitado** — fica no working tree até o Mateus revisar. Ver
-"Veredito final" no corpo de `docs/tickets/CONTAI-033.md`.
+Commitado (`3c3f4de`). Ver "Veredito final" no corpo de `docs/tickets/CONTAI-033.md`.
+
+**2026-09-20**: **`007`** saiu da fila — implementado (`lead-engineer`),
+revisado duas vezes pelo Gate 2 (`cto-obra` + `contador`; a primeira rodada
+voltou REQUEST CHANGES do `contador` por um erro fiscal real no critério 7 —
+ver `docs/pareceres/2026-09-20-cno-nao-bloqueia-correcao-de-obra.md` — corrigido
+e reconfirmado na segunda), testado (669 unitários + 195 E2E + validação manual
+no browser: registro de NF de serviço com CNO desta obra/de outra obra/sem CNO,
+tela de correção de obra, `/obras/[id]/notas-sem-cno`) e validado pelo `po`
+(Gate 4 PASS). **Mudança de processo no mesmo dia**: o `/design` deixou de
+exigir HTML e aprovação explícita — ver "Premissas de processo" no
+`CLAUDE.md`.
 
 ### Fila de implementação — nesta ordem
 
 | # | ID | O que é | P |
 |---|---|---|---|
-| 1 | **007** | CNO referenciado na NF de serviço | **P0** |
-| 2 | **008** | Mover pagamento entre obras sem quebrar o vínculo | **P0** |
-| 3 | **005** | Headline da home | **P0** |
-| 4 | **031** | E2E da condição fiscal 6 | P1 |
-| 5 | **035** | **Reconciliar a régua de cor com a D39 revisada** (sem item F, ver nota 2026-09-19) | P1 |
-| 6 | **038** | **Retenção de NF de serviço PJ vira lista de linhas** — 🟡 falta `/design` | **P0** |
-| 7 | **034** | **Campo fiscal não nasce preenchido, e o teste prova** | P1 — ⚠️ existe só neste resumo, falta linha própria na tabela detalhada abaixo |
-| 8 | **014** | Manifest de PWA + prova no aparelho | P1 |
-| 9 | **006** | Estados de rede lenta/indisponível | P1 |
-| 10 | **037** | **Porta para o pagamento conciliado a partir do documento** | P1 |
+| 1 | **008** | Mover pagamento entre obras sem quebrar o vínculo | **P0** |
+| 2 | **005** | Headline da home | **P0** |
+| 3 | **031** | E2E da condição fiscal 6 | P1 |
+| 4 | **035** | **Reconciliar a régua de cor com a D39 revisada** (sem item F, ver nota 2026-09-19) | P1 |
+| 5 | **038** | **Retenção de NF de serviço PJ vira lista de linhas** — 🟡 falta `/design` | **P0** |
+| 6 | **034** | **Campo fiscal não nasce preenchido, e o teste prova** | P1 — ⚠️ existe só neste resumo, falta linha própria na tabela detalhada abaixo |
+| 7 | **014** | Manifest de PWA + prova no aparelho | P1 |
+| 8 | **006** | Estados de rede lenta/indisponível | P1 |
+| 9 | **037** | **Porta para o pagamento conciliado a partir do documento** | P1 |
 
 ### Bloco de deploy — fora da fila
 
@@ -75,9 +84,9 @@ corrigidos na hora — `docs/backlog/33-2026-09-20-tres-bugs-achados-no-teste-ma
 |---|---|
 | **Espera o Mateus** | apenas a **Q14** (13 dias, trava o `016`) — nenhum mock pendente na fila ativa |
 | **Saiu da fila, superado** | `009` — entregue via `CONTAI-018` sem citação cruzada; resto vivo virou o `037` |
-| **Saiu da fila, entregue** | `032`, `022` — commitados em 2026-09-19 (`13953f2`); ver "Em produção" |
-| **Saiu da fila, entregue, aguardando commit** | `033` — implementado e testado em 2026-09-20, ainda no working tree |
-| **Pronto para `/develop`** | `007`, `008`, `005`, `031`, `035`, `014`, `006`, `037` — 8 dos 8 itens da fila |
+| **Saiu da fila, entregue** | `032`, `022` — commitados em 2026-09-19 (`13953f2`); `033`, `007` — commitados em 2026-09-20 (`3c3f4de` e o commit deste ticket); ver "Em produção" |
+| **Releitura fiscal pendente antes do `/develop`** | `008` — o parecer do Gate 2 do `007` (2026-09-20) invalidou a leitura de bloqueio da pergunta 1/critério 16; já anotado no corpo do ticket |
+| **Pronto para `/develop`** | `005`, `031`, `035`, `014`, `006`, `037` — 6 dos 7 itens restantes da fila |
 | **Falta mock (`/design`)** | `038` — sequenciado logo após `035` (dependência técnica, não fiscal); ver nota 2026-09-19 |
 
 ⚠️ **Esta tabela é resumo, não fonte.** Ela repete o que está abaixo — se
@@ -188,6 +197,8 @@ futura — este bloco fica só como prova de que o furo de 21-23/08 foi fechado.
 | 028 | Quebrar `lib/data.ts` em módulos por entidade — **fatia 1 de 7** | 🔨 `a9ef819` | **Só a fatia 1 está entregue** (23/08): os 14 mappers puros foram para `lib/dados/comum.ts`, barrel de volta a **63 exports exatos**, golden snapshot byte a byte. O ticket **segue aberto** e as fatias 2-7 estão no fim da fila — ver a proposta de corte em "Depois" |
 | 032 | Tirar `data = hoje` e `meio = "pix"` do formulário de pagamento | ⚠️ `13953f2` | **7/7 critérios, entregue em 2026-09-19** junto com o `022` (mesmo commit — ver a ressalva do `022` abaixo sobre o motivo de irem juntos). `decidirRegistro` só decide o destino quando `meio` e `data` foram digitados; até lá o formulário mostra o que falta, sem gravar. `RECUSA_CARTAO`/`RECUSA_CARTAO_ONDE_REGISTRAR` saíram daqui — o cartão foi para o fluxo próprio do `022`. 617 testes unitários + E2E verdes. Fica ⚠️ (commit único, sem os quatro hashes de gate) pela mesma régua do `018`/`019`/`003` |
 | 022 | Cartão de crédito (compra → fatura) | ⚠️ `13953f2` | **16/16 critérios, entregue em 2026-09-19**. Migration `0013` (3 tabelas: `fatura`, `fatura_compromisso`, `fatura_desembolso` + 4 funções transacionais + `GRANT`s explícitos). `lib/fiscal/fatura.ts` novo (matemática de alocação do rotativo). 5 telas novas, `e2e/cartao.spec.ts` (10 testes) verde contra o Postgres local. **Commitado junto com o `032`** porque os dois evoluíram nos mesmos arquivos (`compromisso.ts`, `pagamento/page.tsx`) na mesma sessão sem commit intermediário — separar agora arriscava um estado quebrado no meio. **Corte de escopo disclosed**: `/fatura/[id]/alocar` só funciona chegando via `?desembolso=`; acesso direto mostra fallback em vez de seletor de desembolso. Fica ⚠️ pela mesma régua acima |
+| 033 | Captura de documento sem arquivo (CTA) | ⚠️ `3c3f4de` | **Entregue em 2026-09-20**, revisado (`cto-obra`, aprovado com ressalvas não bloqueantes) e testado no browser (639 unitários + 180 E2E, 3 bugs achados no teste manual e corrigidos na hora). Migration `0014`. Fica ⚠️ (commit único, sem os quatro hashes de gate) pela mesma régua acima |
+| 007 | CNO referenciado na NF de serviço | ⚠️ *(ver nota no topo do arquivo)* | **Entregue em 2026-09-20, 9/9 critérios.** Migration `0015` (`documento.cno_referenciado` + `nota_traz_cno`, tri-estado). Gate 2 rodou duas vezes: a primeira rodada do `contador` achou erro fiscal real no critério 7 (bloqueio indevido ao corrigir obra de um documento já lançado) — parecer `docs/pareceres/2026-09-20-cno-nao-bloqueia-correcao-de-obra.md` reverteu para aviso permanente, nunca bloqueio, e **invalidou a leitura anterior do `CONTAI-008`** (pergunta 1/critério 16 — já anotado no corpo daquele ticket). 669 unitários + 195 E2E + validação manual no browser. Gate 4 (`po`) PASS. **Mudança de processo no mesmo dia**: `/design` deixou de exigir HTML e aprovação explícita |
 
 ## Fila de implementação
 
@@ -219,18 +230,17 @@ revisão descreveu.
 ⚠️ **`027`, `025` e `036` saíram desta tabela em 24/08** — os três estão
 entregues e commitados; ver "Em produção" acima. `004` também saiu (entregue,
 commit `05cb1e7`). **`032` e `022` saíram em 2026-09-19** (entregues,
-`13953f2`). **`033` saiu em 2026-09-20** (implementado e testado, aguardando
-commit) — só `007` (mesmo mock do `004`, ainda não construído) permanece
-abaixo.
+`13953f2`). **`033` saiu em 2026-09-20** (entregue, commit `3c3f4de`). **`007`
+saiu em 2026-09-20** (entregue — ver a nota no topo do arquivo). Nenhum item
+desta tabela fica sem construir.
 
-| **1** | **007** | CNO referenciado na NF de serviço | **P0** | 🟢 **pronto para `/develop`** | **Gate 0 satisfeito em 24/08** — o próprio ticket confirma: mesmo mock do `004` (`design/mocks/CONTAI-004.html`), já aprovado. Nada trava a entrada no Gate 1. **Sobe uma posição em 24/08**: o `008` passou a depender de `cno_referenciado` existir para revalidar CNO na hora de mover pagamento — precisa entrar primeiro. Recebe **a nota movida** (pelo `008`) na lista de cobrança |
-| **2** | **008** | **Mover PAGAMENTO entre obras sem quebrar o vínculo** | **P0** | 🟢 **pronto para `/develop`** | Bug **alcançável pela interface** desde que o `018` foi ao ar. Mock (nível 1, 8 telas) aprovado em 24/08 (`design/mocks/CONTAI-008.html`) — espelho da tela 8 do `021`, mais o estado de recusa por CNO incompatível (critério 16, achado no mesmo dia). As duas perguntas do Gate Fiscal (mover NF de serviço levando o CNO da origem; mover pagamento sem vínculo) foram fechadas em 24/08, aproveitando o `CNO referenciado` do `007`. **Entra atrás do `007`** na fila por dependência real de dado, não mais por trava de mock. Herdou os **critérios 13-15** do Gate 4 do `021` |
-| **3** | **005** | Headline da home (reduzido a corte) | **P0** | 🟢 **pronto para `/develop`** | Mock v5 aprovado em 24/08 (`design/mocks/CONTAI-005.html`). Decisão nº 1 fechada em 17/08: R$ 49.850. Texto do estado zero ratificado pelo `contador` no mesmo dia. Nada trava a entrada no Gate 1 |
-| **4** | **031** | E2E da condição fiscal 6 | P1 | 🟢 **pronto para `/develop`** | Ticket escrito em 24/08 (`docs/tickets/CONTAI-031.md`), sem UI, sem mock. Condição 6 do Gate Fiscal do `CONTAI-028` (`corrigirClassificacaoDoDocumento`, hoje sem rede nenhuma cobrindo) + comentário-guarda da D43. 8 critérios. **Bloqueia a fatia 5 do `CONTAI-028`**: rede antes do refactor, nunca depois |
-| **5** | **035** | **Reconciliar a régua de cor com a D39 revisada** | P1 | 🟢 **pronto para `/develop`** | Ticket + mock nível 3 (tabela, sem tela nova) escritos e aprovados em 24/08 (`docs/tickets/CONTAI-035.md`). 17 call sites reais em ~10 arquivos (recontados — o inventário original dizia 13/5), mais o tipo `Gravidade` branded para o teste-trava (D54) não ser decorativo. 13 critérios. 2 perguntas de uma linha não bloqueiam o Gate 1. **Item F saiu de escopo em 2026-09-19** — ver nota no topo do arquivo |
-| **6** | **014** | Manifest de PWA + prova no aparelho | P1 | 🟢 | Gate 0 substituído por aprovação de ícone. Fica no fim de propósito: nenhuma das três metas depende dele |
-| **7** | **006** | Estados de rede lenta/indisponível | P1 | 🟢 | Sem bloqueio. ⚠️ **rodar sozinho na árvore** — toca muitos arquivos |
-| **8** | **037** | **Porta para o pagamento conciliado a partir do documento** | P1 | 🟢 **pronto para `/develop`** | Nasceu em 24/08 da reconciliação do `009` (único trabalho vivo do que sobrou). Ticket + mock nível 3 escritos e aprovados em 24/08 (`docs/tickets/CONTAI-037.md`, `design/mocks/CONTAI-037.md`) — complexidade XS, sem migration, um `BotaoLink` a mais numa linha que já existe |
+| **1** | **008** | **Mover PAGAMENTO entre obras sem quebrar o vínculo** | **P0** | 🟡 **releitura fiscal pendente antes do `/develop`** | Bug **alcançável pela interface** desde que o `018` foi ao ar. Mock (nível 1, 8 telas) aprovado em 24/08 (`design/mocks/CONTAI-008.html`) — espelho da tela 8 do `021`, mais o estado de recusa por CNO incompatível (critério 16, achado no mesmo dia). **Atenção**: o parecer `docs/pareceres/2026-09-20-cno-nao-bloqueia-correcao-de-obra.md` (Gate 2 do `007`) invalidou a leitura de "pergunta 1"/critério 16 deste ticket — ele mandava bloquear por divergência de CNO, e a leitura correta é permitir com aviso permanente. O próprio `contador` já anotou a pergunta 1 e o critério 16 no corpo de `docs/tickets/CONTAI-008.md`; **não implementar como está escrito sem reler essa nota primeiro**. Aproveita o `cno_referenciado` do `007`, já entregue |
+| **2** | **005** | Headline da home (reduzido a corte) | **P0** | 🟢 **pronto para `/develop`** | Mock v5 aprovado em 24/08 (`design/mocks/CONTAI-005.html`). Decisão nº 1 fechada em 17/08: R$ 49.850. Texto do estado zero ratificado pelo `contador` no mesmo dia. Nada trava a entrada no Gate 1 |
+| **3** | **031** | E2E da condição fiscal 6 | P1 | 🟢 **pronto para `/develop`** | Ticket escrito em 24/08 (`docs/tickets/CONTAI-031.md`), sem UI, sem mock. Condição 6 do Gate Fiscal do `CONTAI-028` (`corrigirClassificacaoDoDocumento`, hoje sem rede nenhuma cobrindo) + comentário-guarda da D43. 8 critérios. **Bloqueia a fatia 5 do `CONTAI-028`**: rede antes do refactor, nunca depois |
+| **4** | **035** | **Reconciliar a régua de cor com a D39 revisada** | P1 | 🟢 **pronto para `/develop`** | Ticket + mock nível 3 (tabela, sem tela nova) escritos e aprovados em 24/08 (`docs/tickets/CONTAI-035.md`). 17 call sites reais em ~10 arquivos (recontados — o inventário original dizia 13/5), mais o tipo `Gravidade` branded para o teste-trava (D54) não ser decorativo. 13 critérios. 2 perguntas de uma linha não bloqueiam o Gate 1. **Item F saiu de escopo em 2026-09-19** — ver nota no topo do arquivo |
+| **5** | **014** | Manifest de PWA + prova no aparelho | P1 | 🟢 | Gate 0 substituído por aprovação de ícone. Fica no fim de propósito: nenhuma das três metas depende dele |
+| **6** | **006** | Estados de rede lenta/indisponível | P1 | 🟢 | Sem bloqueio. ⚠️ **rodar sozinho na árvore** — toca muitos arquivos |
+| **7** | **037** | **Porta para o pagamento conciliado a partir do documento** | P1 | 🟢 **pronto para `/develop`** | Nasceu em 24/08 da reconciliação do `009` (único trabalho vivo do que sobrou). Ticket + mock nível 3 escritos e aprovados em 24/08 (`docs/tickets/CONTAI-037.md`, `design/mocks/CONTAI-037.md`) — complexidade XS, sem migration, um `BotaoLink` a mais numa linha que já existe |
 
 ### ⚠️ O que a fila diz de si mesma, e é desconfortável
 

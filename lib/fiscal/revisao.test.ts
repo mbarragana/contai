@@ -45,6 +45,8 @@ function doc(over: Partial<Documento> & { id: string }): Documento {
     classificacao: "material",
     destinatarioCpfOk: true,
     retencao11: null,
+    cnoReferenciado: null,
+    notaTrazCno: null,
     motivoQuarentena: null,
     favorecidoId: "fav-emitente",
     favorecidoNome: "Depósito Ilha",

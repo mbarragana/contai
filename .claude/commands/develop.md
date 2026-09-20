@@ -74,21 +74,20 @@ Só spawne agente novo quando não houver um vivo para aquele papel neste ticket
 
 ## Pipeline (por ticket)
 
-### Gate 0: Proposta Aprovada (só para tickets com UI)
-- O ticket tem mudança visível ao usuário? Então precisa de
-  "Proposta aprovada em [data]" (ou "Mock aprovado em [data]", nos tickets
-  anteriores a 2026-08-22) registrado no ticket, apontando para `design/mocks/`
-- **Sem aprovação → PARE.** Rode `/design` e obtenha a aprovação do Mateus antes
-  de escrever qualquer código. Esta é a premissa nº 1 do projeto
-- **A proposta não é sempre HTML** (mudou em 2026-08-22). O `/design` entrega em
-  três níveis: **1** HTML navegável (tela nova), **2** spec + ASCII do bloco
-  (campo/estado a mais), **3** tabela antes/depois (só texto). O que o Gate 0
-  exige é a **aprovação**, não o formato
-- **O que os Gates 1 e 4 leem é sempre o spec `design/mocks/[ID].md`** — nos
-  três níveis ele existe e declara o nível na primeira linha. O `.html`, quando
-  existe, só se abre quando a dúvida for de pixel
-- Se o spec não existir (ticket anterior a 2026-08-22), gere-o a partir do HTML
-  antes de seguir — mock de 150 KB lido três vezes são ~100k tokens
+### Gate 0: Descrição de Design Existe (só para tickets com UI)
+- **Corrigido em 2026-09-20**: não há mais aprovação a esperar. O ticket tem
+  mudança visível ao usuário? Então precisa existir `design/mocks/[ID].md` —
+  a descrição escrita do `/design` — antes do Gate 1 codar. Sem esperar sinal
+  verde do Mateus: rode `/design` (ou confirme que já existe spec cobrindo a
+  mudança) e siga
+- Tickets anteriores a 2026-09-20 podem ter "Proposta aprovada em [data]" ou
+  "Mock aprovado em [data]" no corpo — isso continua válido como evidência de
+  que o spec existe, não precisa refazer
+- **O que os Gates 1 e 4 leem é sempre `design/mocks/[ID].md`.** Specs antigos
+  em nível 1 (anteriores a 2026-09-20) têm `.html` companheiro — abra-o só
+  quando a dúvida for de pixel, nunca por padrão
+- Se não existir spec nenhum para a mudança, rode `/design` antes de seguir —
+  não pule para o Gate 1 sem ele
 
 ### Gate 1: Implementar — lead-engineer (modelo: opus)
 - 🎭 Rode como subagent `lead-engineer` (pinado em opus no frontmatter dele)

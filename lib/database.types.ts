@@ -168,12 +168,14 @@ export type Database = {
           arquivo_path: string | null
           chave_acesso: string | null
           classificacao: Database["public"]["Enums"]["classificacao"] | null
+          cno_referenciado: string | null
           created_at: string
           data_emissao: string | null
           destinatario_cpf_ok: boolean
           favorecido_id: string | null
           id: string
           motivo_quarentena: string | null
+          nota_traz_cno: boolean | null
           numero: string | null
           obra_id: string
           retencao_11: boolean | null
@@ -188,12 +190,14 @@ export type Database = {
           arquivo_path?: string | null
           chave_acesso?: string | null
           classificacao?: Database["public"]["Enums"]["classificacao"] | null
+          cno_referenciado?: string | null
           created_at?: string
           data_emissao?: string | null
           destinatario_cpf_ok: boolean
           favorecido_id?: string | null
           id?: string
           motivo_quarentena?: string | null
+          nota_traz_cno?: boolean | null
           numero?: string | null
           obra_id: string
           retencao_11?: boolean | null
@@ -208,12 +212,14 @@ export type Database = {
           arquivo_path?: string | null
           chave_acesso?: string | null
           classificacao?: Database["public"]["Enums"]["classificacao"] | null
+          cno_referenciado?: string | null
           created_at?: string
           data_emissao?: string | null
           destinatario_cpf_ok?: boolean
           favorecido_id?: string | null
           id?: string
           motivo_quarentena?: string | null
+          nota_traz_cno?: boolean | null
           numero?: string | null
           obra_id?: string
           retencao_11?: boolean | null

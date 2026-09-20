@@ -39,14 +39,19 @@ import {
   AJUDA_NUMERO,
   AJUDA_SERIE,
   avisaInss,
+  bloqueiaPorCnoDeOutraObra,
   classificacaoProposta,
+  cnoReferenciadoParaBanco,
   CONSEQUENCIA_QUARENTENA,
   CONSEQUENCIA_SEM_RETENCAO,
   duplicataDe,
+  exigeCnoReferenciado,
   exigeIdentificacaoDaNota,
   exigeRetencao,
   motivoQuarentena,
+  notaTrazCnoParaBanco,
   numeroParaBanco,
+  pendenteDeCno,
   retencaoParaBanco,
   SEM_ARQUIVO_DIALOGO_ANEXAR,
   SEM_ARQUIVO_DIALOGO_CONSEQUENCIA,
@@ -59,11 +64,15 @@ import {
   type DocumentoRegistrado,
   type EntradaDocumento,
   type ErroCampo,
+  type RespostaCnoNota,
   type RespostaCpf,
   type RespostaRetencao,
 } from "@/lib/fiscal/documento";
 import { soDigitos, tipoPorDocumento } from "@/lib/fiscal/identificacao";
 import {
+  ACAO_NOTA_SEM_CNO,
+  CNO_NAO_ALCANCA_O_CUSTO,
+  CONSEQUENCIA_CNO_DA_NOTA,
   formatarDataBR,
   NF_SERVICO_SEM_CNO_ALAVANCA,
   NF_SERVICO_SEM_CNO_EFEITO,
@@ -104,6 +113,17 @@ const RESPOSTAS_RETENCAO = [
   { valor: "nao_sei", texto: "Não sei" },
 ] as const satisfies readonly { valor: RespostaRetencao; texto: string }[];
 
+/**
+ * CONTAI-007, critério 1 — **três toques, zero digitação** (pre-mortem 1: se o
+ * campo fosse livre, de 14 dígitos, o ticket voltava). O CNO das obras
+ * cadastradas o app já tem; o que falta é o que está no papel.
+ */
+const RESPOSTAS_CNO = [
+  { valor: "desta_obra", texto: "É o CNO desta obra" },
+  { valor: "outra_obra", texto: "É o CNO de outra obra" },
+  { valor: "nao_traz", texto: "A nota não traz CNO" },
+] as const satisfies readonly { valor: RespostaCnoNota; texto: string }[];
+
 type Fase =
   | { nome: "formulario" }
   | { nome: "salvando" }
@@ -127,6 +147,13 @@ type Fase =
       quarentena: boolean;
       /** CONTAI-033 — a confirmação não pode dizer "arquivo guardado" quando não há. */
       semArquivo: boolean;
+      /**
+       * CONTAI-007, critério 3 — a nota entrou COM PENDÊNCIA de CNO. A
+       * consequência é dita na confirmação (tela 7 do mock), e não só na lista
+       * de pendências: "nunca em branco silencioso" quer dizer que ele vê o
+       * efeito no ato, enquanto ainda se lembra de qual nota é.
+       */
+      semCno: boolean;
     };
 
 export default function RegistrarDocumento() {
@@ -157,6 +184,12 @@ export default function RegistrarDocumento() {
   const [classificacao, setClassificacao] = useState<Classificacao | null>(null);
   const [notaNoCpf, setNotaNoCpf] = useState<RespostaCpf | null>(null);
   const [retencao11, setRetencao11] = useState<RespostaRetencao | null>(null);
+  /**
+   * CONTAI-007 — a pergunta do CNO. Nasce `null`, como todo campo fiscal deste
+   * formulário: **a extração nunca a preenche** (é pergunta sobre o papel na
+   * mão, não leitura de PDF — mesma regra de `notaNoCpf` e `retencao11`).
+   */
+  const [cnoNaNota, setCnoNaNota] = useState<RespostaCnoNota | null>(null);
   const [erros, setErros] = useState<ErroCampo[]>([]);
   /**
    * CONTAI-033 — o diálogo do §A.7.1. **Overlay dentro desta tela**, nunca rota
@@ -224,6 +257,9 @@ export default function RegistrarDocumento() {
     setTipo(novo);
     setClassificacao(classificacaoProposta(novo));
     if (!exigeRetencao(novo)) setRetencao11(null);
+    // Sair de NF de serviço apaga a resposta do CNO: ela só existe ali, e uma
+    // resposta guardada em tipo que não a pergunta é afirmação órfã.
+    if (!exigeCnoReferenciado(novo)) setCnoNaNota(null);
   }
 
   const entrada: EntradaDocumento = useMemo(
@@ -239,6 +275,10 @@ export default function RegistrarDocumento() {
       classificacao,
       notaNoCpf,
       retencao11,
+      cnoNaNota,
+      // O CNO da obra AFIRMADA NA TELA — não a preferência do aparelho. É ele
+      // que a resposta "é o CNO desta obra" afirma estar impresso no papel.
+      cnoDaObra: obra?.cno ?? null,
     }),
     [
       tipo,
@@ -252,6 +292,8 @@ export default function RegistrarDocumento() {
       classificacao,
       notaNoCpf,
       retencao11,
+      cnoNaNota,
+      obra,
     ],
   );
 
@@ -362,6 +404,10 @@ export default function RegistrarDocumento() {
       classificacao,
       destinatarioCpfOk: notaNoCpf === "sim",
       retencao11: null,
+      // O CNO da nota não participa da ordenação dos candidatos: quem casa
+      // pagamento com documento é valor + favorecido. Mesma razão do `numero`.
+      cnoReferenciado: null,
+      notaTrazCno: null,
       motivoQuarentena: null,
       // O documento ainda não existe; o favorecido dele também não tem id
       // ainda (`garantirFavorecido` roda no salvar). Nada aqui depende disso:
@@ -457,6 +503,12 @@ export default function RegistrarDocumento() {
         classificacao,
         destinatario_cpf_ok: notaNoCpf === "sim",
         retencao_11: exigeRetencao(tipo) ? retencaoParaBanco(retencao11) : null,
+        // CONTAI-007 — o CNO IMPRESSO na nota, e o tri-estado que o acompanha.
+        // O `obra.cno` que entra aqui é o da obra AFIRMADA NA TELA, que é o que
+        // a resposta "é o CNO desta obra" afirma estar no papel. "É o de outra
+        // obra" nunca chega até aqui: `validarDocumento` já barrou.
+        cno_referenciado: cnoReferenciadoParaBanco(tipo, cnoNaNota, obra.cno),
+        nota_traz_cno: notaTrazCnoParaBanco(tipo, cnoNaNota),
         status,
         motivo_quarentena: motivoQuarentena(notaNoCpf),
       });
@@ -520,6 +572,7 @@ export default function RegistrarDocumento() {
         vinculoFalhou,
         quarentena: status === "quarentena",
         semArquivo: arquivoPath === null,
+        semCno: pendenteDeCno(tipo, cnoNaNota),
       });
     } catch (erro) {
       setFase({ nome: "formulario" });
@@ -561,6 +614,22 @@ export default function RegistrarDocumento() {
           ) : undefined
         }
         arquivoNoAcervo={!fase.semArquivo}
+        /* Tela 7 do mock do CONTAI-004 — critério 3. A pendência aparece AQUI,
+           no ato, além de entrar na lista de pendências (critério 4): o texto
+           é o MESMO do bloqueio, porque a consequência fiscal é a mesma; o que
+           muda é haver conserto (pedir a nota certa) ou não. */
+        extra={
+          fase.semCno ? (
+            <Card className="border-amb">
+              <Chip cor="amb">A nota não traz CNO</Chip>
+              <Consequencia cor="amb">{CONSEQUENCIA_CNO_DA_NOTA}</Consequencia>
+              <Dica>
+                {CNO_NAO_ALCANCA_O_CUSTO} Ação: <strong>{ACAO_NOTA_SEM_CNO}</strong>{" "}
+                — enquanto ainda houver parcela a liberar.
+              </Dica>
+            </Card>
+          ) : undefined
+        }
         proximoPasso={
           fase.ligados > 0 ? (
             <>
@@ -590,14 +659,79 @@ export default function RegistrarDocumento() {
         onEscolher={(escolhida) => {
           registro.escolher(escolhida);
           setTrocando(false);
+          /**
+           * ⚠️ **Trocar a obra ZERA a resposta do CNO**, e não é zelo: a
+           * pergunta é *"qual CNO está impresso nesta nota?"* e as três
+           * respostas são todas relativas à obra da tela. Mantida a resposta,
+           * "é o CNO desta obra" continuaria selecionado com o SIGNIFICADO
+           * TROCADO por baixo — e gravaria o CNO da obra nova como se fosse o
+           * do papel. É o mesmo raciocínio do bloqueante 5 do Gate 2 do
+           * CONTAI-021, onde trocar o destino zera os desfechos.
+           *
+           * É também o que torna "Registrar na outra obra" uma saída de
+           * verdade para o bloqueio: ele volta ao formulário com a pergunta
+           * em aberto, e responde de novo olhando o mesmo papel.
+           */
+          setCnoNaNota(null);
         }}
         onCancelar={() => setTrocando(false)}
       />
     );
   }
 
-  const semCno = obra !== null && obra.cno === null;
-  const avisaObraSemCno = semCno && tipo === "nf_servico";
+  const semCnoNaObra = obra !== null && obra.cno === null;
+  const avisaObraSemCno = semCnoNaObra && tipo === "nf_servico";
+
+  /**
+   * ══ Tela 5 do mock do CONTAI-004 — BLOQUEIO, e não aviso (critério 2) ══
+   *
+   * Tela inteira, e não um banner no meio do formulário: o registro NÃO vai
+   * acontecer, e um banner deixaria o "Salvar" ali do lado, convidando ao
+   * toque que o ticket existe para impedir.
+   *
+   * ⚠️ As DUAS saídas são do pre-mortem 2, e a primeira é a que importa:
+   * *"a tela de bloqueio precisa oferecer 'registrar na outra obra' como ação,
+   * não só recusar"*. Recusar sem saída, com a nota na mão, empurra o registro
+   * para a obra errada — que é o dano que se queria evitar.
+   *
+   * Só existe quando há outra obra para onde ir. Com uma obra só, a saída
+   * honesta é corrigir a resposta: o app não inventa obra.
+   */
+  if (bloqueiaPorCnoDeOutraObra(tipo, cnoNaNota) && obra) {
+    return (
+      <>
+        <AppBar
+          titulo="CNO impresso é de outra obra"
+          sub={`${numero ? `NF de serviço ${numero} · ` : ""}${nome || "emitente não informado"} · ${obra.nome}`}
+        />
+        <Corpo>
+          <Card className="border-red">
+            <Chip cor="red">Bloqueado — não é aviso</Chip>
+            <p className="mt-2.5 text-[13.5px]">{CONSEQUENCIA_CNO_DA_NOTA}</p>
+          </Card>
+          <Dica>
+            {CNO_NAO_ALCANCA_O_CUSTO} Por isso o registro é barrado aqui, e não
+            vira pendência: <strong>não há conserto depois da emissão</strong>.
+          </Dica>
+        </Corpo>
+        <Rodape>
+          {registro.obras.length > 1 ? (
+            <Botao variante="primary" onClick={() => setTrocando(true)}>
+              Registrar na outra obra
+            </Botao>
+          ) : (
+            <Dica>
+              Só existe uma obra cadastrada — cadastre a obra do CNO impresso
+              antes de registrar esta nota.
+            </Dica>
+          )}
+          <Botao variante="ghost" onClick={() => setCnoNaNota(null)}>
+            Voltar e corrigir a resposta
+          </Botao>
+        </Rodape>
+      </>
+    );
+  }
 
   return (
     <>
@@ -818,6 +952,52 @@ export default function RegistrarDocumento() {
                   ) : null}
                 </>
               ) : null}
+
+              {/* ══ CONTAI-007, critério 1 — o CNO impresso na nota ═══════
+                  Última pergunta do passo, como no mock (ordem: … CPF →
+                  retenção → CNO). ESCOLHA, nunca digitação (pre-mortem 1).
+
+                  ⚠️ "É o CNO desta obra" SOME quando a obra não tem CNO, e o
+                  sumiço é regra: a nota não pode trazer impresso um número que
+                  não existe. Oferecer a opção ali seria oferecer uma afirmação
+                  falsa a um toque de distância — e o card vermelho logo abaixo
+                  já diz o que fazer. */}
+              {exigeCnoReferenciado(tipo) ? (
+                <>
+                  <Escolha
+                    destaque
+                    rotulo="Qual CNO está impresso nesta nota?"
+                    opcoes={
+                      semCnoNaObra
+                        ? RESPOSTAS_CNO.filter((o) => o.valor !== "desta_obra")
+                        : RESPOSTAS_CNO
+                    }
+                    valor={cnoNaNota}
+                    onChange={setCnoNaNota}
+                    erro={erroDe("cnoNaNota")}
+                  />
+                  <Dica>
+                    {semCnoNaObra ? (
+                      <>
+                        Esta obra ainda não tem CNO, então nenhuma nota pode
+                        trazer o CNO dela impresso. Três toques, zero digitação
+                        — o CNO não se digita aqui.
+                      </>
+                    ) : (
+                      <>
+                        {obra.nome} · <span className="mono">CNO {obra.cno}</span>.
+                        Três toques, zero digitação — o CNO não se digita aqui.
+                      </>
+                    )}
+                  </Dica>
+                  {cnoNaNota === "nao_traz" ? (
+                    <Banner cor="amb" role="status">
+                      {CONSEQUENCIA_CNO_DA_NOTA} Salva assim mesmo, com
+                      pendência — {ACAO_NOTA_SEM_CNO}.
+                    </Banner>
+                  ) : null}
+                </>
+              ) : null}
             </Card>
 
             {avisaObraSemCno ? (
@@ -834,6 +1014,16 @@ export default function RegistrarDocumento() {
                 <Consequencia cor="amb">
                   {NF_SERVICO_SEM_CNO_ALAVANCA}
                 </Consequencia>
+                {/* CONTAI-007, critério 8 — a entrada da tela 14, desenhada e
+                    aprovada em 2026-08-10 e só agora construtível (depende de
+                    `numero` e `data_emissao`, do CONTAI-004). É o único item
+                    do lote que RECUPERA valor em vez de só registrar perda —
+                    e vale enquanto houver parcela a liberar. */}
+                <div className="mt-3">
+                  <BotaoLink href={`/obras/${obra.id}/notas-sem-cno`}>
+                    Ver as notas desta obra emitidas sem CNO
+                  </BotaoLink>
+                </div>
               </Card>
             ) : null}
 

@@ -174,21 +174,20 @@ export function CorrigirObra({
               </>
             )}
 
+            {/* Reescrito em 2026-09-20 pelo mesmo parecer que desarmou o
+                bloqueio (`2026-09-20-cno-nao-bloqueia-correcao-de-obra.md`):
+                divergência de CNO avisa, não barra. */}
             {tipo === "nf_servico" ? (
               <Consequencia cor="amb">
                 Esta é uma <strong>NF de serviço</strong>: mover para outra obra
-                revalida o CNO da nota contra o CNO da obra de destino. Se a nota
-                referenciar um CNO diferente, a correção é barrada — senão a nota
-                entraria numa obra cujo CNO ela não menciona.
+                confere o CNO da nota contra o CNO da obra de destino.
+                Divergência <strong>não impede a correção</strong> — ela aparece
+                como aviso, e o que decide a aferição é o CNO impresso na nota,
+                não a obra em que ela está arquivada.
               </Consequencia>
             ) : null}
 
-            {decisao && !decisao.permitido ? (
-              <Banner cor="red" role="alert">
-                {decisao.motivo}
-              </Banner>
-            ) : null}
-            {decisao && decisao.permitido && decisao.aviso ? (
+            {decisao?.aviso ? (
               <Banner cor="amb" role="status">
                 {decisao.aviso}
               </Banner>

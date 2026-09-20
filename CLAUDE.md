@@ -34,8 +34,17 @@ Regras fiscais vêm do agente `contador` — nunca de memória, nunca inventadas
 
 ## Premissas de processo
 
-- **Mock-first**: nenhuma alteração visível ao usuário entra em desenvolvimento
-  sem mock HTML em `design/mocks/` aprovado explicitamente pelo Mateus
+- **Design vira descrição escrita, não HTML nem aprovação — corrigido em
+  2026-09-20.** Regra anterior (2026-08-07, revista em 2026-08-22 para níveis
+  mais baratos que HTML): nenhuma alteração visível entrava em desenvolvimento
+  sem mock aprovado explicitamente pelo Mateus. Decisão do Mateus: os dois
+  custos — esperar sinal verde e renderizar HTML — não compravam decisão que
+  valesse o token gasto. O `/design` continua existindo e continua sendo o
+  lugar onde fluxo, os 4 estados (loading/vazio/erro/sucesso) e texto de
+  consequência fiscal (copiado do parecer, nunca reescrito) se decidem antes do
+  código — mas a saída é sempre uma **descrição detalhada por escrito** em
+  `design/mocks/[ID].md`, suficiente para o `lead-engineer` implementar sem
+  abrir dúvida de campo, estado ou texto. Não há gate de aprovação nem HTML
 - **Requisito nasce de relato**: dores vêm dos textos de vivência do Mateus,
   processados via `/relato` → `docs/backlog.md`
 - **Gate fiscal**: ticket que toca regra fiscal é especificado e revisado pelo

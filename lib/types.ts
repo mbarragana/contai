@@ -134,6 +134,30 @@ export interface Documento {
   classificacao: Classificacao | null;
   destinatarioCpfOk: boolean;
   retencao11: boolean | null;
+  /**
+   * CONTAI-007 — o CNO **impresso nesta nota**, como afirmado no registro.
+   *
+   * ⚠️ Não é o CNO da obra, e a distinção é a razão de a coluna guardar o
+   * número em vez de um "sim": o papel não muda quando o cadastro da obra muda.
+   * Só abate a base de aferição do CNO que ele nomeia — **NF da obra A jamais
+   * abate base da obra B** (parecer 2026-08-09, Q8).
+   *
+   * `null` quando a nota não traz CNO (`notaTrazCno === false`) ou quando a
+   * pergunta não se aplica / não foi feita (`notaTrazCno === null`).
+   */
+  cnoReferenciado: string | null;
+  /**
+   * CONTAI-007 — tri-estado, **igual a `retencao11`**:
+   * - `true`: a nota traz CNO impresso, e ele está em `cnoReferenciado`;
+   * - `false`: a nota NÃO traz CNO. É **pendência com consequência escrita**
+   *   (critério 3), nunca branco silencioso — e a nota continua sendo
+   *   documentação hábil para o custo de aquisição;
+   * - `null`: não foi perguntado (NF de material, boleto, registro legado).
+   *
+   * O caso "é o CNO de outra obra" **não existe aqui**: é bloqueio na entrada
+   * (critério 2), porque erro de CNO não tem conserto depois da emissão.
+   */
+  notaTrazCno: boolean | null;
   motivoQuarentena: string | null;
   favorecidoNome: string | null;
   /**

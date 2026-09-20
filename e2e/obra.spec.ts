@@ -358,6 +358,14 @@ test.describe("obra sem CNO", () => {
       arquivo: "servico-sem-cno.pdf",
     });
     await escolher(page, "NF de serviço: tem retenção de 11%?", "Sim");
+    /**
+     * CONTAI-007 — obra **sem CNO**: "É o CNO desta obra" nem aparece (nenhuma
+     * nota pode trazer impresso um número que não existe), e a resposta honesta
+     * é que a nota não traz CNO. Ela salva com pendência: o custo de aquisição
+     * não depende do CNO, e travar aqui devolveria o Mateus à planilha.
+     */
+    await expect(page.getByText("É o CNO desta obra")).toHaveCount(0);
+    await escolher(page, "Qual CNO está impresso nesta nota?", "A nota não traz CNO");
     await expect(page.getByText("Nota de serviço em obra sem CNO")).toBeVisible();
     await expect(
       page.getByText(/não vai abater a aferição do INSS desta obra/),

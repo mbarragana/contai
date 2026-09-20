@@ -36,24 +36,24 @@ NF de serviço e recuse a nota cujo CNO não é o da obra do registro, para que 
 aferição daquele CNO feche e a construção possa ser averbada na matrícula.
 
 ## Critérios de Aceite
-1. [ ] `cno_referenciado` capturado em **toda NF de serviço PJ** (coluna nova
+1. [x] `cno_referenciado` capturado em **toda NF de serviço PJ** (coluna nova
        em `documento`; não se aplica a NF de material nem a boleto)
-2. [ ] Se `cno_referenciado` ≠ CNO da obra do registro → **bloqueio**, não
+2. [x] Se `cno_referenciado` ≠ CNO da obra do registro → **bloqueio**, não
        aviso, com a consequência escrita: *"esta nota não abate a aferição
        desta obra. Sem a aferição fechada não há regularização, e sem
        regularização a construção não é averbada na matrícula."*
-3. [ ] "A nota não traz CNO" é resposta possível → **salva com pendência** e o
+3. [x] "A nota não traz CNO" é resposta possível → **salva com pendência** e o
        mesmo texto de consequência; nunca em branco silencioso
-4. [ ] A pendência de CNO ausente aparece junto das demais pendências, com a
+4. [x] A pendência de CNO ausente aparece junto das demais pendências, com a
        ação óbvia ("pedir nota com o CNO ao prestador")
-5. [ ] O campo alimenta a **posição da aferição INSS** da US-004, **segregada
+5. [x] O campo alimenta a **posição da aferição INSS** da US-004, **segregada
        por CNO** — nunca somada entre obras
-6. [ ] E2E afirma o **estado gravado, não a tela**: NF de serviço com CNO
+6. [x] E2E afirma o **estado gravado, não a tela**: NF de serviço com CNO
        divergente **não gera linha** em `documento` nem objeto no bucket
 
 ### Acrescentados em 2026-08-10 (desdobramentos do Gate 2 do CONTAI-003)
 
-7. [ ] **Ligar `cnoReferenciado` na tela de correção de obra.** Hoje
+7. [x] **Ligar `cnoReferenciado` na tela de correção de obra.** Hoje
        `app/documento/[id]/obra/page.tsx` passa `cnoReferenciado={null}`
        **literal**, com comentário explicando que o campo só nasce aqui. A
        revalidação de CNO exigida pelo critério 13 do CONTAI-003 já está
@@ -62,13 +62,47 @@ aferição daquele CNO feche e a construção possa ser averbada na matrícula.
        revalidação nunca passa a barrar — e ninguém percebe**: a tela continua
        funcionando, o teste continua verde, e uma NF de serviço é
        contrabandeada para uma obra cujo CNO ela não referencia. Aceite:
-       (a) o literal sai e o valor real do documento é passado; (b) o
-       comportamento vira **bloqueio** quando `cno_referenciado` diverge do CNO
-       da obra de destino, com a mesma redação do critério 2; (c) **teste que
-       falha se o literal voltar** — um E2E que move NF de serviço com CNO
-       divergente e afirma que o `obra_id` **não** mudou. Sem esse teste, o item
-       é um comentário e comentário não protege nada
-8. [ ] **Lista das notas emitidas sem CNO — tela 14 do mock aprovado**
+       (a) o literal sai e o valor real do documento é passado — **feito e
+       íntegro**;
+
+       ⚠️ **(b) e (c) REESCRITOS em 2026-09-20**, pelo Gate Fiscal do review do
+       `CONTAI-007` — ver
+       `docs/pareceres/2026-09-20-cno-nao-bloqueia-correcao-de-obra.md`. A
+       redação original mandava "vira bloqueio", copiando o critério 2. Está
+       **fiscalmente errada**: critério 2 é sobre registro NOVO (onde recusar
+       só custa escolher a obra certa na hora); isto aqui é correção de um
+       documento já lançado, onde recusar tranca o custo de aquisição no
+       imóvel errado **para sempre**, sem escape no produto — o mesmo dano que
+       o parecer de 2026-08-23 (§2) já tinha identificado nesta função, e que o
+       Gate Fiscal do CONTAI-008 (24/08) reverteu sem citar ou enfrentar. A
+       trava real da aferição já está em `posicaoDeAfericao`
+       (`lib/fiscal/afericao.ts`, critério 5 deste ticket), que segrega pelo
+       CNO impresso e não pelo `obra_id` — `podeCorrigirObra` não precisa,
+       e não deve, duplicar essa trava bloqueando a correção.
+
+       (b) o comportamento passa a **permitir a correção com aviso
+       permanente** quando `cno_referenciado` diverge do CNO da obra de
+       destino, ou quando a obra de destino não tem CNO — **nunca bloqueia**.
+       O aviso diz que a nota não abate a aferição de nenhuma das duas obras
+       enquanto não houver reemissão ou retificação da EFD-Reinf, e que o
+       custo de aquisição é registrado normalmente na obra de destino (texto
+       exato no parecer citado acima);
+       (c) **teste que falha se a correção voltar a recusar por divergência de
+       CNO** — um E2E que move NF de serviço com CNO divergente para uma obra
+       de destino e afirma **duas coisas**: o `obra_id` **muda**, e a nota
+       continua fora da base de aferição de ambas as obras (via
+       `posicaoDeAfericao`). **Feito** — `e2e/cno.spec.ts`, bloco do critério 7,
+       usa o caso mais duro (CNO que não é de nenhuma das duas obras) e afirma
+       `porCno: []` + `foraDaBase` com `motivo: "cno_divergente"` na obra de
+       destino, lido do estado gravado via `posicaoDeAfericao`
+
+**Gate 2 — segunda rodada (2026-09-20)**: `cto-obra` e `contador` reconfirmaram
+APPROVE sobre o diff já com (b)/(c) reimplementados na forma nova (aviso, nunca
+bloqueio) e as 5 pendências não bloqueantes da primeira rodada resolvidas.
+Vereditos completos ficaram só na conversa do `/develop` — não há hash de commit
+associado porque o ticket não estava commitado no momento da revisão; registrar
+aqui é o paliativo até existir um commit para apontar.
+8. [x] **Lista das notas emitidas sem CNO — tela 14 do mock aprovado**
        (`design/mocks/CONTAI-003.html`), com o link de entrada *"Ver as [N]
        notas desta obra emitidas sem CNO"* na tela 13 (registro de NF de serviço
        em obra sem CNO). **Já estão desenhados e aprovados pelo Mateus em
@@ -79,7 +113,7 @@ aferição daquele CNO feche e a construção possa ser averbada na matrícula.
        `cno_registrado_em`. **É o único item deste lote que recupera valor em
        vez de só registrar perda**, e vale só enquanto houver parcela a liberar.
        **Não precisa de mock novo** — o mock existe e está aprovado
-9. [ ] **Aviso ao pagar favorecido PJ em obra sem CNO.** Ao registrar
+9. [x] **Aviso ao pagar favorecido PJ em obra sem CNO.** Ao registrar
        **pagamento** (não documento) a favorecido **PJ** numa obra sem CNO,
        mostrar **só a frase da alavanca do parecer** — exigir CNO impresso nas
        próximas notas e retificação da EFD-Reinf **antes de liberar a próxima

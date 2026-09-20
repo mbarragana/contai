@@ -36,6 +36,8 @@ function doc(over: Partial<Documento> & { id: string }): Documento {
     classificacao: "mao_obra",
     destinatarioCpfOk: true,
     retencao11: true,
+    cnoReferenciado: null,
+    notaTrazCno: null,
     motivoQuarentena: null,
     favorecidoId: "fav-emitente",
     favorecidoNome: "WK Construções LTDA",

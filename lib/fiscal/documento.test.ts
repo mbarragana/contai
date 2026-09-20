@@ -4,22 +4,28 @@ import { describe, expect, it } from "vitest";
 
 import {
   avisaInss,
+  bloqueiaPorCnoDeOutraObra,
   classificacaoProposta,
+  cnoReferenciadoParaBanco,
   duplicataDe,
   EMISSAO_NO_FUTURO,
   estadoExibido,
   faltaOArquivo,
+  exigeCnoReferenciado,
   exigeIdentificacaoDaNota,
   exigeRetencao,
   motivoQuarentena,
   MOTIVO_QUARENTENA_CPF,
+  notaTrazCnoParaBanco,
   numeroParaBanco,
+  pendenteDeCno,
   retencaoParaBanco,
   serieParaBanco,
   statusDocumento,
   validarDocumento,
   type EntradaDocumento,
 } from "@/lib/fiscal/documento";
+import { CONSEQUENCIA_CNO_DA_NOTA } from "@/lib/fiscal/obra";
 
 const CNPJ_VALIDO = "11.222.333/0001-81";
 
@@ -39,6 +45,10 @@ function entradaValida(over: Partial<EntradaDocumento> = {}): EntradaDocumento {
     classificacao: "material",
     notaNoCpf: "sim",
     retencao11: null,
+    // CONTAI-007: a base é NF de material, onde a pergunta do CNO não existe.
+    // Os testes de NF de serviço passam a resposta explicitamente.
+    cnoNaNota: null,
+    cnoDaObra: "12.345.67890/26",
     ...over,
   };
 }
@@ -294,9 +304,19 @@ describe("validarDocumento", () => {
     // Exigir a série faria o Mateus inventar um valor para o formulário
     // deixá-lo salvar, que é a falha que a proibição de default nomeia.
     expect(campos(entradaValida({ serie: "" }))).toEqual([]);
-    expect(campos(entradaValida({ tipo: "nf_servico", classificacao: "mao_obra", retencao11: "sim", serie: "" }))).toEqual(
-      [],
-    );
+    expect(
+      campos(
+        entradaValida({
+          tipo: "nf_servico",
+          classificacao: "mao_obra",
+          retencao11: "sim",
+          // CONTAI-007: NF de serviço passa a exigir a resposta do CNO. Ela
+          // entra aqui para o teste continuar falando só de SÉRIE.
+          cnoNaNota: "desta_obra",
+          serie: "",
+        }),
+      ),
+    ).toEqual([]);
   });
 
   it("data de emissão inexistente no calendário não passa", () => {
@@ -483,5 +503,151 @@ describe("duplicataDe", () => {
         registrado,
       ]),
     ).toBeNull();
+  });
+});
+
+// ══ CONTAI-007 · o CNO impresso na NF de serviço ═════════════════════════
+//
+// Gate Fiscal (parecer de 2026-08-09, Q8). As quatro condições "se X → Y" do
+// ticket estão aqui, uma a uma — é este arquivo que fica vermelho se alguém
+// afrouxar o bloqueio ou transformar "não traz CNO" em branco silencioso.
+
+describe("CONTAI-007 · qual CNO está impresso nesta nota", () => {
+  const CNO_DA_OBRA = "12.345.67890/26";
+
+  function servico(over: Partial<EntradaDocumento> = {}): EntradaDocumento {
+    return entradaValida({
+      tipo: "nf_servico",
+      classificacao: "mao_obra",
+      retencao11: "sim",
+      cnoNaNota: "desta_obra",
+      ...over,
+    });
+  }
+
+  const campos = (e: EntradaDocumento) =>
+    validarDocumento(e, HOJE).map((x) => x.campo);
+
+  it("a pergunta só existe em NF de serviço (critério 1)", () => {
+    // Material não abate aferição nenhuma e boleto não é documentação hábil:
+    // perguntar ali é atrito sem consequência, que fabrica carimbo.
+    expect(exigeCnoReferenciado("nf_servico")).toBe(true);
+    expect(exigeCnoReferenciado("nf_material")).toBe(false);
+    expect(exigeCnoReferenciado("boleto")).toBe(false);
+    expect(exigeCnoReferenciado(null)).toBe(false);
+  });
+
+  it("sem resposta não salva — em branco silencioso é o que o ticket proíbe", () => {
+    expect(campos(servico({ cnoNaNota: null }))).toContain("cnoNaNota");
+    // E em NF de material a ausência de resposta não gera erro nenhum.
+    expect(
+      campos(entradaValida({ tipo: "nf_material", cnoNaNota: null })),
+    ).not.toContain("cnoNaNota");
+  });
+
+  it("⚠️ CNO de outra obra é BLOQUEIO, com a redação do critério 2", () => {
+    // Bloqueio na VALIDAÇÃO, e não só na tela: é esta linha que garante o
+    // critério 6 (nenhuma linha em `documento`, nenhum objeto no bucket),
+    // porque `validarDocumento` roda ANTES do upload para o acervo.
+    const erros = validarDocumento(servico({ cnoNaNota: "outra_obra" }), HOJE);
+    expect(erros.map((e) => e.campo)).toContain("cnoNaNota");
+    expect(erros.find((e) => e.campo === "cnoNaNota")?.mensagem).toBe(
+      CONSEQUENCIA_CNO_DA_NOTA,
+    );
+    expect(bloqueiaPorCnoDeOutraObra("nf_servico", "outra_obra")).toBe(true);
+    expect(bloqueiaPorCnoDeOutraObra("nf_material", "outra_obra")).toBe(false);
+  });
+
+  it("⚠️ 'a nota não traz CNO' SALVA — pendência, nunca bloqueio (critério 3)", () => {
+    // Gate Fiscal, 4ª condição: a nota sem CNO não abate a aferição, mas
+    // CONTINUA sendo documentação hábil para o custo de aquisição (IN SRF
+    // 84/2001, art. 17). Bloquear aqui perderia o custo para salvar o INSS.
+    expect(validarDocumento(servico({ cnoNaNota: "nao_traz" }), HOJE)).toEqual(
+      [],
+    );
+    expect(pendenteDeCno("nf_servico", "nao_traz")).toBe(true);
+    expect(pendenteDeCno("nf_servico", "desta_obra")).toBe(false);
+  });
+
+  it("grava o NÚMERO impresso, nunca um 'sim'", () => {
+    // O papel não muda quando o cadastro da obra muda: guardar o número é o
+    // que faz uma divergência posterior aparecer em vez de sumir.
+    expect(
+      cnoReferenciadoParaBanco("nf_servico", "desta_obra", CNO_DA_OBRA),
+    ).toBe(CNO_DA_OBRA);
+    expect(notaTrazCnoParaBanco("nf_servico", "desta_obra")).toBe(true);
+  });
+
+  it("⚠️ 'não traz' vira FALSE, e 'não perguntado' vira NULL", () => {
+    // É esta distinção que justifica duas colunas em vez de uma: colapsar os
+    // dois faria "a nota não traz CNO" virar indistinguível de "ninguém
+    // perguntou" — o branco silencioso do critério 3.
+    expect(notaTrazCnoParaBanco("nf_servico", "nao_traz")).toBe(false);
+    expect(cnoReferenciadoParaBanco("nf_servico", "nao_traz", CNO_DA_OBRA)).toBe(
+      null,
+    );
+
+    expect(notaTrazCnoParaBanco("nf_material", "desta_obra")).toBeNull();
+    expect(notaTrazCnoParaBanco("nf_servico", null)).toBeNull();
+    expect(
+      cnoReferenciadoParaBanco("nf_material", "desta_obra", CNO_DA_OBRA),
+    ).toBeNull();
+  });
+
+  it("⚠️ 'outra obra' nunca produz gravação — nem do CNO da outra obra", () => {
+    // Devolver algo aqui seria oferecer a gravação que o critério 2 proíbe.
+    expect(
+      cnoReferenciadoParaBanco("nf_servico", "outra_obra", CNO_DA_OBRA),
+    ).toBeNull();
+    expect(notaTrazCnoParaBanco("nf_servico", "outra_obra")).toBeNull();
+  });
+
+  it("obra sem CNO: 'não traz' continua salvando (o caminho comum da Q13)", () => {
+    // Enquanto a obra não tem CNO, nenhuma nota pode trazer o CNO dela — e o
+    // registro não pode parar por isso: o custo de aquisição não depende do
+    // CNO (CNO_NAO_MUDA_IRPF).
+    expect(
+      cnoReferenciadoParaBanco("nf_servico", "nao_traz", null),
+    ).toBeNull();
+    expect(validarDocumento(servico({ cnoNaNota: "nao_traz" }), HOJE)).toEqual(
+      [],
+    );
+  });
+});
+
+// ⚠️ Gate 2 do CONTAI-007 — a afirmação impossível, barrada na VALIDAÇÃO.
+describe("CONTAI-007 · 'desta obra' numa obra sem CNO", () => {
+  it("não salva: a obra não tem CNO para estar impresso em nota nenhuma", () => {
+    // A tela nem oferece a opção. Esta checagem existe porque esconder botão é
+    // proteção de render — e ela roda ANTES do upload para o acervo, enquanto
+    // o check da migration 0015 só acusaria depois do objeto já gravado.
+    const erros = validarDocumento(
+      entradaValida({
+        tipo: "nf_servico",
+        classificacao: "mao_obra",
+        retencao11: "sim",
+        cnoNaNota: "desta_obra",
+        cnoDaObra: null,
+      }),
+      HOJE,
+    );
+    expect(erros.map((e) => e.campo)).toContain("cnoNaNota");
+  });
+
+  it("'a nota não traz CNO' continua salvando na obra sem CNO", () => {
+    // É o caminho comum enquanto o CNO não sai (Q13): travar aqui devolveria o
+    // Mateus à planilha por um campo que a obra ainda não tem como ter.
+    expect(
+      validarDocumento(
+        entradaValida({
+          tipo: "nf_servico",
+          classificacao: "mao_obra",
+          retencao11: "sim",
+          cnoNaNota: "nao_traz",
+          cnoDaObra: null,
+        }),
+        HOJE,
+      ),
+    ).toEqual([]);
   });
 });

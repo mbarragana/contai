@@ -18,7 +18,7 @@ Telas: 16
 - **NF de serviço em obra sem CNO** (`#s13`): alerta fiscal bloqueante-por-texto, não por trava. CTAs "Salvar mesmo assim" / "Voltar" / "Ver as 4 notas desta obra emitidas sem CNO". Sem loading/vazio/erro.
 - **Notas sem CNO (lista de cobrança)** (`#s14`): sucesso com 4 linhas. Sem loading, sem vazio, sem erro.
 - **Registrado ✓** (`#s15`): sucesso, nomeando a obra; escape "Corrigir a obra deste registro". Sem loading/vazio/erro.
-- **Corrigir obra do registro** (`#s16`): formulário de movimentação + consequência. CTAs "Mover documento" / "Cancelar". Sem loading/vazio/erro.
+- **Corrigir obra do registro** (`#s16`): formulário de movimentação + aviso. CTAs "Mover para a obra escolhida" / "Cancelar". Estados: loading ("Carregando as obras"), erro (retry), vazio ("Só existe uma obra cadastrada — não há para onde mover", sem lista de destino), sucesso. **Redesenhada em 2026-09-20** — ver a entrada dela em "Campos" e "Textos com consequência fiscal" abaixo; a versão anterior (bloqueio) ficou obsoleta com o parecer `2026-09-20-cno-nao-bloqueia-correcao-de-obra.md`.
 
 ## Campos
 - `nome_obra` — texto — obrigatório (*) — — SEM DEFAULT
@@ -40,7 +40,7 @@ Telas: 16
 - `registro.emitente` — texto — obrigatório (*) — — SEM DEFAULT
 - `registro.cnpj` — texto/mono — obrigatório (*) — — SEM DEFAULT
 - `registro.valor` — moeda — obrigatório (*) — — SEM DEFAULT
-- `mover_para` — seleção de obra — obrigatório em `#s16` — NF de serviço: revalida CNO da nota × CNO da obra destino; divergência barra a correção — SEM DEFAULT — campo fiscal
+- `mover_para` — seleção de obra — obrigatório em `#s16` — **redesenhado em 2026-09-20**: NF de serviço revalida CNO da nota × CNO da obra destino, mas divergência **nunca barra** — vira aviso permanente na tela de sucesso. Layout: cada obra candidata (todas exceto a atual) é um card tocável mostrando nome + `CNO {número}` ou `sem CNO`; toque seleciona (estado pressionado = fundo escuro). Zero obras candidatas → banner âmbar substitui a lista, sem card nenhum. Botão de ação primária some desabilitado até uma obra ser escolhida E a decisão fiscal (`podeCorrigirObra`) resolver — hoje ela sempre permite, então o único motivo de o botão continuar desabilitado é nenhuma obra escolhida — SEM DEFAULT — campo fiscal
 
 ## Textos com consequência fiscal
 - "= situação em 31/12 na ficha Bens e Direitos (terreno + obra)" — `#s1`, sob o acumulado
@@ -63,7 +63,11 @@ Telas: 16
 - "Esta nota **não vai abater a aferição do INSS** desta obra: sem CNO, a empreiteira não tem como imprimir o CNO na nota nem informá-lo na EFD-Reinf. O valor entra normalmente como **custo de aquisição no IRPF**." — `#s13`
 - "**Enquanto ainda houver parcelas a pagar**, exija da empreiteira: (a) CNO impresso nas próximas notas e (b) reemissão ou retificação da EFD-Reinf das notas já emitidas. Depois do último pagamento você perde a força para pedir." — `#s13`, consequência âmbar
 - "Notas de serviço desta obra emitidas enquanto ela não tinha CNO. Peça **retificação da EFD-Reinf** de cada uma **antes de liberar a próxima parcela**." — `#s14`, banner âmbar
-- "Esta é uma **NF de serviço**: mover para outra obra revalida o CNO da nota contra o CNO da obra de destino. Se a nota referenciar um CNO diferente, a correção é barrada — senão a nota entraria numa obra cujo CNO ela não menciona." — `#s16`
+- **`#s16`, redesenhado em 2026-09-20** (substitui a versão anterior de bloqueio — parecer `2026-09-20-cno-nao-bloqueia-correcao-de-obra.md`, §5). Só aparece quando o documento é NF de serviço (`tipo === "nf_servico"`); some inteiro em pagamento e em NF material/boleto:
+  - Texto fixo, sempre visível quando a obra escolhida é NF de serviço (banner âmbar de contexto, aparece ANTES de saber se há divergência): "Esta é uma **NF de serviço**: mover para outra obra confere o CNO da nota contra o CNO da obra de destino. Divergência **não impede a correção** — ela aparece como aviso, e o que decide a aferição é o CNO impresso na nota, não a obra em que ela está arquivada."
+  - Texto condicional, só depois de uma obra ser escolhida E ela divergir (banner âmbar adicional, abaixo do primeiro): "Esta NF de serviço não referencia o CNO da obra de destino. A nota não abate a aferição de nenhuma das duas obras até que a empreiteira reemita a nota ou retifique a EFD-Reinf com o CNO correto — mas o custo de aquisição segue registrado normalmente na obra para onde você a está movendo." (constante `AVISO_CNO_NA_CORRECAO_DE_OBRA`, cópia literal do parecer — nunca reescrever)
+  - Se a obra escolhida NÃO diverge (CNO bate, ou obra de destino tem o mesmo CNO): nenhum dos dois banners de aviso extra aparece — só o texto fixo do primeiro item, e o botão "Mover para a obra escolhida" fica habilitado
+  - Tela de sucesso pós-move ("Obra corrigida ✓"): banner verde "Este registro agora está em **{obra}** e sai de todas as saídas da obra anterior" — vale tanto para o caso sem divergência quanto o caso com aviso; o aviso em si não persiste na tela de sucesso (ele já fez o trabalho de avisar antes da confirmação)
 - Rótulo de botão: "Salvar mesmo assim" — `#s13` (é RÓTULO, não checkbox de confirmação — nota do mock, adendo do contador 2026-08-10)
 - Rótulo de estado: "sem CNO — obrigação em atraso" — `#s2`, card da obra; "CNO · pendente — 118 dias em atraso" — `#s10`
 
@@ -82,7 +86,7 @@ Telas: 16
 - `#s11` → `#s13` — "Continuar" (é NF de serviço em obra sem CNO)
 - `#s13` → `#s14` — "Ver as 4 notas…"; `#s13` → `#s15` — "Salvar mesmo assim"; `#s13` → `#s11` — "Voltar"
 - `#s15` → `#s16` — "Corrigir a obra deste registro"; `#s15` → `#s11` — "Registrar outro"; `#s15` → `#s1` — "Ir para a obra"
-- `#s16` → `#s15` — "Mover documento" ou "Cancelar"
+- `#s16` → `#s15` — "Mover para a obra escolhida" ou "Cancelar"
 
 ## Decisões de design visíveis no mock
 - Obra é **frase afirmada** com escape ("Trocar"), nunca um `<select>`: seletor convida a trocar sem querer e o erro se descobre tarde. Vale a obra da tela, não a preferência do aparelho.
@@ -90,9 +94,10 @@ Telas: 16
 - Obra sem CNO **não bloqueia** cadastro nem registro; a trava seria devolver o Mateus à planilha. A pressão vira texto de consequência + lista de cobrança.
 - "Salvar mesmo assim" é rótulo de botão, não caixa a marcar: confirmação a cada nota seria bloqueio disfarçado.
 - Correção tardia existe (`#s16`) e revalida CNO no destino — prevenir sem consertar perderia o caso real (a alternativa era SQL na mão).
+- **Corrigido em 2026-09-20**: `#s16` NUNCA bloqueia por divergência de CNO — vira aviso permanente. Bloquear a correção de um documento já lançado trancaria o custo de aquisição no imóvel errado para sempre, sem escape no produto; a trava real da aferição já existe em `posicaoDeAfericao` (segrega pelo CNO impresso na nota, não pelo `obra_id`), então `podeCorrigirObra` não precisa duplicá-la bloqueando.
 
 ## Dúvidas
 - O FAB "+ Adicionar" de `#s1` navega para `#s10` (Obra criada) no mock — parece atalho do protótipo, não intenção. Destino real provável: fluxo de registro (`#s11`) ou o "Adicionar" do CONTAI-001. Confirmar com o `po`.
-- `#s14` (lista de notas sem CNO) depende de `data de emissão` e `CNO da nota`, campos do **CONTAI-007** — o próprio mock declara que está **fora do escopo do CONTAI-003**. Confirmar se entra ou fica stub.
+- ~~`#s14` (lista de notas sem CNO) depende de `data de emissão` e `CNO da nota`~~ — **resolvida**: implementada no CONTAI-007 critério 8 (`app/obras/[id]/notas-sem-cno/page.tsx`). Cada linha mostra `NF {número} · {data emissão}` como rótulo, valor à direita, e o prestador (emitente) numa segunda linha abaixo — bate com "número, data, prestador e valor" do critério 8. Estado vazio: "Nenhuma nota a cobrar" com explicação de que nota sem data de emissão não entra na lista.
 - `#s7` mostra apenas o caso "em atraso"; a nota do mock diz que dentro do prazo a mesma tela diz "faltam N dias". Texto exato do caso "dentro do prazo" não existe no HTML — precisa vir do parecer.
 - O aviso permanente de incorporação (`unidades > 1` ou desmembramento) é descrito em `#s9` mas **não tem texto redigido** no mock. Redação tem que vir do `contador`.

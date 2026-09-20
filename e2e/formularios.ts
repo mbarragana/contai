@@ -88,6 +88,25 @@ export async function preencherDocumentoBasico(
   }
 }
 
+/**
+ * A resposta do CNO impresso — CONTAI-007, critério 1. **Só NF de serviço**, e
+ * bloqueante desde este ticket: sem ela o formulário não salva.
+ *
+ * ⚠️ Fica FORA de `preencherDocumentoBasico` de propósito, como `numero` e
+ * `dataEmissao` ficaram no CONTAI-004: esconder uma regra fiscal dentro de um
+ * helper é esconder o que o teste existe para provar. Quem registra NF de
+ * serviço chama esta linha à vista de quem lê.
+ *
+ * ⚠️ "É o CNO desta obra" **não existe quando a obra não tem CNO** — nenhuma
+ * nota pode trazer impresso um número que não existe.
+ */
+export async function responderCnoDaNota(
+  page: Page,
+  opcao: "É o CNO desta obra" | "É o CNO de outra obra" | "A nota não traz CNO",
+) {
+  await escolher(page, "Qual CNO está impresso nesta nota?", opcao);
+}
+
 export interface PagamentoBasico {
   favorecido: string;
   documento: string;

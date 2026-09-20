@@ -37,6 +37,7 @@ import { formatarDocumento } from "@/lib/fiscal/identificacao";
 import {
   CHIP_NOTA_SEM_ARQUIVO,
   CONSEQUENCIA_SEM_RETENCAO,
+  exigeCnoReferenciado,
   exigeIdentificacaoDaNota,
   faltaOArquivo,
   GUARDA_ABATE_INSS_ROTULO,
@@ -454,6 +455,24 @@ function DetalheDocumento() {
             {d.dataEmissao ? formatarDataBR(d.dataEmissao) : "—"}
           </span>
         </Linha>
+        {/* CONTAI-007 — o CNO impresso, no bloco ASCII do mock do CONTAI-004.
+            Só em NF de serviço: é o único tipo em que a pergunta existe.
+
+            ⚠️ Mostra o NÚMERO, e não "desta obra ✓", quando a nota traz CNO:
+            é o número que está no papel, e é comparando-o com o CNO da obra
+            que uma divergência posterior (obra corrigida, nota movida) fica
+            visível em vez de sumir atrás de um carimbo. */}
+        {exigeCnoReferenciado(d.tipo) ? (
+          <Linha rotulo="CNO na nota">
+            {d.notaTrazCno === true ? (
+              <span className="mono">{d.cnoReferenciado}</span>
+            ) : d.notaTrazCno === false ? (
+              <span className="font-semibold text-amb">não traz CNO</span>
+            ) : (
+              <span className="text-mut">não perguntado</span>
+            )}
+          </Linha>
+        ) : null}
         <Dica>
           A emissão identifica a nota e a janela do CNO. O ano do custo é o do
           pagamento.

@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  AVISO_CNO_NA_CORRECAO_DE_OBRA,
+  CONSEQUENCIA_CNO_DA_NOTA,
   exigeAvisoEquiparacao,
   diasEntre,
   escolherObraAtiva,
   estadoDataInicio,
+  fimDaJanelaSemCno,
   formatarDataBR,
   fraseDoPrazoCno,
   janelaSemCnoDias,
+  notasEmitidasSemCno,
   podeCorrigirObra,
   prazoCno,
   somarDias,
@@ -15,6 +19,7 @@ import {
   validarObra,
   type EntradaObra,
 } from "@/lib/fiscal/obra";
+import type { Documento, Obra } from "@/lib/types";
 
 /**
  * Regras fiscais do CONTAI-003. As datas do mock aprovado servem de caso de
@@ -215,23 +220,46 @@ describe("correção da obra de um registro", () => {
     expect(r.permitido).toBe(true);
   });
 
-  it("NF de serviço com CNO diferente é barrada", () => {
+  /**
+   * ⚠️ **ESTES DOIS TESTES AFIRMAVAM O CONTRÁRIO, e o contrário estava
+   * fiscalmente errado** — parecer
+   * `docs/pareceres/2026-09-20-cno-nao-bloqueia-correcao-de-obra.md`, que é a
+   * autoridade vigente e reafirma o de 2026-08-23 (§2).
+   *
+   * Eles são o critério 7(c) do CONTAI-007 na camada pura: **falham se a
+   * correção voltar a recusar por divergência de CNO**. O bloqueio entrou por
+   * reuso silencioso desta função, com um teste verde carimbando-o como
+   * comportamento certo; é por isso que a inversão vive aqui, nomeada, e não
+   * como ausência de teste.
+   *
+   * Quem protege a aferição é `posicaoDeAfericao` (`lib/fiscal/afericao.ts`),
+   * que segrega a base pelo **CNO impresso** e não pelo `obra_id`: mover a nota
+   * não a faz abater nada em lugar nenhum. O bloqueio aqui trancava o custo de
+   * aquisição no imóvel errado sem impedir dano de aferição nenhum.
+   */
+  it("⚠️ CNO diferente do destino PERMITE, com aviso permanente — nunca barra", () => {
     const r = podeCorrigirObra({
       tipo: "nf_servico",
       cnoReferenciado: "12.345.67890/26",
       cnoDestino: "98.765.43210/26",
     });
-    expect(r.permitido).toBe(false);
-    if (!r.permitido) expect(r.motivo).toContain("diferente");
+    expect(r.permitido).toBe(true);
+    expect(r.aviso).toBe(AVISO_CNO_NA_CORRECAO_DE_OBRA);
+    // As duas metades do aviso: o que se perde e o que NÃO se perde. Sem a
+    // segunda, o aviso se lê como "mover estraga o custo" — o medo exato que
+    // fazia a versão anterior bloquear.
+    expect(r.aviso).toContain("não abate a aferição de nenhuma das duas obras");
+    expect(r.aviso).toContain("o custo de aquisição segue registrado normalmente");
   });
 
-  it("NF de serviço com CNO indo para obra SEM CNO é barrada", () => {
+  it("⚠️ obra de destino SEM CNO também PERMITE, com o mesmo aviso", () => {
     const r = podeCorrigirObra({
       tipo: "nf_servico",
       cnoReferenciado: "12.345.67890/26",
       cnoDestino: null,
     });
-    expect(r.permitido).toBe(false);
+    expect(r.permitido).toBe(true);
+    expect(r.aviso).toBe(AVISO_CNO_NA_CORRECAO_DE_OBRA);
   });
 
   it("CNO da nota ainda não capturado: permite com aviso, nunca barra", () => {
@@ -333,5 +361,180 @@ describe("validação do cadastro de obra", () => {
     expect(
       campos({ ...VALIDA, origemDesmembramentoLoteamento: null }),
     ).toContain("origemDesmembramentoLoteamento");
+  });
+});
+
+// ══ CONTAI-007, critério 7 — a revalidação passa a BARRAR de verdade ═════
+
+describe("⚠️ CONTAI-007, critério 7 · esta função NÃO recusa", () => {
+  it("nenhuma combinação de CNO produz recusa — as quatro, uma a uma", () => {
+    // A varredura exaustiva é de propósito: o bloqueio entrou em UM ramo, e um
+    // teste que só olhasse o ramo corrigido o deixaria voltar pelo outro.
+    const casos = [
+      { cnoReferenciado: null, cnoDestino: "12.345.67890/26" },
+      { cnoReferenciado: "12.345.67890/26", cnoDestino: null },
+      { cnoReferenciado: "12.345.67890/26", cnoDestino: "98.765.43210/26" },
+      { cnoReferenciado: "12.345.67890/26", cnoDestino: "123456789026" },
+    ];
+    for (const caso of casos) {
+      expect(
+        podeCorrigirObra({ tipo: "nf_servico", ...caso }).permitido,
+      ).toBe(true);
+    }
+  });
+
+  it("⚠️ a redação do critério 2 NÃO é reusada aqui — é outra decisão", () => {
+    // Parecer de 2026-09-20, §4: o critério 2 (bloqueio no REGISTRO novo)
+    // continua intacto, e é uma decisão diferente — lá recusar só custa
+    // escolher a obra certa na hora, aqui trancaria custo já lançado. Copiar a
+    // frase do bloqueio para cá foi justamente o que o 7(b) original mandava, e
+    // é o que este teste impede de voltar.
+    const r = podeCorrigirObra({
+      tipo: "nf_servico",
+      cnoReferenciado: "12.345.67890/26",
+      cnoDestino: "98.765.43210/26",
+    });
+    expect(r.aviso).not.toContain(CONSEQUENCIA_CNO_DA_NOTA);
+    expect(r.aviso).not.toContain("averbada na matrícula");
+  });
+});
+
+// ══ CONTAI-007, critério 8 — a lista de cobrança (tela 14 do mock) ═══════
+
+describe("CONTAI-007, critério 8 · notas emitidas na janela sem CNO", () => {
+  const OBRA_COM_CNO: Pick<
+    Obra,
+    "cno" | "dataInicioObra" | "cnoRegistradoEm"
+  > = {
+    cno: "12.345.67890/26",
+    dataInicioObra: "2026-03-15",
+    cnoRegistradoEm: "2026-04-02",
+  };
+  const HOJE_DA_LISTA = "2026-08-10";
+
+  function doc(over: Partial<Documento> & { id: string }): Documento {
+    return {
+      obraId: "obra-1",
+      tipo: "nf_servico",
+      status: "registrado",
+      valorCentavos: 1_800_000,
+      numero: "1042",
+      serie: null,
+      dataEmissao: "2026-03-20",
+      vencimento: null,
+      classificacao: "mao_obra",
+      destinatarioCpfOk: true,
+      retencao11: true,
+      cnoReferenciado: null,
+      notaTrazCno: null,
+      motivoQuarentena: null,
+      favorecidoId: "fav-aje",
+      favorecidoNome: "AJE Construções",
+      favorecidoDocumento: "11222333000181",
+      arquivoPath: "u/documento/nf.pdf",
+      ...over,
+    };
+  }
+
+  const listar = (documentos: Documento[], obra = OBRA_COM_CNO) =>
+    notasEmitidasSemCno({ obra, documentos, hoje: HOJE_DA_LISTA }).map(
+      (n) => n.id,
+    );
+
+  it("a janela vai do início da obra ao registro do CNO, inclusive", () => {
+    expect(
+      listar([
+        doc({ id: "antes-da-obra", dataEmissao: "2026-03-14" }),
+        doc({ id: "no-inicio", dataEmissao: "2026-03-15" }),
+        doc({ id: "no-meio", dataEmissao: "2026-03-20" }),
+        doc({ id: "no-registro", dataEmissao: "2026-04-02" }),
+        doc({ id: "depois-do-cno", dataEmissao: "2026-04-03" }),
+      ]),
+    ).toEqual(["no-inicio", "no-meio", "no-registro"]);
+  });
+
+  it("⚠️ obra SEM CNO: a janela continua aberta e vai até hoje", () => {
+    // É o caso da tela 13 do mock (registro de NF de serviço em obra sem CNO),
+    // que é de onde o link da lista sai. Janela fechada ali deixaria a lista
+    // vazia exatamente na obra que mais precisa dela.
+    const semCno = { cno: null, dataInicioObra: "2026-03-15", cnoRegistradoEm: null };
+    expect(fimDaJanelaSemCno(semCno, HOJE_DA_LISTA)).toBe(HOJE_DA_LISTA);
+    expect(
+      listar(
+        [
+          doc({ id: "de-junho", dataEmissao: "2026-06-10" }),
+          doc({ id: "amanha", dataEmissao: "2026-08-11" }),
+        ],
+        semCno,
+      ),
+    ).toEqual(["de-junho"]);
+  });
+
+  it("só NF de serviço — material e boleto não entram em EFD-Reinf", () => {
+    expect(
+      listar([
+        doc({ id: "servico" }),
+        doc({ id: "material", tipo: "nf_material" }),
+        doc({ id: "boleto", tipo: "boleto" }),
+      ]),
+    ).toEqual(["servico"]);
+  });
+
+  it("⚠️ nota em QUARENTENA fica de fora — as três funções falam a mesma língua", () => {
+    // Alinhado no Gate 2 com `posicaoDeAfericao` e a pendência do `resumo.ts`,
+    // que já a excluíam. A nota em quarentena está fora do CPF do dono: o que
+    // se pede ali é a nota REFEITA no CPF certo (pendência de quarentena), não
+    // retificação de EFD-Reinf de um papel que vai ser reemitido inteiro.
+    expect(
+      listar([
+        doc({ id: "ok" }),
+        doc({
+          id: "em-quarentena",
+          status: "quarentena",
+          destinatarioCpfOk: false,
+          motivoQuarentena: "fora do CPF",
+        }),
+      ]),
+    ).toEqual(["ok"]);
+  });
+
+  it("⚠️ nota sem data de emissão fica de fora, e isso já está dito ao Mateus", () => {
+    // É literalmente a segunda consequência de `PENDENCIA_IDENTIFICACAO_EFEITO`
+    // (CONTAI-004): "ela fica de fora da lista de cobrança do CNO". Sem a data
+    // não há como afirmar que caiu na janela, e listar por suposição é cobrar
+    // a nota errada.
+    expect(listar([doc({ id: "sem-data", dataEmissao: null })])).toEqual([]);
+  });
+
+  it("a nota que afirma trazer o CNO DESTA obra sai da lista", () => {
+    // Não há o que retificar nela. A regra é do dado, não do calendário: é ela
+    // que mantém a lista honesta no dia em que o CNO da obra for corrigido.
+    expect(
+      listar([
+        doc({
+          id: "ja-tem-o-cno",
+          notaTrazCno: true,
+          cnoReferenciado: "123456789026",
+        }),
+        doc({ id: "nao-traz", notaTrazCno: false }),
+      ]),
+    ).toEqual(["nao-traz"]);
+  });
+
+  it("sai em ordem cronológica, com número, prestador e valor", () => {
+    const lista = notasEmitidasSemCno({
+      obra: OBRA_COM_CNO,
+      documentos: [
+        doc({ id: "b", numero: "1078", dataEmissao: "2026-04-01" }),
+        doc({ id: "a", numero: "1042", dataEmissao: "2026-03-20" }),
+      ],
+      hoje: HOJE_DA_LISTA,
+    });
+    expect(lista.map((n) => n.numero)).toEqual(["1042", "1078"]);
+    expect(lista[0]).toMatchObject({
+      prestador: "AJE Construções",
+      valorCentavos: 1_800_000,
+      dataEmissao: "2026-03-20",
+    });
   });
 });

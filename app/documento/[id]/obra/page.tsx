@@ -229,10 +229,22 @@ export default function CorrigirObraDoDocumento() {
     conta?.destino && pronto
       ? podeCorrigirObra({
           tipo: pronto.documento.tipo,
-          // O CNO impresso na nota ainda não é capturado (CONTAI-007,
-          // critério 2). Até lá a revalidação AVISA em vez de barrar — barrar
-          // por desconhecimento fecharia a única saída do erro.
-          cnoReferenciado: null,
+          /**
+           * ⚠️ **CONTAI-007, critério 7 — aqui havia `null` LITERAL**, com um
+           * comentário dizendo que o campo nasceria depois. Ele nasceu: a
+           * coluna é populada no registro, e passar o valor real é o que faz a
+           * revalidação deixar de AVISAR e passar a BARRAR.
+           *
+           * O pre-mortem 4 descreve o que acontece se alguém devolver o
+           * literal: **tudo fica verde**. Nenhum teste quebra, nenhuma tela
+           * muda, e a única porta que leva uma NF de serviço para a obra errada
+           * segue aberta — agora com o agravante de o sistema TER a informação
+           * e não usá-la. Quem tranca isso não é este comentário: é o E2E
+           * "NF de serviço com CNO divergente não muda de obra"
+           * (`e2e/cno.spec.ts`), que fica vermelho no dia em que o literal
+           * voltar. Comentário não protege nada.
+           */
+          cnoReferenciado: pronto.documento.cnoReferenciado,
           cnoDestino: conta.destino.obra.cno,
         })
       : null;
@@ -373,9 +385,11 @@ export default function CorrigirObraDoDocumento() {
         } para continuar`
       : impedeAlgum
         ? "Há pagamento que não pode ir junto"
-        : decisao?.permitido === false
-          ? "A revalidação do CNO barrou esta correção"
-          : "Mover o registro para a obra escolhida";
+        : // ⚠️ **Não existe mais "A revalidação do CNO barrou esta correção"**
+          // (parecer de 2026-09-20): o CNO não bloqueia a correção de obra. O
+          // rótulo foi removido junto com a recusa, e não só escondido — rótulo
+          // órfão é o convite a religar a recusa "que já tinha texto pronto".
+          "Mover o registro para a obra escolhida";
 
   return (
     <>
@@ -447,20 +461,26 @@ export default function CorrigirObraDoDocumento() {
           </>
         )}
 
+        {/* ⚠️ O texto do mock do CONTAI-003 (tela 16) dizia "a correção é
+            barrada". Foi REESCRITO em 2026-09-20 (parecer
+            `2026-09-20-cno-nao-bloqueia-correcao-de-obra.md`, §5 e critério
+            7(b) do CONTAI-007): o CNO não barra a correção de obra. Divergência
+            de mock declarada aqui em vez de silenciada — o mock ficou defasado,
+            o parecer vence, e quem for redesenhar a tela 16 parte daqui. */}
         {doc.tipo === "nf_servico" ? (
           <Consequencia cor="amb">
             Esta é uma <strong>NF de serviço</strong>: mover para outra obra
-            revalida o CNO da nota contra o CNO da obra de destino. Se a nota
-            referenciar um CNO diferente, a correção é barrada — senão a nota
-            entraria numa obra cujo CNO ela não menciona.
+            confere o CNO da nota contra o CNO da obra de destino. Divergência{" "}
+            <strong>não impede a correção</strong> — ela aparece como aviso, e o
+            que decide a aferição é o CNO impresso na nota, não a obra em que ela
+            está arquivada.
           </Consequencia>
         ) : null}
-        {decisao && !decisao.permitido ? (
-          <Banner cor="red" role="alert">
-            {decisao.motivo}
-          </Banner>
-        ) : null}
-        {decisao && decisao.permitido && decisao.aviso ? (
+        {/* ⚠️ Não existe mais o ramo `!decisao.permitido` para NF de serviço:
+            `podeCorrigirObra` deixou de recusar por CNO. O `Banner` vermelho foi
+            REMOVIDO, e não escondido atrás de uma condição que nunca acende —
+            ramo morto é o caminho de volta do bloqueio. */}
+        {decisao?.aviso ? (
           <Banner cor="amb" role="status">
             {decisao.aviso}
           </Banner>

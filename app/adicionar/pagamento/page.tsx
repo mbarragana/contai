@@ -66,7 +66,10 @@ import {
   type EntradaPagamento,
   type ErroCampoPagamento,
 } from "@/lib/fiscal/pagamento";
-import { formatarDataBR } from "@/lib/fiscal/obra";
+import {
+  formatarDataBR,
+  NF_SERVICO_SEM_CNO_ALAVANCA,
+} from "@/lib/fiscal/obra";
 import { hojeIso } from "@/lib/hoje";
 import { centavosParaInput, formatarBRL, parseValorInput } from "@/lib/money";
 import type {
@@ -936,6 +939,28 @@ function RegistrarPagamento() {
                 Se o pagamento salvar e o vínculo falhar, a tela diz que o
                 pagamento ficou <strong>sem vínculo</strong> e mostra como
                 completar — nunca um sucesso mentiroso.
+              </Banner>
+            ) : null}
+
+            {/* ══ CONTAI-007, critério 9 — a alavanca, no único momento em que
+                o app sabe que ainda há parcela a pagar ══════════════════════
+
+                É **SÓ A FRASE DO PARECER**, e as três restrições são o ticket:
+
+                (a) **só PJ** — a alavanca é sobre a EFD-Reinf de prestador PJ.
+                    Em favorecido PF a frase é ruído, e ruído fabrica cegueira
+                    ao aviso;
+                (b) **só obra sem CNO** — com CNO não há o que exigir;
+                (c) **NUNCA bloqueia, e não muda a contagem de toques** — sem
+                    caixa a marcar, sem passo a mais (critério 15 do
+                    CONTAI-003; adendo do contador de 2026-08-10: confirmação
+                    obrigatória a cada registro é bloqueio disfarçado).
+
+                Razão de existir: a alavanca morre no último pagamento, e esta
+                tela é o único lugar que sabe que ele ainda não aconteceu. */}
+            {tipoFavorecido === "pj" && obra.cno === null ? (
+              <Banner cor="amb" role="status">
+                {NF_SERVICO_SEM_CNO_ALAVANCA}
               </Banner>
             ) : null}
 

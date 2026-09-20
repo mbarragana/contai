@@ -101,6 +101,10 @@ function rowDocumento(over: Partial<DocumentoRow & ComFavorecido> = {}): Documen
     classificacao: "material",
     destinatario_cpf_ok: true,
     retencao_11: null,
+    // CONTAI-007: tri-estado como `retencao_11`. `null` nos dois é "não foi
+    // perguntado" — que é o caso da NF de material desta fábrica.
+    cno_referenciado: null,
+    nota_traz_cno: null,
     motivo_quarentena: null,
     favorecido_id: "fav-1",
     favorecido: { nome: "Depósito Cachoeira", documento: "12345678000199" },

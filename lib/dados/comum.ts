@@ -89,6 +89,8 @@ export function paraDocumento(row: DocumentoRow & ComFavorecido): Documento {
     classificacao: row.classificacao,
     destinatarioCpfOk: row.destinatario_cpf_ok,
     retencao11: row.retencao_11,
+    cnoReferenciado: row.cno_referenciado,
+    notaTrazCno: row.nota_traz_cno,
     motivoQuarentena: row.motivo_quarentena,
     favorecidoId: row.favorecido_id,
     favorecidoNome: row.favorecido?.nome ?? null,

@@ -183,7 +183,18 @@ ela não pode nascer com eles.*
     compartilhado que sobrou de uma bifurcação é o próximo a receber "só mais um
     parâmetro".
 
-16. [ ] **NOVO — estado de tela achado na resposta da pergunta 1 do Gate
+16. [ ] ⚠️ **SUBSTITUÍDO em 2026-09-20** — ver
+    `docs/pareceres/2026-09-20-cno-nao-bloqueia-correcao-de-obra.md` e a nota
+    na tabela do Gate Fiscal acima. A revalidação de CNO do critério 3 nunca
+    recusa o desfecho (i); ela **avisa**. Não existe mais estado de "opção
+    indisponível" por CNO — os dois desfechos ((i) e (ii)) continuam sempre
+    disponíveis para todo documento, e quando o CNO referenciado diverge do
+    CNO da obra de destino (ou o destino não tem CNO), o texto do §5 do
+    parecer citado aparece junto da linha daquele documento, informando que
+    ele não abate a aferição de nenhuma das duas obras — sem bloquear a
+    escolha. Este critério fica **riscado**: não há mais superfície nova a
+    construir além do aviso, que `podeCorrigirObra` já devolve.
+    ~~**NOVO — estado de tela achado na resposta da pergunta 1 do Gate
     Fiscal (24/08).** Quando a revalidação de CNO do critério 3 recusa o
     desfecho (i) para um documento (CNO nulo na obra de destino, ou CNO
     referenciado diferente do CNO da obra de destino), a opção "esta nota
@@ -193,7 +204,7 @@ ela não pode nascer com eles.*
     **único** caminho, ainda exigindo clique explícito (não é
     auto-selecionado). Documentos sem essa restrição no mesmo ato continuam
     com os dois desfechos disponíveis normalmente — a recusa é por
-    documento, nunca pelo ato inteiro.
+    documento, nunca pelo ato inteiro.~~
 
 ⚠️ **Nota de concorrência, que NÃO vira critério**: o trigger
 `pendencia_uma_aberta` (`0009_correcao_documento.sql:354-383`) lê antes de o
@@ -214,7 +225,7 @@ a pergunta 1 decidível.
 
 | # | Pergunta original (10/08) | Situação |
 |---|---|---|
-| 1 | Mover a **NF de serviço** de obra levando junto os pagamentos conciliados é admissível, sabendo que o CNO impresso continua sendo o da obra de origem? | **RESPONDIDA — 24/08.** Condicional, por documento, não por pagamento. No desfecho (i), a tela **REVALIDA** cada NF de serviço vinculada chamando `podeCorrigirObra` (reuso literal, `lib/fiscal/obra.ts:267-306`) com `cnoReferenciado = documento.cno_referenciado` (CONTAI-007) e `cnoDestino` = CNO da obra de destino: **(a)** `cno_referenciado` nulo → **AVISA** e permite; **(b)** obra de destino sem CNO, ou CNO diferente → **RECUSA** o desfecho (i) só daquele documento, com o texto de consequência do critério 2 do `CONTAI-007`; **(c)** CNO bate → ambos os desfechos liberados. NF de material/boleto: revalidação não roda, segue a regra geral do adendo §5.2. **Estado novo de tela** (critério 11 abaixo): quando (b), o desfecho (ii) fica **único** para aquele documento — não é terceira saída, é (i) bloqueada com (ii) remanescente, ainda exigindo clique explícito. Fonte: §5.2 + `CONTAI-007` critério 2 + `podeCorrigirObra`. |
+| 1 | Mover a **NF de serviço** de obra levando junto os pagamentos conciliados é admissível, sabendo que o CNO impresso continua sendo o da obra de origem? | ⚠️ **RESPOSTA DE 24/08 SUBSTITUÍDA em 2026-09-20** — ver `docs/pareceres/2026-09-20-cno-nao-bloqueia-correcao-de-obra.md`. A resposta abaixo nunca foi transcrita como parecer próprio (só existia nesta tabela) e reverteu, sem citar, o parecer de 2026-08-23 (§2) sobre a mesma função. **Resposta vigente**: a tela **REVALIDA** cada NF de serviço vinculada chamando `podeCorrigirObra` (`lib/fiscal/obra.ts`) com `cnoReferenciado = documento.cno_referenciado` (CONTAI-007) e `cnoDestino` = CNO da obra de destino, e o resultado é **sempre `permitido: true`** para NF de serviço no desfecho (i) — CNO nulo, ausente no destino ou divergente **avisam**, nunca recusam; a trava real da aferição é `posicaoDeAfericao` (segrega pelo CNO impresso, não pelo `obra_id`). O critério 16 abaixo (desfecho (i) "indisponível") **não se aplica mais** como escrito — os dois desfechos ficam sempre disponíveis, com o aviso de CNO exibido junto do documento quando ele diverge. ~~RESPONDIDA — 24/08. Condicional, por documento, não por pagamento. No desfecho (i), a tela **REVALIDA** cada NF de serviço vinculada chamando `podeCorrigirObra` (reuso literal, `lib/fiscal/obra.ts:267-306`) com `cnoReferenciado = documento.cno_referenciado` (CONTAI-007) e `cnoDestino` = CNO da obra de destino: **(a)** `cno_referenciado` nulo → **AVISA** e permite; **(b)** obra de destino sem CNO, ou CNO diferente → **RECUSA** o desfecho (i) só daquele documento, com o texto de consequência do critério 2 do `CONTAI-007`; **(c)** CNO bate → ambos os desfechos liberados. NF de material/boleto: revalidação não roda, segue a regra geral do adendo §5.2. Fonte: §5.2 + `CONTAI-007` critério 2 + `podeCorrigirObra`.~~ |
 | 2 | Um pagamento que perde o documento que o sustentava volta a **"pago sem nota"** ou vira pendência de classe própria? | **RESPONDIDA** — adendo §5.2, desfecho (ii): volta a "pago sem nota", e **isso é registro verdadeiro, não perda de custo** |
 | 3 | Se o custo migrar de obra **entre anos já declarados**, é correção do app ou retificadora? | **RESPONDIDA** — adendo §5.3: o app **abre pendência por ano** e **não decide retificadora** (CRC) |
 | 4 | *(nova, 19/08)* Mover pagamento **sem** documento vinculado muda número em alguma obra? | **RESPONDIDA — 24/08. Confirma a hipótese do `po`: não muda número em obra nenhuma** (`min(valor, 0) = 0` nos dois lados, sem documento não há o que comprovar). **MARCA** rastro (`campo=obra`, `motivo=arquivamento_corrigido`) e **AVISA** que nada mudou; **sem RECUSA**, **sem pendência** — nenhum número declarado se move. É o espelho exato da tela `s8b` do mock do `CONTAI-021`. Critério 7 confirmado sem emenda. Fonte: §5.1 (`min(Σ pagamentos, Σ documentos)`) + §5.3. |

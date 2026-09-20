@@ -46,6 +46,7 @@ import {
   CONSEQUENCIA_SEM_RETENCAO,
   faltaOArquivo,
 } from "./documento";
+import { ACAO_NOTA_SEM_CNO, CONSEQUENCIA_CNO_DA_NOTA } from "./obra";
 import {
   AGUARDANDO_INFORME,
   anosDoFinanciamento,
@@ -89,7 +90,12 @@ export type TipoPendencia =
   // **vermelho = dinheiro que saiu e não está no custo; âmbar = nada saiu
   // ainda** (critérios 19 e 31).
   | "pago_sem_comprovante"
-  | "diferenca_sem_explicacao";
+  | "diferenca_sem_explicacao"
+  // ── CONTAI-007, critério 4 ─────────────────────────────────────────────
+  // Âmbar, e irmã de `servico_sem_retencao`: NF de serviço que não abate a
+  // aferição do INSS, com o custo de aquisição intacto. O que está aberto é o
+  // INSS, não o dinheiro — e o conserto ainda existe enquanto houver parcela.
+  | "nf_servico_sem_cno";
 
 /** Registro individual por trás de uma pendência agregada — leva ao seletor. */
 export interface ItemPendencia {
@@ -620,6 +626,53 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
       detalhe: d.favorecidoNome ?? SEM_FAVORECIDO,
       valorCentavos: d.valorCentavos ?? 0,
       consequencia: CONSEQUENCIA_SEM_RETENCAO,
+      gravidade: "amb",
+      href: `/documento/${d.id}`,
+    });
+  }
+
+  // 5 · CONTAI-007, critério 4 — a nota de serviço que não traz CNO impresso.
+  //
+  // ⚠️ **`nota_traz_cno === false`, nunca `null`.** `null` é "não foi
+  // perguntado" (registro anterior ao ticket, ou material/boleto) e não afirma
+  // nada; `false` é o Mateus tendo olhado o papel e respondido. Abrir pendência
+  // sobre o `null` seria cobrar do prestador uma nota que ninguém conferiu — e
+  // aviso que erra é aviso que se aprende a ignorar.
+  //
+  // ⚠️ Mesma FORMA do irmão fiscal logo acima (`servico_sem_retencao`), e a
+  // simetria é intencional: as duas são NF de serviço que não abate a aferição,
+  // com o custo de aquisição intacto. Âmbar pela régua da D39 — o dinheiro que
+  // saiu continua no custo; o que está aberto é o INSS.
+  //
+  // ⚠️ **OBRA SEM CNO NÃO ABRE ESTA PENDÊNCIA** (Gate 2 do CONTAI-007,
+  // `cto-obra`), e o silêncio aqui é a decisão certa por dois motivos que se
+  // somam:
+  // - a ação seria **inexequível**: não dá para pedir ao prestador que imprima
+  //   um CNO que ainda não existe. Pendência com ação impossível é a que ensina
+  //   o Mateus a ignorar a lista inteira;
+  // - ela seria **redundante**: a obra sem CNO já tem a sua pendência, do
+  //   CONTAI-003, e lá a ação é a certa e a única que destrava as outras —
+  //   registrar o CNO no e-CAC. Uma nota por nota repetindo a mesma causa
+  //   afogaria a pendência que resolve.
+  //   O registro do fato não se perde: `nota_traz_cno = false` está gravado, a
+  //   nota entra na lista de cobrança do critério 8, e no dia em que o CNO for
+  //   registrado esta pendência aparece sozinha, com a ação agora possível.
+  const obraTemCno = obra.cno !== null;
+  for (const d of documentos) {
+    if (!obraTemCno) break;
+    if (d.tipo !== "nf_servico" || d.status === "quarentena") continue;
+    if (d.notaTrazCno !== false) continue;
+    pendencias.push({
+      id: `sem-cno:${d.id}`,
+      tipo: "nf_servico_sem_cno",
+      chip: "Nota sem CNO",
+      titulo: "NF de serviço sem CNO impresso",
+      // A ação óbvia entra no DETALHE, ao lado do prestador: é dele que se
+      // cobra, e o critério 4 pede a ação junto da pendência, não numa tela
+      // adiante.
+      detalhe: `${d.favorecidoNome ?? SEM_FAVORECIDO} — ${ACAO_NOTA_SEM_CNO}`,
+      valorCentavos: d.valorCentavos ?? 0,
+      consequencia: CONSEQUENCIA_CNO_DA_NOTA,
       gravidade: "amb",
       href: `/documento/${d.id}`,
     });

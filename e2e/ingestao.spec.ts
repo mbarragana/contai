@@ -14,7 +14,11 @@ import {
   subirParaOAcervo,
 } from "./banco";
 import { expect, test } from "./fixtures";
-import { escolher, preencherDocumentoBasico } from "./formularios";
+import {
+  escolher,
+  preencherDocumentoBasico,
+  responderCnoDaNota,
+} from "./formularios";
 
 /**
  * Fluxo de ingestão contra o Supabase LOCAL: sessão de verdade, linhas de
@@ -427,6 +431,7 @@ test.describe("registrar documento", () => {
       noCpf: "Sim",
     });
     await escolher(page, "NF de serviço: tem retenção de 11%?", "Não sei");
+    await responderCnoDaNota(page, "É o CNO desta obra");
 
     await expect(
       page.getByText(/Não abate na aferição do INSS da obra \(SERO\)\./),
@@ -561,6 +566,8 @@ test.describe("identificação da nota (CONTAI-004)", () => {
       noCpf: "Sim",
     });
     await escolher(page, "NF de serviço: tem retenção de 11%?", "Sim");
+    // CONTAI-007: bloqueante em NF de serviço — a obra do seed tem CNO.
+    await responderCnoDaNota(page, "É o CNO desta obra");
 
     // Nenhum aviso: o alerta do dev overlay do Next vive fora do `main`, por
     // isso a busca é escopada — foi o que enganou a primeira versão do teste.
@@ -777,6 +784,8 @@ test.describe("identificação da nota (CONTAI-004)", () => {
       noCpf: "Sim",
     });
     await escolher(page, "NF de serviço: tem retenção de 11%?", "Sim");
+    // CONTAI-007: bloqueante em NF de serviço — a obra do seed tem CNO.
+    await responderCnoDaNota(page, "É o CNO desta obra");
 
     // Aviso ÂMBAR, com link para o registro que já existe.
     await expect(page.getByText(/Essa nota já foi registrada em/)).toBeVisible();

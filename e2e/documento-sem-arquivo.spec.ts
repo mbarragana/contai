@@ -6,7 +6,11 @@ import {
   subirParaOAcervo,
 } from "./banco";
 import { expect, test } from "./fixtures";
-import { escolher, preencherDocumentoBasico } from "./formularios";
+import {
+  escolher,
+  preencherDocumentoBasico,
+  responderCnoDaNota,
+} from "./formularios";
 
 /**
  * **CONTAI-033 — a nota grava sem o arquivo, com três guardas.**
@@ -93,6 +97,8 @@ test.describe("salvar sem o arquivo (critérios 2 e 7)", () => {
       // ⚠️ SEM `arquivo` — é o caso que este ticket libera.
     });
     await escolher(page, "NF de serviço: tem retenção de 11%?", "Sim");
+    // CONTAI-007: bloqueante em NF de serviço — a obra do seed tem CNO.
+    await responderCnoDaNota(page, "É o CNO desta obra");
   }
 
   test("o diálogo aparece, e 'Salvar e cobrar a nota' grava com arquivo_path NULO", async ({
@@ -384,6 +390,16 @@ test.describe("anexar o arquivo depois (critérios 6, 9 e 12)", () => {
     await page.getByLabel("Arquivo da nota").setInputFiles(pdf("NF-de-outro.pdf"));
     await escolher(page, "A nota está no seu CPF?", "Não");
     await escolher(page, "NF de serviço: tem retenção de 11%?", "Sim");
+    /**
+     * ⚠️ A re-pergunta do CONTAI-033 (Guarda 3) continua sendo **CPF e
+     * retenção, e só** — o CONTAI-007 **não** a estendeu ao CNO. A resposta do
+     * CNO já foi dada no registro (o formulário a exige mesmo sem arquivo), e
+     * acrescentá-la aqui mudaria a assinatura da RPC `anexar_arquivo_documento`
+     * da migration 0014, que é escopo e parecer de outro ticket.
+     */
+    await expect(
+      page.getByText("Qual CNO está impresso nesta nota?"),
+    ).toHaveCount(0);
     await page
       .getByRole("button", { name: "Confirmar o arquivo e as respostas" })
       .click();
