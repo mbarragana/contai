@@ -76,33 +76,21 @@ pendência que já é fato consumado com consequência fiscal aberta.
        `app/obras/[id]/terreno/informe/[anoBase]/page.tsx:326-329`, que hoje
        checa o campo errado (`!financiamento`) e passa a checar
        `naturezaAquisicaoTerreno === "financiado"`.
-8. [ ] **Item F — vermelho se `nf_servico`, fora de quarentena,
-       `retencao_11 !== true` (trata `false` e `null` igual), E existe ≥1
-       pagamento vinculado; senão âmbar** (2 sites):
-       `lib/fiscal/resumo.ts:563-576` (hoje `gravidade: "amb"` fixo — a home
-       herda via `p.gravidade`, corrigir aqui corrige a home de graça) e
-       `app/documento/[id]/page.tsx:511-537`.
-       `docs/pareceres/2026-08-17-gate-fiscal-us-008.md` §d: a redução da
-       base do INSS depende de recolhimento e declaração confirmados, não do
-       destaque na nota — por isso `false` e `null` recebem o mesmo
-       tratamento (nenhum dos dois constitui redução sozinho, diferente da
-       exceção PJ do item 10).
-9. [ ] **Item F — conferência, sem mudança**:
-       `app/adicionar/documento/page.tsx:664-670` — âmbar está correto
-       (documento ainda não existe, sem vínculo possível), permanece na
-       tabela para não sumir da superfície auditada.
-10. [ ] **Item A — conferência, sem mudança** (já vermelho, entregue no
+8. [ ] **Item A — conferência, sem mudança** (já vermelho, entregue no
         `CONTAI-025`): `app/page.tsx:524-530,551-557`,
         `app/obras/[id]/terreno/page.tsx:501`,
         `app/obras/[id]/terreno/desembolsos/page.tsx:428,672`.
-11. [ ] **Âmbar legítimo, sem mudança** (dinheiro não saiu): "sem pagamento
+9. [ ] **Âmbar legítimo, sem mudança** (dinheiro não saiu): "sem pagamento
         ligado" (`lib/fiscal/resumo.ts:588`, fora da régua por construção —
         parecer §5.2), "boleto aguardando pagamento" (`resumo.ts:409-423`),
         "aguardando informe" (`terreno.ts`, `AGUARDANDO_INFORME`),
         "previsto — ainda não pago" (`terreno/page.tsx:531`), chip de
         agendado (`agendado.tsx:75,158,209,246`), "falta dizer como o
-        terreno foi adquirido" (`terreno/page.tsx:253-255`).
-12. [ ] **Exceção nomeada, sem mudança**: "pago sem comprovante" PJ fica
+        terreno foi adquirido" (`terreno/page.tsx:253-255`). Inclui a NF de
+        serviço sem retenção confirmada (`servico_sem_retencao`) — **essa
+        pendência está sendo apagada, não recolorida** (ver Perguntas
+        Abertas: item F saiu de escopo por conflito com o `CONTAI-038`).
+10. [ ] **Exceção nomeada, sem mudança**: "pago sem comprovante" PJ fica
         âmbar (`lib/fiscal/pagamento.ts:213-218`, `SEM_COMPROVANTE_PJ`);
         PF fica vermelho (`:220-225`, `SEM_COMPROVANTE_PF`) —
         `docs/pareceres/2026-08-18-compromisso-versus-pagamento.md`
@@ -110,13 +98,16 @@ pendência que já é fato consumado com consequência fiscal aberta.
         `lib/fiscal/pagamento.ts`, não `pago-sem-comprovante.tsx` (esse
         componente é só do desembolso do terreno, sempre vermelho, sem ramo
         PJ).
-13. [ ] **D54 — teste-trava, não decorativo**: Vitest cobrindo
+11. [ ] **D54 — teste-trava, não decorativo**: Vitest cobrindo
         `gravidadeDaRegua` por tabela-verdade + lista de exceções nomeadas
         (1 entrada hoje: `pj_pago_sem_comprovante`, união fechada de
         TypeScript, não string de rótulo — rename de rótulo não sai da
         malha) + fixtures dos produtores (resumo, terreno, revisao) provando
-        que D e F viram vermelho quando há vínculo. O teste casa contra a
-        FUNÇÃO, nunca contra texto de tela.
+        que D vira vermelho quando há vínculo. O teste casa contra a
+        FUNÇÃO, nunca contra texto de tela. **Item F saiu da tabela-verdade**
+        (ver Perguntas Abertas) — a união de exceções fica pronta para
+        receber uma segunda entrada (`retencao_sem_recolhedor`) quando o
+        `CONTAI-038` entrar, sem precisar reabrir este ticket.
 
 ## Out of Scope
 - Ordenação da lista de pendências por valor-fora-da-soma (proposta do `po`,
@@ -137,19 +128,20 @@ pendência que já é fato consumado com consequência fiscal aberta.
 Base: D39 revisada. Exceção nomeada única hoje: "PJ pago sem comprovante"
 (`docs/pareceres/2026-08-18-compromisso-versus-pagamento.md:594-602`) —
 fundada em distinção específica (NF já constitui o custo, falta só
-corroboração bancária de fato pouco duvidoso). **D e F não reproduzem essa
-estrutura**: quando vermelhos, são a regra geral se aplicando (fato
-consumado + nada sustenta no lugar certo), não exceções novas.
+corroboração bancária de fato pouco duvidoso). **D não reproduz essa
+estrutura**: quando vermelho, é a regra geral se aplicando (fato consumado +
+nada sustenta no lugar certo), não exceção nova.
 
 **Item D**: vermelho não depende de valor, ano fechado/aberto, ou PF/PJ — só
 de existir vínculo. "Ano fechado" muda a escalada (soma aviso "exige CRC"),
 não a cor.
 
-**Item F**: `false` e `null` de `retencao_11` recebem tratamento idêntico —
-tratar campo fiscal não respondido como "provavelmente ok" é o default
-proibido pelo `CLAUDE.md`. A diferença com a exceção PJ do item 12 é
-estrutural: lá a NF já constitui o custo; aqui, sem confirmação, não existe
-redução constituída em nenhum nível.
+**Item F removido de escopo (2026-09-19)** — não é mais deste gate. O
+parecer `docs/pareceres/2026-09-18-retencao-variavel-servico-pj.md` (corpo +
+ADENDO) corrigiu a premissa fiscal em que o item F se apoiava: a pendência
+`servico_sem_retencao` inteira está sendo apagada pelo `CONTAI-038`, não
+recolorida por este ticket. Detalhe da decisão:
+`docs/backlog/31-2026-09-19-sequenciamento-contai-035-038.md`.
 
 **Automático vs. humano**: cor é sempre automática (função pura). "Exige
 CRC" é aviso condicional automático (texto), não decisão — a decisão de
@@ -163,9 +155,9 @@ retificar continua do Mateus com o contador dele.
 2. **O teste-trava vira decorativo se casar por texto do Chip** — rótulo
    reescrito no futuro sai da malha em silêncio. Guarda: critério 13, tipo
    branded + teste contra a função, nunca contra string de tela.
-3. **D e F sem resposta a tempo do `/develop`** — se o Gate Fiscal não
-   tivesse respondido antes da implementação, alguém assumiria a condição
-   sem escrita do contador. Já fechado neste ticket (ver Gate Fiscal acima).
+3. **D sem resposta a tempo do `/develop`** — se o Gate Fiscal não tivesse
+   respondido antes da implementação, alguém assumiria a condição sem
+   escrita do contador. Já fechado neste ticket (ver Gate Fiscal acima).
 
 ## Viabilidade (CTO)
 **Complexidade: M. Não fatiar** — fatiar deixa metade do app vermelho e
@@ -187,14 +179,19 @@ brand — mitigado por review no Gate 2, não por compilador (dívida).
 **Arquivos**: `lib/fiscal/gravidade.ts` (novo) + `.test.ts` ·
 `lib/fiscal/resumo.ts` · `lib/fiscal/terreno.ts` · `lib/fiscal/revisao.ts` ·
 `lib/data.ts` (select de vínculo nas 3 telas de pendência) ·
-~10 arquivos de tela listados nos critérios 3-9.
+~10 arquivos de tela listados nos critérios 3-7.
 
 **Dívidas criadas**: chip literal em JSX segue possível sem trava de
 compilador; uma query a mais nas 3 telas de pendência (item D).
 
 ## Dependências
 - Bloqueado por: nenhum.
-- Bloqueia: nada identificado.
+- Bloqueia: **`CONTAI-038`** (retenção variável em NF de serviço) depende de
+  `lib/fiscal/gravidade.ts`/`gravidadeDaRegua` existindo — a pendência nova
+  dele (`retencao_sem_recolhedor`) entra como segunda exceção nomeada na
+  união que este ticket cria. `CONTAI-035` (sem item F) precisa ser
+  implementado **antes** do `CONTAI-038` — decisão registrada em
+  `docs/backlog/31-2026-09-19-sequenciamento-contai-035-038.md`.
 
 ## Perguntas Abertas
 - **Item 6 (D, "exige CRC")**: o gatilho reaproveita a heurística de
@@ -204,6 +201,10 @@ compilador; uma query a mais nas 3 telas de pendência (item D).
 - **Item 7 (E, site 1)**: é mudança real (âmbar → vermelho, achado do
   designer) ou existe outro site que a adjudicação original queria dizer
   com "já correto"? Confirmação de uma linha antes do Gate 1.
+- ~~**Item F**~~ — **removido de escopo em 2026-09-19** (era pergunta sobre
+  `false`/`null` tratados igual; ficou sem objeto porque a pendência inteira
+  está sendo apagada pelo `CONTAI-038`, não recolorida por este ticket). Ver
+  `docs/backlog/31-2026-09-19-sequenciamento-contai-035-038.md`.
 
 ## Cenário e checagem final
 **Gestão** — todas as telas tocadas são consultadas em casa, sentado, ao
@@ -211,4 +212,7 @@ revisar o estado da obra; nenhuma é fluxo de captura. Teste do Canteiro não
 se aplica.
 
 **Veredito: APROVADO**, com 2 Perguntas Abertas para confirmação de uma
-linha antes do Gate 1 (nenhuma bloqueia a aprovação do mock nível 3).
+linha antes do Gate 1 (nenhuma bloqueia a aprovação do mock nível 3). Item F
+saiu de escopo em 2026-09-19, sem reabrir Gate de Mock nem Gate Fiscal — é
+remoção de escopo por premissa fiscal substituída, não mudança de
+comportamento.

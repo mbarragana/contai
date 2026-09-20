@@ -1,6 +1,6 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 19 tickets
+## 🔎 O que está em aberto — 20 tickets
 
 *Uma linha por ticket, sem justificativa. O **porquê** de cada posição está nas
 seções longas abaixo; o **porquê da decisão** está em `../backlog.md`.
@@ -12,7 +12,16 @@ tiveram mock desenhado e aprovado. `009` **saiu da fila** — reconciliação de
 24/08 achou que ele já foi entregue via `CONTAI-018`, sem citação cruzada
 (`docs/backlog/29-2026-08-24-reconciliacao-contai-009.md`); o único resto vivo
 virou o `037` (XS, P1), ticket + mock escritos e aprovados no mesmo dia.
-**Todos os 11 itens da fila estão prontos para `/develop`.***
+
+**2026-09-19**: entrou **`038`** (retenção variável em NF de serviço PJ, P0
+fiscal), sequenciado logo depois de `035` por dependência técnica — precisa de
+`lib/fiscal/gravidade.ts` (criado pelo `035`) para nascer sem cor literal
+chutada. `035` perdeu o item F de escopo no mesmo dia (premissa fiscal
+substituída pelo parecer que originou o `038` — não é mudança de
+comportamento, é remoção). Decisão completa:
+`docs/backlog/31-2026-09-19-sequenciamento-contai-035-038.md`.
+**`038` ainda não está pronto para `/develop`**: falta rodar `/design` (mock
+nível 1, repeater inédito). Os outros 11 itens da fila continuam prontos.
 
 ### Fila de implementação — nesta ordem
 
@@ -25,11 +34,12 @@ virou o `037` (XS, P1), ticket + mock escritos e aprovados no mesmo dia.
 | 5 | **008** | Mover pagamento entre obras sem quebrar o vínculo | **P0** |
 | 6 | **005** | Headline da home | **P0** |
 | 7 | **031** | E2E da condição fiscal 6 | P1 |
-| 8 | **035** | **Reconciliar a régua de cor com a D39 revisada** | P1 |
-| 9 | **034** | **Campo fiscal não nasce preenchido, e o teste prova** | P1 — ⚠️ existe só neste resumo, falta linha própria na tabela detalhada abaixo |
-| 10 | **014** | Manifest de PWA + prova no aparelho | P1 |
-| 11 | **006** | Estados de rede lenta/indisponível | P1 |
-| 12 | **037** | **Porta para o pagamento conciliado a partir do documento** | P1 |
+| 8 | **035** | **Reconciliar a régua de cor com a D39 revisada** (sem item F, ver nota 2026-09-19) | P1 |
+| 9 | **038** | **Retenção de NF de serviço PJ vira lista de linhas** — 🟡 falta `/design` | **P0** |
+| 10 | **034** | **Campo fiscal não nasce preenchido, e o teste prova** | P1 — ⚠️ existe só neste resumo, falta linha própria na tabela detalhada abaixo |
+| 11 | **014** | Manifest de PWA + prova no aparelho | P1 |
+| 12 | **006** | Estados de rede lenta/indisponível | P1 |
+| 13 | **037** | **Porta para o pagamento conciliado a partir do documento** | P1 |
 
 ### Bloco de deploy — fora da fila
 
@@ -58,7 +68,8 @@ virou o `037` (XS, P1), ticket + mock escritos e aprovados no mesmo dia.
 |---|---|
 | **Espera o Mateus** | apenas a **Q14** (13 dias, trava o `016`) — nenhum mock pendente na fila ativa |
 | **Saiu da fila, superado** | `009` — entregue via `CONTAI-018` sem citação cruzada; resto vivo virou o `037` |
-| **Pronto para `/develop`** | `032`, `022`, `033`, `007`, `008`, `005`, `031`, `035`, `014`, `006`, `037` — todos os 11 itens da fila |
+| **Pronto para `/develop`** | `032`, `022`, `033`, `007`, `008`, `005`, `031`, `035`, `014`, `006`, `037` — 11 dos 12 itens da fila |
+| **Falta mock (`/design`)** | `038` — sequenciado logo após `035` (dependência técnica, não fiscal); ver nota 2026-09-19 |
 
 ⚠️ **Esta tabela é resumo, não fonte.** Ela repete o que está abaixo — se
 divergir, **vale o de baixo**, e o resumo é que está errado.

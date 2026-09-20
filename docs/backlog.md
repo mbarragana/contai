@@ -180,6 +180,7 @@ no bloco de decisões pendentes acima.
 | **D52 — a superfície 3 exige migration**: `documento.arquivo_path` é `not null` na `0001` e `status_documento` não tem valor para "registrado sem arquivo"; ⚠️ **`quarentena` não pode ser reaproveitada** | `24-…-relato-005.md` → dentro do ticket da **US-B**; a decisão de modelo é do `cto-obra`, não do `po` |
 | D40 — `lib/data.ts` monolítico (2065 linhas, 44 importadores) | `16-2026-08-22-custo-de-contexto-do-pipeline.md` → **`CONTAI-028`**; status em `18-2026-08-23-gate4-contai-028-fatia1.md` (**parcialmente paga**: 2065 → 1803) |
 | **D56 — comprovante que falta em registro antigo não tem caminho de correção pela interface** (achada ao reconciliar o CONTAI-009 contra o código já em produção) | `29-2026-08-24-reconciliacao-contai-009.md` → precisa de mock próprio + checagem do `contador` (rastro de anexo tardio) antes de virar critério |
+| **D57 — falta o único campo que de fato abate a aferição do SERO** ("esta mão de obra foi declarada no CNO?", A.5/Pergunta 2 do parecer de 2026-08-18): não existe em schema, tela nem ticket, confirmado por busca em 2026-09-19 | `31-2026-09-19-sequenciamento-contai-035-038.md` → sem ticket ainda, fica para quando o Mateus priorizar |
 
 O status de cada uma está na própria entrada — este índice aponta, não duplica.
 
@@ -436,6 +437,34 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
 - Critérios 2/5 reescritos e critério 8 novo, prontos para colar
 - Recomendação: fechar CONTAI-009 como SUPERADO pelo CONTAI-018; migrar o
   critério 8 para ticket pequeno (S)
+
+### `30-2026-09-19-retencao-variavel-servico-pj.md` — 30 linhas
+**Retenção variável em NF de serviço PJ — 2026-09-19 — "cada um tem a sua, portanto eu acho que tem ser um input"**
+
+- Pedido original (input de %) recusado pelo `contador`: para tomador PF a
+  retenção do art. 31 não existe em nenhum percentual — o parecer não podia
+  validar a premissa
+- Nota real do Francisco quebra a premissa de campo-por-tributo: é uma linha
+  única "Total das Retenções (ISSQN / Federais)", combinada
+- ADENDO 2026-09-19: estrutura vira lista de 1..N linhas de retenção por
+  documento (rótulo literal, valor, `composicao`, `e_desconto_efetivo`);
+  `documento.retencao11: boolean` sai do schema
+- Parecer: `docs/pareceres/2026-09-18-retencao-variavel-servico-pj.md`
+
+### `31-2026-09-19-sequenciamento-contai-035-038.md` — 60 linhas
+**Sequenciamento CONTAI-035 × CONTAI-038 — 2026-09-19 — o item F recolore uma pendência que o parecer manda apagar**
+
+- O conflito: item F do `CONTAI-035` (aprovado) recolore `servico_sem_retencao`;
+  o `CONTAI-038` apaga essa pendência inteira por premissa fiscal corrigida
+- Decisão do `po`: item F sai do escopo do `035` agora (critérios 8/9/13
+  ajustados) — recolorir o que vai ser apagado é trabalho descartável, não
+  adiável
+- Ordem da fila: `CONTAI-035` (sem item F) ANTES do `CONTAI-038`, porque o
+  `035` cria `gravidadeDaRegua`/`lib/fiscal/gravidade.ts` (único produtor de
+  cor) e a pendência nova do `038` (`retencao_sem_recolhedor`) deve nascer já
+  usando esse produtor — sujeito à confirmação do `cto-obra`
+- **D57** — nova dívida: falta o campo "mão de obra declarada no CNO?", o
+  único que abate o SERO; confirmado por busca que não existe em lugar nenhum
 
 ## Ao acrescentar ao backlog
 
