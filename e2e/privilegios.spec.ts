@@ -127,6 +127,14 @@ const ESPERADO: Record<string, string> = {
   // anexo de uma conta pendurado no desembolso de outra é representável; sem
   // ela, é impossível.
   terreno_desembolso_anexo: "INSERT,SELECT",
+
+  // ── CONTAI-022 (migration 0013) ─────────────────────────────────────────
+  // Sem DELETE nas três — acervo append-only, mesma doutrina da 0007.
+  fatura: "INSERT,SELECT",
+  // UPDATE serve a UM ato só: a re-alocação de "mudou a data" de uma compra
+  // no cartão (`compra_cartao_mudar_data`) — nunca escrita direta do app.
+  fatura_compromisso: "INSERT,SELECT,UPDATE",
+  fatura_desembolso: "INSERT,SELECT",
 };
 
 /**
@@ -187,6 +195,14 @@ const FUNCOES_ESPERADAS: Record<string, string> = {
   // trigger`, o Postgres recusa chamada direta, e o privilégio é inofensivo —
   // declarado aqui, não silenciado.
   terreno_desembolso_datar_resposta: "PUBLIC,anon,authenticated",
+
+  // ── CONTAI-022 (migration 0013) ────────────────────────────────────────
+  // As quatro que a interface chama. Nenhuma auxiliar interna: todas gravam
+  // direto nas tabelas do schema, sem chamar outra função `security invoker`.
+  compra_cartao_gravar: "authenticated",
+  compra_cartao_mudar_data: "authenticated",
+  fatura_desembolso_gravar: "authenticated",
+  fatura_alocar: "authenticated",
 };
 
 test.describe("privilégios do schema public", () => {

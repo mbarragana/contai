@@ -991,3 +991,107 @@ arcabouço que os §§1-2 e §F.3 já fixaram, e nenhum número novo de legisla�
 usado. O que **sempre** exige contador humano continua sendo a **assinatura da
 declaração** e a apuração do ganho de capital no ano da venda — o app informa e
 organiza, não assina.
+
+# ADENDO 5 — 2026-09-19 · texto de recusa da compra parcelada no cartão (CONTAI-022, critério 11)
+
+- **Origem**: consulta direta do Gate Fiscal do `CONTAI-022` — o mock
+  (`design/mocks/CONTAI-022.md`, tela s1) usa um texto provisório do
+  `designer` porque o §B deste parecer fixa a **regra** (recusar na entrada,
+  com mensagem explícita) mas não o **texto literal**.
+- **Normativo para**: `CONTAI-022` critério 11, tela s1 do mock,
+  `lib/fiscal/compromisso.ts` (branch de recusa por parcelamento).
+
+## I.1 Texto literal definitivo
+
+O provisório — *"Compra parcelada não é aceita aqui. Lance cada parcela
+separada, pelo valor dela, na fatura em que ela vence."* — está **certo na
+substância, incompleto na prevenção**. `[Certain]` Ele diz o que fazer e não
+diz por quê, e não nomeia o erro específico que o próprio `CONTAI-022` já
+registrou como **risco residual aceito conscientemente**: nada no schema
+impede lançar o valor total como uma compra "à vista" na fatura da primeira
+parcela. Texto de tela com consequência fiscal nomeia a consequência, não só a
+instrução — mesma régua do §F.4 deste parecer.
+
+**Texto que substitui o provisório, literal:**
+
+> **Compra parcelada não é aceita aqui.** Cada parcela cai numa fatura
+> diferente, e o ano do custo é o da fatura em que ela é paga — não o da
+> compra. Lance cada parcela como uma compra separada, pelo valor dela, na
+> fatura em que ela vence. Não lance o valor total numa fatura só: isso muda
+> o ano de custo das parcelas seguintes.
+
+A última frase é a única linha que ataca o risco residual nomeado no ticket;
+sem ela, a recusa ensina o caminho certo mas não avisa do contorno errado que
+o schema ainda permite. Isto é reforço de texto, **não fecha o buraco de
+schema** — o backstop continua sendo a ressalva de CRC (critério 13), como o
+próprio ticket já aceitou.
+
+## I.2 A regra por trás, "se X → Z"
+
+`[Certain]` Confirmado: é campo explícito respondido pelo Mateus (`parc`:
+"à vista" | "parcelado", sem default e sem pré-seleção), **nunca** detecção
+automática pelo app.
+
+**Se `parc = "parcelado"` → recusa síncrona da gravação, com o texto do §I.1,
+e o registro não se completa. Se `parc = "à vista"` → segue o fluxo normal
+deste ticket** (compromisso com `origem='cartao'`, `data_prevista` =
+vencimento da fatura).
+
+Por que isto não pode virar inferência automática, nem em teoria: é a mesma
+proibição já fixada no corpo deste parecer (§5, item 4 — "proibido inferir
+vínculo por heurística") e no `CLAUDE.md` do projeto ("campo vazio pergunta,
+campo preenchido afirma"). Parcelamento é fato do mundo que só o contrato ou a
+nota atestam; nem valor, nem data, nem favorecido bastam para deduzir isso com
+segurança — uma compra de R$ 12.000 pode ser à vista, uma de R$ 300 pode estar
+parcelada em 3x.
+
+`[Guessing, fora do escopo deste gate]` Quando a extração automática de nota
+(US-008 fase 2, XML de NF-e) existir, alguns documentos podem trazer indício
+de parcelamento (duplicatas, "condição de pagamento"). A mesma proibição
+segue valendo: extrair o indício para **pré-preencher** é diferente de
+**gravar sem confirmação humana explícita**. Tocar nisso no futuro exige
+parecer próprio, não decisão de engenharia.
+
+## I.3 `RECUSA_CARTAO` — não sobra nenhum caso
+
+`[Certain]` Confirmado: não deve sobrar **nenhum** caminho de código em que a
+recusa total de `meio = cartao` (a `RECUSA_CARTAO` de hoje,
+`lib/fiscal/compromisso.ts:93-105`, usada em `app/adicionar/pagamento/page.tsx`)
+ainda apareça. Ela nasceu como placeholder do `CONTAI-019` (critério 25) para
+um fluxo que não existia — o fluxo agora existe. Mantê-la em qualquer ramo
+repetiria o defeito que o próprio critério 26 do `CONTAI-019` já apontou uma
+vez: mensagem apontando para uma pergunta já respondida.
+
+**Precisão para não confundir refatoração com esquecimento** — a recusa daqui
+para frente tem **dois** motivos, e nenhum dos dois é "cartão":
+
+1. **Campo obrigatório vazio** (`fVenc`, `fCompra`, `fValor`) — recusa de
+   formulário (botão desabilitado), não de regra fiscal; sem mensagem de
+   "cartão não aceito".
+2. **`parc = "parcelado"`** — a recusa nova do §I.1/§I.2 acima, com texto e
+   motivo próprios.
+
+**Não reaproveitar a constante nem o texto de `RECUSA_CARTAO` para o caso 2.**
+São fatos fiscais diferentes — um é "não temos fluxo", o outro é "temos
+fluxo, mas não para isto" — e reaproveitar o nome confundiria quem lê o código
+daqui a um ano, do mesmo jeito que o comentário obsoleto do critério 26 do
+`CONTAI-019` confundiu.
+
+Ponto técnico que devolvo ao `cto-obra`, não decido aqui: `RECUSA_CARTAO` e
+`RECUSA_CARTAO_ONDE_REGISTRAR` são hoje usados em
+`app/adicionar/pagamento/page.tsx`; o `decidirDestino` de
+`lib/fiscal/compromisso.ts` muda de forma para que `meio=cartao` chegando a
+essa tela genérica **roteie para o fluxo de compra (s1)**, não para uma
+mensagem de recusa. Confirmar que a remoção é limpa (nenhum teste ou tela
+órfã ainda referenciando `RECUSA_CARTAO` depois do critério 12 do
+`CONTAI-022`) é verificação de engenharia. **Do lado fiscal, a resposta é
+zero casos remanescentes de recusa genérica de cartão.**
+
+## I.4 Automático × humano (deste adendo)
+
+**Sistema sozinho** `[Certain]`: aplicar o texto do §I.1; decidir o branch
+por `parc` informado, nunca por heurística; recusar a gravação quando
+`parc = "parcelado"`.
+
+**Nada aqui exige CRC.** É texto de tela e escopo de refusal, não
+tributação nova.

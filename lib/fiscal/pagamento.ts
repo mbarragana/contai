@@ -6,29 +6,9 @@
  * o ano-calendário sai da data do pagamento, nunca da data da nota.
  */
 
-import type {
-  MeioPagamento,
-  StatusPagamento,
-  TipoFavorecido,
-} from "@/lib/types";
+import type { StatusPagamento, TipoFavorecido } from "@/lib/types";
 import { formatarBRL } from "@/lib/money";
 import { tipoPorDocumento } from "./identificacao";
-
-/**
- * Pagamento avulso deste ticket é sempre PIX (mock v4, tela 10).
- * Boleto tem fluxo próprio (documento).
- *
- * ⚠️ CARTÃO — a razão foi CORRIGIDA no CONTAI-019 (critério 26). O comentário
- * anterior dizia que "cartão depende da Q4"; **a Q4 fechou em 2026-08-08**
- * (`docs/backlog.md`, perguntas fechadas), e apontar para uma pergunta já
- * respondida é a mesma classe de defeito que um botão que promete o que não
- * faz. A razão verdadeira é outra e continua valendo: **falta o fluxo de
- * fatura** — dois momentos (compra e pagamento da fatura), confirmação compra
- * a compra, um pagamento por compra. Isso é o `CONTAI-022`, com tela própria.
- * Até lá o meio segue recusado na entrada (critérios 25-27, e
- * `decidirRegistro` em `lib/fiscal/compromisso.ts`).
- */
-export const MEIO_PAGAMENTO_AVULSO: MeioPagamento = "pix";
 
 /** Pago sem documento hábil vinculado — critério 3 da US-007. */
 export const STATUS_PAGAMENTO_AVULSO: StatusPagamento = "aguardando_nf";
@@ -121,6 +101,15 @@ export function ehDataValida(iso: string): boolean {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === iso;
 }
 
+/**
+ * CONTAI-032 — as duas perguntas de campo fiscal vazio. Ficam visíveis o
+ * tempo todo enquanto o campo respectivo está vazio (mock, decisão 2), e são
+ * a MESMA constante usada no erro de validação abaixo — um texto, um lugar.
+ */
+export const PERGUNTA_MEIO_VAZIO =
+  "Informe como foi pago — PIX, boleto ou cartão.";
+export const PERGUNTA_DATA_VAZIA = "Informe a data em que o pagamento saiu.";
+
 export function validarPagamentoAvulso(
   entrada: EntradaPagamento,
   hojeIso: string,
@@ -148,7 +137,7 @@ export function validarPagamentoAvulso(
   if (!entrada.dataPagamento || !ehDataValida(entrada.dataPagamento)) {
     erros.push({
       campo: "dataPagamento",
-      mensagem: "Informe a data em que o pagamento saiu.",
+      mensagem: PERGUNTA_DATA_VAZIA,
     });
   } else if (entrada.dataPagamento > hojeIso) {
     // Regime de caixa: data no futuro jogaria o custo no ano errado sem que

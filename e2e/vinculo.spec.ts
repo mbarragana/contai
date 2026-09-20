@@ -452,6 +452,9 @@ test.describe("caminho A — vínculo no ato do registro", () => {
     await expect(page.getByLabel("Valor")).toBeEditable();
     await expect(page.getByText("Vem da nota — valor da nota.")).toBeVisible();
 
+    // CONTAI-032: Meio e Data SEM DEFAULT — o teste escolhe.
+    await escolher(page, "Como foi pago", "PIX");
+    await page.getByLabel("Data", { exact: true }).fill(`${ANO}-07-15`);
     await page.getByLabel("Comprovante").setInputFiles(png("pix-wk.png"));
 
     await page
@@ -525,6 +528,55 @@ test.describe("caminho A — vínculo no ato do registro", () => {
   });
 
   /**
+   * CONTAI-032, critério 6 — Data e Meio nascem vazios/nulos agora, e contam
+   * como "algo digitado" no impasse de sair para corrigir a nota (o
+   * comentário antigo dizia "nascem preenchidos", premissa que este ticket
+   * revoga). Sem este teste, a regressão volta pelo mesmo caminho que já
+   * existe para Valor/Comprovante.
+   */
+  test("Data preenchida também conta como 'algo digitado' — o link vira botão com aviso", async ({
+    page,
+    db,
+  }) => {
+    const { documentoId } = await cenarioWk(db);
+
+    await page.goto(`/adicionar/pagamento?documento=${documentoId}`);
+    // Nada digitado ainda: "Corrigir na nota" é link direto, sem aviso.
+    await expect(
+      page.getByRole("link", { name: "Corrigir na nota" }),
+    ).toBeVisible();
+
+    await escolher(page, "Como foi pago", "PIX");
+    await page.getByLabel("Data", { exact: true }).fill(`${ANO}-08-12`);
+
+    // Só Data e Meio preenchidos (Valor continua o sugerido, sem comprovante)
+    // já basta: o link vira botão, porque agora há o que perder.
+    await expect(
+      page.getByRole("link", { name: "Corrigir na nota" }),
+    ).toHaveCount(0);
+    await page
+      .getByRole("button", { name: "Corrigir na nota" })
+      .click();
+
+    await expect(
+      page.getByRole("heading", { name: "Sair para corrigir a nota?" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("não vai ser guardado", { exact: false }),
+    ).toBeVisible();
+    // O estado grava o valor bruto do rádio ("pix"), não o texto do botão.
+    await expect(page.getByText("pix", { exact: true })).toBeVisible();
+
+    // Voltar não perde nada: os campos continuam preenchidos.
+    await page
+      .getByRole("button", { name: "Continuar o pagamento" })
+      .click();
+    await expect(page.getByLabel("Data do pagamento")).toHaveValue(
+      `${ANO}-08-12`,
+    );
+  });
+
+  /**
    * ⚠️ A regressão cara desta sugestão: a nota de medição já tem uma parcela
    * paga. Se o campo trouxesse os R$ 3.000 cheios de novo, o Mateus salvaria
    * sem reparar e o custo entraria em dobro — a única direção de erro que gera
@@ -559,6 +611,9 @@ test.describe("caminho A — vínculo no ato do registro", () => {
       page.getByRole("group", { name: "Favorecido da nota" }).getByText(CNPJ_WK),
     ).toBeVisible();
 
+    // CONTAI-032: Meio e Data SEM DEFAULT — o teste escolhe.
+    await escolher(page, "Como foi pago", "PIX");
+    await page.getByLabel("Data", { exact: true }).fill(`${ANO}-07-15`);
     await page.getByLabel("Comprovante").setInputFiles(png("pix-wk-2.png"));
     await page
       .getByRole("button", { name: "Salvar pagamento e ligar à nota" })

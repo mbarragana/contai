@@ -228,6 +228,36 @@ export interface Compromisso {
   adiamentos: number;
 }
 
+// ── CONTAI-022 · cartão de crédito: compra → fatura → pagamento ──────────
+
+/**
+ * Agrupa compras de cartão (`Compromisso.origem === "cartao"`) por
+ * vencimento. **Não é documento hábil e não tem favorecido próprio** — o
+ * custo se atribui por compra, nunca pela fatura (parecer, ADENDO §B).
+ */
+export interface Fatura {
+  id: string;
+  obraId: string;
+  dataVencimento: string;
+  /** As compras vinculadas — via `fatura_compromisso`. */
+  compromissoIds: string[];
+  /** Os valores pagos à fatura — integral ou parcial (rotativo). */
+  desembolsos: FaturaDesembolso[];
+}
+
+/**
+ * Um pagamento FEITO À FATURA. Fato consumado, **nunca custo, nunca
+ * `Pagamento`** — o que compõe custo são os N `Pagamento` gerados por compra
+ * na confirmação/alocação.
+ */
+export interface FaturaDesembolso {
+  id: string;
+  faturaId: string;
+  valorCentavos: number;
+  dataPagamento: string;
+  comprovantePath: string | null;
+}
+
 // ── CONTAI-010 · terreno e financiamento (centavos) ──────────────────────
 
 /**

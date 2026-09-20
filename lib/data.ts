@@ -38,7 +38,7 @@ import type {
 } from "@/lib/fiscal/revisao";
 import type { DocumentoRegistrado } from "@/lib/fiscal/documento";
 import { podeVincular } from "@/lib/fiscal/vinculo";
-import { centavosParaNumeric } from "@/lib/money";
+import { centavosParaNumeric, numericParaCentavos } from "@/lib/money";
 import {
   BUCKET_ACERVO,
   getSupabase,
@@ -55,6 +55,7 @@ import type {
   Documento,
   DocumentoInsert,
   DocumentoRow,
+  Fatura,
   FavorecidoInsert,
   Financiamento,
   FinanciamentoInforme,
@@ -1371,6 +1372,153 @@ export async function criarCompromisso(
     .single();
   if (error) throw error;
   return (data as { id: string }).id;
+}
+
+// ── CONTAI-022 · cartão de crédito: compra → fatura → pagamento ──────────
+
+export interface NovaCompraCartao {
+  obraId: string;
+  favorecidoId: string;
+  valorCentavos: number;
+  dataCompra: string;
+  dataVencimentoFatura: string;
+  documentoOrigemId?: string | null;
+}
+
+/**
+ * Grava a compra E a agrega numa fatura, **num ato só** — RPC
+ * `compra_cartao_gravar` (migration 0013). Dois INSERTs soltos (compromisso,
+ * depois fatura+vínculo) deixariam órfão se o segundo falhasse: um
+ * compromisso `cartao` sem fatura nenhuma tela sabe mostrar.
+ */
+export async function criarCompraCartao(
+  entrada: NovaCompraCartao,
+): Promise<{ compromissoId: string; faturaId: string }> {
+  const { data, error } = await getSupabase().rpc("compra_cartao_gravar", {
+    p_obra_id: entrada.obraId,
+    p_favorecido_id: entrada.favorecidoId,
+    p_valor: centavosParaNumeric(entrada.valorCentavos),
+    p_data_compra: entrada.dataCompra,
+    p_data_vencimento: entrada.dataVencimentoFatura,
+    p_documento_origem_id: entrada.documentoOrigemId ?? undefined,
+  });
+  if (error) throw error;
+  const resultado = data as { compromisso_id: string; fatura_id: string };
+  return { compromissoId: resultado.compromisso_id, faturaId: resultado.fatura_id };
+}
+
+/**
+ * "Mudou a data" de uma compra no cartão — RE-ALOCA a fatura (RPC
+ * `compra_cartao_mudar_data`). Bloqueada pelo banco se a compra já foi
+ * quitada: mover compra PAGA reescreveria fato consumado.
+ */
+export async function mudarDataCompraCartao(
+  compromissoId: string,
+  novaData: string,
+): Promise<void> {
+  const { error } = await getSupabase().rpc("compra_cartao_mudar_data", {
+    p_compromisso_id: compromissoId,
+    p_nova_data: novaData,
+  });
+  if (error) throw error;
+}
+
+/**
+ * A fatura, com os N desembolsos já feitos contra ela. **Não traz as
+ * compras** — quem quiser os `Compromisso` completos chama
+ * `carregarCompromissos(fatura.obraId)` e filtra por `fatura.compromissoIds`
+ * (mesmo carregador de sempre; a agenda de uma obra não costuma ter uma
+ * escala que justifique um segundo caminho de leitura só para isto).
+ */
+export async function carregarFatura(id: string): Promise<Fatura> {
+  await getUsuarioId();
+  const supabase = getSupabase();
+  const [fatura, vinculos, desembolsos] = await Promise.all([
+    supabase.from("fatura").select("*").eq("id", id).limit(1),
+    supabase.from("fatura_compromisso").select("compromisso_id").eq("fatura_id", id),
+    supabase.from("fatura_desembolso").select("*").eq("fatura_id", id),
+  ]);
+  if (fatura.error) throw fatura.error;
+  if (vinculos.error) throw vinculos.error;
+  if (desembolsos.error) throw desembolsos.error;
+
+  const row = fatura.data?.[0];
+  if (!row) throw new Error("Fatura não encontrada.");
+
+  return {
+    id: row.id,
+    obraId: row.obra_id,
+    dataVencimento: row.data_vencimento,
+    compromissoIds: (vinculos.data ?? []).map((v) => v.compromisso_id),
+    desembolsos: (desembolsos.data ?? []).map((d) => ({
+      id: d.id,
+      faturaId: d.fatura_id,
+      valorCentavos: numericParaCentavos(d.valor) ?? 0,
+      dataPagamento: d.data_pagamento,
+      comprovantePath: d.comprovante_path,
+    })),
+  };
+}
+
+/**
+ * A fatura de uma compra específica — usada pela guarda de
+ * `/compromisso/[id]` (critério achado pelo `cto-obra`: "Registrar o
+ * pagamento" de um compromisso `origem=cartao` redireciona para a fatura,
+ * nunca para `/compromisso/[id]/confirmar").
+ */
+export async function buscarFaturaDoCompromisso(
+  compromissoId: string,
+): Promise<string | null> {
+  const { data, error } = await getSupabase()
+    .from("fatura_compromisso")
+    .select("fatura_id")
+    .eq("compromisso_id", compromissoId)
+    .limit(1);
+  if (error) throw error;
+  return data?.[0]?.fatura_id ?? null;
+}
+
+/**
+ * Registra o valor pago à fatura — RPC `fatura_desembolso_gravar` (migration
+ * 0013). O valor **é sempre gravado** (fato consumado, nunca recusado —
+ * ADENDO §B); `compromissoIds` decide quanto se aloca no mesmo ato: vazio
+ * para o rotativo puro (s6), todas as abertas para a confirmação integral
+ * (s4, calculada pelo chamador a partir de `carregarCompromissos` +
+ * `compromissosAbertosDaFatura`).
+ */
+export async function registrarDesembolsoDeFatura(entrada: {
+  faturaId: string;
+  valorCentavos: number;
+  dataPagamento: string;
+  comprovantePath: string | null;
+  compromissoIds: string[];
+}): Promise<string> {
+  const { data, error } = await getSupabase().rpc("fatura_desembolso_gravar", {
+    p_fatura_id: entrada.faturaId,
+    p_valor: centavosParaNumeric(entrada.valorCentavos),
+    p_data_pagamento: entrada.dataPagamento,
+    p_comprovante_path: entrada.comprovantePath ?? undefined,
+    p_compromisso_ids: entrada.compromissoIds,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+/**
+ * Alocação manual contra um desembolso JÁ gravado — RPC `fatura_alocar`
+ * (migration 0013). O caminho do rotativo quando a alocação não aconteceu
+ * junto do registro do valor (tela reaberta depois, ou "decidir depois" em
+ * s7).
+ */
+export async function alocarPagamentoDeFatura(
+  desembolsoId: string,
+  compromissoIds: string[],
+): Promise<void> {
+  const { error } = await getSupabase().rpc("fatura_alocar", {
+    p_desembolso_id: desembolsoId,
+    p_compromisso_ids: compromissoIds,
+  });
+  if (error) throw error;
 }
 
 /**

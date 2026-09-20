@@ -78,55 +78,25 @@ function diasEntre(a: string, b: string): number {
 /**
  * Para onde vai o que o Mateus acabou de digitar.
  *
- * `recusado` NÃO é "erro de validação": é um fato do mundo que este app ainda
- * não sabe representar sem errar o ano do custo.
+ * ⚠️ **Cartão não passa por aqui** (CONTAI-022): a compra no cartão nasce
+ * compromisso sempre, com `data_prevista` = vencimento da fatura — decisão
+ * tomada no formulário PRÓPRIO da compra (`lib/fiscal/fatura.ts`), nunca
+ * pela regra `data ≤ hoje` deste arquivo. Confirmado pelo `contador`: a
+ * recusa total de `meio=cartao` (`RECUSA_CARTAO`, CONTAI-019) saiu de cena
+ * por completo depois que o fluxo da fatura abriu — não há mais caminho de
+ * código chamando `decidirRegistro` com `meio="cartao"`, e por isso o tipo
+ * não aceita mais esse valor.
  */
-export type Destino =
-  | { tipo: "pagamento" }
-  | { tipo: "compromisso" }
-  | { tipo: "recusado"; motivo: string };
+export type Destino = { tipo: "pagamento" } | { tipo: "compromisso" };
 
 /**
- * Critério 25 — texto literal do ticket. A recusa nunca é muda: ela diz por
- * que e diz o que fazer no lugar.
- */
-export const RECUSA_CARTAO =
-  "compra no cartão ainda não tem fluxo neste app — o custo é do ano em que a " +
-  "fatura for paga";
-
-/**
- * A segunda metade do critério 25: o caminho que existe hoje. O fluxo completo
- * (compra → compromisso, fatura paga → um pagamento POR COMPRA) é o
- * `CONTAI-022`; enquanto ele não existe, o registro correto é depois de a
- * fatura ser paga, com a data em que ela foi paga.
- */
-export const RECUSA_CARTAO_ONDE_REGISTRAR =
-  "Registre depois que a fatura for paga, uma compra de cada vez, com a data " +
-  "em que a fatura saiu da sua conta.";
-
-/**
- * ⚠️ **A EXCEÇÃO NOMEADA DO CARTÃO — critério 27** (adendo 1 §B(c)):
- *
- *     "'data ≤ hoje → pagamento' NÃO VALE PARA CARTÃO. A data da compra é
- *     passada e mesmo assim não há pagamento. O que decide o branch é 'a
- *     fatura que contém esta compra já foi paga?' — nunca a data da compra."
- *
- * Por isso o teste do meio vem ANTES do teste da data, e não depois: uma
- * compra de ONTEM no cartão não pode cair em `pagamento` por nenhum caminho.
- * No instante da compra não houve desembolso do declarante — falha a condição
- * 1 do §1 do parecer de 17/08, exatamente como o boleto emitido e não pago.
- *
- * Fora do cartão, **a DATA é o controle** (diretriz de desenho 1): sem
- * segmented control "já paguei / vou pagar", que seria um toque a mais no
- * caminho de 95%.
+ * ⚠️ **A DATA É O CONTROLE** (diretriz de desenho 1): sem segmented control
+ * "já paguei / vou pagar", que seria um toque a mais no caminho de 95%.
  */
 export function decidirRegistro(
-  entrada: { meio: MeioPagamento; data: string },
+  entrada: { meio: Exclude<MeioPagamento, "cartao">; data: string },
   hojeIso: string,
 ): Destino {
-  if (entrada.meio === "cartao") {
-    return { tipo: "recusado", motivo: RECUSA_CARTAO };
-  }
   return entrada.data <= hojeIso ? { tipo: "pagamento" } : { tipo: "compromisso" };
 }
 

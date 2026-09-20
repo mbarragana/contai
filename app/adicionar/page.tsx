@@ -34,6 +34,14 @@ export default function Adicionar() {
           O dinheiro que saiu da conta — PIX com comprovante. A data do
           pagamento é o que define o ano do custo (regime de caixa).
         </Dica>
+
+        <BotaoLink href="/adicionar/compra-cartao" variante="primary">
+          💳 Compra no cartão
+        </BotaoLink>
+        <Dica>
+          Nasce sempre agendamento — o custo só entra quando a fatura for
+          paga, uma compra de cada vez (CONTAI-022).
+        </Dica>
       </Corpo>
       <Rodape>
         <BotaoLink href="/">Cancelar</BotaoLink>

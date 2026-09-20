@@ -1,6 +1,6 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 
 import {
@@ -41,11 +41,7 @@ import {
   mensagemDeErro,
   subirParaAcervo,
 } from "@/lib/data";
-import {
-  decidirRegistro,
-  RECUSA_CARTAO,
-  RECUSA_CARTAO_ONDE_REGISTRAR,
-} from "@/lib/fiscal/compromisso";
+import { decidirRegistro, type Destino } from "@/lib/fiscal/compromisso";
 import {
   alocarCusto,
   ehDocumentoHabil,
@@ -60,6 +56,8 @@ import {
 } from "@/lib/fiscal/identificacao";
 import {
   DATA_QUE_VALE_PARA_O_CUSTO,
+  PERGUNTA_DATA_VAZIA,
+  PERGUNTA_MEIO_VAZIO,
   STATUS_PAGAMENTO_AVULSO,
   anoCalendario,
   rotulosPagoSemComprovante,
@@ -134,6 +132,7 @@ const ROTULO_VALOR_DA_NOTA = "valor da nota";
 const ROTULO_FALTA_DA_NOTA = "falta desta nota";
 
 function RegistrarPagamento() {
+  const router = useRouter();
   // Mesma regra do documento: obra afirmada na tela, trocável aqui, e é ela
   // que grava o `obra_id` (critérios 6, 7 e 16).
   const registro = useObraDoRegistro();
@@ -160,13 +159,23 @@ function RegistrarPagamento() {
   const [nome, setNome] = useState("");
   const [documento, setDocumento] = useState("");
   const [valor, setValor] = useState("");
-  const [data, setData] = useState(hojeIso);
   /**
-   * ⚠️ O MEIO entra no formulário por causa dos critérios 25-27: sem ele o
-   * `meio = cartao` não teria como chegar aqui, e a guarda que impede o custo
-   * de cair no ano errado seria código inalcançável.
+   * CONTAI-032 — SEM DEFAULT, os dois. `data = hoje` e `meio = "pix"` gravavam
+   * fato fiscal que ninguém escolheu (regime de caixa decidido por um valor
+   * chutado). Os dois nascem vazios/nulos, e nenhum branch de
+   * `decidirRegistro` roda enquanto algum dos dois faltar — ver `destino`
+   * abaixo.
    */
-  const [meio, setMeio] = useState<MeioPagamento>("pix");
+  const [data, setData] = useState("");
+  /**
+   * CONTAI-022: "Cartão" não é mais um valor que este estado guarda — ao
+   * escolher Cartão, a tela redireciona para `/adicionar/compra-cartao`
+   * antes de qualquer `setMeio`. O tipo reflete isso: só PIX e Boleto
+   * chegam a existir aqui.
+   */
+  const [meio, setMeio] = useState<Exclude<MeioPagamento, "cartao"> | null>(
+    null,
+  );
   const [comprovante, setComprovante] = useState<File | null>(null);
   const [erros, setErros] = useState<ErroCampoPagamento[]>([]);
   /**
@@ -274,14 +283,22 @@ function RegistrarPagamento() {
     erros.find((e) => e.campo === campo)?.mensagem;
 
   /**
-   * ⚠️ **A DATA É O CONTROLE** (diretriz de desenho 1) — e o cartão é a
-   * exceção nomeada (critério 27, adendo §B). Toda a mudança de comportamento
-   * desta tela sai desta única linha; não existe segmented control
-   * "já paguei / vou pagar", que seria um toque a mais no caminho de 95%.
+   * ⚠️ **A DATA É O CONTROLE** (diretriz de desenho 1). Toda a mudança de
+   * comportamento desta tela sai desta única linha; não existe segmented
+   * control "já paguei / vou pagar", que seria um toque a mais no caminho
+   * de 95%.
+   *
+   * CONTAI-032, critério 2 (achado do `cto-obra`): `decidirRegistro` não é
+   * alargado para aceitar vazio — a página ganha um GATE antes dela.
+   * Faltando Meio OU Data o destino é `indefinido`, e nenhum branch
+   * (pagamento/compromisso) roda.
    */
-  const destino = decidirRegistro({ meio, data }, hojeIso());
+  const destino: { tipo: "indefinido" } | Destino =
+    meio === null || data === ""
+      ? { tipo: "indefinido" }
+      : decidirRegistro({ meio, data }, hojeIso());
+  const indefinido = destino.tipo === "indefinido";
   const vaiAgendar = destino.tipo === "compromisso";
-  const cartaoRecusado = destino.tipo === "recusado";
 
   /**
    * Critério 11 conferido ANTES do salvar, e não no `catch`: chegando por
@@ -304,7 +321,11 @@ function RegistrarPagamento() {
 
   async function salvar() {
     setErroSalvar(null);
-    if (!obra || cartaoRecusado) return;
+    // `indefinido` já desabilita o botão — a checagem aqui é defensiva, e o
+    // `meio === null` é o que faz o TypeScript estreitar `meio` para
+    // `MeioPagamento` no resto da função (o gate acima garante isso em
+    // runtime, mas o tipo de `destino` não carrega essa prova).
+    if (!obra || indefinido || meio === null) return;
 
     // ⚠️ AGENDAMENTO: a validação de pagamento NÃO se aplica. Ela recusa data
     // futura (e a recusa fica, literalmente — critério 2), que é exatamente o
@@ -449,7 +470,9 @@ function RegistrarPagamento() {
   }
 
   async function salvarAgendamento() {
-    if (!obra) return;
+    // Só chega aqui com `vaiAgendar === true`, que já implica `meio !== null`
+    // (ver `destino`) — a checagem estreita o tipo para o TypeScript.
+    if (!obra || meio === null) return;
     setFase({ nome: "salvando" });
     try {
       const tipo = tipoPorDocumento(documento);
@@ -465,8 +488,10 @@ function RegistrarPagamento() {
         valorPrevistoCentavos: entrada.valorCentavos as number,
         dataPrevista: data,
         // Boleto e PIX previsto são fiscalmente IDÊNTICOS: zero (Gate Fiscal
-        // 7). A origem é campo probatório, nunca bifurcação de regra.
-        origem: meio === "cartao" ? "cartao" : meio,
+        // 7). A origem é campo probatório, nunca bifurcação de regra. Cartão
+        // não passa mais por aqui — nasce pelo fluxo próprio da compra
+        // (CONTAI-022), nunca por este formulário avulso.
+        origem: meio,
         documentoOrigemId: documentoDeOrigem?.id ?? null,
         dataCompra: null,
       });
@@ -611,9 +636,9 @@ function RegistrarPagamento() {
               <span className="mono">{valor.trim() || "—"}</span>
             </Linha>
             <Linha rotulo="Data do pagamento">
-              <span className="mono">{formatarDataBR(data)}</span>
+              <span className="mono">{data ? formatarDataBR(data) : "—"}</span>
             </Linha>
-            <Linha rotulo="Meio">{meio}</Linha>
+            <Linha rotulo="Meio">{meio ?? "—"}</Linha>
             <Linha rotulo="Comprovante">
               {comprovante ? `${comprovante.name} — não sobrevive` : "—"}
             </Linha>
@@ -737,7 +762,10 @@ function RegistrarPagamento() {
               </Card>
             ) : null}
 
-            {/* ⚠️ MEIO — e a guarda do cartão (critérios 25-27). */}
+            {/* ⚠️ MEIO. CONTAI-032: nasce sem nenhuma opção marcada.
+                CONTAI-022: "Cartão" não é mais recusado aqui — leva para o
+                fluxo próprio da compra no cartão, sem passar por
+                `decidirRegistro` nem por este estado. */}
             <Card className="flex flex-col gap-3.5">
               <Escolha
                 rotulo="Como foi pago"
@@ -747,18 +775,15 @@ function RegistrarPagamento() {
                   { valor: "cartao", texto: "Cartão" },
                 ]}
                 valor={meio}
-                onChange={setMeio}
+                onChange={(v) => {
+                  if (v === "cartao") {
+                    router.push("/adicionar/compra-cartao");
+                    return;
+                  }
+                  setMeio(v);
+                }}
               />
-              {cartaoRecusado ? (
-                // ⚠️ A recusa NUNCA é muda: diz por que e diz o que fazer no
-                // lugar (critério 25). E ela vem ANTES do teste da data — uma
-                // compra de ontem no cartão não pode virar pagamento por
-                // caminho nenhum (critério 27).
-                <Banner cor="red" role="alert">
-                  <strong>{RECUSA_CARTAO}.</strong>{" "}
-                  {RECUSA_CARTAO_ONDE_REGISTRAR}
-                </Banner>
-              ) : null}
+              {meio === null ? <Dica>{PERGUNTA_MEIO_VAZIO}</Dica> : null}
             </Card>
 
             <Card className="flex flex-col gap-3.5">
@@ -773,18 +798,22 @@ function RegistrarPagamento() {
                     /**
                      * ⚠️ O que conta como "digitado" é só o que SAIU DO DEDO
                      * DELE, e a distinção não é preciosismo:
-                     * - data e meio nascem preenchidos (hoje, PIX);
+                     * - **CONTAI-032**: Data e Meio agora nascem vazios/nulos
+                     *   — qualquer valor neles É dedo do Mateus, sempre conta;
                      * - o VALOR nasce preenchido pelo app com o saldo da nota
                      *   (`sugestaoValor`), num pagamento que nasce ligado — que
-                     *   é exatamente o caminho por onde este link é alcançado.
-                     * Contar qualquer um dos três faria o aviso aparecer
-                     * SEMPRE, e aviso que aparece sempre é o aviso que se
-                     * aprende a dispensar. Ele só aparece quando há de fato
-                     * algo a perder: valor DIFERENTE do sugerido, ou um
-                     * comprovante já escolhido — que é o único que não
-                     * sobrevive à navegação em hipótese nenhuma.
+                     *   é exatamente o caminho por onde este link é alcançado,
+                     *   então só conta quando DIFERENTE do sugerido;
+                     * - comprovante escolhido sempre conta — é o único dos
+                     *   quatro que não sobrevive à navegação em hipótese
+                     *   nenhuma.
+                     * Contar Valor/Comprovante incondicionalmente faria o
+                     * aviso aparecer SEMPRE no caminho ligado, e aviso que
+                     * aparece sempre é o aviso que se aprende a dispensar.
                      */
                     temAlgoDigitado={
+                      data !== "" ||
+                      meio !== null ||
                       (valor.trim() !== "" && valor !== sugestaoValor?.texto) ||
                       comprovante !== null
                     }
@@ -814,16 +843,25 @@ function RegistrarPagamento() {
               )}
               {/* MUDANÇA 1 DAS TRÊS: o aviso vem COLADO no campo de data, e
                   não num banner no topo — quem digitou a data está olhando
-                  aqui. */}
+                  aqui. CONTAI-032: rótulo neutro ("Data") enquanto o destino
+                  ainda não se decide — "do pagamento"/"prevista" afirmariam um
+                  fato que a tela ainda não sabe. */}
               <div className="flex flex-col gap-1.5">
                 <CampoTexto
-                  rotulo={vaiAgendar ? "Data prevista" : "Data do pagamento"}
+                  rotulo={
+                    indefinido
+                      ? "Data"
+                      : vaiAgendar
+                        ? "Data prevista"
+                        : "Data do pagamento"
+                  }
                   tipo="date"
                   valor={data}
                   onChange={setData}
-                  ajuda={vaiAgendar ? undefined : DATA_QUE_VALE_PARA_O_CUSTO}
+                  ajuda={vaiAgendar || indefinido ? undefined : DATA_QUE_VALE_PARA_O_CUSTO}
                   erro={erroDe("dataPagamento")}
                 />
+                {data === "" ? <Dica>{PERGUNTA_DATA_VAZIA}</Dica> : null}
                 {vaiAgendar ? (
                   <Banner cor="amb" role="status">
                     <strong data-aviso="data-futura">
@@ -863,7 +901,11 @@ function RegistrarPagamento() {
               ) : (
                 <CampoArquivo
                   rotulo="Comprovante"
-                  ajuda="Anexe o comprovante do PIX. O botão salva mesmo sem ele — o que muda é o estado que nasce."
+                  ajuda={
+                    indefinido
+                      ? "Escolha como foi pago e informe a data — o app diz se este anexo é exigido."
+                      : "Anexe o comprovante do pagamento. O botão salva mesmo sem ele — o que muda é o estado que nasce."
+                  }
                   accept=".pdf,image/*"
                   arquivo={comprovante}
                   onChange={setComprovante}
@@ -874,8 +916,9 @@ function RegistrarPagamento() {
             {/* ⚠️ CRITÉRIO 46: o botão grava sempre; o que muda é o ESTADO.
                 A consequência é dita ANTES, e muda de peso com o favorecido
                 (critério 47, ADENDO 2 §5 — para PF o comprovante é
-                CONSTITUTIVO, não acessório). */}
-            {!vaiAgendar && comprovante === null ? (
+                CONSTITUTIVO, não acessório). CONTAI-032: muda enquanto
+                `indefinido` — a tela ainda não sabe que ESTADO vai nascer. */}
+            {!vaiAgendar && !indefinido && comprovante === null ? (
               <Banner
                 cor={rotulosPagoSemComprovante(tipoFavorecido).gravidade}
                 role="status"
@@ -896,7 +939,7 @@ function RegistrarPagamento() {
               </Banner>
             ) : null}
 
-            {vaiAgendar ? null : (
+            {vaiAgendar || indefinido ? null : (
             <Banner cor="amb" role="status">
               Vai nascer como{" "}
               <strong>aguardando {rotulos.documento}</strong>.{" "}
@@ -934,12 +977,16 @@ function RegistrarPagamento() {
           <Botao
             variante={vaiAgendar ? "ghost" : "primary"}
             onClick={salvar}
-            disabled={fase.nome === "salvando" || cartaoRecusado}
+            disabled={fase.nome === "salvando" || indefinido}
           >
             {fase.nome === "salvando"
               ? "Salvando…"
-              : cartaoRecusado
-                ? "Cartão ainda não tem fluxo neste app"
+              : indefinido
+                ? !meio && !data
+                  ? "Preencha como foi pago e a data para continuar"
+                  : !meio
+                    ? "Escolha como foi pago para continuar"
+                    : "Informe a data para continuar"
                 : vaiAgendar
                   ? "Agendar — não entra no custo"
                   : documentoDeOrigem

@@ -36,71 +36,78 @@ registro que hoje nasce como PIX por default.
 
 1. [x] **Proposta nível 1 em `design/mocks/CONTAI-022.md` (+ `.html`, 11
        telas) aprovada pelo Mateus.** Mock aprovado em 2026-08-24.
-2. [ ] Compra no cartão nasce `compromisso` com `origem='cartao'`, nunca
+2. [x] Compra no cartão nasce `compromisso` com `origem='cartao'`, nunca
        `pagamento` — mesmo com data de compra passada. "Data ≤ hoje →
        pagamento" não vale para cartão
        (`docs/pareceres/2026-08-18-compromisso-versus-pagamento.md` §B).
-3. [ ] **`data_prevista` (vencimento da fatura) é obrigatória na criação com
+3. [x] **`data_prevista` (vencimento da fatura) é obrigatória na criação com
        `origem='cartao'`** — sem ela, a compra nunca vence e nunca bloqueia
        relatório anual (`ehVencidoSemResposta` retorna `false` para
        `dataPrevista === null` por design do CONTAI-019; achado do
        `cto-obra`, guarda em app + teste unitário nomeado, não CHECK de
        banco — `data_prevista` nula continua legítima no saldo de quitação
        parcial, §D do mesmo parecer).
-4. [ ] `data_compra` obrigatória quando `origem='cartao'` (CHECK no banco —
+4. [x] `data_compra` obrigatória quando `origem='cartao'` (CHECK no banco —
        hoje não existe linha com essa origem, valor é inalcançável) e nunca
        decide ano-calendário — só `data_pagamento` decide.
-5. [ ] Favorecido de compra no cartão é sempre o lojista/prestador — a tela
+5. [x] Favorecido de compra no cartão é sempre o lojista/prestador — a tela
        nunca oferece a administradora do cartão ou o banco como opção
        (`docs/pareceres/2026-08-18-compromisso-versus-pagamento.md`, adendo
        18/08 §1).
-6. [ ] Confirmar fatura paga **integralmente** gera N pagamentos (um por
+6. [x] Confirmar fatura paga **integralmente** gera N pagamentos (um por
        compra), cada um com `data_pagamento` = data do pagamento da fatura,
        favorecido/valor da respectiva compra. E2E: fatura com 3 compras paga
        em 10/01 → 3 pagamentos com `data_pagamento = 10/01`.
-7. [ ] Fatura cruzando o ano-calendário: custo vai para o ano do PAGAMENTO da
+7. [x] Fatura cruzando o ano-calendário: custo vai para o ano do PAGAMENTO da
        fatura, nunca da compra. E2E: compra em 20/12/2026, fatura paga em
        10/01/2027 → soma R$ 0,00 em 2026, entra na discriminação de 2027.
-8. [ ] Encargos do cartão (juros de rotativo, IOF, anuidade, multa) nunca
+8. [x] Encargos do cartão (juros de rotativo, IOF, anuidade, multa) nunca
        compõem custo de aquisição de compra nenhuma.
-9. [ ] **Fatura paga parcialmente**: o pagamento parcial em si é **sempre
+9. [x] **Fatura paga parcialmente**: o pagamento parcial em si é **sempre
        gravado** (fato consumado, nunca recusado) em `fatura_desembolso` —
        mas nenhuma compra é marcada paga automaticamente por ele. Fica
        pendente de alocação manual explícita (tela própria, mock s7) — o
        sistema nunca escolhe sozinho quais compras aquele valor cobriu, nunca
        cria pagamento por estimativa/proporção.
-10. [ ] Comprovante da fatura é **um único anexo**, compartilhado pelas N
+10. [x] Comprovante da fatura é **um único anexo**, compartilhado pelas N
         compras que ela cobre (`comprovante_path` copiado para os N
         pagamentos gerados) — não um anexo por compra
         (`docs/pareceres/2026-08-18-compromisso-versus-pagamento.md`, ADENDO
         2 §5 linha Cartão + §7).
-11. [ ] Compra parcelada é **recusada** na entrada, bloqueio síncrono, com
-        mensagem que nomeia o caminho certo ("lance cada parcela separada, o
-        valor da parcela, na fatura em que ela vence") — não é revisão
-        humana pós-registro, o registro não se completa
-        (`docs/pareceres/2026-08-18-compromisso-versus-pagamento.md` §B).
-        Texto final da recusa carimbado pelo `contador` no Gate 2 (a regra
-        está fixada, a frase é provisória do mock).
-12. [ ] A recusa total de `meio=cartao` do `CONTAI-019` (critérios 25-27,
-        `RECUSA_CARTAO`) sai de cena, substituída por este fluxo inteiro.
-13. [ ] Toda discriminação anual com custo originado de cartão exibe a
+11. [x] Compra parcelada é **recusada** na entrada, bloqueio síncrono, com o
+        texto literal definitivo do `contador` (ADENDO 5 §I.1 do parecer
+        2026-08-18): *"Compra parcelada não é aceita aqui. Cada parcela cai
+        numa fatura diferente, e o ano do custo é o da fatura em que ela é
+        paga — não o da compra. Lance cada parcela como uma compra separada,
+        pelo valor dela, na fatura em que ela vence. Não lance o valor total
+        numa fatura só: isso muda o ano de custo das parcelas seguintes."*
+        `parc` é campo explícito respondido pelo Mateus (à vista/parcelado,
+        sem default) — nunca detecção automática por heurística de valor.
+12. [x] A recusa total de `meio=cartao` do `CONTAI-019` (critérios 25-27,
+        `RECUSA_CARTAO`/`RECUSA_CARTAO_ONDE_REGISTRAR`, hoje em
+        `lib/fiscal/compromisso.ts:93-105`) sai de cena por completo —
+        confirmado pelo contador, zero casos remanescentes. Os dois motivos de
+        recusa em `meio=cartao` que sobrevivem não são "cartão": campo
+        obrigatório vazio (recusa de formulário comum) e `parc=parcelado`
+        (critério 11, mensagem própria — nunca reaproveitar o texto do 019).
+13. [x] Toda discriminação anual com custo originado de cartão exibe a
         ressalva da Q4 — **aviso incondicional, nunca bloqueio**: a tese de
         atribuir custo ao ano do pagamento da fatura exige confirmação de
         contador humano (CRC) antes da primeira declaração que a use, mas não
         impede o app de gerar ou mostrar o relatório
         (`docs/pareceres/2026-08-18-compromisso-versus-pagamento.md` §B).
-14. [ ] **Teste nomeado**: um `compromisso` com `origem='cartao'` vencido
+14. [x] **Teste nomeado**: um `compromisso` com `origem='cartao'` vencido
         bloqueia as três saídas anuais (`podeGerarRelatorioAnual`) igual a
         qualquer outro meio — não existe hoje (a suíte só cobre boleto/PIX
         contra bloqueio; os únicos testes com `cartao` são os de recusa que
         este ticket substitui). Trava o refactor futuro que faria "cartão não
         bloquear porque a fatura ainda não fechou".
-15. [ ] Migration `0013_fatura.sql` — tabelas `fatura`, `fatura_compromisso`
+15. [x] Migration `0013_fatura.sql` — tabelas `fatura`, `fatura_compromisso`
         (PK em `compromisso_id`, uma compra pertence a no máximo uma fatura),
         `fatura_desembolso`. REVOKE antes de GRANT, RLS por dono derivado da
         linha-pai, sem DELETE (acervo append-only). `e2e/privilegios.spec.ts`
         atualizado no mesmo diff.
-16. [ ] **Guarda-chuva de default fiscal** (cobre todos os campos novos —
+16. [x] **Guarda-chuva de default fiscal** (cobre todos os campos novos —
         `parc`, `fValor`, `fCompra`, `fVenc`, `fFaturaData`, `fParcData`,
         `fParcValor`, seleção de compras na alocação): nenhum nasce
         preenchido, nenhum grava com valor implícito/herdado de outro campo,
@@ -161,21 +168,84 @@ Alocação de pagamento parcial entre compras — sempre revisão humana.
    Guarda: critério 10, `comprovante_path` copiado para os N pagamentos.
 
 ## Viabilidade (CTO)
-- **Modelo de dados**: migration nova, 3 tabelas — `fatura` (agrupa compras
-  de um ciclo, guarda o `comprovante_path` do pagamento), `fatura_compromisso`
-  (vínculo, PK em `compromisso_id`), `fatura_desembolso` (cada pagamento
-  feito à fatura, integral ou parcial — fato consumado, nunca custo, nunca
-  `pagamento`). A migration `0007` **já reservou** `origem='cartao'` no enum
-  de `compromisso` e a coluna `data_compra`, com comentário citando este
-  ticket — confirmado que compra-no-cartão nasce na mesma tabela
-  `compromisso` já em produção, não em tabela paralela (condição do gate
-  fiscal para a trava de vencido continuar valendo).
+- **Modelo de dados** (revisado após consulta do `cto-obra`, 2026-09-19):
+  migration nova, 3 tabelas. `fatura` com chave natural
+  `unique(obra_id, data_vencimento)` — **sem** `favorecido_id`, **sem**
+  `comprovante_path` (isso mudou de lugar, ver abaixo). `fatura_compromisso`
+  (vínculo N:1, sem `user_id` próprio — dono derivado, mesmo molde de
+  `compromisso_pagamento`). `fatura_desembolso` — cada pagamento FEITO À
+  FATURA (integral ou parcial), com **seu próprio** `comprovante_path`: com
+  N desembolsos parciais cada um tem o comprovante dele; uma coluna única em
+  `fatura` seria a D37 (`terreno_desembolso`) de novo.
+- **Fatura nasce automática, sem tela de cadastro** — decisão do `cto-obra`,
+  resolvendo a Pergunta Aberta 1: tela de cadastro criaria pré-requisito que
+  o Mateus teria de lembrar de cumprir antes de registrar a compra (mesmo
+  atrito que gerou a D26 original). Agrupamento é por **data exata** de
+  vencimento, nunca por "mesmo ciclo"/janela de dias — janela seria o
+  sistema escolhendo a fatura por heurística, default fiscal disfarçado
+  (proibido pelo critério 16). Duas datas diferentes = duas faturas; o
+  conserto de um vencimento digitado errado é "Mudou a data", não uma janela
+  mágica. **Sem coluna `fatura_id` em `compromisso`** — o vínculo mora só em
+  `fatura_compromisso`, mesmo argumento da 0007 para `pagamento` não ganhar
+  coluna de previsão.
+- **Uma função Postgres transacional por ato**, mesma família de
+  `terreno_desembolso_gravar` (0010)/`corrigir_documento` (0009) —
+  `security invoker`, `set search_path = public, pg_temp`, revoke de
+  `public`/`anon` + grant só a `authenticated`:
+  - `compra_cartao_gravar(...)`: insert `compromisso` (`origem='cartao'`,
+    `data_prevista = fVenc`, `data_compra = fCompra`) + upsert `fatura`
+    (`on conflict (obra_id, data_vencimento) do nothing`) + insert
+    `fatura_compromisso`, na mesma transação.
+  - Confirmar fatura **integral**: insert `fatura_desembolso` (valor = Σ
+    compras abertas da fatura, comprovante) + N `criarPagamento` + N
+    `compromisso_pagamento` + N `update compromisso set situacao='quitado'`
+    — mesmo modelo de dados do parcial (integral = desembolso que já nasce
+    com 100% alocado), matando o pre-mortem 2 pela estrutura, não por
+    disciplina de tela.
+  - Confirmar fatura **parcial**: insert `fatura_desembolso` só (valor
+    sempre gravado, fato consumado — critério 9), sem alocação automática.
+  - Alocação manual: N `criarPagamento` + N `compromisso_pagamento` + N
+    `situacao='quitado'` **apenas para as compras marcadas** — alocação é
+    sempre binária (compra inteira ou nada; não existe "meio alocada" — isso
+    seria pagamento por proporção, proibido pelo critério 9).
+- **"Mudou a data" em compromisso `origem='cartao'` re-aloca a fatura**: a
+  mesma função de mudança de data faz upsert da fatura do novo vencimento e
+  `update fatura_compromisso set fatura_id`. **Bloqueada** (recusa síncrona,
+  mensagem própria) se a compra já foi quitada (tem pagamento gerado) —
+  mover compra paga reescreveria fato consumado.
+- **"Registrar o pagamento" do ciclo CONTAI-019, em compromisso
+  `origem='cartao'`, redireciona para o detalhe da fatura — nunca para
+  `/compromisso/[id]/confirmar`.** Sem essa guarda, a compra seria quitada
+  com a data da COMPRA (exatamente o erro que este ticket existe para
+  consertar) e o teto de alocação contaria um pagamento que não saiu da
+  fatura. `app/compromisso/[id]/page.tsx` precisa da guarda.
+- **s7v (alocação vazia) é alcançável**, confirmado — condição:
+  compromissos `aberto` da fatura = 0. Caminho real mais comum: rotativo em
+  2+ parcelas onde a última já cobre o que sobrava. Fórmula (derivada, sem
+  coluna nova): `teto = Σ fatura_desembolso.valor − Σ pago já alocado`.
+  s3 só oferece "Alocar" quando há elegíveis; s7 aberta com zero elegíveis
+  mostra s7v sempre, **nunca** decidido por `teto = 0` (isso esconderia
+  compras em aberto que ainda bloqueiam o relatório anual).
+- **Risco residual aceito, não modelado**: dois cartões com o mesmo
+  vencimento colapsam na mesma fatura (fiscalmente irrelevante — custo é
+  por compra, a fatura não tem favorecido; único efeito é um comprovante
+  compartilhado por compras de dois cartões). "Quantos cartões o Mateus usa"
+  segue sem resposta no backlog — pergunta de uma linha para ele, não
+  bloqueante.
 - **Arquivos prováveis**: `supabase/migrations/0013_fatura.sql` ·
-  `lib/fiscal/compromisso.ts` (branch cartão + recusa parcelada) ·
-  `lib/fiscal/fatura.ts` + `.test.ts` (novos) ·
-  `lib/fiscal/compromisso.test.ts` (reescreve 25-27) · `lib/database.types.ts`
-  · `lib/dados/` (ato N-pagamentos atômico, mesma família da migration 0011)
-  · telas em `app/` conforme mock · `e2e/privilegios.spec.ts` + spec E2E novo.
+  `lib/fiscal/compromisso.ts` (remove `RECUSA_CARTAO`/branch cartão de
+  `decidirRegistro`) · `lib/fiscal/fatura.ts` + `.test.ts` (novos) ·
+  `lib/fiscal/compromisso.test.ts` (remove critérios 25-27 de cartão) ·
+  `lib/database.types.ts` · `lib/data.ts` (RPCs) ·
+  `app/adicionar/compra-cartao/page.tsx` (novo, s1/s2) ·
+  `app/fatura/[id]/page.tsx` (novo, s3) ·
+  `app/fatura/[id]/confirmar/page.tsx` (novo, s4/s5) ·
+  `app/fatura/[id]/parcial/page.tsx` (novo, s6) ·
+  `app/fatura/[id]/alocar/page.tsx` (novo, s7/s7v/s8) ·
+  `app/compromisso/[id]/page.tsx` (guarda de redirecionamento) ·
+  `app/adicionar/pagamento/page.tsx` (Cartão redireciona, não recusa) ·
+  `e2e/privilegios.spec.ts` + spec E2E novo · `e2e/compromisso.spec.ts`
+  (remove teste de recusa de cartão, CONTAI-032).
 - **Complexidade: L** — o maior ticket da fila ativa.
   **Fatiamento sugerido para o Gate 1** (decisão de execução, não de
   escopo): (1) compra nasce compromisso + fim da recusa total + critérios
@@ -183,6 +253,10 @@ Alocação de pagamento parcial entre compras — sempre revisão humana.
   13, 15; (3) rotativo + alocação manual, critério 9.
 - **Dívidas criadas**: `comprovante_path` copiado é denormalização
   deliberada (path nunca muda, storage append-only) — registrar, não é bug.
+  Gap do mock encontrado pelo `cto-obra`: s7 aberta independente de um
+  desembolso recém-criado (não via s6→s7 direto) precisa de um seletor de
+  "qual desembolso estou alocando" que o mock não desenhou — ajuste mínimo,
+  sem reabrir Gate de Mock (campo sem default, mesmo padrão dos outros).
 
 ## Dependências
 - **Sequenciado atrás do `CONTAI-032`** — enquanto `meio="pix"` continuar
@@ -192,19 +266,64 @@ Alocação de pagamento parcial entre compras — sempre revisão humana.
 - Bloqueia: nada identificado.
 
 ## Perguntas Abertas
-- **Fatura nasce automática no primeiro `fVenc` novo, ou existe cadastro
-  prévio de fatura?** (designer, Passo 4) — decisão de fluxo para o
-  `cto-obra`/`po` antes do Gate 1, não bloqueia a aprovação do mock.
-- Valor pago maior que o previsto da fatura (adiantamento) não foi desenhado
-  — confirmar com o `po` se é caso real do Mateus ou se fica fora de escopo.
-- Quantos cartões o Mateus usa simultaneamente, com vencimentos diferentes?
+Resolvida em 2026-09-19: fatura nasce automática, sem cadastro prévio (ver
+Viabilidade, decisão do `cto-obra`). Residual, não bloqueante: quantos
+cartões o Mateus usa simultaneamente, com vencimentos diferentes — pergunta
+de uma linha para ele, sem efeito no Gate 1 (dois cartões com o mesmo
+vencimento colapsam numa fatura só, risco aceito conscientemente).
+
+## Decisão do `po` — valor pago maior que o previsto da fatura (2026-09-19)
+
+**Fora de escopo deste ticket — por ausência de dor conhecida, não por
+confirmação do Mateus.** Nenhum relato dele (`docs/backlog/`) descreve pagar
+fatura de cartão a mais do previsto; a hipótese (adiantar parte da próxima
+fatura, ou pagar a mais por engano) é do lead-engineer, não do Mateus. Sem
+relato, não vira requisito — vira nota de observação.
+
+**Não precisa de tratamento novo porque o mecanismo já existente cobre o caso
+sem ajuste**: `fParcValor` é sempre aceito e gravado (fato consumado, critério
+9); em s7 cada checkbox trava a seleção no teto do **valor pago**, não do
+previsto — se o valor pago excede a soma de todas as compras da fatura, o
+Mateus simplesmente seleciona todas (nada estoura o teto) e sobra um resíduo
+não alocado. Esse resíduo cai no mesmo estado genérico que s8 já define para
+"valor não alocado" ("Não têm destino fiscal afirmado por esta tela — revisão
+humana, sem chute do app") — texto escolhido de propósito para não afirmar se
+é encargo, erro ou adiantamento de compra futura. Consistente com a barreira
+do próprio parecer fiscal (`docs/pareceres/2026-08-18-compromisso-versus-pagamento.md`,
+linha ~712): a tela nunca ancora texto na comparação com o previsto.
+
+**O que fica de fora, nomeadamente**: não existe (e este ticket não cria)
+mecanismo de "crédito" que aplique esse resíduo a compras de uma fatura
+futura — se isso vier a ser pedido depois de um relato real, é ticket novo,
+não um critério deste.
+
+**Nenhum critério de aceite novo neste ticket.** Nenhuma mudança de schema,
+tela ou texto é necessária: critério 9 e o desenho de s7/s8 já produzem o
+comportamento correto para este caso sem tratamento especial.
   Não bloqueia a história (o modelo por fatura funciona para 1 ou N), mas
   ajuda o `cto-obra` a confirmar que a data de vencimento manual basta para
   agrupar corretamente.
 
 ## Cenário e checagem final
-**Gestão** (em casa, sentado — conciliação de fatura). Teste do Canteiro não
-se aplica: nenhuma das 3 telas é de captura no momento do fato.
+**Gestão** (em casa, sentado — conciliação de fatura), exceto o registro da
+compra (`/adicionar/compra-cartao`), que é captura — confirmado na
+implementação: uma pergunta (parcelado) mais os campos da compra, sem o
+repeater nem a densidade das telas de fatura.
 
-**Veredito: APROVADO**, com as 3 Perguntas Abertas acima para resolver antes
-ou durante o Gate 1 (nenhuma delas impede a aprovação do mock).
+**Veredito: APROVADO. Implementado em 2026-09-19** (fatias 1+2+3 do
+fatiamento sugerido, numa sessão só — a dependência de efeito do CONTAI-032
+já estava resolvida). 16 critérios verificados: 617 testes unitários,
+suíte E2E completa (`e2e/cartao.spec.ts`, 10 casos novos + suíte inteira sem
+regressão) e teste manual no browser (compra → fatura → confirmação integral
+→ home refletindo o pagamento gerado). Migration `0013_fatura.sql` com a
+função transacional por ato (`compra_cartao_gravar`,
+`compra_cartao_mudar_data`, `fatura_desembolso_gravar`, `fatura_alocar`).
+
+**Recorte de escopo, disclosed**: a tela de alocação manual
+(`/fatura/[id]/alocar`) só funciona chegando com `?desembolso=` na URL (o
+caminho normal, direto de "Registrar pagamento parcial"). Abri-la
+independente, sem esse parâmetro — cto-obra previu esse caso e pediu um
+seletor de "qual desembolso estou alocando" que o mock nunca desenhou —
+hoje só mostra uma mensagem e devolve para a fatura. Não é crítico (o
+caminho principal do rotativo nunca passa por aí), mas é dívida nomeada para
+o Gate 2 se o Mateus achar o caso real.

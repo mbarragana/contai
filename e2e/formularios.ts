@@ -88,18 +88,32 @@ export interface PagamentoBasico {
   valor: string;
   /** ISO — é DELA que sai o ano-calendário do custo (regime de caixa). */
   dataPagamento: string;
+  /**
+   * CONTAI-032: SEM DEFAULT, cada teste escolhe. "PIX" | "Boleto" | "Cartão",
+   * como o texto aparece na tela.
+   */
+  meio: "PIX" | "Boleto" | "Cartão";
   comprovante?: Anexo;
 }
 
-/** `/adicionar/pagamento` até antes do "Salvar". */
+/**
+ * `/adicionar/pagamento` até antes do "Salvar".
+ *
+ * ⚠️ Meio antes de Data (CONTAI-032): o rótulo do campo de data é "Data" até
+ * Meio e Data existirem os dois — locar por "Data do pagamento" antes disso
+ * não encontra nada. Selecionar Meio primeiro não muda o rótulo (ele só sai
+ * do neutro depois que Data TAMBÉM for preenchida), então o `fill` abaixo usa
+ * o rótulo neutro de propósito.
+ */
 export async function preencherPagamentoBasico(
   page: Page,
   dados: PagamentoBasico,
 ) {
   await page.getByLabel("Favorecido", { exact: true }).fill(dados.favorecido);
   await page.getByLabel("CNPJ / CPF do favorecido").fill(dados.documento);
+  await escolher(page, "Como foi pago", dados.meio);
   await page.getByLabel("Valor").fill(dados.valor);
-  await page.getByLabel("Data do pagamento").fill(dados.dataPagamento);
+  await page.getByLabel("Data", { exact: true }).fill(dados.dataPagamento);
   if (dados.comprovante) {
     await page.getByLabel("Comprovante").setInputFiles(dados.comprovante);
   }

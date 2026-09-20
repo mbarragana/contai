@@ -372,6 +372,9 @@ test.describe("obra sem CNO", () => {
     await page.goto("/adicionar/pagamento");
     await page.getByLabel("Favorecido", { exact: true }).fill("AJE Construções");
     await page.getByLabel("CNPJ / CPF do favorecido").fill(CNPJ_AJE);
+    // CONTAI-032: Meio e Data SEM DEFAULT — o teste escolhe.
+    await page.getByRole("group", { name: "Como foi pago" }).getByText("PIX").click();
+    await page.getByLabel("Data", { exact: true }).fill(hojeIso());
     await page.getByLabel("Valor").fill("15.000,00");
     await page.getByLabel("Comprovante").setInputFiles(png("pix-sem-cno.png"));
     await page.getByRole("button", { name: /Salvar — aguardando NF/ }).click();

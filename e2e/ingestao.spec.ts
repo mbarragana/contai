@@ -825,6 +825,9 @@ test.describe("registrar pagamento avulso", () => {
 
     await page.getByLabel("Favorecido", { exact: true }).fill("AJE Construções");
     await page.getByLabel("CNPJ / CPF do favorecido").fill(CNPJ_AJE);
+    // CONTAI-032: Meio e Data SEM DEFAULT — o teste escolhe.
+    await escolher(page, "Como foi pago", "PIX");
+    await page.getByLabel("Data", { exact: true }).fill(hojeIso());
     await page.getByLabel("Valor").fill("15.000,00");
 
     // A consequência é dita ANTES do toque, com o texto literal do ADENDO 2 §5.
@@ -868,6 +871,9 @@ test.describe("registrar pagamento avulso", () => {
 
     await page.getByLabel("Favorecido", { exact: true }).fill("José da Silva");
     await page.getByLabel("CNPJ / CPF do favorecido").fill(CPF_JOSE);
+    // CONTAI-032: Meio e Data SEM DEFAULT — o teste escolhe.
+    await escolher(page, "Como foi pago", "PIX");
+    await page.getByLabel("Data", { exact: true }).fill(hojeIso());
     await page.getByLabel("Valor").fill("2.800,00");
 
     await expect(
@@ -898,6 +904,9 @@ test.describe("registrar pagamento avulso", () => {
 
     await page.getByLabel("Favorecido", { exact: true }).fill("AJE Construções");
     await page.getByLabel("CNPJ / CPF do favorecido").fill(CNPJ_AJE);
+    // CONTAI-032: Meio e Data SEM DEFAULT — o teste escolhe.
+    await escolher(page, "Como foi pago", "PIX");
+    await page.getByLabel("Data", { exact: true }).fill(hojeIso());
     await page.getByLabel("Valor").fill("15.000,00");
     await page.getByLabel("Comprovante").setInputFiles(arquivo);
 
@@ -962,6 +971,9 @@ test.describe("registrar pagamento avulso", () => {
     // Sem cedilha e sem acento: é o typo de quem digita com uma mão.
     await page.getByLabel("Favorecido", { exact: true }).fill("AJE Construcoes");
     await page.getByLabel("CNPJ / CPF do favorecido").fill(CNPJ_AJE);
+    // CONTAI-032: Meio e Data SEM DEFAULT — o teste escolhe.
+    await escolher(page, "Como foi pago", "PIX");
+    await page.getByLabel("Data", { exact: true }).fill(hojeIso());
     await page.getByLabel("Valor").fill("5.000,00");
     await page
       .getByLabel("Comprovante")

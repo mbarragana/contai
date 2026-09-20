@@ -249,6 +249,13 @@ const SQL_LIMPAR = [
   // CLAUDE.md, e não um privilégio que a produção tenha.
   "delete from terreno_desembolso_anexo;",
   "delete from terreno_desembolso;",
+  // CONTAI-022 — as três tabelas da fatura caem ANTES de `compromisso`
+  // (`fatura_compromisso` referencia `compromisso`). `on delete cascade` já
+  // daria conta, mas apagar explícito deixa o erro no lugar certo se uma FK
+  // mudar — mesma convenção do CONTAI-019 logo abaixo.
+  "delete from fatura_desembolso;",
+  "delete from fatura_compromisso;",
+  "delete from fatura;",
   // CONTAI-019 — as cinco tabelas novas caem ANTES das que elas referenciam.
   // `on delete cascade` já daria conta, mas apagar explícito deixa o erro no
   // lugar certo se uma FK mudar.
@@ -549,6 +556,58 @@ export async function compromissos(db: Db) {
     .select("*")
     .order("created_at", { ascending: true });
   conferir("ler compromisso", error);
+  return data!;
+}
+
+// ── CONTAI-022 · cartão de crédito ────────────────────────────────────────
+
+/** Semeia uma compra no cartão pela MESMA RPC que a tela usa. */
+export async function criarCompraCartao(
+  db: Db,
+  entrada: {
+    favorecidoId: string;
+    valor: number;
+    dataCompra: string;
+    dataVencimento: string;
+    obraId?: string;
+  },
+): Promise<{ compromissoId: string; faturaId: string }> {
+  const { data, error } = await db.rpc("compra_cartao_gravar", {
+    p_obra_id: entrada.obraId ?? OBRA_ID_SEED,
+    p_favorecido_id: entrada.favorecidoId,
+    p_valor: entrada.valor,
+    p_data_compra: entrada.dataCompra,
+    p_data_vencimento: entrada.dataVencimento,
+  });
+  conferir("criar compra no cartão", error);
+  const resultado = data as { compromisso_id: string; fatura_id: string };
+  return { compromissoId: resultado.compromisso_id, faturaId: resultado.fatura_id };
+}
+
+export async function faturas(db: Db) {
+  const { data, error } = await db
+    .from("fatura")
+    .select("*")
+    .order("data_vencimento", { ascending: true });
+  conferir("ler fatura", error);
+  return data!;
+}
+
+export async function faturaCompromissos(db: Db) {
+  const { data, error } = await db
+    .from("fatura_compromisso")
+    .select("*")
+    .order("compromisso_id", { ascending: true });
+  conferir("ler fatura_compromisso", error);
+  return data!;
+}
+
+export async function faturaDesembolsos(db: Db) {
+  const { data, error } = await db
+    .from("fatura_desembolso")
+    .select("*")
+    .order("created_at", { ascending: true });
+  conferir("ler fatura_desembolso", error);
   return data!;
 }
 

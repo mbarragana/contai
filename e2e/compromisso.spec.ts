@@ -87,6 +87,12 @@ test.describe("registrar com data futura", () => {
   test("data no futuro dispara as TRÊS mudanças de uma vez", async ({ page }) => {
     await irParaFormulario(page);
 
+    // CONTAI-032: Meio e Data nascem vazios/nulos — sem os dois, o destino é
+    // "indefinido". Preenche os dois com HOJE para alcançar o "antes" (é um
+    // pagamento) que este teste compara contra a data futura.
+    await page.getByRole("group", { name: "Como foi pago" }).getByText("PIX").click();
+    await page.getByLabel("Data", { exact: true }).fill(hoje());
+
     // Antes: é um pagamento. O comprovante é pedido e o botão é o de peso.
     await expect(page.getByLabel("Comprovante")).toBeVisible();
     await expect(page.getByLabel("Data do pagamento")).toBeVisible();
@@ -129,7 +135,8 @@ test.describe("registrar com data futura", () => {
 
     await page.getByLabel("Favorecido", { exact: true }).fill("WK Construções LTDA");
     await page.getByLabel("CNPJ / CPF do favorecido").fill(CNPJ_WK);
-    await page.getByLabel("Data do pagamento").fill(prevista);
+    await page.getByRole("group", { name: "Como foi pago" }).getByText("PIX").click();
+    await page.getByLabel("Data", { exact: true }).fill(prevista);
     await page.getByLabel("Valor previsto").fill("10.000,00");
 
     await page.getByRole("button", { name: /^Agendar/ }).click();
@@ -153,29 +160,26 @@ test.describe("registrar com data futura", () => {
    * mesmo assim não houve desembolso: o que decide o branch é "a fatura já foi
    * paga?", nunca `data ≤ hoje`.
    */
-  test("cartão é recusado na entrada, com a mensagem e o caminho", async ({
+  // CONTAI-022: "Cartão" não é mais recusado nesta tela — leva para o fluxo
+  // próprio da compra no cartão (compra → fatura → pagamento). A recusa que
+  // sobrevive é a de campo obrigatório vazio, comum a qualquer meio, e a de
+  // compra parcelada — nenhuma das duas é "cartão ainda não tem fluxo".
+  test("Cartão leva para o fluxo próprio da compra, sem gravar nada aqui", async ({
     page,
     db,
   }) => {
     await irParaFormulario(page);
 
-    // Data de ONTEM, de propósito: pela regra da data isto seria pagamento.
-    await page.getByLabel("Data do pagamento").fill(maisDias(-1));
+    // Data de ONTEM, de propósito: mostra que a tela não tenta decidir nada
+    // sobre a data antes de redirecionar.
+    await page.getByLabel("Data", { exact: true }).fill(maisDias(-1));
     await page.getByRole("group", { name: "Como foi pago" }).getByText("Cartão").click();
 
     await expect(
-      page.getByText(
-        /compra no cartão ainda não tem fluxo neste app — o custo é do ano em que a fatura for paga/,
-      ),
+      page.getByRole("heading", { name: "Nova compra no cartão" }),
     ).toBeVisible();
-    await expect(
-      page.getByText(/Registre depois que a fatura for paga/),
-    ).toBeVisible();
+    await expect(page).toHaveURL(/\/adicionar\/compra-cartao$/);
 
-    // O botão não grava nada.
-    await expect(
-      page.getByRole("button", { name: /Cartão ainda não tem fluxo/ }),
-    ).toBeDisabled();
     expect(await pagamentos(db)).toHaveLength(0);
     expect(await compromissos(db)).toHaveLength(0);
   });

@@ -20,7 +20,6 @@ import {
   QUITACAO_CONSEQUENCIA_DO_NAO,
   QUITACAO_NAO,
   QUITACAO_SIM,
-  RECUSA_CARTAO,
   resumoDoAgendamento,
   saldoDoCompromisso,
 } from "@/lib/fiscal/compromisso";
@@ -135,7 +134,7 @@ describe("o modelo: compromisso não tem data de pagamento (critério 1)", () =>
 
 // ══ O branch do registro (critérios 4, 5, 6, 25, 27) ════════════════════
 
-describe("decidirRegistro — a DATA é o controle, menos no cartão", () => {
+describe("decidirRegistro — a DATA é o controle", () => {
   it("data no passado grava pagamento", () => {
     expect(decidirRegistro({ meio: "pix", data: "2026-08-05" }, HOJE)).toEqual({
       tipo: "pagamento",
@@ -157,28 +156,11 @@ describe("decidirRegistro — a DATA é o controle, menos no cartão", () => {
     });
   });
 
-  it("⚠️ EXCEÇÃO NOMEADA: compra de ONTEM no cartão NÃO vira pagamento (crit. 27)", () => {
-    // Adendo §B(c): "a data da compra é passada e mesmo assim não há
-    // pagamento. O que decide o branch é 'a fatura que contém esta compra já
-    // foi paga?' — nunca a data da compra." No instante da compra não houve
-    // desembolso do declarante: falha a condição 1 do parecer de 17/08 §1.
-    const ontem = "2026-08-17";
-    const destino = decidirRegistro({ meio: "cartao", data: ontem }, HOJE);
-    expect(
-      destino.tipo,
-      "cartão decidido por `data <= hoje` jogaria o custo no mês (e no ano) errado em silêncio",
-    ).toBe("recusado");
-  });
-
-  it("cartão é recusado em qualquer data, e a recusa diz por quê (critério 25)", () => {
-    for (const data of ["2020-01-01", HOJE, "2027-12-31"]) {
-      const destino = decidirRegistro({ meio: "cartao", data }, HOJE);
-      expect(destino).toEqual({ tipo: "recusado", motivo: RECUSA_CARTAO });
-    }
-    expect(RECUSA_CARTAO).toBe(
-      "compra no cartão ainda não tem fluxo neste app — o custo é do ano em que a fatura for paga",
-    );
-  });
+  // ⚠️ CONTAI-022: `decidirRegistro` não aceita mais `meio: "cartao"` — nem
+  // em tipo, nem em runtime. A compra no cartão nasce compromisso pelo
+  // formulário PRÓPRIO da fatura (`lib/fiscal/fatura.ts`), nunca por esta
+  // função. Cobertura do gate do parcelamento e do vencimento da fatura
+  // mora em `fatura.test.ts`.
 });
 
 // ══ Vencido sem resposta e o bloqueio anual (20, 21, 21b, 21c) ══════════
@@ -197,6 +179,24 @@ describe("vencido sem resposta", () => {
     const c = comp({ id: "c1", dataPrevista: noventaDiasAtras });
     expect(ehVencidoSemResposta(c, HOJE)).toBe(true);
     expect(compromissosQueBloqueiam([c], HOJE)).toHaveLength(1);
+  });
+
+  it("CONTAI-022, critério 14: compromisso origem='cartao' vencido bloqueia as três saídas igual a boleto/pix", () => {
+    // A suíte só cobria boleto/pix contra o bloqueio; os únicos testes com
+    // `cartao` eram os de recusa que o CONTAI-022 substituiu. Sem este teste,
+    // um refactor futuro poderia ler "cartão não bloqueia porque a fatura
+    // ainda não fechou" e passar batido — a fatura é sobre COMO o pagamento
+    // nasce, nunca sobre SE o vencido sem resposta trava o relatório.
+    const c = comp({
+      id: "c1",
+      origem: "cartao",
+      dataPrevista: "2026-05-20", // 90 dias atrás de HOJE — vencido de sobra
+      dataCompra: "2026-04-10",
+    });
+    expect(ehVencidoSemResposta(c, HOJE)).toBe(true);
+    expect(
+      podeGerarRelatorioAnual([c], HOJE, 2026, SEM_DESEMBOLSO),
+    ).toEqual({ ok: false, faltamResponder: [c] });
   });
 
   it("data prevista no futuro não é vencido e não bloqueia (critério 21b)", () => {
@@ -557,7 +557,6 @@ describe("textos da sugestão — literais do ADENDO 3 §G.1, critério 38", () 
 
   it("o texto nunca diz 'previsto/efetivado' nem 'regime de caixa' (critério 7)", () => {
     const tudo = [
-      RECUSA_CARTAO,
       QUITACAO_SIM,
       QUITACAO_NAO,
       QUITACAO_CONSEQUENCIA_DO_NAO,

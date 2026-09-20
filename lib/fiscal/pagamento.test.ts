@@ -5,7 +5,6 @@ import {
   CORPO_DIFERENCA_SEM_EXPLICACAO,
   DATA_QUE_VALE_PARA_O_CUSTO,
   ehDataValida,
-  MEIO_PAGAMENTO_AVULSO,
   rotulosPagoSemComprovante,
   rotulosPagoSemNota,
   STATUS_PAGAMENTO_AVULSO,
@@ -81,8 +80,7 @@ describe("rótulos do pagamento sem documento hábil", () => {
 });
 
 describe("pagamento avulso", () => {
-  it("nasce como PIX aguardando NF", () => {
-    expect(MEIO_PAGAMENTO_AVULSO).toBe("pix");
+  it("nasce aguardando NF", () => {
     expect(STATUS_PAGAMENTO_AVULSO).toBe("aguardando_nf");
   });
 

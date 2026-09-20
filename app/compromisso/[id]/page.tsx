@@ -17,6 +17,7 @@ import {
   AppBar,
   BarraAdicionar,
   Banner,
+  Botao,
   BotaoLink,
   Card,
   Carregando,
@@ -28,6 +29,7 @@ import {
   Rodape,
 } from "@/app/_components/ui";
 import {
+  buscarFaturaDoCompromisso,
   carregarCompromisso,
   carregarHistoricoDeData,
   carregarPainel,
@@ -53,6 +55,11 @@ type Estado =
       pagamentos: Pagamento[];
       historico: CompromissoDataHistoricoRow[];
       obraNome: string;
+      /**
+       * CONTAI-022 — só para `origem === "cartao"`. `null` enquanto a busca
+       * não volta (o botão espera; ver a guarda no Rodapé).
+       */
+      faturaId: string | null;
     };
 
 const NOME_SITUACAO = {
@@ -72,9 +79,12 @@ export default function DetalheAgendamento() {
     void (async () => {
       try {
         const compromisso = await carregarCompromisso(id);
-        const [painel, historico] = await Promise.all([
+        const [painel, historico, faturaId] = await Promise.all([
           carregarPainel(compromisso.obraId),
           carregarHistoricoDeData(compromisso.id),
+          compromisso.origem === "cartao"
+            ? buscarFaturaDoCompromisso(compromisso.id)
+            : Promise.resolve(null),
         ]);
         if (cancelado) return;
         setEstado({
@@ -87,6 +97,7 @@ export default function DetalheAgendamento() {
           ),
           historico,
           obraNome: painel.obra.nome,
+          faturaId,
         });
       } catch (erro) {
         if (!cancelado) setEstado({ fase: "erro", erro: classificarErro(erro) });
@@ -245,11 +256,30 @@ export default function DetalheAgendamento() {
       <Rodape>
         {aberto ? (
           <>
-            <BotaoLink href={`/compromisso/${c.id}/confirmar`} variante="primary">
-              Registrar o pagamento
-            </BotaoLink>
+            {/* ⚠️ CONTAI-022 — achado do `cto-obra`: compra no cartão NUNCA
+                vai para o pagamento avulso. Sem esta guarda, a compra seria
+                quitada com a data da COMPRA (o erro que este ticket existe
+                para consertar) e o teto de alocação da fatura contaria um
+                pagamento que não saiu dela. */}
+            {c.origem === "cartao" ? (
+              estado.faturaId ? (
+                <BotaoLink href={`/fatura/${estado.faturaId}`} variante="primary">
+                  Ver a fatura
+                </BotaoLink>
+              ) : (
+                <Botao variante="primary" disabled>
+                  Carregando a fatura…
+                </Botao>
+              )
+            ) : (
+              <BotaoLink href={`/compromisso/${c.id}/confirmar`} variante="primary">
+                Registrar o pagamento
+              </BotaoLink>
+            )}
+            {/* "Mudou a data" de compra no cartão re-aloca a fatura — mesma
+                tela, RPC diferente (ver `app/compromisso/[id]/data/page.tsx`). */}
             <BotaoLink href={`/compromisso/${c.id}/data`}>Mudou a data</BotaoLink>
-            {/* ⚠️ SÓ AQUI (critério 22). */}
+            {/* ⚠️ SÓ AQUI (critério 22 do CONTAI-019). */}
             <BotaoLink href={`/compromisso/${c.id}/cancelar`}>
               Marcar que não vai ser pago
             </BotaoLink>

@@ -34,6 +34,7 @@ import {
   carregarCompromisso,
   classificarErro,
   mensagemDeErro,
+  mudarDataCompraCartao,
   mudarDataPrevista,
   type ErroDeTela,
 } from "@/lib/data";
@@ -71,18 +72,29 @@ export default function MudarData() {
     };
   }, [id]);
 
-  const podeSalvar = semData || (nova !== "" && ehDataValida(nova));
+  // CONTAI-022: compra no cartão sempre tem vencimento — "sem data" não é
+  // resposta válida para ela (a fatura só existe com data exata).
+  const ehCartao = compromisso?.origem === "cartao";
+  const podeSalvar = ehCartao
+    ? nova !== "" && ehDataValida(nova)
+    : semData || (nova !== "" && ehDataValida(nova));
 
   async function salvar() {
     if (!compromisso || !podeSalvar) return;
     setSalvando(true);
     setErro(null);
     try {
-      await mudarDataPrevista(
-        compromisso.id,
-        compromisso.dataPrevista,
-        semData ? null : nova,
-      );
+      if (ehCartao) {
+        // RE-ALOCA a fatura do novo vencimento (RPC própria, migration
+        // 0013) — bloqueada pelo banco se a compra já foi quitada.
+        await mudarDataCompraCartao(compromisso.id, nova);
+      } else {
+        await mudarDataPrevista(
+          compromisso.id,
+          compromisso.dataPrevista,
+          semData ? null : nova,
+        );
+      }
       router.push(`/compromisso/${compromisso.id}`);
     } catch (e) {
       setErro(mensagemDeErro(e));
@@ -137,7 +149,7 @@ export default function MudarData() {
 
             <Card>
               <CampoTexto
-                rotulo="Nova data prevista"
+                rotulo={ehCartao ? "Novo vencimento da fatura" : "Nova data prevista"}
                 tipo="date"
                 valor={nova}
                 onChange={(v) => {
@@ -145,22 +157,31 @@ export default function MudarData() {
                   setSemData(false);
                 }}
               />
-              <div className="mt-2">
-                <Botao
-                  variante={semData ? "primary" : "ghost"}
-                  onClick={() => {
-                    setSemData(true);
-                    setNova("");
-                  }}
-                >
-                  Ainda não sei — deixar sem data
-                </Botao>
-              </div>
-              <Dica>
-                &quot;Ainda não sei&quot; é resposta válida: o agendamento
-                continua visível e <strong>não trava</strong> relatório nenhum —
-                incerteza declarada não é silêncio.
-              </Dica>
+              {ehCartao ? null : (
+                <div className="mt-2">
+                  <Botao
+                    variante={semData ? "primary" : "ghost"}
+                    onClick={() => {
+                      setSemData(true);
+                      setNova("");
+                    }}
+                  >
+                    Ainda não sei — deixar sem data
+                  </Botao>
+                </div>
+              )}
+              {ehCartao ? (
+                <Dica>
+                  A compra passa a pertencer à fatura deste novo vencimento —
+                  criada na hora, se ainda não existir.
+                </Dica>
+              ) : (
+                <Dica>
+                  &quot;Ainda não sei&quot; é resposta válida: o agendamento
+                  continua visível e <strong>não trava</strong> relatório
+                  nenhum — incerteza declarada não é silêncio.
+                </Dica>
+              )}
             </Card>
 
             <Banner cor="amb" role="status">

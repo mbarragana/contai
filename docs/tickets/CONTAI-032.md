@@ -31,37 +31,37 @@ Cenário: **captura** — mas a proibição de default em campo fiscal é o que
 **não muda** entre gestão e captura (regra permanente do `CLAUDE.md`).
 
 ## Critérios de Aceite
-1. [ ] **Proposta nível 1 em `design/mocks/CONTAI-032.md` (+ `.html`) aprovada
+1. [x] **Proposta nível 1 em `design/mocks/CONTAI-032.md` (+ `.html`) aprovada
        pelo Mateus.**
-2. [ ] **Guarda-chuva de default fiscal**: Data e Meio nascem vazios; enquanto
+2. [x] **Guarda-chuva de default fiscal**: Data e Meio nascem vazios; enquanto
        qualquer um dos dois estiver vazio, `decidirRegistro` não roda, nenhum
        branch (pagamento/compromisso/recusado) é decidido, e o botão Gravar
        fica desabilitado nomeando o que falta — nenhuma linha grava por chute
        de default. Cobre os dois campos e as três combinações (só Data, só
        Meio, os dois), como um único critério, por doutrina do `/tickets-req`
        ("campo fiscal não vira dezesseis critérios").
-3. [ ] Preencher Data e Meio com valores reais e salvar grava **exatamente**
+3. [x] Preencher Data e Meio com valores reais e salvar grava **exatamente**
        o que foi digitado em `pagamento.data_pagamento` e `pagamento.meio` —
        nenhum valor intermediário aparece em tela nem no banco.
-4. [ ] Escolher "Cartão" com Data preenchida dispara `RECUSA_CARTAO` /
+4. [x] Escolher "Cartão" com Data preenchida dispara `RECUSA_CARTAO` /
        `RECUSA_CARTAO_ONDE_REGISTRAR` (`lib/fiscal/compromisso.ts:93-105`,
        textos literais, inalterados) e nenhuma linha grava. Primeiro E2E que
        alcança esse caminho por **escolha real do usuário nesta tela** — hoje
        a cobertura de `decidirRegistro` com `meio="cartao"` só existe isolada
        em `lib/fiscal/compromisso.test.ts`.
-5. [ ] `e2e/formularios.ts` (helper de preenchimento, usado por vários specs)
+5. [x] `e2e/formularios.ts` (helper de preenchimento, usado por vários specs)
        e `e2e/obra.spec.ts:372-379` passam a preencher Data e Meio
        deliberadamente antes de salvar — hoje dependem do default que este
        ticket remove. `e2e/compromisso.spec.ts` (:92-94, :132, :163) e
        `e2e/sessao-no-formulario.spec.ts` revisados pela mesma razão.
-6. [ ] Dado um pagamento nascido ligado a uma nota (`?documento=`), quando o
+6. [x] Dado um pagamento nascido ligado a uma nota (`?documento=`), quando o
        usuário preenche Data ou Meio (campos que hoje vêm prontos e passam a
        nascer vazios) e clica em "Corrigir na nota", a tela "Sair para
        corrigir a nota?" (critério 17, `CONTAI-021`) passa a exibir o aviso de
        perda. `temAlgoDigitado` (`page.tsx:776-789`) para de ignorar Data e
        Meio — o comentário que justifica a exclusão hoje ("nascem
        preenchidos") cita a premissa que este ticket revoga.
-7. [ ] Remover `MEIO_PAGAMENTO_AVULSO` (`lib/fiscal/pagamento.ts:31`) e a
+7. [x] Remover `MEIO_PAGAMENTO_AVULSO` (`lib/fiscal/pagamento.ts:31`) e a
        asserção correspondente em `pagamento.test.ts` (:85, import :8) —
        comentário desatualizado ("pagamento avulso é sempre PIX") que
        contradiz a regra nova; sem uso fora do próprio teste.

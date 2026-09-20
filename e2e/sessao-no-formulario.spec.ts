@@ -21,6 +21,7 @@ test.describe("sessão que cai no meio do formulário", () => {
       documento: "529.982.247-25",
       valor: "1.250,00",
       dataPagamento: "2026-05-06",
+      meio: "PIX",
       comprovante: {
         name: "pix-jose.png",
         mimeType: "image/png",

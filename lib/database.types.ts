@@ -283,6 +283,103 @@ export type Database = {
           },
         ]
       }
+      fatura: {
+        Row: {
+          created_at: string
+          data_vencimento: string
+          id: string
+          obra_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          data_vencimento: string
+          id?: string
+          obra_id: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          data_vencimento?: string
+          id?: string
+          obra_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fatura_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obra"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fatura_compromisso: {
+        Row: {
+          compromisso_id: string
+          fatura_id: string
+        }
+        Insert: {
+          compromisso_id: string
+          fatura_id: string
+        }
+        Update: {
+          compromisso_id?: string
+          fatura_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fatura_compromisso_compromisso_id_fkey"
+            columns: ["compromisso_id"]
+            isOneToOne: true
+            referencedRelation: "compromisso"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fatura_compromisso_fatura_id_fkey"
+            columns: ["fatura_id"]
+            isOneToOne: false
+            referencedRelation: "fatura"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fatura_desembolso: {
+        Row: {
+          comprovante_path: string | null
+          created_at: string
+          data_pagamento: string
+          fatura_id: string
+          id: string
+          valor: number
+        }
+        Insert: {
+          comprovante_path?: string | null
+          created_at?: string
+          data_pagamento: string
+          fatura_id: string
+          id?: string
+          valor: number
+        }
+        Update: {
+          comprovante_path?: string | null
+          created_at?: string
+          data_pagamento?: string
+          fatura_id?: string
+          id?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fatura_desembolso_fatura_id_fkey"
+            columns: ["fatura_id"]
+            isOneToOne: false
+            referencedRelation: "fatura"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       favorecido: {
         Row: {
           created_at: string
@@ -882,6 +979,21 @@ export type Database = {
         }
         Returns: undefined
       }
+      compra_cartao_gravar: {
+        Args: {
+          p_data_compra: string
+          p_data_vencimento: string
+          p_documento_origem_id?: string
+          p_favorecido_id: string
+          p_obra_id: string
+          p_valor: number
+        }
+        Returns: Json
+      }
+      compra_cartao_mudar_data: {
+        Args: { p_compromisso_id: string; p_nova_data: string }
+        Returns: undefined
+      }
       corrigir_documento: {
         Args: {
           p_anexo_path?: string
@@ -902,6 +1014,20 @@ export type Database = {
           p_motivo: Database["public"]["Enums"]["motivo_revisao"]
           p_motivo_texto?: string
           p_nome: string
+        }
+        Returns: string
+      }
+      fatura_alocar: {
+        Args: { p_compromisso_ids: string[]; p_desembolso_id: string }
+        Returns: undefined
+      }
+      fatura_desembolso_gravar: {
+        Args: {
+          p_compromisso_ids?: string[]
+          p_comprovante_path?: string
+          p_data_pagamento: string
+          p_fatura_id: string
+          p_valor: number
         }
         Returns: string
       }
