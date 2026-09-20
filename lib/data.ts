@@ -982,6 +982,40 @@ export async function carregarAnexosDoDocumento(
 }
 
 /**
+ * **CONTAI-033, critério 6** — o arquivo chegou depois, e sobe num ato só.
+ *
+ * ⚠️ **RPC, e não `.update()`.** A Guarda 3 do parecer (ADENDO 1 §A.3) exige que
+ * o path, os DOIS checks fiscais, o `status` e o `motivo_quarentena` gravem
+ * juntos ou não gravem: em dois UPDATEs existe o estado intermediário "tem
+ * arquivo, status velho", e é nele que a nota volta a contar como hábil com
+ * afirmação feita de memória.
+ *
+ * ⚠️ **Nenhum parâmetro é opcional do lado do domínio** — herdar a resposta
+ * anterior deixa de ser representável (pre-mortem 2 do ticket). A tela sempre
+ * pergunta de novo, sempre em branco. `?? undefined` no `p_retencao_11` é só o
+ * `default null` do SQL sendo alcançado sem cast (mesmo padrão de
+ * `criarDesembolsoTerreno`), nunca "não perguntei".
+ *
+ * A função Postgres aceita SÓ documento com `arquivo_path is null`: uma segunda
+ * chamada levanta exceção em vez de gravar por cima, e o trigger
+ * `documento_arquivo_path_imutavel` fecha o caminho direto pela tabela.
+ */
+export async function anexarArquivoDocumento(
+  documentoId: string,
+  arquivoPath: string,
+  notaNoCpf: boolean,
+  retencao11: boolean | null,
+): Promise<void> {
+  const { error } = await getSupabase().rpc("anexar_arquivo_documento", {
+    p_documento_id: documentoId,
+    p_arquivo_path: arquivoPath,
+    p_nota_no_cpf: notaNoCpf,
+    p_retencao_11: retencao11 ?? undefined,
+  });
+  if (error) throw error;
+}
+
+/**
  * Reaproveita o favorecido pelo CNPJ/CPF; cria se for a primeira vez.
  *
  * Upsert em vez de select-then-insert: com dois toques no "Salvar" (ou um

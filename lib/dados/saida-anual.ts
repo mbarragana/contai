@@ -6,8 +6,9 @@
  * ⚠️ **Por que ela existe, e por que a tela não pode fazer isto sozinha.**
  *
  * A porta pura (`podeGerarRelatorioAnual`, `lib/fiscal/compromisso.ts`) precisa
- * de quatro coisas para decidir. Enquanto a tela montava esses quatro
- * argumentos, o **residual 1** do `CONTAI-025` ficava de pé: uma tela apressada
+ * de cinco coisas para decidir — a quinta é o `DocumentosCarregados` do
+ * CONTAI-033. Enquanto a tela montava esses argumentos, o **residual 1** do
+ * `CONTAI-025` ficava de pé: uma tela apressada
  * escrevia `podeGerarRelatorioAnual(cs, hoje, ano, [])`, isso **typechecava**, e
  * a guarda do terreno sumia sem ninguém apagar linha nenhuma — porque "nenhum
  * desembolso" e "não fui buscar os desembolsos" tinham a mesma forma.
@@ -22,6 +23,7 @@
 
 import {
   desembolsosCarregados,
+  documentosCarregados,
   podeGerarRelatorioAnual,
   type PermissaoRelatorio,
 } from "@/lib/fiscal/compromisso";
@@ -32,7 +34,7 @@ import {
 import { alocarCusto } from "@/lib/fiscal/vinculo";
 import { hojeIso } from "@/lib/hoje";
 import { carregarCompromissos, carregarPainel } from "@/lib/data";
-import type { Compromisso, Obra } from "@/lib/types";
+import type { Compromisso, Documento, Obra } from "@/lib/types";
 
 /**
  * O que a tela da discriminação recebe. Repare no que **não** está aqui:
@@ -48,6 +50,15 @@ export type SaidaAnualDaObra =
       obra: Obra;
       ano: number;
       faltamResponder: Compromisso[];
+      /**
+       * CONTAI-033, critério 11: nota registrada sem o arquivo no acervo veta
+       * as três saídas do mesmo jeito. **Os dois campos estão SEMPRE
+       * presentes** nesta forma normalizada — o que a porta pura não disparou
+       * chega como `[]`. É deliberado: a tela ramifica por `length`, e um campo
+       * opcional aqui viraria um `?.` que passa batido no dia em que o segundo
+       * veto nascer.
+       */
+      semArquivo: Documento[];
     }
   | { ok: true; obra: Obra; ano: number; discriminacao: Discriminacao };
 
@@ -73,6 +84,7 @@ export async function carregarSaidaAnual(
     hojeIso(),
     ano,
     desembolsosCarregados(painel.desembolsosTerreno),
+    documentosCarregados(painel.documentos),
   );
 
   if (!permissao.ok) {
@@ -80,7 +92,9 @@ export async function carregarSaidaAnual(
       ok: false,
       obra: painel.obra,
       ano,
-      faltamResponder: permissao.faltamResponder,
+      faltamResponder:
+        "faltamResponder" in permissao ? permissao.faltamResponder : [],
+      semArquivo: "semArquivo" in permissao ? permissao.semArquivo : [],
     };
   }
 

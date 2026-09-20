@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   desembolsosCarregados,
+  documentosCarregados,
   podeGerarRelatorioAnual,
 } from "@/lib/fiscal/compromisso";
 import { calcularResumo, type EntradaResumo } from "@/lib/fiscal/resumo";
@@ -821,6 +822,7 @@ describe("pendência 'Diferença sem explicação' (critérios 31, 31c, 31e)", (
         "2026-08-18",
         2026,
         desembolsosCarregados([]),
+        documentosCarregados([]),
       ).ok,
       "o portão transversal do relatório anual conhece COMPROMISSO VENCIDO — " +
         "pagamento com diferença não é compromisso e não veta saída nenhuma",
@@ -1181,6 +1183,127 @@ describe("terreno e financiamento fora das pendências (critério 21)", () => {
       const r = resumo({ desembolsosTerreno: [SO_ESCRITURA] });
       expect(r.acumuladoImovelCentavos).toBe(0);
       expect(r.terrenoSemRegistro).toBeNull();
+    });
+  });
+
+  describe("⚠️ CONTAI-033, critério 11 — `documentosSemArquivo`, fora de TODA soma", () => {
+    // A superfície própria da pendência, do lado do DOCUMENTO. Mesma D47 do
+    // agregado do terreno (§A.5): "quatro superfícies gravando e nenhuma
+    // cobrando é trocar 'não registra' por 'registra e esquece'".
+
+    it("sem nenhum, o campo é `null`", () => {
+      const r = resumo({ documentos: [doc({ id: "d1" })] });
+      expect(r.documentosSemArquivo).toBeNull();
+    });
+
+    it("um documento → `href` aponta para ELE (decisão do `po`, opção b)", () => {
+      const r = resumo({
+        documentos: [doc({ id: "d1", valorCentavos: 420_000, arquivoPath: null })],
+      });
+      const agregado = r.documentosSemArquivo!;
+      expect(agregado.quantidade).toBe(1);
+      expect(agregado.totalCentavos).toBe(420_000);
+      expect(agregado.href).toBe("/documento/d1");
+      // ⚠️ **Nenhum TEXTO passa por aqui**, como no agregado do terreno: chip e
+      // pendência (§A.7.2) são lidos das constantes de `lib/fiscal/documento.ts`
+      // pelo componente único do card. Dois caminhos para o mesmo texto fiscal
+      // divergem no dia em que só um for atualizado — é a D46.
+      expect(Object.keys(agregado).sort()).toEqual([
+        "href",
+        "quantidade",
+        "totalCentavos",
+      ]);
+    });
+
+    it("dois ou mais → soma tudo e `href` é `null` (card sem CTA)", () => {
+      // Não existe lista de documentos no app, e criar uma é fricção de
+      // processo, não obrigação fiscal — decisão do `po` em 2026-09-19.
+      const r = resumo({
+        documentos: [
+          doc({ id: "d1", valorCentavos: 420_000, arquivoPath: null }),
+          doc({ id: "d2", valorCentavos: 265_000, arquivoPath: null }),
+          doc({ id: "d3", valorCentavos: 100_000 }),
+        ],
+      });
+      const agregado = r.documentosSemArquivo!;
+      expect(agregado.quantidade).toBe(2);
+      expect(agregado.totalCentavos).toBe(685_000);
+      expect(agregado.href).toBeNull();
+    });
+
+    it("documento sem arquivo E sem valor conta na quantidade, somando zero", () => {
+      const r = resumo({
+        documentos: [doc({ id: "d1", valorCentavos: null, arquivoPath: null })],
+      });
+      expect(r.documentosSemArquivo).toEqual({
+        quantidade: 1,
+        totalCentavos: 0,
+        href: "/documento/d1",
+      });
+    });
+
+    it("⚠️ QUARENTENA sem arquivo entra no agregado TAMBÉM — as duas pendências", () => {
+      // Confirmação do `contador` em 2026-09-19: o predicado é SÓ
+      // `arquivo_path IS NULL`, sem olhar `status`. A guarda de superfície é
+      // ADICIONAL à quarentena, não redundante — um documento pode acumular as
+      // duas e deve aparecer nas duas, nunca só numa.
+      const r = resumo({
+        documentos: [
+          doc({
+            id: "d1",
+            status: "quarentena",
+            destinatarioCpfOk: false,
+            valorCentavos: 300_000,
+            arquivoPath: null,
+          }),
+        ],
+      });
+      expect(r.documentosSemArquivo!.quantidade).toBe(1);
+      expect(r.documentosSemArquivo!.totalCentavos).toBe(300_000);
+    });
+
+    it("⚠️ FORA de `pendencias`, de `emPendenciaCentavos` e do custo do ano", () => {
+      // Mesma régua do `terrenoPagoSemComprovante`: o agregado é campo próprio,
+      // e o valor dele não soma com nada — senão a Guarda 1 vazaria por um
+      // segundo caminho, que é o pre-mortem 1 do ticket.
+      const r = resumo({
+        documentos: [doc({ id: "d1", valorCentavos: 420_000, arquivoPath: null })],
+        pagamentos: [
+          pag({ id: "p1", valorCentavos: 420_000, documentoIds: ["d1"] }),
+        ],
+      });
+      expect(r.documentosSemArquivo!.totalCentavos).toBe(420_000);
+      // Guarda 1: o teto do custo NÃO subiu.
+      expect(r.custoConfirmadoAnoCentavos).toBe(0);
+      expect(r.acumuladoImovelCentavos).toBe(TERRENO_CENTAVOS);
+      // O agregado não é pendência nem soma em `emPendenciaCentavos`; o
+      // pagamento tem a sua própria ("pago sem nota"), que é outro fato.
+      expect(r.pendencias.some((x) => x.id.includes("sem-arquivo"))).toBe(false);
+      expect(r.notasSemPagamento).toHaveLength(0);
+      expect(r.despesas).toHaveLength(0);
+    });
+
+    it("⚠️ a pendência de retenção do INSS NÃO muda — é outra pergunta", () => {
+      // A Guarda 2 ("não abate no INSS") é comunicada pelo agregado e pelas duas
+      // linhas de guarda do detalhe. O loop `servico_sem_retencao` continua
+      // exatamente como estava: ele é sobre a RESPOSTA de retenção, não sobre o
+      // arquivo, e a pergunta segue OBRIGATÓRIA no formulário (§A.3, Guarda 2).
+      const r = resumo({
+        documentos: [
+          doc({
+            id: "d1",
+            tipo: "nf_servico",
+            classificacao: "mao_obra",
+            retencao11: null,
+            valorCentavos: 420_000,
+            arquivoPath: null,
+          }),
+        ],
+      });
+      expect(
+        r.pendencias.filter((x) => x.tipo === "servico_sem_retencao"),
+      ).toHaveLength(1);
+      expect(r.documentosSemArquivo!.quantidade).toBe(1);
     });
   });
 

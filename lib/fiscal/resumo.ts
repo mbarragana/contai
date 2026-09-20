@@ -44,6 +44,7 @@ import {
   CONSEQUENCIA_BOLETO,
   CONSEQUENCIA_QUARENTENA,
   CONSEQUENCIA_SEM_RETENCAO,
+  faltaOArquivo,
 } from "./documento";
 import {
   AGUARDANDO_INFORME,
@@ -267,6 +268,36 @@ export interface TerrenoPagoSemComprovante {
   href: string;
 }
 
+/**
+ * **CONTAI-033, critério 11** — o agregado da pendência "Nota sem arquivo".
+ *
+ * Mesma disciplina do `TerrenoPagoSemComprovante`: a guarda de superfície
+ * existe porque *"quatro superfícies gravando e nenhuma cobrando é trocar 'não
+ * registra' por 'registra e esquece'"* (D47, parecer ADENDO 1 §A.5). Ela é
+ * **adicional** à quarentena, não redundante — decisão do `contador` em
+ * 2026-09-19: o predicado é só `arquivo_path IS NULL`, sem olhar `status`, e um
+ * documento pode acumular as duas pendências e deve aparecer nas duas.
+ *
+ * ⚠️ **NENHUM TEXTO passa por aqui**, como no agregado do terreno: o chip e a
+ * pendência (§A.7.2) são lidos das constantes de `lib/fiscal/documento.ts` pelo
+ * componente único que desenha o card (`app/_components/documento-sem-arquivo.tsx`).
+ */
+export interface DocumentosSemArquivo {
+  quantidade: number;
+  totalCentavos: number;
+  /**
+   * `null` quando há mais de um — **decisão do `po` em 2026-09-19, opção (b),
+   * sem lista nova** (`docs/backlog/32-2026-09-19-cta-documentos-sem-arquivo-contai-033.md`).
+   * Com um só, aponta para `/documento/[id]`, que já mostra chip, pendência e o
+   * botão de anexar. Com vários, o card fica informativo: não existe lista de
+   * documentos no app, e criar uma é fricção de processo, não obrigação fiscal.
+   *
+   * ⚠️ Diferente de `TerrenoPagoSemComprovante`, que sempre tem lista para onde
+   * apontar. A diferença é de produto, não de descuido.
+   */
+  href: string | null;
+}
+
 export interface TerrenoSemRegistro {
   /** A parte do terreno dentro do acumulado — zero, e é esse o ponto. */
   terrenoNoAcumuladoCentavos: number;
@@ -309,6 +340,13 @@ export interface ResumoObra {
    * com teste afirmando cada um desses "não".
    */
   terrenoPagoSemComprovante: TerrenoPagoSemComprovante | null;
+  /**
+   * CONTAI-033, critério 11. `null` quando não há nenhum. Fora de
+   * `pendencias`, de `emPendenciaCentavos` e de `custoConfirmadoAnoCentavos` —
+   * com teste afirmando cada um desses "não", pela mesma régua do
+   * `terrenoPagoSemComprovante`.
+   */
+  documentosSemArquivo: DocumentosSemArquivo | null;
   /**
    * **Critério 9** — o que o portão do comprovante TIROU de
    * `acumuladoImovelCentavos`, para o card do acumulado nunca encolher em
@@ -775,6 +813,28 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
           href: `/obras/${obra.id}/terreno/desembolsos`,
         };
 
+  // CONTAI-033, critério 11 — a superfície própria da pendência "Nota sem
+  // arquivo" (D47 de novo, agora do lado do documento).
+  //
+  // ⚠️ O predicado é SÓ `arquivoPath === null`, sem olhar `status`: confirmação
+  // do `contador` em 2026-09-19. Quarentena sem arquivo entra aqui TAMBÉM — as
+  // duas pendências são aditivas, e mostrar só uma reabre o buraco que a guarda
+  // existe para fechar.
+  const semArquivo = documentos.filter(faltaOArquivo);
+  const documentosSemArquivo: DocumentosSemArquivo | null =
+    semArquivo.length === 0
+      ? null
+      : {
+          quantidade: semArquivo.length,
+          totalCentavos: semArquivo.reduce(
+            (s, d) => s + (d.valorCentavos ?? 0),
+            0,
+          ),
+          // Decisão do `po`: um documento → aponta para ele; vários → sem CTA.
+          href:
+            semArquivo.length === 1 ? `/documento/${semArquivo[0].id}` : null,
+        };
+
   return {
     ano,
     custoConfirmadoAnoCentavos: custoAno,
@@ -791,6 +851,7 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
     terrenoSemData,
     terrenoMaisDeUmaData,
     terrenoPagoSemComprovante,
+    documentosSemArquivo,
     // ⚠️ Linha nomeada, NUNCA somada ao acumulado (§2.4).
     terrenoForaDoAcumuladoCentavos: custoDoTerreno.semComprovanteCentavos,
     financiamentoAguardandoInforme,

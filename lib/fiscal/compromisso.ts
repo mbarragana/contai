@@ -33,11 +33,15 @@
 
 import type {
   Compromisso,
+  Documento,
   MeioPagamento,
   Pagamento,
   TerrenoDesembolso,
 } from "@/lib/types";
 import { centavosParaInput, formatarBRL } from "@/lib/money";
+// ⚠️ ÚNICA dependência deste arquivo em `documento.ts`, e ela é de PREDICADO:
+// "sem arquivo" tem uma definição só no sistema (pre-mortem 1 do CONTAI-033).
+import { faltaOArquivo } from "./documento";
 import {
   pagosSemComprovante,
   totalPagoSemComprovanteCentavos,
@@ -247,6 +251,37 @@ export function desembolsosCarregados(
 }
 
 /**
+ * ⚠️ **CONTAI-033, critério 11 — o MESMO desenho, pelo mesmo motivo.**
+ *
+ * A guarda de superfície da pendência "Nota sem arquivo" precisa dos documentos
+ * da obra, e `readonly Documento[]` colapsaria outra vez "esta obra não tem
+ * documento" com "não fui buscar os documentos" — só que agora o colapso
+ * libera a **saída anual** com nota afirmada de memória em pé, que é o buraco
+ * D47 que o parecer ADENDO 1 §A.5 nomeia: *"quatro superfícies gravando e
+ * nenhuma cobrando é trocar 'não registra' por 'registra e esquece'"*.
+ *
+ * Marca opaca, `declare const`, e o único produtor é `documentosCarregados`.
+ * `carregarPainel` já traz `documentos` — nenhuma query nova.
+ */
+declare const MARCA_DOS_DOCUMENTOS: unique symbol;
+
+export interface DocumentosCarregados {
+  readonly [MARCA_DOS_DOCUMENTOS]: true;
+  readonly lista: readonly Documento[];
+}
+
+/**
+ * ⚠️ **O ÚNICO ponto do sistema que produz `DocumentosCarregados`.** Mesma
+ * regra do irmão acima: quem o chama é a porta composta
+ * (`lib/dados/saida-anual.ts`), com `documentosCarregados(painel.documentos)`.
+ */
+export function documentosCarregados(
+  lista: readonly Documento[],
+): DocumentosCarregados {
+  return { lista } as DocumentosCarregados;
+}
+
+/**
  * ⚠️ **O PORTÃO TRANSVERSAL — crit. 21 do CONTAI-019, e ele NÃO migra.**
  *
  * Compromisso vencido sem resposta veta **as três** saídas, e não só a de Bens
@@ -263,6 +298,24 @@ export type PermissaoRelatorio =
       /** Nenhuma das três sai: o portão transversal está fechado. */
       ok: false;
       faltamResponder: Compromisso[];
+    }
+  | {
+      /**
+       * ⚠️ **CONTAI-033, critério 11** — nenhuma das três sai enquanto existir
+       * documento com `arquivo_path IS NULL`.
+       *
+       * Braço PRÓPRIO, e não um campo a mais no de cima: são dois vetos com
+       * causas diferentes e remédios diferentes (responder um agendamento ×
+       * subir o arquivo da nota), e a tela diz qual dos dois é.
+       *
+       * Veta **as três** saídas, como o portão transversal, e pelo mesmo tipo
+       * de razão: a nota afirmada de memória pode virar custo (Bens e Direitos),
+       * pagamento a PF (Pagamentos Efetuados) ou serviço PJ com retenção
+       * (aferição) — e enquanto o papel não chega, nenhuma das três hipóteses
+       * tem lastro.
+       */
+      ok: false;
+      semArquivo: Documento[];
     }
   | {
       ok: true;
@@ -309,9 +362,20 @@ export function podeGerarRelatorioAnual(
   hojeIso: string,
   ano: number,
   desembolsosTerreno: DesembolsosDoTerrenoCarregados,
+  documentos: DocumentosCarregados,
 ): PermissaoRelatorio {
   const faltamResponder = compromissosQueBloqueiam(cs, hojeIso);
   if (faltamResponder.length > 0) return { ok: false, faltamResponder };
+
+  // ⚠️ CONTAI-033, critério 11 — DEPOIS do portão transversal e ANTES do resto:
+  // o veto do CONTAI-019 continua com precedência, porque a resposta de um
+  // agendamento vencido é o dado que decide o ANO, e sem ele nem se sabe a que
+  // relatório o valor pertence.
+  //
+  // Predicado só `arquivo_path IS NULL`, sem olhar `status` (confirmação do
+  // `contador`, 2026-09-19): quarentena sem arquivo também veta.
+  const semArquivo = documentos.lista.filter(faltaOArquivo);
+  if (semArquivo.length > 0) return { ok: false, semArquivo };
 
   const pendentes = pagosSemComprovante(desembolsosTerreno.lista);
   return {

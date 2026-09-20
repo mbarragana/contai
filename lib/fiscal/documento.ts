@@ -19,7 +19,12 @@
  * - "numero é texto literal — zeros à esquerda, letras, barras, pontos"
  */
 
-import type { Classificacao, StatusDocumento, TipoDocumento } from "@/lib/types";
+import type {
+  Classificacao,
+  Documento,
+  StatusDocumento,
+  TipoDocumento,
+} from "@/lib/types";
 import { tipoPorDocumento } from "./identificacao";
 import { ehDataValida } from "./pagamento";
 
@@ -59,7 +64,6 @@ export interface EntradaDocumento {
   classificacao: Classificacao | null;
   notaNoCpf: RespostaCpf | null;
   retencao11: RespostaRetencao | null;
-  temArquivo: boolean;
 }
 
 export interface ErroCampo {
@@ -278,6 +282,158 @@ export function motivoQuarentena(notaNoCpf: RespostaCpf | null): string | null {
   return notaNoCpf === "nao" ? MOTIVO_QUARENTENA_CPF : null;
 }
 
+// ── CONTAI-033 · "registrado sem arquivo" é DERIVADO, nunca um status ─────
+//
+// Parecer `2026-08-23-anexo-no-desembolso-do-terreno.md`, ADENDO 1 §A.3,
+// Guarda 3 + nota de engenharia: `status_documento` **não ganha valor novo**
+// (D52, fechada pelo `cto-obra`). `quarentena` significa *destinatário ≠ CPF*,
+// `motivo_quarentena` é escrito pelo sistema e `status` é derivado e NÃO
+// CORRIGÍVEL — sobrecarregá-lo corrompe os três, e colidiria com o
+// `aguardando_pagamento` do boleto. "Sem arquivo" é uma SEGUNDA DIMENSÃO.
+
+/**
+ * O estado que a tela mostra. Quatro valores, e a ordem das perguntas é a
+ * ordem da gravidade fiscal: quarentena está fora do custo de aquisição
+ * inteiro; boleto não sustenta custo sozinho; sem arquivo não sustenta nada
+ * até o papel chegar.
+ *
+ * ⚠️ `registrado_sem_arquivo` **não existe no banco** — é `arquivo_path IS
+ * NULL` sobre um `status` qualquer. Um documento pode estar em quarentena E
+ * sem arquivo ao mesmo tempo (confirmado pelo `contador` em 2026-09-19: as
+ * guardas são ADITIVAS, nunca mutuamente exclusivas), e nesse caso esta função
+ * devolve `quarentena` — quem desenha a tela mostra as DUAS pendências, pelo
+ * predicado `arquivoPath === null`, e não uma no lugar da outra.
+ */
+export type EstadoExibido =
+  | "quarentena"
+  | "aguardando_pagamento"
+  | "registrado"
+  | "registrado_sem_arquivo";
+
+/**
+ * ⚠️ **O PREDICADO ÚNICO da pendência "Nota sem arquivo"** — e ele é SEPARADO
+ * de `estadoExibido` de propósito, não por redundância.
+ *
+ * `estadoExibido` responde *"que rótulo esta nota exibe?"* e devolve **um**
+ * valor; esta função responde *"esta nota tem a pendência do arquivo?"*, que é
+ * outra pergunta. Num documento em quarentena **sem** arquivo, o rótulo é
+ * `quarentena` (o estado mais grave) e este predicado continua `true` — é por
+ * ele que a tela mostra as **DUAS** pendências, como o `contador` confirmou em
+ * 2026-09-19: as guardas são ADITIVAS, e mostrar só uma reabre a D47.
+ *
+ * Usar o rótulo como se fosse o predicado foi defeito real, pego pelo E2E no
+ * Gate 1: `estadoExibido(d) === "registrado_sem_arquivo"` escondia o bloco
+ * justamente no caso em que as duas pendências coexistem.
+ *
+ * ⚠️ **Todo consumidor usa ESTA função** — a tela, o agregado do `ResumoObra` e
+ * o veto da saída anual. `d.arquivoPath === null` escrito à mão em cada lugar é
+ * o "segundo caminho" do pre-mortem 1 do ticket.
+ */
+export function faltaOArquivo(
+  documento: Pick<Documento, "arquivoPath">,
+): boolean {
+  return documento.arquivoPath === null;
+}
+
+/**
+ * ⚠️ **A ÚNICA função que monta este rótulo** (critério 5 do CONTAI-033):
+ * nenhuma tela lê `status` cru nem escreve "sem arquivo" à mão. Duas leituras
+ * do mesmo estado divergem no dia em que só uma for atualizada — é a D46 com
+ * outro rosto.
+ *
+ * ⚠️ Não é o predicado da PENDÊNCIA — para isso existe `faltaOArquivo` acima.
+ */
+export function estadoExibido(
+  documento: Pick<Documento, "status" | "arquivoPath">,
+): EstadoExibido {
+  if (documento.status === "quarentena") return "quarentena";
+  if (documento.status === "aguardando_pagamento") return "aguardando_pagamento";
+  if (faltaOArquivo(documento)) return "registrado_sem_arquivo";
+  return "registrado";
+}
+
+// ── Textos do CONTAI-033 — LITERAIS do parecer, §A.7.1 a §A.7.3 ──────────
+//
+// ⚠️ Copiados, não redigidos (regra do `CLAUDE.md`: texto de tela com
+// consequência fiscal se copia do parecer). Moram aqui, e não na tela, porque
+// o diálogo do formulário, o detalhe do documento e o card da home mostram os
+// MESMOS textos — três cópias divergem, e a primeira coisa que diverge é a
+// consequência fiscal.
+
+/** §A.7.1 — título do diálogo, no ato de salvar sem o arquivo. */
+export const SEM_ARQUIVO_DIALOGO_TITULO = "Salvar sem o arquivo da nota?";
+
+/** §A.7.1 — primeiro parágrafo: para que serve gravar sem o papel. */
+export const SEM_ARQUIVO_DIALOGO_PORQUE =
+  "Os dados ficam guardados e servem para cobrar a nota do emitente enquanto " +
+  "você ainda tem parcela a liberar.";
+
+/**
+ * §A.7.1 — segundo parágrafo: as guardas 1 e 2, ditas antes de gravar.
+ *
+ * ⚠️ O trecho final não é enfeite: *"o abatimento depende da nota de serviço
+ * com a retenção de 11%, não da lembrança dela"* é a Guarda 2 por extenso — o
+ * erro aqui não custa glosa na venda, custa **pagar o INSS duas vezes**.
+ */
+export const SEM_ARQUIVO_DIALOGO_CONSEQUENCIA =
+  "Sem o arquivo, esta nota não sustenta custo nenhum e não abate a aferição " +
+  "do INSS desta obra — o abatimento depende da nota de serviço com a " +
+  "retenção de 11%, não da lembrança dela.";
+
+/** §A.7.1 — o botão que grava assim mesmo. */
+export const SEM_ARQUIVO_DIALOGO_SALVAR = "Salvar e cobrar a nota";
+
+/** §A.7.1 — o botão que volta ao campo do anexo, sem perder nada digitado. */
+export const SEM_ARQUIVO_DIALOGO_ANEXAR = "Anexar agora";
+
+/**
+ * §A.7.2 — o chip. **Distinto de "Pago sem nota"**, e a distinção é do
+ * parecer: *"lá falta a nota inteira; aqui a nota é conhecida e falta o papel
+ * dela"*.
+ *
+ * ⚠️ **VERMELHO**, confirmado pelo `contador` em 2026-09-19 pela régua do
+ * ADENDO 2 §A.4 (*"saiu? → tem apoio hábil no ano certo? → não = vermelho"*):
+ * sem apoio hábil nenhum — o arquivo que falta é o próprio documento hábil,
+ * não uma prova de pagamento sobre nota que já existe. Mais grave que o caso
+ * PJ-âmbar.
+ */
+export const CHIP_NOTA_SEM_ARQUIVO = "Nota sem arquivo";
+
+/** §A.7.2 — o que aconteceu e o que isso custa. */
+export const NOTA_SEM_ARQUIVO_EFEITO =
+  "Você registrou os dados da nota, mas o arquivo não está no acervo. " +
+  "Enquanto não estiver, ela não entra no custo comprovável e não abate a " +
+  "aferição do INSS.";
+
+/** §A.7.2 — a alavanca, e a janela que fecha sozinha. */
+export const NOTA_SEM_ARQUIVO_ALAVANCA =
+  "Peça o arquivo ao emitente agora: nota que ficou só na conversa desaparece " +
+  "com a conversa, e o próximo pagamento é a última hora em que você tem como " +
+  "cobrá-la.";
+
+/** §A.7.3 — por que as duas perguntas voltam quando o arquivo chega. */
+export const REPERGUNTA_TITULO =
+  "Agora com a nota na mão, confirme o que está impresso nela.";
+
+export const REPERGUNTA_PORQUE =
+  "Você respondeu de memória quando registrou. As perguntas voltam porque " +
+  "agora há papel para conferir — e é o papel que a fiscalização lê, não o app.";
+
+/**
+ * As DUAS LINHAS DE GUARDA visíveis em `/documento/[id]` (mock s2, decisão de
+ * design 3) — tornam as guardas 1 e 2 fato de tela, não só de banco.
+ *
+ * ⚠️ **Redação REVISADA pelo `contador` em 2026-09-19**, e a troca tem motivo:
+ * o rótulo original *"Custo confirmado: não"* colidia com
+ * `custoConfirmadoAnoCentavos` (total da obra no ano) e se lia como "a obra não
+ * tem custo confirmado" em vez de "este documento não sustenta custo".
+ * *"Sustentar"* também carrega a reversibilidade — vira "sim" no instante em
+ * que o arquivo sobe (Guarda 3).
+ */
+export const GUARDA_SUSTENTA_CUSTO_ROTULO = "Sustenta custo de aquisição";
+export const GUARDA_ABATE_INSS_ROTULO = "Abate no INSS";
+export const GUARDA_RESPOSTA_NAO = "não";
+
 /**
  * Aviso do INSS (não bloqueia — critério 5): NF de serviço sem retenção
  * confirmada não abate na aferição do SERO.
@@ -315,13 +471,17 @@ export function validarDocumento(
 ): ErroCampo[] {
   const erros: ErroCampo[] = [];
 
-  // Critério 6 + decisão manual-first: anexo obrigatório, o acervo nasce aqui.
-  if (!entrada.temArquivo) {
-    erros.push({
-      campo: "temArquivo",
-      mensagem: "Anexe o arquivo do documento — sem ele o registro não é aceito.",
-    });
-  }
+  // ⚠️ **NÃO EXISTE MAIS RECUSA POR FALTA DE ARQUIVO** (CONTAI-033, parecer
+  // ADENDO 1 §A.3): o arquivo é PROVA do que o Mateus digitou, não FONTE dele
+  // — emitente, valor e tipo ele leu no WhatsApp/e-mail —, e esperar pelo
+  // papel perde o fato (a mídia some com a conversa, e nota nunca registrada é
+  // nota nunca cobrada). "Bloquear anexo-PROVA não evita erro nenhum: evita o
+  // registro" (§A.0).
+  //
+  // A falta do arquivo NÃO é erro de campo: é uma pergunta na hora de salvar
+  // (o diálogo do §A.7.1, na tela) mais as três guardas do §A.3, que vivem em
+  // `ehDocumentoHabil`, em `estadoExibido` e no agregado do `ResumoObra`.
+  // Devolvê-la aqui como `ErroCampo` seria a recusa de volta com outro nome.
 
   if (entrada.tipo === null) {
     erros.push({ campo: "tipo", mensagem: "Escolha o tipo do documento." });

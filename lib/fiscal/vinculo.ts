@@ -32,16 +32,38 @@ import { anoCalendario } from "./pagamento";
  * Documento hábil — mesma regra que já vigorava em `resumo.ts`:
  * - boleto NUNCA é hábil sozinho: é título de cobrança, não prova o que foi
  *   comprado nem quem é o destinatário;
- * - documento em quarentena não é hábil: está fora do CPF do dono.
+ * - documento em quarentena não é hábil: está fora do CPF do dono;
+ * - **documento sem arquivo não é hábil** (CONTAI-033, Guarda 1).
  *
  * Documento não hábil PARTICIPA da conectividade do grafo (é ele que liga
  * pagamentos entre si e permite a dedup dos critérios 8 e 9) e contribui ZERO
  * para a soma que forma o custo comprovado.
+ *
+ * ⚠️ **NUNCA LEIA `status` CRU PARA DECIDIR HABILIDADE** (dívida 2 do
+ * CONTAI-033). `arquivo_path IS NULL` é uma SEGUNDA DIMENSÃO, fora do enum de
+ * status: um documento pode estar `registrado` e não ser hábil. O predicado
+ * mora só aqui, e a assinatura exige `arquivoPath` de propósito — é o typecheck
+ * que varre os chamadores, não a convenção (pre-mortem 1 do ticket).
+ *
+ * Fonte da Guarda 1, parecer ADENDO 1 §A.3, `[Certain]`: o custo comprovado é
+ * `C = min(Σ pagamentos elegíveis, Σ documentos hábeis)`. Pagamento sem
+ * comprovante empurraria o PISO; documento sem arquivo levantaria o TETO — ou
+ * seja, liberaria custo confirmado sem lastro nenhum, que é *redução indevida
+ * de ganho de capital, cobrada com multa*. **"Documento sem arquivo não entra
+ * em `Σ documentos`. Ponto."**
+ *
+ * Aqui **não** vale a nuance do §2.1 do corpo do parecer ("o app mostra, o
+ * Mateus decide"): lá o número subestimava, aqui superestimaria. Direção do
+ * erro invertida, tratamento invertido.
  */
 export function ehDocumentoHabil(
-  documento: Pick<Documento, "tipo" | "status">,
+  documento: Pick<Documento, "tipo" | "status" | "arquivoPath">,
 ): boolean {
-  return documento.tipo !== "boleto" && documento.status !== "quarentena";
+  return (
+    documento.tipo !== "boleto" &&
+    documento.status !== "quarentena" &&
+    documento.arquivoPath !== null
+  );
 }
 
 // ── Textos com consequência fiscal ───────────────────────────────────────
@@ -69,6 +91,18 @@ export const VINCULO_QUARENTENA_NAO_GERA_CUSTO =
 export const VINCULO_BOLETO_NAO_GERA_CUSTO =
   "Boleto não é documento hábil. Ligar o pagamento registra que ele foi pago, " +
   "mas não gera custo confirmado — o custo só se sustenta com a NF.";
+
+/**
+ * CONTAI-033, Guarda 1 — achado no teste manual no browser: este bloco só
+ * sabia distinguir boleto de quarentena. Uma nota `registrado`, mas sem
+ * arquivo, caía no `else` e mostrava o texto de QUARENTENA — errado, porque
+ * ela não está fora do CPF do dono, só falta o papel. Terceira razão, texto
+ * próprio.
+ */
+export const VINCULO_SEM_ARQUIVO_NAO_GERA_CUSTO =
+  "Esta nota está sem o arquivo no acervo. Ligar o pagamento é permitido e " +
+  "útil — deixa de contar a mesma despesa duas vezes. Mas não gera custo " +
+  "confirmado até o arquivo chegar.";
 
 /**
  * Documento hábil SEM valor informado (`valor_centavos` nulo). Ele contribui

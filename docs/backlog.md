@@ -181,6 +181,8 @@ no bloco de decisões pendentes acima.
 | D40 — `lib/data.ts` monolítico (2065 linhas, 44 importadores) | `16-2026-08-22-custo-de-contexto-do-pipeline.md` → **`CONTAI-028`**; status em `18-2026-08-23-gate4-contai-028-fatia1.md` (**parcialmente paga**: 2065 → 1803) |
 | **D56 — comprovante que falta em registro antigo não tem caminho de correção pela interface** (achada ao reconciliar o CONTAI-009 contra o código já em produção) | `29-2026-08-24-reconciliacao-contai-009.md` → precisa de mock próprio + checagem do `contador` (rastro de anexo tardio) antes de virar critério |
 | **D57 — falta o único campo que de fato abate a aferição do SERO** ("esta mão de obra foi declarada no CNO?", A.5/Pergunta 2 do parecer de 2026-08-18): não existe em schema, tela nem ticket, confirmado por busca em 2026-09-19 | `31-2026-09-19-sequenciamento-contai-035-038.md` → sem ticket ainda, fica para quando o Mateus priorizar |
+| **D58 — `/adicionar/pagamento` também mostra "Arquivo guardado no acervo" ao salvar sem comprovante** (mesmo `Registrado`, mesmo texto fixo; bug anterior ao CONTAI-033) | `33-2026-09-20-tres-bugs-achados-no-teste-manual-do-contai-033.md` → prop `arquivoNoAcervo` já existe em `Registrado`, falta só a chamada em `/adicionar/pagamento` |
+| **D59 — o banner "Nenhuma pendência" da home só olha `resumo.pendencias`, ignorando todo agregado "fora de pendencias"** (`terrenoPagoSemComprovante` e os outros cinco); corrigido só para `documentosSemArquivo` | `33-2026-09-20-tres-bugs-achados-no-teste-manual-do-contai-033.md` → auditoria dos outros cinco, decidir se vira um helper único |
 
 O status de cada uma está na própria entrada — este índice aponta, não duplica.
 
@@ -465,6 +467,32 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
   usando esse produtor — sujeito à confirmação do `cto-obra`
 - **D57** — nova dívida: falta o campo "mão de obra declarada no CNO?", o
   único que abate o SERO; confirmado por busca que não existe em lugar nenhum
+
+### `32-2026-09-19-cta-documentos-sem-arquivo-contai-033.md` — 24 linhas
+**CTA "Ver os documentos" do card agregado — CONTAI-033 — 2026-09-19**
+
+- Decisão do `po`: sem lista de documentos nova. `href = /documento/[id]`
+  quando `quantidade === 1`; `href = null` (sem CTA) quando `quantidade > 1`
+- Justificativa pelo filtro das 3 metas: obrigação fiscal já coberta pelo
+  card + veto do critério 11; lista filtrada seria fricção de processo, fora
+  do necessário para fechar as três guardas
+- Corte deliberado, não bloqueante: lista própria vira ticket P2 se o volume
+  de pendências simultâneas justificar
+
+### `33-2026-09-20-tres-bugs-achados-no-teste-manual-do-contai-033.md` — 60 linhas
+**Três bugs achados no teste manual no browser do CONTAI-033 — 2026-09-20 — o mesmo teste que já pegou o CONTAI-022**
+
+- Achados DEPOIS dos Gates 1 e 2 fechados (639 unitários + 179 E2E verdes):
+  confirmação de sucesso mentindo "Arquivo guardado no acervo" sem arquivo
+  nenhum; home dizendo "Nenhuma pendência" com pendência vermelha na mesma
+  tela; "sem pagamento ligado" chamando de quarentena uma nota que nunca
+  esteve fora do CPF
+- Os três corrigidos no próprio CONTAI-033, com E2E travando a regressão
+- **D58** — o mesmo bug da confirmação existe em `/adicionar/pagamento`
+  (ticket anterior, não corrigido aqui)
+- **D59** — o banner "Nenhuma pendência" só foi corrigido para
+  `documentosSemArquivo`; os outros cinco agregados "fora de pendencias" não
+  foram auditados
 
 ## Ao acrescentar ao backlog
 

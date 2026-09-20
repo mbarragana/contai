@@ -165,7 +165,7 @@ export type Database = {
       }
       documento: {
         Row: {
-          arquivo_path: string
+          arquivo_path: string | null
           chave_acesso: string | null
           classificacao: Database["public"]["Enums"]["classificacao"] | null
           created_at: string
@@ -185,7 +185,7 @@ export type Database = {
           vencimento: string | null
         }
         Insert: {
-          arquivo_path: string
+          arquivo_path?: string | null
           chave_acesso?: string | null
           classificacao?: Database["public"]["Enums"]["classificacao"] | null
           created_at?: string
@@ -205,7 +205,7 @@ export type Database = {
           vencimento?: string | null
         }
         Update: {
-          arquivo_path?: string
+          arquivo_path?: string | null
           chave_acesso?: string | null
           classificacao?: Database["public"]["Enums"]["classificacao"] | null
           created_at?: string
@@ -971,6 +971,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      anexar_arquivo_documento: {
+        Args: {
+          p_arquivo_path: string
+          p_documento_id: string
+          p_nota_no_cpf: boolean
+          p_retencao_11?: boolean
+        }
+        Returns: undefined
+      }
       baixar_pendencia: {
         Args: {
           p_data?: string

@@ -219,3 +219,25 @@ export function papeisDoDesembolso(d: TerrenoDesembolso): ItemDeAcervo[] {
     papel: ROTULO_DO_PAPEL[a.papel],
   }));
 }
+
+/**
+ * O papel ORIGINAL do documento, pronto para a lista — **e a lista vazia quando
+ * ele não existe** (CONTAI-033: `arquivo_path` passou a admitir `null`).
+ *
+ * ⚠️ **Uma definição só, pelo mesmo motivo da de cima.** Cinco telas mostram
+ * este papel (detalhe do documento e as quatro de correção), e `[{ path:
+ * d.arquivoPath }]` escrito à mão em cada uma é cinco chances de um `null`
+ * virar um item de acervo que não abre nada — um botão "Abrir" apontando para
+ * lugar nenhum, que é a D35 com outro rosto.
+ */
+export function papelOriginal(arquivoPath: string | null): ItemDeAcervo[] {
+  return arquivoPath === null ? [] : [{ path: arquivoPath }];
+}
+
+/**
+ * O que a lista de papéis diz quando o original não está no acervo. Linha
+ * honesta, e não lista vazia muda: "sem papel" é um FATO com consequência
+ * fiscal (§A.7.2), não a ausência de informação.
+ */
+export const SEM_PAPEL_NO_ACERVO =
+  "Esta nota foi registrada sem o arquivo — o papel não está no acervo.";

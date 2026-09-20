@@ -25,6 +25,7 @@ import {
 } from "@/app/_components/ui";
 import { BlocoAgendados } from "@/app/_components/agendado";
 import { PendenciaDeDatas } from "@/app/_components/datas-do-desembolso";
+import { CardDocumentosSemArquivo } from "@/app/_components/documento-sem-arquivo";
 import { CardPagoSemComprovante } from "@/app/_components/pago-sem-comprovante";
 import {
   carregarCompromissos,
@@ -471,7 +472,16 @@ export default function Home() {
               <Passo>Pendências</Passo>
             ) : null}
 
-            {estado.resumo.pendencias.length === 0 ? (
+            {/* ⚠️ Achado no teste manual no browser do CONTAI-033: este banner só
+                olhava `pendencias`, e `documentosSemArquivo` fica FORA dela de
+                propósito (crit. 11) — o banner dizia "Nenhuma pendência" com o
+                card vermelho de "Nota sem arquivo" logo abaixo, na mesma tela.
+                Mesma classe de defeito que o ticket inteiro existe para evitar
+                (D47). Não estendido aos outros agregados "fora de pendencias"
+                (terreno, financiamento) — auditoria maior, fora deste ticket;
+                registrado como dívida no backlog. */}
+            {estado.resumo.pendencias.length === 0 &&
+            !estado.resumo.documentosSemArquivo ? (
               <Banner cor="grn" role="status">
                 <strong>Nenhuma pendência.</strong> Todo documento e pagamento
                 registrado está com a documentação em ordem.
@@ -529,6 +539,22 @@ export default function Home() {
                     estado.resumo.terrenoPagoSemComprovante.quantidade
                   }
                   href={estado.resumo.terrenoPagoSemComprovante.href}
+                />
+              </>
+            ) : null}
+
+            {/* ── CONTAI-033, critério 11 · o card irmão, do lado do DOCUMENTO
+                A mesma disciplina, o mesmo D47: nota gravada sem o arquivo
+                precisa de superfície própria, senão "registra e esquece"
+                (§A.5). VERMELHO — o arquivo que falta É o documento hábil.
+                CTA só quando há UM documento (decisão do `po`, 2026-09-19). */}
+            {estado.resumo.documentosSemArquivo ? (
+              <>
+                <Passo>Documentos — pendências</Passo>
+                <CardDocumentosSemArquivo
+                  totalCentavos={estado.resumo.documentosSemArquivo.totalCentavos}
+                  quantidade={estado.resumo.documentosSemArquivo.quantidade}
+                  href={estado.resumo.documentosSemArquivo.href}
                 />
               </>
             ) : null}

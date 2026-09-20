@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   alocarCusto,
+  ehDocumentoHabil,
   alocarSimulando,
   custoComprovadoAteOAno,
   custoComprovadoDoAno,
@@ -254,6 +255,67 @@ describe("`status` não é pré-requisito de custo (critérios 4 e 7)", () => {
       semNotaCentavos: 300_000,
     });
     expect(custoComprovadoDoAno(a, 2026)).toBe(0);
+  });
+});
+
+describe("⚠️ CONTAI-033, Guarda 1 — documento SEM ARQUIVO não é hábil", () => {
+  // Parecer `2026-08-23-anexo-no-desembolso-do-terreno.md`, ADENDO 1 §A.3,
+  // `[Certain]`: `C = min(Σ pagamentos elegíveis, Σ documentos hábeis)`. O
+  // pagamento sem comprovante empurraria o PISO; o documento sem arquivo
+  // levantaria o TETO — liberaria custo confirmado SEM LASTRO NENHUM, que é
+  // redução indevida de ganho de capital, cobrada com multa.
+  //
+  // ⚠️ "Documento sem arquivo não entra em Σ documentos. PONTO." A nuance do
+  // §2.1 do corpo do parecer ("o app mostra, o Mateus decide") NÃO se aplica:
+  // lá o número subestimava, aqui superestimaria.
+
+  it("tipo e status OK, arquivo ausente → NÃO hábil", () => {
+    expect(
+      ehDocumentoHabil({
+        tipo: "nf_servico",
+        status: "registrado",
+        arquivoPath: null,
+      }),
+    ).toBe(false);
+  });
+
+  it("os três requisitos são conjuntivos — cada um sozinho reprova", () => {
+    const habil = { tipo: "nf_material", status: "registrado", arquivoPath: "u/d/a.pdf" } as const;
+    expect(ehDocumentoHabil(habil)).toBe(true);
+    expect(ehDocumentoHabil({ ...habil, tipo: "boleto" })).toBe(false);
+    expect(ehDocumentoHabil({ ...habil, status: "quarentena" })).toBe(false);
+    expect(ehDocumentoHabil({ ...habil, arquivoPath: null })).toBe(false);
+  });
+
+  it("nota sem arquivo vinculada dá custo confirmado ZERO — e a despesa não some", () => {
+    // Mesmo desenho do teste da quarentena: o não hábil participa do grafo (é
+    // ele que evita a mesma despesa contar duas vezes) e contribui zero.
+    const a = alocar(
+      [doc({ id: "d1", arquivoPath: null })],
+      [pag({ id: "p1", documentoIds: ["d1"] })],
+    );
+    expect(a.componentes[0].somaDocumentosHabeisCentavos).toBe(0);
+    expect(a.componentes[0].custoComprovadoCentavos).toBe(0);
+    expect(a.porDocumento.get("d1")?.habil).toBe(false);
+    expect(a.porPagamento.get("p1")?.semNotaCentavos).toBe(300_000);
+  });
+
+  it("⚠️ o arquivo chegando, a MESMA nota volta a comprovar (reversível)", () => {
+    // A Guarda 3 é reversível de propósito: "sustenta custo" vira "sim" no
+    // instante em que o arquivo sobe. É o que o rótulo revisado pelo `contador`
+    // em 2026-09-19 carrega ("Sustenta custo de aquisição", não "Custo
+    // confirmado").
+    const comArquivo = alocar(
+      [doc({ id: "d1", arquivoPath: "u/documento/nf.pdf" })],
+      [pag({ id: "p1", documentoIds: ["d1"] })],
+    );
+    expect(comArquivo.componentes[0].custoComprovadoCentavos).toBe(300_000);
+  });
+
+  it("nota sem arquivo NÃO entra no terceiro número (notas hábeis sem pagamento)", () => {
+    // Senão a Guarda 1 vazaria por um segundo caminho de soma — pre-mortem 1.
+    const a = alocar([doc({ id: "d1", arquivoPath: null })], []);
+    expect(documentosHabeisSemPagamento(a)).toHaveLength(0);
   });
 });
 

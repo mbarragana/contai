@@ -15,6 +15,7 @@ import {
 } from "@/lib/fiscal/discriminacao";
 import {
   desembolsosCarregados,
+  documentosCarregados,
   podeGerarRelatorioAnual,
   type LiberadoBensEDireitos,
 } from "@/lib/fiscal/compromisso";
@@ -153,6 +154,9 @@ function liberado(
     HOJE,
     ano,
     desembolsosCarregados(desembolsos),
+    // CONTAI-033: nenhum documento sem arquivo — o cenário aqui é sobre o
+    // terreno, e a porta veta as três saídas se houver.
+    documentosCarregados([]),
   );
   if (!r.ok) throw new Error("a porta vetou — cenário errado no teste");
   return r.bensEDireitos;

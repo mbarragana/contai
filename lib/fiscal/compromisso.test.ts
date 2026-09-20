@@ -15,6 +15,7 @@ import {
   preposicaoDeTempo,
   perguntaQuitacao,
   desembolsosCarregados,
+  documentosCarregados,
   podeGerarRelatorioAnual,
   podeQuitar,
   QUITACAO_CONSEQUENCIA_DO_NAO,
@@ -24,7 +25,12 @@ import {
   saldoDoCompromisso,
 } from "@/lib/fiscal/compromisso";
 import { formatarBRL } from "@/lib/money";
-import type { Compromisso, CompromissoRow, Pagamento } from "@/lib/types";
+import type {
+  Compromisso,
+  CompromissoRow,
+  Documento,
+  Pagamento,
+} from "@/lib/types";
 import type { PermissaoRelatorio } from "@/lib/fiscal/compromisso";
 
 /**
@@ -35,6 +41,14 @@ import type { PermissaoRelatorio } from "@/lib/fiscal/compromisso";
  * dizer "a obra não tem desembolso" tem de dizê-lo passando pelo construtor.
  */
 const SEM_DESEMBOLSO = desembolsosCarregados([]);
+
+/**
+ * CONTAI-033, critério 11 — o 5º parâmetro, opaco pela mesma razão: "esta obra
+ * não tem documento" e "não fui buscar os documentos" deixaram de ter a mesma
+ * forma, e o que o colapso liberava agora era saída anual com nota afirmada de
+ * memória em pé.
+ */
+const SEM_DOCUMENTO = documentosCarregados([]);
 
 /** As três saídas liberadas, cada uma com a marca da SUA saída. */
 function liberaAsTres(p: PermissaoRelatorio): boolean {
@@ -195,14 +209,14 @@ describe("vencido sem resposta", () => {
     });
     expect(ehVencidoSemResposta(c, HOJE)).toBe(true);
     expect(
-      podeGerarRelatorioAnual([c], HOJE, 2026, SEM_DESEMBOLSO),
+      podeGerarRelatorioAnual([c], HOJE, 2026, SEM_DESEMBOLSO, SEM_DOCUMENTO),
     ).toEqual({ ok: false, faltamResponder: [c] });
   });
 
   it("data prevista no futuro não é vencido e não bloqueia (critério 21b)", () => {
     const c = comp({ id: "c1", dataPrevista: "2026-09-15" });
     expect(ehVencidoSemResposta(c, HOJE)).toBe(false);
-    expect(liberaAsTres(podeGerarRelatorioAnual([c], HOJE, 2026, SEM_DESEMBOLSO))).toBe(true);
+    expect(liberaAsTres(podeGerarRelatorioAnual([c], HOJE, 2026, SEM_DESEMBOLSO, SEM_DOCUMENTO))).toBe(true);
   });
 
   it("hoje ainda não venceu — venceu é ONTEM", () => {
@@ -214,7 +228,7 @@ describe("vencido sem resposta", () => {
     // alcançável só pelo saldo de uma quitação parcial, nunca na criação.
     const c = comp({ id: "c1", dataPrevista: null });
     expect(ehVencidoSemResposta(c, HOJE)).toBe(false);
-    expect(liberaAsTres(podeGerarRelatorioAnual([c], HOJE, 2026, SEM_DESEMBOLSO))).toBe(true);
+    expect(liberaAsTres(podeGerarRelatorioAnual([c], HOJE, 2026, SEM_DESEMBOLSO, SEM_DOCUMENTO))).toBe(true);
   });
 
   it("cancelado e quitado não bloqueiam — são as respostas (critério 21c)", () => {
@@ -228,7 +242,7 @@ describe("vencido sem resposta", () => {
     const quitado = comp({ id: "c2", ...vencido, situacao: "quitado" });
     expect(
       liberaAsTres(
-        podeGerarRelatorioAnual([cancelado, quitado], HOJE, 2026, SEM_DESEMBOLSO),
+        podeGerarRelatorioAnual([cancelado, quitado], HOJE, 2026, SEM_DESEMBOLSO, SEM_DOCUMENTO),
       ),
     ).toBe(true);
   });
@@ -245,14 +259,14 @@ describe("⚠️ bloqueio anual — o `ano` NÃO recorta nada (critério 21, ade
     // CONTAI-036 o veto passou a ser POR SAÍDA, e o do terreno deixou de ser
     // veto — virou obrigação tipada dentro do bloco `bensEDireitos`. O que
     // sobrou aqui é o portão TRANSVERSAL, e ele veta as três.
-    expect(podeGerarRelatorioAnual([vencido2025], HOJE, 2025, SEM_DESEMBOLSO)).toEqual({
+    expect(podeGerarRelatorioAnual([vencido2025], HOJE, 2025, SEM_DESEMBOLSO, SEM_DOCUMENTO)).toEqual({
       ok: false,
       faltamResponder: [vencido2025],
     });
   });
 
   it("⚠️ bloqueia TAMBÉM o relatório de 2026, e é esse o ponto", () => {
-    const r = podeGerarRelatorioAnual([vencido2025], HOJE, 2026, SEM_DESEMBOLSO);
+    const r = podeGerarRelatorioAnual([vencido2025], HOJE, 2026, SEM_DESEMBOLSO, SEM_DOCUMENTO);
     expect(
       r.ok,
       "recortar o bloqueio pela data prevista devolve efeito fiscal à PREVISÃO — " +
@@ -263,22 +277,160 @@ describe("⚠️ bloqueio anual — o `ano` NÃO recorta nada (critério 21, ade
 
   it("bloqueia qualquer ano, inclusive um em que nada foi previsto", () => {
     for (const ano of [2024, 2025, 2026, 2027, 2030]) {
-      expect(podeGerarRelatorioAnual([vencido2025], HOJE, ano, SEM_DESEMBOLSO).ok).toBe(false);
+      expect(podeGerarRelatorioAnual([vencido2025], HOJE, ano, SEM_DESEMBOLSO, SEM_DOCUMENTO).ok).toBe(false);
     }
   });
 
   it("devolve a lista do que falta responder, não só o `false`", () => {
     const outro = comp({ id: "c-b", dataPrevista: "2026-07-01" });
     const emDia = comp({ id: "c-c", dataPrevista: "2026-12-01" });
-    const r = podeGerarRelatorioAnual([vencido2025, outro, emDia], HOJE, 2026, SEM_DESEMBOLSO);
+    const r = podeGerarRelatorioAnual([vencido2025, outro, emDia], HOJE, 2026, SEM_DESEMBOLSO, SEM_DOCUMENTO);
     expect(r.ok).toBe(false);
-    if (r.ok) return;
+    // ⚠️ `in`, e não `!r.ok`: desde o CONTAI-033 existem DOIS braços de veto, e
+    // `faltamResponder` mora só num deles.
+    if (!("faltamResponder" in r)) throw new Error("braço de veto errado");
     expect(r.faltamResponder.map((c) => c.id).sort()).toEqual(["c-2025", "c-b"]);
   });
 
   it("sem compromisso nenhum, o relatório gera", () => {
     expect(
-      liberaAsTres(podeGerarRelatorioAnual([], HOJE, 2026, SEM_DESEMBOLSO)),
+      liberaAsTres(podeGerarRelatorioAnual([], HOJE, 2026, SEM_DESEMBOLSO, SEM_DOCUMENTO)),
+    ).toBe(true);
+  });
+});
+
+// ══ CONTAI-033, critério 11 — o SEGUNDO braço de veto ════════════════════
+//
+// Fonte: parecer `2026-08-23-anexo-no-desembolso-do-terreno.md`, ADENDO 1 §A.5
+// — *"toda pendência criada aqui precisa de superfície própria"* (D47). A
+// liberação da superfície 3 admite um `documento` que nunca existiu, afirmado de
+// memória; enquanto ele estiver sem arquivo, NENHUMA saída anual sai.
+
+describe("⚠️ nota sem arquivo veta as três saídas (CONTAI-033, crit. 11)", () => {
+  const OBRA = "obra-1";
+
+  function docSemArquivo(id: string): Documento {
+    return {
+      id,
+      obraId: OBRA,
+      tipo: "nf_servico",
+      status: "registrado",
+      valorCentavos: 420_000,
+      numero: "1042",
+      serie: null,
+      dataEmissao: "2026-03-20",
+      vencimento: null,
+      classificacao: "mao_obra",
+      destinatarioCpfOk: true,
+      retencao11: true,
+      motivoQuarentena: null,
+      favorecidoId: "fav-1",
+      favorecidoNome: "Elétrica Nunes Serviços",
+      favorecidoDocumento: "14221900000177",
+      // O carimbo inteiro do ticket: nenhuma coluna nova.
+      arquivoPath: null,
+    };
+  }
+
+  function comArquivo(id: string): Documento {
+    return { ...docSemArquivo(id), arquivoPath: "u/documento/nf.pdf" };
+  }
+
+  it("um documento sem arquivo bloqueia, e devolve a lista", () => {
+    const d = docSemArquivo("d1");
+    expect(
+      podeGerarRelatorioAnual(
+        [],
+        HOJE,
+        2026,
+        SEM_DESEMBOLSO,
+        documentosCarregados([d, comArquivo("d2")]),
+      ),
+    ).toEqual({ ok: false, semArquivo: [d] });
+  });
+
+  it("todos com arquivo: as três saem", () => {
+    expect(
+      liberaAsTres(
+        podeGerarRelatorioAnual(
+          [],
+          HOJE,
+          2026,
+          SEM_DESEMBOLSO,
+          documentosCarregados([comArquivo("d1"), comArquivo("d2")]),
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it("⚠️ o `ano` NÃO recorta o veto — mesma doutrina do portão transversal", () => {
+    // A nota sem arquivo não tem ano-calendário garantido (quem o decide é o
+    // pagamento, regime de caixa), então recortar por ano liberaria o relatório
+    // de um ano ao qual ela talvez pertença.
+    for (const ano of [2024, 2025, 2026, 2027, 2030]) {
+      expect(
+        podeGerarRelatorioAnual(
+          [],
+          HOJE,
+          ano,
+          SEM_DESEMBOLSO,
+          documentosCarregados([docSemArquivo("d1")]),
+        ).ok,
+      ).toBe(false);
+    }
+  });
+
+  it("⚠️ quarentena SEM arquivo também veta — o predicado não olha `status`", () => {
+    // Confirmação do `contador` em 2026-09-19: a guarda de superfície é
+    // ADICIONAL à quarentena, não redundante.
+    const d: Documento = {
+      ...docSemArquivo("d1"),
+      status: "quarentena",
+      destinatarioCpfOk: false,
+      motivoQuarentena: "…",
+    };
+    expect(
+      podeGerarRelatorioAnual(
+        [],
+        HOJE,
+        2026,
+        SEM_DESEMBOLSO,
+        documentosCarregados([d]),
+      ).ok,
+    ).toBe(false);
+  });
+
+  it("⚠️ PRECEDÊNCIA: com os dois vetos vivos, o transversal responde primeiro", () => {
+    // O portão do CONTAI-019 fica ACIMA porque a resposta do agendamento é o
+    // dado que decide o ANO — sem ela não se sabe nem de que relatório se fala.
+    // A tela mostra UM motivo de cada vez, e tem de ser o mais estrutural.
+    const vencido = comp({ id: "c-2025", dataPrevista: "2025-12-28" });
+    const r = podeGerarRelatorioAnual(
+      [vencido],
+      HOJE,
+      2026,
+      SEM_DESEMBOLSO,
+      documentosCarregados([docSemArquivo("d1")]),
+    );
+    expect(r).toEqual({ ok: false, faltamResponder: [vencido] });
+    expect("semArquivo" in r).toBe(false);
+  });
+
+  it("⚠️ RESIDUAL 1 de novo — o literal `[]` NÃO typecheca no 5º parâmetro", () => {
+    // Mesma prova de TIPO do CONTAI-036, agora para o documento: "esta obra não
+    // tem documento" e "não fui buscar os documentos" não podem ter a mesma
+    // forma, porque o colapso libera saída anual com nota de memória em pé.
+    // As chamadas ficam numa função que ninguém executa: a falha é de compilação.
+    function naoCompila() {
+      // @ts-expect-error — o 5º parâmetro é opaco: só a camada de dados o produz
+      podeGerarRelatorioAnual([], HOJE, 2026, SEM_DESEMBOLSO, []);
+      // E a lista crua também não passa: não basta ter os documentos na mão.
+      // @ts-expect-error — `Documento[]` não é `DocumentosCarregados`
+      podeGerarRelatorioAnual([], HOJE, 2026, SEM_DESEMBOLSO, [comArquivo("d1")]);
+    }
+    expect(typeof naoCompila).toBe("function");
+    expect(
+      podeGerarRelatorioAnual([], HOJE, 2026, SEM_DESEMBOLSO, SEM_DOCUMENTO).ok,
     ).toBe(true);
   });
 });

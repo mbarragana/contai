@@ -203,6 +203,25 @@ const FUNCOES_ESPERADAS: Record<string, string> = {
   compra_cartao_mudar_data: "authenticated",
   fatura_desembolso_gravar: "authenticated",
   fatura_alocar: "authenticated",
+
+  // ── CONTAI-033 (migration 0014) ────────────────────────────────────────
+  // O ato atômico de anexar o arquivo depois: path + os DOIS checks fiscais +
+  // `status` + `motivo_quarentena`, num só. Existe porque em dois UPDATEs há o
+  // estado intermediário "tem arquivo, status velho" — e é nele que a nota volta
+  // a contar como hábil com afirmação feita de memória (Guarda 3 do parecer).
+  //
+  // ⚠️ Nenhuma tabela nova neste ticket, e mesmo assim este mapa MUDA: ele cobre
+  // FUNÇÃO, e função nasce com `execute` para `public` (que inclui `anon`) em
+  // qualquer Postgres. Sem o revoke da 0014, o anônimo poderia reescrever o
+  // status fiscal de um documento.
+  anexar_arquivo_documento: "authenticated",
+
+  // A função do trigger que fecha `arquivo_path` depois do primeiro anexo (a
+  // doutrina da 0009: "anexa-se adicional, não se substitui"). Mesmo caso de
+  // `pendencia_uma_aberta_por_chave` e `terreno_desembolso_datar_resposta`:
+  // `returns trigger`, o Postgres recusa chamada direta, e o privilégio é
+  // inofensivo — declarado aqui, não silenciado.
+  documento_arquivo_path_imutavel: "PUBLIC,anon,authenticated",
 };
 
 test.describe("privilégios do schema public", () => {

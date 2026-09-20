@@ -6,6 +6,7 @@ import { formatarBRL } from "@/lib/money";
 import * as terreno from "@/lib/fiscal/terreno";
 import {
   desembolsosCarregados,
+  documentosCarregados,
   podeGerarRelatorioAnual,
   type LiberadoBensEDireitos,
 } from "@/lib/fiscal/compromisso";
@@ -1394,6 +1395,8 @@ describe("critério 13 — a mensagem de sucesso não pode mentir", () => {
 
 describe("CONTAI-036 · o veto é por saída, e a porta continua única", () => {
   const SEM_DESEMBOLSO = desembolsosCarregados([]);
+  /** CONTAI-033, critério 11 — o 5º parâmetro, opaco pela mesma razão. */
+  const SEM_DOCUMENTO = documentosCarregados([]);
   const HOJE = "2026-08-24";
 
   const vencidoSemResposta: Compromisso = {
@@ -1419,7 +1422,7 @@ describe("CONTAI-036 · o veto é por saída, e a porta continua única", () => 
     const a = desembolso({ id: "d1", valorCentavos: 60_000_00, anexos: [anexo("contrato")] });
     const b = desembolso({ id: "d2", valorCentavos: 25_000_00, anexos: [] });
     const c = desembolso({ id: "d3", valorCentavos: 4_200_00, dataPagamento: null, anexos: [] });
-    const r = podeGerarRelatorioAnual([], HOJE, 2026, desembolsosCarregados([a, b, c]));
+    const r = podeGerarRelatorioAnual([], HOJE, 2026, desembolsosCarregados([a, b, c]), SEM_DOCUMENTO);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.bensEDireitos.foraDoCustoConfirmado.quantidade).toBe(3);
@@ -1437,6 +1440,7 @@ describe("CONTAI-036 · o veto é por saída, e a porta continua única", () => 
       HOJE,
       2026,
       desembolsosCarregados([desembolso({ id: "d1", anexos: [] })]),
+      SEM_DOCUMENTO,
     );
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -1454,6 +1458,7 @@ describe("CONTAI-036 · o veto é por saída, e a porta continua única", () => 
       HOJE,
       2026,
       desembolsosCarregados([desembolso({ id: "d1" })]),
+      SEM_DOCUMENTO,
     );
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -1465,7 +1470,7 @@ describe("CONTAI-036 · o veto é por saída, e a porta continua única", () => 
 
   it("`previsto` não entra no termo — nada saiu da conta", () => {
     const d = desembolso({ id: "d1", estado: "previsto", dataPagamento: null, anexos: [] });
-    const r = podeGerarRelatorioAnual([], HOJE, 2026, desembolsosCarregados([d]));
+    const r = podeGerarRelatorioAnual([], HOJE, 2026, desembolsosCarregados([d]), SEM_DOCUMENTO);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.bensEDireitos.foraDoCustoConfirmado.quantidade).toBe(0);
@@ -1480,9 +1485,11 @@ describe("CONTAI-036 · o veto é por saída, e a porta continua única", () => 
       HOJE,
       2026,
       desembolsosCarregados([desembolso({ id: "d1" })]),
+      SEM_DOCUMENTO,
     );
     expect(r.ok).toBe(false);
-    if (r.ok) return;
+    // ⚠️ `in`, e não `!r.ok`: o CONTAI-033 trouxe um SEGUNDO braço de veto.
+    if (!("faltamResponder" in r)) throw new Error("braço de veto errado");
     expect(r.faltamResponder.map((c) => c.id)).toEqual(["c1"]);
     // Os três blocos não existem no payload de veto — não há como "pegar só
     // o de Pagamentos Efetuados" e gerar assim mesmo.
@@ -1499,6 +1506,7 @@ describe("CONTAI-036 · o veto é por saída, e a porta continua única", () => 
       HOJE,
       2026,
       desembolsosCarregados([desembolso({ id: "d1", anexos: [] })]),
+      SEM_DOCUMENTO,
     );
     expect(r.ok, "terreno pendente voltou a vetar as três saídas").toBe(true);
   });
@@ -1516,17 +1524,17 @@ describe("CONTAI-036 · o veto é por saída, e a porta continua única", () => 
     // no acesso a `.lista`.
     function naoCompila() {
       // @ts-expect-error — o 4º parâmetro é opaco: só a camada de dados o produz
-      podeGerarRelatorioAnual([], HOJE, 2026, []);
+      podeGerarRelatorioAnual([], HOJE, 2026, [], SEM_DOCUMENTO);
       // E a lista crua também não passa: não basta ter desembolsos na mão.
       // @ts-expect-error — `TerrenoDesembolso[]` não é `DesembolsosDoTerrenoCarregados`
-      podeGerarRelatorioAnual([], HOJE, 2026, [desembolso({ id: "d1" })]);
+      podeGerarRelatorioAnual([], HOJE, 2026, [desembolso({ id: "d1" })], SEM_DOCUMENTO);
     }
     expect(typeof naoCompila).toBe("function");
-    expect(podeGerarRelatorioAnual([], HOJE, 2026, SEM_DESEMBOLSO).ok).toBe(true);
+    expect(podeGerarRelatorioAnual([], HOJE, 2026, SEM_DESEMBOLSO, SEM_DOCUMENTO).ok).toBe(true);
   });
 
   it("⚠️ a marca de um bloco NÃO serve para outro — o gerador errado não compila", () => {
-    const r = podeGerarRelatorioAnual([], HOJE, 2026, SEM_DESEMBOLSO);
+    const r = podeGerarRelatorioAnual([], HOJE, 2026, SEM_DESEMBOLSO, SEM_DOCUMENTO);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     const geraFicha = (l: LiberadoBensEDireitos) => l.foraDoCustoConfirmado;
@@ -1570,7 +1578,7 @@ describe("CONTAI-036 · o veto é por saída, e a porta continua única", () => 
     /** As três marcas, mais o tipo opaco do 4º parâmetro da porta. */
     const MARCAS =
       "(?:Liberado(?:BensEDireitos|PagamentosEfetuados|AfericaoInss)|" +
-      "DesembolsosDoTerrenoCarregados)";
+      "DesembolsosDoTerrenoCarregados|DocumentosCarregados)";
     /**
      * A outra forma de passar pela porta, e ela é a do CONTAI-036: **receber a
      * marca**. Um gerador que exige `Liberado*` na assinatura não tem como ser

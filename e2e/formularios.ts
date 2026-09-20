@@ -39,7 +39,11 @@ export interface DocumentoBasico {
   /** CNPJ/CPF do emitente, formatado ou não. */
   documento: string;
   valor: string;
-  arquivo: Anexo;
+  /**
+   * ⚠️ **OPCIONAL desde o CONTAI-033**: a nota grava sem o arquivo (parecer
+   * ADENDO 1 §A.3), e deixar de fora é como o teste chega ao diálogo do §A.7.1.
+   */
+  arquivo?: Anexo;
   /**
    * Número da nota — CONTAI-004, R2: vai LITERAL para o campo, sem
    * normalização nenhuma, e é assim que o teste confere o que foi gravado.
@@ -63,7 +67,9 @@ export async function preencherDocumentoBasico(
   page: Page,
   dados: DocumentoBasico,
 ) {
-  await page.getByLabel("Arquivo").setInputFiles(dados.arquivo);
+  if (dados.arquivo) {
+    await page.getByLabel("Arquivo").setInputFiles(dados.arquivo);
+  }
   await escolher(page, "Tipo", dados.tipo);
   if (dados.numero !== undefined) {
     await page.getByLabel("Número da nota").fill(dados.numero);

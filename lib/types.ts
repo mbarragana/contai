@@ -153,7 +153,21 @@ export interface Documento {
    * `garantirFavorecido` é pelo DOCUMENTO, não pelo nome.
    */
   favorecidoDocumento: string | null;
-  arquivoPath: string;
+  /**
+   * O papel da nota no acervo.
+   *
+   * ⚠️ **`null` é estado legítimo desde o CONTAI-033** (parecer
+   * `2026-08-23-anexo-no-desembolso-do-terreno.md`, ADENDO 1 §A.3): a nota
+   * chegou por WhatsApp, o Mateus leu emitente/valor/tipo na mensagem e
+   * registrou — o arquivo vem depois. É o carimbo de "registrado sem arquivo",
+   * e **não** existe status novo para isso: quem o lê é `estadoExibido`
+   * (`lib/fiscal/documento.ts`), nunca `status` cru.
+   *
+   * As três guardas do §A.3 dependem desta nulidade: sem arquivo o documento
+   * não é hábil (`ehDocumentoHabil`), não abate a aferição do INSS e não
+   * libera relatório anual nenhum.
+   */
+  arquivoPath: string | null;
 }
 
 export interface Pagamento {

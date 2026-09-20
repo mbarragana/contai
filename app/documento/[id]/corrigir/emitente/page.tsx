@@ -3,7 +3,11 @@
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 
-import { ListaDeAnexos } from "@/app/_components/anexo";
+import {
+  ListaDeAnexos,
+  papelOriginal,
+  SEM_PAPEL_NO_ACERVO,
+} from "@/app/_components/anexo";
 import { CampoArquivo, CampoTexto } from "@/app/_components/campos";
 import {
   ErroEstaNaNota,
@@ -247,7 +251,8 @@ function CorrigirEmitente() {
     <Card>
       <ListaDeAnexos
         titulo="Papel anexado"
-        itens={[{ path: documento.arquivoPath }]}
+        itens={papelOriginal(documento.arquivoPath)}
+        vazio={SEM_PAPEL_NO_ACERVO}
       />
     </Card>
   );

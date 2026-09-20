@@ -3,7 +3,11 @@
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { ListaDeAnexos } from "@/app/_components/anexo";
+import {
+  ListaDeAnexos,
+  papelOriginal,
+  SEM_PAPEL_NO_ACERVO,
+} from "@/app/_components/anexo";
 import { CampoArquivo } from "@/app/_components/campos";
 import {
   ErroEstaNaNota,
@@ -203,7 +207,11 @@ export default function CorrigirClassificacao() {
    */
   const blocoAnexo = (
     <Card>
-      <ListaDeAnexos titulo="Papel anexado" itens={[{ path: d.arquivoPath }]} />
+      <ListaDeAnexos
+        titulo="Papel anexado"
+        itens={papelOriginal(d.arquivoPath)}
+        vazio={SEM_PAPEL_NO_ACERVO}
+      />
     </Card>
   );
 

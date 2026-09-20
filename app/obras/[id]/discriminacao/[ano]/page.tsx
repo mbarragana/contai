@@ -107,7 +107,7 @@ export default function DiscriminacaoDoAno() {
           <Carregando rotulo={`Montando a discriminação de ${ano}`} />
         ) : fase.nome === "erro" ? (
           <EstadoErro erro={fase.erro} onTentarDeNovo={tentarDeNovo} />
-        ) : fase.saida.ok === false ? (
+        ) : fase.saida.ok === false && fase.saida.faltamResponder.length > 0 ? (
           // ⚠️ O portão TRANSVERSAL (crit. 21 do CONTAI-019): compromisso
           // vencido sem resposta veta as TRÊS saídas anuais, não só esta.
           // Sem a resposta, ninguém sabe a que ano o desembolso pertence.
@@ -142,6 +142,56 @@ export default function DiscriminacaoDoAno() {
               Vale para as três saídas do ano — Bens e Direitos, Pagamentos
               Efetuados e a posição da aferição. A resposta é justamente o dado
               que decide o ano.
+            </Dica>
+          </div>
+        ) : fase.saida.ok === false ? (
+          // ⚠️ **CONTAI-033, critério 11** — o segundo veto, e ele é IRMÃO do de
+          // cima, não uma variante dele: a causa é outra (nota registrada sem o
+          // arquivo no acervo) e o remédio é outro (subir o papel, não responder
+          // um agendamento). Só um dos dois é não-vazio de cada vez, porque a
+          // porta pura curto-circuita na ordem — o transversal tem precedência.
+          //
+          // ⚠️ **Este texto NÃO é do parecer** e não finge ser: o §A.7.2 fala da
+          // pendência do documento, não deste banner. Ele diz o mesmo fato com
+          // as palavras desta tela, sem prometer nada que o parecer não promete
+          // (§A.7.5: nenhuma tela afirma que o registro sem arquivo "vale").
+          <div className="flex flex-col gap-3">
+            <Banner cor="red" role="alert">
+              <strong data-veto="sem-arquivo">
+                A discriminação de {ano} não vai ser gerada ainda.
+              </strong>{" "}
+              {fase.saida.semArquivo.length === 1
+                ? "Uma nota está"
+                : `${fase.saida.semArquivo.length} notas estão`}{" "}
+              sem arquivo no acervo. Enquanto o arquivo não chega, o app não
+              consegue provar o que{" "}
+              {fase.saida.semArquivo.length === 1 ? "ela sustenta" : "elas sustentam"}{" "}
+              — e custo sem lastro na declaração é redução indevida de ganho de
+              capital.
+            </Banner>
+            <Card>
+              <div className="text-[12px] font-semibold text-mut">
+                O que falta anexar
+              </div>
+              {fase.saida.semArquivo.map((d) => (
+                <Linha
+                  key={d.id}
+                  rotulo={`${d.favorecidoNome ?? "Emitente não informado"} · ${
+                    d.valorCentavos === null
+                      ? "valor não informado"
+                      : formatarBRL(d.valorCentavos)
+                  }`}
+                >
+                  <a className="underline" href={`/documento/${d.id}`}>
+                    Abrir a nota
+                  </a>
+                </Linha>
+              ))}
+            </Card>
+            <Dica>
+              Vale para as três saídas do ano — Bens e Direitos, Pagamentos
+              Efetuados e a posição da aferição. Peça o arquivo ao emitente
+              enquanto ainda há parcela a liberar.
             </Dica>
           </div>
         ) : (

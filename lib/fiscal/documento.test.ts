@@ -7,6 +7,8 @@ import {
   classificacaoProposta,
   duplicataDe,
   EMISSAO_NO_FUTURO,
+  estadoExibido,
+  faltaOArquivo,
   exigeIdentificacaoDaNota,
   exigeRetencao,
   motivoQuarentena,
@@ -37,7 +39,6 @@ function entradaValida(over: Partial<EntradaDocumento> = {}): EntradaDocumento {
     classificacao: "material",
     notaNoCpf: "sim",
     retencao11: null,
-    temArquivo: true,
     ...over,
   };
 }
@@ -69,6 +70,62 @@ describe("statusDocumento", () => {
     expect(statusDocumento("nf_material", "sim")).toBe("registrado");
     expect(statusDocumento("nf_servico", "sim")).toBe("registrado");
     expect(motivoQuarentena("sim")).toBeNull();
+  });
+});
+
+describe("⚠️ CONTAI-033, Guarda 3 — `estadoExibido`, e NENHUM status novo", () => {
+  // Parecer ADENDO 1 §A.3 + D52 (fechada pelo `cto-obra`): `status_documento`
+  // NÃO ganha valor novo. `quarentena` significa *destinatário ≠ CPF*, é escrita
+  // pelo sistema, sustenta a constraint `documento_quarentena_coerente` e
+  // colidiria com o `aguardando_pagamento` do boleto. "Sem arquivo" é uma
+  // SEGUNDA DIMENSÃO — `arquivo_path IS NULL` — e o rótulo é DERIVADO.
+  const base = { status: "registrado", arquivoPath: "u/documento/nf.pdf" } as const;
+
+  it("os quatro estados, e só esta função os monta", () => {
+    expect(estadoExibido(base)).toBe("registrado");
+    expect(estadoExibido({ ...base, arquivoPath: null })).toBe(
+      "registrado_sem_arquivo",
+    );
+    expect(estadoExibido({ ...base, status: "quarentena" })).toBe("quarentena");
+    expect(estadoExibido({ ...base, status: "aguardando_pagamento" })).toBe(
+      "aguardando_pagamento",
+    );
+  });
+
+  it("boleto sem arquivo continua `aguardando_pagamento` — status vence o rótulo", () => {
+    // O rótulo é UM; a pendência de "sem arquivo" é OUTRA coisa, e quem a
+    // levanta é o predicado `arquivoPath === null`, na tela e no agregado. Se
+    // esta função devolvesse `registrado_sem_arquivo` aqui, o boleto perderia a
+    // sua própria consequência ("não é documento hábil sozinho").
+    expect(
+      estadoExibido({ status: "aguardando_pagamento", arquivoPath: null }),
+    ).toBe("aguardando_pagamento");
+  });
+
+  it("⚠️ quarentena SEM arquivo: as duas pendências, nunca uma no lugar da outra", () => {
+    // Confirmação do `contador` em 2026-09-19: as guardas são ADITIVAS. O
+    // rótulo único diz `quarentena` (é o estado mais grave) e `faltaOArquivo`
+    // continua `true` — é por ELE que a tela mostra as duas.
+    //
+    // ⚠️ Este teste nasceu de um defeito REAL, pego pelo E2E no Gate 1: o
+    // bloco da pendência estava condicionado a
+    // `estadoExibido(d) === "registrado_sem_arquivo"`, e por isso desaparecia
+    // justamente no caso em que as duas coexistem. Rótulo e predicado são
+    // perguntas DIFERENTES, e confundi-los reabre a D47.
+    const doc = { status: "quarentena", arquivoPath: null } as const;
+    expect(estadoExibido(doc)).toBe("quarentena");
+    expect(faltaOArquivo(doc)).toBe(true);
+  });
+
+  it("`faltaOArquivo` é o predicado ÚNICO, e não olha `status`", () => {
+    // A tela, o agregado do `ResumoObra` e o veto da saída anual usam TODOS
+    // esta função. `arquivoPath === null` escrito à mão em cada lugar é o
+    // "segundo caminho" do pre-mortem 1 do ticket.
+    expect(faltaOArquivo({ arquivoPath: null })).toBe(true);
+    expect(faltaOArquivo({ arquivoPath: "u/documento/nf.pdf" })).toBe(false);
+    // String vazia NÃO é ausência: `""` seria um path, e o ticket escolheu
+    // `null` justamente para não haver dois jeitos de dizer "não tem".
+    expect(faltaOArquivo({ arquivoPath: "" })).toBe(false);
   });
 });
 
@@ -106,8 +163,20 @@ describe("validarDocumento", () => {
     expect(validarDocumento(entradaValida(), HOJE)).toEqual([]);
   });
 
-  it("sem arquivo não salva — o acervo nasce no registro", () => {
-    expect(campos(entradaValida({ temArquivo: false }))).toContain("temArquivo");
+  it("⚠️ CONTAI-033 — SEM ARQUIVO SALVA: a recusa aqui era o defeito", () => {
+    // Era o inverso disto até 2026-09-19, e o teste carimbava a recusa como
+    // comportamento certo. O parecer `2026-08-23-anexo-no-desembolso-do-terreno`,
+    // ADENDO 1 §A.0, nomeia o erro de enquadramento: o arquivo da nota é
+    // **PROVA** do que o Mateus digitou (ele leu emitente, valor e tipo na
+    // mensagem do WhatsApp), não FONTE do dado — e "bloquear anexo-PROVA não
+    // evita erro nenhum: evita o registro".
+    //
+    // `EntradaDocumento` não tem mais `temArquivo`: a falta do arquivo deixou
+    // de ser erro de campo e virou (a) a pergunta do §A.7.1 na hora de salvar e
+    // (b) as três guardas — `ehDocumentoHabil`, `estadoExibido` e o agregado do
+    // `ResumoObra`. Um `temArquivo` de volta aqui é a recusa voltando disfarçada.
+    expect(validarDocumento(entradaValida(), HOJE)).toEqual([]);
+    expect(Object.keys(entradaValida())).not.toContain("temArquivo");
   });
 
   it("sem responder o check do CPF não salva (critério 4)", () => {

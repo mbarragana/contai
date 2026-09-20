@@ -26,6 +26,7 @@ export function Registrado({
   hrefCorrigirObra,
   aviso,
   extra,
+  arquivoNoAcervo = true,
 }: {
   proximoPasso: ReactNode;
   custo: ReactNode;
@@ -39,6 +40,15 @@ export function Registrado({
    * registro solto é justamente o passivo que este ticket veio reduzir.
    */
   aviso?: ReactNode;
+  /**
+   * CONTAI-033 — achado no teste manual no browser (não no unitário nem no
+   * E2E): esta tela sempre dizia "Arquivo guardado no acervo", mesmo quando
+   * `/adicionar/documento` passou a aceitar gravar SEM arquivo. Sucesso
+   * mentiroso é a mesma classe de defeito do critério 1 acima, com outro
+   * campo. Default `true` preserva o texto de sempre para quem não passa a
+   * prop — hoje só `/adicionar/documento`.
+   */
+  arquivoNoAcervo?: boolean;
   /**
    * Bloco que entra DEPOIS da confirmação — hoje, a sugestão de quitação do
    * CONTAI-019 (critério 37). Fica aqui, e não antes do "Salvar", porque a
@@ -57,8 +67,20 @@ export function Registrado({
           </Banner>
         ) : null}
         <Banner cor="grn" role="status">
-          Salvo em <strong>{obraNome}</strong>. Arquivo guardado no acervo —
-          nada se apaga, e o prazo de guarda só começa a correr depois da venda.
+          {arquivoNoAcervo ? (
+            <>
+              Salvo em <strong>{obraNome}</strong>. Arquivo guardado no acervo
+              — nada se apaga, e o prazo de guarda só começa a correr depois
+              da venda.
+            </>
+          ) : (
+            <>
+              Salvo em <strong>{obraNome}</strong>. Os dados ficam guardados,
+              mas <strong>o arquivo não foi anexado</strong> — sem ele esta
+              nota não sustenta custo nem abate a aferição do INSS. Anexe
+              assim que puder.
+            </>
+          )}
         </Banner>
         <Card>
           <Linha rotulo="Obra">{obraNome}</Linha>

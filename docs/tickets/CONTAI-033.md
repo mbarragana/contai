@@ -29,12 +29,12 @@ cobrar a nota do emitente enquanto ainda tenho parcela a liberar.
 
 1. [x] **Proposta nível 1 em `design/mocks/CONTAI-033.md` (+ `.html`, 5
        telas) aprovada pelo Mateus.** Mock aprovado em 2026-08-24.
-2. [ ] Documento grava em `/adicionar/documento` sem arquivo anexado (hoje
+2. [x] Documento grava em `/adicionar/documento` sem arquivo anexado (hoje
        recusado em `lib/fiscal/documento.ts:117-121`). E2E no padrão de
        `e2e/ingestao.spec.ts:439`, conferindo `arquivo_path` nulo no estado
        gravado (`docs/pareceres/2026-08-23-anexo-no-desembolso-do-terreno.md`
        §A.3).
-3. [ ] **Guarda 1**: documento sem arquivo (`arquivo_path IS NULL`) **não
+3. [x] **Guarda 1**: documento sem arquivo (`arquivo_path IS NULL`) **não
        entra em `Σ documentos`** — não levanta o teto do custo comprovado
        (`C = min(Σ pagamentos elegíveis, Σ documentos hábeis)`). Teste em
        `sustentaCusto` (`lib/fiscal/vinculo.ts:42-44`) afirmando o "não" — a
@@ -42,18 +42,18 @@ cobrar a nota do emitente enquanto ainda tenho parcela a liberar.
        chamadores (§A.3, Guarda 1). **Direção do erro é inversa ao
        CONTAI-025**: lá subestimava e valia "o app mostra, o Mateus decide";
        aqui superestimaria — essa nuance não se aplica.
-4. [ ] **Guarda 2**: documento sem arquivo **não abate** a base de aferição
+4. [x] **Guarda 2**: documento sem arquivo **não abate** a base de aferição
        do INSS — teste no filtro de `lib/fiscal/resumo.ts:565`. A pergunta
        de retenção de 11% continua **obrigatória** no formulário, "não sei"
        continua valendo como resposta — muda só o abatimento (§A.3, Guarda 2).
-5. [ ] **Guarda 3**: documento sem arquivo **não nasce `registrado`** —
+5. [x] **Guarda 3**: documento sem arquivo **não nasce `registrado`** —
        nenhum novo valor em `status_documento` (D52 fechado pelo `cto-obra`:
        `quarentena` não pode ser reaproveitada). `arquivo_path` vira
        nullable; "registrado sem arquivo" é estado **derivado**
        (`arquivo_path IS NULL`), exibido por função pura única
        (`estadoExibido`, `lib/fiscal/documento.ts`) — nenhuma tela monta o
        rótulo à mão.
-6. [ ] Anexar o arquivo depois (tela nova, `/documento/[id]/anexar`)
+6. [x] Anexar o arquivo depois (tela nova, `/documento/[id]/anexar`)
        **REPERGUNTA** os dois checks fiscais (CPF, retenção) — nascem
        **vazios**, nunca herdam a resposta anterior, mesmo que o Mateus
        responda exatamente igual. Ato atômico único: RPC
@@ -61,7 +61,7 @@ cobrar a nota do emitente enquanto ainda tenho parcela a liberar.
        documento com `arquivo_path IS NULL`, grava o path e recomputa
        `status`/`motivo_quarentena` num só ato (§A.3, Guarda 3 — impede o
        "flip barato" do parecer de 18/08).
-7. [ ] Texto do diálogo ao salvar sem arquivo, literal
+7. [x] Texto do diálogo ao salvar sem arquivo, literal
        (`docs/pareceres/2026-08-23-anexo-no-desembolso-do-terreno.md` §A.7.1):
        > "Salvar sem o arquivo da nota?
        > Os dados ficam guardados e servem para cobrar a nota do emitente
@@ -71,7 +71,7 @@ cobrar a nota do emitente enquanto ainda tenho parcela a liberar.
        > nota de serviço com a retenção de 11%, não da lembrança dela.
        >
        > [ Salvar e cobrar a nota ]   [ Anexar agora ]"
-8. [ ] Chip **"Nota sem arquivo"** (distinto de "Pago sem nota") + texto da
+8. [x] Chip **"Nota sem arquivo"** (distinto de "Pago sem nota") + texto da
        pendência, literal (§A.7.2):
        > "Nota sem arquivo.
        > Você registrou os dados da nota, mas o arquivo não está no acervo.
@@ -80,18 +80,18 @@ cobrar a nota do emitente enquanto ainda tenho parcela a liberar.
        > Peça o arquivo ao emitente agora: nota que ficou só na conversa
        > desaparece com a conversa, e o próximo pagamento é a última hora em
        > que você tem como cobrá-la."
-9. [ ] Texto da repergunta ao anexar, literal (§A.7.3):
+9. [x] Texto da repergunta ao anexar, literal (§A.7.3):
        > "Agora com a nota na mão, confirme o que está impresso nela.
        > Você respondeu de memória quando registrou. As perguntas voltam
        > porque agora há papel para conferir — e é o papel que a
        > fiscalização lê, não o app."
-10. [ ] Migration com `arquivo_path` nullable, trigger de transição única
+10. [x] Migration com `arquivo_path` nullable, trigger de transição única
         (impede reescrita depois do primeiro anexo — doutrina da 0009
         preservada), RPC `anexar_arquivo_documento` (`security invoker`,
         `revoke`/`grant execute to authenticated`). `e2e/privilegios.spec.ts`
         atualizado — obrigatório mesmo sem tabela nova, porque o mapa cobre
         funções e a RPC nova entra nele.
-11. [ ] **Guarda de superfície** (mesma disciplina do critério 16 do
+11. [x] **Guarda de superfície** (mesma disciplina do critério 16 do
         `CONTAI-025`/`036`): campo agregado `documentosSemArquivo` no
         `ResumoObra` (padrão `TerrenoPagoSemComprovante`,
         `{quantidade, totalCentavos, href}`), fora de
@@ -103,7 +103,7 @@ cobrar a nota do emitente enquanto ainda tenho parcela a liberar.
         "sem arquivo" fora do agregado, nenhuma saída anual é gerada — mesma
         porta única, novo braço `{ok:false, semArquivo}` em
         `PermissaoRelatorio`.
-12. [ ] **Guarda-chuva de default fiscal**: nenhum campo novo deste ticket
+12. [x] **Guarda-chuva de default fiscal**: nenhum campo novo deste ticket
         (checks de CPF/retenção na tela de anexar) nasce preenchido ou
         herdado — a tela de anexar nasce com os dois em branco, sempre.
 
@@ -192,17 +192,39 @@ null + trigger de transição única + RPC) · `lib/database.types.ts` (regen) �
 - Bloqueia: nada identificado.
 
 ## Perguntas Abertas
-- **Quarentena sem arquivo entra no agregado/veto do critério 11?** O CTO
-  propõe que sim (o predicado é `arquivo_path IS NULL`, sem olhar `status`),
-  mas o recorte é fiscal — confirmação de uma linha do `contador` antes do
-  Gate 1.
-- Cor do chip "Nota sem arquivo" — proposta vermelho por paridade com "Pago
-  sem comprovante" no mock; `po`/`contador` confirmam.
-- Redação das duas linhas de guarda visíveis em `/documento/[id]` ("Custo
-  confirmado: não" / "Abate no INSS: não") — texto do designer, não do
-  parecer; `contador` revisa antes do Gate 2.
-- Alvo do CTA "Ver os documentos" do card agregado — sem lista de documentos
-  hoje no app; `po`/`cto-obra` decidem antes do Gate 1 (não bloqueia o mock).
+- ~~**Quarentena sem arquivo entra no agregado/veto do critério 11?**~~ —
+  **CONFIRMADO pelo `contador` em 2026-09-19**: sim, o predicado é só
+  `arquivo_path IS NULL`, sem olhar `status`. A guarda de superfície do
+  critério 11 é adicional à quarentena, não redundante — um documento pode
+  acumular as duas pendências (quarentena por CPF divergente + sem arquivo) e
+  deve aparecer nas duas, nunca só numa (o mesmo buraco D47 que a guarda
+  existe para fechar).
+- ~~Cor do chip "Nota sem arquivo"~~ — **CONFIRMADO vermelho pelo `contador`
+  em 2026-09-19**: pela régua do ADENDO 2 §A.4, sem apoio hábil nenhum (o
+  arquivo que falta é o próprio documento hábil, não uma prova de pagamento
+  sobre nota que já existe — mais grave que o caso PJ-âmbar).
+- ~~Redação das duas linhas de guarda visíveis em `/documento/[id]`~~ —
+  **AJUSTADA pelo `contador` em 2026-09-19**. "Abate no INSS: não" mantém
+  (espelha a Guarda 2 literalmente). "Custo confirmado: não" **troca para
+  "Sustenta custo de aquisição: não"** — o rótulo original colidia com
+  `custoConfirmadoAnoCentavos` (total da obra no ano) e podia ser lido como
+  "a obra não tem custo confirmado" em vez de "este documento não sustenta
+  custo". "Sustentar" também carrega melhor a reversibilidade (vira "sim" no
+  instante em que o arquivo sobe, Guarda 3). Texto final:
+  > Sustenta custo de aquisição: não
+  > Abate no INSS: não
+- ~~Alvo do CTA "Ver os documentos" do card agregado~~ — **DECIDIDO pelo `po`
+  em 2026-09-19: opção (b), sem lista nova.**
+  `quantidade === 1` → `href` aponta para `/documento/[id]` do próprio
+  documento (rota já existe, já mostra chip + pendência + "Anexar o arquivo
+  agora"). `quantidade > 1` → `href = null`, card fica sem CTA clicável nesta
+  rodada (quantidade + total + veto ao relatório já sinalizam o suficiente).
+  `documentosSemArquivo.href` no `ResumoObra` é `string | null`, diferente de
+  `TerrenoPagoSemComprovante` (que sempre tem lista). Justificativa e corte
+  registrados em
+  `docs/backlog/32-2026-09-19-cta-documentos-sem-arquivo-contai-033.md`.
+
+**As 4 perguntas estão fechadas — nada bloqueia o Gate 1.**
 
 ## Cenário e checagem final
 **Misto**: `/adicionar/documento` é captura (comportamento intocado com
@@ -213,3 +235,190 @@ onde registrar) e à meta 2 (aferição INSS correta — guarda 2).
 
 **Veredito: APROVADO**, com 4 Perguntas Abertas para resolver antes ou
 durante o Gate 1 (nenhuma bloqueia a aprovação do mock).
+
+---
+
+## Veredito do Gate 1 (`lead-engineer`, 2026-09-19/20)
+
+**Os 12 critérios estão cumpridos. Nenhum corte de escopo.**
+
+### As três guardas, e onde cada uma vive
+
+- **Guarda 1** — `ehDocumentoHabil` (`lib/fiscal/vinculo.ts`) ganhou o terceiro
+  requisito `arquivoPath !== null`, e a assinatura passou a exigir o campo: o
+  typecheck varreu os chamadores e acusou **9 arquivos**, incluindo os dois
+  objetos parciais de `app/adicionar/documento` e os quatro
+  `ListaDeAnexos itens={[{ path: d.arquivoPath }]}` das telas de correção
+  (resolvidos por `papelOriginal` + `SEM_PAPEL_NO_ACERVO`, definição única em
+  `app/_components/anexo.tsx`). Não é convenção: é tipo, como o pre-mortem 1 pede.
+- **Guarda 2** — comunicada pelo agregado novo e pelas duas linhas de guarda do
+  detalhe. O loop `servico_sem_retencao` de `resumo.ts` **não foi tocado** (é
+  sobre a RESPOSTA de retenção, não sobre o arquivo) e a pergunta continua
+  obrigatória no formulário. Não existe calculador da base de aferição no código
+  hoje (US-004), logo não há filtro numérico adicional a mudar — há teste
+  afirmando que as duas pendências coexistem sem se substituir.
+- **Guarda 3** — RPC `anexar_arquivo_documento` (migration 0014), sem parâmetro
+  opcional do lado do domínio, aceitando só `arquivo_path is null`, mais o
+  trigger `documento_arquivo_path_imutavel`, que preserva a doutrina da 0009
+  (`arquivo_path` é NÃO CORRIGÍVEL — anexa-se adicional). A nulidade abriu **uma**
+  transição, não a reescrita.
+
+### Leitura do critério 5, explicitada para o Gate 2
+O `status` gravado de uma nota sem arquivo **continua sendo `registrado`** — é o
+que o próprio critério manda (*"nenhum novo valor em `status_documento`"*, D52).
+O *"não nasce `registrado`"* foi implementado como o critério o define na frase
+seguinte: estado **derivado**, `arquivo_path IS NULL`, exibido por `estadoExibido`.
+
+### Defeito encontrado e corrigido DENTRO do Gate 1
+`estadoExibido` é o rótulo ÚNICO e devolve **um** valor — e usá-lo como
+predicado da pendência (`=== "registrado_sem_arquivo"`) escondia o bloco
+exatamente no caso que a confirmação do `contador` de 2026-09-19 nomeia:
+quarentena **e** sem arquivo ao mesmo tempo. Quem pegou foi o E2E
+(`quarentena SEM arquivo mostra as DUAS pendências`). Conserto: predicado
+próprio `faltaOArquivo` em `lib/fiscal/documento.ts`, **usado pelos três
+consumidores** (a tela, o agregado do `ResumoObra` e o veto da saída anual) —
+`arquivoPath === null` não aparece à mão em lugar nenhum.
+
+O segundo defeito pego pelo E2E foi de SQL: o `case` do `status` na RPC tipava
+como `text` e o UPDATE morria em runtime (`42804`). Resolvido com
+`::status_documento` no primeiro braço — o plpgsql só resolve o corpo na
+primeira execução, então nem o `create function` nem o typecheck o veriam.
+
+### Cobertura de teste
+- **Vitest — 639 passando** (19 arquivos). Novos: `estadoExibido` nos 4 estados +
+  `faltaOArquivo`; `ehDocumentoHabil` com os três requisitos conjuntivos e a
+  reversibilidade; `documentosSemArquivo` (vazio/1/2+/sem valor/quarentena) e os
+  quatro "não" (fora de `pendencias`, `emPendenciaCentavos`,
+  `custoConfirmadoAnoCentavos`, `notasSemPagamento`); o braço `semArquivo` de
+  `podeGerarRelatorioAnual` com **precedência** do portão transversal, o `ano` que
+  não recorta, e `@ts-expect-error` provando que o literal `[]` não substitui
+  `documentosCarregados`.
+- **Playwright — 179 passando**, incluindo os 16 novos de
+  `e2e/documento-sem-arquivo.spec.ts` e os 5 de `privilegios.spec.ts` já com
+  `anexar_arquivo_documento` e `documento_arquivo_path_imutavel` no mapa.
+- `npm run typecheck`, `npm run lint` e `npm run build`: limpos.
+
+### Nota de release
+A **migration 0014 vai antes do `git push`** (`npx supabase db push`), pela ordem
+obrigatória do `CLAUDE.md`. Ela é aditiva: `drop not null` + trigger + função com
+revoke/grant. `lib/database.types.ts` foi regenerado (`arquivo_path` nullable nas
+três formas e a nova função).
+
+### Dívidas (as duas previstas no ticket, nenhuma nova)
+1. Regra de `status`/`motivo_quarentena` duplicada TS↔SQL dentro da RPC — a mesma
+   da 0009. O texto de `MOTIVO_QUARENTENA_CPF` está copiado char por char.
+2. "Arquivo null fora de tudo" vive em predicado + testes, não num tipo. O aviso
+   pedido está no cabeçalho de `ehDocumentoHabil` ("NUNCA LEIA `status` CRU PARA
+   DECIDIR HABILIDADE"), e o predicado tem dono único (`faltaOArquivo`).
+
+---
+
+## Gate 2 (`cto-obra`, 2026-09-20)
+
+**VEREDITO: APROVADO COM RESSALVAS** — nenhuma bloqueante; as três guardas do
+parecer estão em pé e são de tipo/banco, não de convenção.
+
+**Revisado**: o `git diff` inteiro (27 arquivos) + os 5 novos (`0014`, tela
+`anexar`, card, E2E, entrada de backlog), a `0009` completa como precedente, e
+o parecer ADENDO 1 §A.3–A.5. Rodei `npm run typecheck` e `npm run lint`:
+limpos. Unit (639) e E2E (179) conferidos pelo orquestrador, não repetidos.
+
+### Os três desvios do lead-engineer — os três estão certos
+1. **`faltaOArquivo` separado de `estadoExibido`** — correto. Rótulo é
+   injetivo em um valor; pendência é predicado aditivo. Usar o rótulo como
+   predicado escondia quarentena+sem-arquivo, que é o caso que o `contador`
+   nomeou. Consumidores conferidos: tela do documento, `resumo.ts` (agregado),
+   `compromisso.ts` (veto). Nenhum `arquivoPath === null` solto em `lib/`.
+2. **Cast `'quarentena'::status_documento`** — resolve de fato. Regra do
+   Postgres para `CASE`: se TODOS os braços são literais `unknown`, o tipo cai
+   em `text`; basta UM braço tipado para os outros serem coagidos. Não há
+   segundo `case` com o risco na função: `retencao_11` é boolean×boolean,
+   `motivo_quarentena` é text×null. `p_nota_no_cpf` nulo não abre buraco —
+   `destinatario_cpf_ok` é `not null` desde a 0001, o UPDATE falha.
+3. **Trigger `documento_arquivo_path_imutavel`** — fiel no espírito, mais
+   forte no mecanismo. Na 0009 a imutabilidade era PROSA + convenção ("não é
+   tocado em lugar nenhum desta função"); `documento` tem UPDATE para
+   `authenticated` desde a 0005, então `.update({arquivo_path})` via PostgREST
+   sempre foi possível. A 0014 é o primeiro guarda real, e é o diff certo para
+   ele nascer, porque é o que abre a escrita da coluna. Forma (invoker,
+   search_path, declarada no mapa de privilégios) idêntica à das triggers da
+   0009/0010.
+
+### Conferências pedidas
+- `ehDocumentoHabil` com `arquivoPath`: 13 call sites, todos passam `Documento`
+  real. O único parcial é o provisório de `pagamentosCandidatos` em
+  `/adicionar/documento` (`arquivo ? "escolhido" : null`) — já era `""` antes;
+  agora é honesto na única dimensão que importa (nulidade). Aceito.
+- `PermissaoRelatorio` / `SaidaAnualDaObra`: precedência do transversal sobre
+  `semArquivo` está certa e é consistente — `compromissosQueBloqueiam` também
+  não recorta por ano. Combinar os dois vetos numa tela é melhoria de UX,
+  não correção; fica para quando doer.
+- `privilegios.spec.ts`: RPC `authenticated` bate com revoke/grant; trigger
+  `PUBLIC,anon,authenticated` bate com o precedente das outras duas triggers.
+
+### Ressalvas (não bloqueiam o commit; as 3 primeiras viram linha de dívida)
+1. **`estadoExibido` não tem consumidor nenhum em `app/`** (`grep` confirma).
+   O critério 5 diz "exibido por função pura única" — nenhuma tela exibe por
+   ela; a tela do documento continua ramificando em `d.status` cru e a
+   pendência vem de `faltaOArquivo`. Função de rótulo que ninguém lê é a D46
+   esperando acontecer. **Apagar** (com os 4 testes) ou fazer os três `return`
+   de `/documento/[id]/page.tsx` ramificarem por ela. Recomendo apagar.
+2. **A dívida TS↔SQL ganhou ponto de divergência concreto**: a 0009
+   (`mover_documento_de_obra`, recompute de `v_habeis`) copia
+   `ehDocumentoHabil` SEM `arquivo_path is not null`; e `anexar_arquivo_documento`
+   não recompõe `pagamento.status` dos vínculos já existentes (ficam
+   `aguardando_nf` depois do anexo). Consequência limitada a `pagamento.status`,
+   que nenhuma tela lê e `alocarCusto` não usa — mas registrar por nome, não
+   como "a mesma dívida da 0009".
+3. **Guarda 2 é vazia por ausência de calculador** (US-004). Hoje não há soma
+   de "serviço PJ com retenção" para filtrar. Anotar no US-004 que a posição
+   da aferição filtra por `ehDocumentoHabil`, nunca por `retencao11 === true`
+   sozinho — senão o dia em que o calculador nascer é o dia em que a Guarda 2
+   fura sem teste vermelho.
+4. `app/documento/[id]/anexar/page.tsx:140` checa `d.arquivoPath !== null` à
+   mão para o banner "já tem arquivo". Trocar por `!faltaOArquivo(d)` — é o
+   único lugar fora de `lib/` que reimplementa o predicado.
+5. Linha para a dívida 1: todo `CASE` futuro que grave em coluna enum com
+   braços literais precisa de cast em pelo menos um braço — o plpgsql só
+   resolve o corpo na primeira execução, e nem `db push` nem E2E que não
+   passe por aquele braço acusam.
+
+**Release**: `npx supabase db push` antes do `git push`, como o lead anotou.
+A 0014 é aditiva (drop not null + trigger + função com revoke/grant).
+
+## Veredito final — teste manual no browser (2026-09-20)
+
+Ressalva 4 do Gate 2 **aplicada** (`app/documento/[id]/anexar/page.tsx:140`
+agora usa `!faltaOArquivo(d)`).
+
+O teste no browser (mesma disciplina do CONTAI-022: "teste automatizado prova
+a regra que foi escrita para testar, não a que ninguém lembrou de escrever")
+achou **três bugs** que os 639 unitários + 179 E2E do Gate 1/2 não pegaram —
+detalhe completo em
+`docs/backlog/33-2026-09-20-tres-bugs-achados-no-teste-manual-do-contai-033.md`:
+
+1. **Confirmação mentia "Arquivo guardado no acervo"** ao salvar sem arquivo
+   (`app/_components/registrado.tsx`, compartilhado com `/adicionar/pagamento`).
+   Corrigido com a prop `arquivoNoAcervo` (default `true`).
+2. **Home dizia "Nenhuma pendência"** com o card vermelho "Nota sem arquivo"
+   na mesma tela — o banner só olhava `resumo.pendencias`, e
+   `documentosSemArquivo` fica fora dela de propósito (crit. 11). Corrigido
+   só para este campo; **D59** registra a auditoria que falta nos outros
+   cinco agregados "fora de pendencias" que já existiam antes deste ticket.
+3. **"Sem pagamento ligado" dizia "está em quarentena"** para uma nota que
+   nunca esteve fora do CPF — `ehDocumentoHabil` ganhou um terceiro motivo
+   (sem arquivo) e o texto só sabia escolher entre boleto e quarentena.
+   Nova constante `VINCULO_SEM_ARQUIVO_NAO_GERA_CUSTO`
+   (`lib/fiscal/vinculo.ts`) com precedência boleto → quarentena → sem
+   arquivo.
+
+**D58** registrado (não corrigido): o mesmo bug do item 1 existe em
+`/adicionar/pagamento` desde o CONTAI-019/025 — pré-existente a este ticket,
+fora de escopo, a prop já está pronta para quem for corrigi-lo.
+
+Os três corrigidos ganharam trava de regressão em
+`e2e/documento-sem-arquivo.spec.ts`. Depois dos três fixes: `npm run
+typecheck`, `npm run lint`, `npm run test` (639/639) e `npm run test:e2e`
+(180/180, incluindo a nova) rodaram limpos.
+
+**Veredito: ENTREGUE.**

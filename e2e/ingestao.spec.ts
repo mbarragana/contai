@@ -362,7 +362,9 @@ test.describe("registrar documento", () => {
       new RegExp(`^${USER_ID_SEED}/documento/`),
     );
     expect(await arquivosNoAcervo(db, "documento")).toContain(
-      gravados[0].arquivo_path.split("/").pop(),
+      // `arquivo_path` é nullable desde o CONTAI-033; aqui o teste anexou um
+      // arquivo, e o `!` afirma justamente isso — o caminho tem de existir.
+      gravados[0].arquivo_path!.split("/").pop(),
     );
   });
 

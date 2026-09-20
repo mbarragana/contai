@@ -48,6 +48,11 @@ import {
   motivoQuarentena,
   numeroParaBanco,
   retencaoParaBanco,
+  SEM_ARQUIVO_DIALOGO_ANEXAR,
+  SEM_ARQUIVO_DIALOGO_CONSEQUENCIA,
+  SEM_ARQUIVO_DIALOGO_PORQUE,
+  SEM_ARQUIVO_DIALOGO_SALVAR,
+  SEM_ARQUIVO_DIALOGO_TITULO,
   serieParaBanco,
   statusDocumento,
   validarDocumento,
@@ -120,6 +125,8 @@ type Fase =
        * tela do documento, e a navegação acontece antes daqui.
        */
       quarentena: boolean;
+      /** CONTAI-033 — a confirmação não pode dizer "arquivo guardado" quando não há. */
+      semArquivo: boolean;
     };
 
 export default function RegistrarDocumento() {
@@ -151,6 +158,13 @@ export default function RegistrarDocumento() {
   const [notaNoCpf, setNotaNoCpf] = useState<RespostaCpf | null>(null);
   const [retencao11, setRetencao11] = useState<RespostaRetencao | null>(null);
   const [erros, setErros] = useState<ErroCampo[]>([]);
+  /**
+   * CONTAI-033 — o diálogo do §A.7.1. **Overlay dentro desta tela**, nunca rota
+   * nova (decisão de design 1 do mock): o caminho de captura continua em 1
+   * tela, e "Anexar agora" volta ao campo do anexo sem perder nada digitado.
+   */
+  const [mostrarDialogoSemArquivo, setMostrarDialogoSemArquivo] =
+    useState(false);
 
   // US-008 Fase 2 — extração automática (Gemini). Só sugere: quem afirma o
   // campo continua sendo o dedo do Mateus em "Salvar registro". Nunca toca
@@ -225,7 +239,6 @@ export default function RegistrarDocumento() {
       classificacao,
       notaNoCpf,
       retencao11,
-      temArquivo: arquivo !== null,
     }),
     [
       tipo,
@@ -239,7 +252,6 @@ export default function RegistrarDocumento() {
       classificacao,
       notaNoCpf,
       retencao11,
-      arquivo,
     ],
   );
 
@@ -357,27 +369,70 @@ export default function RegistrarDocumento() {
       favorecidoId: null,
       favorecidoNome: nome.trim() || null,
       favorecidoDocumento: soDigitos(documento) || null,
-      arquivoPath: "",
+      // Só a NULIDADE importa aqui, e ela importa mesmo: `ehDocumentoHabil`
+      // olha este campo, e o seletor rotula candidato como "não gera custo
+      // confirmado" a partir dele. O conteúdo da string é irrelevante — o
+      // documento ainda não existe, e o path real sai do upload no salvar.
+      arquivoPath: arquivo ? "escolhido" : null,
     };
     return pagamentosCandidatos(
       provisorio,
       painelDaObra.pagamentos,
       alocarCusto(painelDaObra),
     );
-  }, [painelDaObra, obra, tipo, notaNoCpf, valor, classificacao, nome, documento]);
+  }, [
+    painelDaObra,
+    obra,
+    tipo,
+    notaNoCpf,
+    valor,
+    classificacao,
+    nome,
+    documento,
+    arquivo,
+  ]);
+
+  /**
+   * O que o botão "Salvar registro" chama. **Não é `salvar()`** desde o
+   * CONTAI-033: a falta do arquivo deixou de ser erro de campo e virou uma
+   * PERGUNTA (§A.7.1), feita uma vez, no ato.
+   *
+   * Ordem que importa: os erros de campo vêm PRIMEIRO. Abrir o diálogo em cima
+   * de um formulário que nem salvaria seria perguntar sobre o arquivo quando o
+   * que falta é o valor.
+   */
+  function tentarSalvar() {
+    const encontrados = validarDocumento(entrada, hojeIso());
+    setErros(encontrados);
+    setErroSalvar(null);
+    if (encontrados.length > 0 || !obra) return;
+
+    if (arquivo === null) {
+      // ⚠️ PARA AQUI: não salva, não navega. O formulário inteiro continua
+      // montado atrás do overlay.
+      setMostrarDialogoSemArquivo(true);
+      return;
+    }
+
+    void salvar();
+  }
 
   async function salvar() {
     const encontrados = validarDocumento(entrada, hojeIso());
     setErros(encontrados);
     setErroSalvar(null);
-    if (encontrados.length > 0 || !obra || !arquivo) return;
+    if (encontrados.length > 0 || !obra) return;
 
     setFase({ nome: "salvando" });
     try {
       const tipoFavorecido = tipoPorDocumento(documento);
       if (tipoFavorecido === null) throw new Error("CNPJ/CPF inválido.");
 
-      const arquivoPath = await subirParaAcervo(arquivo, "documento");
+      // ⚠️ `null` é estado legítimo (CONTAI-033, §A.3): a nota grava sem o
+      // papel, e as três guardas cuidam de ela não valer nada até ele chegar.
+      const arquivoPath = arquivo
+        ? await subirParaAcervo(arquivo, "documento")
+        : null;
       const favorecidoId = await garantirFavorecido({
         nome: nome.trim(),
         documento: soDigitos(documento),
@@ -431,6 +486,10 @@ export default function RegistrarDocumento() {
               documentoHabil: ehDocumentoHabil({
                 tipo: tipo as TipoDocumento,
                 status,
+                // Guarda 1: sem arquivo o vínculo entra com `documentoHabil:
+                // false` — ele impede a despesa de contar duas vezes e NÃO
+                // gera custo confirmado.
+                arquivoPath,
               }),
             })),
           );
@@ -460,6 +519,7 @@ export default function RegistrarDocumento() {
         ligados: vinculoFalhou ? 0 : paraLigar.length,
         vinculoFalhou,
         quarentena: status === "quarentena",
+        semArquivo: arquivoPath === null,
       });
     } catch (erro) {
       setFase({ nome: "formulario" });
@@ -500,6 +560,7 @@ export default function RegistrarDocumento() {
             </>
           ) : undefined
         }
+        arquivoNoAcervo={!fase.semArquivo}
         proximoPasso={
           fase.ligados > 0 ? (
             <>
@@ -575,13 +636,17 @@ export default function RegistrarDocumento() {
             />
 
             <Card className="flex flex-col gap-3.5">
+              {/* ⚠️ A ajuda mudou com o CONTAI-033: o arquivo **não é mais
+                  obrigatório para gravar** (§A.3) — ele é o que faz a nota
+                  valer. Dizer "obrigatório" numa tela que grava sem ele seria
+                  a recusa antiga sobrevivendo como texto. Sem `erro`: a falta
+                  do arquivo não é erro de campo, é a pergunta do §A.7.1. */}
               <CampoArquivo
                 rotulo="Arquivo"
-                ajuda="PDF, XML ou foto — obrigatório, é o que fica no acervo."
+                ajuda="PDF, XML ou foto — é ele que faz a nota valer no acervo. Não tem à mão? Dá para registrar e anexar depois."
                 accept=".pdf,.xml,image/*"
                 arquivo={arquivo}
                 onChange={setArquivo}
-                erro={erroDe("temArquivo")}
               />
               {arquivo && arquivo.type === "application/pdf" ? (
                 <div className="flex flex-col gap-2">
@@ -889,7 +954,7 @@ export default function RegistrarDocumento() {
           <Passo>Passo 3 de 3 ↓</Passo>
           <Botao
             variante="primary"
-            onClick={salvar}
+            onClick={tentarSalvar}
             disabled={fase.nome === "salvando"}
           >
             {fase.nome === "salvando"
@@ -905,6 +970,69 @@ export default function RegistrarDocumento() {
           <BotaoLink href="/adicionar">Voltar</BotaoLink>
         </Rodape>
       )}
+
+      {/* ══ O diálogo do §A.7.1 — CONTAI-033 ═══════════════════════════════
+          ⚠️ **Overlay nesta mesma tela, e o formulário continua montado
+          atrás.** Decisão de design 1 do mock: o caminho de captura fica em 1
+          tela, e "Anexar agora" devolve o foco ao campo do anexo sem perder
+          nada digitado. Rota nova aqui custaria o formulário inteiro.
+
+          É o PRIMEIRO modal do app — não existe componente de diálogo para
+          reaproveitar, e criar um "sistema de modais" a partir de um caso é
+          abstração prematura. Ele mora aqui, local, até existir o segundo.
+
+          Todo o texto é LITERAL do parecer, lido das constantes de
+          `lib/fiscal/documento.ts`. Nada é redigido nesta camada. */}
+      {mostrarDialogoSemArquivo ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+          data-dialogo="sem-arquivo"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={SEM_ARQUIVO_DIALOGO_TITULO}
+            className="max-h-[85vh] w-full max-w-[420px] overflow-y-auto rounded-[14px] border border-line bg-paper px-[18px] py-4"
+          >
+            <h2 className="text-[16px] font-bold">
+              {SEM_ARQUIVO_DIALOGO_TITULO}
+            </h2>
+            <p className="mt-2.5 text-[13.5px]">{SEM_ARQUIVO_DIALOGO_PORQUE}</p>
+            {/* As duas guardas, ditas ANTES de gravar. */}
+            <Consequencia cor="red">
+              {SEM_ARQUIVO_DIALOGO_CONSEQUENCIA}
+            </Consequencia>
+            <div className="mt-3.5 flex flex-col gap-2">
+              {/* ⚠️ Chama `salvar()` DIRETO, não `tentarSalvar()`: passar pelo
+                  handler reabriria o diálogo que acabou de ser respondido. */}
+              <Botao
+                variante="primary"
+                type="button"
+                onClick={() => {
+                  setMostrarDialogoSemArquivo(false);
+                  void salvar();
+                }}
+              >
+                {SEM_ARQUIVO_DIALOGO_SALVAR}
+              </Botao>
+              <Botao
+                variante="ghost"
+                type="button"
+                onClick={() => {
+                  setMostrarDialogoSemArquivo(false);
+                  // Devolve o foco ao campo do anexo. Nada foi salvo e nada
+                  // foi perdido — o formulário nunca desmontou.
+                  document
+                    .querySelector<HTMLInputElement>('input[type="file"]')
+                    ?.focus();
+                }}
+              >
+                {SEM_ARQUIVO_DIALOGO_ANEXAR}
+              </Botao>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

@@ -3,7 +3,11 @@
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { ListaDeAnexos } from "@/app/_components/anexo";
+import {
+  ListaDeAnexos,
+  papelOriginal,
+  SEM_PAPEL_NO_ACERVO,
+} from "@/app/_components/anexo";
 import { CampoArquivo, CampoTexto } from "@/app/_components/campos";
 import {
   ErroEstaNaNota,
@@ -247,7 +251,11 @@ export default function CorrigirValor() {
           {/* Critério 2: o nome sozinho não abre nada — aqui ele já é o item
               com Abrir. Antes deste ticket esta era uma `Linha` de texto. */}
           <Card>
-            <ListaDeAnexos titulo="Papel anexado" itens={[{ path: d.arquivoPath }]} />
+            <ListaDeAnexos
+              titulo="Papel anexado"
+              itens={papelOriginal(d.arquivoPath)}
+              vazio={SEM_PAPEL_NO_ACERVO}
+            />
           </Card>
           {fase.nome === "passo1" ? (
             <PassoMotivo
@@ -314,7 +322,8 @@ export default function CorrigirValor() {
         <Card>
           <ListaDeAnexos
             titulo="Papel anexado — confira antes de digitar"
-            itens={[{ path: d.arquivoPath }]}
+            itens={papelOriginal(d.arquivoPath)}
+            vazio={SEM_PAPEL_NO_ACERVO}
           />
           <Dica>
             O anexo <strong>não se substitui</strong>; se precisar, anexa-se um

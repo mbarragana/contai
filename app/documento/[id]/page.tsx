@@ -3,7 +3,11 @@
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 
-import { ListaDeAnexos } from "@/app/_components/anexo";
+import {
+  ListaDeAnexos,
+  papelOriginal,
+  SEM_PAPEL_NO_ACERVO,
+} from "@/app/_components/anexo";
 import {
   AppBar,
   Banner,
@@ -31,8 +35,15 @@ import {
 } from "@/lib/data";
 import { formatarDocumento } from "@/lib/fiscal/identificacao";
 import {
+  CHIP_NOTA_SEM_ARQUIVO,
   CONSEQUENCIA_SEM_RETENCAO,
   exigeIdentificacaoDaNota,
+  faltaOArquivo,
+  GUARDA_ABATE_INSS_ROTULO,
+  GUARDA_RESPOSTA_NAO,
+  GUARDA_SUSTENTA_CUSTO_ROTULO,
+  NOTA_SEM_ARQUIVO_ALAVANCA,
+  NOTA_SEM_ARQUIVO_EFEITO,
   PENDENCIA_IDENTIFICACAO_EFEITO,
   PENDENCIA_IDENTIFICACAO_TITULO,
 } from "@/lib/fiscal/documento";
@@ -41,6 +52,7 @@ import {
   alocarCusto,
   VINCULO_BOLETO_NAO_GERA_CUSTO,
   VINCULO_QUARENTENA_NAO_GERA_CUSTO,
+  VINCULO_SEM_ARQUIVO_NAO_GERA_CUSTO,
   type DocumentoAlocado,
 } from "@/lib/fiscal/vinculo";
 import { hojeIso } from "@/lib/hoje";
@@ -104,6 +116,21 @@ function PagamentosDesteDocumento({
   const pagamentos = alocado?.pagamentos ?? [];
   const habil = alocado?.habil ?? true;
   const valor = documento.valorCentavos ?? 0;
+  /**
+   * ⚠️ CONTAI-033 — achado no teste manual no browser: `ehDocumentoHabil`
+   * agora tem TRÊS motivos para devolver `false` (boleto, quarentena, sem
+   * arquivo), e este bloco só sabia distinguir dois — uma nota `registrado`
+   * sem arquivo caía no `else` e mostrava o texto de QUARENTENA. Precedência:
+   * boleto nunca é hábil por tipo; senão, quarentena é a razão mais grave
+   * quando as duas coexistem (a nota também está fora do CPF do dono); só
+   * então "sem arquivo".
+   */
+  const motivoNaoGeraCusto =
+    documento.tipo === "boleto"
+      ? VINCULO_BOLETO_NAO_GERA_CUSTO
+      : documento.status === "quarentena"
+        ? VINCULO_QUARENTENA_NAO_GERA_CUSTO
+        : VINCULO_SEM_ARQUIVO_NAO_GERA_CUSTO;
 
   const acoes = (
     <>
@@ -133,11 +160,7 @@ function PagamentosDesteDocumento({
             entram no <strong>Custo confirmado de {ano}</strong>.
           </Consequencia>
         ) : (
-          <Consequencia cor="red">
-            {documento.tipo === "boleto"
-              ? VINCULO_BOLETO_NAO_GERA_CUSTO
-              : VINCULO_QUARENTENA_NAO_GERA_CUSTO}
-          </Consequencia>
+          <Consequencia cor="red">{motivoNaoGeraCusto}</Consequencia>
         )}
         {acoes}
       </Card>
@@ -170,11 +193,7 @@ function PagamentosDesteDocumento({
             — regime de caixa
           </Dica>
         ) : (
-          <Consequencia cor="red">
-            {documento.tipo === "boleto"
-              ? VINCULO_BOLETO_NAO_GERA_CUSTO
-              : VINCULO_QUARENTENA_NAO_GERA_CUSTO}
-          </Consequencia>
+          <Consequencia cor="red">{motivoNaoGeraCusto}</Consequencia>
         )}
         {alocado && alocado.excedenteNotaCentavos > 0 ? (
           <>
@@ -339,12 +358,65 @@ function DetalheDocumento() {
    */
   const blocoAnexos = (
     <Card>
+      {/* ⚠️ O original pode NÃO EXISTIR desde o CONTAI-033 (`arquivo_path` é
+          nullable). `papelOriginal` devolve lista vazia em vez de um item que
+          não abre nada — e o `vazio` diz o fato, porque "sem papel" tem
+          consequência fiscal e lista vazia muda não diz nada. */}
       <ListaDeAnexos
         titulo="Papéis deste documento"
-        itens={[d.arquivoPath, ...estado.anexos].map((path) => ({ path }))}
+        itens={[
+          ...papelOriginal(d.arquivoPath),
+          ...estado.anexos.map((path) => ({ path })),
+        ]}
+        vazio={SEM_PAPEL_NO_ACERVO}
       />
     </Card>
   );
+
+  /**
+   * ⚠️ **CONTAI-033 — a pendência "Nota sem arquivo", e ela é ADITIVA.**
+   *
+   * Confirmação do `contador` em 2026-09-19: as guardas não são mutuamente
+   * exclusivas. Um documento pode estar em quarentena (CPF divergente) **e** sem
+   * arquivo ao mesmo tempo, e tem de aparecer nas DUAS — mostrar só uma reabre
+   * o buraco D47 que a guarda existe para fechar. Por isso este bloco **não é
+   * um quarto `return`**: ele é inserido nos três que já existem.
+   *
+   * Textos LITERAIS do §A.7.2, lidos das constantes. As duas linhas de guarda
+   * são as do `contador` de 2026-09-19 ("Sustenta custo de aquisição: não" /
+   * "Abate no INSS: não") — o rótulo original do mock colidia com
+   * `custoConfirmadoAnoCentavos` e se lia como "a obra não tem custo".
+   *
+   * VERMELHO pela régua do ADENDO 2 §A.4: sem apoio hábil nenhum — o arquivo
+   * que falta É o documento hábil.
+   */
+  const blocoSemArquivo = faltaOArquivo(d) ? (
+      <Card className="border-red" data-pendencia="documento-sem-arquivo">
+        <Chip cor="red">{CHIP_NOTA_SEM_ARQUIVO}</Chip>
+        <Consequencia cor="red">
+          <strong>{CHIP_NOTA_SEM_ARQUIVO}.</strong> {NOTA_SEM_ARQUIVO_EFEITO}{" "}
+          {NOTA_SEM_ARQUIVO_ALAVANCA}
+        </Consequencia>
+        {/* As guardas 1 e 2, visíveis em tela e não só no banco. */}
+        <Linha rotulo={GUARDA_SUSTENTA_CUSTO_ROTULO}>
+          <span className="font-semibold text-red">{GUARDA_RESPOSTA_NAO}</span>
+        </Linha>
+        <Linha rotulo={GUARDA_ABATE_INSS_ROTULO}>
+          <span className="font-semibold text-red">{GUARDA_RESPOSTA_NAO}</span>
+        </Linha>
+        {/* Decisão de design 4 do mock: frase NEUTRA, sem inventar um selo de
+            "respondido de memória" — qualquer redação mais forte seria
+            consequência fiscal nova, fora do texto adjudicado. */}
+        <Linha rotulo="CPF / retenção">
+          respondidas — sem o papel para conferir
+        </Linha>
+        <div className="mt-2.5">
+          <BotaoLink href={`/documento/${d.id}/anexar`} variante="primary">
+            Anexar o arquivo agora
+          </BotaoLink>
+        </div>
+      </Card>
+    ) : null;
 
   /**
    * CONTAI-004, critério 9 — a identificação da nota, em TODAS as telas deste
@@ -488,6 +560,7 @@ function DetalheDocumento() {
             acervo, mas fora do IR.
           </Dica>
           {blocoIdentificacao}
+          {blocoSemArquivo}
           {blocoAnexos}
           {/* Critério 8: vincular quarentena é permitido — é o que evita
               contar a mesma despesa duas vezes — e não gera custo. */}
@@ -535,6 +608,7 @@ function DetalheDocumento() {
             empreiteiro se a retenção sairá nas próximas notas.
           </Banner>
           {blocoIdentificacao}
+          {blocoSemArquivo}
           {blocoAnexos}
           {blocoPagamentos}
           {blocoObra}
@@ -580,6 +654,7 @@ function DetalheDocumento() {
           </Banner>
         ) : null}
         {blocoIdentificacao}
+        {blocoSemArquivo}
         {blocoAnexos}
         {blocoPagamentos}
         {blocoObra}
