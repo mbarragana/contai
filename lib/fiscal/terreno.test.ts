@@ -1794,6 +1794,24 @@ describe("CONTAI-036 · o veto é por saída, e a porta continua única", () => 
         "porta única, e este símbolo não chega perto dela: o número que o card " +
         "mostra é `exposicaoInssBaseCentavos`, exposição EM BASE, explicitamente " +
         "rotulada em tela como o que **não** é apuração.",
+      "lib/fiscal/retencao.ts::ROTULO_RETENCAO_NAO_DISCRIMINADA":
+        "não produz saída anual: é a CITAÇÃO LITERAL do ADENDO A.2 do parecer " +
+        "de 2026-09-18 — *retenção não discriminada, presumivelmente recolhida " +
+        "por terceiros* —, o rótulo OBRIGATÓRIO da perna de pagamento quando a " +
+        "nota não abre a retenção por tributo. Casa no radical `discrimina` " +
+        "por vir da palavra 'discriminada' da frase, não da ficha de " +
+        "discriminação de Bens e Direitos. É uma constante de string: não lê " +
+        "documento, não lê pagamento, não conhece ano-calendário e não apura " +
+        "nada — ela existe para PROIBIR que o app chame o valor de 'guia de " +
+        "ISS'/'guia de INSS'.",
+      "lib/fiscal/retencao.ts::RETENCAO_NAO_ABATE_SERO":
+        "não produz saída anual: é o texto de TELA do detalhe do documento " +
+        "(CONTAI-038) dizendo que nenhuma retenção daquela nota abate a " +
+        "aferição — o §2 do parecer de 2026-09-18 posto na cara do usuário. " +
+        "Casa no radical `sero` por nomear o que **não** acontece lá. " +
+        "Constante de string, sem leitura de dado e sem cálculo; a POSIÇÃO da " +
+        "aferição continua atrás da porta única, e este símbolo é justamente a " +
+        "declaração de que o bloco de retenção não chega perto dela.",
       "lib/fiscal/revisao.ts::composicaoDaDiscriminacao":
         "não gera saída nenhuma: é o antes→depois de material × mão de obra " +
         "DENTRO da tela de correção (CONTAI-021). Reparte um total que já " +

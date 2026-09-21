@@ -63,25 +63,55 @@ export interface FatosDaRegua {
 }
 
 /**
- * **As exceções nomeadas — união FECHADA, e hoje ela tem uma entrada.**
+ * **As exceções nomeadas — união FECHADA, e hoje ela tem DUAS entradas.**
  *
- * Exceção é o caso em que a régua diria vermelho e a cor adjudicada é âmbar,
- * por decisão escrita do `contador`. Nunca o contrário: a exceção só **abranda**
- * o que a régua acendeu, e por isso não tem como fabricar vermelho nenhum.
+ * Exceção é o caso em que a cor adjudicada por parecer **diverge** da que a
+ * régua produz sozinha. Cada uma declara, no mapa `DIRECAO` logo abaixo, em
+ * que sentido ela diverge — e é por isso que a lista continua sendo uma lista
+ * de decisões fundamentadas, e não uma segunda régua paralela: cada entrada é
+ * uma linha visível em review, com o parecer citado ao lado.
  *
  * ⚠️ É união de TypeScript, **não string de rótulo de tela**: renomear o chip
  * "Pago sem comprovante" não tira a exceção da malha do teste-trava (D54).
  *
- * - `pj_pago_sem_comprovante` — `docs/pareceres/2026-08-18-compromisso-versus-pagamento.md`
- *   §601-602: para PJ a NF já sustenta o *quê*, o *quanto* e o *para quem*; o
- *   comprovante corrobora um desembolso pouco duvidoso, não o constitui. Para
- *   PF não vale, e lá a cor é vermelha — o comprovante é constitutivo.
+ * - `pj_pago_sem_comprovante` (**abranda**) —
+ *   `docs/pareceres/2026-08-18-compromisso-versus-pagamento.md` §601-602: para
+ *   PJ a NF já sustenta o *quê*, o *quanto* e o *para quem*; o comprovante
+ *   corrobora um desembolso pouco duvidoso, não o constitui. Para PF não vale,
+ *   e lá a cor é vermelha — o comprovante é constitutivo.
  *
- * A segunda entrada já tem dono: `retencao_sem_recolhedor`, do `CONTAI-038`
- * (`docs/backlog/31-2026-09-19-sequenciamento-contai-035-038.md`). Ela nasce
- * aqui, e não como cor solta que precisaria de retrofit depois.
+ * - `retencao_sem_recolhedor` (**agrava**) — `CONTAI-038`, critério 7a, com
+ *   fundamento no ADENDO A.4 de
+ *   `docs/pareceres/2026-09-18-retencao-variavel-servico-pj.md`. Pela
+ *   tabela-verdade geral esta pendência cairia em âmbar: o valor retido **não
+ *   saiu do bolso do Mateus** e a nota hábil **existe**. O vermelho se funda em
+ *   outra coisa — *"retenção que ninguém recolhe não é economia, é passivo não
+ *   identificado"* —, e passivo aberto não é o mesmo objeto que os dois eixos
+ *   da régua medem. Declarar isso aqui é o que impede a alternativa: uma cor
+ *   literal solta em `resumo.ts`, que o teste-trava D54 pegaria como dívida.
  */
-export type ExcecaoNomeada = "pj_pago_sem_comprovante";
+export type ExcecaoNomeada =
+  | "pj_pago_sem_comprovante"
+  | "retencao_sem_recolhedor";
+
+/**
+ * **Em que sentido cada exceção diverge da régua — e a direção é obrigatória.**
+ *
+ * ⚠️ Até o `CONTAI-035` a exceção só sabia ABRANDAR, e o comentário de lá dizia
+ * que ela "não tem como fabricar vermelho nenhum". O `CONTAI-038` precisou do
+ * sentido oposto, e a saída **não** foi afrouxar a assinatura: foi obrigar cada
+ * entrada a declarar a direção neste mapa. `Record<ExcecaoNomeada, ...>` é
+ * exaustivo — exceção nova sem direção declarada **não compila**, que é a mesma
+ * malha do teste-trava, agora no compilador.
+ *
+ * O invariante que sobrevive intacto: **nada pinta fora da régua sem um parecer
+ * nomeado**. O que mudou é que o parecer pode adjudicar as duas direções, em
+ * vez de só uma.
+ */
+const DIRECAO: Record<ExcecaoNomeada, "abranda" | "agrava"> = {
+  pj_pago_sem_comprovante: "abranda",
+  retencao_sem_recolhedor: "agrava",
+};
 
 /** O único ponto do sistema que produz um `Gravidade`. */
 function marcar(cor: "red" | "amb"): Gravidade {
@@ -92,16 +122,19 @@ function marcar(cor: "red" | "amb"): Gravidade {
  * A régua, em função pura: **saiu? → tem apoio hábil no ano certo? → não =
  * vermelho**.
  *
- * @param excecao exceção nomeada que abranda o vermelho para âmbar. Em caso
- * que a régua já pinta de âmbar ela é inócua por construção — nunca acende.
+ * @param excecao exceção nomeada, com a direção declarada em `DIRECAO`.
+ * `abranda` só age sobre o que a régua acendeu; `agrava` só age sobre o que ela
+ * apagou. Nos dois casos, exceção aplicada ao caso que já está na cor dela é
+ * **inócua por construção** — nunca inverte duas vezes.
  */
 export function gravidadeDaRegua(
   fatos: FatosDaRegua,
   excecao?: ExcecaoNomeada,
 ): Gravidade {
   const vermelho = fatos.dinheiroSaiu && !fatos.apoioHabilNoAnoCerto;
-  if (!vermelho) return marcar("amb");
-  return excecao === undefined ? marcar("red") : marcar("amb");
+  if (excecao === undefined) return marcar(vermelho ? "red" : "amb");
+  if (DIRECAO[excecao] === "abranda") return marcar("amb");
+  return marcar("red");
 }
 
 /** A borda do `Card` que corresponde à cor — para a tela não remontar o mapa. */

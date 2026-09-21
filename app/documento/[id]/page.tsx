@@ -23,6 +23,8 @@ import {
   Linha,
 } from "@/app/_components/ui";
 import { HistoricoDeCorrecoes } from "@/app/_components/corrigir";
+import { BlocoRetencao } from "@/app/_components/retencao";
+import { useSessao } from "@/app/_components/sessao";
 import {
   carregarAnexosDoDocumento,
   carregarCorrecoesDoDocumento,
@@ -36,7 +38,6 @@ import {
 import { formatarDocumento } from "@/lib/fiscal/identificacao";
 import {
   CHIP_NOTA_SEM_ARQUIVO,
-  CONSEQUENCIA_SEM_RETENCAO,
   exigeCnoReferenciado,
   exigeIdentificacaoDaNota,
   faltaOArquivo,
@@ -49,8 +50,10 @@ import {
   PENDENCIA_IDENTIFICACAO_TITULO,
 } from "@/lib/fiscal/documento";
 import { formatarDataBR } from "@/lib/fiscal/obra";
+import { RETENCAO_NAO_ABATE_SERO } from "@/lib/fiscal/retencao";
 import {
   alocarCusto,
+  notaCoberta,
   VINCULO_BOLETO_NAO_GERA_CUSTO,
   VINCULO_QUARENTENA_NAO_GERA_CUSTO,
   VINCULO_SEM_ARQUIVO_NAO_GERA_CUSTO,
@@ -266,6 +269,7 @@ function valorSemNota(alocado: DocumentoAlocado | undefined): number {
 function DetalheDocumento() {
   const params = useParams<{ id: string }>();
   const id = params.id;
+  const { pedirReautenticacao } = useSessao();
   const [estado, setEstado] = useState<Estado>({ fase: "carregando" });
   const [tentativa, setTentativa] = useState(0);
 
@@ -473,10 +477,36 @@ function DetalheDocumento() {
             )}
           </Linha>
         ) : null}
+        {/* ══ CONTAI-038 — o gate, e o invariante do SERO ══════════════════
+            As duas linhas ficam aqui, no card de identificação, e não num
+            card próprio: no caso comum ("nenhuma destacada") um card inteiro
+            seria ruído — é um fato da nota, como o número e o CNO.
+
+            ⚠️ "Abate no INSS (SERO): não" vale para TODA NF de serviço,
+            qualquer que seja o gate, e é o §2 do parecer de 2026-09-18 dito
+            em tela: nenhum percentual de retenção abate a aferição. Quem
+            abate é a declaração vinculada ao CNO, que é outro ato. */}
+        {d.tipo === "nf_servico" ? (
+          <>
+            <Linha rotulo="Retenção">
+              {d.retencaoNaNota === "nenhuma" ? (
+                "nenhuma destacada nesta nota"
+              ) : d.retencaoNaNota === "destacada" ? (
+                <span className="font-semibold">destacada na nota</span>
+              ) : (
+                <span className="text-mut">não perguntado</span>
+              )}
+            </Linha>
+            <Linha rotulo="Abate no INSS (SERO)">
+              <span className="font-semibold text-red">não</span>
+            </Linha>
+          </>
+        ) : null}
         <Dica>
           A emissão identifica a nota e a janela do CNO. O ano do custo é o do
           pagamento.
         </Dica>
+        {d.tipo === "nf_servico" ? <Dica>{RETENCAO_NAO_ABATE_SERO}</Dica> : null}
       </Card>
       {faltaIdentificacao ? (
         // Critério 13 / parecer §4: ÂMBAR, nunca vermelha, e sem "custo em
@@ -492,6 +522,29 @@ function DetalheDocumento() {
       ) : null}
     </>
   ) : null;
+
+  /**
+   * ⚠️ **CONTAI-038 — o bloco "Retenção", e ele é ADITIVO como
+   * `blocoSemArquivo`.** Entra em TODAS as ramificações de render (quarentena
+   * e normal), nunca como um `return` antecipado: a tela dedicada "NF de
+   * serviço sem retenção" (a Tela 7 do mock do CONTAI-004) **foi removida por
+   * inteiro**, porque ela existia para anunciar uma consequência que o parecer
+   * de 2026-09-18 derrubou — "sem retenção → não abate o INSS" nunca foi a
+   * regra (§2). Nota de material e boleto nunca mostram este bloco.
+   *
+   * `notaCoberta` é a MESMA função que a home usa (`lib/fiscal/vinculo.ts`) —
+   * a tela não escreve uma segunda soma de "quanto desta nota já foi pago", e
+   * não repete o predicado: repetido, ele divergiria no dia em que só um dos
+   * dois lados fosse ajustado (Gate 2 do CONTAI-038).
+   */
+  const blocoRetencao = (
+    <BlocoRetencao
+      documento={d}
+      notaCoberta={notaCoberta(d, alocacao)}
+      onMudou={tentarDeNovo}
+      onSessaoExpirada={pedirReautenticacao}
+    />
+  );
 
   /**
    * A obra deste registro, sempre visível e sempre corrigível: o erro de obra é
@@ -590,6 +643,7 @@ function DetalheDocumento() {
             acervo, mas fora do IR.
           </Dica>
           {blocoIdentificacao}
+          {blocoRetencao}
           {blocoSemArquivo}
           {blocoAnexos}
           {/* Critério 8: vincular quarentena é permitido — é o que evita
@@ -610,51 +664,16 @@ function DetalheDocumento() {
     );
   }
 
-  // Tela 7 do mock — NF de serviço sem retenção confirmada.
-  if (d.tipo === "nf_servico" && d.retencao11 !== true) {
-    return (
-      <>
-        <AppBar titulo="NF de serviço sem retenção" sub={sub} />
-        <Corpo>
-          <Card>
-            <Linha rotulo="Valor">
-              <span className="mono">{valor}</span>
-            </Linha>
-            <Linha rotulo="Retenção 11% INSS">
-              <span className="font-semibold text-amb">
-                {d.retencao11 === false ? "não" : "não identificada"}
-              </span>
-            </Linha>
-            <Linha rotulo="Vale para o IR">
-              <span className="font-semibold text-grn">sim ✓</span>
-            </Linha>
-            <Linha rotulo="Abate no INSS (SERO)">
-              <span className="font-semibold text-red">não</span>
-            </Linha>
-          </Card>
-          <Banner cor="amb" role="status">
-            {CONSEQUENCIA_SEM_RETENCAO} Sem retenção, esse INSS fica para{" "}
-            <strong>você</strong> pagar na regularização da obra. Confira com o
-            empreiteiro se a retenção sairá nas próximas notas.
-          </Banner>
-          {blocoIdentificacao}
-          {blocoSemArquivo}
-          {blocoAnexos}
-          {blocoPagamentos}
-          {blocoObra}
-          {blocoCorrigir}
-          {blocoHistorico}
-        </Corpo>
-        <BarraAdicionar
-          voltar={
-            <BotaoLink href="/" variante="primary">
-              Entendi — manter registro
-            </BotaoLink>
-          }
-        />
-      </>
-    );
-  }
+  // ⚠️ **A "Tela 7" MORREU AQUI** (CONTAI-038): o `return` antecipado de "NF de
+  // serviço sem retenção" existia para anunciar *"não abate na aferição do
+  // INSS"* a partir do booleano de 11% — a premissa que o §2 do parecer
+  // de 2026-09-18 chama de "o achado mais grave". Uma NF de serviço no CPF
+  // dele, paga e com o papel no acervo é custo CONFIRMADO, e dar a ela uma tela
+  // própria de alerta afirmava o oposto da verdade fiscal do documento.
+  //
+  // O que sobrou dela e continua valendo está no render normal: o gate e a
+  // linha "Abate no INSS (SERO): não" no bloco de identificação, e o repeater
+  // em `blocoRetencao`.
 
   return (
     <>
@@ -684,6 +703,7 @@ function DetalheDocumento() {
           </Banner>
         ) : null}
         {blocoIdentificacao}
+        {blocoRetencao}
         {blocoSemArquivo}
         {blocoAnexos}
         {blocoPagamentos}

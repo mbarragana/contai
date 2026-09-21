@@ -178,7 +178,9 @@ export type Database = {
           nota_traz_cno: boolean | null
           numero: string | null
           obra_id: string
-          retencao_11: boolean | null
+          retencao_na_nota:
+            | Database["public"]["Enums"]["retencao_na_nota"]
+            | null
           serie: string | null
           status: Database["public"]["Enums"]["status_documento"]
           tipo: Database["public"]["Enums"]["tipo_documento"]
@@ -200,7 +202,9 @@ export type Database = {
           nota_traz_cno?: boolean | null
           numero?: string | null
           obra_id: string
-          retencao_11?: boolean | null
+          retencao_na_nota?:
+            | Database["public"]["Enums"]["retencao_na_nota"]
+            | null
           serie?: string | null
           status?: Database["public"]["Enums"]["status_documento"]
           tipo: Database["public"]["Enums"]["tipo_documento"]
@@ -222,7 +226,9 @@ export type Database = {
           nota_traz_cno?: boolean | null
           numero?: string | null
           obra_id?: string
-          retencao_11?: boolean | null
+          retencao_na_nota?:
+            | Database["public"]["Enums"]["retencao_na_nota"]
+            | null
           serie?: string | null
           status?: Database["public"]["Enums"]["status_documento"]
           tipo?: Database["public"]["Enums"]["tipo_documento"]
@@ -285,6 +291,56 @@ export type Database = {
             columns: ["revisao_id"]
             isOneToOne: false
             referencedRelation: "revisao"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documento_retencao: {
+        Row: {
+          composicao: Database["public"]["Enums"]["composicao_retencao"]
+          created_at: string
+          documento_id: string
+          e_desconto_efetivo: boolean
+          id: string
+          quem_recolhe:
+            | Database["public"]["Enums"]["quem_recolhe_retencao"]
+            | null
+          rotulo_literal: string
+          tributo: Database["public"]["Enums"]["tributo_retido"] | null
+          valor: number
+        }
+        Insert: {
+          composicao: Database["public"]["Enums"]["composicao_retencao"]
+          created_at?: string
+          documento_id: string
+          e_desconto_efetivo: boolean
+          id?: string
+          quem_recolhe?:
+            | Database["public"]["Enums"]["quem_recolhe_retencao"]
+            | null
+          rotulo_literal: string
+          tributo?: Database["public"]["Enums"]["tributo_retido"] | null
+          valor: number
+        }
+        Update: {
+          composicao?: Database["public"]["Enums"]["composicao_retencao"]
+          created_at?: string
+          documento_id?: string
+          e_desconto_efetivo?: boolean
+          id?: string
+          quem_recolhe?:
+            | Database["public"]["Enums"]["quem_recolhe_retencao"]
+            | null
+          rotulo_literal?: string
+          tributo?: Database["public"]["Enums"]["tributo_retido"] | null
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documento_retencao_documento_id_fkey"
+            columns: ["documento_id"]
+            isOneToOne: false
+            referencedRelation: "documento"
             referencedColumns: ["id"]
           },
         ]
@@ -392,7 +448,6 @@ export type Database = {
           documento: string
           id: string
           nome: string
-          retencao_11: boolean | null
           tipo: Database["public"]["Enums"]["tipo_favorecido"]
           user_id: string
         }
@@ -401,7 +456,6 @@ export type Database = {
           documento: string
           id?: string
           nome: string
-          retencao_11?: boolean | null
           tipo: Database["public"]["Enums"]["tipo_favorecido"]
           user_id?: string
         }
@@ -410,7 +464,6 @@ export type Database = {
           documento?: string
           id?: string
           nome?: string
-          retencao_11?: boolean | null
           tipo?: Database["public"]["Enums"]["tipo_favorecido"]
           user_id?: string
         }
@@ -982,7 +1035,7 @@ export type Database = {
           p_arquivo_path: string
           p_documento_id: string
           p_nota_no_cpf: boolean
-          p_retencao_11?: boolean
+          p_retencao_na_nota?: Database["public"]["Enums"]["retencao_na_nota"]
         }
         Returns: undefined
       }
@@ -1089,6 +1142,10 @@ export type Database = {
     }
     Enums: {
       classificacao: "material" | "mao_obra"
+      composicao_retencao:
+        | "tributo_identificado"
+        | "combinado_nao_aberto"
+        | "nao_sei"
       desfecho_pendencia:
         | "retifiquei_a_daa"
         | "contador_avaliou_nao_retifica"
@@ -1110,6 +1167,8 @@ export type Database = {
         | "recebido"
       origem_compromisso: "boleto" | "pix" | "cartao"
       origem_recurso_entrada: "proprio" | "fgts"
+      quem_recolhe_retencao: "eu" | "empresa" | "nao_sei"
+      retencao_na_nota: "nenhuma" | "destacada"
       resolucao_diferenca:
         | "nao_compoe_custo"
         | "falta_documento"
@@ -1129,6 +1188,7 @@ export type Database = {
       tipo_documento: "nf_material" | "nf_servico" | "boleto"
       tipo_favorecido: "pj" | "pf"
       tipo_pendencia: "retificadora_possivel" | "emitente_errado"
+      tributo_retido: "iss" | "inss" | "irrf" | "pis" | "cofins" | "csll"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1260,6 +1320,11 @@ export const Constants = {
   public: {
     Enums: {
       classificacao: ["material", "mao_obra"],
+      composicao_retencao: [
+        "tributo_identificado",
+        "combinado_nao_aberto",
+        "nao_sei",
+      ],
       desfecho_pendencia: [
         "retifiquei_a_daa",
         "contador_avaliou_nao_retifica",
@@ -1284,6 +1349,7 @@ export const Constants = {
       ],
       origem_compromisso: ["boleto", "pix", "cartao"],
       origem_recurso_entrada: ["proprio", "fgts"],
+      quem_recolhe_retencao: ["eu", "empresa", "nao_sei"],
       resolucao_diferenca: [
         "nao_compoe_custo",
         "falta_documento",
@@ -1291,6 +1357,7 @@ export const Constants = {
         "erro_digitacao",
         "previsao_errada",
       ],
+      retencao_na_nota: ["nenhuma", "destacada"],
       situacao_compromisso: ["aberto", "quitado", "cancelado"],
       status_documento: ["registrado", "quarentena", "aguardando_pagamento"],
       status_pagamento: ["aguardando_nf", "conciliado"],
@@ -1305,6 +1372,7 @@ export const Constants = {
       tipo_documento: ["nf_material", "nf_servico", "boleto"],
       tipo_favorecido: ["pj", "pf"],
       tipo_pendencia: ["retificadora_possivel", "emitente_errado"],
+      tributo_retido: ["iss", "inss", "irrf", "pis", "cofins", "csll"],
     },
   },
 } as const

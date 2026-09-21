@@ -53,7 +53,8 @@ function doc(over: Partial<Documento> & { id: string }): Documento {
     classificacao: "material",
     favorecidoId: "fav-emitente",
     destinatarioCpfOk: true,
-    retencao11: null,
+    retencaoNaNota: null,
+    retencoes: [],
     cnoReferenciado: null,
     notaTrazCno: null,
     motivoQuarentena: null,
@@ -142,13 +143,15 @@ describe("headline — cada tipo isolado (§1 do parecer)", () => {
     expect(r.pendencias.map((p) => p.tipo)).toEqual(["boleto_sem_nf"]);
   });
 
-  it("⚠️ NÃO ENTRA: NF de serviço sem retenção — é outra apuração (§2)", () => {
+  it("⚠️ NÃO ENTRA: NF de serviço sem CNO impresso — é outra apuração (§2)", () => {
     const r = risco({
       documentos: [
         doc({
           id: "s1",
           tipo: "nf_servico",
-          retencao11: false,
+          retencaoNaNota: "nenhuma",
+          retencoes: [],
+          notaTrazCno: false,
           valorCentavos: 1_800_000,
         }),
       ],
@@ -162,6 +165,48 @@ describe("headline — cada tipo isolado (§1 do parecer)", () => {
     expect(r.custoConfirmadoAnoCentavos).toBe(1_800_000);
     // Em campo próprio, EM BASE.
     expect(r.exposicaoInssBaseCentavos).toBe(1_800_000);
+  });
+
+  /**
+   * ⚠️ **TESTE-TRAVA do CONTAI-038, critério 13.** A retenção **não entra na
+   * base do SERO em direção nenhuma** — nem para abater, nem para expor. O §2
+   * do parecer de 2026-09-18 chama a leitura antiga (o booleano de 11%) de
+   * *"o achado mais grave"*, e o pre-mortem 1 do ticket avisa que o conserto
+   * errado é trocá-la por uma leitura das LINHAS novas. Esta nota traz CNO e
+   * tem uma retenção combinada, descontada, sem recolhedor definido: a
+   * exposição do INSS é **zero**.
+   */
+  it("⚠️ retenção NENHUMA move a base do SERO — nem a linha, nem o gate", () => {
+    const r = risco({
+      documentos: [
+        doc({
+          id: "s1",
+          tipo: "nf_servico",
+          retencaoNaNota: "destacada",
+          notaTrazCno: true,
+          cnoReferenciado: OBRA.cno,
+          valorCentavos: 1_800_000,
+          retencoes: [
+            {
+              id: "l1",
+              documentoId: "s1",
+              rotuloLiteral: "Total das Retenções (ISSQN / Federais)",
+              valorCentavos: 54_000,
+              composicao: "combinado_nao_aberto",
+              tributo: null,
+              eDescontoEfetivo: true,
+              quemRecolhe: "nao_sei",
+              createdAt: "2026-03-21T10:00:00Z",
+            },
+          ],
+        }),
+      ],
+    });
+    expect(r.exposicaoInssBaseCentavos).toBe(0);
+    // E a pendência nova existe — ela é sobre o passivo, não sobre a aferição.
+    expect(
+      r.pendencias.some((p) => p.tipo === "retencao_sem_recolhedor"),
+    ).toBe(true);
   });
 
   /**
@@ -253,10 +298,16 @@ describe("headline — combinado, o cenário do mock v5", () => {
           status: "aguardando_pagamento",
           valorCentavos: 2_500_000,
         }),
+        // ⚠️ No mock v5 este item era "NF de serviço sem retenção de 18.000".
+        // O CONTAI-038 apagou essa família (a retenção não decide abatimento
+        // nenhum — parecer de 2026-09-18, §2); o que sobrou, com o MESMO valor
+        // e a mesma moeda, é a nota que não traz CNO impresso.
         doc({
           id: "s1",
           tipo: "nf_servico",
-          retencao11: false,
+          retencaoNaNota: "nenhuma",
+          retencoes: [],
+          notaTrazCno: false,
           valorCentavos: 1_800_000,
         }),
       ],
@@ -294,31 +345,35 @@ describe("headline — combinado, o cenário do mock v5", () => {
     ).not.toBe(r.custoEmRiscoIr.totalCentavos);
   });
 
-  it("a exposição de INSS é a MESMA soma dos cards 'sem retenção' da tela", () => {
+  it("a exposição de INSS é a MESMA soma dos cards 'sem CNO' da tela", () => {
     const r = completo();
     expect(r.exposicaoInssBaseCentavos).toBe(
       r.pendencias
-        .filter((p) => p.tipo === "servico_sem_retencao")
+        .filter((p) => p.tipo === "nf_servico_sem_cno")
         .reduce((s, p) => s + p.valorCentavos, 0),
     );
   });
 });
 
 /**
- * **A base do INSS — duas famílias, UMA VEZ POR DOCUMENTO.**
+ * **A base do INSS — UMA família desde o CONTAI-038, e uma vez por documento.**
  *
- * Regra do `contador` no Gate 2: *"soma, uma vez por `documento.id`, do
- * `valorCentavos` de toda NF de serviço fora de quarentena que atenda
- * `(retencao11 !== true)` OU `(obra tem CNO e notaTrazCno === false)`"*.
+ * A regra do `contador` no Gate 2 do CONTAI-005 tinha duas condições, e a
+ * primeira (o booleano de 11%) **foi apagada**: o §2 do parecer de
+ * 2026-09-18 é literal em que a base *"não é reduzida pelo valor da nota, nem
+ * pelo valor retido, nem pelo percentual de retenção"*. Sobrou
+ * `(obra tem CNO e notaTrazCno === false)` — que ainda é um PROXY do fato real
+ * (a declaração vinculada ao CNO, dívida D57), e está declarado como tal.
  */
 describe("R2 — a base da aferição, por união de documentos", () => {
-  it("a nota SEM CNO impresso entra, mesmo com retenção de 11%", () => {
+  it("a nota SEM CNO impresso entra, qualquer que seja a retenção", () => {
     const r = risco({
       documentos: [
         doc({
           id: "s1",
           tipo: "nf_servico",
-          retencao11: true,
+          retencaoNaNota: "destacada",
+          retencoes: [],
           notaTrazCno: false,
           valorCentavos: 900_000,
         }),
@@ -327,29 +382,26 @@ describe("R2 — a base da aferição, por união de documentos", () => {
     expect(r.exposicaoInssBaseCentavos).toBe(900_000);
   });
 
-  it("⚠️ a nota com as DUAS pendências conta UMA vez — nunca a soma das listas", () => {
+  it("⚠️ a nota COM CNO impresso não entra — nem com retenção 'nenhuma'", () => {
     const r = risco({
       documentos: [
         doc({
           id: "s1",
           tipo: "nf_servico",
-          retencao11: false,
-          notaTrazCno: false,
+          retencaoNaNota: "nenhuma",
+          retencoes: [],
+          notaTrazCno: true,
+          cnoReferenciado: OBRA.cno,
           valorCentavos: 900_000,
         }),
       ],
     });
-    // As duas pendências existem e as duas aparecem em tela (elas são
-    // aditivas) — mas a BASE é 900.000, não 1.800.000. Somar os dois arrays de
-    // `pendencias` filtrados dobraria o valor deste documento, que é o defeito
-    // que o ticket inteiro existe para matar.
-    expect(
-      r.pendencias.filter(
-        (p) =>
-          p.tipo === "servico_sem_retencao" || p.tipo === "nf_servico_sem_cno",
-      ),
-    ).toHaveLength(2);
-    expect(r.exposicaoInssBaseCentavos).toBe(900_000);
+    // Era 900.000 até o CONTAI-038, pelo booleano de 11%. A mudança é o
+    // ponto: "sem retenção" nunca significou "não abate".
+    expect(r.exposicaoInssBaseCentavos).toBe(0);
+    expect(r.pendencias.filter((p) => p.tipo === "nf_servico_sem_cno")).toHaveLength(
+      0,
+    );
   });
 
   it("obra SEM CNO: a falta do CNO na nota não cria exposição", () => {
@@ -359,7 +411,8 @@ describe("R2 — a base da aferição, por união de documentos", () => {
         doc({
           id: "s1",
           tipo: "nf_servico",
-          retencao11: true,
+          retencaoNaNota: "destacada",
+          retencoes: [],
           notaTrazCno: false,
           valorCentavos: 900_000,
         }),
@@ -383,7 +436,9 @@ describe("R2 — a base da aferição, por união de documentos", () => {
           tipo: "nf_servico",
           status: "quarentena",
           destinatarioCpfOk: false,
-          retencao11: false,
+          retencaoNaNota: "nenhuma",
+          retencoes: [],
+          notaTrazCno: false,
           valorCentavos: 900_000,
         }),
       ],

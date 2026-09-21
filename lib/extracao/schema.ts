@@ -2,10 +2,20 @@
  * Contrato da extração automática de documento (US-008, Fase 2). Puro — sem
  * chamada de rede aqui, só o formato que qualquer provedor tem que devolver.
  *
- * Deliberadamente FORA daqui: `notaNoCpf` e `retencao11`. São perguntas
+ * Deliberadamente FORA daqui: `notaNoCpf` e o gate de retenção. São perguntas
  * fiscais que o parecer do `contador` (2026-08-xx, regra "campo fiscal não
  * tem default") exige resposta humana — a extração nunca responde por ele, só
  * preenche o que é leitura de dado impresso na nota.
+ *
+ * ⚠️ **CONTAI-038, critério 14 — a trava que impede o pre-mortem 2.** Quando as
+ * linhas de retenção entrarem aqui (não entram nesta rodada; ver decisão de
+ * design 4 do spec), `composicao`, o tributo específico, `e_desconto_efetivo` e
+ * `quem_recolhe` chegam **SEMPRE EM BRANCO**, mesmo que o texto da nota permita
+ * uma inferência plausível: são classificação fiscal, não leitura de texto
+ * impresso, e o app nunca rotula a linha antes de o Mateus escolher (parecer de
+ * 2026-09-18, §3/§4). `rotulo_literal` e `valor`, esses sim, **podem** ser
+ * sugeridos — são leitura, e ele confirma antes de salvar, como todo campo
+ * extraído hoje.
  */
 
 import { z } from "zod";

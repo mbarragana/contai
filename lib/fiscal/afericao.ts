@@ -13,21 +13,41 @@
  * de 2026-08-09, Q8), no formato "se X → Y":
  *
  * - **Se** documento = NF de serviço PJ → a dedução da base só vale se a nota
- *   **referenciar o CNO daquela obra** *e* a retenção de 11% tiver sido
- *   declarada em EFD-Reinf pelo prestador. **NF da obra A jamais abate base da
+ *   **referenciar o CNO daquela obra**. **NF da obra A jamais abate base da
  *   obra B.**
  * - **Se** a nota não traz CNO → não abate a aferição, e **continua sendo
  *   documentação hábil para o custo de aquisição** (IN SRF 84/2001, art. 17):
  *   são duas apurações distintas, e é por isso que o critério 3 grava com
  *   pendência em vez de recusar.
- * - **Se** falta o arquivo → não abate (CONTAI-033, Guarda 2: *"o abatimento
- *   depende da nota de serviço com a retenção de 11%, não da lembrança dela"*).
+ * - **Se** falta o arquivo → não abate (CONTAI-033, Guarda 2: sem o papel no
+ *   acervo a nota não sustenta nada).
  *
- * ⚠️ **Conferir se a retenção foi de fato declarada em EFD-Reinf está FORA do
- * alcance do produto** (Out of Scope): é obrigação do prestador. O app registra
- * o que a nota diz e marca o que não sabe — e `retencao11 = null` ("não sei")
- * **não abate**, porque a direção segura do erro aqui é subestimar o
- * abatimento, não inventá-lo.
+ * ## ⚠️ O que o CONTAI-038 tirou daqui, e por quê
+ *
+ * Até 2026-09-20 havia um sexto motivo, `sem_retencao`: a nota só abatia se o
+ * percentual de 11% tivesse sido afirmado no registro. **Ele saiu**, e a
+ * remoção é o §2 do parecer de 2026-09-18 aplicado ao pé da letra — o mesmo
+ * §2 que classifica esta leitura como *"o achado mais grave"*:
+ *
+ * > A base de aferição **não é reduzida pelo valor da nota, nem pelo valor
+ * > retido, nem pelo percentual de retenção.** É reduzida **apenas** pela
+ * > remuneração de mão de obra que a empresa prestadora **declara e vincula ao
+ * > CNO da obra**.
+ *
+ * E o §0 fecha a porta de trás: para tomador **pessoa física** a retenção do
+ * art. 31 **não existe em percentual nenhum**, então exigi-la era exigir um
+ * fato que nunca deveria aparecer numa nota emitida para o Mateus.
+ *
+ * ⚠️ **O que restou ainda é um PROXY, e a dívida está nomeada (D57)**: o fato
+ * que de fato abate é a resposta a *"esta mão de obra foi declarada no meu
+ * CNO?"*, que **não existe no produto** — confirmado no Gate Fiscal do
+ * CONTAI-038 (P2), e explicitamente fora do escopo dele. Enquanto ela não
+ * existir, `nota_traz_cno` + `cno_referenciado` são o mais perto que o app
+ * chega, e a base que sai daqui é **maior** do que a que o fisco aceitaria
+ * provada. Quem assina a aferição continua sendo o CRC, não este módulo.
+ *
+ * ⚠️ Conferir a declaração em EFD-Reinf segue **fora do alcance do produto**
+ * (Out of Scope do CONTAI-007): é obrigação do prestador.
  */
 
 import type { Documento, Obra } from "@/lib/types";
@@ -58,8 +78,6 @@ export type MotivoForaDaBase =
   | "cno_nao_perguntado"
   /** O CNO impresso não é o da obra onde a nota está arquivada. */
   | "cno_divergente"
-  /** Sem retenção de 11%, ou "não sei" — que não vira "sim". */
-  | "sem_retencao"
   /** Sem o arquivo no acervo (CONTAI-033, Guarda 2). */
   | "sem_arquivo"
   /** Fora do CPF do dono da obra. */
@@ -127,8 +145,11 @@ function motivoForaDaBase(
   if (cnoNormalizado(documento.cnoReferenciado) !== cnoDaObra) {
     return "cno_divergente";
   }
-  // "não sei" (`null`) NÃO vira "sim": sem retenção confirmada, não abate.
-  if (documento.retencao11 !== true) return "sem_retencao";
+  // ⚠️ **NÃO HÁ PERGUNTA DE RETENÇÃO AQUI, e a ausência é o CONTAI-038.**
+  // Nenhuma linha de `documento_retencao` é lida por esta função (critério
+  // 13) — nem `rotulo_literal`, nem `valor`, nem `composicao`, nem
+  // `e_desconto_efetivo`, nem `quem_recolhe`. Trocar o campo antigo por uma
+  // leitura das linhas novas é literalmente o pre-mortem 1 do ticket.
   if (faltaOArquivo(documento)) return "sem_arquivo";
   return null;
 }

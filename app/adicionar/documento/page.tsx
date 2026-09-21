@@ -38,12 +38,10 @@ import {
   AJUDA_DATA_EMISSAO,
   AJUDA_NUMERO,
   AJUDA_SERIE,
-  avisaInss,
   bloqueiaPorCnoDeOutraObra,
   classificacaoProposta,
   cnoReferenciadoParaBanco,
   CONSEQUENCIA_QUARENTENA,
-  CONSEQUENCIA_SEM_RETENCAO,
   duplicataDe,
   exigeCnoReferenciado,
   exigeIdentificacaoDaNota,
@@ -52,7 +50,6 @@ import {
   notaTrazCnoParaBanco,
   numeroParaBanco,
   pendenteDeCno,
-  retencaoParaBanco,
   SEM_ARQUIVO_DIALOGO_ANEXAR,
   SEM_ARQUIVO_DIALOGO_CONSEQUENCIA,
   SEM_ARQUIVO_DIALOGO_PORQUE,
@@ -66,8 +63,12 @@ import {
   type ErroCampo,
   type RespostaCnoNota,
   type RespostaCpf,
-  type RespostaRetencao,
 } from "@/lib/fiscal/documento";
+import {
+  DICA_GATE_DESTACADA,
+  OPCOES_GATE,
+  PERGUNTA_GATE,
+} from "@/lib/fiscal/retencao";
 import { soDigitos, tipoPorDocumento } from "@/lib/fiscal/identificacao";
 import {
   ACAO_NOTA_SEM_CNO,
@@ -89,7 +90,13 @@ import {
 import { paraCentavos, type ExtracaoDocumento } from "@/lib/extracao/schema";
 import { hojeIso } from "@/lib/hoje";
 import { centavosParaInput, formatarBRL, parseValorInput } from "@/lib/money";
-import type { Classificacao, Documento, Pagamento, TipoDocumento } from "@/lib/types";
+import type {
+  Classificacao,
+  Documento,
+  Pagamento,
+  RespostaRetencaoNaNota,
+  TipoDocumento,
+} from "@/lib/types";
 
 const TIPOS = [
   { valor: "nf_material", texto: "NF material" },
@@ -106,12 +113,6 @@ const RESPOSTAS_CPF = [
   { valor: "sim", texto: "Sim" },
   { valor: "nao", texto: "Não" },
 ] as const satisfies readonly { valor: RespostaCpf; texto: string }[];
-
-const RESPOSTAS_RETENCAO = [
-  { valor: "sim", texto: "Sim" },
-  { valor: "nao", texto: "Não" },
-  { valor: "nao_sei", texto: "Não sei" },
-] as const satisfies readonly { valor: RespostaRetencao; texto: string }[];
 
 /**
  * CONTAI-007, critério 1 — **três toques, zero digitação** (pre-mortem 1: se o
@@ -183,11 +184,18 @@ export default function RegistrarDocumento() {
   const [vencimento, setVencimento] = useState("");
   const [classificacao, setClassificacao] = useState<Classificacao | null>(null);
   const [notaNoCpf, setNotaNoCpf] = useState<RespostaCpf | null>(null);
-  const [retencao11, setRetencao11] = useState<RespostaRetencao | null>(null);
+  /**
+   * **CONTAI-038, critério 1 — o GATE, e só o gate.** Duas opções, nada
+   * pré-marcado. O repeater de linhas NÃO vive aqui: esta tela é captura
+   * (canteiro, uma mão), e cinco perguntas por linha × N linhas estouram o
+   * limite do momento. As linhas se preenchem no detalhe, sentado.
+   */
+  const [retencaoNaNota, setRetencaoNaNota] =
+    useState<RespostaRetencaoNaNota | null>(null);
   /**
    * CONTAI-007 — a pergunta do CNO. Nasce `null`, como todo campo fiscal deste
    * formulário: **a extração nunca a preenche** (é pergunta sobre o papel na
-   * mão, não leitura de PDF — mesma regra de `notaNoCpf` e `retencao11`).
+   * mão, não leitura de PDF — mesma regra de `notaNoCpf` e do gate acima).
    */
   const [cnoNaNota, setCnoNaNota] = useState<RespostaCnoNota | null>(null);
   const [erros, setErros] = useState<ErroCampo[]>([]);
@@ -201,7 +209,7 @@ export default function RegistrarDocumento() {
 
   // US-008 Fase 2 — extração automática (Gemini). Só sugere: quem afirma o
   // campo continua sendo o dedo do Mateus em "Salvar registro". Nunca toca
-  // `notaNoCpf` nem `retencao11` — são pergunta fiscal, não leitura de PDF.
+  // `notaNoCpf` nem o gate de retenção — pergunta fiscal, não leitura de PDF.
   const [extraindo, setExtraindo] = useState(false);
   const [erroExtracao, setErroExtracao] = useState<string | null>(null);
   const [extracao, setExtracao] = useState<ExtracaoDocumento | null>(null);
@@ -256,7 +264,7 @@ export default function RegistrarDocumento() {
   function escolherTipo(novo: TipoDocumento) {
     setTipo(novo);
     setClassificacao(classificacaoProposta(novo));
-    if (!exigeRetencao(novo)) setRetencao11(null);
+    if (!exigeRetencao(novo)) setRetencaoNaNota(null);
     // Sair de NF de serviço apaga a resposta do CNO: ela só existe ali, e uma
     // resposta guardada em tipo que não a pergunta é afirmação órfã.
     if (!exigeCnoReferenciado(novo)) setCnoNaNota(null);
@@ -274,7 +282,7 @@ export default function RegistrarDocumento() {
       vencimento: vencimento || null,
       classificacao,
       notaNoCpf,
-      retencao11,
+      retencaoNaNota,
       cnoNaNota,
       // O CNO da obra AFIRMADA NA TELA — não a preferência do aparelho. É ele
       // que a resposta "é o CNO desta obra" afirma estar impresso no papel.
@@ -291,7 +299,7 @@ export default function RegistrarDocumento() {
       vencimento,
       classificacao,
       notaNoCpf,
-      retencao11,
+      retencaoNaNota,
       cnoNaNota,
       obra,
     ],
@@ -403,7 +411,11 @@ export default function RegistrarDocumento() {
       vencimento: null,
       classificacao,
       destinatarioCpfOk: notaNoCpf === "sim",
-      retencao11: null,
+      // O gate e as linhas não participam da ordenação dos candidatos: quem
+      // casa pagamento com documento é valor + favorecido. Mesma razão do
+      // `numero` e do CNO.
+      retencaoNaNota: null,
+      retencoes: [],
       // O CNO da nota não participa da ordenação dos candidatos: quem casa
       // pagamento com documento é valor + favorecido. Mesma razão do `numero`.
       cnoReferenciado: null,
@@ -502,7 +514,10 @@ export default function RegistrarDocumento() {
         vencimento: tipo === "boleto" ? vencimento : null,
         classificacao,
         destinatario_cpf_ok: notaNoCpf === "sim",
-        retencao_11: exigeRetencao(tipo) ? retencaoParaBanco(retencao11) : null,
+        // CONTAI-038 — o gate vai para o banco como ele é, sem tradução: não
+        // há terceiro estado a colapsar. Em material/boleto grava `null`
+        // porque a pergunta não existe ali.
+        retencao_na_nota: exigeRetencao(tipo) ? retencaoNaNota : null,
         // CONTAI-007 — o CNO IMPRESSO na nota, e o tri-estado que o acompanha.
         // O `obra.cno` que entra aqui é o da obra AFIRMADA NA TELA, que é o que
         // a resposta "é o CNO desta obra" afirma estar no papel. "É o de outra
@@ -933,22 +948,28 @@ export default function RegistrarDocumento() {
                 </Banner>
               ) : null}
 
+              {/* ══ CONTAI-038, critério 1 — o GATE, e nada além dele ════
+                  Duas opções, nenhuma pré-marcada, no mesmo lugar do campo
+                  antigo (ordem: … CPF → retenção → CNO).
+
+                  ⚠️ **"Destacada" NÃO abre banner de consequência**, ao
+                  contrário do campo que ele substituiu: não há consequência
+                  fiscal aberta neste momento — só um dado a completar depois.
+                  O aviso antigo dizia "não abate na aferição do INSS" como se
+                  a retenção decidisse o abatimento, e é exatamente essa
+                  premissa que o §2 do parecer de 2026-09-18 derruba. */}
               {exigeRetencao(tipo) ? (
                 <>
                   <Escolha
                     destaque
-                    rotulo="NF de serviço: tem retenção de 11%?"
-                    opcoes={RESPOSTAS_RETENCAO}
-                    valor={retencao11}
-                    onChange={setRetencao11}
-                    erro={erroDe("retencao11")}
+                    rotulo={PERGUNTA_GATE}
+                    opcoes={OPCOES_GATE}
+                    valor={retencaoNaNota}
+                    onChange={setRetencaoNaNota}
+                    erro={erroDe("retencaoNaNota")}
                   />
-                  {avisaInss(tipo, retencao11) ? (
-                    <Banner cor="amb" role="status">
-                      {CONSEQUENCIA_SEM_RETENCAO} O registro é salvo mesmo
-                      assim — esse INSS fica para você pagar na regularização
-                      da obra.
-                    </Banner>
+                  {retencaoNaNota === "destacada" ? (
+                    <Dica>{DICA_GATE_DESTACADA}</Dica>
                   ) : null}
                 </>
               ) : null}
@@ -1132,8 +1153,8 @@ export default function RegistrarDocumento() {
 
             <Dica>
               Olhe na nota antes de responder — &quot;não&quot; no CPF leva à
-              quarentena; &quot;não/não sei&quot; na retenção gera o aviso do
-              INSS. Sem responder, não salva.
+              quarentena; &quot;destacada&quot; na retenção abre o detalhamento
+              linha a linha, que você preenche depois. Sem responder, não salva.
             </Dica>
           </>
         ) : null}

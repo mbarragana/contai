@@ -239,6 +239,12 @@ const SQL_LIMPAR = [
   "delete from pendencia_desfecho;",
   "delete from pendencia;",
   "delete from documento_anexo;",
+  // CONTAI-038 — a filha cai antes do pai. `on delete cascade` já daria conta,
+  // mas apagar explícito deixa o erro no lugar certo se a FK mudar (mesma
+  // convenção das outras). Aqui o DELETE **não** é exceção de andaime: o papel
+  // `authenticated` tem DELETE nesta tabela (migration 0017), porque a linha é
+  // AFIRMAÇÃO sobre o papel, não acervo com objeto no bucket.
+  "delete from documento_retencao;",
   "delete from revisao;",
   // CONTAI-010 — o informe cai antes do contrato, que cai antes da obra.
   "delete from financiamento_informe;",
@@ -516,6 +522,33 @@ export async function criarCompromisso(
 }
 
 // ── Leituras de verificação ──────────────────────────────────────────────
+
+/**
+ * Uma linha de retenção (CONTAI-038), gravada pelo MESMO client autenticado
+ * que o app usa — nada de `psql` aqui: cenário e verificação passam pela RLS,
+ * como manda o `CLAUDE.md`.
+ */
+export async function criarLinhaDeRetencao(
+  db: Db,
+  linha: Omit<TablesInsert<"documento_retencao">, "id">,
+): Promise<string> {
+  const { data, error } = await db
+    .from("documento_retencao")
+    .insert(linha)
+    .select("id")
+    .single();
+  if (error) throw error;
+  return (data as { id: string }).id;
+}
+
+export async function linhasDeRetencao(db: Db) {
+  const { data, error } = await db
+    .from("documento_retencao")
+    .select("*")
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
 
 export async function documentos(db: Db) {
   const { data, error } = await db
@@ -802,6 +835,75 @@ export function plantarDesembolsoDeOutroDono(): string {
     "plantar desembolso de outro dono",
   );
   return desembolsoAlheio;
+}
+
+/**
+ * Uma LINHA DE RETENÇÃO de outra conta (CONTAI-038) — o cenário que prova a
+ * **RLS DERIVADA DO PAI** de `documento_retencao` (migration 0017).
+ *
+ * ⚠️ Montar a conta alheia passa pelo andaime de administrador, como o
+ * desembolso acima: é montagem de ambiente, não comportamento do app. O que o
+ * teste **não** contorna é a policy — a tentativa de apagar esta linha é feita
+ * pelo client autenticado do Mateus, exatamente como o app faria.
+ *
+ * ⚠️ É este cenário que mostra por que `removerLinhaRetencao` exige
+ * `data.length === 1`: a RLS filtra a linha alheia em silêncio, e o PostgREST
+ * devolve **200 com zero linhas** — sucesso, sem ter apagado nada.
+ */
+export function plantarLinhaDeRetencaoDeOutroDono(): string {
+  const obraAlheia = "99999999-0000-4000-8000-000000000001";
+  const documentoAlheio = "99999999-0000-4000-8000-000000000003";
+  const linhaAlheia = "99999999-0000-4000-8000-000000000004";
+  sqlAdmin(
+    `insert into auth.users (
+       instance_id, id, aud, role, email, encrypted_password,
+       email_confirmed_at, created_at, updated_at,
+       raw_app_meta_data, raw_user_meta_data,
+       confirmation_token, recovery_token, email_change_token_new,
+       email_change, email_change_token_current, phone_change,
+       phone_change_token, reauthentication_token
+     ) values (
+       '00000000-0000-0000-0000-000000000000',
+       ${literalSql(DONO_ALHEIO)},
+       'authenticated', 'authenticated', 'outra-conta@contai.local',
+       crypt('nao-usada-em-lugar-nenhum', gen_salt('bf')),
+       now(), now(), now(), '{}'::jsonb, '{}'::jsonb,
+       '', '', '', '', '', '', '', ''
+     ) on conflict (id) do nothing;
+
+     insert into obra (id, user_id, nome, data_inicio_obra)
+     values (${literalSql(obraAlheia)}, ${literalSql(DONO_ALHEIO)},
+             'Obra de outra conta', '2026-01-10')
+     on conflict (id) do nothing;
+
+     insert into documento (
+       id, user_id, obra_id, tipo, arquivo_path, valor, classificacao,
+       destinatario_cpf_ok, retencao_na_nota, status
+     ) values (
+       ${literalSql(documentoAlheio)}, ${literalSql(DONO_ALHEIO)},
+       ${literalSql(obraAlheia)}, 'nf_servico',
+       ${literalSql(`${DONO_ALHEIO}/documento/alheia.pdf`)}, 1000, 'mao_obra',
+       true, 'destacada', 'registrado'
+     ) on conflict (id) do nothing;
+
+     insert into documento_retencao (
+       id, documento_id, rotulo_literal, valor, composicao,
+       e_desconto_efetivo, quem_recolhe
+     ) values (
+       ${literalSql(linhaAlheia)}, ${literalSql(documentoAlheio)},
+       'Retenção da outra conta', 100, 'nao_sei', true, 'nao_sei'
+     ) on conflict (id) do nothing;`,
+    "plantar linha de retenção de outro dono",
+  );
+  return linhaAlheia;
+}
+
+export function contarLinhasDeRetencaoDeOutroDono(linhaId: string): number {
+  const [linha] = consultarAdmin(
+    `select count(*) from documento_retencao where id = ${literalSql(linhaId)};`,
+    "conferir a linha de retenção alheia",
+  );
+  return Number(linha?.[0] ?? 0);
 }
 
 export function plantarObjetoDeOutroDono(nome: string): string {

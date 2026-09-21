@@ -87,9 +87,13 @@ async function obraPorId(db: Db, id: string): Promise<ObraRow> {
   return achada;
 }
 
-/** A linha do banco no formato do domínio. `favorecido` não importa aqui. */
+/**
+ * A linha do banco no formato do domínio. `favorecido` não importa aqui, e as
+ * linhas de retenção também não: o CONTAI-038 é explícito em que a aferição
+ * **não lê nenhuma delas** (critério 13) — passar `[]` aqui é afirmar isso.
+ */
 function paraDocumentoDoTeste(row: DocumentoRow) {
-  return paraDocumento({ ...row, favorecido: null });
+  return paraDocumento({ ...row, favorecido: null, documento_retencao: [] });
 }
 
 /** A marca só sai da PORTA — nem o E2E a forja. */
@@ -123,7 +127,7 @@ test.describe("o CNO impresso na nota (critérios 1, 2, 3 e 6)", () => {
       arquivo: pdf("NF-1042.pdf"),
       noCpf: "Sim",
     });
-    await escolher(page, "NF de serviço: tem retenção de 11%?", "Sim");
+    await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
 
     // Nada nasce marcado: a pergunta está aberta.
     await page.getByRole("button", { name: "Salvar registro" }).click();
@@ -182,7 +186,7 @@ test.describe("o CNO impresso na nota (critérios 1, 2, 3 e 6)", () => {
       arquivo: pdf("NF-da-outra-obra.pdf"),
       noCpf: "Sim",
     });
-    await escolher(page, "NF de serviço: tem retenção de 11%?", "Sim");
+    await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
     await responderCnoDaNota(page, "É o CNO de outra obra");
 
     // Tela de BLOQUEIO, com a consequência do critério 2 — não é aviso.
@@ -231,7 +235,7 @@ test.describe("o CNO impresso na nota (critérios 1, 2, 3 e 6)", () => {
       arquivo: pdf("NF-1042.pdf"),
       noCpf: "Sim",
     });
-    await escolher(page, "NF de serviço: tem retenção de 11%?", "Sim");
+    await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
     await responderCnoDaNota(page, "É o CNO de outra obra");
 
     await page.getByRole("button", { name: "Registrar na outra obra" }).click();
@@ -277,7 +281,7 @@ test.describe("o CNO impresso na nota (critérios 1, 2, 3 e 6)", () => {
       arquivo: pdf("NF-1078.pdf"),
       noCpf: "Sim",
     });
-    await escolher(page, "NF de serviço: tem retenção de 11%?", "Sim");
+    await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
     await responderCnoDaNota(page, "A nota não traz CNO");
 
     // A consequência é dita ANTES de salvar, e é a mesma do bloqueio.
@@ -328,7 +332,7 @@ test.describe("o CNO impresso na nota (critérios 1, 2, 3 e 6)", () => {
       arquivo: pdf("NF-1042.pdf"),
       noCpf: "Sim",
     });
-    await escolher(page, "NF de serviço: tem retenção de 11%?", "Sim");
+    await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
     await responderCnoDaNota(page, "É o CNO desta obra");
     await page.getByRole("button", { name: "Salvar registro" }).click();
     await expect(page.getByRole("heading", { name: "Registrado ✓" })).toBeVisible();
@@ -379,7 +383,7 @@ test.describe("⚠️ critério 7 · o CNO avisa, e nunca barra a correção de 
       valor: 18000,
       classificacao: "mao_obra",
       destinatario_cpf_ok: true,
-      retencao_11: true,
+      retencao_na_nota: "destacada",
       status: "registrado",
       favorecido_id: favorecido,
       numero: "1042",
@@ -468,7 +472,7 @@ test.describe("⚠️ critério 7 · o CNO avisa, e nunca barra a correção de 
       valor: 18000,
       classificacao: "mao_obra",
       destinatario_cpf_ok: true,
-      retencao_11: true,
+      retencao_na_nota: "destacada",
       status: "registrado",
       favorecido_id: favorecido,
       numero: "1042",
@@ -506,7 +510,7 @@ test.describe("⚠️ critério 7 · o CNO avisa, e nunca barra a correção de 
       valor: 18000,
       classificacao: "mao_obra",
       destinatario_cpf_ok: true,
-      retencao_11: true,
+      retencao_na_nota: "destacada",
       status: "registrado",
       favorecido_id: favorecido,
       numero: "1042",
@@ -543,7 +547,7 @@ test.describe("critério 8 · notas emitidas na janela sem CNO", () => {
       tipo: "nf_servico" as const,
       classificacao: "mao_obra" as const,
       destinatario_cpf_ok: true,
-      retencao_11: true,
+      retencao_na_nota: "destacada" as const,
       status: "registrado" as const,
       favorecido_id: favorecido,
     };
@@ -603,7 +607,7 @@ test.describe("critério 8 · notas emitidas na janela sem CNO", () => {
       tipo: "nf_servico",
       classificacao: "mao_obra",
       destinatario_cpf_ok: true,
-      retencao_11: true,
+      retencao_na_nota: "destacada",
       status: "registrado",
       favorecido_id: favorecido,
       valor: 25000,

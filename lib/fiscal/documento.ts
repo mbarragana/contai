@@ -5,7 +5,9 @@
  * Fonte das regras — nada aqui é inferido:
  * - "Documento hábil: NF de material com CPF do dono como destinatário; NF de
  *   serviço com ele como tomador. Divergência → quarentena" (Gate Fiscal)
- * - "NF de serviço PJ → capturar flag de retenção 11%" (Gate Fiscal)
+ * - ~~"NF de serviço PJ → capturar flag de retenção 11%"~~ — **superado pelo
+ *   CONTAI-038** (parecer de 2026-09-18, §0 e §3): a flag saiu do schema, e a
+ *   captura virou GATE de duas opções + lista de linhas (`./retencao.ts`)
  * - "Boleto NÃO é documento hábil sozinho — é título de cobrança" (Gate Fiscal)
  * - "Classificação material vs. serviço: incerteza → revisão humana, nunca
  *   chute silencioso" (Gate Fiscal)
@@ -22,18 +24,25 @@
 import type {
   Classificacao,
   Documento,
+  RespostaRetencaoNaNota,
   StatusDocumento,
   TipoDocumento,
 } from "@/lib/types";
 import { tipoPorDocumento } from "./identificacao";
+import { ERRO_GATE_SEM_RESPOSTA } from "./retencao";
 import { CONSEQUENCIA_CNO_DA_NOTA } from "./obra";
 import { ehDataValida } from "./pagamento";
 
 /** Check fiscal obrigatório 1 — "esta nota está no seu CPF?" (critério 4). */
 export type RespostaCpf = "sim" | "nao";
 
-/** Check fiscal obrigatório 2 — "tem retenção de 11%?" (critério 5). */
-export type RespostaRetencao = "sim" | "nao" | "nao_sei";
+// ⚠️ **`RespostaRetencao` ("é 11%? sim/não/não sei") MORREU no CONTAI-038.**
+// Para tomador pessoa física a retenção do art. 31 não existe em percentual
+// nenhum (parecer de 2026-09-18, §0), e a nota real nem discrimina por tributo
+// — "é 11%?" nunca foi a pergunta certa. No lugar entrou o GATE de duas
+// opções (`RespostaRetencaoNaNota`, em `lib/types.ts`) mais a LISTA de linhas
+// (`lib/fiscal/retencao.ts`). O tipo antigo não foi renomeado de propósito:
+// renomear teria deixado os call sites compilando com o significado trocado.
 
 /**
  * Check fiscal obrigatório 3 — **"qual CNO está impresso nesta nota?"**
@@ -84,7 +93,16 @@ export interface EntradaDocumento {
   vencimento: string | null;
   classificacao: Classificacao | null;
   notaNoCpf: RespostaCpf | null;
-  retencao11: RespostaRetencao | null;
+  /**
+   * **CONTAI-038, critério 1** — o gate de DUAS opções. `null` é "ainda não
+   * respondeu", e não salva em `nf_servico`: em branco silencioso é o estado
+   * que a disciplina fiscal do produto existe para impedir.
+   *
+   * ⚠️ O repeater de LINHAS não vive nesta entrada, e a ausência é o critério:
+   * `/adicionar/documento` é captura (canteiro, uma mão), e cinco perguntas
+   * por linha × N linhas estouram o limite do momento (Gate de Mock).
+   */
+  retencaoNaNota: RespostaRetencaoNaNota | null;
   /**
    * CONTAI-007 — só NF de serviço. `null` é "ainda não respondeu", e não salva
    * (critério 1): em branco silencioso é o estado que o ticket inteiro existe
@@ -114,8 +132,14 @@ export const MOTIVO_QUARENTENA_CPF =
 export const CONSEQUENCIA_QUARENTENA =
   "Não entra no custo de aquisição. Peça a nota no seu CPF.";
 
-export const CONSEQUENCIA_SEM_RETENCAO =
-  "Não abate na aferição do INSS da obra (SERO).";
+// ⚠️ **`CONSEQUENCIA_SEM_RETENCAO` FOI REMOVIDA pelo CONTAI-038** (critério 6),
+// junto da pendência de "NF de serviço sem retenção" que ela alimentava. Ela
+// dizia "não abate na aferição do INSS da obra (SERO)" como se a retenção
+// fosse a condição do abatimento — e o §2 do parecer de 2026-09-18 chama
+// exatamente isso de "o achado mais grave". O que abate é a declaração que a
+// prestadora vincula ao CNO; nenhum percentual de nota abate um real. O texto
+// que sobrevive, com o fundamento certo, é `RETENCAO_NAO_ABATE_SERO` em
+// `lib/fiscal/retencao.ts`.
 
 export const CONSEQUENCIA_BOLETO =
   "Boleto não é documento hábil. O custo só se sustenta com a NF.";
@@ -301,18 +325,16 @@ export function classificacaoProposta(
   return null;
 }
 
-/** A pergunta de retenção só faz sentido em NF de serviço. */
+/**
+ * O gate de retenção só faz sentido em NF de serviço.
+ *
+ * ⚠️ Material e boleto ficam de fora, e isso é regra: só a NF de serviço PJ
+ * pode destacar retenção. `retencaoParaBanco` não existe mais — o gate vai
+ * para o banco como ele é (`"nenhuma" | "destacada"`), sem tradução, porque
+ * não há terceiro estado a colapsar.
+ */
 export function exigeRetencao(tipo: TipoDocumento | null): boolean {
   return tipo === "nf_servico";
-}
-
-/** "não sei" não vira "não": vai como desconhecido (null) para o banco. */
-export function retencaoParaBanco(
-  resposta: RespostaRetencao | null,
-): boolean | null {
-  if (resposta === "sim") return true;
-  if (resposta === "nao") return false;
-  return null;
 }
 
 // ── CONTAI-007 · o CNO impresso na nota ─────────────────────────────────
@@ -321,10 +343,14 @@ export function retencaoParaBanco(
  * A pergunta do CNO só existe em **NF de serviço** (critério 1).
  *
  * Material e boleto ficam de fora, e isso é regra, não esquecimento: a dedução
- * da base de aferição do SERO é amarrada ao CNO impresso na NF de SERVIÇO com
- * retenção de 11% — material não abate aferição nenhuma, e boleto não é
- * documentação hábil. Perguntar ali é atrito sem consequência, que fabrica
- * carimbo.
+ * da base de aferição do SERO é amarrada ao CNO impresso na NF de SERVIÇO —
+ * material não abate aferição nenhuma, e boleto não é documentação hábil.
+ * Perguntar ali é atrito sem consequência, que fabrica carimbo.
+ *
+ * ⚠️ A redação anterior dizia *"na NF de serviço **com retenção de 11%**"*, e a
+ * cláusula caiu no CONTAI-038: o §2 do parecer de 2026-09-18 é literal em que a
+ * base não é reduzida pelo valor retido nem pelo percentual. O que amarra a
+ * nota à aferição desta obra é o CNO, e só ele.
  */
 export function exigeCnoReferenciado(tipo: TipoDocumento | null): boolean {
   return tipo === "nf_servico";
@@ -377,7 +403,7 @@ export function cnoReferenciadoParaBanco(
 }
 
 /**
- * O que vai para `documento.nota_traz_cno` — tri-estado, igual a `retencao_11`.
+ * O que vai para `documento.nota_traz_cno` — tri-estado.
  *
  * ⚠️ `nao_traz` vira `false`, **nunca `null`**: `null` significa "não foi
  * perguntado", e colapsar os dois é o branco silencioso que o critério 3
@@ -499,16 +525,24 @@ export const SEM_ARQUIVO_DIALOGO_PORQUE =
   "você ainda tem parcela a liberar.";
 
 /**
- * §A.7.1 — segundo parágrafo: as guardas 1 e 2, ditas antes de gravar.
+ * O segundo parágrafo do diálogo: as guardas 1 e 2, ditas antes de gravar.
  *
- * ⚠️ O trecho final não é enfeite: *"o abatimento depende da nota de serviço
- * com a retenção de 11%, não da lembrança dela"* é a Guarda 2 por extenso — o
- * erro aqui não custa glosa na venda, custa **pagar o INSS duas vezes**.
+ * ⚠️ **REDIGIDA PELO `contador` EM 2026-09-21, no Gate 2 do CONTAI-038 — não é
+ * mais cópia do §A.7.1 do parecer de 2026-08-23.** A redação anterior fechava
+ * com *"o abatimento depende da nota de serviço com a retenção de 11%"*, e essa
+ * cláusula morreu com a premissa: o **§2 do parecer de 2026-09-18** é literal em
+ * que a base de aferição *"não é reduzida pelo valor da nota, nem pelo valor
+ * retido, nem pelo percentual de retenção"*. Manter a frase antiga seria o app
+ * repetindo, na hora de gravar, a regra que o mesmo ticket apagou do cálculo.
+ *
+ * ⚠️ O trecho final continua não sendo enfeite — só mudou o fato que ele nomeia:
+ * o que liga a nota à aferição desta obra é o **CNO impresso nela**, e o erro
+ * aqui não custa glosa na venda, custa **pagar o INSS duas vezes**.
  */
 export const SEM_ARQUIVO_DIALOGO_CONSEQUENCIA =
   "Sem o arquivo, esta nota não sustenta custo nenhum e não abate a aferição " +
-  "do INSS desta obra — o abatimento depende da nota de serviço com a " +
-  "retenção de 11%, não da lembrança dela.";
+  "do INSS desta obra — o abatimento depende do CNO desta obra impresso na " +
+  "nota de serviço, não da lembrança dela.";
 
 /** §A.7.1 — o botão que grava assim mesmo. */
 export const SEM_ARQUIVO_DIALOGO_SALVAR = "Salvar e cobrar a nota";
@@ -564,16 +598,12 @@ export const GUARDA_SUSTENTA_CUSTO_ROTULO = "Sustenta custo de aquisição";
 export const GUARDA_ABATE_INSS_ROTULO = "Abate no INSS";
 export const GUARDA_RESPOSTA_NAO = "não";
 
-/**
- * Aviso do INSS (não bloqueia — critério 5): NF de serviço sem retenção
- * confirmada não abate na aferição do SERO.
- */
-export function avisaInss(
-  tipo: TipoDocumento | null,
-  retencao11: RespostaRetencao | null,
-): boolean {
-  return exigeRetencao(tipo) && retencao11 !== null && retencao11 !== "sim";
-}
+// ⚠️ **`avisaInss` FOI REMOVIDA pelo CONTAI-038** (critério 6/11). Ela acendia
+// um banner âmbar quando a resposta não era "sim" — ou seja, tratava a
+// retenção como condição do abatimento do SERO, que é a premissa corrigida
+// pelo §2 do parecer de 2026-09-18. Escolher "Destacada" no gate **não** abre
+// banner de consequência: não há consequência fiscal aberta naquele momento,
+// só um dado a completar depois, sentado (spec, "Telas e estados").
 
 /**
  * Validação do formulário. Nada é aceito em silêncio: sem arquivo, sem os
@@ -684,11 +714,13 @@ export function validarDocumento(
     });
   }
 
-  // Critério 5: obrigatório responder em NF de serviço ("não sei" é resposta).
-  if (exigeRetencao(entrada.tipo) && entrada.retencao11 === null) {
+  // CONTAI-038, critérios 1 e 2: o gate é obrigatório em NF de serviço. Não
+  // há terceiro valor e não há default — "destacada" sem linha nenhuma é um
+  // estado legítimo E visível no detalhe, nunca um "nenhuma" presumido.
+  if (exigeRetencao(entrada.tipo) && entrada.retencaoNaNota === null) {
     erros.push({
-      campo: "retencao11",
-      mensagem: "Responda sobre a retenção de 11% (vale responder 'não sei').",
+      campo: "retencaoNaNota",
+      mensagem: ERRO_GATE_SEM_RESPOSTA,
     });
   }
 

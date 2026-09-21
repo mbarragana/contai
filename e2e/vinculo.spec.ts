@@ -63,7 +63,7 @@ async function cenarioWk(db: Db) {
     tipo: "nf_servico",
     classificacao: "mao_obra",
     valor: 3000,
-    retencao_11: true,
+    retencao_na_nota: "destacada",
     destinatario_cpf_ok: true,
     status: "registrado",
   });
@@ -237,7 +237,7 @@ test.describe("caminho A — vínculo no ato do registro", () => {
       arquivo: pdf("NF-WK-3000.pdf"),
       noCpf: "Sim",
     });
-    await escolher(page, "NF de serviço: tem retenção de 11%?", "Sim");
+    await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
     // CONTAI-007: bloqueante em NF de serviço — a obra do seed tem CNO.
     await responderCnoDaNota(page, "É o CNO desta obra");
 
@@ -424,7 +424,7 @@ test.describe("caminho A — vínculo no ato do registro", () => {
       tipo: "nf_servico",
       classificacao: "mao_obra",
       valor: 3000,
-      retencao_11: true,
+      retencao_na_nota: "destacada",
       destinatario_cpf_ok: true,
       status: "registrado",
     });
@@ -663,7 +663,7 @@ test.describe("um candidato já ligado por outra aba (B1)", () => {
       tipo: "nf_servico",
       classificacao: "mao_obra",
       valor: 3000,
-      retencao_11: true,
+      retencao_na_nota: "destacada",
       destinatario_cpf_ok: true,
       status: "registrado",
     });
@@ -753,7 +753,7 @@ test.describe("caminho a partir do pagamento (critério 3)", () => {
       tipo: "nf_servico",
       classificacao: "mao_obra",
       valor: 3000,
-      retencao_11: true,
+      retencao_na_nota: "destacada",
       destinatario_cpf_ok: true,
       status: "registrado",
     });
@@ -929,7 +929,7 @@ test.describe("vínculo entre obras (critério 11)", () => {
       tipo: "nf_servico",
       classificacao: "mao_obra",
       valor: 3000,
-      retencao_11: true,
+      retencao_na_nota: "destacada",
       destinatario_cpf_ok: true,
       status: "registrado",
     });

@@ -12,11 +12,13 @@ import {
   CONSEQUENCIA_CNO_DA_NOTA,
   notasEmitidasSemCno,
 } from "@/lib/fiscal/obra";
+import { CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR } from "@/lib/fiscal/retencao";
 import { calcularResumo, type EntradaResumo } from "@/lib/fiscal/resumo";
 import type {
   Documento,
   Financiamento,
   FinanciamentoInforme,
+  LinhaRetencao,
   Obra,
   Pagamento,
   TerrenoDesembolso,
@@ -62,6 +64,26 @@ const TERRENO: TerrenoDesembolso = {
 
 const TERRENO_CENTAVOS = TERRENO.valorCentavos;
 
+/**
+ * Uma linha de retenção (CONTAI-038). O default é o caso REAL do Francisco:
+ * linha única combinada, descontada de fato, sem recolhedor definido — que é
+ * exatamente o que acende a pendência nova.
+ */
+function linha(over: Partial<LinhaRetencao> = {}): LinhaRetencao {
+  return {
+    id: "linha-1",
+    documentoId: "d1",
+    rotuloLiteral: "Total das Retenções (ISSQN / Federais)",
+    valorCentavos: 54_000,
+    composicao: "combinado_nao_aberto",
+    tributo: null,
+    eDescontoEfetivo: true,
+    quemRecolhe: "nao_sei",
+    createdAt: "2026-03-21T10:00:00Z",
+    ...over,
+  };
+}
+
 function doc(over: Partial<Documento> & { id: string }): Documento {
   return {
     obraId: OBRA.id,
@@ -75,7 +97,8 @@ function doc(over: Partial<Documento> & { id: string }): Documento {
     classificacao: "material",
     favorecidoId: "fav-emitente",
     destinatarioCpfOk: true,
-    retencao11: null,
+    retencaoNaNota: null,
+    retencoes: [],
     cnoReferenciado: null,
     notaTrazCno: null,
     motivoQuarentena: null,
@@ -279,7 +302,8 @@ describe("o terceiro estado — nota hábil sem pagamento (parecer §5.2)", () =
   it("aparece em lista própria e NÃO soma com o custo em pendência", () => {
     const r = resumo({
       documentos: [
-        doc({ id: "d1", tipo: "nf_servico", retencao11: true, valorCentavos: 300_000 }),
+        doc({ id: "d1", tipo: "nf_servico", retencaoNaNota: "destacada",
+    retencoes: [], valorCentavos: 300_000 }),
       ],
     });
     expect(r.notasSemPagamentoCentavos).toBe(300_000);
@@ -312,7 +336,8 @@ describe("o terceiro estado — nota hábil sem pagamento (parecer §5.2)", () =
   it("depois do vínculo a nota sai do terceiro número", () => {
     const r = resumo({
       documentos: [
-        doc({ id: "d1", tipo: "nf_servico", retencao11: true, valorCentavos: 300_000 }),
+        doc({ id: "d1", tipo: "nf_servico", retencaoNaNota: "destacada",
+    retencoes: [], valorCentavos: 300_000 }),
       ],
       pagamentos: [
         pag({ id: "p1", documentoIds: ["d1"], valorCentavos: 300_000 }),
@@ -331,7 +356,8 @@ describe("a despesa vinculada aparece uma vez", () => {
         doc({
           id: "d1",
           tipo: "nf_servico",
-          retencao11: true,
+          retencaoNaNota: "destacada",
+    retencoes: [],
           valorCentavos: 300_000,
           favorecidoNome: "WK Construções LTDA",
         }),
@@ -440,14 +466,19 @@ describe("pendências", () => {
     );
   });
 
-  it("'gasto real' não inclui diferença sem explicação nem serviço sem retenção — só pago_sem_nota/pago_sem_comprovante e o terreno", () => {
+  it("'gasto real' não inclui diferença sem explicação nem retenção sem recolhedor — só pago_sem_nota/pago_sem_comprovante e o terreno", () => {
     const r = resumo({
       documentos: [
         doc({
           id: "d1",
           tipo: "nf_servico",
           classificacao: "mao_obra",
-          retencao11: null,
+          // CONTAI-038 — decisão do `contador` em 2026-09-20: a pendência de
+          // retenção fica FORA deste somatório, e a regra é geral. Ele soma
+          // dinheiro JÁ DESEMBOLSADO sem prova; aqui o valor retido não foi
+          // transferido a ninguém ainda. É passivo aberto, não desembolso.
+          retencaoNaNota: "destacada",
+          retencoes: [linha({ quemRecolhe: "nao_sei" })],
           valorCentavos: 1_000_000,
         }),
       ],
@@ -461,9 +492,9 @@ describe("pendências", () => {
         }),
       ],
     });
-    expect(r.pendencias.some((p) => p.tipo === "servico_sem_retencao")).toBe(
-      true,
-    );
+    expect(
+      r.pendencias.some((p) => p.tipo === "retencao_sem_recolhedor"),
+    ).toBe(true);
     expect(
       r.pendencias.some((p) => p.tipo === "diferenca_sem_explicacao"),
     ).toBe(true);
@@ -553,21 +584,220 @@ describe("pendências", () => {
     expect(p?.titulo).toBe("1 PIX sem documento hábil vinculado");
   });
 
-  it("NF de serviço sem retenção confirmada avisa do INSS", () => {
-    const r = resumo({
-      documentos: [
-        doc({ id: "d1", tipo: "nf_servico", retencao11: null, valorCentavos: 1_800_000 }),
-        doc({ id: "d2", tipo: "nf_servico", retencao11: false }),
-        doc({ id: "d3", tipo: "nf_servico", retencao11: true }),
-      ],
+  // ══ CONTAI-038 · a pendência nova, condição a condição do Gate Fiscal ══
+  //
+  // ⚠️ **A pendência antiga de "NF de serviço sem retenção" não existe mais**,
+  // e o teste dela morreu junto: ela disparava por "a nota não tem retenção de
+  // 11%", que é a conta que a aferição do SERO nunca faz (parecer de
+  // 2026-09-18, §2). O que nasce aqui é sobre um fato do mundo — um valor foi
+  // DESCONTADO e ninguém confirmou quem recolhe.
+
+  describe("retenção sem recolhedor — as quatro condições do P1", () => {
+    const abertas = (r: ReturnType<typeof resumo>) =>
+      r.pendencias.filter((p) => p.tipo === "retencao_sem_recolhedor");
+
+    it("`quem_recolhe` ainda não sei → ABERTA, vermelha, com o texto literal", () => {
+      const r = resumo({
+        documentos: [
+          doc({
+            id: "d1",
+            tipo: "nf_servico",
+            classificacao: "mao_obra",
+            retencaoNaNota: "destacada",
+            valorCentavos: 1_800_000,
+            retencoes: [linha({ quemRecolhe: "nao_sei", valorCentavos: 54_000 })],
+          }),
+        ],
+      });
+      const p = abertas(r)[0];
+      expect(p.id).toBe("retencao-sem-recolhedor:d1");
+      expect(p.valorCentavos).toBe(54_000);
+      expect(p.consequencia).toBe(CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR);
+      expect(p.gravidade).toBe("red");
+      expect(p.href).toBe("/documento/d1");
     });
-    const ids = r.pendencias
-      .filter((x) => x.tipo === "servico_sem_retencao")
-      .map((x) => x.id);
-    expect(ids).toEqual(["sem-retencao:d1", "sem-retencao:d2"]);
-    const p = r.pendencias.find((x) => x.id === "sem-retencao:d1");
-    expect(p?.consequencia).toContain("SERO");
-    expect(p?.gravidade).toBe("amb");
+
+    it("`quem_recolhe` nunca respondido (null) → ABERTA", () => {
+      const r = resumo({
+        documentos: [
+          doc({
+            id: "d1",
+            tipo: "nf_servico",
+            retencaoNaNota: "destacada",
+            retencoes: [
+              // Combinação que só o legado produz — o CHECK da 0017 não
+              // permite `e_desconto_efetivo` com `quem_recolhe` nulo. O
+              // predicado trata os dois iguais de propósito: "não respondeu" e
+              // "ainda não sei" abrem a mesma pendência.
+              linha({ quemRecolhe: null }),
+            ],
+          }),
+        ],
+      });
+      expect(abertas(r)).toHaveLength(1);
+    });
+
+    it("`quem_recolhe = empresa` → FECHA, sem exigir comprovante do prestador", () => {
+      const r = resumo({
+        documentos: [
+          doc({
+            id: "d1",
+            tipo: "nf_servico",
+            retencaoNaNota: "destacada",
+            retencoes: [linha({ quemRecolhe: "empresa" })],
+          }),
+        ],
+      });
+      expect(abertas(r)).toHaveLength(0);
+    });
+
+    it("`e_desconto_efetivo = false` → NUNCA nasce (linha informativa do DAS)", () => {
+      const r = resumo({
+        documentos: [
+          doc({
+            id: "d1",
+            tipo: "nf_servico",
+            retencaoNaNota: "destacada",
+            retencoes: [
+              linha({
+                rotuloLiteral: "INSS (composição do Simples)",
+                composicao: "tributo_identificado",
+                tributo: "inss",
+                eDescontoEfetivo: false,
+                quemRecolhe: null,
+              }),
+            ],
+          }),
+        ],
+      });
+      // ⚠️ A nova condição de saída é ESTA, nunca o valor de um percentual:
+      // tratar demonstrativo impresso como dinheiro descontado infla a
+      // impressão de "já paguei retenção" quando nada saiu da conta dele.
+      expect(abertas(r)).toHaveLength(0);
+    });
+
+    it("`quem_recolhe = eu` com a nota descoberta → ABERTA (falta a guia)", () => {
+      const r = resumo({
+        documentos: [
+          doc({
+            id: "d1",
+            tipo: "nf_servico",
+            classificacao: "mao_obra",
+            retencaoNaNota: "destacada",
+            valorCentavos: 1_800_000,
+            retencoes: [linha({ quemRecolhe: "eu" })],
+          }),
+        ],
+        pagamentos: [
+          pag({ id: "p1", valorCentavos: 1_746_000, documentoIds: ["d1"] }),
+        ],
+      });
+      expect(abertas(r)).toHaveLength(1);
+    });
+
+    it("`quem_recolhe = eu` com Σ pagamentos == bruto → FECHA (2026-08-18 §4.1)", () => {
+      const r = resumo({
+        documentos: [
+          doc({
+            id: "d1",
+            tipo: "nf_servico",
+            classificacao: "mao_obra",
+            retencaoNaNota: "destacada",
+            valorCentavos: 1_800_000,
+            retencoes: [linha({ quemRecolhe: "eu" })],
+          }),
+        ],
+        pagamentos: [
+          pag({ id: "p1", valorCentavos: 1_746_000, documentoIds: ["d1"] }),
+          // A perna da guia, vinculada à mesma nota.
+          pag({ id: "p2", valorCentavos: 54_000, documentoIds: ["d1"] }),
+        ],
+      });
+      expect(abertas(r)).toHaveLength(0);
+    });
+
+    it("UMA pendência por documento, somando só as linhas ainda abertas", () => {
+      const r = resumo({
+        documentos: [
+          doc({
+            id: "d1",
+            tipo: "nf_servico",
+            retencaoNaNota: "destacada",
+            retencoes: [
+              linha({ id: "l1", quemRecolhe: "nao_sei", valorCentavos: 54_000 }),
+              linha({ id: "l2", quemRecolhe: "empresa", valorCentavos: 10_000 }),
+              linha({ id: "l3", quemRecolhe: null, valorCentavos: 6_000 }),
+            ],
+          }),
+        ],
+      });
+      expect(abertas(r)).toHaveLength(1);
+      expect(abertas(r)[0].valorCentavos).toBe(60_000);
+    });
+
+    it("nota em QUARENTENA não abre a pendência — ela está fora do custo", () => {
+      const r = resumo({
+        documentos: [
+          doc({
+            id: "d1",
+            tipo: "nf_servico",
+            status: "quarentena",
+            destinatarioCpfOk: false,
+            retencaoNaNota: "destacada",
+            retencoes: [linha({ quemRecolhe: "nao_sei" })],
+          }),
+        ],
+      });
+      expect(abertas(r)).toHaveLength(0);
+    });
+
+    /**
+     * ⚠️ **Critérios 8, 12 e 13 num teste só** — os três "nunca" do ticket.
+     * A pendência é **visibilidade de passivo**, e mais nada: não soma custo,
+     * não some custo, não toca a base do SERO.
+     */
+    it("nunca soma custo, nunca reduz custo e nunca move a base do SERO", () => {
+      const comLinha = {
+        id: "d1",
+        tipo: "nf_servico" as const,
+        classificacao: "mao_obra" as const,
+        retencaoNaNota: "destacada" as const,
+        valorCentavos: 1_800_000,
+        notaTrazCno: true,
+        cnoReferenciado: OBRA.cno,
+      };
+      const pagamentos = [
+        pag({ id: "p1", valorCentavos: 1_800_000, documentoIds: ["d1"] }),
+      ];
+      const semRetencao = resumo({
+        documentos: [doc({ ...comLinha, retencoes: [] })],
+        pagamentos,
+      });
+      const comRetencao = resumo({
+        documentos: [
+          doc({ ...comLinha, retencoes: [linha({ quemRecolhe: "nao_sei" })] }),
+        ],
+        pagamentos,
+      });
+      // Custo de aquisição: BRUTO da nota, regime de caixa, os dois iguais.
+      expect(comRetencao.custoConfirmadoAnoCentavos).toBe(
+        semRetencao.custoConfirmadoAnoCentavos,
+      );
+      expect(comRetencao.custoConfirmadoAnoCentavos).toBe(1_800_000);
+      // Base da aferição: zero nos dois — a retenção não a move em direção
+      // nenhuma (parecer §2, e é o pre-mortem 1 do ticket).
+      expect(comRetencao.exposicaoInssBaseCentavos).toBe(
+        semRetencao.exposicaoInssBaseCentavos,
+      );
+      // "Notas sem pagamento" também não muda: a pendência não é dispêndio.
+      expect(comRetencao.notasSemPagamentoCentavos).toBe(
+        semRetencao.notasSemPagamentoCentavos,
+      );
+      // E o gasto real (o somatório do `pagoSemComprovante`) fica igual.
+      expect(comRetencao.gastoRealComPendentesCentavos).toBe(
+        semRetencao.gastoRealComPendentesCentavos,
+      );
+    });
   });
 
   // ══ CONTAI-007, critério 4 ═════════════════════════════════════════════
@@ -578,7 +808,8 @@ describe("pendências", () => {
         doc({
           id: "d1",
           tipo: "nf_servico",
-          retencao11: true,
+          retencaoNaNota: "destacada",
+    retencoes: [],
           notaTrazCno: false,
           valorCentavos: 2_250_000,
         }),
@@ -602,11 +833,13 @@ describe("pendências", () => {
     // aprende a ignorar.
     const r = resumo({
       documentos: [
-        doc({ id: "d1", tipo: "nf_servico", retencao11: true, notaTrazCno: null }),
+        doc({ id: "d1", tipo: "nf_servico", retencaoNaNota: "destacada",
+    retencoes: [], notaTrazCno: null }),
         doc({
           id: "d2",
           tipo: "nf_servico",
-          retencao11: true,
+          retencaoNaNota: "destacada",
+    retencoes: [],
           notaTrazCno: true,
           cnoReferenciado: "12.345.67890/26",
         }),
@@ -627,7 +860,8 @@ describe("pendências", () => {
         doc({
           id: "d1",
           tipo: "nf_servico",
-          retencao11: true,
+          retencaoNaNota: "destacada",
+    retencoes: [],
           notaTrazCno: false,
           valorCentavos: 2_250_000,
         }),
@@ -656,7 +890,8 @@ describe("pendências", () => {
           tipo: "nf_servico",
           status: "quarentena",
           destinatarioCpfOk: false,
-          retencao11: null,
+          retencaoNaNota: null,
+    retencoes: [],
         }),
       ],
     });
@@ -679,7 +914,18 @@ describe("pendências", () => {
       documentos: [
         doc({ id: "d1", status: "quarentena", destinatarioCpfOk: false, valorCentavos: 485_000 }),
         doc({ id: "d2", tipo: "boleto", status: "aguardando_pagamento", valorCentavos: 2_500_000 }),
-        doc({ id: "d3", tipo: "nf_servico", retencao11: false, valorCentavos: 1_800_000 }),
+        // ⚠️ Era "NF de serviço sem retenção" até o CONTAI-038. A família
+        // morreu (a retenção não decide abatimento — parecer de 2026-09-18,
+        // §2); quem ocupa o lugar dela no cenário, com o MESMO valor e a mesma
+        // moeda de INSS, é a nota que não traz CNO impresso.
+        doc({
+          id: "d3",
+          tipo: "nf_servico",
+          retencaoNaNota: "nenhuma",
+          retencoes: [],
+          notaTrazCno: false,
+          valorCentavos: 1_800_000,
+        }),
       ],
       pagamentos: [pag({ id: "p1", valorCentavos: 4_500_000 })],
     });
@@ -1415,25 +1661,26 @@ describe("terreno e financiamento fora das pendências (critério 21)", () => {
       expect(r.despesas).toHaveLength(0);
     });
 
-    it("⚠️ a pendência de retenção do INSS NÃO muda — é outra pergunta", () => {
-      // A Guarda 2 ("não abate no INSS") é comunicada pelo agregado e pelas duas
-      // linhas de guarda do detalhe. O loop `servico_sem_retencao` continua
-      // exatamente como estava: ele é sobre a RESPOSTA de retenção, não sobre o
-      // arquivo, e a pergunta segue OBRIGATÓRIA no formulário (§A.3, Guarda 2).
+    it("⚠️ a pendência de retenção NÃO muda com o arquivo — é outra pergunta", () => {
+      // A Guarda 2 é comunicada pelo agregado e pelas linhas do detalhe. A
+      // pendência de retenção é sobre QUEM RECOLHE, não sobre o arquivo — e
+      // ela continua aberta numa nota sem papel, que é a direção segura: sem
+      // o papel no acervo não há pagamento que a feche.
       const r = resumo({
         documentos: [
           doc({
             id: "d1",
             tipo: "nf_servico",
             classificacao: "mao_obra",
-            retencao11: null,
+            retencaoNaNota: "destacada",
+            retencoes: [linha({ quemRecolhe: "eu" })],
             valorCentavos: 420_000,
             arquivoPath: null,
           }),
         ],
       });
       expect(
-        r.pendencias.filter((x) => x.tipo === "servico_sem_retencao"),
+        r.pendencias.filter((x) => x.tipo === "retencao_sem_recolhedor"),
       ).toHaveLength(1);
       expect(r.documentosSemArquivo!.quantidade).toBe(1);
     });

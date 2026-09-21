@@ -135,6 +135,18 @@ const ESPERADO: Record<string, string> = {
   // no cartão (`compra_cartao_mudar_data`) — nunca escrita direta do app.
   fatura_compromisso: "INSERT,SELECT,UPDATE",
   fatura_desembolso: "INSERT,SELECT",
+
+  // ── CONTAI-038 (migration 0017) ─────────────────────────────────────────
+  // ⚠️ **DELETE, e ele é a EXCEÇÃO NOMEADA da 0006 aplicada de novo** — não uma
+  // exceção nova: esta tabela é **AFIRMAÇÃO** do Mateus sobre o papel (mesma
+  // classe de `pagamento_documento`), não **ACERVO** com objeto no bucket
+  // (classe de `documento_anexo`, que por isso continua sem DELETE). Corrigir
+  // a classificação de uma linha é remover e recriar — decisão do `cto-obra` em
+  // 2026-09-20 —, e a prova (a NF) segue intacta em `documento`.
+  //
+  // UPDATE serve a UM ato só: responder/corrigir `quem_recolhe`. Rótulo, valor
+  // e composição não têm edição nesta rodada (dívida declarada no ticket).
+  documento_retencao: "DELETE,INSERT,SELECT,UPDATE",
 };
 
 /**

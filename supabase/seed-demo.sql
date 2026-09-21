@@ -34,7 +34,7 @@ insert into favorecido (id, user_id, tipo, nome, documento) values
 -- exercita upload de verdade é o E2E e o uso manual.
 insert into documento (
   user_id, obra_id, favorecido_id, tipo, arquivo_path, valor, vencimento,
-  classificacao, destinatario_cpf_ok, retencao_11, status, motivo_quarentena
+  classificacao, destinatario_cpf_ok, retencao_na_nota, status, motivo_quarentena
 ) values
   -- Nota emitida para outro CPF → quarentena, fora do custo de aquisição.
   ('11111111-1111-4111-8111-111111111111',
@@ -50,12 +50,29 @@ insert into documento (
    'boleto', 'demo/boleto-aje.pdf', 25000.00,
    make_date(extract(year from now())::int, 9, 15),
    null, true, null, 'aguardando_pagamento', null),
-  -- NF de serviço sem retenção confirmada → não abate na aferição do SERO.
+  -- CONTAI-038 — NF de serviço com retenção DESTACADA. O id é fixo para a
+  -- linha de retenção abaixo poder pendurar nela sem um `select`.
   ('11111111-1111-4111-8111-111111111111',
    '22222222-2222-4222-8222-222222222222',
    '33333333-3333-4333-8333-333333333331',
    'nf_servico', 'demo/nf-servico-aje.pdf', 18000.00, null,
-   'mao_obra', true, null, 'registrado', null);
+   'mao_obra', true, 'destacada', 'registrado', null);
+
+-- ── Linha de retenção (CONTAI-038) ───────────────────────────────────────
+-- O caso REAL do Francisco: uma linha só, "Total das Retenções (ISSQN /
+-- Federais)", que a nota não abre por tributo. `e_desconto_efetivo = true` (ele
+-- confirmou na P4 que o valor é abatido de fato) e `quem_recolhe = 'nao_sei'`
+-- — a resposta literal dele, e é ela que acende a pendência VERMELHA na home
+-- de desenvolvimento.
+insert into documento_retencao (
+  documento_id, rotulo_literal, valor, composicao, e_desconto_efetivo,
+  quem_recolhe
+)
+select d.id, 'Total das Retenções (ISSQN / Federais)', 540.00,
+       'combinado_nao_aberto', true, 'nao_sei'
+  from documento d
+ where d.obra_id = '22222222-2222-4222-8222-222222222222'
+   and d.tipo = 'nf_servico';
 
 -- ── Pagamentos ───────────────────────────────────────────────────────────
 -- Regime de caixa: o ano do custo sai da data do pagamento. Todos no ano

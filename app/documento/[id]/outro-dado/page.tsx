@@ -79,7 +79,17 @@ export default function OutroDado() {
             <li>
               <strong>Tipo</strong> (NF de material ↔ NF de serviço) — trocar
               obriga a responder de novo classificação e retenção, e não pode
-              atravessar para boleto.
+              atravessar para boleto. Sair de NF de serviço deixaria as linhas
+              de retenção órfãs, sem tela que as mostre.
+            </li>
+            <li>
+              <strong>&quot;Esta nota destaca alguma retenção?&quot;</strong> —
+              a resposta do registro não se troca aqui. Marcar
+              &quot;destacada&quot; por engano vira uma pendência âmbar
+              permanente e nomeada, nunca um silêncio; marcar
+              &quot;nenhuma&quot; havendo retenção tende a aparecer como
+              diferença entre o valor pago e o bruto da nota. As LINHAS, essas
+              você adiciona e remove à vontade no documento.
             </li>
             <li>
               <strong>Vencimento</strong> — não decide ano nem custo.

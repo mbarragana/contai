@@ -556,6 +556,26 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
   novo tocar uma régua fiscal — a espelhada pode ter nascido depois do
   inventário original
 
+### `38-2026-09-21-contai-038-entregue.md` — 30 linhas
+**CONTAI-038 entregue — 2026-09-21 — retenção de NF de serviço PJ vira lista de linhas**
+
+- `retencao_11` (booleano fixo de 11%) sai do schema; entra o gate
+  `retencao_na_nota` (captura) + tabela `documento_retencao` (repeater na
+  gestão, inédito no produto). `retencao_sem_recolhedor` é a primeira
+  pendência que AGRAVA a régua (âmbar→vermelho), não abranda
+- `lib/fiscal/risco.ts`/`afericao.ts` pararam de ler retenção para decidir
+  abatimento do SERO (§2 do parecer de 18/09 — a base nunca foi reduzida pela
+  retenção, só pela mão de obra vinculada ao CNO, D57). Exposição de INSS cai
+  na home; é o efeito correto
+- `documento_retencao` ganhou DELETE (decisão do `cto-obra`) — é afirmação do
+  Mateus sobre o papel, não acervo com arquivo no bucket
+- 791 unitários + 217/217 E2E + validação manual no browser
+- **D62** — correção do valor do gate (`retencao_na_nota`) sem caminho pela
+  interface; aceitável (pendência âmbar nomeada, não risco silencioso)
+- **D63** — correção de `rotulo_literal`/`valor` de linha já gravada sem
+  caminho pela interface; mesma categoria de D62, mesmo caminho futuro
+  (extensão de `corrigir_documento`)
+
 ## Ao acrescentar ao backlog
 
 Nova entrada = **arquivo novo** em `docs/backlog/`, nomeado

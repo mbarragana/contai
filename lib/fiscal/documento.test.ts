@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
-  avisaInss,
+
   bloqueiaPorCnoDeOutraObra,
   classificacaoProposta,
   cnoReferenciadoParaBanco,
@@ -19,7 +19,7 @@ import {
   notaTrazCnoParaBanco,
   numeroParaBanco,
   pendenteDeCno,
-  retencaoParaBanco,
+
   serieParaBanco,
   statusDocumento,
   validarDocumento,
@@ -44,7 +44,7 @@ function entradaValida(over: Partial<EntradaDocumento> = {}): EntradaDocumento {
     vencimento: null,
     classificacao: "material",
     notaNoCpf: "sim",
-    retencao11: null,
+    retencaoNaNota: null,
     // CONTAI-007: a base é NF de material, onde a pergunta do CNO não existe.
     // Os testes de NF de serviço passam a resposta explicitamente.
     cnoNaNota: null,
@@ -139,29 +139,26 @@ describe("⚠️ CONTAI-033, Guarda 3 — `estadoExibido`, e NENHUM status novo"
   });
 });
 
-describe("retenção 11%", () => {
-  it("só é perguntada em NF de serviço", () => {
+describe("CONTAI-038 — o gate de retenção", () => {
+  it("só é perguntado em NF de serviço", () => {
     expect(exigeRetencao("nf_servico")).toBe(true);
     expect(exigeRetencao("nf_material")).toBe(false);
     expect(exigeRetencao("boleto")).toBe(false);
   });
 
-  it("'não sei' não vira 'não': vai como desconhecido", () => {
-    expect(retencaoParaBanco("sim")).toBe(true);
-    expect(retencaoParaBanco("nao")).toBe(false);
-    expect(retencaoParaBanco("nao_sei")).toBeNull();
-    expect(retencaoParaBanco(null)).toBeNull();
-  });
-
-  it("avisa do INSS em 'não' e em 'não sei', nunca em 'sim'", () => {
-    expect(avisaInss("nf_servico", "nao")).toBe(true);
-    expect(avisaInss("nf_servico", "nao_sei")).toBe(true);
-    expect(avisaInss("nf_servico", "sim")).toBe(false);
-    // Sem resposta ainda: a validação bloqueia, o aviso não aparece antes.
-    expect(avisaInss("nf_servico", null)).toBe(false);
-    // Material é irrelevante para a aferição do INSS.
-    expect(avisaInss("nf_material", "nao")).toBe(false);
-    expect(avisaInss("boleto", "nao")).toBe(false);
+  /**
+   * ⚠️ **Teste-trava do critério 6/11.** `avisaInss` e `retencaoParaBanco`
+   * saíram com o campo booleano: o primeiro acendia um aviso de "não abate o
+   * INSS" a partir do percentual — a premissa que o §2 do parecer de
+   * 2026-09-18 chama de "o achado mais grave" —, e o segundo traduzia um
+   * tri-estado que não existe mais. Reintroduzir qualquer um dos dois é
+   * reintroduzir a conta que a aferição do SERO nunca faz.
+   */
+  it("o módulo não exporta mais nada que traduza percentual de retenção", async () => {
+    const modulo = await import("./documento");
+    expect(Object.keys(modulo)).not.toContain("avisaInss");
+    expect(Object.keys(modulo)).not.toContain("retencaoParaBanco");
+    expect(Object.keys(modulo)).not.toContain("CONSEQUENCIA_SEM_RETENCAO");
   });
 });
 
@@ -193,16 +190,36 @@ describe("validarDocumento", () => {
     expect(campos(entradaValida({ notaNoCpf: null }))).toContain("notaNoCpf");
   });
 
-  it("NF de serviço sem responder a retenção não salva (critério 5)", () => {
+  it("NF de serviço sem responder o gate não salva (CONTAI-038, crit. 1)", () => {
     expect(
       campos(entradaValida({ tipo: "nf_servico", classificacao: "mao_obra" })),
-    ).toContain("retencao11");
+    ).toContain("retencaoNaNota");
   });
 
   it("NF de material não exige resposta de retenção", () => {
-    expect(campos(entradaValida({ retencao11: null }))).not.toContain(
-      "retencao11",
+    expect(campos(entradaValida({ retencaoNaNota: null }))).not.toContain(
+      "retencaoNaNota",
     );
+  });
+
+  /**
+   * Critério 2: "destacada" com zero linhas **salva**. A inconsistência é
+   * visível no detalhe, e o documento e as linhas gravam em dois statements —
+   * recusar aqui perderia o registro do fato no canteiro para exigir um
+   * detalhamento que é de gestão.
+   */
+  it("gate 'destacada' salva sem nenhuma linha ainda (critério 2)", () => {
+    expect(
+      validarDocumento(
+        entradaValida({
+          tipo: "nf_servico",
+          classificacao: "mao_obra",
+          retencaoNaNota: "destacada",
+          cnoNaNota: "nao_traz",
+        }),
+        HOJE,
+      ),
+    ).toEqual([]);
   });
 
   it("classificação em branco não salva — nunca chute silencioso", () => {
@@ -235,7 +252,7 @@ describe("validarDocumento", () => {
         entradaValida({
           tipo,
           classificacao: tipo === "nf_servico" ? "mao_obra" : "material",
-          retencao11: tipo === "nf_servico" ? "sim" : null,
+          retencaoNaNota: tipo === "nf_servico" ? "destacada" : null,
           numero: "",
           dataEmissao: "",
         }),
@@ -309,7 +326,7 @@ describe("validarDocumento", () => {
         entradaValida({
           tipo: "nf_servico",
           classificacao: "mao_obra",
-          retencao11: "sim",
+          retencaoNaNota: "destacada",
           // CONTAI-007: NF de serviço passa a exigir a resposta do CNO. Ela
           // entra aqui para o teste continuar falando só de SÉRIE.
           cnoNaNota: "desta_obra",
@@ -519,7 +536,7 @@ describe("CONTAI-007 · qual CNO está impresso nesta nota", () => {
     return entradaValida({
       tipo: "nf_servico",
       classificacao: "mao_obra",
-      retencao11: "sim",
+      retencaoNaNota: "destacada",
       cnoNaNota: "desta_obra",
       ...over,
     });
@@ -625,7 +642,7 @@ describe("CONTAI-007 · 'desta obra' numa obra sem CNO", () => {
       entradaValida({
         tipo: "nf_servico",
         classificacao: "mao_obra",
-        retencao11: "sim",
+        retencaoNaNota: "destacada",
         cnoNaNota: "desta_obra",
         cnoDaObra: null,
       }),
@@ -642,7 +659,7 @@ describe("CONTAI-007 · 'desta obra' numa obra sem CNO", () => {
         entradaValida({
           tipo: "nf_servico",
           classificacao: "mao_obra",
-          retencao11: "sim",
+          retencaoNaNota: "destacada",
           cnoNaNota: "nao_traz",
           cnoDaObra: null,
         }),

@@ -37,6 +37,12 @@ export type EntidadeRevisao = Enums<"entidade_revisao">;
 export type MotivoRevisao = Enums<"motivo_revisao">;
 export type TipoPendencia = Enums<"tipo_pendencia">;
 export type DesfechoPendencia = Enums<"desfecho_pendencia">;
+// ── CONTAI-038 ────────────────────────────────────────────────────────────
+/** O GATE por documento: "esta nota destaca alguma retenção?" (critério 1). */
+export type RespostaRetencaoNaNota = Enums<"retencao_na_nota">;
+export type ComposicaoRetencao = Enums<"composicao_retencao">;
+export type TributoRetido = Enums<"tributo_retido">;
+export type QuemRecolheRetencao = Enums<"quem_recolhe_retencao">;
 
 // ── Rows (PostgREST) ─────────────────────────────────────────────────────
 export type ObraRow = Tables<"obra">;
@@ -56,6 +62,7 @@ export type FinanciamentoInformeRow = Tables<"financiamento_informe">;
 export type RevisaoRow = Tables<"revisao">;
 export type RevisaoAnoAfetadoRow = Tables<"revisao_ano_afetado">;
 export type DocumentoAnexoRow = Tables<"documento_anexo">;
+export type DocumentoRetencaoRow = Tables<"documento_retencao">;
 export type PendenciaRow = Tables<"pendencia">;
 export type PendenciaDesfechoRow = Tables<"pendencia_desfecho">;
 
@@ -133,7 +140,32 @@ export interface Documento {
   vencimento: string | null;
   classificacao: Classificacao | null;
   destinatarioCpfOk: boolean;
-  retencao11: boolean | null;
+  /**
+   * **CONTAI-038 — o GATE da retenção**, e ele substituiu o booleano de 11%, que
+   * saiu do schema (parecer de 2026-09-18, §3 e ADENDO A.5).
+   *
+   * - `"nenhuma"`: a nota não destaca retenção alguma;
+   * - `"destacada"`: a nota destaca — as LINHAS vivem em `retencoes`, e
+   *   `destacada` com lista vazia é pendência **visível** no detalhe, nunca
+   *   lida como "sem retenção" (critério 2);
+   * - `null`: **não foi perguntado** (NF de material, boleto, ou registro
+   *   anterior à migration 0017). Nunca colapsa em `"nenhuma"` — colapsar é o
+   *   branco silencioso que o produto proíbe.
+   */
+  retencaoNaNota: RespostaRetencaoNaNota | null;
+  /**
+   * As linhas de retenção desta nota, da mais antiga para a mais nova.
+   *
+   * ⚠️ **NUNCA lidas pela base de aferição do SERO** (critério 13; parecer §2):
+   * *"a base não é reduzida pelo valor da nota, nem pelo valor retido, nem pelo
+   * percentual de retenção"*. O que abate é a declaração vinculada ao CNO, que
+   * é evento da prestadora e está fora deste produto (D57).
+   *
+   * ⚠️ Também **não mudam o custo de aquisição**: ele continua sendo
+   * `valorCentavos` da nota, no regime de caixa da data do pagamento, qualquer
+   * que seja a composição das linhas (critério 12; §6 e ADENDO A.2/A.5).
+   */
+  retencoes: LinhaRetencao[];
   /**
    * CONTAI-007 — o CNO **impresso nesta nota**, como afirmado no registro.
    *
@@ -147,7 +179,7 @@ export interface Documento {
    */
   cnoReferenciado: string | null;
   /**
-   * CONTAI-007 — tri-estado, **igual a `retencao11`**:
+   * CONTAI-007 — tri-estado:
    * - `true`: a nota traz CNO impresso, e ele está em `cnoReferenciado`;
    * - `false`: a nota NÃO traz CNO. É **pendência com consequência escrita**
    *   (critério 3), nunca branco silencioso — e a nota continua sendo
@@ -192,6 +224,39 @@ export interface Documento {
    * libera relatório anual nenhum.
    */
   arquivoPath: string | null;
+}
+
+/**
+ * **CONTAI-038 — uma linha de retenção destacada na NF de serviço.**
+ *
+ * Estrutura recomendada pelo ADENDO A.1 do parecer de 2026-09-18, e ela é
+ * **por documento, nunca por prestador**: não pergunta regime, Anexo nem CNPJ.
+ * Funciona idêntico para o Francisco (linha combinada), para o Alex (linha por
+ * tributo) e para a próxima empresa nunca vista — que era exatamente o pedido
+ * de generalização do Mateus ("podemos ter N outras empresas envolvidas").
+ */
+export interface LinhaRetencao {
+  id: string;
+  documentoId: string;
+  /**
+   * O texto **exatamente como aparece na nota**, copiado e nunca normalizado
+   * (ADENDO A.1). `"INSS"` e `"Total das Retenções (ISSQN / Federais)"` são
+   * identificações diferentes, e as duas são legítimas.
+   */
+  rotuloLiteral: string;
+  valorCentavos: number;
+  composicao: ComposicaoRetencao;
+  /** Só existe quando `composicao === "tributo_identificado"` (CHECK no banco). */
+  tributo: TributoRetido | null;
+  /** "esse valor é de fato abatido do que você transfere ao prestador?" (§3). */
+  eDescontoEfetivo: boolean;
+  /**
+   * Só existe quando `eDescontoEfetivo` (CHECK no banco). `"nao_sei"` é
+   * resposta de PRIMEIRA CLASSE, não erro de preenchimento (ADENDO A.2/A.4).
+   */
+  quemRecolhe: QuemRecolheRetencao | null;
+  /** Do banco — ordena a lista e nada mais. */
+  createdAt: string;
 }
 
 export interface Pagamento {

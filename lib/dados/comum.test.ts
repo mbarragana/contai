@@ -20,7 +20,6 @@ import { centavosParaNumeric } from "@/lib/money";
 import type {
   AnoAfetado,
   CompromissoRow,
-  DocumentoRow,
   FinanciamentoInformeRow,
   FinanciamentoRow,
   ObraRow,
@@ -30,7 +29,7 @@ import type {
   RevisaoAnoAfetadoRow,
   TerrenoDesembolsoAnexoRow,
 } from "@/lib/types";
-import type { ComFavorecido, ComFavorecidoSimples, ComFavorecidoTipado, TerrenoDesembolsoComAnexos } from "@/lib/dados/comum";
+import type { ComFavorecidoSimples, ComFavorecidoTipado, DocumentoComRetencoes, TerrenoDesembolsoComAnexos } from "@/lib/dados/comum";
 
 /**
  * Rede unitária dos 14 mappers puros de `lib/dados/comum.ts` (CONTAI-029).
@@ -82,7 +81,9 @@ import type { ComFavorecido, ComFavorecidoSimples, ComFavorecidoTipado, TerrenoD
 // os casos de texto entrarem por cast explícito, marcado onde acontece.
 // ---------------------------------------------------------------------------
 
-function rowDocumento(over: Partial<DocumentoRow & ComFavorecido> = {}): DocumentoRow & ComFavorecido {
+function rowDocumento(
+  over: Partial<DocumentoComRetencoes> = {},
+): DocumentoComRetencoes {
   return {
     id: "doc-1",
     obra_id: "obra-1",
@@ -100,9 +101,13 @@ function rowDocumento(over: Partial<DocumentoRow & ComFavorecido> = {}): Documen
     vencimento: "2026-03-20",
     classificacao: "material",
     destinatario_cpf_ok: true,
-    retencao_11: null,
-    // CONTAI-007: tri-estado como `retencao_11`. `null` nos dois é "não foi
-    // perguntado" — que é o caso da NF de material desta fábrica.
+    // CONTAI-038 — o GATE. `null` é "não foi perguntado", que é o caso da NF
+    // de material desta fábrica.
+    retencao_na_nota: null,
+    // As linhas vêm ANINHADAS (embed `documento_retencao(*)`), e o campo é
+    // obrigatório no tipo: uma consulta que esquecesse o embed não compila.
+    documento_retencao: [],
+    // CONTAI-007: tri-estado. `null` é "não foi perguntado" aqui também.
     cno_referenciado: null,
     nota_traz_cno: null,
     motivo_quarentena: null,
@@ -620,11 +625,61 @@ describe("documento lido do banco", () => {
     expect(doc.destinatarioCpfOk).toBe(false);
   });
 
-  it("NF de serviço sem resposta sobre a retenção de 11% não vira 'sem retenção'", () => {
-    // A retenção decide o abatimento da aferição do INSS. `null` = ninguém
-    // respondeu; `false` = respondeu que não houve. Colapsar os dois muda o SERO.
-    expect(paraDocumento(rowDocumento({ tipo: "nf_servico", retencao_11: null })).retencao11).toBeNull();
-    expect(paraDocumento(rowDocumento({ tipo: "nf_servico", retencao_11: false })).retencao11).toBe(false);
+  it("CONTAI-038 — gate não respondido não vira 'nenhuma'", () => {
+    // `null` = ninguém perguntou (registro anterior à migration 0017);
+    // `"nenhuma"` = ele olhou o papel e afirmou que não há retenção. Colapsar
+    // os dois é o branco silencioso que o critério 2 proíbe — e é o que faria
+    // uma nota legada parecer conferida.
+    expect(
+      paraDocumento(rowDocumento({ tipo: "nf_servico", retencao_na_nota: null }))
+        .retencaoNaNota,
+    ).toBeNull();
+    expect(
+      paraDocumento(
+        rowDocumento({ tipo: "nf_servico", retencao_na_nota: "nenhuma" }),
+      ).retencaoNaNota,
+    ).toBe("nenhuma");
+  });
+
+  it("as linhas de retenção chegam da mais antiga para a mais nova", () => {
+    const doc = paraDocumento(
+      rowDocumento({
+        tipo: "nf_servico",
+        retencao_na_nota: "destacada",
+        documento_retencao: [
+          {
+            id: "l2",
+            documento_id: "doc-1",
+            rotulo_literal: "IRRF",
+            valor: 12.5,
+            composicao: "tributo_identificado",
+            tributo: "irrf",
+            e_desconto_efetivo: false,
+            quem_recolhe: null,
+            created_at: "2026-03-22T09:00:00Z",
+          },
+          {
+            id: "l1",
+            documento_id: "doc-1",
+            rotulo_literal: "Total das Retenções (ISSQN / Federais)",
+            valor: 540,
+            composicao: "combinado_nao_aberto",
+            tributo: null,
+            e_desconto_efetivo: true,
+            quem_recolhe: "nao_sei",
+            created_at: "2026-03-21T09:00:00Z",
+          },
+        ],
+      }),
+    );
+    expect(doc.retencoes.map((l) => l.id)).toEqual(["l1", "l2"]);
+    // `numeric(14,2)` volta como NÚMERO do PostgREST — a mordida de 2026-08-17.
+    expect(doc.retencoes[0].valorCentavos).toBe(54_000);
+    expect(doc.retencoes[1].valorCentavos).toBe(1_250);
+    // ⚠️ O rótulo é LITERAL: nada de normalizar, encurtar ou classificar.
+    expect(doc.retencoes[0].rotuloLiteral).toBe(
+      "Total das Retenções (ISSQN / Federais)",
+    );
   });
 
   it("nota ainda não classificada não chega como material por default", () => {

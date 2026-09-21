@@ -1023,7 +1023,7 @@ test.describe("mover pagamento entre obras (CONTAI-008)", () => {
       numero: "1042",
       classificacao: "mao_obra",
       destinatario_cpf_ok: true,
-      retencao_11: true,
+      retencao_na_nota: "destacada",
       // O CNO impresso é o do seed, não o do destino.
       cno_referenciado: OBRA_SEED.cno,
       nota_traz_cno: true,

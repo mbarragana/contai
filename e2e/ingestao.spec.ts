@@ -96,7 +96,12 @@ test.describe("home de pendências", () => {
       tipo: "nf_servico",
       classificacao: "mao_obra",
       valor: 18000,
-      retencao_11: null,
+      retencao_na_nota: "nenhuma",
+      // ⚠️ Era "sem retenção de 11%" que punha esta nota no card de INSS. O
+      // CONTAI-038 apagou essa família — a retenção não decide abatimento
+      // nenhum (parecer de 2026-09-18, §2) —, e quem ocupa o lugar dela, com o
+      // MESMO valor e a mesma moeda, é a nota que não traz CNO impresso.
+      nota_traz_cno: false,
       destinatario_cpf_ok: true,
       status: "registrado",
     });
@@ -211,10 +216,13 @@ test.describe("home de pendências", () => {
       page.getByText("3 PIX sem NF vinculada").locator(".."),
     ).toContainText("45.000,00");
 
-    await expect(page.getByText("NF de serviço sem retenção")).toBeVisible();
+    await expect(page.getByText("NF de serviço sem CNO impresso")).toBeVisible();
+    // ⚠️ **"Sem retenção 11%" não existe mais em tela nenhuma** (critério 6):
+    // ela nomeava uma consequência que o §2 do parecer derrubou.
+    await expect(page.getByText("Sem retenção 11%")).toHaveCount(0);
     await expect(
       page.getByText("Não abate na aferição do INSS da obra (SERO)."),
-    ).toBeVisible();
+    ).toHaveCount(0);
   });
 
   test("favorecido PF: a home cobra recibo assinado, não NF", async ({
@@ -411,7 +419,7 @@ test.describe("registrar documento", () => {
       classificacao: "material",
       destinatario_cpf_ok: true,
       status: "registrado",
-      retencao_11: null,
+      retencao_na_nota: null,
       motivo_quarentena: null,
       favorecido_id: jaExistia,
     });
@@ -477,7 +485,17 @@ test.describe("registrar documento", () => {
     expect(page.url()).toContain(`/documento/${gravados[0].id}`);
   });
 
-  test("NF de serviço sem retenção: avisa do INSS e não bloqueia", async ({
+  /**
+   * ⚠️ **Este teste mudou de sentido no CONTAI-038, e a mudança é o ponto.**
+   *
+   * Ele se chamava *"NF de serviço sem retenção: avisa do INSS"* e afirmava um
+   * banner que dizia *"não abate na aferição do INSS da obra (SERO)"* a partir
+   * da resposta de retenção. O §2 do parecer de 2026-09-18 derruba a premissa
+   * inteira: a base *"não é reduzida pelo valor da nota, nem pelo valor retido,
+   * nem pelo percentual de retenção"*. Responder "Nenhuma" no gate **não abre
+   * consequência nenhuma** — não há nada aberto ali, só um fato registrado.
+   */
+  test("gate 'Nenhuma' grava sem abrir aviso de INSS nenhum", async ({
     page,
     db,
   }) => {
@@ -494,24 +512,26 @@ test.describe("registrar documento", () => {
       arquivo,
       noCpf: "Sim",
     });
-    await escolher(page, "NF de serviço: tem retenção de 11%?", "Não sei");
+    await escolher(page, "Esta nota destaca alguma retenção?", "Nenhuma");
     await responderCnoDaNota(page, "É o CNO desta obra");
 
     await expect(
-      page.getByText(/Não abate na aferição do INSS da obra \(SERO\)\./),
-    ).toBeVisible();
+      page.getByText(/aferição do INSS da obra \(SERO\)/),
+    ).toHaveCount(0);
 
     await page.getByRole("button", { name: "Salvar registro" }).click();
     await expect(page.getByRole("heading", { name: "Registrado ✓" })).toBeVisible();
 
     const gravados = await documentos(db);
     expect(gravados).toHaveLength(1);
-    // "não sei" não pode virar "não" no banco.
     expect(gravados[0]).toMatchObject({
       tipo: "nf_servico",
       classificacao: "mao_obra",
       valor: 18000,
-      retencao_11: null,
+      // ⚠️ "Nenhuma" é uma AFIRMAÇÃO gravada, não um `null`: `null` continua
+      // significando "não foi perguntado", e colapsar os dois é o branco
+      // silencioso que o critério 2 proíbe.
+      retencao_na_nota: "nenhuma",
       status: "registrado",
       numero: "1042",
       data_emissao: "2026-03-20",
@@ -629,7 +649,7 @@ test.describe("identificação da nota (CONTAI-004)", () => {
       arquivo: pdf("ART-projeto.pdf"),
       noCpf: "Sim",
     });
-    await escolher(page, "NF de serviço: tem retenção de 11%?", "Sim");
+    await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
     // CONTAI-007: bloqueante em NF de serviço — a obra do seed tem CNO.
     await responderCnoDaNota(page, "É o CNO desta obra");
 
@@ -702,7 +722,7 @@ test.describe("identificação da nota (CONTAI-004)", () => {
       valor: 18000,
       classificacao: "mao_obra",
       destinatario_cpf_ok: true,
-      retencao_11: true,
+      retencao_na_nota: "destacada",
       status: "registrado",
       favorecido_id: favorecido,
       numero: "000.001.042",
@@ -827,7 +847,7 @@ test.describe("identificação da nota (CONTAI-004)", () => {
       valor: 18000,
       classificacao: "mao_obra",
       destinatario_cpf_ok: true,
-      retencao_11: true,
+      retencao_na_nota: "destacada",
       status: "registrado",
       favorecido_id: favorecido,
       numero: "1042",
@@ -847,7 +867,7 @@ test.describe("identificação da nota (CONTAI-004)", () => {
       arquivo: pdf("NF-1042-de-novo.pdf"),
       noCpf: "Sim",
     });
-    await escolher(page, "NF de serviço: tem retenção de 11%?", "Sim");
+    await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
     // CONTAI-007: bloqueante em NF de serviço — a obra do seed tem CNO.
     await responderCnoDaNota(page, "É o CNO desta obra");
 

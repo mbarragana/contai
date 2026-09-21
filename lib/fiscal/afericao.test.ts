@@ -50,7 +50,8 @@ function nota(over: Partial<Documento> & { id: string }): Documento {
     vencimento: null,
     classificacao: "mao_obra",
     destinatarioCpfOk: true,
-    retencao11: true,
+    retencaoNaNota: "destacada",
+    retencoes: [],
     cnoReferenciado: CNO_CASA,
     notaTrazCno: true,
     motivoQuarentena: null,
@@ -167,9 +168,10 @@ describe("posição da aferição — a base por CNO", () => {
           nota({ id: "sem-cno", notaTrazCno: false, cnoReferenciado: null }),
           // Registro anterior ao CONTAI-007: ninguém perguntou.
           nota({ id: "nao-perguntado", notaTrazCno: null, cnoReferenciado: null }),
-          // "não sei" NÃO vira "sim": sem retenção confirmada, não abate.
-          nota({ id: "nao-sei", retencao11: null }),
-          nota({ id: "sem-retencao", retencao11: false }),
+          // ⚠️ **NÃO HÁ MOTIVO DE RETENÇÃO AQUI, e a ausência é o CONTAI-038**
+          // (critério 13). O motivo `sem_retencao` existia e foi apagado: a
+          // base do SERO *"não é reduzida pelo valor da nota, nem pelo valor
+          // retido, nem pelo percentual"* (parecer de 2026-09-18, §2).
           // CONTAI-033, Guarda 2: o abatimento depende da nota, não da
           // lembrança dela.
           nota({ id: "sem-arquivo", arquivoPath: null }),
@@ -186,8 +188,6 @@ describe("posição da aferição — a base por CNO", () => {
     expect(motivos(r)).toEqual({
       "sem-cno": "nota_sem_cno",
       "nao-perguntado": "cno_nao_perguntado",
-      "nao-sei": "sem_retencao",
-      "sem-retencao": "sem_retencao",
       "sem-arquivo": "sem_arquivo",
       quarentena: "quarentena",
     });

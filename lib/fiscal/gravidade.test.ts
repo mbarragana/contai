@@ -84,7 +84,7 @@ describe("gravidadeDaRegua — a tabela-verdade da D39 revisada", () => {
 
 // ── A lista de exceções nomeadas ─────────────────────────────────────────
 
-describe("exceções nomeadas — uma hoje, e ela só ABRANDA", () => {
+describe("exceções nomeadas — duas hoje, e cada uma declara a sua direção", () => {
   it("`pj_pago_sem_comprovante` vira âmbar o que a régua acenderia", () => {
     expect(
       gravidadeDaRegua(
@@ -116,7 +116,7 @@ describe("exceções nomeadas — uma hoje, e ela só ABRANDA", () => {
    * parecer citado ao lado. O `CONTAI-038` entra por aqui
    * (`retencao_sem_recolhedor`), sem reabrir este ticket.
    */
-  it("a lista de exceções é uma só, e está nomeada no código", () => {
+  it("a lista de exceções é fechada, e está nomeada no código", () => {
     const fonte = readFileSync("lib/fiscal/gravidade.ts", "utf-8");
     const uniao = /export type ExcecaoNomeada =([^;]+);/.exec(fonte);
     expect(uniao).not.toBeNull();
@@ -124,7 +124,38 @@ describe("exceções nomeadas — uma hoje, e ela só ABRANDA", () => {
       .split("|")
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
-    expect(entradas).toEqual(['"pj_pago_sem_comprovante"']);
+    expect(entradas).toEqual([
+      '"pj_pago_sem_comprovante"',
+      '"retencao_sem_recolhedor"',
+    ]);
+  });
+
+  /**
+   * **A segunda entrada AGRAVA, e a direção é declarada, não inferida.**
+   *
+   * Até o CONTAI-035 a exceção só sabia abrandar. O CONTAI-038 precisou do
+   * sentido oposto (critério 7a, fundado no ADENDO A.4 do parecer de
+   * 2026-09-18: *"não é economia, é passivo não identificado"*), e a saída não
+   * foi afrouxar a assinatura — foi obrigar cada entrada a declarar a direção
+   * no mapa `DIRECAO`. O invariante que sobrevive: **nada pinta fora da régua
+   * sem um parecer nomeado**.
+   */
+  it("`retencao_sem_recolhedor` acende o que a régua apagaria", () => {
+    expect(
+      gravidadeDaRegua(
+        { dinheiroSaiu: false, apoioHabilNoAnoCerto: true },
+        "retencao_sem_recolhedor",
+      ),
+    ).toBe("red");
+  });
+
+  it("cada exceção declara a sua direção — e o mapa é exaustivo", () => {
+    const fonte = readFileSync("lib/fiscal/gravidade.ts", "utf-8");
+    // `Record<ExcecaoNomeada, ...>` já obriga isso no compilador; aqui a malha
+    // é contra alguém trocar o `Record` por um índice frouxo.
+    expect(fonte).toContain("Record<ExcecaoNomeada,");
+    expect(fonte).toContain('pj_pago_sem_comprovante: "abranda"');
+    expect(fonte).toContain('retencao_sem_recolhedor: "agrava"');
   });
 });
 
@@ -331,7 +362,8 @@ const DOCUMENTO_BASE: Documento = {
   vencimento: null,
   classificacao: "material",
   destinatarioCpfOk: true,
-  retencao11: null,
+  retencaoNaNota: null,
+  retencoes: [],
   cnoReferenciado: null,
   notaTrazCno: null,
   motivoQuarentena: null,
@@ -407,18 +439,48 @@ describe("as cores que `calcularResumo` produz continuam as adjudicadas", () => 
     expect(corDe(r.pendencias, "pago_sem_nota")).toBe("red");
   });
 
-  it("NF de serviço sem retenção continua âmbar (item F fora de escopo)", () => {
+  /**
+   * ⚠️ **A pendência antiga de "sem retenção" NÃO FOI RECOLORIDA — foi
+   * APAGADA** pelo CONTAI-038 (critério 6). Era ela que o item F do CONTAI-035
+   * ia reclassificar, e o sequenciamento de 2026-09-19 tirou F do escopo
+   * justamente porque este ticket apaga o trecho inteiro. No lugar nasceu
+   * `retencao_sem_recolhedor`, VERMELHA — testada logo abaixo.
+   */
+  it("a pendência de retenção VERMELHA nasce da régua, com exceção nomeada", () => {
     const r = resumoCom({
-      documentos: [documento({ tipo: "nf_servico", retencao11: false })],
+      documentos: [
+        documento({
+          tipo: "nf_servico",
+          retencaoNaNota: "destacada",
+          retencoes: [
+            {
+              id: "l1",
+              documentoId: "d1",
+              rotuloLiteral: "Total das Retenções (ISSQN / Federais)",
+              valorCentavos: 54_000,
+              composicao: "combinado_nao_aberto",
+              tributo: null,
+              eDescontoEfetivo: true,
+              quemRecolhe: "nao_sei",
+              createdAt: "2026-02-11T10:00:00Z",
+            },
+          ],
+        }),
+      ],
       pagamentos: [pagamento({ documentoIds: ["d1"] })],
     });
-    expect(corDe(r.pendencias, "servico_sem_retencao")).toBe("amb");
+    expect(corDe(r.pendencias, "retencao_sem_recolhedor")).toBe("red");
   });
 
   it("NF de serviço sem CNO impresso continua âmbar — o aberto é o INSS", () => {
     const r = resumoCom({
       documentos: [
-        documento({ tipo: "nf_servico", retencao11: true, notaTrazCno: false }),
+        documento({
+          tipo: "nf_servico",
+          retencaoNaNota: "destacada",
+          retencoes: [],
+          notaTrazCno: false,
+        }),
       ],
       pagamentos: [pagamento({ documentoIds: ["d1"] })],
     });
@@ -426,7 +488,10 @@ describe("as cores que `calcularResumo` produz continuam as adjudicadas", () => 
   });
 
   it("pago sem comprovante: âmbar para PJ, vermelho para PF — no resumo real", () => {
-    const comNota = documento({ tipo: "nf_servico", retencao11: true });
+    const comNota = documento({
+      tipo: "nf_servico",
+      retencaoNaNota: "destacada",
+    });
     const pj = resumoCom({
       documentos: [comNota],
       pagamentos: [

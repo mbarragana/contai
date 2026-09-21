@@ -664,6 +664,29 @@ export function saldoDescobertoDaNota(
   return alocado.excedenteNotaCentavos > 0 ? alocado.excedenteNotaCentavos : null;
 }
 
+/**
+ * **A nota já está coberta por inteiro pelos pagamentos vinculados?**
+ *
+ * É o fechamento `Σ pagamentos vinculados == valor_bruto_nota` normatizado no
+ * parecer de 2026-08-18 §4.1, em UMA função — e é isso que o CONTAI-038 lê para
+ * fechar a pendência de *"eu recolho"* (Gate Fiscal, P1).
+ *
+ * ⚠️ **Existe porque o predicado estava DUPLICADO** (Gate 2 do CONTAI-038,
+ * `cto-obra`): a mesma expressão morava em `lib/fiscal/resumo.ts` e em
+ * `app/documento/[id]/page.tsx`, e mexer só numa faria a home e o detalhe
+ * discordarem sobre a MESMA pendência — a home mostrando vermelho e a tela
+ * dizendo que fechou, ou o contrário.
+ *
+ * ⚠️ **`ehDocumentoHabil` na frente, e o guarda não é redundante**: numa nota
+ * SEM ARQUIVO (ou em quarentena, ou boleto) `saldoDescobertoDaNota` devolve
+ * `null` por ser **inaplicável** — *"não dá para afirmar"* —, não por estar
+ * paga. Sem este `&&`, aquele `null` fecharia a pendência de quem recolhe numa
+ * nota que não sustenta nada: o erro na direção errada.
+ */
+export function notaCoberta(documento: Documento, alocacao: Alocacao): boolean {
+  return ehDocumentoHabil(documento) && saldoDescobertoDaNota(documento, alocacao) === null;
+}
+
 /** Componentes que efetivamente comprovam custo — a "despesa comprovada" (critério 13). */
 export function despesasComprovadas(alocacao: Alocacao): Componente[] {
   return alocacao.componentes.filter((c) => c.custoComprovadoCentavos > 0);

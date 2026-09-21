@@ -32,12 +32,15 @@ import {
   faltaOArquivo,
   REPERGUNTA_PORQUE,
   REPERGUNTA_TITULO,
-  retencaoParaBanco,
   type RespostaCpf,
-  type RespostaRetencao,
 } from "@/lib/fiscal/documento";
+import {
+  DICA_GATE_DESTACADA,
+  OPCOES_GATE,
+  PERGUNTA_GATE,
+} from "@/lib/fiscal/retencao";
 import { formatarBRL } from "@/lib/money";
-import type { Documento } from "@/lib/types";
+import type { Documento, RespostaRetencaoNaNota } from "@/lib/types";
 
 /**
  * **CONTAI-033, critérios 6 e 12 — o arquivo chegou depois.** Mock s3.
@@ -76,7 +79,11 @@ export default function AnexarArquivoDoDocumento() {
   // ⚠️ Os dois nascem `null` e NÃO são inicializados com o que está no banco.
   // Isto não é esquecimento nem economia: é a Guarda 3 lida ao pé da letra.
   const [notaNoCpf, setNotaNoCpf] = useState<RespostaCpf | null>(null);
-  const [retencao11, setRetencao11] = useState<RespostaRetencao | null>(null);
+  // CONTAI-038 — a repergunta devolve o GATE de duas opções, nunca o repeater:
+  // esta tela é uma repergunta rápida (o arquivo acabou de chegar), não uma
+  // revisão de gestão. As linhas se preenchem no detalhe, sentado.
+  const [retencaoNaNota, setRetencaoNaNota] =
+    useState<RespostaRetencaoNaNota | null>(null);
 
   const [gravando, setGravando] = useState(false);
   const [erroGravar, setErroGravar] = useState<string | null>(null);
@@ -161,12 +168,12 @@ export default function AnexarArquivoDoDocumento() {
 
   const pedeRetencao = exigeRetencao(d.tipo);
   const respondeuAsDuas =
-    notaNoCpf !== null && (!pedeRetencao || retencao11 !== null);
+    notaNoCpf !== null && (!pedeRetencao || retencaoNaNota !== null);
   const podeGravar = arquivo !== null && respondeuAsDuas && !gravando;
 
   async function gravar() {
     if (arquivo === null || notaNoCpf === null) return;
-    if (pedeRetencao && retencao11 === null) return;
+    if (pedeRetencao && retencaoNaNota === null) return;
     setGravando(true);
     setErroGravar(null);
     try {
@@ -175,9 +182,9 @@ export default function AnexarArquivoDoDocumento() {
         d.id,
         arquivoPath,
         notaNoCpf === "sim",
-        // Retenção só existe em NF de serviço, e "não sei" NÃO vira "não":
-        // vai como desconhecido (`null`), igual ao formulário de registro.
-        pedeRetencao ? retencaoParaBanco(retencao11) : null,
+        // O gate só existe em NF de serviço; nos outros tipos vai `null` e a
+        // RPC deixa a coluna como está, em vez de gravar um "respondido".
+        pedeRetencao ? retencaoNaNota : null,
       );
       router.push(documentoHref);
     } catch (erro) {
@@ -251,13 +258,18 @@ export default function AnexarArquivoDoDocumento() {
               ) : null}
 
               {pedeRetencao ? (
-                <Escolha
-                  destaque
-                  rotulo="NF de serviço: tem retenção de 11%?"
-                  opcoes={RESPOSTAS_RETENCAO}
-                  valor={retencao11}
-                  onChange={setRetencao11}
-                />
+                <>
+                  <Escolha
+                    destaque
+                    rotulo={PERGUNTA_GATE}
+                    opcoes={OPCOES_GATE}
+                    valor={retencaoNaNota}
+                    onChange={setRetencaoNaNota}
+                  />
+                  {retencaoNaNota === "destacada" ? (
+                    <Dica>{DICA_GATE_DESTACADA}</Dica>
+                  ) : null}
+                </>
               ) : null}
             </Card>
             {/* Nada nasce marcado, nem o que já estava gravado. */}
@@ -290,17 +302,12 @@ export default function AnexarArquivoDoDocumento() {
  * propósito: a repergunta tem de ser reconhecível como a MESMA pergunta, senão
  * "respondi diferente" passa a significar "leram diferente".
  *
- * (Ficam aqui, e não num módulo comum, porque são rótulos de tela — `sim`,
- * `nao` e `nao_sei` são o contrato, e quem os traduz para o banco é
- * `retencaoParaBanco`, que já é compartilhado.)
+ * (Ficam aqui, e não num módulo comum, porque são rótulos de tela — `sim` e
+ * `nao` são o contrato desta pergunta. O gate de retenção, ao contrário, LÊ as
+ * opções de `lib/fiscal/retencao.ts`: lá o texto tem consequência fiscal e
+ * três telas o mostram, então duas cópias divergiriam.)
  */
 const RESPOSTAS_CPF = [
   { valor: "sim", texto: "Sim" },
   { valor: "nao", texto: "Não" },
 ] as const satisfies readonly { valor: RespostaCpf; texto: string }[];
-
-const RESPOSTAS_RETENCAO = [
-  { valor: "sim", texto: "Sim" },
-  { valor: "nao", texto: "Não" },
-  { valor: "nao_sei", texto: "Não sei" },
-] as const satisfies readonly { valor: RespostaRetencao; texto: string }[];

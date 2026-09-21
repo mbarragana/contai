@@ -19,9 +19,9 @@
  *    exposto do pagamento; (b) todo **documento em quarentena**, pelo valor do
  *    documento **menos** o valor dos pagamentos vinculados já contados em (a);
  *    (c) o que foi **pago sem comprovante**, pelo valor bloqueado por ele.
- * 3. **Não entram**: boleto (qualquer status); NF de serviço sem retenção;
- *    documento sem número/data; pagamento coberto por documento hábil;
- *    **diferença sem explicação**.
+ * 3. **Não entram**: boleto (qualquer status); NF de serviço com retenção
+ *    destacada; documento sem número/data; pagamento coberto por documento
+ *    hábil; **diferença sem explicação**.
  * 4. **Nada soma entre obras** — a entrada é de UMA obra.
  *
  * ⚠️ **(c) entrou no Gate 2 do CONTAI-005 (REQUEST CHANGES do `contador`)**, e
@@ -238,20 +238,41 @@ export function custoEmRiscoIr(entrada: EntradaCustoEmRisco): CustoEmRiscoIr {
 /**
  * **R2 — a exposição da aferição do INSS, EM BASE.**
  *
- * Regra do `contador` no Gate 2 do CONTAI-005, literal: *"a exposição é a soma,
- * **uma vez por `documento.id`**, do `valorCentavos` de toda NF de serviço fora
- * de quarentena que atenda `(retencao11 !== true)` **OU** `(obra tem CNO e
- * notaTrazCno === false)`"*.
+ * A regra do `contador` no Gate 2 do CONTAI-005 tinha DUAS condições:
+ * o booleano de 11% não ser `true`, **OU** `(obra tem CNO e
+ * notaTrazCno === false)`.
  *
- * ⚠️ **União de ids, nunca a soma dos dois arrays de `pendencias` filtrados.**
- * Uma mesma nota pode carregar as DUAS pendências ao mesmo tempo (sem retenção
- * **e** sem CNO impresso) — somar as listas contaria o valor daquele documento
- * duas vezes, que é o defeito que este ticket inteiro existe para matar. É a
- * razão de este cálculo sair dos DOCUMENTOS, e não da lista de pendências.
+ * ⚠️ **A PRIMEIRA MORREU NO CONTAI-038, e a remoção é o item mais caro do
+ * ticket.** O §2 do parecer de 2026-09-18 é literal, e classifica esta leitura
+ * como *"o achado mais grave deste parecer"*:
  *
- * ⚠️ **Sem CNO na obra, a segunda condição não existe** — e o silêncio é o
- * mesmo do CONTAI-007: não se cobra do prestador um CNO que ainda não foi
- * registrado. A pendência que destrava é a da obra, não a da nota.
+ * > A base de aferição **não é reduzida pelo valor da nota, nem pelo valor
+ * > retido, nem pelo percentual de retenção.** É reduzida **apenas** pela
+ * > remuneração de mão de obra que a empresa prestadora **declara e vincula ao
+ * > CNO da obra** (eSocial + EFD-Reinf/DCTFWeb).
+ *
+ * Ou seja: "esta nota não tem 11%" nunca foi "não abate" — era uma conta que a
+ * aferição do SERO não faz. Mantê-la depois de trocar o campo seria o
+ * pre-mortem 1 do CONTAI-038 acontecendo por dentro: a leitura sobrevive, só
+ * que agora sobre as linhas novas, e o erro fiscal volta com outro nome.
+ *
+ * **Efeito visível, e ele é intencional**: este número CAI. Quase toda NF de
+ * serviço entrava por aqui; agora só entra a que não traz o CNO impresso.
+ *
+ * ⚠️ **O que sobrou ainda é um PROXY, e isso está declarado** (dívida D57): o
+ * fato que de fato abate é a resposta a *"esta mão de obra foi declarada no meu
+ * CNO?"*, que **não existe no produto** (Gate Fiscal do CONTAI-038, P2) e está
+ * explicitamente fora do escopo. `notaTrazCno` é o mais perto que o app chega
+ * hoje.
+ *
+ * ⚠️ **União de ids, nunca a soma de `pendencias` filtradas** — a razão
+ * original continua de pé mesmo com uma condição só: este cálculo sai dos
+ * DOCUMENTOS, e é isso que impede contar o mesmo documento duas vezes no dia
+ * em que uma segunda família voltar a existir.
+ *
+ * ⚠️ **Sem CNO na obra, a condição não existe** — e o silêncio é o mesmo do
+ * CONTAI-007: não se cobra do prestador um CNO que ainda não foi registrado. A
+ * pendência que destrava é a da obra, não a da nota.
  */
 export function exposicaoInssBaseCentavos(entrada: {
   documentos: Documento[];
@@ -262,8 +283,7 @@ export function exposicaoInssBaseCentavos(entrada: {
   let base = 0;
   for (const d of documentos) {
     if (d.tipo !== "nf_servico" || d.status === "quarentena") continue;
-    const naoAbate =
-      d.retencao11 !== true || (obraTemCno && d.notaTrazCno === false);
+    const naoAbate = obraTemCno && d.notaTrazCno === false;
     if (!naoAbate || contados.has(d.id)) continue;
     contados.add(d.id);
     base += d.valorCentavos ?? 0;

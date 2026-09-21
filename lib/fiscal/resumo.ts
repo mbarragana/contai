@@ -50,9 +50,14 @@ import type {
 import {
   CONSEQUENCIA_BOLETO,
   CONSEQUENCIA_QUARENTENA,
-  CONSEQUENCIA_SEM_RETENCAO,
   faltaOArquivo,
 } from "./documento";
+import {
+  CHIP_RETENCAO_SEM_RECOLHEDOR,
+  CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR,
+  linhaSemRecolhedor,
+  TITULO_RETENCAO_SEM_RECOLHEDOR,
+} from "./retencao";
 import { ACAO_NOTA_SEM_CNO, CONSEQUENCIA_CNO_DA_NOTA } from "./obra";
 import {
   custoEmRiscoIr,
@@ -88,6 +93,7 @@ import {
   despesasComprovadas,
   documentosHabeisSemPagamento,
   ehDocumentoHabil,
+  notaCoberta,
   valorBloqueadoPorComprovante,
   type Alocacao,
 } from "./vinculo";
@@ -96,7 +102,15 @@ export type TipoPendencia =
   | "quarentena"
   | "boleto_sem_nf"
   | "pago_sem_nota"
-  | "servico_sem_retencao"
+  // ── CONTAI-038 ─────────────────────────────────────────────────────────
+  // Entrou no lugar da pendência de "NF de serviço sem retenção", e **não é a
+  // mesma pendência com outro nome**: aquela disparava por "a nota não tem
+  // retenção de 11%" — a
+  // conta que a aferição do SERO nunca faz (parecer de 2026-09-18, §2). Esta
+  // dispara por um fato do mundo: um valor foi DESCONTADO do que ele transfere
+  // ao prestador e ninguém confirmou quem recolhe. VERMELHA, por exceção
+  // nomeada na régua (critério 7a) — ver o bloco 4 lá embaixo.
+  | "retencao_sem_recolhedor"
   // ── CONTAI-019 ─────────────────────────────────────────────────────────
   // As duas entram no bloco de PENDÊNCIAS FISCAIS porque o dinheiro JÁ SAIU:
   // são fato consumado, mesma família de "pago sem nota". É o que as separa
@@ -106,9 +120,14 @@ export type TipoPendencia =
   | "pago_sem_comprovante"
   | "diferenca_sem_explicacao"
   // ── CONTAI-007, critério 4 ─────────────────────────────────────────────
-  // Âmbar, e irmã de `servico_sem_retencao`: NF de serviço que não abate a
-  // aferição do INSS, com o custo de aquisição intacto. O que está aberto é o
-  // INSS, não o dinheiro — e o conserto ainda existe enquanto houver parcela.
+  // Âmbar: NF de serviço que não abate a aferição do INSS, com o custo de
+  // aquisição intacto. O que está aberto é o INSS, não o dinheiro — e o
+  // conserto ainda existe enquanto houver parcela.
+  //
+  // ⚠️ Desde o CONTAI-038 ela é a ÚNICA família de "não abate a aferição" que
+  // sobrou, e isso é a correção, não uma perda: a irmã antiga media percentual
+  // de retenção, que não abate nem deixa de abater coisa alguma (parecer de
+  // 2026-09-18, §2).
   | "nf_servico_sem_cno";
 
 /** Registro individual por trás de uma pendência agregada — leva ao seletor. */
@@ -720,31 +739,61 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
     });
   }
 
-  // 4 · NF de serviço sem retenção confirmada → não abate no INSS (SERO).
+  // 4 · CONTAI-038 — retenção DESCONTADA do pagamento sem quem a recolha.
+  //
+  // ⚠️ **Substitui a pendência de "NF de serviço sem retenção", e a condição
+  // de saída mudou de natureza**: não é mais um percentual, é um fato do
+  // mundo. Gate Fiscal, P1:
+  //
+  // - linha `e_desconto_efetivo = false` → informativa (ex.: composição do DAS
+  //   do Simples). **Nenhuma pendência nasce** — tratar demonstrativo impresso
+  //   como dinheiro descontado infla a impressão de "já paguei retenção"
+  //   quando nada saiu da conta dele (§4, item 2);
+  // - `quem_recolhe = "empresa"` → fecha. O parecer NÃO exige comprovante do
+  //   recolhimento do prestador como condição de bloqueio;
+  // - `quem_recolhe = "eu"` → fecha pelo `Σ pagamentos == valor_bruto_nota` de
+  //   2026-08-18 §4.1, que é a guia aparecendo vinculada;
+  // - `null` / `"nao_sei"` → aberta. É o caso mais perigoso das quatro
+  //   hipóteses do §1, e era justamente o que a remoção sem substituto faria o
+  //   painel calar.
+  //
+  // ⚠️ **UMA pendência por DOCUMENTO**, não por linha (Viabilidade): o
+  // fechamento de "eu recolho" é por nota, e N cartões repetindo o mesmo
+  // remédio afogariam a lista que eles deveriam destacar.
   for (const d of documentos) {
     if (d.tipo !== "nf_servico" || d.status === "quarentena") continue;
-    if (d.retencao11 === true) continue;
+    // ⚠️ `notaCoberta` é a FUNÇÃO de `vinculo.ts`, e não a expressão escrita
+    // aqui: ela é o mesmo predicado que o detalhe do documento usa (Gate 2 do
+    // CONTAI-038). Duas cópias divergiriam no dia em que só uma fosse ajustada
+    // — e divergir aqui é a home mostrar vermelho enquanto a tela diz que
+    // fechou, sobre a MESMA pendência.
+    const coberta = notaCoberta(d, alocacao);
+    const abertas = d.retencoes.filter((l) => linhaSemRecolhedor(l, coberta));
+    if (abertas.length === 0) continue;
     pendencias.push({
-      id: `sem-retencao:${d.id}`,
-      tipo: "servico_sem_retencao",
-      chip: "Sem retenção 11%",
-      titulo: "NF de serviço sem retenção",
+      id: `retencao-sem-recolhedor:${d.id}`,
+      tipo: "retencao_sem_recolhedor",
+      chip: CHIP_RETENCAO_SEM_RECOLHEDOR,
+      titulo: TITULO_RETENCAO_SEM_RECOLHEDOR,
       detalhe: d.favorecidoNome ?? SEM_FAVORECIDO,
-      valorCentavos: d.valorCentavos ?? 0,
-      consequencia: CONSEQUENCIA_SEM_RETENCAO,
-      // ⚠️ Âmbar, e quem decide é o SEGUNDO eixo: o custo de aquisição desta
-      // nota está intacto e no ano certo — o que está aberto é o INSS, que é
-      // outra apuração e nunca soma com esta. `dinheiroSaiu: true` é a
-      // codificação conservadora de propósito: se um dia o apoio hábil cair,
-      // a régua acende sozinha em vez de calar.
-      //
-      // ⚠️ Esta pendência está sendo APAGADA pelo `CONTAI-038`, não recolorida
-      // (item F, fora de escopo deste ticket —
-      // `docs/backlog/31-2026-09-19-sequenciamento-contai-035-038.md`).
-      gravidade: gravidadeDaRegua({
-        dinheiroSaiu: true,
-        apoioHabilNoAnoCerto: true,
-      }),
+      // Só o que ainda está ABERTO. A linha "a empresa recolhe" some do valor
+      // no mesmo carregamento em que foi respondida.
+      valorCentavos: abertas.reduce((soma, l) => soma + l.valorCentavos, 0),
+      // Literal do parecer (ADENDO A.4) — a MESMA constante que o card da
+      // linha em `/documento/[id]` lê. Uma fonte, duas telas.
+      consequencia: CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR,
+      // ⚠️ **VERMELHA por EXCEÇÃO NOMEADA, nunca por cor literal** (critério
+      // 7a). Pelos dois eixos da régua isto seria âmbar — o valor retido não
+      // saiu do bolso dele (`dinheiroSaiu: false`) e a nota hábil existe
+      // (`apoioHabilNoAnoCerto: true`). O vermelho se funda em outra coisa,
+      // escrita no ADENDO A.4: *"retenção que ninguém recolhe não é economia,
+      // é passivo não identificado"*. Passivo aberto não é o objeto que a
+      // régua mede, e por isso a divergência é declarada em
+      // `lib/fiscal/gravidade.ts` em vez de escondida num `"red"` solto.
+      gravidade: gravidadeDaRegua(
+        { dinheiroSaiu: false, apoioHabilNoAnoCerto: true },
+        "retencao_sem_recolhedor",
+      ),
       href: `/documento/${d.id}`,
     });
   }
@@ -757,10 +806,12 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
   // sobre o `null` seria cobrar do prestador uma nota que ninguém conferiu — e
   // aviso que erra é aviso que se aprende a ignorar.
   //
-  // ⚠️ Mesma FORMA do irmão fiscal logo acima (`servico_sem_retencao`), e a
-  // simetria é intencional: as duas são NF de serviço que não abate a aferição,
-  // com o custo de aquisição intacto. Âmbar pela régua da D39 — o dinheiro que
-  // saiu continua no custo; o que está aberto é o INSS.
+  // ⚠️ **Esta é, desde o CONTAI-038, a ÚNICA pendência de "não abate a
+  // aferição"** — e é a certa. A irmã antiga media percentual de retenção, e o
+  // §2 do parecer de 2026-09-18 é literal: *"a base
+  // não é reduzida pelo valor da nota, nem pelo valor retido, nem pelo
+  // percentual de retenção"*. Âmbar pela régua da D39 — o dinheiro que saiu
+  // continua no custo; o que está aberto é o INSS.
   //
   // ⚠️ **OBRA SEM CNO NÃO ABRE ESTA PENDÊNCIA** (Gate 2 do CONTAI-007,
   // `cto-obra`), e o silêncio aqui é a decisão certa por dois motivos que se
@@ -838,8 +889,16 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
   // representam dinheiro já desembolsado) mais o equivalente do terreno
   // (`terrenoForaDoAcumuladoCentavos`, já isolado por decisão anterior).
   // Deliberadamente NÃO inclui `diferenca_sem_explicacao` (erro de registro,
-  // não falta de documento) nem `servico_sem_retencao` (documentado, questão
-  // de INSS, não de comprovante de pagamento).
+  // não falta de documento) nem `retencao_sem_recolhedor`.
+  //
+  // ⚠️ A exclusão da segunda é decisão do `contador` de 2026-09-20, e a regra é
+  // GERAL, não precedente pontual: este somatório soma **dinheiro que já saiu
+  // do bolso dele** sem prova. A pendência de retenção é o caso oposto — ela
+  // só nasce quando o valor foi retido e falta definir quem recolhe, ou seja,
+  // o dinheiro **não foi transferido a ninguém ainda** (nem ao prestador, nem
+  // a uma guia). É passivo em aberto, não desembolso sem lastro. Qualquer
+  // pendência que represente valor NÃO DESEMBOLSADO fica fora daqui, por
+  // definição.
   const pagoSemComprovanteCentavos = pendencias
     .filter((p) => p.tipo === "pago_sem_nota" || p.tipo === "pago_sem_comprovante")
     .reduce((s, p) => s + p.valorCentavos, 0);

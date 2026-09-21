@@ -28,6 +28,7 @@ import type {
   ComFavorecido,
   ComFavorecidoSimples,
   ComFavorecidoTipado,
+  DocumentoComRetencoes,
   EntradaObraBanco,
   TerrenoDesembolsoComAnexos,
 } from "@/lib/dados/comum";
@@ -39,6 +40,10 @@ import type {
   VinculoDeDocumento,
 } from "@/lib/fiscal/revisao";
 import type { DocumentoRegistrado } from "@/lib/fiscal/documento";
+import {
+  linhaRetencaoParaBanco,
+  type EntradaLinhaRetencao,
+} from "@/lib/fiscal/retencao";
 import { podeVincular } from "@/lib/fiscal/vinculo";
 import { centavosParaNumeric, numericParaCentavos } from "@/lib/money";
 import {
@@ -72,6 +77,7 @@ import type {
   PagamentoDocumentoRow,
   PagamentoInsert,
   PagamentoRow,
+  QuemRecolheRetencao,
   QuitacaoRecusadaRow,
   DesfechoPendencia,
   MotivoRevisao,
@@ -79,6 +85,7 @@ import type {
   PendenciaPersistente,
   PendenciaRow,
   ResolucaoDiferenca,
+  RespostaRetencaoNaNota,
   Revisao,
   RevisaoAnoAfetadoRow,
   RevisaoRow,
@@ -196,6 +203,19 @@ export interface PainelDados {
 const DESEMBOLSO_COM_ANEXOS = "*, terreno_desembolso_anexo(*)";
 
 /**
+ * **CONTAI-038** — o documento vem SEMPRE com as linhas de retenção
+ * aninhadas, num pedido só. Constante única, e as três consultas que montam
+ * `Documento` a usam: um `select` que esquecesse o embed devolveria lista
+ * vazia, e lista vazia é indistinguível de "nota sem retenção" — a confusão
+ * que o gate `retencao_na_nota` existe para impedir (critério 2).
+ *
+ * O tipo `DocumentoComRetencoes` fecha o cerco do lado do TypeScript: sem o
+ * embed, `paraDocumento` não compila.
+ */
+const DOCUMENTO_COMPLETO =
+  "*, favorecido(nome, documento), documento_retencao(*)";
+
+/**
  * Tudo que a home precisa, SEMPRE de uma obra só — nada é somado entre obras
  * (Bens e Direitos não soma entre matrículas, aferição não soma entre CNOs).
  * Sem sessão, `getUsuarioId` já falha explicitamente.
@@ -216,7 +236,7 @@ export async function carregarPainel(obraId: string): Promise<PainelDados> {
   ] = await Promise.all([
       supabase
         .from("documento")
-        .select("*, favorecido(nome, documento)")
+        .select(DOCUMENTO_COMPLETO)
         .eq("obra_id", obra.id)
         .order("created_at", { ascending: false }),
       supabase
@@ -262,7 +282,7 @@ export async function carregarPainel(obraId: string): Promise<PainelDados> {
 
   return {
     obra,
-    documentos: ((documentos.data ?? []) as (DocumentoRow & ComFavorecido)[]).map(
+    documentos: ((documentos.data ?? []) as DocumentoComRetencoes[]).map(
       paraDocumento,
     ),
     pagamentos: (
@@ -305,7 +325,7 @@ export async function carregarPaineis(): Promise<PainelDados[]> {
   ] = await Promise.all([
     supabase
       .from("documento")
-      .select("*, favorecido(nome, documento)")
+      .select(DOCUMENTO_COMPLETO)
       .order("created_at", { ascending: false }),
     supabase
       .from("pagamento")
@@ -348,7 +368,7 @@ export async function carregarPaineis(): Promise<PainelDados[]> {
 
   return obras.map((obra) => ({
     obra,
-    documentos: ((documentos.data ?? []) as (DocumentoRow & ComFavorecido)[])
+    documentos: ((documentos.data ?? []) as DocumentoComRetencoes[])
       .filter((row) => row.obra_id === obra.id)
       .map(paraDocumento),
     pagamentos: ((pagamentos.data ?? []) as (PagamentoRow & ComFavorecidoTipado)[])
@@ -374,11 +394,11 @@ export async function carregarPaineis(): Promise<PainelDados[]> {
 export async function carregarDocumento(id: string): Promise<Documento> {
   const { data, error } = await getSupabase()
     .from("documento")
-    .select("*, favorecido(nome, documento)")
+    .select(DOCUMENTO_COMPLETO)
     .eq("id", id)
     .limit(1);
   if (error) throw error;
-  const row = (data as (DocumentoRow & ComFavorecido)[] | null)?.[0];
+  const row = (data as DocumentoComRetencoes[] | null)?.[0];
   if (!row) throw new Error("Documento não encontrado.");
   return paraDocumento(row);
 }
@@ -1088,7 +1108,7 @@ export async function carregarAnexosDoDocumento(
  *
  * ⚠️ **Nenhum parâmetro é opcional do lado do domínio** — herdar a resposta
  * anterior deixa de ser representável (pre-mortem 2 do ticket). A tela sempre
- * pergunta de novo, sempre em branco. `?? undefined` no `p_retencao_11` é só o
+ * pergunta de novo, sempre em branco. `?? undefined` no gate é só o
  * `default null` do SQL sendo alcançado sem cast (mesmo padrão de
  * `criarDesembolsoTerreno`), nunca "não perguntei".
  *
@@ -1100,16 +1120,153 @@ export async function anexarArquivoDocumento(
   documentoId: string,
   arquivoPath: string,
   notaNoCpf: boolean,
-  retencao11: boolean | null,
+  retencaoNaNota: RespostaRetencaoNaNota | null,
 ): Promise<void> {
   const { error } = await getSupabase().rpc("anexar_arquivo_documento", {
     p_documento_id: documentoId,
     p_arquivo_path: arquivoPath,
     p_nota_no_cpf: notaNoCpf,
-    p_retencao_11: retencao11 ?? undefined,
+    p_retencao_na_nota: retencaoNaNota ?? undefined,
   });
   if (error) throw error;
 }
+
+// ── CONTAI-038 · as linhas de retenção ───────────────────────────────────
+//
+// ⚠️ **Três funções, e nenhuma RPC.** Ao contrário de `anexar_arquivo_documento`,
+// aqui cada ato é UM statement numa tabela só — não há estado intermediário a
+// proteger, e uma RPC por cima disso seria indireção sem ganho. A atomicidade
+// que importa (a linha nunca existe pela metade) é dos dois CHECKs da migration
+// 0017, não do transporte.
+
+/**
+ * Responde o GATE de um documento LEGADO — aquele gravado antes da migration
+ * 0017, cujo `retencao_na_nota` ficou `null`.
+ *
+ * ⚠️ **Não é backfill, e não pode virar um** (critério 18): não existe valor
+ * antigo a converter (a coluna booleana de 11% foi dropada), e inferir o gate do
+ * que quer que seja seria fabricar a afirmação que só o papel pode dar. Esta
+ * função grava o que o Mateus respondeu OLHANDO A NOTA, na tela de detalhe.
+ *
+ * ⚠️ **Só sobe de `null`.** O `is("retencao_na_nota", null)` é o que impede
+ * esta porta de virar a correção do gate já respondido — que é dívida
+ * declarada do ticket (`po`, 2026-09-20), não feature desta rodada. Zero linhas
+ * afetadas vira erro, em vez de um sucesso que não mudou nada.
+ *
+ * ⚠️ **Este é o primeiro UPDATE direto em `documento` fora de RPC, e ele NÃO é
+ * precedente** (Gate 2 do CONTAI-038, `cto-obra`). Ele se sustenta por ser a
+ * PRIMEIRA RESPOSTA — não há valor anterior a rastrear, e o `.is(null)` torna
+ * a segunda gravação impossível. **Corrigir um gate já respondido vai por
+ * `corrigir_documento`** (a RPC com rastro), quando a dívida do `po` for paga.
+ * UPDATE direto num campo fiscal já afirmado é reescrita sem rastro.
+ */
+export async function responderGateRetencao(
+  documentoId: string,
+  gate: RespostaRetencaoNaNota,
+): Promise<void> {
+  const { data, error } = await getSupabase()
+    .from("documento")
+    .update({ retencao_na_nota: gate })
+    .eq("id", documentoId)
+    .is("retencao_na_nota", null)
+    .select("id");
+  if (error) throw error;
+  if ((data as { id: string }[] | null)?.length !== 1) {
+    throw new Error(
+      "A resposta não foi gravada — recarregue a tela: esta nota já tinha resposta.",
+    );
+  }
+}
+
+/**
+ * Grava UMA linha de retenção (critério 3).
+ *
+ * `documento_id` é o único vínculo: a policy `dono_documento_retencao` deriva o
+ * dono do documento pai, e uma linha pendurada em documento de outra conta é
+ * recusada pelo `with check` — não é validação que o app precise repetir.
+ */
+export async function criarLinhaRetencao(
+  documentoId: string,
+  entrada: EntradaLinhaRetencao,
+): Promise<string> {
+  const linha = linhaRetencaoParaBanco(entrada);
+  // Nunca deveria acontecer (a tela bloqueia o botão), e por isso é `Error` e
+  // não `return`: gravar pela metade é o que os CHECKs do banco recusariam de
+  // qualquer forma — falhar aqui dá a mensagem legível em vez do 23514.
+  if (linha === null) {
+    throw new Error("Linha de retenção incompleta — responda o que falta.");
+  }
+  const { valorCentavos, ...resto } = linha;
+  const { data, error } = await getSupabase()
+    .from("documento_retencao")
+    .insert({
+      ...resto,
+      documento_id: documentoId,
+      valor: centavosParaNumeric(valorCentavos),
+    })
+    .select("id")
+    .single();
+  if (error) throw error;
+  return (data as { id: string }).id;
+}
+
+/**
+ * Responde (ou corrige) **quem recolhe** numa linha já gravada — o ÚNICO campo
+ * de linha existente que este ticket torna editável, e a razão inteira do
+ * `grant update` da 0017.
+ *
+ * ⚠️ `.select("id")` e `data.length === 1` pela mesma razão do DELETE abaixo: a
+ * RLS filtra em silêncio, e o PostgREST devolve 200 com zero linhas.
+ */
+export async function responderQuemRecolhe(
+  linhaId: string,
+  quemRecolhe: QuemRecolheRetencao,
+): Promise<void> {
+  const { data, error } = await getSupabase()
+    .from("documento_retencao")
+    .update({ quem_recolhe: quemRecolhe })
+    .eq("id", linhaId)
+    .select("id");
+  if (error) throw error;
+  if ((data as { id: string }[] | null)?.length !== 1) {
+    throw new Error(NAO_FOI_POSSIVEL_ALTERAR_A_LINHA);
+  }
+}
+
+/**
+ * Remove uma linha de retenção — **a correção de `composicao`/`valor`/rótulo é
+ * remover e recriar** (decisão do `cto-obra` de 2026-09-20; formulário de
+ * edição em cascata para dois campos condicionais não se paga).
+ *
+ * ⚠️ **`.select("id")` + `data.length === 1`, e a checagem não é paranoia.** Um
+ * DELETE que a RLS filtra por inteiro não é erro para o PostgREST: ele devolve
+ * **200 com zero linhas**. Sem esta asserção, apagar a linha de outra conta (ou
+ * uma linha que já não existe) pareceria sucesso, e a tela removeria da lista
+ * algo que continua no banco — exatamente o estado que o spec proíbe ("a linha
+ * some da tela só depois de o servidor confirmar").
+ */
+export async function removerLinhaRetencao(linhaId: string): Promise<void> {
+  const { data, error } = await getSupabase()
+    .from("documento_retencao")
+    .delete()
+    .eq("id", linhaId)
+    .select("id");
+  if (error) throw error;
+  if ((data as { id: string }[] | null)?.length !== 1) {
+    throw new Error(NAO_FOI_POSSIVEL_REMOVER_A_LINHA);
+  }
+}
+
+/**
+ * As duas mensagens do caso "o servidor respondeu OK e não mexeu em nada".
+ * Ficam aqui, e não na tela, porque as duas telas que as mostram (o card da
+ * linha e o retry) têm de dizer a MESMA coisa: nada mudou.
+ */
+export const NAO_FOI_POSSIVEL_REMOVER_A_LINHA =
+  "A linha não foi removida — ela continua registrada. Recarregue e tente de novo.";
+
+export const NAO_FOI_POSSIVEL_ALTERAR_A_LINHA =
+  "A resposta não foi gravada — a linha continua como estava. Tente de novo.";
 
 /**
  * Reaproveita o favorecido pelo CNPJ/CPF; cria se for a primeira vez.

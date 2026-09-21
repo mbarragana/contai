@@ -27,8 +27,16 @@ avulsos, obra de ~20 meses cruzando anos-calendário.
 Todo documento/pagamento alimenta DUAS apurações com regras distintas:
 - **Custo de aquisição (IRPF)**: regime de caixa — a chave é a DATA DO
   PAGAMENTO, não a da nota
-- **Base de aferição INSS (SERO)**: só NF de serviço PJ com retenção de 11%
-  abate; material é irrelevante aqui
+- **Base de aferição INSS (SERO)**: material é irrelevante aqui.
+  ⚠️ **"NF de serviço PJ com retenção de 11% abate" era premissa errada,
+  corrigida em 2026-09-18.** Para tomador **pessoa física** a retenção do art.
+  31 não existe em percentual nenhum, e a base **não é reduzida pelo valor da
+  nota, pelo valor retido nem pelo percentual** — ela é reduzida **só** pela mão
+  de obra que a prestadora declara e vincula ao CNO (eSocial + EFD-Reinf).
+  Esse campo **não existe no produto**: é a dívida **D57**. Parecer completo em
+  `docs/pareceres/2026-09-18-retencao-variavel-servico-pj.md` (§0, §2 + ADENDO).
+  O que o app captura por nota são **linhas de retenção** (CONTAI-038): elas
+  alimentam a pendência de "quem recolhe", **nunca** cálculo de aferição
 
 Regras fiscais vêm do agente `contador` — nunca de memória, nunca inventadas.
 
@@ -120,7 +128,9 @@ revisor (cto-obra) roda em modelo mais forte por design.
 - **Dados/acervo/auth**: Supabase (Postgres + Storage + Auth; login obrigatório
   desde o dia 1 — o app carrega CPF/CNO/dados fiscais)
 - **Registro**: manual-first (decisão 2026-08-07, US-008) — formulário com
-  anexo obrigatório e checks fiscais obrigatórios (nota no CPF? retenção 11%?).
+  anexo obrigatório e checks fiscais obrigatórios (nota no CPF? a nota destaca
+  alguma retenção? qual CNO está impresso nela?). ⚠️ O check antigo "tem
+  retenção de 11%?" **não existe mais** — CONTAI-038, 2026-09-20.
   **Fase 2 (US-008)**: extração automática — XML NF-e via parse determinístico
   (fast-xml-parser); PDF via **Gemini** (`lib/extracao/`, decisão revista em
   2026-09-19 — o plano original de 2026-08-07 era Claude API; trocado por

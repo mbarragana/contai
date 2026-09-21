@@ -70,7 +70,7 @@ async function notaSemArquivo(
     data_emissao: "2026-03-20",
     classificacao: "mao_obra",
     destinatario_cpf_ok: !quarentena,
-    retencao_11: true,
+    retencao_na_nota: "destacada",
     status: quarentena ? "quarentena" : "registrado",
     motivo_quarentena: quarentena
       ? "Documento não está no CPF do dono da obra — não entra no custo de aquisição."
@@ -96,7 +96,7 @@ test.describe("salvar sem o arquivo (critérios 2 e 7)", () => {
       noCpf: "Sim",
       // ⚠️ SEM `arquivo` — é o caso que este ticket libera.
     });
-    await escolher(page, "NF de serviço: tem retenção de 11%?", "Sim");
+    await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
     // CONTAI-007: bloqueante em NF de serviço — a obra do seed tem CNO.
     await responderCnoDaNota(page, "É o CNO desta obra");
   }
@@ -108,7 +108,7 @@ test.describe("salvar sem o arquivo (critérios 2 e 7)", () => {
     await preencherSemArquivo(page);
     await page.getByRole("button", { name: "Salvar registro" }).click();
 
-    // ⚠️ O texto é LITERAL do §A.7.1 — se alguém o reescrever, este teste cai.
+    // ⚠️ O texto é LITERAL — se alguém o reescrever, este teste cai.
     const dialogo = page.getByRole("dialog");
     await expect(dialogo).toBeVisible();
     await expect(dialogo).toContainText("Salvar sem o arquivo da nota?");
@@ -118,6 +118,16 @@ test.describe("salvar sem o arquivo (critérios 2 e 7)", () => {
     await expect(dialogo).toContainText("não sustenta custo nenhum");
     await expect(dialogo).toContainText("não abate a aferição do INSS desta obra");
     await expect(dialogo).toContainText("não da lembrança dela");
+    // ⚠️ **A cláusula final mudou no Gate 2 do CONTAI-038**, e o `contador` a
+    // redigiu em 2026-09-21: o que liga a nota à aferição desta obra é o CNO
+    // impresso nela, não um percentual de retenção. A versão antiga fechava
+    // com "com a retenção de 11%" — premissa que o §2 do parecer de 2026-09-18
+    // derruba, e que este ticket apagou do cálculo. As duas asserções andam
+    // juntas: a que exige a redação nova, e a que proíbe a velha de voltar.
+    await expect(dialogo).toContainText(
+      "o abatimento depende do CNO desta obra impresso na nota de serviço",
+    );
+    await expect(dialogo).not.toContainText("retenção de 11%");
 
     // Nada foi salvo só por abrir o diálogo.
     expect(await documentos(db)).toHaveLength(0);
@@ -144,7 +154,7 @@ test.describe("salvar sem o arquivo (critérios 2 e 7)", () => {
       valor: 4200,
       numero: "1042",
       destinatario_cpf_ok: true,
-      retencao_11: true,
+      retencao_na_nota: "destacada",
       // ⚠️ **NENHUM STATUS NOVO** (D52): nasce `registrado`, e "sem arquivo" é
       // a segunda dimensão — `arquivo_path IS NULL`.
       status: "registrado",
@@ -337,12 +347,12 @@ test.describe("anexar o arquivo depois (critérios 6, 9 e 12)", () => {
       page.getByText("é o papel que a fiscalização lê, não o app"),
     ).toBeVisible();
 
-    // ⚠️ **NADA PRÉ-MARCADO**, mesmo com `destinatario_cpf_ok` e `retencao_11`
-    // já gravados como `true` no banco (o fixture os grava). É a Guarda 3 e o
-    // critério 12: nunca herdar a resposta anterior.
+    // ⚠️ **NADA PRÉ-MARCADO**, mesmo com o CPF e o gate de retenção já
+    // gravados no banco (o fixture os grava). É a Guarda 3 e o critério 12:
+    // nunca herdar a resposta anterior.
     const gravadoAntes = (await documentos(db))[0];
     expect(gravadoAntes.destinatario_cpf_ok).toBe(true);
-    expect(gravadoAntes.retencao_11).toBe(true);
+    expect(gravadoAntes.retencao_na_nota).toBe("destacada");
     for (const radio of await page.getByRole("radio").all()) {
       await expect(radio).not.toBeChecked();
     }
@@ -355,7 +365,9 @@ test.describe("anexar o arquivo depois (critérios 6, 9 e 12)", () => {
     await expect(
       page.getByRole("button", { name: "Responda as perguntas para confirmar" }),
     ).toBeDisabled();
-    await escolher(page, "NF de serviço: tem retenção de 11%?", "Não sei");
+    // CONTAI-038 — a repergunta devolve o GATE de duas opções, nunca o
+    // repeater: esta tela é repergunta rápida, não revisão de gestão.
+    await escolher(page, "Esta nota destaca alguma retenção?", "Nenhuma");
 
     await page
       .getByRole("button", { name: "Confirmar o arquivo e as respostas" })
@@ -372,9 +384,9 @@ test.describe("anexar o arquivo depois (critérios 6, 9 e 12)", () => {
     expect(gravados[0].arquivo_path).toMatch(
       new RegExp(`^${USER_ID_SEED}/documento/`),
     );
-    // "não sei" NÃO vira "não": vai como desconhecido. E a resposta antiga
-    // (`true`) foi SUBSTITUÍDA pela de agora, com o papel à vista.
-    expect(gravados[0].retencao_11).toBeNull();
+    // A resposta antiga ("destacada") foi SUBSTITUÍDA pela de agora, dada com
+    // o papel à vista — não herdada.
+    expect(gravados[0].retencao_na_nota).toBe("nenhuma");
     expect(gravados[0].destinatario_cpf_ok).toBe(true);
     expect(gravados[0].status).toBe("registrado");
   });
@@ -389,7 +401,7 @@ test.describe("anexar o arquivo depois (critérios 6, 9 e 12)", () => {
     await page.goto(`/documento/${id}/anexar`);
     await page.getByLabel("Arquivo da nota").setInputFiles(pdf("NF-de-outro.pdf"));
     await escolher(page, "A nota está no seu CPF?", "Não");
-    await escolher(page, "NF de serviço: tem retenção de 11%?", "Sim");
+    await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
     /**
      * ⚠️ A re-pergunta do CONTAI-033 (Guarda 3) continua sendo **CPF e
      * retenção, e só** — o CONTAI-007 **não** a estendeu ao CNO. A resposta do
@@ -409,7 +421,7 @@ test.describe("anexar o arquivo depois (critérios 6, 9 e 12)", () => {
     expect(gravados[0]).toMatchObject({
       destinatario_cpf_ok: false,
       status: "quarentena",
-      retencao_11: true,
+      retencao_na_nota: "destacada",
     });
     expect(gravados[0].arquivo_path).not.toBeNull();
     expect(gravados[0].motivo_quarentena).toBeTruthy();
@@ -454,7 +466,7 @@ test.describe("⚠️ o flip barato é impossível (critério 10)", () => {
       p_documento_id: id,
       p_arquivo_path: primeiro,
       p_nota_no_cpf: true,
-      p_retencao_11: true,
+      p_retencao_na_nota: "destacada",
     });
     expect(ok.error, "o primeiro anexo tinha de passar").toBeNull();
 
@@ -463,7 +475,7 @@ test.describe("⚠️ o flip barato é impossível (critério 10)", () => {
       p_documento_id: id,
       p_arquivo_path: segundo,
       p_nota_no_cpf: false,
-      p_retencao_11: false,
+      p_retencao_na_nota: "nenhuma",
     });
     expect(recusado.error, "a segunda chamada tinha de falhar").not.toBeNull();
 
@@ -485,7 +497,7 @@ test.describe("⚠️ o flip barato é impossível (critério 10)", () => {
       p_documento_id: id,
       p_arquivo_path: primeiro,
       p_nota_no_cpf: true,
-      p_retencao_11: true,
+      p_retencao_na_nota: "destacada",
     });
     expect(ok.error).toBeNull();
 

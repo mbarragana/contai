@@ -15,11 +15,13 @@ import type {
   Compromisso,
   CompromissoRow,
   Documento,
+  DocumentoRetencaoRow,
   DocumentoRow,
   Financiamento,
   FinanciamentoInforme,
   FinanciamentoInformeRow,
   FinanciamentoRow,
+  LinhaRetencao,
   NaturezaAquisicaoTerreno,
   Obra,
   ObraInsert,
@@ -59,6 +61,21 @@ export type TerrenoDesembolsoComAnexos = TerrenoDesembolsoRow & {
   terreno_desembolso_anexo: TerrenoDesembolsoAnexoRow[] | null;
 };
 
+/**
+ * **CONTAI-038** — o documento vem com as LINHAS DE RETENÇÃO aninhadas, num
+ * pedido só (`documento_retencao(*)`), como os anexos do desembolso do
+ * terreno. A RLS derivada do pai (migration 0017) vale DENTRO do embed: o que
+ * a policy esconde não aparece aninhado.
+ *
+ * ⚠️ O campo é **obrigatório no tipo** (`| null`, nunca opcional) de propósito:
+ * uma consulta que esquecer o embed **não compila**. Documento que chega com a
+ * lista vazia porque ninguém a pediu é indistinguível de nota sem retenção — e
+ * essa confusão é exatamente o que o gate `retencao_na_nota` existe para
+ * impedir (critério 2).
+ */
+export type DocumentoComRetencoes = DocumentoRow &
+  ComFavorecido & { documento_retencao: DocumentoRetencaoRow[] | null };
+
 export function paraObra(row: ObraRow): Obra {
   return {
     id: row.id,
@@ -75,7 +92,7 @@ export function paraObra(row: ObraRow): Obra {
   };
 }
 
-export function paraDocumento(row: DocumentoRow & ComFavorecido): Documento {
+export function paraDocumento(row: DocumentoComRetencoes): Documento {
   return {
     id: row.id,
     obraId: row.obra_id,
@@ -88,7 +105,14 @@ export function paraDocumento(row: DocumentoRow & ComFavorecido): Documento {
     vencimento: row.vencimento,
     classificacao: row.classificacao,
     destinatarioCpfOk: row.destinatario_cpf_ok,
-    retencao11: row.retencao_11,
+    retencaoNaNota: row.retencao_na_nota,
+    retencoes: (row.documento_retencao ?? [])
+      // Da mais antiga para a mais nova: é a ordem em que ele leu a nota, e a
+      // ordem em que a lista do detalhe se mantém estável entre dois
+      // carregamentos.
+      .slice()
+      .sort((a, b) => a.created_at.localeCompare(b.created_at))
+      .map(paraLinhaRetencao),
     cnoReferenciado: row.cno_referenciado,
     notaTrazCno: row.nota_traz_cno,
     motivoQuarentena: row.motivo_quarentena,
@@ -96,6 +120,32 @@ export function paraDocumento(row: DocumentoRow & ComFavorecido): Documento {
     favorecidoNome: row.favorecido?.nome ?? null,
     favorecidoDocumento: row.favorecido?.documento ?? null,
     arquivoPath: row.arquivo_path,
+  };
+}
+
+/**
+ * Uma linha de retenção, row → domínio (CONTAI-038).
+ *
+ * ⚠️ `valor` é `numeric(14,2)` e volta do PostgREST como NÚMERO, não string —
+ * a mordida de 2026-08-17 está no `CLAUDE.md`. `numericParaCentavos` é a única
+ * conversão, aqui como em todo o resto: duplicá-la é o erro de 100× do
+ * critério 6 do CONTAI-028.
+ *
+ * ⚠️ O `valor` nunca é `null` (o banco recusa), mas o mapper usa `?? 0` pela
+ * mesma disciplina dos outros — `numericParaCentavos` devolve `number | null`,
+ * e um cast aqui seria o ponto em que o tipo para de proteger.
+ */
+export function paraLinhaRetencao(row: DocumentoRetencaoRow): LinhaRetencao {
+  return {
+    id: row.id,
+    documentoId: row.documento_id,
+    rotuloLiteral: row.rotulo_literal,
+    valorCentavos: numericParaCentavos(row.valor) ?? 0,
+    composicao: row.composicao,
+    tributo: row.tributo,
+    eDescontoEfetivo: row.e_desconto_efetivo,
+    quemRecolhe: row.quem_recolhe,
+    createdAt: row.created_at,
   };
 }
 

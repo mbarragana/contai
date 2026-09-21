@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -15,6 +17,7 @@ import {
   pagamentosOcultosPorCobertura,
   podeVincular,
   baseDocumentavel,
+  notaCoberta,
   saldoDescobertoDaNota,
   valorBloqueadoPorComprovante,
   valorElegivelDoPagamento,
@@ -35,7 +38,8 @@ function doc(over: Partial<Documento> & { id: string }): Documento {
     vencimento: null,
     classificacao: "mao_obra",
     destinatarioCpfOk: true,
-    retencao11: true,
+    retencaoNaNota: "destacada",
+    retencoes: [],
     cnoReferenciado: null,
     notaTrazCno: null,
     motivoQuarentena: null,
@@ -869,6 +873,73 @@ describe("saldo a pagar da nota (sugestão do campo Valor)", () => {
   it("documento fora da alocação não sugere nada", () => {
     const nota = doc({ id: "d1", valorCentavos: 300_000 });
     expect(saldoDescobertoDaNota(nota, alocar([], []))).toBeNull();
+  });
+});
+
+/**
+ * **CONTAI-038 — o fechamento `Σ pagamentos == bruto`, numa função só.**
+ *
+ * Nasceu no Gate 2 porque o predicado estava DUPLICADO entre `resumo.ts` (a
+ * home) e `app/documento/[id]/page.tsx` (o detalhe). Duplicado, ele divergiria
+ * no dia em que só um lado fosse ajustado — e divergir aqui é a home mostrando
+ * pendência vermelha enquanto a tela do documento diz que ela fechou.
+ */
+describe("notaCoberta — o fechamento de 2026-08-18 §4.1", () => {
+  it("nota paga por inteiro está coberta", () => {
+    const nota = doc({ id: "d1", valorCentavos: 300_000 });
+    const pago = pag({ id: "p1", valorCentavos: 300_000, documentoIds: ["d1"] });
+    expect(notaCoberta(nota, alocar([nota], [pago]))).toBe(true);
+  });
+
+  it("falta a última perna (a guia) → NÃO está coberta", () => {
+    const nota = doc({ id: "d1", valorCentavos: 300_000 });
+    const liquido = pag({ id: "p1", valorCentavos: 294_600, documentoIds: ["d1"] });
+    expect(notaCoberta(nota, alocar([nota], [liquido]))).toBe(false);
+  });
+
+  /**
+   * ⚠️ **O caso que o `&& ehDocumentoHabil` existe para pegar.** Sem arquivo,
+   * `saldoDescobertoDaNota` devolve `null` por ser INAPLICÁVEL ("não dá para
+   * afirmar"), não por estar paga. Tratar esse `null` como "coberta" fecharia
+   * a pendência de quem recolhe numa nota que não sustenta nada.
+   */
+  it("nota SEM ARQUIVO nunca conta como coberta, mesmo com pagamento ligado", () => {
+    const nota = doc({ id: "d1", valorCentavos: 300_000, arquivoPath: null });
+    const pago = pag({ id: "p1", valorCentavos: 300_000, documentoIds: ["d1"] });
+    expect(saldoDescobertoDaNota(nota, alocar([nota], [pago]))).toBeNull();
+    expect(notaCoberta(nota, alocar([nota], [pago]))).toBe(false);
+  });
+
+  it("quarentena e boleto também não contam como cobertos", () => {
+    const quarentena = doc({
+      id: "d1",
+      status: "quarentena",
+      destinatarioCpfOk: false,
+      motivoQuarentena: "nota fora do CPF",
+    });
+    const boleto = doc({ id: "d2", tipo: "boleto" });
+    const a = alocar([quarentena, boleto], []);
+    expect(notaCoberta(quarentena, a)).toBe(false);
+    expect(notaCoberta(boleto, a)).toBe(false);
+  });
+
+  /**
+   * **A malha contra a duplicação voltar.** Um `saldoDescobertoDaNota(...) ===
+   * null` escrito à mão num consumidor é o predicado renascendo — e foi
+   * exatamente isso que o Gate 2 pegou.
+   */
+  it("nenhum consumidor reescreve o predicado à mão", () => {
+    for (const arquivo of [
+      "lib/fiscal/resumo.ts",
+      "app/documento/[id]/page.tsx",
+      "app/_components/retencao.tsx",
+    ]) {
+      const fonte = readFileSync(arquivo, "utf-8");
+      expect(
+        /saldoDescobertoDaNota\([^)]*\)\s*===\s*null/.test(fonte),
+        `${arquivo} reescreveu o fechamento à mão — ele sai de \`notaCoberta\``,
+      ).toBe(false);
+    }
   });
 });
 

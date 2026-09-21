@@ -104,7 +104,10 @@ type Estado =
 const ACAO_POR_TIPO: Partial<Record<Pendencia["tipo"], string>> = {
   quarentena: "Resolver",
   boleto_sem_nf: "Ver detalhes",
-  servico_sem_retencao: "Ver detalhes",
+  // CONTAI-038 — mesmo rótulo que a pendência antiga usava: o remédio continua
+  // sendo abrir a nota. O que mudou lá dentro é o que ele encontra — o
+  // repeater e a pergunta "quem recolhe", em vez de um aviso sem ação.
+  retencao_sem_recolhedor: "Ver detalhes",
   // CONTAI-019: as duas se resolvem no detalhe do pagamento — a diferença
   // pelas quatro resoluções do §F.2, o comprovante pelo anexo.
   diferenca_sem_explicacao: "Explicar a diferença",

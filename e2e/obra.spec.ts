@@ -357,7 +357,7 @@ test.describe("obra sem CNO", () => {
       valor: "18.000,00",
       arquivo: "servico-sem-cno.pdf",
     });
-    await escolher(page, "NF de serviço: tem retenção de 11%?", "Sim");
+    await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
     /**
      * CONTAI-007 — obra **sem CNO**: "É o CNO desta obra" nem aparece (nenhuma
      * nota pode trazer impresso um número que não existe), e a resposta honesta

@@ -30,20 +30,20 @@ não tem nenhuma relação legal com ela (parecer, §0 e §2).
 
 **Fluxo de captura — `/adicionar/documento` (canteiro, uma mão)**
 
-1. [ ] O campo booleano atual "NF de serviço: tem retenção de 11%?" é
+1. [x] O campo booleano atual "NF de serviço: tem retenção de 11%?" é
    substituído por UMA pergunta de gate, sem opção pré-marcada: "Esta nota
    destaca alguma retenção?" — **nenhuma** / **destacada**. Nenhuma outra
    pergunta de retenção aparece nesta tela — o repeater de linhas vive na
    tela de detalhe (Gate de Mock, §"o problema": conteúdo de gestão não entra
    em tela de captura, CLAUDE.md, tabela de cenários).
-2. [ ] `documento` grava a resposta do gate (nova coluna, ver Viabilidade) — o
+2. [x] `documento` grava a resposta do gate (nova coluna, ver Viabilidade) — o
    documento pode ser salvo com "destacada" e zero linhas ainda gravadas: essa
    combinação é **visível como pendência aberta na tela de detalhe**, nunca
    lida como "nota sem retenção" (Viabilidade, dissent do `cto-obra`).
 
 **Fluxo de resolução — `/documento/[id]` (gestão, em casa, sentado)**
 
-3. [ ] Quando o gate = "destacada", a tela de detalhe oferece um repeater
+3. [x] Quando o gate = "destacada", a tela de detalhe oferece um repeater
    (adicionar/remover linha livremente) de "linhas de retenção". Cada linha
    tem, sem nenhum valor pré-marcado:
    - `rotulo_literal`: texto livre, copiado da nota, nunca normalizado nem
@@ -61,11 +61,11 @@ não tem nenhuma relação legal com ela (parecer, §0 e §2).
      recolhe isto: **eu** / **a empresa** / **ainda não sei**", com "ainda não
      sei" como resposta válida de primeira classe, não erro de preenchimento
      (parecer, ADENDO A.2 e A.4).
-4. [ ] `composicao = combinado, não aberto pela nota` ou `não sei` →
+4. [x] `composicao = combinado, não aberto pela nota` ou `não sei` →
    **nenhuma tela do produto** (registro, detalhe, discriminação anual,
    Pagamentos Efetuados, dossiê) oferece decompor esse valor entre tributos —
    nem sugestão, nem estimativa (parecer, ADENDO A.1 — regra dura).
-5. [ ] Documento com `gate = destacada` e alguma linha sem `composicao`, ou
+5. [x] Documento com `gate = destacada` e alguma linha sem `composicao`, ou
    com `e_desconto_efetivo = sim` sem "quem recolhe" respondido, é
    **incompleto**: mesma disciplina de "campo vazio pergunta" já vigente no
    produto — banco recusa via CHECK (Viabilidade), tela nomeia o que falta
@@ -73,10 +73,10 @@ não tem nenhuma relação legal com ela (parecer, §0 e §2).
 
 **Pendência e cálculo**
 
-6. [ ] A pendência atual `servico_sem_retencao` (chip "Sem retenção 11%",
+6. [x] A pendência atual `servico_sem_retencao` (chip "Sem retenção 11%",
    gravidade âmbar, `lib/fiscal/resumo.ts:563-578`) é **removida por
    inteiro**, junto com a constante `CONSEQUENCIA_SEM_RETENCAO`.
-7. [ ] Nasce pendência nova, `tipo: "retencao_sem_recolhedor"`, disparada por
+7. [x] Nasce pendência nova, `tipo: "retencao_sem_recolhedor"`, disparada por
    linha com `e_desconto_efetivo = sim` **e** (`quem_recolhe`
    vazio/"ainda não sei" OU `quem_recolhe = "eu"` sem a perna de pagamento da
    guia vinculada fechando `Σ pagamentos vinculados == valor_bruto_nota`).
@@ -85,7 +85,7 @@ não tem nenhuma relação legal com ela (parecer, §0 e §2).
    Fiscal): *"Retenção descontada do pagamento sem confirmação de quem
    recolhe — se ninguém recolher, não é economia, é passivo não
    identificado."*
-7a. [ ] **A gravidade não é `"red"` literal** — nasce de
+7a. [x] **A gravidade não é `"red"` literal** — nasce de
    `gravidadeDaRegua(...)` (`lib/fiscal/gravidade.ts`, produtor único do tipo
    `Gravidade` branded, `CONTAI-035`), como **segunda exceção nomeada** da
    união (a primeira é `pj_pago_sem_comprovante`), fundada no ADENDO A.4 do
@@ -95,32 +95,32 @@ não tem nenhuma relação legal com ela (parecer, §0 e §2).
    mas o vermelho se funda em outra coisa — passivo não identificado, não
    fato consumado sem apoio. O teste-trava D54 (`CONTAI-035`, critério 11)
    ganha esta segunda entrada na lista de exceções.
-8. [ ] A pendência nova **nunca** soma em `custoConfirmadoAnoCentavos`, nunca
+8. [x] A pendência nova **nunca** soma em `custoConfirmadoAnoCentavos`, nunca
    é lida por lógica de abatimento da aferição SERO, e nunca nasce quando
    `e_desconto_efetivo = não` (linha meramente informativa).
-9. [ ] `documento.retencao11: boolean` sai do **schema** (migration), não só
+9. [x] `documento.retencao11: boolean` sai do **schema** (migration), não só
    da UI — nenhuma tela volta a mostrar ou gravar esse campo em nenhuma
    forma (parecer, §3 e ADENDO A.5).
-10. [ ] `favorecido.retencao_11` (a flag de "% padrão do prestador", hoje sem
+10. [x] `favorecido.retencao_11` (a flag de "% padrão do prestador", hoje sem
     uso na UI) sai do schema no mesmo diff — é a materialização exata do
     "% padrão por prestador" que o parecer já rejeitou (§3); deixá-la viva é
     convite para a próxima feature reintroduzir a ideia (Viabilidade,
     `cto-obra`).
-11. [ ] `grep -rn "servico_sem_retencao\|retencao11\|retencao_11" app lib e2e`
+11. [x] `grep -rn "servico_sem_retencao\|retencao11\|retencao_11" app lib e2e`
     devolve zero ocorrências fora dos arquivos desta migração/histórico de
     testes já atualizados.
-12. [ ] O custo de aquisição de qualquer NF de serviço continua sendo
+12. [x] O custo de aquisição de qualquer NF de serviço continua sendo
     `valor_bruto_nota`, no regime de caixa da data de pagamento, **qualquer**
     que seja a composição, natureza ou percentual das linhas de retenção —
     isto não muda (parecer, §6; ADENDO A.2 e A.5).
-13. [ ] A base de aferição do SERO não lê `rotulo_literal`, `valor`,
+13. [x] A base de aferição do SERO não lê `rotulo_literal`, `valor`,
     `composicao`, `e_desconto_efetivo` nem `quem_recolhe` de nenhuma linha —
     o único fato que abateria a aferição (declaração vinculada ao CNO) é
     **fora de escopo deste ticket** (ver Perguntas Abertas).
 
 **Extração automática (US-008 Fase 2)**
 
-14. [ ] O pipeline de extração automática (`lib/extracao/`) nunca preenche
+14. [x] O pipeline de extração automática (`lib/extracao/`) nunca preenche
     `composicao`, o tributo específico, `e_desconto_efetivo` nem
     `quem_recolhe` sozinho — os quatro chegam sempre em branco para
     confirmação humana, mesmo quando o texto da nota permitir uma inferência
@@ -131,16 +131,25 @@ não tem nenhuma relação legal com ela (parecer, §0 e §2).
 
 **Modelo de dados / migration**
 
-15. [ ] Tabela nova `documento_retencao` (colunas, enums e CHECKs conforme
+15. [x] Tabela nova `documento_retencao` (colunas, enums e CHECKs conforme
     Viabilidade) nasce com `revoke all` seguido de
-    `grant select, insert, update` para `authenticated` no mesmo diff da
-    migration — nunca `alter default privileges`, nunca
-    `all tables in schema public` (regra dura do `CLAUDE.md`).
-16. [ ] `e2e/privilegios.spec.ts` ganha a linha `documento_retencao:
-    "INSERT,SELECT,UPDATE"` no mesmo diff da migration, com comentário do
-    porquê (sem DELETE — append-only; UPDATE só para responder/corrigir
-    `quem_recolhe`).
-17. [ ] Nenhum campo fiscal desta tabela nasce com `DEFAULT` no banco —
+    `grant select, insert, update, delete` para `authenticated` no mesmo
+    diff da migration — nunca `alter default privileges`, nunca
+    `all tables in schema public` (regra dura do `CLAUDE.md`). **DELETE
+    concedido — decisão do `cto-obra`, 2026-09-20** (ver Viabilidade
+    abaixo, "Correção de linha (2026-09-20)"): esta tabela é **afirmação**
+    do Mateus sobre o papel (como `pagamento_documento`), não **acervo**
+    com arquivo no bucket (como `documento_anexo`, que segue sem DELETE) —
+    a prova (a NF) continua intacta em `documento`. Policy `for all` precisa
+    de `using` **e** `with check` iguais, senão o DELETE passa pelo grant e
+    é barrado em silêncio pela RLS (0 linhas, sem erro).
+16. [x] `e2e/privilegios.spec.ts` ganha a linha `documento_retencao:
+    "DELETE,INSERT,SELECT,UPDATE"` (ordem alfabética, como
+    `pagamento_documento`) no mesmo diff da migration, com comentário do
+    porquê: DELETE é exceção nomeada da 0006 (mesma razão que
+    `pagamento_documento`); UPDATE só para responder/corrigir
+    `quem_recolhe`.
+17. [x] Nenhum campo fiscal desta tabela nasce com `DEFAULT` no banco —
     confirmado pela leitura da migration no Gate 2 (mesmo naipe de invariante
     do "append-only" e "anexo obrigatório", `CONTAI-034`).
 18. [ ] **Critério de release, não de Gate 1**: antes de `db push` no projeto
@@ -306,7 +315,7 @@ documento_retencao
   check ((composicao = 'tributo_identificado') = (tributo is not null))
   check (e_desconto_efetivo = (quem_recolhe is not null))
 index (documento_id, created_at)
-policy dono_documento_retencao: exists(select 1 from documento d where d.id = documento_id and d.user_id = auth.uid())
+policy dono_documento_retencao: for all using (exists(select 1 from documento d where d.id = documento_id and d.user_id = auth.uid())) with check (same)
 ```
 
 **Dissent incorporado (critério 2)**: "0..N linhas sem afirmação explícita de
@@ -317,16 +326,42 @@ sem default), obrigatória em `nf_servico` no `validarDocumento`. `destacada`
 com zero linhas gravadas é inconsistência **visível** na tela de detalhe,
 nunca lida como "sem retenção".
 
-### Migration `0013_documento_retencao.sql`
+**Correção de linha (2026-09-20, decisão do `cto-obra`, achado do `po` no
+Gate de Design)**: corrigir `composicao`/`e_desconto_efetivo` de uma linha
+já gravada é **remover a linha e recriar** (editar um formulário de 5 campos
+com dependência condicional não vale a pena — mesma conclusão do `po` e do
+`designer`, por caminhos diferentes). Isso exige DELETE, que a versão
+anterior deste documento negava por "append-only". Decisão: **conceder
+DELETE**, não soft-delete. Fundamento — `documento_retencao` é **afirmação**
+do Mateus sobre o papel (mesma classe de `pagamento_documento`, que já tem
+DELETE desde a 0006), não **acervo** com arquivo no bucket (classe de
+`documento`/`documento_anexo`, que não tem DELETE porque a linha É a prova
+apontando para o objeto). Uma linha de retenção errada não perde documento
+nenhum — a NF continua intacta em `documento`/`documento_anexo` — e pelos
+critérios 12/13 não toca custo de aquisição nem base SERO; o raio de dano é
+só uma pendência vermelha errada. Soft-delete (`removida_em` nullable) foi
+rejeitado: é DELETE disfarçado de UPDATE, e todo leitor (`resumo.ts`, valor
+da pendência, detalhe, dossiê, CHECKs, E2E) passaria a depender de um filtro
+`where removida_em is null` — um filtro esquecido em qualquer um desses
+lugares é o erro fiscal silencioso que o projeto proíbe. Fora de escopo:
+`documento_retencao` não entra em `entidade_revisao` (rastro de remoção) —
+ninguém pediu; abre ticket se o `contador` quiser depois.
+
+### Migration `0017_documento_retencao.sql`
+
+**Número corrigido em 2026-09-20** — a Viabilidade original foi escrita
+antes de `0013_fatura` … `0016_mover_pagamento_de_obra` existirem; a próxima
+livre é `0017`.
 
 - Dado hoje: nenhum seed de produção verificável pelo repo — critério de
   release (critério 18) confere o remoto antes do `db push`.
 - `alter table documento drop column retencao_11` **e**
   `alter table favorecido drop column retencao_11` no mesmo diff (critério 10).
-- Grants no padrão literal da 0010: `revoke all ... from anon, authenticated`
-  depois `grant select, insert, update on table documento_retencao to
-  authenticated`. Sem DELETE (append-only; UPDATE só para responder/corrigir
-  `quem_recolhe`, precedente `debitos_mesmo_dia` da 0010).
+- Grants: `revoke all ... from anon, authenticated` depois
+  `grant select, insert, update, delete on table documento_retencao to
+  authenticated`, com comentário citando a 0006 ("afirmação, não acervo") e
+  uma linha dizendo por que `documento_anexo` continua sem DELETE (linha =
+  objeto no bucket). **DELETE concedido — ver "Correção de linha" acima.**
 - `seed-demo.sql` perde a coluna do insert antigo e ganha uma linha de
   exemplo (`combinado_nao_aberto`, `e_desconto_efetivo=true`,
   `quem_recolhe=null`) para a home de dev exibir a pendência nova.
@@ -354,15 +389,22 @@ nunca lida como "sem retenção".
 
 ### Arquivos a tocar
 
-`supabase/migrations/0013_documento_retencao.sql`, `supabase/seed-demo.sql`,
-`e2e/privilegios.spec.ts`, `lib/database.types.ts`, `lib/types.ts`,
-`lib/dados/comum.ts` (+ `.test.ts`), `lib/data.ts`, `lib/fiscal/documento.ts`
-(+ `.test.ts`), `lib/fiscal/resumo.ts` (+ `.test.ts`),
-`app/adicionar/documento/page.tsx`, `app/documento/[id]/page.tsx`,
-`app/documento/[id]/outro-dado/page.tsx`, `app/page.tsx`,
-`lib/extracao/schema.ts` (comentário), `CLAUDE.md`; E2E:
+`supabase/migrations/0017_documento_retencao.sql` (**número corrigido em
+2026-09-20**, era `0013` na Viabilidade original — 0013-0016 já existem),
+`supabase/seed-demo.sql`, `e2e/privilegios.spec.ts`, `lib/database.types.ts`,
+`lib/types.ts`, `lib/dados/comum.ts` (+ `.test.ts`), `lib/data.ts`,
+`lib/fiscal/documento.ts` (+ `.test.ts`), `lib/fiscal/resumo.ts`
+(+ `.test.ts`), `app/adicionar/documento/page.tsx`,
+`app/documento/[id]/page.tsx`,
+**`app/documento/[id]/anexar/page.tsx`** (achado do `designer` em
+2026-09-20, fora da lista original — repergunta os checks fiscais quando o
+arquivo chega depois e referencia `retencao11` em 6 pontos; espelha o mesmo
+gate de 2 opções, sem repeater), `app/documento/[id]/outro-dado/page.tsx`,
+`app/page.tsx`, `lib/extracao/schema.ts` (comentário), `CLAUDE.md`; E2E:
 `ingestao.spec.ts`, `vinculo.spec.ts`, `obra.spec.ts`, spec novo para o ciclo
-da pendência (nasce → responde "empresa" → some; "eu" → vincula guia → some).
+da pendência (nasce → responde "empresa" → some; "eu" → vincula guia → some;
+remove linha com pendência aberta → pendência some da home; DELETE de linha
+de outro usuário → 0 linhas, tela mostra erro).
 
 ### Complexidade: **L**
 
