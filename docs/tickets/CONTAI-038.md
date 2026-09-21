@@ -152,11 +152,16 @@ não tem nenhuma relação legal com ela (parecer, §0 e §2).
 17. [x] Nenhum campo fiscal desta tabela nasce com `DEFAULT` no banco —
     confirmado pela leitura da migration no Gate 2 (mesmo naipe de invariante
     do "append-only" e "anexo obrigatório", `CONTAI-034`).
-18. [ ] **Critério de release, não de Gate 1**: antes de `db push` no projeto
+18. [x] **Critério de release, não de Gate 1**: antes de `db push` no projeto
     remoto, rodar `select count(*) from documento where tipo='nf_servico' and
     retencao_11 is not null` e anotar o resultado no backlog. Se > 0, essas
     notas recebem `gate = null` (não `nenhuma`) e a tela de detalhe pede a
     conferência — nunca backfill por inferência do valor antigo.
+    **Rodado em 2026-09-21 (autorizado pelo Mateus): resultado = 1.** A
+    migration não faz backfill nenhum (coluna nasce `null` para todo legado,
+    nunca lida como "nenhuma") — essa nota aparece como pergunta pendente na
+    tela de detalhe depois do `db push`, comportamento já garantido pelo
+    desenho da 0017, não por ação adicional deste critério.
 
 ## Out of Scope
 - Recolhimento efetivo de guia pelo Mateus (gerar DARF/guia) — a resposta
