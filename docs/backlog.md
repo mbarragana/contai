@@ -104,6 +104,8 @@ que segurar).
 | Última adjudicação fiscal | `docs/backlog/15-2026-08-21-adjudicacao-fiscal-contai-027.md` |
 | Último Gate 4 fechado | `docs/backlog/28-2026-08-24-gate4-contai-036.md` — `CONTAI-036`, **ENTREGUE e COMMITADO** (`2240931`). `CONTAI-004` entregue no mesmo dia, antes (`05cb1e7`). `docs/tickets/README.md` tem linha própria dos dois |
 | Ticket novo, 2026-09-21 | `docs/backlog/43-2026-09-21-convergencia-home-desktop.md` → **`CONTAI-039`** (P1, layout desktop da home). Único item da fila; bloqueado por `/design` antes do Gate 1 |
+| Doutrina revertida, 2026-09-21 | `docs/backlog/45-2026-09-21-cenario-desktop-first-contai-039.md` — Mateus: *"o uso atualmente é 100% desktop"* / *"pode quebrar"* o mobile. **"375px é o piso, não o alvo" fica obsoleta** (`CLAUDE.md`, "Cenários de uso — 2ª correção"). Revisita a rejeição do Conceito 1 (tabela) no `CONTAI-039`; novo desenho é trabalho paralelo do `designer`. 3 perguntas abertas, sem resposta ainda |
+| Mock aprovado + 5 decisões + reconciliação técnica, 2026-09-21 | `docs/backlog/46-2026-09-21-cinco-decisoes-desktop-shell-contai-040-042.md` — `design/mocks/desktop-shell-v1.html`/`.md` aprovado ("100% better"), substitui o `CONTAI-039`. As 5 perguntas do spec fechadas pelo `po`; vira **`CONTAI-040`** (shell+dashboard), **`CONTAI-041`** (Despesas), **`CONTAI-042`** (Pendências unificadas). **Adendo do mesmo dia**: achado do `cto-obra` (18 famílias de pendência, não 7) inverte a ordem para **`042` → `040` → `041`** e fecha a arquitetura mobile×desktop (route groups `(gestao)`/`(captura)`) |
 | Ticket ainda por criar | `15-…-adjudicacao-fiscal-contai-027.md` → *"Ticket novo a criar — correção de valor de desembolso do terreno"*; e **`CONTAI-022`** (D26, cartão de crédito, **P0 fiscal**) e **`CONTAI-031`** (E2E da condição 6, P1, que **bloqueia a fatia 5 do `CONTAI-028`**) e **`CONTAI-032`** (D44, default de `data` e `meio`, **P0**, dependente do `CONTAI-025`) — nenhum dos três existe como arquivo. ➕ **`CONTAI-033`** (D49/D52, *nota grava sem o arquivo*, **P0**, com as **três guardas** do parecer como critério). ➕ ticket pequeno (S, P1) do critério 8 do `29-…-reconciliacao-contai-009.md` — `/documento/[id]` lista os pagamentos vinculados, porta que falta para o pagamento CONCILIADO |
 
 ✅ **7ª revisão aplicada em 2026-08-23**, direto em `docs/tickets/README.md`. O
@@ -667,6 +669,52 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
 - **D64** — upload ao Storage sem teto próprio (pode durar até o timeout TCP
   do browser); não duplica nada, não bloqueou o ticket. Caminho futuro: teto
   via `AbortSignal` no `.upload`, mesmo texto de resultado incerto do critério 6
+
+### `45-2026-09-21-cenario-desktop-first-contai-039.md` — 62 linhas
+**Cenário desktop-first — 2026-09-21 — "o uso atualmente é 100% desktop"**
+
+- 2ª correção de "Cenários de uso" (a 1ª foi 2026-08-18): reação do Mateus ao
+  `CONTAI-039` ter ficado "mobile esticado" em vez de desktop de verdade
+- Decisão: 375px deixa de ser piso obrigatório; captura no canteiro deixa de
+  ser a régua que trava decisão de desktop — registrada no `CLAUDE.md`
+- Obsoleta a doutrina "375px é o piso, não o alvo" que rejeitou o Conceito 1
+  (tabela) no Gate 1 do `CONTAI-039`; revisitar é trabalho do `designer`
+- O que NÃO muda sem decisão futura: app não fica inacessível no celular,
+  fluxo de captura não desaparece, disciplina fiscal intocada
+- 3 perguntas abertas: até onde vai "pode quebrar", se vale só para gestão
+  ou também para captura, e se é constatação do momento ou decisão permanente
+
+### `47-2026-09-21-contai-042-entregue.md` — 40 linhas
+**CONTAI-042 entregue — 2026-09-21 — `/pendencias` vira a fila única das 18 famílias**
+
+- `lib/fiscal/pendencias-unificadas.ts` agrega as 18 famílias (7 de
+  `pendencias[]` + 11 antes só agregadas na home) numa lista única por
+  gravidade; `/pendencias` renderiza tudo, sem shell (isso é o `040`)
+- Parecer do `contador`: 8 famílias de cor literal NÃO passam por
+  `gravidadeDaRegua` (fabricaria fato fiscal); viraram constante nomeada
+  lida também pela home
+- Gate 2 com 1 rodada de REQUEST CHANGES (6 cards copiados, não extraídos —
+  corrigido em `app/_components/pendencias-derivadas.tsx`, fonte única)
+- 859 unitários + 247 E2E + validação manual. Gate 4 (`po`) PASS. Sem
+  migration. **Destrava o `CONTAI-040`**
+
+### `46-2026-09-21-cinco-decisoes-desktop-shell-contai-040-042.md` — 90 linhas
+**Cinco decisões do desktop-shell-v1 — 2026-09-21 — `po` fecha as perguntas abertas e vira três tickets**
+
+- Mock `design/mocks/desktop-shell-v1.md`/`.html` aprovado pelo Mateus,
+  substitui o `CONTAI-039` rejeitado
+- As 5 decisões: obra aberta só (sem consolidado), sem paginação nesta
+  rodada, `/pendencias` absorve as derivadas (liga com D59/D54), arquitetura
+  mobile×desktop delegada ao `cto-obra`, Despesas = todo Documento+Pagamento
+  (comprovado ou não), terreno fora
+- Tickets criados: `CONTAI-040` (shell+dashboard), `CONTAI-041` (Despesas),
+  `CONTAI-042` (Pendências unificadas)
+- **Adendo do mesmo dia**: `cto-obra` achou 18 famílias de pendência (não
+  7) — inverte a ordem para `042` → `040` → `041` (evita o dashboard nascer
+  escondendo 11 famílias, classe D46/D47); fecha a arquitetura mobile×
+  desktop por route groups `(gestao)`/`(captura)`, não breakpoint; achou
+  que `resumo.despesas` é por componente, não por pagamento
+  (`linhasDeDespesa` nova no `041`)
 
 ## Ao acrescentar ao backlog
 
