@@ -30,11 +30,36 @@ export default defineConfig({
     : [["list"]],
   use: {
     baseURL: BASE_URL,
-    // Canteiro, uma mão livre: 375px é o alvo do ticket.
-    ...devices["iPhone SE"],
-    viewport: { width: 375, height: 812 },
     trace: "on-first-retry",
   },
+  /**
+   * Dois projetos, DOIS CENÁRIOS — a tabela do `CLAUDE.md` (correção de
+   * 2026-08-18), não dois navegadores.
+   *
+   * ⚠️ Os dois rodam em **webkit**: `iPhone SE` já era webkit e `Desktop
+   * Safari` também é. O CI instala webkit e só ele (`.github/workflows/ci.yml`)
+   * — um projeto em chromium viraria 1 teste vermelho sem explicação lá.
+   *
+   * ⚠️ `workers: 1`, `fullyParallel: false` e o `globalSetup` continuam
+   * valendo para os dois: é um banco só, com um usuário só, e o `db reset`
+   * roda uma vez antes de tudo.
+   */
+  projects: [
+    {
+      name: "mobile",
+      // Canteiro, uma mão livre: 375px é o PISO do produto, e é aqui que ele
+      // é provado. Toda a suíte de comportamento mora neste projeto.
+      use: { ...devices["iPhone SE"], viewport: { width: 375, height: 812 } },
+      testIgnore: /home-desktop\.spec\.ts/,
+    },
+    {
+      name: "desktop",
+      // Gestão, em casa, sentado (CONTAI-039). UM smoke test de layout — não
+      // uma segunda cópia da suíte: comportamento se prova uma vez, no piso.
+      use: { ...devices["Desktop Safari"], viewport: { width: 1280, height: 800 } },
+      testMatch: /home-desktop\.spec\.ts/,
+    },
+  ],
   webServer: {
     command: `npm run dev -- --port ${PORTA}`,
     url: BASE_URL,

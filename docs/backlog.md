@@ -103,6 +103,7 @@ que segurar).
 | Decisões travando avanço | bloco **DECISÕES PENDENTES DO MATEUS**, acima neste arquivo |
 | Última adjudicação fiscal | `docs/backlog/15-2026-08-21-adjudicacao-fiscal-contai-027.md` |
 | Último Gate 4 fechado | `docs/backlog/28-2026-08-24-gate4-contai-036.md` — `CONTAI-036`, **ENTREGUE e COMMITADO** (`2240931`). `CONTAI-004` entregue no mesmo dia, antes (`05cb1e7`). `docs/tickets/README.md` tem linha própria dos dois |
+| Ticket novo, 2026-09-21 | `docs/backlog/43-2026-09-21-convergencia-home-desktop.md` → **`CONTAI-039`** (P1, layout desktop da home). Único item da fila; bloqueado por `/design` antes do Gate 1 |
 | Ticket ainda por criar | `15-…-adjudicacao-fiscal-contai-027.md` → *"Ticket novo a criar — correção de valor de desembolso do terreno"*; e **`CONTAI-022`** (D26, cartão de crédito, **P0 fiscal**) e **`CONTAI-031`** (E2E da condição 6, P1, que **bloqueia a fatia 5 do `CONTAI-028`**) e **`CONTAI-032`** (D44, default de `data` e `meio`, **P0**, dependente do `CONTAI-025`) — nenhum dos três existe como arquivo. ➕ **`CONTAI-033`** (D49/D52, *nota grava sem o arquivo*, **P0**, com as **três guardas** do parecer como critério). ➕ ticket pequeno (S, P1) do critério 8 do `29-…-reconciliacao-contai-009.md` — `/documento/[id]` lista os pagamentos vinculados, porta que falta para o pagamento CONCILIADO |
 
 ✅ **7ª revisão aplicada em 2026-08-23**, direto em `docs/tickets/README.md`. O
@@ -610,6 +611,41 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
 - **D66** — `unidades_autonomas` nasce `"1"` contra `SEM DEFAULT` do
   `CONTAI-003`; achada, não corrigida (passo 4 do assistente, fora da visita
   da suíte) — falta ticket
+
+### `44-2026-09-21-contai-039-entregue.md` — 30 linhas
+**CONTAI-039 entregue — 2026-09-21 — home ganha layout desktop**
+
+- A partir de `lg` (1280px): `<aside>` sticky com a posição fiscal à
+  esquerda, fila de pendências/despesas em grid 2 colunas à direita, mesma
+  ordem fiscal de sempre. Abaixo de `lg`, idêntico ao mobile de hoje
+- Gate 2 achou bug real (não hipotético): aside sticky escondia
+  `CardAfericaoInss` quando a régua era mais alta que a viewport — corrigido
+  com scroll próprio (`lg:max-h-full lg:overflow-y-auto`)
+- Segundo achado: `lg:max-w`/`BarraAdicionar` não podiam ser globais (as
+  outras 43 telas ficariam com `Consequencia` menos legível). Virou opt-in
+  por página (`Corpo largo?`, `data-largo`, `alinharComFila`) — elimina o
+  efeito, **D67 nunca chegou a ser registrada**
+- 839 unitários + 242 E2E (240 mobile + 2 desktop) + validação manual no
+  browser. Gate 4 (`po`) PASS, 12/12 critérios. Sem migration
+- Fica para rodada futura: estender `aside`+`Secao` a `/documento/[id]`,
+  `/pagamento/[id]` e correção (Out of Scope deliberado, não regressão)
+
+### `43-2026-09-21-convergencia-home-desktop.md` — 62 linhas
+**Convergência home desktop — 2026-09-21 — `designer` + `cto-obra` + `po` fecham o Conceito 2 ("Régua fixa + fila de trabalho")**
+
+- A dor: a casca trava em `max-w-[430px]` mesmo nas telas de **gestão**
+  (cenário principal do produto desde a correção de 2026-08-18 do
+  `CLAUDE.md`) — na home, isso obriga rolar para longe da régua fiscal
+  enquanto se revisa a fila de pendências
+- Escolhido: coluna esquerda `sticky` com a posição fiscal (4 blocos),
+  coluna direita com a fila em grid de 2 colunas a partir de `lg`, cards
+  inteiros (sem truncar `Consequencia`), piso de 375px intocado
+- Cortes do `cto-obra`: **sem abas por tipo** (esconderia pendência atrás de
+  clique) e **sem scroll independente como requisito** (fica só como
+  fallback se a régua crescer)
+- Vira **`CONTAI-039`**, escopo travado à home; bloqueado por `/design`
+  antes do Gate 1 (valor de `lg:max-w`, partição do grid, alinhamento da
+  `BarraAdicionar` — literais demais para esta convergência)
 
 ### `39-2026-09-21-contai-006-entregue.md` — 30 linhas
 **CONTAI-006 entregue — 2026-09-21 — estados de rede lenta e indisponível**

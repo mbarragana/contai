@@ -1,6 +1,20 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 10 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 11 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-09-21**: **`039`** entrou e saiu da fila no mesmo dia — layout desktop
+da home, convergência entre `designer`, `cto-obra` e `po`
+(`docs/backlog/43-2026-09-21-convergencia-home-desktop.md`), Conceito 2
+("Régua fixa + fila de trabalho"), sanity check do `contador` antes do Gate
+1 (sem regra fiscal nova). Implementado (`lead-engineer`), Gate 2 com 1
+rodada de REQUEST CHANGES do `cto-obra` (aside sticky escondia
+`CardAfericaoInss` — corrigido com scroll próprio; `lg:max-w`/`BarraAdicionar`
+viraram opt-in por página em vez de globais, eliminando o efeito colateral
+nas outras 43 telas sem precisar de dívida — a **D67** cogitada pelo `po`
+nunca chegou a ser registrada). Testado (839 unitários + 242 E2E + validação
+manual no browser em 1280px) e validado pelo `po` (Gate 4 PASS, 12/12
+critérios). Sem migration. Detalhe:
+`docs/backlog/44-2026-09-21-contai-039-entregue.md`.
 
 *Uma linha por ticket, sem justificativa. O **porquê** de cada posição está nas
 seções longas abaixo; o **porquê da decisão** está em `../backlog.md`.
@@ -157,9 +171,8 @@ ticket; retomar quando o Mateus puder aprovar o ícone e testar no aparelho.
 
 ### Fila de implementação — nesta ordem
 
-**Vazia em 2026-09-21** — `037` foi o último item, entregue no mesmo dia.
-Nada aguardando `/develop` hoje; só `014` (Parado, aguardando o Mateus, tabela
-abaixo) e os blocos "Depois"/"Bloco de deploy".
+**Vazia novamente em 2026-09-21** — `039` entrou e saiu no mesmo dia (layout
+desktop da home, entregue). Nada aguardando `/develop`.
 
 | # | ID | O que é | P |
 |---|---|---|---|
@@ -198,10 +211,10 @@ abaixo) e os blocos "Depois"/"Bloco de deploy".
 |---|---|
 | **Espera o Mateus** | apenas a **Q14** (13 dias, trava o `016`) — nenhum mock pendente na fila ativa |
 | **Saiu da fila, superado** | `009` — entregue via `CONTAI-018` sem citação cruzada; resto vivo virou o `037` |
-| **Saiu da fila, entregue** | `032`, `022` — commitados em 2026-09-19 (`13953f2`); `033`, `007`, `008`, `005`, `031`, `035` — entregues em 2026-09-20; `038`, `006`, `034`, `037` — entregues em 2026-09-21, todos pushados; ver "Em produção" |
+| **Saiu da fila, entregue** | `032`, `022` — commitados em 2026-09-19 (`13953f2`); `033`, `007`, `008`, `005`, `031`, `035` — entregues em 2026-09-20; `038`, `006`, `034`, `037`, `039` — entregues em 2026-09-21; ver "Em produção" (`039` ainda sem push) |
 | **Parado, aguardando o Mateus** | `014` — só o critério 4 entregue; ícone/aparelho físico não são delegáveis |
-| **Pronto para `/develop`** | **nenhum — fila ativa vazia em 2026-09-21** |
-| **Falta mock (`/design`)** | nenhum — `038` rodou `/design` e foi entregue em 2026-09-21 |
+| **Pronto para `/develop`** | **nenhum — fila ativa vazia** |
+| **Falta mock (`/design`)** | nenhum |
 
 ⚠️ **Esta tabela é resumo, não fonte.** Ela repete o que está abaixo — se
 divergir, **vale o de baixo**, e o resumo é que está errado.
@@ -318,6 +331,7 @@ futura — este bloco fica só como prova de que o furo de 21-23/08 foi fechado.
 | 031 | E2E da condição 6 do Gate Fiscal (CONTAI-028) | ⚠️ *(ver nota no topo do arquivo)* | **Entregue em 2026-09-20, 8/8 critérios.** Sem UI nova, sem regra fiscal nova — cobertura de teste para a condição 6 (corrigir classificação nunca abre pendência de retificadora nem grava ano afetado), já adjudicada. `test.describe` novo em `e2e/correcao.spec.ts` + comentário-guarda da D43 ancorado por conteúdo. Gate 2 (`cto-obra`) APPROVE. 17/17 no spec tocado; suíte completa 202/203 (falha restante pré-existente e não-fiscal, `docs/backlog/35-...md`) + validação manual no browser (correção real material → mão de obra). Gate 4 (`po`) PASS. Marca a fatia 5 do CONTAI-028 como bloqueada por este ticket |
 | 035 | Reconciliar a régua de cor (D39) com todo o app | ⚠️ *(ver nota no topo do arquivo)* | **Entregue em 2026-09-20, 11/11 critérios.** `gravidadeDaRegua(...)` (`lib/fiscal/gravidade.ts`) vira único produtor de `Gravidade` branded — zero cor literal sobrevive (D54). Itens B/C/D/E reconciliados em ~19 call sites; item C tinha 9 sites, não 7 (2 a mais nasceram no `CONTAI-008`, depois do inventário original) — extensão confirmada por `cto-obra` e `contador` no Gate 2, ambos APPROVE. 742 unitários (30 novos) + 203/204 E2E (falha pré-existente e não-fiscal, `docs/backlog/35-...md`) + validação manual no browser (CNPJ errado + pagamento de ano anterior → card vermelho + aviso condicional de retificadora). Gate 4 (`po`) PASS. Sem migration. **Destrava o `038`** |
 | 038 | Retenção de NF de serviço PJ vira lista de linhas | ✅ `6dd771e` | **Entregue em 2026-09-21, 18/18 critérios** (7a incluído, e 18 fechado com a contagem no remoto = 1, sem backfill). `retencao_11` sai do schema; entram o gate `retencao_na_nota` (captura) e a tabela `documento_retencao` (repeater na gestão). `retencao_sem_recolhedor` é a primeira pendência que AGRAVA a régua de cor. `lib/fiscal/risco.ts`/`afericao.ts` pararam de ler retenção para decidir abatimento do SERO (§2 do parecer 18/09 — efeito correto, não regressão). Gate 2 com 1 rodada de REQUEST CHANGES fiscal (texto desatualizado, corrigido), APPROVE na segunda. 791 unitários + 217/217 E2E + validação manual no browser. Gate 4 (`po`) PASS. Migration `0017` aplicada no remoto em 2026-09-21. Dívidas novas: **D62**, **D63** |
+| 039 | Home ganha layout desktop (régua fixa + fila em grid) | ⚠️ **push pendente** | **Entregue em 2026-09-21, 12/12 critérios.** A partir de `lg` (1280px): `<aside>` sticky com a posição fiscal (custo confirmado/em risco/INSS) à esquerda, fila de pendências/despesas em grid 2 colunas à direita, mesma ordem fiscal de hoje. Abaixo de `lg`, idêntico ao mobile de sempre. Convergência `designer`+`cto-obra`+`po` escolheu o Conceito 2 ("Régua fixa + fila de trabalho") sobre 2 alternativas descartadas (tabela truncaria `Consequencia`; mestre-detalhe esconderia cards sempre-visíveis atrás de seleção); sanity check do `contador` antes do Gate 1 (sem regra fiscal nova). Gate 2 achou bug real: aside sticky escondia `CardAfericaoInss` quando a régua era mais alta que a viewport — corrigido com scroll próprio. Segundo achado: `lg:max-w`/`BarraAdicionar` viraram opt-in por página (`Corpo largo?`, `data-largo`, `alinharComFila`) em vez de globais, eliminando o efeito colateral nas outras 43 telas — a dívida **D67** cogitada pelo `po` nunca chegou a ser registrada. 839 unitários + 242 E2E (240 mobile + 2 desktop) + validação manual no browser em 1280px. Gate 4 (`po`) PASS. Sem migration |
 | 037 | Porta para o pagamento conciliado a partir do documento | ✅ `2a39e71` | **Entregue em 2026-09-21, 5/5 critérios.** `BotaoLink` "Ver o pagamento" em cada linha de "Pagamentos desta nota" (`/documento/[id]`), simetria literal com "Ver o documento" já existente na tela irmã (`/pagamento/[id]`). Reusa `alocado.pagamentos`, sem segunda derivação (Pre-mortem 1). Sem regra fiscal nova (Gate Fiscal fechado, automático, sem CRC) — segunda porta de leitura para dado já calculado. Gate 2 (`cto-obra`) APPROVE sem retrabalho. 839 unitários + 240 E2E (novo teste prova que o clique na 2ª linha abre o pagamento clicado, não o primeiro) + validação manual no browser. Gate 4 (`po`) PASS. Sem migration, sem dívida nova. **Fecha a fila ativa** |
 | 034 | Campo fiscal não nasce preenchido, e o teste prova | ✅ `79237c3` | **Entregue em 2026-09-21, 12/12 critérios.** `data-campo="<id do mock>"` amarra `design/mocks/*.md` a todo controle fiscal; `lib/design/campos-do-spec.ts` parseia a seção `## Campos` fail-closed (linha fora da gramática = vermelho com arquivo:linha, nunca `skip`); `e2e/campos-fiscais.spec.ts` exige toda rota de `app/**/page.tsx` classificada e cruza spec×DOM no instante em que a tela nasce. Provado contra a D44 real: reintroduzir `useState(hojeIso)`/`useState("pix")` deixa a suíte vermelha nomeando `fData`/`meio`. Gate 2 achou bug fiscal ativo (não só cobertura): `cValor` em `/compromisso/[id]/confirmar` pré-preenchia com o saldo previsto — mesma forma da D44 — corrigido dentro do próprio ticket por decisão do `contador` (**D65**, RESPONDIDA). 839 unitários + 239 E2E + validação manual no browser. Gate 4 (`po`) PASS. Sem migration. Dívida nova, não corrigida: **D66** (`unidades_autonomas` nasce `"1"` contra o CONTAI-003, fora do alcance da suíte hoje) |
 | 006 | Estados de rede lenta/indisponível | ✅ `234db4d` | **Entregue em 2026-09-21, 9/9 critérios.** Política de rede única em `lib/rede.ts` (`db.retry:false`): leitura 3 tentativas/teto 5s com texto honesto desde a 1ª falha; gravação 1 tentativa/teto 10s, nunca repetida, distinguindo "não foi salvo" de "não deu para confirmar" (evita duplicar registro). `Carregando` virou máquina de 4 níveis (45 usos/38 arquivos); novo trio `BotaoSalvar`/`AvisoDeGravacao`/`ErroDeGravacao`. Gate 2 (`cto-obra`) APPROVE com 1 rodada de rework (aviso de "sem resposta" disparava também em escrita — falso; corrigido, 2 testes novos). Decisão do `cto-obra`: teto de leitura se prova por unitário com relógio injetado, não por rota que pendura em E2E — o 503 do PostgREST segue sendo a única falsificação de rede permitida. 817 unitários + 220/220 E2E + validação manual no browser (Postgres pausado/despausado, 4 estados, textos exatos confirmados). Gate 4 (`po`) PASS. Sem migration. Dívida nova: **D64** |
@@ -353,11 +367,12 @@ revisão descreveu.
 ⚠️ **`027`, `025` e `036` saíram desta tabela em 24/08** — os três estão
 entregues e commitados; ver "Em produção" acima. `004` também saiu (entregue,
 commit `05cb1e7`). **`032` e `022` saíram em 2026-09-19** (entregues,
-`13953f2`). **`033`, `007`, `008`, `005`, `031`, `035`, `038`, `006`, `034` e
-`037` saíram em 2026-09-20/21** (entregues — ver a nota no topo do arquivo;
-`038`, `006`, `034` e `037` já pushados). **`014` saiu para "Parado,
-aguardando o Mateus"** (só o critério 4 entregue). **Tabela vazia em
-2026-09-21** — `037` foi o último item; nenhum item desta tabela fica sem
+`13953f2`). **`033`, `007`, `008`, `005`, `031`, `035`, `038`, `006`, `034`,
+`037` e `039` saíram em 2026-09-20/21** (entregues — ver a nota no topo do
+arquivo; `038`, `006`, `034` e `037` já pushados, `039` ainda não). `039`
+entrou nesta tabela e saiu no mesmo dia (24 horas de fila, convergência →
+entrega). **`014` saiu para "Parado, aguardando o Mateus"** (só o critério 4
+entregue). **Tabela vazia em 2026-09-21**; nenhum item desta tabela fica sem
 construir.
 
 ### ⚠️ O que a fila diz de si mesma, e é desconfortável
