@@ -83,6 +83,40 @@ Regras fiscais vêm do agente `contador` — nunca de memória, nunca inventadas
     preenchido afirma), a proibição de default em campo fiscal, e o anexo
     obrigatório no ato do registro.
 
+- **Cenários de uso — 2ª correção, 2026-09-21, e a correção é do Mateus.**
+  A correção de 2026-08-18 (acima) manteve uma invariante — **"375px continua
+  sendo o piso, não o alvo"** — que voltou a travar decisão de desktop na
+  prática: o CONTAI-039 (layout desktop da home) ficou ruim porque, para não
+  quebrar esse piso, reaproveitou os cards de mobile numa grade em vez de ser
+  uma experiência de desktop de verdade (dashboard, sidebar, tabelas). Palavras
+  dele, em reação: *"o uso atualmente é 100% desktop"*; *"se tiver que quebrar
+  a compatibilidade com o mobile pode quebrar"*.
+
+  **O que muda:**
+  - **375px deixa de ser piso obrigatório.** Uma melhoria de desktop não
+    precisa mais caber, sem quebrar, no layout mobile.
+  - O cenário de **captura no canteiro** deixa de ser a régua que trava ou
+    limita decisão de desktop.
+  - A doutrina **"375px é o piso, não o alvo"**, que orientou a rejeição do
+    Conceito 1 (tabela) no Gate 1 do CONTAI-039, fica **obsoleta** e precisa
+    ser revisitada — trabalho do `designer`, não decidido aqui.
+
+  **O que NÃO muda sem decisão explícita futura do Mateus:**
+  - Não significa que o app fica inacessível no celular amanhã.
+  - Não significa que o fluxo de captura no canteiro deixa de existir.
+  - A disciplina fiscal (campo vazio pergunta, campo preenchido afirma), a
+    proibição de default em campo fiscal e o anexo obrigatório no ato do
+    registro continuam valendo em qualquer tela, em qualquer dispositivo — a
+    correção é sobre restrição de **layout**, não sobre regra fiscal.
+
+  ⚠️ **Pergunta aberta — até onde vai "pode quebrar"?** Não está claro se
+  (a) o celular continua funcional mas deixa de ser prioridade quando conflitar
+  com desktop, ou (b) telas de gestão podem parar de funcionar no celular sem
+  isso contar como regressão; nem se a permissão vale só para telas de
+  **gestão** ou também para a de **captura**. Até resposta explícita, tratar
+  como (a) e como valendo só para gestão. Detalhe e contexto completo em
+  `docs/backlog/45-2026-09-21-cenario-desktop-first-contai-039.md`.
+
 ## Fato da obra não se pergunta: se consulta
 
 Antes de perguntar ao Mateus **qualquer fato sobre a obra** — como as notas
