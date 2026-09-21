@@ -13,9 +13,11 @@ import {
   Dica,
   Rodape,
 } from "@/app/_components/ui";
+import { bordaDaCor } from "@/lib/fiscal/gravidade";
 import {
   AVISO_EQUIPARACAO,
   CNO_NAO_MUDA_IRPF,
+  COR_PENDENCIA_CNO,
   CONSEQUENCIA_SEM_CNO_AVERBACAO,
   CONSEQUENCIA_SEM_CNO_NOTAS,
   exigeAvisoEquiparacao,
@@ -189,14 +191,18 @@ export function PendenciaCno({
     prazoCno(obra.dataInicioObra, hoje).situacao === "no_prazo";
 
   return (
-    <Card className="border-red">
-      <Chip cor="red">
+    // ⚠️ A cor vem de `COR_PENDENCIA_CNO` desde o CONTAI-042: era literal aqui,
+    // e a fila unificada de `/pendencias` lê a MESMA constante. Duas telas
+    // pintando a mesma pendência por literais separados divergem no dia em que
+    // só uma for atualizada.
+    <Card className={bordaDaCor(COR_PENDENCIA_CNO)}>
+      <Chip cor={COR_PENDENCIA_CNO}>
         {noPrazo ? `${TITULO_PENDENCIA_CNO} — prazo em curso` : TITULO_PENDENCIA_CNO}
       </Chip>
       <p className="mt-2.5 text-[13.5px]">
         {fraseDoPrazoCno(obra.dataInicioObra, hoje)}
       </p>
-      <Consequencia cor="red">
+      <Consequencia cor={COR_PENDENCIA_CNO}>
         Enquanto não houver CNO:
         <br />• {CONSEQUENCIA_SEM_CNO_NOTAS}
         <br />• {CONSEQUENCIA_SEM_CNO_AVERBACAO}

@@ -22,6 +22,7 @@ import { formatarDataBR } from "@/lib/fiscal/obra";
 import {
   acaoDaPendenciaDeDatas,
   CONSEQUENCIA_DA_DATA_COLAPSADA,
+  COR_TERRENO_MAIS_DE_UMA_DATA,
   corpoDaPendenciaDeDatas,
   NAO_E_RETRABALHO,
   opcaoTudoEm,
@@ -113,12 +114,16 @@ export function PendenciaDeDatas({
 }) {
   return (
     <div data-pendencia="terreno-mais-de-uma-data">
-      <Chip cor="red">{PENDENCIA_MAIS_DE_UMA_DATA}</Chip>
+      {/* Cor de `COR_TERRENO_MAIS_DE_UMA_DATA` desde o CONTAI-042 — a mesma
+          que a fila unificada lê. */}
+      <Chip cor={COR_TERRENO_MAIS_DE_UMA_DATA}>{PENDENCIA_MAIS_DE_UMA_DATA}</Chip>
       {titulo ? <div className="mt-1.5 font-semibold">{titulo}</div> : null}
       <div className="mt-1.5">
         <Dica>{corpoDaPendenciaDeDatas(valorCentavos)}</Dica>
       </div>
-      <Consequencia cor="red">{acaoDaPendenciaDeDatas(valorCentavos)}</Consequencia>
+      <Consequencia cor={COR_TERRENO_MAIS_DE_UMA_DATA}>
+        {acaoDaPendenciaDeDatas(valorCentavos)}
+      </Consequencia>
       <div className="mt-1.5">
         <Dica>{SAIDA_QUANDO_A_CORRECAO_EXISTIR}</Dica>
       </div>

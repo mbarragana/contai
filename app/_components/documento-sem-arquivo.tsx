@@ -28,8 +28,10 @@
  */
 
 import { BotaoLink, Card, Chip, Consequencia, Dica } from "@/app/_components/ui";
+import { bordaDaCor } from "@/lib/fiscal/gravidade";
 import {
   CHIP_NOTA_SEM_ARQUIVO,
+  COR_NOTA_SEM_ARQUIVO,
   NOTA_SEM_ARQUIVO_ALAVANCA,
   NOTA_SEM_ARQUIVO_EFEITO,
 } from "@/lib/fiscal/documento";
@@ -46,14 +48,19 @@ export function CardDocumentosSemArquivo({
   href: string | null;
 }) {
   const uma = quantidade === 1;
+  // A cor vem de `COR_NOTA_SEM_ARQUIVO` desde o CONTAI-042 — a mesma constante
+  // que a fila unificada de `/pendencias` lê.
   return (
-    <Card className="border-red" data-pendencia="documentos-sem-arquivo">
-      <Chip cor="red">{CHIP_NOTA_SEM_ARQUIVO}</Chip>
+    <Card
+      className={bordaDaCor(COR_NOTA_SEM_ARQUIVO)}
+      data-pendencia="documentos-sem-arquivo"
+    >
+      <Chip cor={COR_NOTA_SEM_ARQUIVO}>{CHIP_NOTA_SEM_ARQUIVO}</Chip>
       <div className="mono mt-1.5 text-[20px] font-semibold">
         {formatarBRL(totalCentavos)}
       </div>
       <Dica>{uma ? "1 documento" : `${quantidade} documentos`}</Dica>
-      <Consequencia cor="red">
+      <Consequencia cor={COR_NOTA_SEM_ARQUIVO}>
         <strong>{CHIP_NOTA_SEM_ARQUIVO}.</strong>{" "}
         {uma ? (
           NOTA_SEM_ARQUIVO_EFEITO

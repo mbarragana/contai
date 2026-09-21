@@ -369,6 +369,17 @@ export interface VinculoOrfao {
 export const VINCULO_CRUZANDO_OBRAS_TITULO = "Vínculo entre obras diferentes";
 
 /**
+ * **A cor da rede — VERMELHA**, era `border-red` literal em `app/page.tsx`.
+ *
+ * Definição única desde o `CONTAI-042` (Gate Fiscal do `contador`, 2026-09-21),
+ * lida pela home e pela fila unificada. **Não passa pela régua**: é defeito de
+ * DADO, sem valor próprio (ver `VinculoCruzandoObras` em `resumo.ts` — somá-lo
+ * contaria duas vezes um pagamento que já está em "pago sem nota"), e a régua
+ * mede valor sustentado no ano certo.
+ */
+export const COR_VINCULO_CRUZANDO_OBRAS = "red" as const;
+
+/**
  * O efeito, sem exagero e sem eufemismo — tudo aqui é derivado da própria
  * regra de `alocarCusto`, nada é inferido: o componente conexo não se forma
  * entre obras, então `min(Σ pagamentos, Σ documentos hábeis)` não enxerga esse

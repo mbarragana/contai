@@ -135,6 +135,29 @@ export function fimDaJanelaSemCno(
 
 export const TITULO_PENDENCIA_CNO = "Obra sem CNO — pendência aberta";
 
+/**
+ * **A cor da pendência de CNO — VERMELHA, e ela NÃO passa pela régua.**
+ *
+ * Adjudicada no Gate Fiscal do `CONTAI-042` (`contador`, 2026-09-21), quando a
+ * fila unificada precisou de uma ordem entre famílias. Era `border-red` literal
+ * em `app/_components/obra.tsx`; passa a ter definição única, aqui, lida pelo
+ * componente e pela fila.
+ *
+ * ⚠️ **Não é `Gravidade` de propósito.** `gravidadeDaRegua` mede o eixo do
+ * CUSTO DE AQUISIÇÃO — *"o acervo sustenta o valor no ano certo?"*. Esta
+ * pendência não tem valor, não tem dispêndio e, por `CNO_NAO_MUDA_IRPF` logo
+ * abaixo, **não toca o IRPF**: é obrigação acessória previdenciária, a outra
+ * apuração, e as duas nunca se misturam (invariante do `CLAUDE.md`). Passada
+ * pela régua ela sairia âmbar — artefato do branch default, não adjudicação.
+ *
+ * O vermelho é doutrinário e está fundamentado em
+ * `docs/pareceres/2026-08-09-obra-sem-cno.md`: prazo legal de 30 dias (Lei
+ * 8.212/91, art. 49, II) correndo contra um terceiro, dano que **acumula por
+ * nota** e não começa no dia 31, e `CONSEQUENCIA_SEM_CNO_AVERBACAO` — é a
+ * **única pendência do app que impede a venda**.
+ */
+export const COR_PENDENCIA_CNO = "red" as const;
+
 /** Primeiro parágrafo do texto de cadastro, por estado do prazo. */
 export function fraseDoPrazoCno(dataInicio: string, hoje: string): string {
   const base =

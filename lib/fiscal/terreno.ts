@@ -400,6 +400,18 @@ export const DESEMBOLSO_SEM_DATA =
   "sem a data, este valor não tem ano-calendário e a discriminação não pode " +
   "ser gerada";
 
+/**
+ * **A cor do desembolso pago sem data — VERMELHA desde a revisão da D39
+ * (23/08)**: o valor está pago e não cai em ano nenhum, e era âmbar por herança
+ * do CONTAI-027.
+ *
+ * Definição única desde o `CONTAI-042` (Gate Fiscal do `contador`, 2026-09-21);
+ * era `border-red` literal em `app/page.tsx`. **Não passa pela régua** — ver o
+ * cabeçalho de `lib/fiscal/pendencias-unificadas.ts` para por que portar por
+ * referência e não reconstruir os dois fatos.
+ */
+export const COR_TERRENO_SEM_DATA = "red" as const;
+
 /** Parecer §2b: o ano sai do débito no extrato, e de nada mais. */
 export const A_DATA_QUE_VALE =
   "A data que vale é a do débito no extrato — não a do contrato, não a da " +
@@ -511,6 +523,21 @@ export const TAXAS_E_FCVS_NA_MESMA_LINHA =
   "favorável, é esta linha que volta a ser olhada.";
 
 /** Critério 16 — o ano corrente subestima, e isso é nomeado, nunca silenciado. */
+/**
+ * **A cor do "aguardando informe" — ÂMBAR, e ela é AVISO, não cobrança.**
+ *
+ * Oitava e última das cores portadas do `CONTAI-042` (Gate Fiscal do
+ * `contador`, 2026-09-21); era `cor="amb"` literal em `app/page.tsx`.
+ *
+ * ⚠️ Na fila unificada esta família entra no bloco **informativo**, e não no
+ * âmbar: não há obrigação aberta do Mateus nem ação possível hoje — é o
+ * calendário do banco (ver `AGUARDANDO_INFORME` logo abaixo). Por isso ela fica
+ * **fora da contagem de abertas** que o badge consome: badge que não zera com
+ * trabalho vira ruído, e ruído fabrica cegueira ao aviso. A cor continua âmbar
+ * porque é assim que a tela a desenha; o bloco é que a separa.
+ */
+export const COR_AGUARDANDO_INFORME = "amb" as const;
+
 export const AGUARDANDO_INFORME =
   "O custo do financiamento deste ano está menor do que a realidade e vai " +
   "ficar assim o ano todo: você paga parcela todo mês, e o documento que as " +
@@ -564,6 +591,17 @@ export function faltaLancarInforme(ano: number): string {
  * capital inflado na venda. Agrava: o ano-base 2025 já foi declarado pelo
  * contador com CRC **com o terreno dentro**.
  */
+/**
+ * **A cor do R$ 0,00 do terreno — ÂMBAR**, como já é hoje (`Consequencia
+ * cor="amb"` em `app/page.tsx`). A 18ª família da fila do `CONTAI-042`.
+ *
+ * Âmbar e não vermelho porque o que se sabe é sobre o APP, não sobre o mundo —
+ * é o que o texto abaixo diz por extenso: *"nada foi registrado ainda, não que
+ * nada foi pago"*. Não há dispêndio conhecido a pintar de vermelho; há uma soma
+ * que subestima a situação em 31/12.
+ */
+export const COR_TERRENO_SEM_REGISTRO = "amb" as const;
+
 export const TERRENO_ZERO_NAO_E_NADA_PAGO =
   "R$ 0,00 aqui significa que nada foi registrado ainda — não que nada foi " +
   "pago. Enquanto o terreno não tiver desembolsos datados, esta linha " +
@@ -982,6 +1020,16 @@ export const NAO_E_RETRABALHO =
  */
 export const PENDENCIA_MAIS_DE_UMA_DATA = "Um lançamento, mais de uma data";
 
+/**
+ * **A cor de "um lançamento, mais de uma data" — VERMELHA** (§4b do parecer
+ * `2026-08-21-gate-fiscal-contai-027-criterio-13`, D39 do `po`): o dinheiro
+ * saiu e ESTÁ no custo; o que está aberto é o ANO dele.
+ *
+ * Definição única desde o `CONTAI-042` (Gate Fiscal do `contador`, 2026-09-21);
+ * era `cor="red"` literal em `app/_components/datas-do-desembolso.tsx`.
+ */
+export const COR_TERRENO_MAIS_DE_UMA_DATA = "red" as const;
+
 /** §4b — o corpo. `[valor]` é substituição do app. */
 export function corpoDaPendenciaDeDatas(valorCentavos: number): string {
   return (
@@ -1055,6 +1103,16 @@ export const PAPEL_NOVO_E_ACRESCIMO =
 
 /** §4.1 — o chip. O mesmo nas outras superfícies: nomeia o FATO fiscal. */
 export const CHIP_PAGO_SEM_COMPROVANTE = "Pago sem comprovante";
+
+/**
+ * **A cor do "pago sem comprovante" — VERMELHA** (D39: *fato consumado com
+ * consequência fiscal aberta*; o dinheiro saiu).
+ *
+ * Definição única desde o `CONTAI-042` (Gate Fiscal do `contador`, 2026-09-21);
+ * era `border-red` literal em `app/_components/pago-sem-comprovante.tsx`, que
+ * agora a lê daqui.
+ */
+export const COR_PAGO_SEM_COMPROVANTE = "red" as const;
 
 /**
  * §4.2 — a pendência do desembolso do terreno, literal.

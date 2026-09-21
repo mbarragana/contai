@@ -156,6 +156,29 @@ export const CONSEQUENCIA_BOLETO =
  * ⚠️ Sem esta linha, a saída do boleto do total viraria encolhimento
  * silencioso: o Mateus veria o número cair e não saberia por quê.
  */
+/**
+ * **A cor da pendência "nota sem arquivo" — VERMELHA E FIXA.**
+ *
+ * Confirmada pelo `contador` em 2026-09-19 e reafirmada no Gate Fiscal do
+ * `CONTAI-042` (2026-09-21), quando a fila unificada perguntou se ela deveria
+ * variar por item. **Não varia**, e não passa pela régua:
+ *
+ * O vermelho **nunca se fundou no dinheiro**. O predicado do agregado é só
+ * `arquivo_path IS NULL`, sem olhar pagamento — uma nota sem pagamento ligado
+ * entra nele, e ali nada saiu. Declarar `dinheiroSaiu: true` para forçá-la pela
+ * régua seria afirmar um fato que o predicado não apurou. O fundamento é outro
+ * e está no ADENDO 2 §A.4 do parecer
+ * `2026-08-23-anexo-no-desembolso-do-terreno`: *"o arquivo que falta **É** o
+ * documento hábil"*. A prova está no código — `podeGerarRelatorioAnual` veta
+ * **as três** saídas anuais por documento sem arquivo, **sem olhar pagamento**:
+ * Bens e Direitos, Pagamentos Efetuados e aferição caem igual, paga ou não.
+ *
+ * ⚠️ Cor por item foi rejeitada no mesmo gate: faria a cor do agregado variar
+ * (regra de cor nova, fora de escopo) e rebaixaria a âmbar justamente o caso em
+ * que o pagamento da nota pode nem existir.
+ */
+export const COR_NOTA_SEM_ARQUIVO = "red" as const;
+
 export const BOLETO_FORA_DO_TOTAL =
   "Não entra no total acima: enquanto não for pago, não houve dispêndio.";
 

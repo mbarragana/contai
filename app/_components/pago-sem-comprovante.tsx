@@ -20,8 +20,10 @@
  */
 
 import { BotaoLink, Card, Chip, Consequencia, Dica } from "@/app/_components/ui";
+import { bordaDaCor } from "@/lib/fiscal/gravidade";
 import {
   CHIP_PAGO_SEM_COMPROVANTE,
+  COR_PAGO_SEM_COMPROVANTE,
   COMPROVANTE_POR_TIPO,
   O_QUE_SERVE_COMO_COMPROVANTE,
   PAGO_SEM_COMPROVANTE,
@@ -77,9 +79,14 @@ export function CardPagoSemComprovante({
   quantidade: number;
   href: string;
 }) {
+  // A cor vem de `COR_PAGO_SEM_COMPROVANTE` desde o CONTAI-042 — a mesma constante
+  // que a fila unificada de `/pendencias` lê.
   return (
-    <Card className="border-red" data-pendencia="terreno-sem-comprovante">
-      <Chip cor="red">{CHIP_PAGO_SEM_COMPROVANTE}</Chip>
+    <Card
+      className={bordaDaCor(COR_PAGO_SEM_COMPROVANTE)}
+      data-pendencia="terreno-sem-comprovante"
+    >
+      <Chip cor={COR_PAGO_SEM_COMPROVANTE}>{CHIP_PAGO_SEM_COMPROVANTE}</Chip>
       <div className="mono mt-1.5 text-[20px] font-semibold">
         {formatarBRL(totalCentavos)}
       </div>
@@ -88,7 +95,7 @@ export function CardPagoSemComprovante({
           ? "1 desembolso do terreno"
           : `${quantidade} desembolsos do terreno`}
       </Dica>
-      <Consequencia cor="red">
+      <Consequencia cor={COR_PAGO_SEM_COMPROVANTE}>
         <strong>{CHIP_PAGO_SEM_COMPROVANTE}.</strong> {PAGO_SEM_COMPROVANTE}
       </Consequencia>
       <OQueServeComoComprovante titulo={O_QUE_SERVE_COMO_COMPROVANTE} />

@@ -139,7 +139,29 @@ export function gravidadeDaRegua(
 
 /** A borda do `Card` que corresponde à cor — para a tela não remontar o mapa. */
 export function bordaDaGravidade(g: Gravidade): "border-red" | "border-amb" {
-  return g === "red" ? "border-red" : "border-amb";
+  return bordaDaCor(g);
+}
+
+/**
+ * O mesmo mapa, para as **cores portadas** do `CONTAI-042`.
+ *
+ * ⚠️ Não é uma porta dos fundos da marca. Oito famílias de pendência pintavam
+ * `border-red`/`cor="amb"` **literal em JSX** e nunca passaram pela régua —
+ * `PendenciaCno`, `vinculosCruzandoObras`, `terrenoPagoSemComprovante`,
+ * `documentosSemArquivo`, `terrenoSemData`, `terrenoMaisDeUmaData`,
+ * `terrenoSemRegistro` e `financiamentoAguardandoInforme`. O Gate Fiscal do
+ * `CONTAI-042` (`contador`, 2026-09-21) **proibiu** forçá-las pela régua
+ * (*"declarar os dois fatos para elas não é portar cor, é fabricar fato fiscal
+ * para a fila ordenar"* — o caso que prova é o CNO, que não toca o IRPF e sairia
+ * âmbar pelo branch default) e mandou a cor virar constante nomeada no módulo
+ * dono dos textos da família, lida pela tela de hoje **e** pela fila unificada.
+ *
+ * Este mapa existe para essas constantes não remontarem o `border-` na mão em
+ * duas telas. A marca continua fazendo o que ela sempre fez: impedir pendência
+ * **nova** de chutar cor — portar pendência existente não é chutar.
+ */
+export function bordaDaCor(cor: "red" | "amb"): "border-red" | "border-amb" {
+  return cor === "red" ? "border-red" : "border-amb";
 }
 
 /**

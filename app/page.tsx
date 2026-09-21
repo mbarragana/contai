@@ -32,7 +32,17 @@ import {
 } from "@/app/_components/custo-em-risco";
 import { PendenciaDeDatas } from "@/app/_components/datas-do-desembolso";
 import { CardDocumentosSemArquivo } from "@/app/_components/documento-sem-arquivo";
-import { BOLETO_FORA_DO_TOTAL } from "@/lib/fiscal/documento";
+// ⚠️ CONTAI-042, Gate 2: estes seis cards MORAVAM aqui e foram extraídos. A
+// `/pendencias` (e, depois, o dashboard do CONTAI-040) desenha os mesmos — e
+// texto fiscal inline em dois arquivos é a D46, o mesmo fato com dois rostos.
+import {
+  AvisoTerrenoSemRegistro,
+  CardAguardandoInforme,
+  CardFinanciamentoFaltaLancar,
+  CardPendenciaDerivada,
+  CardTerrenoSemData,
+  CardVinculoCruzandoObras,
+} from "@/app/_components/pendencias-derivadas";
 import { CardPagoSemComprovante } from "@/app/_components/pago-sem-comprovante";
 import {
   carregarCompromissos,
@@ -45,12 +55,17 @@ import {
 } from "@/lib/data";
 import { montarAgendaDaHome, type AgendaHome } from "@/lib/fiscal/compromisso";
 import { escolherObraAtiva } from "@/lib/fiscal/obra";
-import { calcularResumo, type Pendencia, type ResumoObra } from "@/lib/fiscal/resumo";
+import { calcularResumo, type ResumoObra } from "@/lib/fiscal/resumo";
 import {
+  COR_TERRENO_MAIS_DE_UMA_DATA,
   FORA_DO_CUSTO_CONFIRMADO,
   FORA_DO_CUSTO_CONFIRMADO_PORQUE,
 } from "@/lib/fiscal/terreno";
-import { bordaDaGravidade } from "@/lib/fiscal/gravidade";
+// ⚠️ CONTAI-042: as cores destas quatro famílias eram LITERAIS aqui e passaram
+// a sair das constantes do módulo fiscal dono de cada texto — a mesma definição
+// que a fila unificada de `/pendencias` lê. Comportamento idêntico; o que muda
+// é que agora existe UM lugar onde a cor delas está escrita.
+import { bordaDaCor, bordaDaGravidade } from "@/lib/fiscal/gravidade";
 import {
   AVISO_ANO_ANTERIOR,
   EMITENTE_ERRADO_O_QUE_FALTA,
@@ -64,9 +79,6 @@ import {
 import {
   EXPLICACAO_CUSTO_ZERO,
   EXPLICACAO_NOTAS_SEM_PAGAMENTO,
-  VINCULO_CRUZANDO_OBRAS_EFEITO,
-  VINCULO_CRUZANDO_OBRAS_NAO_DEVERIA_EXISTIR,
-  VINCULO_CRUZANDO_OBRAS_TITULO,
 } from "@/lib/fiscal/vinculo";
 import { hojeIso } from "@/lib/hoje";
 import { formatarBRL } from "@/lib/money";
@@ -103,18 +115,6 @@ type Estado =
       nomeDasObras: Map<string, string>;
     };
 
-const ACAO_POR_TIPO: Partial<Record<Pendencia["tipo"], string>> = {
-  quarentena: "Resolver",
-  boleto_sem_nf: "Ver detalhes",
-  // CONTAI-038 — mesmo rótulo que a pendência antiga usava: o remédio continua
-  // sendo abrir a nota. O que mudou lá dentro é o que ele encontra — o
-  // repeater e a pergunta "quem recolhe", em vez de um aviso sem ação.
-  retencao_sem_recolhedor: "Ver detalhes",
-  // CONTAI-019: as duas se resolvem no detalhe do pagamento — a diferença
-  // pelas quatro resoluções do §F.2, o comprovante pelo anexo.
-  diferenca_sem_explicacao: "Explicar a diferença",
-  pago_sem_comprovante: "Anexar o comprovante",
-};
 
 export default function Home() {
   const router = useRouter();
@@ -381,14 +381,9 @@ export default function Home() {
                           .terrenoNoAcumuladoCentavos,
                       )}
                     </div>
-                    <Consequencia cor="amb">
-                      {estado.resumo.terrenoSemRegistro.aviso}
-                    </Consequencia>
-                    <div className="mt-2.5">
-                      <BotaoLink href={estado.resumo.terrenoSemRegistro.href}>
-                        Registrar os desembolsos do terreno
-                      </BotaoLink>
-                    </div>
+                    <AvisoTerrenoSemRegistro
+                      terreno={estado.resumo.terrenoSemRegistro}
+                    />
                   </>
                 ) : null}
                 <Dica>
@@ -639,37 +634,7 @@ export default function Home() {
               ) : null}
 
               {estado.resumo.pendencias.map((p) => (
-                <Card key={p.id}>
-                  <Chip cor={p.gravidade}>{p.chip}</Chip>
-                  <div className="mt-1.5 font-semibold">{p.titulo}</div>
-                  <Dica>
-                    {p.detalhe} ·{" "}
-                    <span className="mono">{formatarBRL(p.valorCentavos)}</span>
-                  </Dica>
-                  <Consequencia cor={p.gravidade}>{p.consequencia}</Consequencia>
-                  {/* CONTAI-005, Bloco 3 · a linha NOVA do card de boleto — as
-                      duas de cima não mudaram. Ela existe porque o boleto saiu do
-                      headline: sem dizer isso, o número teria encolhido em
-                      silêncio. */}
-                  {p.tipo === "boleto_sem_nf" ? (
-                    <Dica>{BOLETO_FORA_DO_TOTAL}</Dica>
-                  ) : null}
-                  {p.href && ACAO_POR_TIPO[p.tipo] ? (
-                    <div className="mt-2.5">
-                      <BotaoLink href={p.href}>{ACAO_POR_TIPO[p.tipo]}</BotaoLink>
-                    </div>
-                  ) : null}
-                  {/* Critério 3: o cartão "pago sem nota" leva ao seletor
-                      inverso — metade do parque de registros nasceu como PIX e
-                      não tinha porta nenhuma. */}
-                  {p.itens?.map((item) => (
-                    <div key={item.id} className="mt-2.5">
-                      <BotaoLink href={item.href}>
-                        Ligar a uma nota — {item.rotulo}
-                      </BotaoLink>
-                    </div>
-                  ))}
-                </Card>
+                <CardPendenciaDerivada key={p.id} pendencia={p} />
               ))}
 
               {/* ── CONTAI-008, critério 12 · a REDE, não a porta ────────────
@@ -686,19 +651,10 @@ export default function Home() {
                     <Passo>Vínculo entre obras — conferir</Passo>
                   </Faixa>
                   {estado.resumo.vinculosCruzandoObras.map((v) => (
-                    <Card
+                    <CardVinculoCruzandoObras
                       key={`${v.pagamentoId}:${v.documentoId}`}
-                      className="border-red"
-                    >
-                      <Chip cor="red">{VINCULO_CRUZANDO_OBRAS_TITULO}</Chip>
-                      <Consequencia cor="red">
-                        {VINCULO_CRUZANDO_OBRAS_EFEITO}
-                      </Consequencia>
-                      <Dica>{VINCULO_CRUZANDO_OBRAS_NAO_DEVERIA_EXISTIR}</Dica>
-                      <div className="mt-2.5">
-                        <BotaoLink href={v.href}>Abrir o pagamento</BotaoLink>
-                      </div>
-                    </Card>
+                      vinculo={v}
+                    />
                   ))}
                 </>
               ) : null}
@@ -760,20 +716,7 @@ export default function Home() {
                     <Passo>Terreno — valores sem data</Passo>
                   </Faixa>
                   {estado.resumo.terrenoSemData.map((t) => (
-                    <Card key={t.id} className="border-red">
-                      <Chip cor="red">Falta a data</Chip>
-                      <div className="mt-1.5 font-semibold">{t.titulo}</div>
-                      <Dica>
-                        <span className="mono">{formatarBRL(t.valorCentavos)}</span>
-                      </Dica>
-                      <Consequencia cor="red">
-                        {t.consequencia}. <strong>Não bloqueia o app</strong> —
-                        fica como pendência até você preencher.
-                      </Consequencia>
-                      <div className="mt-2.5">
-                        <BotaoLink href={t.href}>Informar a data</BotaoLink>
-                      </div>
-                    </Card>
+                    <CardTerrenoSemData key={t.id} terreno={t} />
                   ))}
                 </>
               ) : null}
@@ -789,7 +732,10 @@ export default function Home() {
                     <Passo>Terreno — um lançamento, mais de uma data</Passo>
                   </Faixa>
                   {estado.resumo.terrenoMaisDeUmaData.map((t) => (
-                    <Card key={t.id} className="border-red">
+                    <Card
+                      key={t.id}
+                      className={bordaDaCor(COR_TERRENO_MAIS_DE_UMA_DATA)}
+                    >
                       <PendenciaDeDatas
                         valorCentavos={t.valorCentavos}
                         titulo={t.titulo}
@@ -815,19 +761,7 @@ export default function Home() {
                     <Passo>Financiamento — informe anual não lançado</Passo>
                   </Faixa>
                   {estado.resumo.financiamentoFaltaLancar.map((f) => (
-                    <Card
-                      key={f.ano}
-                      className={bordaDaGravidade(f.gravidade)}
-                      data-falta-lancar={f.ano}
-                    >
-                      <Chip cor={f.gravidade}>falta lançar {f.ano}</Chip>
-                      <Consequencia cor={f.gravidade}>{f.aviso}</Consequencia>
-                      <div className="mt-2.5">
-                        <BotaoLink href={f.href} variante="primary">
-                          Registrar informe de {f.ano}
-                        </BotaoLink>
-                      </div>
-                    </Card>
+                    <CardFinanciamentoFaltaLancar key={f.ano} financiamento={f} />
                   ))}
                 </>
               ) : null}
@@ -841,40 +775,9 @@ export default function Home() {
                       aguardando informe anual
                     </Passo>
                   </Faixa>
-                  <Card>
-                    <Chip cor="amb" vazado>
-                      Aguardando informe
-                    </Chip>
-                    <Consequencia cor="amb">
-                      {estado.resumo.financiamentoAguardandoInforme.aviso}
-                    </Consequencia>
-                    {estado.resumo.financiamentoAguardandoInforme
-                      .estimativaCentavos !== null ? (
-                      <>
-                        {/* Cinza, rotulada, FORA de toda soma. */}
-                        <div className="mono mt-1.5 text-[14px] text-mut">
-                          Ordem de grandeza do que falta: ≈{" "}
-                          {formatarBRL(
-                            estado.resumo.financiamentoAguardandoInforme
-                              .estimativaCentavos,
-                          )}
-                        </div>
-                        <Dica>
-                          {
-                            estado.resumo.financiamentoAguardandoInforme
-                              .sobreAEstimativa
-                          }
-                        </Dica>
-                      </>
-                    ) : null}
-                    <div className="mt-2.5">
-                      <BotaoLink
-                        href={estado.resumo.financiamentoAguardandoInforme.href}
-                      >
-                        Ver o terreno ano a ano
-                      </BotaoLink>
-                    </div>
-                  </Card>
+                  <CardAguardandoInforme
+                    informe={estado.resumo.financiamentoAguardandoInforme}
+                  />
                 </>
               ) : null}
 
