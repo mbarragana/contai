@@ -7,14 +7,15 @@ import { useSessao } from "@/app/_components/sessao";
 import {
   AppBar,
   Banner,
-  Botao,
   BotaoLink,
+  BotaoSalvar,
   Card,
   Carregando,
   Chip,
   Consequencia,
   Corpo,
   Dica,
+  ErroDeGravacao,
   EstadoErro,
   Linha,
   Passo,
@@ -26,7 +27,7 @@ import {
   carregarVinculosDoDocumento,
   classificarErro,
   marcarEmitenteErrado,
-  mensagemDeErro,
+  mensagemDeErroDeGravacao,
   type ErroDeTela,
 } from "@/lib/data";
 import { bordaDaGravidade } from "@/lib/fiscal/gravidade";
@@ -140,7 +141,7 @@ export default function CnpjErrado() {
         setMarcando(false);
         return;
       }
-      setErroMarcar(mensagemDeErro(erro));
+      setErroMarcar(mensagemDeErroDeGravacao(erro, "no detalhe da nota, se ela já aparece marcada"));
     } finally {
       setMarcando(false);
     }
@@ -189,10 +190,15 @@ export default function CnpjErrado() {
       />
       <Corpo>
         {erroMarcar ? (
-          <Banner cor="red" role="alert">
-            <strong>Não deu para marcar.</strong> {erroMarcar} Nada foi alterado
-            no documento.
-          </Banner>
+          <ErroDeGravacao
+            mensagem={erroMarcar}
+            antes={
+              <>
+                <strong>Não deu para marcar.</strong>{" "}
+              </>
+            }
+            depois={<> Nada foi alterado no documento.</>}
+          />
         ) : null}
 
         {marcadoEm ? (
@@ -298,11 +304,11 @@ export default function CnpjErrado() {
                 lista de pendências, com o documento nomeado.
               </Dica>
               <div className="mt-2.5">
-                <Botao variante="primary" onClick={marcar} disabled={marcando}>
+                <BotaoSalvar ocupado={marcando} variante="primary" onClick={marcar} disabled={marcando}>
                   {marcando
                     ? "Marcando…"
                     : "Marcar: o CNPJ deste registro está errado — tratar"}
-                </Botao>
+                </BotaoSalvar>
               </div>
               <Dica>
                 Marcar não muda nada no documento: não abre campo, não mexe na

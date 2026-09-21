@@ -21,14 +21,15 @@ import { useSessao } from "@/app/_components/sessao";
 import {
   AppBar,
   Banner,
-  Botao,
   BotaoLink,
+  BotaoSalvar,
   Card,
   Carregando,
   Chip,
   Consequencia,
   Corpo,
   Dica,
+  ErroDeGravacao,
   EstadoErro,
   Linha,
   Passo,
@@ -39,7 +40,7 @@ import {
   carregarPainel,
   classificarErro,
   corrigirValorDoDocumento,
-  mensagemDeErro,
+  mensagemDeErroDeGravacao,
   subirParaAcervo,
   type ErroDeTela,
   type PainelDados,
@@ -163,7 +164,7 @@ export default function CorrigirValor() {
         pedirReautenticacao();
         return;
       }
-      setErroGravar(mensagemDeErro(erro));
+      setErroGravar(mensagemDeErroDeGravacao(erro, "no detalhe da nota, se o valor já aparece corrigido"));
     }
   }
 
@@ -309,11 +310,21 @@ export default function CorrigirValor() {
       <AppBar titulo="Corrigir o valor" sub={`${sub} · passos 2 e 3 de 3`} />
       <Corpo>
         {erroGravar ? (
-          <Banner cor="red" role="alert">
-            <strong>Não deu para gravar.</strong> {erroGravar}{" "}
-            <strong>Nada foi alterado</strong> — o valor continua {valorHoje} e
-            nenhum registro de correção foi criado.
-          </Banner>
+          <ErroDeGravacao
+            mensagem={erroGravar}
+            antes={
+              <>
+                <strong>Não deu para gravar.</strong>{" "}
+              </>
+            }
+            depois={
+              <>
+                {" "}
+                <strong>Nada foi alterado</strong> — o valor continua{" "}
+                {valorHoje} e nenhum registro de correção foi criado.
+              </>
+            }
+          />
         ) : null}
 
         <MotivoEscolhidoResumo
@@ -483,9 +494,9 @@ export default function CorrigirValor() {
       </Corpo>
 
       <Rodape>
-        <Botao variante="primary" onClick={gravar} disabled={!podeGravar}>
+        <BotaoSalvar ocupado={gravando} variante="primary" onClick={gravar} disabled={!podeGravar}>
           {rotuloBotao}
-        </Botao>
+        </BotaoSalvar>
         <BotaoLink href={documentoHref}>Cancelar</BotaoLink>
       </Rodape>
     </>

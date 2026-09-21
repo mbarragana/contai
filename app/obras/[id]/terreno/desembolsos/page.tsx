@@ -21,6 +21,7 @@ import {
   Banner,
   Botao,
   BotaoLink,
+  BotaoSalvar,
   Card,
   Carregando,
   Chip,
@@ -38,7 +39,7 @@ import {
   classificarErro,
   completarDesembolsoTerreno,
   criarDesembolsoTerreno,
-  mensagemDeErro,
+  mensagemDeErroDeGravacao,
   subirParaAcervo,
   type ErroDeTela,
 } from "@/lib/data";
@@ -358,7 +359,7 @@ export default function DesembolsosDoTerreno() {
       setResposta(null);
       setFase({ nome: "pronto" });
     } catch (erro) {
-      setErroSalvar(mensagemDeErro(erro));
+      setErroSalvar(mensagemDeErroDeGravacao(erro, "na lista de desembolsos do terreno"));
       setFase({ nome: "pronto" });
     }
   }
@@ -515,7 +516,7 @@ export default function DesembolsosDoTerreno() {
       );
       setFase({ nome: "pronto" });
     } catch (erro) {
-      setErroCompletar(mensagemDeErro(erro));
+      setErroCompletar(mensagemDeErroDeGravacao(erro, "na lista de desembolsos do terreno"));
       setFase({ nome: "pronto" });
     }
   }
@@ -613,7 +614,8 @@ export default function DesembolsosDoTerreno() {
             {erroCompletar}
           </p>
         ) : null}
-        <Botao
+        <BotaoSalvar
+          ocupado={fase.nome === "salvando"}
           variante="primary"
           onClick={() => void completar(d)}
           disabled={fase.nome === "salvando"}
@@ -623,7 +625,7 @@ export default function DesembolsosDoTerreno() {
             : faltaData
               ? "Informar a data"
               : "Gravar o papel"}
-        </Botao>
+        </BotaoSalvar>
         <Botao variante="ghost" onClick={() => setCompletando(null)}>
           Cancelar
         </Botao>
@@ -911,14 +913,15 @@ export default function DesembolsosDoTerreno() {
             *"que falta"* recusando a simetria óbvia: *"da data" vs "de datas"
             faria uma distinção fiscal real depender de uma letra*, no mesmo
             formulário em que nasce a pendência "mais de uma data". */}
-        <Botao
+        <BotaoSalvar
+          ocupado={fase.nome === "salvando"}
           variante="primary"
           data-gravar
           onClick={() => void salvar()}
           disabled={fase.nome === "salvando" || !botaoGravar.habilitado}
         >
           {fase.nome === "salvando" ? "Salvando…" : botaoGravar.rotulo}
-        </Botao>
+        </BotaoSalvar>
         <Botao
           variante="ghost"
           onClick={() => router.push(`/obras/${id}/terreno`)}

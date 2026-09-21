@@ -7,12 +7,13 @@ import { useSessao } from "@/app/_components/sessao";
 import {
   AppBar,
   Banner,
-  Botao,
   BotaoLink,
+  BotaoSalvar,
   Card,
   Carregando,
   Corpo,
   Dica,
+  ErroDeGravacao,
   EstadoErro,
   Passo,
   Rodape,
@@ -22,7 +23,7 @@ import {
   carregarPainel,
   classificarErro,
   criarVinculos,
-  mensagemDeErro,
+  mensagemDeErroDeGravacao,
   type ErroDeTela,
   type PainelDados,
 } from "@/lib/data";
@@ -224,7 +225,7 @@ export default function LigarDocumentos() {
         pedirReautenticacao();
         return;
       }
-      setErroSalvar(mensagemDeErro(erro));
+      setErroSalvar(mensagemDeErroDeGravacao(erro, "no detalhe do pagamento, se as notas já aparecem ligadas"));
     }
   }
 
@@ -266,10 +267,21 @@ export default function LigarDocumentos() {
       />
       <Corpo>
         {erroSalvar ? (
-          <Banner cor="red" role="alert">
-            <strong>Não deu para ligar.</strong> {erroSalvar}{" "}
-            <strong>Nada foi ligado</strong> — o pagamento continua como estava.
-          </Banner>
+          <ErroDeGravacao
+            mensagem={erroSalvar}
+            antes={
+              <>
+                <strong>Não deu para ligar.</strong>{" "}
+              </>
+            }
+            depois={
+              <>
+                {" "}
+                <strong>Nada foi ligado</strong> — o pagamento continua como
+                estava.
+              </>
+            }
+          />
         ) : null}
 
         <Card className="sticky top-0 z-10 bg-soft">
@@ -407,7 +419,8 @@ export default function LigarDocumentos() {
             {formatarBRL(efeito?.acumuladoDepois ?? 0)}
           </span>
         </Dica>
-        <Botao
+        <BotaoSalvar
+          ocupado={salvando}
           variante="primary"
           onClick={ligar}
           disabled={marcadosDeVerdade.length === 0 || salvando}
@@ -417,7 +430,7 @@ export default function LigarDocumentos() {
             : marcadosDeVerdade.length === 0
               ? "Marque ao menos um documento"
               : `Ligar ${marcadosDeVerdade.length} ${marcadosDeVerdade.length === 1 ? "documento" : "documentos"}`}
-        </Botao>
+        </BotaoSalvar>
         <BotaoLink href={`/pagamento/${p.id}`}>Cancelar</BotaoLink>
       </Rodape>
     </>

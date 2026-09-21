@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { CampoArquivo, CampoTexto, Escolha } from "@/app/_components/campos";
 import { useSessao } from "@/app/_components/sessao";
@@ -13,6 +13,7 @@ import {
   Banner,
   Botao,
   BotaoLink,
+  BotaoSalvar,
   Card,
   Carregando,
   Chip,
@@ -31,6 +32,7 @@ import {
   criarVinculos,
   garantirFavorecido,
   mensagemDeErro,
+  mensagemDeErroDeGravacao,
   subirParaAcervo,
   type PainelDados,
 } from "@/lib/data";
@@ -310,6 +312,7 @@ export default function RegistrarDocumento() {
   const [jaPaguei, setJaPaguei] = useState(false);
   const [painelDaObra, setPainelDaObra] = useState<PainelDados | null>(null);
   const [erroCandidatos, setErroCandidatos] = useState<string | null>(null);
+  const [tentativaCandidatos, setTentativaCandidatos] = useState(0);
   const [marcados, setMarcados] = useState<string[]>([]);
 
   const erroDe = (campo: ErroCampo["campo"]) =>
@@ -329,7 +332,18 @@ export default function RegistrarDocumento() {
     return () => {
       cancelado = true;
     };
-  }, [jaPaguei, obra]);
+  }, [jaPaguei, obra, tentativaCandidatos]);
+
+  /**
+   * CONTAI-006, critério 3: este carregamento acontece DENTRO do formulário já
+   * preenchido, então o "Tentar de novo" não pode ser o recarregamento de
+   * página que o `Carregando` faz por padrão — recarregar aqui é perder anexo,
+   * valor e as respostas dos checks fiscais.
+   */
+  const recarregarCandidatos = useCallback(() => {
+    setErroCandidatos(null);
+    setTentativaCandidatos((t) => t + 1);
+  }, []);
 
   // ── Aviso de possível duplicidade (critério 11 / R7) ───────────────────
   //
@@ -599,7 +613,7 @@ export default function RegistrarDocumento() {
         pedirReautenticacao();
         return;
       }
-      setErroSalvar(mensagemDeErro(erro));
+      setErroSalvar(mensagemDeErroDeGravacao(erro, "na lista de documentos desta obra"));
     }
   }
 
@@ -1092,7 +1106,10 @@ export default function RegistrarDocumento() {
                   ) : null}
 
                   {painelDaObra === null && !erroCandidatos ? (
-                    <Carregando rotulo="Carregando os pagamentos" />
+                    <Carregando
+                      rotulo="Carregando os pagamentos"
+                      onTentarDeNovo={recarregarCandidatos}
+                    />
                   ) : null}
 
                   {painelDaObra !== null && candidatos.length === 0 ? (
@@ -1163,7 +1180,8 @@ export default function RegistrarDocumento() {
       {registro.fase === "pronta" ? (
         <Rodape>
           <Passo>Passo 3 de 3 ↓</Passo>
-          <Botao
+          <BotaoSalvar
+            ocupado={fase.nome === "salvando"}
             variante="primary"
             onClick={tentarSalvar}
             disabled={fase.nome === "salvando"}
@@ -1173,7 +1191,7 @@ export default function RegistrarDocumento() {
               : avisaObraSemCno
                 ? ROTULO_SALVAR_SEM_CNO
                 : "Salvar registro"}
-          </Botao>
+          </BotaoSalvar>
           <BotaoLink href="/adicionar">Voltar</BotaoLink>
         </Rodape>
       ) : (

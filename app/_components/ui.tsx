@@ -7,10 +7,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 import { urlDeEntrada } from "@/lib/auth";
-import type { ErroDeTela } from "@/lib/data";
+import {
+  SEM_RESPOSTA_NA_LEITURA,
+  gravacaoFoiIncerta,
+  type ErroDeTela,
+} from "@/lib/data";
+import {
+  MS_ATE_AVISAR,
+  MS_ATE_SEGUNDO_AVISO,
+  TETO_DE_LEITURA_MS,
+  nivelDeEspera,
+  observarTentativaSemResposta,
+} from "@/lib/rede";
 
 export function AppBar({ titulo, sub }: { titulo: string; sub?: string }) {
   return (
@@ -251,8 +262,203 @@ export function BotaoLink({
   );
 }
 
-/** Estado de carregando — esqueleto do mock. */
-export function Carregando({ rotulo }: { rotulo: string }) {
+/**
+ * ⚠️ Banner de falha de GRAVAÇÃO — CONTAI-006, critério 6.
+ *
+ * `antes` e `depois` são o que a tela sempre disse em volta da mensagem: de um
+ * lado *"Não deu para gravar."*, do outro *"Nada foi alterado — o que você
+ * preencheu continua aqui."* As duas frases valem quando o servidor RECUSOU.
+ * Quando ele não respondeu nada, elas viram afirmação sem base — e é
+ * exatamente a afirmação que faz o Mateus tocar "Salvar" de novo e duplicar o
+ * registro. No caso incerto, a mensagem fica sozinha.
+ */
+export function ErroDeGravacao({
+  mensagem,
+  antes,
+  depois,
+}: {
+  mensagem: string;
+  antes?: ReactNode;
+  depois?: ReactNode;
+}) {
+  const incerto = gravacaoFoiIncerta(mensagem);
+  return (
+    <Banner cor="red" role="alert">
+      {incerto ? null : antes}
+      {mensagem}
+      {incerto ? null : depois}
+    </Banner>
+  );
+}
+
+/**
+ * ⚠️ Botão de "Salvar" com estado de espera — CONTAI-006, critério 6.
+ *
+ * Gravação é tratada À PARTE da leitura, e o que muda aos ~2 s não é só o
+ * rótulo: entra o aviso de NÃO RECARREGAR. Recarregar no meio de um "Salvando"
+ * é a hipótese por trás da duplicação que o uso real produziu, e o momento em
+ * que ele faz isso é justamente quando a tela parece travada.
+ *
+ * O aviso não cabe no rótulo (375px quebraria), então vira linha auxiliar
+ * abaixo do botão — decisão 5 do spec de design.
+ *
+ * `ocupado` é separado de `disabled` de propósito: `disabled` continua sendo o
+ * que cada tela já calcula (campo faltando, escolha não feita), e `ocupado` é
+ * só "há uma gravação em curso".
+ */
+function useEsperaLonga(ocupado: boolean): boolean {
+  const [demorou, setDemorou] = useState(false);
+  // Zerar no RENDER e não num efeito: é o padrão do React para estado que
+  // acompanha uma prop (e o que o `react-hooks/set-state-in-effect` cobra).
+  // Sem isto, a segunda tentativa de salvar já nasceria "Ainda salvando…".
+  const [ocupadoVisto, setOcupadoVisto] = useState(ocupado);
+  if (ocupadoVisto !== ocupado) {
+    setOcupadoVisto(ocupado);
+    setDemorou(false);
+  }
+
+  useEffect(() => {
+    if (!ocupado) return;
+    const relogio = setTimeout(() => setDemorou(true), MS_ATE_AVISAR);
+    return () => clearTimeout(relogio);
+  }, [ocupado]);
+
+  return ocupado && demorou;
+}
+
+/**
+ * O aviso sozinho, para os grupos em que o "Salvar" não é UM botão.
+ *
+ * Duas telas respondem a uma pergunta com vários botões de mesmo peso (a
+ * sugestão de quitação e as resoluções de diferença do pagamento). Trocar o
+ * rótulo de todos eles por "Ainda salvando…" mentiria sobre qual foi tocado —
+ * ali só o aviso faz sentido, uma vez, abaixo do grupo.
+ */
+export function AvisoDeGravacao({ ocupado }: { ocupado: boolean }) {
+  return useEsperaLonga(ocupado) ? (
+    <Dica>Não feche nem recarregue a página.</Dica>
+  ) : null;
+}
+
+export function BotaoSalvar({
+  ocupado,
+  rotuloDemora = "Ainda salvando…",
+  children,
+  ...props
+}: {
+  ocupado: boolean;
+  /** Só onde "salvando" seria a palavra errada — remover uma linha, p.ex. */
+  rotuloDemora?: string;
+} & React.ComponentProps<typeof Botao>) {
+  const esperando = useEsperaLonga(ocupado);
+  return (
+    <>
+      <Botao {...props} disabled={props.disabled || ocupado}>
+        {esperando ? rotuloDemora : children}
+      </Botao>
+      {esperando ? <Dica>Não feche nem recarregue a página.</Dica> : null}
+    </>
+  );
+}
+
+/**
+ * ⚠️ Estado de carregando — e, a partir do CONTAI-006, a máquina de estados
+ * inteira da espera de LEITURA.
+ *
+ * O achado que originou o ticket tem uma palavra no meio: *mentira*. A tela
+ * dizia "Carregando a obra" durante 7,7 s quando, a partir do primeiro
+ * segundo, já sabia que a primeira tentativa tinha falhado.
+ *
+ * Quatro níveis, e a ordem entre eles é o critério 2:
+ *
+ * 0. esqueleto, com o rótulo específico da tela — 0 a ~2 s;
+ * 1. **a primeira tentativa falhou OU passaram 2 s, o que vier primeiro** — o
+ *    esqueleto SOME (decisão 1 do spec: barra cinza ao lado do aviso sugeriria
+ *    "quase pronto", que é a mesma mentira com outra cara);
+ * 2. segunda tentativa sem sucesso — o texto admite que pode demorar mais, que
+ *    é o caso do projeto acordando de pausa (critério 7, CONTAI-012);
+ * 3. **teto atingido** — erro acionável, com saída (critério 3).
+ *
+ * `onTentarDeNovo` é opcional, e a ausência dele NÃO pode virar tela sem saída:
+ * sem callback, o botão recarrega a rota. É a defesa contra o Pre-mortem 1 ("o
+ * teto é implementado só na home"): toda tela que renderiza este componente
+ * ganha teto e saída, mesmo que alguém esqueça de ligar o retry dela.
+ *
+ * O nível 3 não encerra a promessa que roda por baixo — se a resposta chegar
+ * depois, a tela troca para o conteúdo sozinha.
+ *
+ * ⚠️ Limitação conhecida (aceita no Gate 2 do CONTAI-006): o relógio dos níveis
+ * é o do COMPONENTE, não o de uma requisição — uma tela que faz N leituras
+ * sequenciais lentas-mas-vivas (cada uma abaixo do teto) chega ao nível 3 sem
+ * que nenhuma leitura tenha falhado. Não é bug fantasma; é esta escolha.
+ */
+export function Carregando({
+  rotulo,
+  onTentarDeNovo,
+}: {
+  rotulo: string;
+  onTentarDeNovo?: () => void;
+}) {
+  // Só plumbing: quem decide qual texto sai é `nivelDeEspera`, em lib/rede.ts,
+  // que é função pura e tem teste.
+  const [decorrido, setDecorrido] = useState(0);
+  const [falhas, setFalhas] = useState(0);
+  const [ciclo, setCiclo] = useState(0);
+  const nivel = nivelDeEspera(decorrido, falhas);
+
+  useEffect(() => {
+    const marcar = (ms: number) =>
+      setTimeout(() => setDecorrido((d) => (d >= ms ? d : ms)), ms);
+    const relogios = [
+      marcar(MS_ATE_AVISAR),
+      marcar(MS_ATE_SEGUNDO_AVISO),
+      marcar(TETO_DE_LEITURA_MS),
+    ];
+    const parar = observarTentativaSemResposta(() => setFalhas((f) => f + 1));
+    return () => {
+      for (const relogio of relogios) clearTimeout(relogio);
+      parar();
+    };
+  }, [ciclo]);
+
+  const tentarDeNovo = useCallback(() => {
+    if (!onTentarDeNovo) {
+      window.location.reload();
+      return;
+    }
+    // Zera aqui, no manipulador do toque, e não dentro do efeito: o efeito só
+    // agenda relógios e assina o aviso de tentativa.
+    setDecorrido(0);
+    setFalhas(0);
+    setCiclo((c) => c + 1);
+    onTentarDeNovo();
+  }, [onTentarDeNovo]);
+
+  if (nivel >= 3) {
+    return (
+      <div className="flex flex-col gap-3">
+        <Banner cor="red" role="alert">
+          {SEM_RESPOSTA_NA_LEITURA}
+        </Banner>
+        <Botao variante="ghost" onClick={tentarDeNovo}>
+          Tentar de novo
+        </Botao>
+      </div>
+    );
+  }
+
+  if (nivel >= 1) {
+    return (
+      <div role="status" aria-label={rotulo}>
+        <Dica>
+          {nivel >= 2
+            ? "Ainda tentando. Se o servidor estava inativo por um tempo, isso pode levar mais alguns segundos que o normal."
+            : "Sem resposta do servidor — tentando de novo."}
+        </Dica>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-3" role="status" aria-label={rotulo}>
       <div className="skel h-[13px] w-[70%]" />

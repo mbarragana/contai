@@ -54,35 +54,35 @@ gravação.
 
 ## Critérios de Aceite
 
-1. [ ] **Feedback progressivo aos ~2 s**, em **todas** as telas que carregam
+1. [x] **Feedback progressivo aos ~2 s**, em **todas** as telas que carregam
    dados: a mensagem muda de "carregando" para *"sem resposta do servidor —
    tentando de novo"*. **Texto aprovado antes da implementação.**
-2. [ ] ⚠️ **A tela nunca diz "carregando" depois de saber que uma tentativa
+2. [x] ⚠️ **A tela nunca diz "carregando" depois de saber que uma tentativa
    falhou.** É o critério que responde à palavra "mentira" do achado. A partir da
    primeira falha, a mensagem reflete o estado real, mesmo com o retry rodando por
    baixo. Teste com 5xx no primeiro request, afirmando a troca **antes** do fim
    do backoff.
-3. [ ] **Teto de espera em toda tela**, com erro acionável e **"Tentar de novo"**.
+3. [x] **Teto de espera em toda tela**, com erro acionável e **"Tentar de novo"**.
    **Nenhum caminho de carregamento pode esperar indefinidamente** — auditoria de
    todas as leituras de tela. Teste de um request que nunca responde.
-4. [ ] **Retry do postgrest-js revisto para leituras de tela.** 1+2+4 s é padrão
+4. [x] **Retry do postgrest-js revisto para leituras de tela.** 1+2+4 s é padrão
    de job de servidor, não de tela na mão de gente. **A definição é do
    `cto-obra`** — o ticket exige que o comportamento seja *decidido*, não um
    número específico.
-5. [ ] **O total de espera até o erro final cai de ~7,7 s** para um valor
+5. [x] **O total de espera até o erro final cai de ~7,7 s** para um valor
    escolhido e documentado. **E2E medindo**: o teste de "banco fora, com saída"
    afirma o teto novo e **falha se alguém devolver o backoff antigo**.
-6. [ ] ⚠️ **Estado de gravação tratado à parte do de leitura.** Em gravação lenta,
+6. [x] ⚠️ **Estado de gravação tratado à parte do de leitura.** Em gravação lenta,
    o botão fica desabilitado com estado visível, e **o erro diz se gravou ou
    não** — ou, quando não dá para saber, **diz exatamente isso** e manda conferir
    antes de repetir. *"Não sei se salvou" honesto é melhor que um erro que induz
    o segundo toque.* É o critério que ataca a duplicação.
-7. [ ] **Vale para o cenário do projeto pausado** (CONTAI-012): a primeira
+7. [x] **Vale para o cenário do projeto pausado** (CONTAI-012): a primeira
    requisição depois do auto-pause é lenta por construção. A tela precisa dizer
    algo útil nesse caso, não um erro genérico.
-8. [ ] **E2E contra o Postgres local.** A **única falsificação de rede permitida**
+8. [x] **E2E contra o Postgres local.** A **única falsificação de rede permitida**
    continua sendo a que já existe: o 503 do PostgREST.
-9. [ ] **Nenhuma regressão de custo de navegação**: `proxy.ts` já custa uma
+9. [x] **Nenhuma regressão de custo de navegação**: `proxy.ts` já custa uma
    chamada ao GoTrue por navegação. Este ticket **não pode somar outra**.
 
 ## Out of Scope

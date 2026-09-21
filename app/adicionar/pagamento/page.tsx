@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   CampoArquivo,
@@ -20,6 +20,7 @@ import {
   Banner,
   Botao,
   BotaoLink,
+  BotaoSalvar,
   Card,
   Carregando,
   Corpo,
@@ -39,6 +40,7 @@ import {
   criarVinculos,
   garantirFavorecido,
   mensagemDeErro,
+  mensagemDeErroDeGravacao,
   subirParaAcervo,
 } from "@/lib/data";
 import { decidirRegistro, type Destino } from "@/lib/fiscal/compromisso";
@@ -158,6 +160,7 @@ function RegistrarPagamento() {
   const [documentoDeOrigem, setDocumentoDeOrigem] = useState<Documento | null>(
     null,
   );
+  const [tentativaDaNota, setTentativaDaNota] = useState(0);
 
   const [nome, setNome] = useState("");
   const [documento, setDocumento] = useState("");
@@ -269,7 +272,15 @@ function RegistrarPagamento() {
     return () => {
       cancelado = true;
     };
-  }, [documentoDeOrigemId]);
+  }, [documentoDeOrigemId, tentativaDaNota]);
+
+  /**
+   * CONTAI-006, critério 3: o "Tentar de novo" padrão do `Carregando` recarrega
+   * a página, e aqui isso apagaria comprovante, valor e data já digitados.
+   */
+  const recarregarNota = useCallback(() => {
+    setTentativaDaNota((t) => t + 1);
+  }, []);
 
   const entrada: EntradaPagamento = useMemo(
     () => ({
@@ -437,7 +448,7 @@ function RegistrarPagamento() {
         pedirReautenticacao();
         return;
       }
-      setErroSalvar(mensagemDeErro(erro));
+      setErroSalvar(mensagemDeErroDeGravacao(erro, "na lista de pagamentos desta obra"));
     }
   }
 
@@ -511,7 +522,7 @@ function RegistrarPagamento() {
         pedirReautenticacao();
         return;
       }
-      setErroSalvar(mensagemDeErro(erro));
+      setErroSalvar(mensagemDeErroDeGravacao(erro, "na lista de compromissos"));
     }
   }
 
@@ -823,7 +834,10 @@ function RegistrarPagamento() {
                     onSairParaCorrigir={() => setConfirmandoSaida(true)}
                   />
                 ) : (
-                  <Carregando rotulo="Carregando a nota" />
+                  <Carregando
+                    rotulo="Carregando a nota"
+                    onTentarDeNovo={recarregarNota}
+                  />
                 )
               ) : (
                 <>
@@ -999,7 +1013,8 @@ function RegistrarPagamento() {
               pagamento" (primary) vira "Agendar" (ghost) — o agendamento não
               é o ato de peso da tela, e o verbo diferente é a última chance de
               perceber que a data está no futuro. */}
-          <Botao
+          <BotaoSalvar
+            ocupado={fase.nome === "salvando"}
             variante={vaiAgendar ? "ghost" : "primary"}
             onClick={salvar}
             disabled={fase.nome === "salvando" || indefinido}
@@ -1019,7 +1034,7 @@ function RegistrarPagamento() {
                       ? "Salvar sem ligar à nota"
                       : "Salvar pagamento e ligar à nota"
                     : `Salvar — aguardando ${rotulos.documento}`}
-          </Botao>
+          </BotaoSalvar>
           <BotaoLink href="/adicionar">Voltar</BotaoLink>
         </Rodape>
       ) : (

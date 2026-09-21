@@ -21,8 +21,8 @@ import { CampoArquivo, CampoTexto } from "@/app/_components/campos";
 import {
   AppBar,
   Banner,
-  Botao,
   BotaoLink,
+  BotaoSalvar,
   Card,
   Carregando,
   Corpo,
@@ -34,7 +34,7 @@ import {
   carregarCompromissos,
   carregarFatura,
   classificarErro,
-  mensagemDeErro,
+  mensagemDeErroDeGravacao,
   registrarDesembolsoDeFatura,
   subirParaAcervo,
   type ErroDeTela,
@@ -166,7 +166,7 @@ export default function ConfirmarFaturaIntegral() {
       setEstado({ fase: "salvo", abertas, dataPagamento });
     } catch (e) {
       setEstado({ fase: "pronto", fatura, abertas });
-      setErro(mensagemDeErro(e));
+      setErro(mensagemDeErroDeGravacao(e, "na fatura, se o pagamento já aparece lançado"));
     }
   }
 
@@ -228,7 +228,8 @@ export default function ConfirmarFaturaIntegral() {
         </Card>
       </Corpo>
       <Rodape>
-        <Botao
+        <BotaoSalvar
+          ocupado={estado.fase === "salvando"}
           variante="primary"
           onClick={salvar}
           disabled={!podeSalvar || estado.fase === "salvando"}
@@ -236,7 +237,7 @@ export default function ConfirmarFaturaIntegral() {
           {estado.fase === "salvando"
             ? "Salvando…"
             : `Confirmar pagamento — ${abertas.length} ${abertas.length === 1 ? "pagamento" : "pagamentos"}`}
-        </Botao>
+        </BotaoSalvar>
         <BotaoLink href={`/fatura/${fatura.id}`}>Voltar sem salvar</BotaoLink>
       </Rodape>
     </>

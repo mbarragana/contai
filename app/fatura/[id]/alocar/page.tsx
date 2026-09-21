@@ -20,8 +20,8 @@ import { Suspense, useEffect, useState } from "react";
 import {
   AppBar,
   Banner,
-  Botao,
   BotaoLink,
+  BotaoSalvar,
   Card,
   Carregando,
   Chip,
@@ -35,7 +35,7 @@ import {
   carregarCompromissos,
   carregarFatura,
   classificarErro,
-  mensagemDeErro,
+  mensagemDeErroDeGravacao,
   type ErroDeTela,
 } from "@/lib/data";
 import {
@@ -260,7 +260,7 @@ function AlocarPagamento() {
       });
     } catch (e) {
       setEstado({ fase: "pronto", fatura, compromissos });
-      setErro(mensagemDeErro(e));
+      setErro(mensagemDeErroDeGravacao(e, "na fatura, se a alocação já aparece lançada"));
     }
   }
 
@@ -333,13 +333,14 @@ function AlocarPagamento() {
         ) : null}
       </Corpo>
       <Rodape>
-        <Botao
+        <BotaoSalvar
+          ocupado={estado.fase === "salvando"}
           variante="primary"
           onClick={confirmar}
           disabled={estado.fase === "salvando"}
         >
           {estado.fase === "salvando" ? "Salvando…" : "Confirmar alocação"}
-        </Botao>
+        </BotaoSalvar>
         <BotaoLink href={`/fatura/${fatura.id}`}>Voltar — decidir depois</BotaoLink>
       </Rodape>
     </>

@@ -14,6 +14,7 @@ import {
   Banner,
   Botao,
   BotaoLink,
+  BotaoSalvar,
   Card,
   Corpo,
   Dica,
@@ -31,7 +32,7 @@ import {
   paraEntrada,
   type EstadoObra,
 } from "@/app/obras/_campos";
-import { criarObra, mensagemDeErro } from "@/lib/data";
+import { criarObra, mensagemDeErroDeGravacao } from "@/lib/data";
 import {
   formatarDataBR,
   validarObra,
@@ -161,7 +162,7 @@ export default function NovaObra() {
         },
       });
     } catch (erro) {
-      setErroSalvar(mensagemDeErro(erro));
+      setErroSalvar(mensagemDeErroDeGravacao(erro, "na lista de obras, se ela já foi criada"));
       setFase({ nome: "formulario" });
     }
   }
@@ -258,13 +259,14 @@ export default function NovaObra() {
               : "Continuar"}
           </Botao>
         ) : (
-          <Botao
+          <BotaoSalvar
+            ocupado={fase.nome === "salvando"}
             variante="primary"
             onClick={criar}
             disabled={fase.nome === "salvando"}
           >
             {fase.nome === "salvando" ? "Criando…" : "Criar obra"}
-          </Botao>
+          </BotaoSalvar>
         )}
         {passo > 1 ? (
           <Botao variante="ghost" onClick={() => setPasso((p) => p - 1)}>

@@ -23,16 +23,18 @@ import { CampoTexto, Escolha } from "@/app/_components/campos";
 import {
   Banner,
   Botao,
+  BotaoSalvar,
   Card,
   Chip,
   Consequencia,
   Dica,
+  ErroDeGravacao,
   Linha,
 } from "@/app/_components/ui";
 import {
   classificarErro,
   criarLinhaRetencao,
-  mensagemDeErro,
+  mensagemDeErroDeGravacao,
   removerLinhaRetencao,
   responderGateRetencao,
   responderQuemRecolhe,
@@ -153,8 +155,10 @@ function ConfirmarGateLegado({
         return;
       }
       // ⚠️ A escolha continua na tela: retry sem redigitar (padrão s3e do
-      // CONTAI-021). Nada foi gravado, e a frase diz isso.
-      setErro(mensagemDeErro(e));
+      // CONTAI-021). Quando o servidor RECUSOU, a frase diz que nada foi
+      // gravado; quando não houve resposta nenhuma, quem cala a afirmação é o
+      // `ErroDeGravacao` (CONTAI-006, critério 6).
+      setErro(mensagemDeErroDeGravacao(e, "no detalhe desta nota, se a resposta já aparece gravada"));
     }
   }
 
@@ -166,10 +170,20 @@ function ConfirmarGateLegado({
         Confira no papel e responda — <strong>em branco não é “nenhuma”</strong>.
       </p>
       {erro ? (
-        <Banner cor="red" role="alert">
-          <strong>Não deu para gravar.</strong> {erro}{" "}
-          <strong>Nada foi alterado</strong> — a sua resposta continua aqui.
-        </Banner>
+        <ErroDeGravacao
+          mensagem={erro}
+          antes={
+            <>
+              <strong>Não deu para gravar.</strong>{" "}
+            </>
+          }
+          depois={
+            <>
+              {" "}
+              <strong>Nada foi alterado</strong> — a sua resposta continua aqui.
+            </>
+          }
+        />
       ) : null}
       <div className="mt-3">
         <Escolha
@@ -181,14 +195,15 @@ function ConfirmarGateLegado({
         />
       </div>
       <div className="mt-2.5">
-        <Botao
+        <BotaoSalvar
+          ocupado={gravando}
           variante="primary"
           type="button"
           onClick={confirmar}
           disabled={escolha === null || gravando}
         >
           {gravando ? "Confirmando…" : "Confirmar"}
-        </Botao>
+        </BotaoSalvar>
       </div>
     </Card>
   );
@@ -299,7 +314,7 @@ function LinhaGravada({
         onSessaoExpirada();
         return;
       }
-      setErro(mensagemDeErro(e));
+      setErro(mensagemDeErroDeGravacao(e, "na lista de linhas de retenção desta nota"));
     }
   }
 
@@ -353,7 +368,8 @@ function LinhaGravada({
             onChange={setEscolha}
           />
           <div className="mt-2">
-            <Botao
+            <BotaoSalvar
+              ocupado={salvando}
               variante="primary"
               type="button"
               // Habilitado só quando a escolha MUDA em relação à gravada: um
@@ -369,7 +385,7 @@ function LinhaGravada({
               }
             >
               {salvando ? "Salvando…" : "Salvar resposta"}
-            </Botao>
+            </BotaoSalvar>
           </div>
         </div>
       ) : null}
@@ -378,7 +394,8 @@ function LinhaGravada({
           "adicionar/remover livremente"), e **nunca otimista**: a linha só sai
           da tela depois de o servidor confirmar que apagou exatamente uma. */}
       <div className="mt-2">
-        <Botao
+        <BotaoSalvar
+          ocupado={removendo} rotuloDemora="Ainda removendo…"
           variante="ghost"
           type="button"
           disabled={ocupado}
@@ -387,7 +404,7 @@ function LinhaGravada({
           }
         >
           {removendo ? "Removendo…" : "Remover esta linha"}
-        </Botao>
+        </BotaoSalvar>
       </div>
       {/* A correção de rótulo/valor/composição é remover e recriar — decisão do
           `cto-obra` em 2026-09-20. Dizer isso aqui evita que ele procure um
@@ -457,7 +474,7 @@ function FormularioDeLinha({
       }
       // ⚠️ O formulário continua preenchido, e NADA foi gravado: a linha só
       // existe no banco depois do INSERT confirmado (spec, estado 5).
-      setErro(mensagemDeErro(e));
+      setErro(mensagemDeErroDeGravacao(e, "na lista de linhas de retenção desta nota"));
     }
   }
 
@@ -469,10 +486,21 @@ function FormularioDeLinha({
       <div className="font-semibold">Nova linha de retenção</div>
 
       {erro ? (
-        <Banner cor="red" role="alert">
-          <strong>Não deu para adicionar.</strong> {erro}{" "}
-          <strong>Nada foi gravado</strong> — o que você preencheu continua aqui.
-        </Banner>
+        <ErroDeGravacao
+          mensagem={erro}
+          antes={
+            <>
+              <strong>Não deu para adicionar.</strong>{" "}
+            </>
+          }
+          depois={
+            <>
+              {" "}
+              <strong>Nada foi gravado</strong> — o que você preencheu continua
+              aqui.
+            </>
+          }
+        />
       ) : null}
 
       <CampoTexto
@@ -559,7 +587,8 @@ function FormularioDeLinha({
 
       {/* Sem `erro` de campo antes da primeira tentativa, o leitor de tela
           ainda precisa ouvir o que falta — o rótulo do botão faz isso. */}
-      <Botao
+      <BotaoSalvar
+        ocupado={gravando}
         variante="primary"
         type="button"
         onClick={adicionar}
@@ -572,7 +601,7 @@ function FormularioDeLinha({
             : `Faltam ${erros.length} ${
                 erros.length === 1 ? "resposta" : "respostas"
               } para adicionar`}
-      </Botao>
+      </BotaoSalvar>
       <Botao variante="ghost" type="button" onClick={onCancelar}>
         Cancelar
       </Botao>

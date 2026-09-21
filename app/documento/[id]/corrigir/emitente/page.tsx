@@ -20,13 +20,14 @@ import { useSessao } from "@/app/_components/sessao";
 import {
   AppBar,
   Banner,
-  Botao,
   BotaoLink,
+  BotaoSalvar,
   Card,
   Carregando,
   Consequencia,
   Corpo,
   Dica,
+  ErroDeGravacao,
   EstadoErro,
   Linha,
   Passo,
@@ -37,7 +38,7 @@ import {
   carregarDocumento,
   classificarErro,
   corrigirNomeDoFavorecido,
-  mensagemDeErro,
+  mensagemDeErroDeGravacao,
   subirParaAcervo,
   type ErroDeTela,
 } from "@/lib/data";
@@ -155,7 +156,7 @@ function CorrigirEmitente() {
         pedirReautenticacao();
         return;
       }
-      setErroGravar(mensagemDeErro(erro));
+      setErroGravar(mensagemDeErroDeGravacao(erro, "no detalhe da nota, se o emitente já aparece corrigido"));
     }
   }
 
@@ -312,11 +313,21 @@ function CorrigirEmitente() {
       <AppBar titulo="Corrigir o nome do emitente" sub={`${sub} · passos 2 e 3 de 3`} />
       <Corpo>
         {erroGravar ? (
-          <Banner cor="red" role="alert">
-            <strong>Não deu para gravar.</strong> {erroGravar}{" "}
-            <strong>Nada foi alterado</strong> — o nome continua {sub} e nenhum
-            registro de correção foi criado.
-          </Banner>
+          <ErroDeGravacao
+            mensagem={erroGravar}
+            antes={
+              <>
+                <strong>Não deu para gravar.</strong>{" "}
+              </>
+            }
+            depois={
+              <>
+                {" "}
+                <strong>Nada foi alterado</strong> — o nome continua {sub} e
+                nenhum registro de correção foi criado.
+              </>
+            }
+          />
         ) : null}
 
         <MotivoEscolhidoResumo
@@ -437,7 +448,7 @@ function CorrigirEmitente() {
       </Corpo>
 
       <Rodape>
-        <Botao variante="primary" onClick={gravar} disabled={!podeGravar}>
+        <BotaoSalvar ocupado={gravando} variante="primary" onClick={gravar} disabled={!podeGravar}>
           {gravando
             ? "Gravando…"
             : vazio
@@ -449,7 +460,7 @@ function CorrigirEmitente() {
                   : !afirmou
                     ? "Confirme a afirmação para gravar"
                     : "Gravar a correção"}
-        </Botao>
+        </BotaoSalvar>
         <BotaoLink href={voltaHref}>Cancelar</BotaoLink>
       </Rodape>
     </>

@@ -7,8 +7,8 @@ import { useSessao } from "@/app/_components/sessao";
 import {
   AppBar,
   Banner,
-  Botao,
   BotaoLink,
+  BotaoSalvar,
   Card,
   Carregando,
   Consequencia,
@@ -23,7 +23,7 @@ import {
   carregarDocumento,
   carregarPainel,
   classificarErro,
-  mensagemDeErro,
+  mensagemDeErroDeGravacao,
   type ErroDeTela,
 } from "@/lib/data";
 import { formatarDataBR } from "@/lib/fiscal/obra";
@@ -151,7 +151,7 @@ function DesligarPagamento() {
         pedirReautenticacao();
         return;
       }
-      setErroSalvar(mensagemDeErro(erro));
+      setErroSalvar(mensagemDeErroDeGravacao(erro, "no detalhe da nota, se o vínculo já aparece desfeito"));
     }
   }
 
@@ -229,11 +229,11 @@ function DesligarPagamento() {
       </Corpo>
 
       <Rodape>
-        <Botao variante="primary" onClick={desligar} disabled={salvando}>
+        <BotaoSalvar ocupado={salvando} variante="primary" onClick={desligar} disabled={salvando}>
           {salvando
             ? "Desligando…"
             : `Desligar — o custo cai para ${formatarBRL(pronto.custoDepoisCentavos)}`}
-        </Botao>
+        </BotaoSalvar>
         <BotaoLink href={`/documento/${id}`}>Cancelar</BotaoLink>
       </Rodape>
     </>

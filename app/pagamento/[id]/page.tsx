@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ListaDeAnexos } from "@/app/_components/anexo";
 import {
   AppBar,
+  AvisoDeGravacao,
   Banner,
   BarraAdicionar,
   Botao,
@@ -16,6 +17,7 @@ import {
   Consequencia,
   Corpo,
   Dica,
+  ErroDeGravacao,
   EstadoErro,
   Linha,
   Passo,
@@ -25,7 +27,7 @@ import {
   carregarPagamento,
   carregarPainel,
   classificarErro,
-  mensagemDeErro,
+  mensagemDeErroDeGravacao,
   resolverDiferenca,
   type ErroDeTela,
   type PainelDados,
@@ -180,7 +182,7 @@ export default function DetalhePagamento() {
         setEstado({ fase: "carregando" });
         setTentativa((t) => t + 1);
       } catch (e) {
-        setErroResolver(mensagemDeErro(e));
+        setErroResolver(mensagemDeErroDeGravacao(e, "no detalhe do pagamento, se a diferença já aparece resolvida"));
       } finally {
         setResolvendo(false);
       }
@@ -394,9 +396,7 @@ export default function DetalhePagamento() {
                   {textoDiferencaSemExplicacao(p.naoExplicadoCentavos)}
                 </Consequencia>
                 {erroResolver ? (
-                  <Banner cor="red" role="alert">
-                    {erroResolver}
-                  </Banner>
+                  <ErroDeGravacao mensagem={erroResolver} />
                 ) : null}
                 <Dica>
                   Enquanto você não souber, deixe como está —{" "}
@@ -416,6 +416,9 @@ export default function DetalhePagamento() {
                       <Dica>{r.efeito}</Dica>
                     </div>
                   ))}
+                  {/* Critério 6: três botões de mesmo peso — trocar o rótulo
+                      de todos mentiria sobre qual foi tocado. Só o aviso. */}
+                  <AvisoDeGravacao ocupado={resolvendo} />
                 </div>
               </>
             ) : null}

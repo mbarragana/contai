@@ -4,6 +4,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { COOKIE_SESSAO } from "@/lib/auth";
+import { criarFetchDeTela } from "@/lib/rede";
 
 /**
  * Client do browser. A publishable key é pública por design — o que protege
@@ -64,6 +65,13 @@ export function getSupabase(): SupabaseClient {
     // createBrowserClient.js da 0.12.4). O resto é o padrão da biblioteca:
     // path "/", SameSite=Lax, maxAge de 400 dias.
     cookieOptions: { name: STORAGE_KEY },
+    // CONTAI-006, critério 4. O retry do postgrest-js é 1 s + 2 s + 4 s e não
+    // aceita outro número: é padrão de job de servidor, não de tela na mão de
+    // gente — foram os 7,7 s medidos no Gate 3 do CONTAI-001. Aqui ele é
+    // DESLIGADO e a repetição passa a ser a de `lib/rede.ts`, com teto e com
+    // aviso à tela a cada tentativa que falha (critérios 2, 3 e 5).
+    db: { retry: false },
+    global: { fetch: criarFetchDeTela() },
     auth: {
       // Critério 3: fechar e reabrir o PWA não pode pedir código de novo. O
       // SDK renova o access token sozinho enquanto a aba está aberta, e o

@@ -11,6 +11,7 @@ import {
   Banner,
   Botao,
   BotaoLink,
+  BotaoSalvar,
   Card,
   Carregando,
   Chip,
@@ -27,7 +28,7 @@ import {
   carregarObras,
   carregarPainelDePendencias,
   classificarErro,
-  mensagemDeErro,
+  mensagemDeErroDeGravacao,
   type ErroDeTela,
 } from "@/lib/data";
 import { formatarDataBR } from "@/lib/fiscal/obra";
@@ -167,7 +168,7 @@ export default function DetalheDaPendencia() {
         setGravando(false);
         return;
       }
-      setErroGravar(mensagemDeErro(erro));
+      setErroGravar(mensagemDeErroDeGravacao(erro, "na lista de pendências, se esta já aparece baixada"));
     } finally {
       setGravando(false);
     }
@@ -301,7 +302,8 @@ export default function DetalheDaPendencia() {
             </BotaoLink>
           ) : tratando ? (
             <>
-              <Botao
+              <BotaoSalvar
+                ocupado={gravando}
                 variante="primary"
                 onClick={baixar}
                 disabled={gravando || !desfecho || data === ""}
@@ -313,7 +315,7 @@ export default function DetalheDaPendencia() {
                     : data === ""
                       ? "Informe a data para continuar"
                       : "Marcar como tratada"}
-              </Botao>
+              </BotaoSalvar>
               <Botao variante="ghost" onClick={() => setTratando(false)}>
                 Cancelar
               </Botao>
@@ -569,7 +571,8 @@ export default function DetalheDaPendencia() {
           </BotaoLink>
         ) : tratando ? (
           <>
-            <Botao
+            <BotaoSalvar
+              ocupado={gravando}
               variante="primary"
               onClick={baixar}
               disabled={gravando || !desfecho || faltaData}
@@ -581,7 +584,7 @@ export default function DetalheDaPendencia() {
                   : faltaData
                     ? "Informe a data para continuar"
                     : "Marcar como tratada"}
-            </Botao>
+            </BotaoSalvar>
             <Botao variante="ghost" onClick={() => setTratando(false)}>
               Cancelar
             </Botao>

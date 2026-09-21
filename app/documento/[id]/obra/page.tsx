@@ -7,14 +7,15 @@ import { useSessao } from "@/app/_components/sessao";
 import {
   AppBar,
   Banner,
-  Botao,
   BotaoLink,
+  BotaoSalvar,
   Card,
   Carregando,
   Chip,
   Consequencia,
   Corpo,
   Dica,
+  ErroDeGravacao,
   EstadoErro,
   Linha,
   Passo,
@@ -24,7 +25,7 @@ import {
   carregarDocumento,
   carregarPaineis,
   classificarErro,
-  mensagemDeErro,
+  mensagemDeErroDeGravacao,
   moverDocumentoDeObra,
   type ErroDeTela,
   type PainelDados,
@@ -282,7 +283,7 @@ export default function CorrigirObraDoDocumento() {
         pedirReautenticacao();
         return;
       }
-      setErroGravar(mensagemDeErro(erro));
+      setErroGravar(mensagemDeErroDeGravacao(erro, "no detalhe da nota, para ver em qual obra ela está"));
     }
   }
 
@@ -407,12 +408,22 @@ export default function CorrigirObraDoDocumento() {
       />
       <Corpo>
         {erroGravar ? (
-          <Banner cor="red" role="alert">
-            <strong>Não deu para gravar.</strong> {erroGravar}{" "}
-            <strong>Nada foi alterado</strong> — o registro continua em{" "}
-            {nomeOrigem}, os pagamentos continuam como estavam e nenhum registro
-            de correção foi criado.
-          </Banner>
+          <ErroDeGravacao
+            mensagem={erroGravar}
+            antes={
+              <>
+                <strong>Não deu para gravar.</strong>{" "}
+              </>
+            }
+            depois={
+              <>
+                {" "}
+                <strong>Nada foi alterado</strong> — o registro continua em{" "}
+                {nomeOrigem}, os pagamentos continuam como estavam e nenhum
+                registro de correção foi criado.
+              </>
+            }
+          />
         ) : null}
 
         <Card>
@@ -677,13 +688,14 @@ export default function CorrigirObraDoDocumento() {
       </Corpo>
 
       <Rodape>
-        <Botao
+        <BotaoSalvar
+          ocupado={gravando}
           variante="primary"
           onClick={gravar}
           disabled={gravando || !podeGravar}
         >
           {gravando ? "Gravando…" : rotuloBotao}
-        </Botao>
+        </BotaoSalvar>
         <BotaoLink href={`/documento/${doc.id}`}>Cancelar</BotaoLink>
       </Rodape>
     </>

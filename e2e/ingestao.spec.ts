@@ -19,6 +19,7 @@ import {
   preencherDocumentoBasico,
   responderCnoDaNota,
 } from "./formularios";
+import { TETO_DE_LEITURA_MS } from "@/lib/rede";
 
 /**
  * Fluxo de ingestão contra o Supabase LOCAL: sessão de verdade, linhas de
@@ -281,11 +282,21 @@ test.describe("home de pendências", () => {
     await expect(page.locator("[data-afericao-inss]")).toHaveCount(0);
   });
 
-  test("estado de erro: banco fora, com saída", async ({ page }) => {
+  test("estado de erro: banco fora, com saída — e sem mentir enquanto espera", async ({
+    page,
+  }) => {
     // Único ponto em que a rede é falsificada: derrubar o Postgres no meio da
     // suíte custaria caro e não provaria nada além disto — que o app trata
     // falha do PostgREST como erro com saída, não como tela vazia. O 503 é o
     // que o PostgREST devolve quando não alcança o banco.
+    //
+    // ⚠️ CONTAI-006 mora neste teste. Antes dele, a tela ficava ~7,7 s dizendo
+    // "Carregando a obra" — o postgrest-js repetia o 503 com backoff de
+    // 1 s + 2 s + 4 s — quando desde o primeiro instante já sabia que a
+    // primeira tentativa tinha falhado. O achado chamou isso de MENTIRA, e é o
+    // que as duas asserções abaixo travam: o texto muda antes do fim das
+    // tentativas (critério 2) e o total cabe no teto documentado
+    // (`TETO_DE_LEITURA_MS`, critérios 4 e 5).
     await page.route(`${URL_SUPABASE_LOCAL}/rest/v1/**`, (rota) =>
       rota.fulfill({
         status: 503,
@@ -297,16 +308,32 @@ test.describe("home de pendências", () => {
       }),
     );
 
+    // O relógio começa na PRIMEIRA chamada ao PostgREST, não no `goto`: em
+    // `next dev` a compilação da rota entra no meio e não é o que se mede.
+    const primeiraChamada = page.waitForRequest((r) =>
+      r.url().includes("/rest/v1/"),
+    );
     await page.goto("/");
+    await primeiraChamada;
+    const inicio = Date.now();
 
-    // Timeout folgado de propósito: o postgrest-js repete 503/520 três vezes
-    // com backoff (1s+2s+4s) antes de desistir, então a tela fica ~7s em
-    // "Carregando a obra". Medido contra o stack local — o stub HTTP escondia
-    // isso porque devolvia 500, que não é status repetível.
+    // Critério 2: a tela para de dizer "carregando" assim que a primeira
+    // tentativa falha, com o retry ainda rodando por baixo.
+    await expect(
+      page.getByText("Sem resposta do servidor — tentando de novo."),
+    ).toBeVisible({ timeout: TETO_DE_LEITURA_MS });
+
+    // Escopado em `main`: o Next mantém um `role="alert"` vazio no
+    // route-announcer, e `getByRole("alert")` sozinho viola o strict mode.
     await expect(page.getByRole("main").getByRole("alert")).toContainText(/\w/, {
       timeout: 20_000,
     });
     await expect(page.getByRole("button", { name: "Tentar de novo" })).toBeVisible();
+
+    // ⚠️ Critério 5, a asserção que FALHA se alguém devolver o backoff antigo:
+    // 1+2+4 s dava ~7,7 s, e não cabe aqui. A folga de 1 s é para o render, não
+    // para uma tentativa a mais.
+    expect(Date.now() - inicio).toBeLessThan(TETO_DE_LEITURA_MS + 1_000);
   });
 });
 

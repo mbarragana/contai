@@ -7,8 +7,8 @@ import { CampoTexto } from "@/app/_components/campos";
 import {
   AppBar,
   Banner,
-  Botao,
   BotaoLink,
+  BotaoSalvar,
   Card,
   Carregando,
   Consequencia,
@@ -23,7 +23,7 @@ import {
   carregarObra,
   classificarErro,
   criarFinanciamento,
-  mensagemDeErro,
+  mensagemDeErroDeGravacao,
   type ErroDeTela,
 } from "@/lib/data";
 import { formatarDataBR } from "@/lib/fiscal/obra";
@@ -151,7 +151,7 @@ export default function ContratoDoFinanciamento() {
       });
       router.push(`/obras/${id}/terreno`);
     } catch (erro) {
-      setErroSalvar(mensagemDeErro(erro));
+      setErroSalvar(mensagemDeErroDeGravacao(erro, "na tela do terreno, se o contrato já aparece cadastrado"));
       setFase({ nome: "pronto" });
     }
   }
@@ -290,13 +290,14 @@ export default function ContratoDoFinanciamento() {
       </Corpo>
 
       <Rodape>
-        <Botao
+        <BotaoSalvar
+          ocupado={fase.nome === "salvando"}
           variante="primary"
           onClick={() => void salvar()}
           disabled={fase.nome === "salvando"}
         >
           {fase.nome === "salvando" ? "Salvando…" : "Cadastrar contrato"}
-        </Botao>
+        </BotaoSalvar>
         <BotaoLink href={`/obras/${id}/terreno`}>Voltar ao terreno</BotaoLink>
       </Rodape>
     </>

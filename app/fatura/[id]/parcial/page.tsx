@@ -15,8 +15,8 @@ import { CampoTexto } from "@/app/_components/campos";
 import {
   AppBar,
   Banner,
-  Botao,
   BotaoLink,
+  BotaoSalvar,
   Card,
   Carregando,
   Corpo,
@@ -27,7 +27,7 @@ import {
   carregarCompromissos,
   carregarFatura,
   classificarErro,
-  mensagemDeErro,
+  mensagemDeErroDeGravacao,
   registrarDesembolsoDeFatura,
   type ErroDeTela,
 } from "@/lib/data";
@@ -113,7 +113,7 @@ export default function RegistrarValorPagoParcial() {
       router.push(`/fatura/${fatura.id}/alocar?desembolso=${desembolsoId}`);
     } catch (e) {
       setEstado({ fase: "pronto", fatura, abertas });
-      setErro(mensagemDeErro(e));
+      setErro(mensagemDeErroDeGravacao(e, "na fatura, se o pagamento parcial já aparece lançado"));
     }
   }
 
@@ -177,7 +177,8 @@ export default function RegistrarValorPagoParcial() {
         </Card>
       </Corpo>
       <Rodape>
-        <Botao
+        <BotaoSalvar
+          ocupado={estado.fase === "salvando"}
           variante="primary"
           onClick={salvar}
           disabled={!podeSalvar || estado.fase === "salvando"}
@@ -187,7 +188,7 @@ export default function RegistrarValorPagoParcial() {
             : valorCentavos !== null && valorCentavos > 0
               ? `Salvar pagamento — ${formatarBRL(valorCentavos)} registrado`
               : "Informe a data e o valor pago"}
-        </Botao>
+        </BotaoSalvar>
         <BotaoLink href={`/fatura/${fatura.id}`}>Voltar sem salvar</BotaoLink>
       </Rodape>
     </>

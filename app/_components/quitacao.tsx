@@ -33,16 +33,17 @@ import { useCallback, useEffect, useState } from "react";
 
 import { CampoTexto } from "@/app/_components/campos";
 import {
-  Banner,
+  AvisoDeGravacao,
   Botao,
   Card,
   Carregando,
   Dica,
+  ErroDeGravacao,
 } from "@/app/_components/ui";
 import {
   carregarCompromissos,
   carregarRecusasQuitacao,
-  mensagemDeErro,
+  mensagemDeErroDeGravacao,
   quitarCompromisso,
   recusarQuitacao,
 } from "@/lib/data";
@@ -122,7 +123,7 @@ export function SugestaoQuitacao({
         }
         setTentativa((t) => t + 1);
       } catch (e) {
-        setErro(mensagemDeErro(e));
+        setErro(mensagemDeErroDeGravacao(e, "na lista de compromissos"));
       } finally {
         setGravando(null);
       }
@@ -131,17 +132,25 @@ export function SugestaoQuitacao({
   );
 
   if (elegiveis === null) {
-    return <Carregando rotulo="Procurando agendamentos parecidos" />;
+    // ⚠️ `onTentarDeNovo` é obrigatório AQUI: este bloco mora embaixo da
+    // confirmação do pagamento recém-gravado, e o "Tentar de novo" padrão do
+    // `Carregando` recarrega a página — o que apagaria a confirmação e levaria
+    // a um formulário vazio, como se o registro não tivesse acontecido.
+    return (
+      <Carregando
+        rotulo="Procurando agendamentos parecidos"
+        onTentarDeNovo={() => setTentativa((t) => t + 1)}
+      />
+    );
   }
   if (elegiveis.length === 0) return null;
 
   return (
     <div className="flex flex-col gap-3" data-bloco="sugestao-quitacao">
-      {erro ? (
-        <Banner cor="red" role="alert">
-          {erro}
-        </Banner>
-      ) : null}
+      {erro ? <ErroDeGravacao mensagem={erro} /> : null}
+      {/* CONTAI-006, critério 6: aqui o "Salvar" são vários botões de mesmo
+          peso (§D), então o aviso de espera vem uma vez, para o bloco. */}
+      <AvisoDeGravacao ocupado={gravando !== null} />
       {elegiveis.map((c) => (
         <CartaoSugestao
           key={c.id}

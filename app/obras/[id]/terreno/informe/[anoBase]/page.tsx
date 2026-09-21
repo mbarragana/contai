@@ -10,6 +10,7 @@ import {
   Banner,
   Botao,
   BotaoLink,
+  BotaoSalvar,
   Card,
   Carregando,
   Chip,
@@ -27,7 +28,7 @@ import {
   carregarObra,
   classificarErro,
   criarInforme,
-  mensagemDeErro,
+  mensagemDeErroDeGravacao,
   subirParaAcervo,
   type ErroDeTela,
 } from "@/lib/data";
@@ -289,7 +290,7 @@ export default function InformeAnual() {
       const codigo = (erro as { code?: string } | null)?.code;
       // 23505 = `unique (financiamento_id, ano_base)` — a trava da dupla
       // contagem no banco. A tela diz o motivo por extenso, não o código.
-      setErroSalvar(codigo === "23505" ? UM_INFORME_POR_ANO : mensagemDeErro(erro));
+      setErroSalvar(codigo === "23505" ? UM_INFORME_POR_ANO : mensagemDeErroDeGravacao(erro, "na tela do terreno, se o informe deste ano já aparece gravado"));
       setFase({ nome: "pronto" });
     }
   }
@@ -788,7 +789,8 @@ export default function InformeAnual() {
         </Card>
       </Corpo>
       <Rodape>
-        <Botao
+        <BotaoSalvar
+          ocupado={fase.nome === "salvando"}
           variante="primary"
           onClick={() => void gravar()}
           disabled={fase.nome === "salvando" || !podeGravar}
@@ -796,7 +798,7 @@ export default function InformeAnual() {
           {fase.nome === "salvando"
             ? "Gravando…"
             : `Gravar informe de ${anoBase}`}
-        </Botao>
+        </BotaoSalvar>
         <Botao variante="ghost" onClick={() => setPasso(2)}>
           Voltar aos números
         </Botao>

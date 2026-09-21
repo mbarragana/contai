@@ -20,8 +20,8 @@ import { CampoTexto } from "@/app/_components/campos";
 import {
   AppBar,
   Banner,
-  Botao,
   BotaoLink,
+  BotaoSalvar,
   Card,
   Carregando,
   Corpo,
@@ -34,7 +34,7 @@ import {
   cancelarCompromisso,
   carregarCompromisso,
   classificarErro,
-  mensagemDeErro,
+  mensagemDeErroDeGravacao,
   type ErroDeTela,
 } from "@/lib/data";
 import { preposicaoDeTempo } from "@/lib/fiscal/compromisso";
@@ -78,7 +78,7 @@ export default function CancelarAgendamento() {
       await cancelarCompromisso(id, motivo.trim());
       router.push(`/compromisso/${id}`);
     } catch (e) {
-      setErro(mensagemDeErro(e));
+      setErro(mensagemDeErroDeGravacao(e, "na lista de compromissos"));
       setSalvando(false);
     }
   }
@@ -159,7 +159,8 @@ export default function CancelarAgendamento() {
         ) : null}
       </Corpo>
       <Rodape>
-        <Botao
+        <BotaoSalvar
+          ocupado={salvando}
           variante="primary"
           onClick={salvar}
           disabled={
@@ -169,7 +170,7 @@ export default function CancelarAgendamento() {
           }
         >
           {salvando ? "Salvando…" : "Marcar que não vai ser pago"}
-        </Botao>
+        </BotaoSalvar>
         <BotaoLink href={`/compromisso/${id}`}>Voltar sem salvar</BotaoLink>
       </Rodape>
     </>

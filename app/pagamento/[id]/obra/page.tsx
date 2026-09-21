@@ -7,14 +7,15 @@ import { useSessao } from "@/app/_components/sessao";
 import {
   AppBar,
   Banner,
-  Botao,
   BotaoLink,
+  BotaoSalvar,
   Card,
   Carregando,
   Chip,
   Consequencia,
   Corpo,
   Dica,
+  ErroDeGravacao,
   EstadoErro,
   Linha,
   Passo,
@@ -24,7 +25,7 @@ import {
   carregarPagamento,
   carregarPaineis,
   classificarErro,
-  mensagemDeErro,
+  mensagemDeErroDeGravacao,
   moverPagamentoDeObra,
   type ErroDeTela,
   type PainelDados,
@@ -293,7 +294,7 @@ export default function CorrigirObraDoPagamento() {
         pedirReautenticacao();
         return;
       }
-      setErroGravar(mensagemDeErro(erro));
+      setErroGravar(mensagemDeErroDeGravacao(erro, "no detalhe do pagamento, para ver em qual obra ele está"));
     }
   }
 
@@ -422,12 +423,22 @@ export default function CorrigirObraDoPagamento() {
       />
       <Corpo>
         {erroGravar ? (
-          <Banner cor="red" role="alert">
-            <strong>Não deu para gravar.</strong> {erroGravar}{" "}
-            <strong>Nada foi alterado</strong> — o pagamento continua em{" "}
-            {nomeOrigem}, as notas continuam como estavam e nenhum registro de
-            correção foi criado.
-          </Banner>
+          <ErroDeGravacao
+            mensagem={erroGravar}
+            antes={
+              <>
+                <strong>Não deu para gravar.</strong>{" "}
+              </>
+            }
+            depois={
+              <>
+                {" "}
+                <strong>Nada foi alterado</strong> — o pagamento continua em{" "}
+                {nomeOrigem}, as notas continuam como estavam e nenhum registro
+                de correção foi criado.
+              </>
+            }
+          />
         ) : null}
 
         <Card>
@@ -681,13 +692,14 @@ export default function CorrigirObraDoPagamento() {
       </Corpo>
 
       <Rodape>
-        <Botao
+        <BotaoSalvar
+          ocupado={gravando}
           variante="primary"
           onClick={gravar}
           disabled={gravando || !podeGravar}
         >
           {gravando ? "Gravando…" : rotuloBotao}
-        </Botao>
+        </BotaoSalvar>
         <BotaoLink href={`/pagamento/${pag.id}`}>Cancelar</BotaoLink>
       </Rodape>
     </>

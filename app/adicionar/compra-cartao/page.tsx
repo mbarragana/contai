@@ -24,8 +24,8 @@ import { useObraDoRegistro } from "@/app/_components/usar-obra-do-registro";
 import {
   AppBar,
   Banner,
-  Botao,
   BotaoLink,
+  BotaoSalvar,
   Card,
   Carregando,
   Corpo,
@@ -39,7 +39,7 @@ import {
   classificarErro,
   criarCompraCartao,
   garantirFavorecido,
-  mensagemDeErro,
+  mensagemDeErroDeGravacao,
 } from "@/lib/data";
 import {
   RECUSA_PARCELADO,
@@ -155,7 +155,7 @@ export default function NovaCompraCartao() {
         pedirReautenticacao();
         return;
       }
-      setErroSalvar(mensagemDeErro(erro));
+      setErroSalvar(mensagemDeErroDeGravacao(erro, "na lista de compras desta fatura"));
     }
   }
 
@@ -321,7 +321,8 @@ export default function NovaCompraCartao() {
       {registro.fase === "pronta" ? (
         <Rodape>
           <Passo>Passo 2 de 2 ↓</Passo>
-          <Botao
+          <BotaoSalvar
+            ocupado={fase.nome === "salvando"}
             variante="ghost"
             onClick={salvar}
             disabled={fase.nome === "salvando" || !podeSalvar}
@@ -337,7 +338,7 @@ export default function NovaCompraCartao() {
                       ? `Informe ${faltando} para continuar`
                       : "Preencha os campos para continuar"
                     : "Agendar — não entra no custo"}
-          </Botao>
+          </BotaoSalvar>
           <BotaoLink href="/adicionar">Voltar</BotaoLink>
         </Rodape>
       ) : (

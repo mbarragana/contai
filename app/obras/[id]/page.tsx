@@ -7,8 +7,8 @@ import { AvisoEquiparacao, PendenciaCno } from "@/app/_components/obra";
 import {
   AppBar,
   Banner,
-  Botao,
   BotaoLink,
+  BotaoSalvar,
   Carregando,
   Corpo,
   Dica,
@@ -29,7 +29,7 @@ import {
   atualizarObra,
   carregarObra,
   classificarErro,
-  mensagemDeErro,
+  mensagemDeErroDeGravacao,
   type ErroDeTela,
 } from "@/lib/data";
 import { validarObra, type ErroCampoObra } from "@/lib/fiscal/obra";
@@ -117,7 +117,7 @@ export default function DadosDaObra() {
       setSalvo(true);
       setFase({ nome: "pronto" });
     } catch (erro) {
-      setErroSalvar(mensagemDeErro(erro));
+      setErroSalvar(mensagemDeErroDeGravacao(erro, "no cadastro da obra, se as alterações já aparecem salvas"));
       setFase({ nome: "pronto" });
     }
   }
@@ -195,13 +195,14 @@ export default function DadosDaObra() {
         </Dica>
       </Corpo>
       <Rodape>
-        <Botao
+        <BotaoSalvar
+          ocupado={fase.nome === "salvando"}
           variante="primary"
           onClick={salvar}
           disabled={fase.nome === "salvando"}
         >
           {fase.nome === "salvando" ? "Salvando…" : "Salvar alterações"}
-        </Botao>
+        </BotaoSalvar>
         <BotaoLink href="/">Voltar</BotaoLink>
       </Rodape>
     </>

@@ -7,13 +7,14 @@ import { useSessao } from "@/app/_components/sessao";
 import {
   AppBar,
   Banner,
-  Botao,
   BotaoLink,
+  BotaoSalvar,
   Card,
   Carregando,
   Consequencia,
   Corpo,
   Dica,
+  ErroDeGravacao,
   EstadoErro,
   Passo,
   Rodape,
@@ -23,7 +24,7 @@ import {
   carregarPainel,
   classificarErro,
   criarVinculos,
-  mensagemDeErro,
+  mensagemDeErroDeGravacao,
   type ErroDeTela,
   type PainelDados,
 } from "@/lib/data";
@@ -223,7 +224,7 @@ export default function LigarPagamentos() {
         pedirReautenticacao();
         return;
       }
-      setErroSalvar(mensagemDeErro(erro));
+      setErroSalvar(mensagemDeErroDeGravacao(erro, "no detalhe da nota, se os pagamentos já aparecem ligados"));
     }
   }
 
@@ -266,10 +267,20 @@ export default function LigarPagamentos() {
       />
       <Corpo>
         {erroSalvar ? (
-          <Banner cor="red" role="alert">
-            <strong>Não deu para ligar.</strong> {erroSalvar}{" "}
-            <strong>Nada foi ligado</strong> — a nota continua como estava.
-          </Banner>
+          <ErroDeGravacao
+            mensagem={erroSalvar}
+            antes={
+              <>
+                <strong>Não deu para ligar.</strong>{" "}
+              </>
+            }
+            depois={
+              <>
+                {" "}
+                <strong>Nada foi ligado</strong> — a nota continua como estava.
+              </>
+            }
+          />
         ) : null}
 
         {/* Saldo restante da nota, atualizando a cada marcação. */}
@@ -418,7 +429,8 @@ export default function LigarPagamentos() {
             {formatarBRL(efeito?.acumuladoDepois ?? 0)}
           </span>
         </Dica>
-        <Botao
+        <BotaoSalvar
+          ocupado={salvando}
           variante="primary"
           onClick={ligar}
           disabled={marcadosDeVerdade.length === 0 || salvando}
@@ -428,7 +440,7 @@ export default function LigarPagamentos() {
             : marcadosDeVerdade.length === 0
               ? "Marque ao menos um pagamento"
               : `Ligar ${marcadosDeVerdade.length} ${marcadosDeVerdade.length === 1 ? "pagamento" : "pagamentos"} — ${formatarBRL(somaMarcados)}`}
-        </Botao>
+        </BotaoSalvar>
         <BotaoLink href={`/documento/${d.id}`}>Cancelar</BotaoLink>
       </Rodape>
     </>

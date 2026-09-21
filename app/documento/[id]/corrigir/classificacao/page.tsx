@@ -20,13 +20,14 @@ import { useSessao } from "@/app/_components/sessao";
 import {
   AppBar,
   Banner,
-  Botao,
   BotaoLink,
+  BotaoSalvar,
   Card,
   Carregando,
   Consequencia,
   Corpo,
   Dica,
+  ErroDeGravacao,
   EstadoErro,
   Linha,
   Passo,
@@ -37,7 +38,7 @@ import {
   carregarPainel,
   classificarErro,
   corrigirClassificacaoDoDocumento,
-  mensagemDeErro,
+  mensagemDeErroDeGravacao,
   subirParaAcervo,
   type ErroDeTela,
   type PainelDados,
@@ -150,7 +151,7 @@ export default function CorrigirClassificacao() {
         pedirReautenticacao();
         return;
       }
-      setErroGravar(mensagemDeErro(erro));
+      setErroGravar(mensagemDeErroDeGravacao(erro, "no detalhe da nota, se a classificação já aparece corrigida"));
     }
   }
 
@@ -260,11 +261,21 @@ export default function CorrigirClassificacao() {
       <AppBar titulo="Corrigir a classificação" sub={`${sub} · passos 2 e 3 de 3`} />
       <Corpo>
         {erroGravar ? (
-          <Banner cor="red" role="alert">
-            <strong>Não deu para gravar.</strong> {erroGravar}{" "}
-            <strong>Nada foi alterado</strong> — a classificação continua como
-            estava e nenhum registro de correção foi criado.
-          </Banner>
+          <ErroDeGravacao
+            mensagem={erroGravar}
+            antes={
+              <>
+                <strong>Não deu para gravar.</strong>{" "}
+              </>
+            }
+            depois={
+              <>
+                {" "}
+                <strong>Nada foi alterado</strong> — a classificação continua
+                como estava e nenhum registro de correção foi criado.
+              </>
+            }
+          />
         ) : null}
 
         <MotivoEscolhidoResumo
@@ -372,7 +383,7 @@ export default function CorrigirClassificacao() {
       </Corpo>
 
       <Rodape>
-        <Botao variante="primary" onClick={gravar} disabled={!podeGravar}>
+        <BotaoSalvar ocupado={gravando} variante="primary" onClick={gravar} disabled={!podeGravar}>
           {gravando
             ? "Gravando…"
             : escolha === null
@@ -382,7 +393,7 @@ export default function CorrigirClassificacao() {
                 : faltaAnexo
                   ? "Anexe o documento novo para gravar"
                   : "Gravar a correção"}
-        </Botao>
+        </BotaoSalvar>
         <BotaoLink href={documentoHref}>Cancelar</BotaoLink>
       </Rodape>
     </>

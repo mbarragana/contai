@@ -502,13 +502,22 @@ test.describe("confirmar o pagamento de um agendamento", () => {
 
     await page.getByRole("button", { name: "Salvar pagamento" }).click();
 
-    // Timeout folgado: o postgrest-js repete 503 três vezes com backoff
-    // (1s+2s+4s) antes de desistir.
     // Escopado em `main`: o Next mantém um `role="alert"` vazio no
     // route-announcer, e `getByRole("alert")` sozinho viola o strict mode.
+    // (Gravação nunca é repetida — nem antes nem depois do CONTAI-006 —, então
+    // o 503 do vínculo volta na primeira tentativa.)
     await expect(page.getByRole("main").getByRole("alert")).toContainText(
       "O pagamento já está salvo",
       { timeout: 20_000 },
+    );
+
+    // ⚠️ CONTAI-006, critério 6, pelo lado que erra mais caro: aqui o servidor
+    // RESPONDEU (503 com corpo), então o app SABE que o vínculo não entrou e
+    // afirma isso. O texto de resultado incerto não pode aparecer — ele só vale
+    // quando nenhuma resposta chegou, e usá-lo aqui devolveria ao Mateus a
+    // dúvida que esta tela justamente resolveu.
+    await expect(page.getByRole("main")).not.toContainText(
+      "Não deu para confirmar se isso foi salvo",
     );
 
     // Meio do caminho: pagamento gravado, vínculo não.

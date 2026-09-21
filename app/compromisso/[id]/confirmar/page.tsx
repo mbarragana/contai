@@ -37,6 +37,7 @@ import {
   Banner,
   Botao,
   BotaoLink,
+  BotaoSalvar,
   Card,
   Carregando,
   Corpo,
@@ -52,7 +53,7 @@ import {
   carregarPainel,
   classificarErro,
   criarPagamento,
-  mensagemDeErro,
+  mensagemDeErroDeGravacao,
   quitarCompromisso,
   registrarDiferenca,
   subirParaAcervo,
@@ -284,7 +285,7 @@ export default function ConfirmarPagamento() {
 
       router.push(`/pagamento/${feito.pagamentoId!}`);
     } catch (e) {
-      setErro(mensagemDeErro(e));
+      setErro(mensagemDeErroDeGravacao(e, "na lista de pagamentos desta obra"));
       setSalvando(false);
     }
   }
@@ -522,7 +523,7 @@ export default function ConfirmarPagamento() {
         </Card>
       </Corpo>
       <Rodape>
-        <Botao variante="primary" onClick={salvar} disabled={salvando || !podeSalvar}>
+        <BotaoSalvar ocupado={salvando} variante="primary" onClick={salvar} disabled={salvando || !podeSalvar}>
           {salvando
             ? "Salvando…"
             : progresso.pagamentoId !== null
@@ -532,7 +533,7 @@ export default function ConfirmarPagamento() {
                 : pagouMenos && escolhaMenor === null
                   ? "Diga se quita ou se falta o resto"
                   : "Salvar pagamento"}
-        </Botao>
+        </BotaoSalvar>
         {/* Critério 44: sair sem gravar não altera nada e não deixa rascunho. */}
         <BotaoLink href={`/compromisso/${compromisso.id}`}>
           Voltar sem salvar

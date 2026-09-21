@@ -22,6 +22,7 @@ import {
   Banner,
   Botao,
   BotaoLink,
+  BotaoSalvar,
   Card,
   Carregando,
   Corpo,
@@ -33,7 +34,7 @@ import {
 import {
   carregarCompromisso,
   classificarErro,
-  mensagemDeErro,
+  mensagemDeErroDeGravacao,
   mudarDataCompraCartao,
   mudarDataPrevista,
   type ErroDeTela,
@@ -97,7 +98,7 @@ export default function MudarData() {
       }
       router.push(`/compromisso/${compromisso.id}`);
     } catch (e) {
-      setErro(mensagemDeErro(e));
+      setErro(mensagemDeErroDeGravacao(e, "na lista de compromissos"));
       setSalvando(false);
     }
   }
@@ -194,13 +195,14 @@ export default function MudarData() {
         ) : null}
       </Corpo>
       <Rodape>
-        <Botao
+        <BotaoSalvar
+          ocupado={salvando}
           variante="primary"
           onClick={salvar}
           disabled={salvando || !podeSalvar || compromisso?.situacao !== "aberto"}
         >
           {salvando ? "Salvando…" : "Salvar a nova data"}
-        </Botao>
+        </BotaoSalvar>
         <BotaoLink href={`/compromisso/${id}`}>Voltar sem salvar</BotaoLink>
       </Rodape>
     </>

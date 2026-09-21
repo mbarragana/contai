@@ -576,6 +576,27 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
   caminho pela interface; mesma categoria de D62, mesmo caminho futuro
   (extensão de `corrigir_documento`)
 
+### `39-2026-09-21-contai-006-entregue.md` — 30 linhas
+**CONTAI-006 entregue — 2026-09-21 — estados de rede lenta e indisponível**
+
+- Política de rede única (`lib/rede.ts`), `db.retry:false` desligando o retry
+  nativo do postgrest-js. Leitura: 3 tentativas, teto de 5s, texto reflete a
+  falha real a partir da 1ª tentativa (nunca "carregando" depois de saber que
+  falhou). Gravação: 1 tentativa, nunca repetida, teto de 10s, distingue
+  "não foi salvo" (resposta recebida) de "não deu para confirmar" (sem
+  resposta — manda conferir antes de repetir, para não duplicar)
+- Gate 2 (`cto-obra`) APPROVE com 1 rodada de rework (aviso de "sem resposta"
+  disparava também em escrita — falso; movido para dentro do ramo repetível).
+  Decisão sobre a tensão critério 3×8: teto de leitura se prova por unitário
+  com relógio injetado, não por rota que pendura em E2E — só o 503 do
+  PostgREST continua permitido como falsificação de rede em E2E
+- 817 unitários + 220/220 E2E + validação manual no browser (Postgres
+  pausado/despausado nos 4 estados, textos exatos do spec confirmados)
+- Sem migration
+- **D64** — upload ao Storage sem teto próprio (pode durar até o timeout TCP
+  do browser); não duplica nada, não bloqueou o ticket. Caminho futuro: teto
+  via `AbortSignal` no `.upload`, mesmo texto de resultado incerto do critério 6
+
 ## Ao acrescentar ao backlog
 
 Nova entrada = **arquivo novo** em `docs/backlog/`, nomeado

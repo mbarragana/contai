@@ -8,12 +8,13 @@ import { useSessao } from "@/app/_components/sessao";
 import {
   AppBar,
   Banner,
-  Botao,
   BotaoLink,
+  BotaoSalvar,
   Card,
   Carregando,
   Corpo,
   Dica,
+  ErroDeGravacao,
   EstadoErro,
   Linha,
   Passo,
@@ -23,7 +24,7 @@ import {
   anexarArquivoDocumento,
   carregarDocumento,
   classificarErro,
-  mensagemDeErro,
+  mensagemDeErroDeGravacao,
   subirParaAcervo,
   type ErroDeTela,
 } from "@/lib/data";
@@ -193,7 +194,7 @@ export default function AnexarArquivoDoDocumento() {
         pedirReautenticacao();
         return;
       }
-      setErroGravar(mensagemDeErro(erro));
+      setErroGravar(mensagemDeErroDeGravacao(erro, "no detalhe da nota, se o arquivo já aparece anexado"));
     }
   }
 
@@ -202,11 +203,21 @@ export default function AnexarArquivoDoDocumento() {
       <AppBar titulo="Anexar o arquivo" sub={sub} />
       <Corpo>
         {erroGravar ? (
-          <Banner cor="red" role="alert">
-            <strong>Não deu para anexar.</strong> {erroGravar}{" "}
-            <strong>Nada foi alterado</strong> — a nota continua sem arquivo, e
-            as suas respostas continuam aqui na tela.
-          </Banner>
+          <ErroDeGravacao
+            mensagem={erroGravar}
+            antes={
+              <>
+                <strong>Não deu para anexar.</strong>{" "}
+              </>
+            }
+            depois={
+              <>
+                {" "}
+                <strong>Nada foi alterado</strong> — a nota continua sem
+                arquivo, e as suas respostas continuam aqui na tela.
+              </>
+            }
+          />
         ) : null}
 
         <Card>
@@ -282,7 +293,7 @@ export default function AnexarArquivoDoDocumento() {
       </Corpo>
 
       <Rodape>
-        <Botao variante="primary" onClick={gravar} disabled={!podeGravar}>
+        <BotaoSalvar ocupado={gravando} variante="primary" onClick={gravar} disabled={!podeGravar}>
           {gravando
             ? "Anexando…"
             : arquivo === null
@@ -290,7 +301,7 @@ export default function AnexarArquivoDoDocumento() {
               : !respondeuAsDuas
                 ? "Responda as perguntas para confirmar"
                 : "Confirmar o arquivo e as respostas"}
-        </Botao>
+        </BotaoSalvar>
         <BotaoLink href={documentoHref}>Voltar sem gravar</BotaoLink>
       </Rodape>
     </>
