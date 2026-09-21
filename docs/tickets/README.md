@@ -129,7 +129,7 @@ ticket; retomar quando o Mateus puder aprovar o ícone e testar no aparelho.
 
 | # | ID | O que é | P |
 |---|---|---|---|
-| 1 | **034** | **Campo fiscal não nasce preenchido, e o teste prova** | P1 — ⚠️ existe só neste resumo, falta linha própria na tabela detalhada abaixo |
+| 1 | **034** | **Campo fiscal não nasce preenchido, e o teste prova** | P1 |
 | 2 | **037** | **Porta para o pagamento conciliado a partir do documento** | P1 |
 
 ### Parado, aguardando o Mateus (fora da fila ativa)
@@ -323,7 +323,8 @@ em 2026-09-20/21** (entregues — ver a nota no topo do arquivo; `038` e `006`
 com push pendente). **`014` saiu para "Parado, aguardando o Mateus"** (só o
 critério 4 entregue). Nenhum item desta tabela fica sem construir.
 
-| **1** | **037** | **Porta para o pagamento conciliado a partir do documento** | P1 | 🟢 **pronto para `/develop`** | Nasceu em 24/08 da reconciliação do `009` (único trabalho vivo do que sobrou). Ticket + mock nível 3 escritos e aprovados em 24/08 (`docs/tickets/CONTAI-037.md`, `design/mocks/CONTAI-037.md`) — complexidade XS, sem migration, um `BotaoLink` a mais numa linha que já existe |
+| **1** | **034** | **Campo fiscal não nasce preenchido, e o teste prova** | P1 | 🟢 **pronto para `/develop`** | Chore de infraestrutura de teste, sem Gate 0 (sem tela) e sem regra fiscal nova. `data-campo` nos controles + parser `fail-closed` do `## Campos` dos specs (`design/mocks/*.md`) + `e2e/campos-fiscais.spec.ts` enumerando rotas/controles. Prova contra a D44 real (`useState(hojeIso)`/`"pix"` tem que acender vermelho). Decisão já delegada pelo Mateus em 23/08 |
+| **2** | **037** | **Porta para o pagamento conciliado a partir do documento** | P1 | 🟢 **pronto para `/develop`** | Nasceu em 24/08 da reconciliação do `009` (único trabalho vivo do que sobrou). Ticket + mock nível 3 escritos e aprovados em 24/08 (`docs/tickets/CONTAI-037.md`, `design/mocks/CONTAI-037.md`) — complexidade XS, sem migration, um `BotaoLink` a mais numa linha que já existe |
 
 ### ⚠️ O que a fila diz de si mesma, e é desconfortável
 
