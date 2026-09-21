@@ -48,12 +48,16 @@ import {
   FORA_DO_CUSTO_CONFIRMADO,
   FORA_DO_CUSTO_CONFIRMADO_PORQUE,
 } from "@/lib/fiscal/terreno";
+import { bordaDaGravidade } from "@/lib/fiscal/gravidade";
 import {
   AVISO_ANO_ANTERIOR,
   EMITENTE_ERRADO_O_QUE_FALTA,
+  GRAVIDADE_CORRECAO_ANO_ANTERIOR,
   montarPendenciasDeAno,
   pendenciasAbertasDaObra,
+  sinalDoEmitenteErrado,
   type PendenciaDeAno,
+  type SinalDoEmitenteErrado,
 } from "@/lib/fiscal/revisao";
 import {
   EXPLICACAO_CUSTO_ZERO,
@@ -87,7 +91,13 @@ type Estado =
        */
       pendenciasDeCorrecao: PendenciaDeAno[];
       /** Marcações de "CNPJ errado" abertas de documentos DESTA obra. */
-      emitenteErrado: { id: string; documentoId: string; abertaEm: string }[];
+      emitenteErrado: {
+        id: string;
+        documentoId: string;
+        abertaEm: string;
+        /** Item D do CONTAI-035: a cor depende do vínculo, e o aviso do ano. */
+        sinal: SinalDoEmitenteErrado;
+      }[];
       nomeDasObras: Map<string, string>;
     };
 
@@ -149,6 +159,11 @@ export default function Home() {
               id: p.id,
               documentoId: p.documentoId as string,
               abertaEm: p.abertaEm,
+              sinal: sinalDoEmitenteErrado({
+                documentoId: p.documentoId as string,
+                vinculos: painelPendencias.vinculos,
+                anoCorrente: ano,
+              }),
             })),
           nomeDasObras: new Map(obras.map((o) => [o.id, o.nome])),
         });
@@ -447,8 +462,14 @@ export default function Home() {
                 .filter((o) => o.obraId !== obra.id)
                 .map((o) => estado.nomeDasObras.get(o.obraId) ?? "outra obra");
               return (
-                <Card key={p.id} className="border-amb" data-pendencia={p.ano}>
-                  <Chip cor="amb">Correção mexeu em ano anterior</Chip>
+                <Card
+                  key={p.id}
+                  className={bordaDaGravidade(GRAVIDADE_CORRECAO_ANO_ANTERIOR)}
+                  data-pendencia={p.ano}
+                >
+                  <Chip cor={GRAVIDADE_CORRECAO_ANO_ANTERIOR}>
+                    Correção mexeu em ano anterior
+                  </Chip>
                   <div className="mt-1.5 font-semibold">
                     {p.ano} — o custo do ano mudou depois de {p.quantidadeDeAtos}{" "}
                     {p.quantidadeDeAtos === 1 ? "correção sua" : "correções suas"}
@@ -472,7 +493,9 @@ export default function Home() {
                       {outras.join(", ")}.
                     </Dica>
                   ) : null}
-                  <Consequencia cor="amb">{AVISO_ANO_ANTERIOR}</Consequencia>
+                  <Consequencia cor={GRAVIDADE_CORRECAO_ANO_ANTERIOR}>
+                    {AVISO_ANO_ANTERIOR}
+                  </Consequencia>
                   <div className="mt-2.5">
                     <BotaoLink href={`/pendencias/${p.id}`}>
                       Abrir a pendência de {p.ano}
@@ -483,14 +506,20 @@ export default function Home() {
             })}
 
             {estado.emitenteErrado.map((p) => (
-              <Card key={p.id} className="border-amb">
-                <Chip cor="amb">CNPJ errado — tratar</Chip>
+              <Card key={p.id} className={bordaDaGravidade(p.sinal.gravidade)}>
+                <Chip cor={p.sinal.gravidade}>CNPJ errado — tratar</Chip>
                 <div className="mt-1.5 font-semibold">
                   O CNPJ do emitente de 1 documento está errado
                 </div>
-                <Consequencia cor="amb">
+                <Consequencia cor={p.sinal.gravidade}>
                   {EMITENTE_ERRADO_O_QUE_FALTA}
                 </Consequencia>
+                {/* O aviso NÃO carrega a cor da pendência: ele informa a
+                    escalada (critério 6), e por isso fica âmbar mesmo no card
+                    vermelho. */}
+                {p.sinal.avisoAnoAnterior ? (
+                  <Consequencia cor="amb">{p.sinal.avisoAnoAnterior}</Consequencia>
+                ) : null}
                 <div className="mt-2.5">
                   <BotaoLink href={`/documento/${p.documentoId}`}>
                     Ver o documento marcado
@@ -676,14 +705,22 @@ export default function Home() {
             {/* Ano JÁ FECHADO sem informe — o extrato existe, o dinheiro
                 saiu, e o custo daquele ano não existe no sistema. Vem ANTES do
                 "aguardando informe" porque é o único dos dois que tem ação
-                possível hoje. */}
+                possível hoje.
+                ⚠️ CONTAI-035, item B: era esta frase, escrita aqui, contra
+                `border-amb` na linha seguinte — o argumento do vermelho ao
+                lado da cor errada. A cor agora VEM da régua (`f.gravidade`),
+                e não dá mais para discordar dela sem apagar a conta. */}
             {estado.resumo.financiamentoFaltaLancar.length > 0 ? (
               <>
                 <Passo>Financiamento — informe anual não lançado</Passo>
                 {estado.resumo.financiamentoFaltaLancar.map((f) => (
-                  <Card key={f.ano} className="border-amb" data-falta-lancar={f.ano}>
-                    <Chip cor="amb">falta lançar {f.ano}</Chip>
-                    <Consequencia cor="amb">{f.aviso}</Consequencia>
+                  <Card
+                    key={f.ano}
+                    className={bordaDaGravidade(f.gravidade)}
+                    data-falta-lancar={f.ano}
+                  >
+                    <Chip cor={f.gravidade}>falta lançar {f.ano}</Chip>
+                    <Consequencia cor={f.gravidade}>{f.aviso}</Consequencia>
                     <div className="mt-2.5">
                       <BotaoLink href={f.href} variante="primary">
                         Registrar informe de {f.ano}

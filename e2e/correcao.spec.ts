@@ -677,6 +677,93 @@ test.describe("o ciclo da pendência de retificadora (critério 21)", () => {
     expect(errado.error).not.toBeNull();
     expect(await desfechosDePendencia(db)).toHaveLength(0);
   });
+
+  /**
+   * **CONTAI-035, item D — a única cor condicional da régua.**
+   *
+   * O que se prova aqui não dá para provar em Vitest: o `select` novo em
+   * `pagamento_documento` (com o ano do pagamento vindo por embed) roda contra
+   * o Postgres de verdade, sob a MESMA RLS do app. Um embed que a policy
+   * esvaziasse devolveria âmbar em cima de um pagamento que existe — e seria
+   * exatamente a falha que o ticket veio matar, com outra causa.
+   *
+   * Parecer de 2026-08-18 §4.4: o pagamento herda o favorecido errado no
+   * momento em que é ligado ao documento. A partir daí o acervo já reflete o
+   * favorecido errado na ficha Pagamentos Efetuados.
+   */
+  test("CNPJ errado: âmbar sem pagamento ligado, VERMELHO com pagamento — e o aviso de CRC só no ano fechado", async ({
+    page,
+    db,
+  }) => {
+    const favorecidoId = await cenarioFavorecido(db);
+    const documentoId = await criarDocumento(db, {
+      tipo: "nf_material",
+      favorecido_id: favorecidoId,
+      valor: 9400,
+      classificacao: "material",
+      destinatario_cpf_ok: true,
+    });
+
+    await page.goto(`/documento/${documentoId}/cnpj-errado`);
+    await page
+      .getByRole("button", {
+        name: "Marcar: o CNPJ deste registro está errado — tratar",
+      })
+      .click();
+    await expect(page.getByRole("status")).toContainText("Marcado.");
+
+    const pendenciaId = (await pendencias(db))[0].id;
+    const cartao = page.locator(`[data-pendencia-emitente="${pendenciaId}"]`);
+
+    // ── Sem vínculo: nada saiu por causa deste erro ────────────────────
+    await page.goto("/pendencias");
+    await expect(cartao).toHaveClass(/border-amb/);
+    await expect(cartao).not.toHaveClass(/border-red/);
+    await expect(
+      page.getByText("sustenta um pagamento de um ano anterior", {
+        exact: false,
+      }),
+    ).toHaveCount(0);
+
+    // ── Com vínculo de ANO ANTERIOR: vermelho + escalada ───────────────
+    const anoAnterior = new Date().getFullYear() - 1;
+    const pagamentoId = await criarPagamento(db, {
+      favorecido_id: favorecidoId,
+      valor: 9400,
+      data_pagamento: `${anoAnterior}-10-20`,
+      meio: "pix",
+      comprovante_path: "u/comprovante/pix.png",
+    });
+    await criarVinculo(db, pagamentoId, documentoId);
+
+    await page.goto("/pendencias");
+    await expect(cartao).toHaveClass(/border-red/);
+    // ⚠️ O aviso é ÂMBAR mesmo no card vermelho: ele informa a escalada, não
+    // carrega a cor da pendência (critério 6).
+    await expect(
+      cartao.getByText("sustenta um pagamento de um ano anterior", {
+        exact: false,
+      }),
+    ).toBeVisible();
+    await expect(
+      cartao.getByText(
+        "avalie retificadora com seu contador",
+        { exact: false },
+      ),
+    ).toBeVisible();
+
+    // A mesma régua na tela do documento, que carrega o vínculo por conta
+    // própria — duas leituras diferentes não podem divergir de cor.
+    await page.goto(`/documento/${documentoId}/cnpj-errado`);
+    await expect(
+      page.getByText("Já marcado — CNPJ errado, a tratar"),
+    ).toBeVisible();
+    await expect(
+      page.getByText("sustenta um pagamento de um ano anterior", {
+        exact: false,
+      }),
+    ).toBeVisible();
+  });
 });
 
 /**

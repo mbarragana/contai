@@ -722,6 +722,10 @@ test.describe("o financiamento nunca fica em silêncio (critério 16)", () => {
     // O ano JÁ FECHADO, com a consequência por extenso e a ação possível.
     const faltaLancar = page.locator(`[data-falta-lancar="${ANO_BASE}"]`);
     await expect(faltaLancar).toBeVisible();
+    // ⚠️ CONTAI-035, item B: VERMELHO. Era esta a pendência que a home
+    // descrevia com o argumento do vermelho ("o dinheiro saiu, e o custo
+    // daquele ano não existe no sistema") e pintava de âmbar.
+    await expect(faltaLancar).toHaveClass(/border-red/);
     await expect(
       faltaLancar.getByText(
         `custo de aquisição de ${ANO_BASE} não existe no sistema`,

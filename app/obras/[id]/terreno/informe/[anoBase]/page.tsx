@@ -31,8 +31,10 @@ import {
   subirParaAcervo,
   type ErroDeTela,
 } from "@/lib/data";
+import { papelDaGravidade } from "@/lib/fiscal/gravidade";
 import {
   custoDoInformeCentavos,
+  gravidadeDoContratoNaoCadastrado,
   GUARDADO_NAO_E_DESCARTADO,
   INFORME_EXIGE_ANEXO,
   INSUMO_PARA_REVISAO_CRC,
@@ -318,12 +320,22 @@ export default function InformeAnual() {
   }
 
   // ── Sem contrato não há informe ────────────────────────────────────────
+  //
+  // ⚠️ **CONTAI-035, item E: a branch continua sendo `!financiamento` — é a
+  // ausência do contrato que faz esta tela não ter o que mostrar —, mas a COR
+  // deixa de sair daí.** O campo que mede a gravidade é a NATUREZA: com
+  // `financiado`, as parcelas estão saindo e o custo delas está inteiro fora
+  // do sistema (vermelho); nas outras naturezas não há financiamento nenhum a
+  // registrar, e o aviso é só de navegação (âmbar).
   if (!financiamento) {
+    const gravidade = gravidadeDoContratoNaoCadastrado(
+      obra.naturezaAquisicaoTerreno,
+    );
     return (
       <>
         <AppBar titulo={`Informe anual de ${anoBase}`} sub={obra.nome} />
         <Corpo>
-          <Banner cor="amb" role="status">
+          <Banner cor={gravidade} role={papelDaGravidade(gravidade)}>
             O contrato do financiamento ainda não foi cadastrado, e o informe
             pertence a ele. Cadastre o contrato primeiro — é uma vez na vida.
           </Banner>

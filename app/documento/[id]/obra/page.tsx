@@ -29,6 +29,7 @@ import {
   type ErroDeTela,
   type PainelDados,
 } from "@/lib/data";
+import { bordaDaGravidade } from "@/lib/fiscal/gravidade";
 import { formatarDataBR, podeCorrigirObra } from "@/lib/fiscal/obra";
 import {
   anosAfetados,
@@ -36,6 +37,7 @@ import {
   AVISO_ANO_ANTERIOR,
   DESFECHO_FICA_NA_ORIGEM,
   DESFECHO_VAI_JUNTO,
+  GRAVIDADE_CORRECAO_ANO_ANTERIOR,
   MOVE_NAO_PERGUNTA_MOTIVO,
   PAGAMENTO_LIGADO_A_OUTRA_NOTA,
   pagamentosImpedidosDeIrJunto,
@@ -345,9 +347,13 @@ export default function CorrigirObraDoDocumento() {
           )}
 
           {estado.comPendencia ? (
-            <Card className="border-amb">
-              <Chip cor="amb">Correção mexeu em ano anterior</Chip>
-              <Consequencia cor="amb">{AVISO_ANO_ANTERIOR}</Consequencia>
+            <Card className={bordaDaGravidade(GRAVIDADE_CORRECAO_ANO_ANTERIOR)}>
+              <Chip cor={GRAVIDADE_CORRECAO_ANO_ANTERIOR}>
+                Correção mexeu em ano anterior
+              </Chip>
+              <Consequencia cor={GRAVIDADE_CORRECAO_ANO_ANTERIOR}>
+                {AVISO_ANO_ANTERIOR}
+              </Consequencia>
               <Dica>{SO_SEI_QUE_E_ANO_ANTERIOR}</Dica>
               <div className="mt-2.5">
                 <BotaoLink href="/pendencias">
@@ -631,7 +637,9 @@ export default function CorrigirObraDoDocumento() {
 
             {conta.anos.some((a) => a.pendencia) ? (
               <>
-                <Consequencia cor="amb">{AVISO_ANO_ANTERIOR}</Consequencia>
+                <Consequencia cor={GRAVIDADE_CORRECAO_ANO_ANTERIOR}>
+                  {AVISO_ANO_ANTERIOR}
+                </Consequencia>
                 <Dica>{SO_SEI_QUE_E_ANO_ANTERIOR}</Dica>
               </>
             ) : null}

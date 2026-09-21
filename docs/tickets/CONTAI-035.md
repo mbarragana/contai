@@ -26,7 +26,7 @@ pendência que já é fato consumado com consequência fiscal aberta.
        antes/depois, 25 linhas — 17 mudam + 8 conferidos) aprovada pelo
        Mateus. Sem tela nova, sem texto novo de vulto. Mock aprovado em
        2026-08-24.
-2. [ ] **Regra central**: nova função `gravidadeDaRegua(...)` em
+2. [x] **Regra central**: nova função `gravidadeDaRegua(...)` em
        `lib/fiscal/gravidade.ts`, único produtor de um tipo `Gravidade`
        branded (`"red" | "amb"` com marca de tipo) — nenhuma pendência nova
        compila com cor literal chutada. D39 revisada:
@@ -35,16 +35,23 @@ pendência que já é fato consumado com consequência fiscal aberta.
        > acervo sustenta o valor no lugar certo; âmbar = nada saiu ainda, ou
        > o valor já está sustentado e falta só corroboração.
        (`docs/backlog/25-2026-08-23-a-regua-de-cor-e-o-que-ela-escondia.md`)
-3. [ ] **Item B → vermelho** (2 sites): `app/page.tsx:569-575`,
+3. [x] **Item B → vermelho** (2 sites): `app/page.tsx:569-575`,
        `app/obras/[id]/terreno/page.tsx:346-367`.
-4. [ ] **Item C → vermelho** (7 sites, não 5 como o inventário original
-       dizia): `app/page.tsx:399-424`, `app/pendencias/page.tsx:162-184`,
-       `app/pendencias/[id]/page.tsx:431`,
+4. [x] **Item C → vermelho** (9 sites, não 5 como o inventário original
+       dizia, nem 7 como a leitura de 24/08 corrigiu): `app/page.tsx:399-424`,
+       `app/pendencias/page.tsx:162-184`, `app/pendencias/[id]/page.tsx:431`,
        `app/documento/[id]/corrigir/valor/page.tsx:213-221` e `:425-433`,
-       `app/documento/[id]/obra/page.tsx:335-345` e `:612-615`. Todos os 7
-       mudam juntos no mesmo diff — divergir um deles reintroduz a dor de
-       origem dentro do próprio ticket que a fecha.
-5. [ ] **Item D — vermelho se existir ≥1 pagamento vinculado ao documento
+       `app/documento/[id]/obra/page.tsx:335-345` e `:612-615`,
+       **`app/pagamento/[id]/obra/page.tsx:355` e `:632`** (2 sites
+       acrescentados no Gate 2 de implementação, 2026-09-20 — a tela nasceu
+       no `CONTAI-008`, depois do inventário de 23/08 que gerou este ticket;
+       é gêmea literal de `documento/[id]/obra`, mesmo chip, mesmo
+       `AVISO_ANO_ANTERIOR`, mesma constante `GRAVIDADE_CORRECAO_ANO_ANTERIOR`.
+       Deixá-los âmbar reintroduziria a dor de origem dentro do próprio
+       ticket que a fecha — `cto-obra` e `contador` confirmaram a extensão,
+       técnica e fiscalmente). Os 9 mudam juntos no mesmo diff — divergir um
+       deles reintroduz a dor de origem dentro do próprio ticket que a fecha.
+5. [x] **Item D — vermelho se existir ≥1 pagamento vinculado ao documento
        (`pagamento_documento`), senão âmbar** (4 sites):
        `app/page.tsx:434-442`, `app/pendencias/page.tsx:194-200`,
        `app/pendencias/[id]/page.tsx:202`,
@@ -56,7 +63,7 @@ pendência que já é fato consumado com consequência fiscal aberta.
        `carregarPainelDePendencias` (`lib/data.ts:696`) e a página
        `cnpj-errado` não carregam vínculos hoje — precisam de select novo em
        `pagamento_documento`.
-6. [ ] **Item D — aviso condicional "exige CRC"**, quando o pagamento
+6. [x] **Item D — aviso condicional "exige CRC"**, quando o pagamento
        vinculado é de ano anterior ao corrente (heurística de calendário,
        mesma de `SO_SEI_QUE_E_ANO_ANTERIOR`), texto novo
        `AVISO_CNPJ_ERRADO_ANO_ANTERIOR` (ao lado de
@@ -67,7 +74,7 @@ pendência que já é fato consumado com consequência fiscal aberta.
        `Consequencia cor="amb"` — o aviso não carrega a cor da pendência, só
        informa. **Confirmação de uma linha do contador antes do Gate 1**: o
        gatilho é mesmo a heurística de calendário, ou existe outro sinal?
-7. [ ] **Item E — vermelho se `naturezaAquisicaoTerreno === "financiado"`**
+7. [x] **Item E — vermelho se `naturezaAquisicaoTerreno === "financiado"`**
        (2 sites): `app/obras/[id]/terreno/page.tsx:307-321` — **achado do
        designer**: hoje é âmbar apesar de a branch já ser gated por essa
        condição (linha 306); vira vermelho, não é conferência. **Confirmação
@@ -76,11 +83,11 @@ pendência que já é fato consumado com consequência fiscal aberta.
        `app/obras/[id]/terreno/informe/[anoBase]/page.tsx:326-329`, que hoje
        checa o campo errado (`!financiamento`) e passa a checar
        `naturezaAquisicaoTerreno === "financiado"`.
-8. [ ] **Item A — conferência, sem mudança** (já vermelho, entregue no
+8. [x] **Item A — conferência, sem mudança** (já vermelho, entregue no
         `CONTAI-025`): `app/page.tsx:524-530,551-557`,
         `app/obras/[id]/terreno/page.tsx:501`,
         `app/obras/[id]/terreno/desembolsos/page.tsx:428,672`.
-9. [ ] **Âmbar legítimo, sem mudança** (dinheiro não saiu): "sem pagamento
+9. [x] **Âmbar legítimo, sem mudança** (dinheiro não saiu): "sem pagamento
         ligado" (`lib/fiscal/resumo.ts:588`, fora da régua por construção —
         parecer §5.2), "boleto aguardando pagamento" (`resumo.ts:409-423`),
         "aguardando informe" (`terreno.ts`, `AGUARDANDO_INFORME`),
@@ -90,7 +97,7 @@ pendência que já é fato consumado com consequência fiscal aberta.
         serviço sem retenção confirmada (`servico_sem_retencao`) — **essa
         pendência está sendo apagada, não recolorida** (ver Perguntas
         Abertas: item F saiu de escopo por conflito com o `CONTAI-038`).
-10. [ ] **Exceção nomeada, sem mudança**: "pago sem comprovante" PJ fica
+10. [x] **Exceção nomeada, sem mudança**: "pago sem comprovante" PJ fica
         âmbar (`lib/fiscal/pagamento.ts:213-218`, `SEM_COMPROVANTE_PJ`);
         PF fica vermelho (`:220-225`, `SEM_COMPROVANTE_PF`) —
         `docs/pareceres/2026-08-18-compromisso-versus-pagamento.md`
@@ -98,7 +105,7 @@ pendência que já é fato consumado com consequência fiscal aberta.
         `lib/fiscal/pagamento.ts`, não `pago-sem-comprovante.tsx` (esse
         componente é só do desembolso do terreno, sempre vermelho, sem ramo
         PJ).
-11. [ ] **D54 — teste-trava, não decorativo**: Vitest cobrindo
+11. [x] **D54 — teste-trava, não decorativo**: Vitest cobrindo
         `gravidadeDaRegua` por tabela-verdade + lista de exceções nomeadas
         (1 entrada hoje: `pj_pago_sem_comprovante`, união fechada de
         TypeScript, não string de rótulo — rename de rótulo não sai da
@@ -194,13 +201,17 @@ compilador; uma query a mais nas 3 telas de pendência (item D).
   `docs/backlog/31-2026-09-19-sequenciamento-contai-035-038.md`.
 
 ## Perguntas Abertas
-- **Item 6 (D, "exige CRC")**: o gatilho reaproveita a heurística de
-  calendário de `SO_SEI_QUE_E_ANO_ANTERIOR` (ano do pagamento < ano
-  corrente) — confirmação de uma linha do `contador`/`cto-obra` antes do
-  Gate 1, não bloqueia a aprovação do mock.
-- **Item 7 (E, site 1)**: é mudança real (âmbar → vermelho, achado do
-  designer) ou existe outro site que a adjudicação original queria dizer
-  com "já correto"? Confirmação de uma linha antes do Gate 1.
+- ~~**Item 6 (D, "exige CRC")**~~ — **RESPONDIDA no Gate 2 de implementação,
+  2026-09-20.** O `contador` confirmou: a heurística de calendário
+  (`SO_SEI_QUE_E_ANO_ANTERIOR`, ano do pagamento < ano corrente) é o gatilho
+  correto — o app não sabe se a DAA daquele ano foi entregue, só que o
+  vínculo cruza para um ano já fechado; vínculo do ano corrente não dispara
+  porque a declaração daquele ano ainda não foi entregue.
+- ~~**Item 7 (E, site 1)**~~ — **RESPONDIDA no Gate 2 de implementação,
+  2026-09-20.** É mudança real (âmbar → vermelho), confirmada pelo
+  `contador` e pelo `cto-obra`: `naturezaAquisicaoTerreno === "financiado"`
+  é o único gatilho correto — só nessa natureza há financiamento correndo
+  sem contrato cadastrado onde lançar o informe.
 - ~~**Item F**~~ — **removido de escopo em 2026-09-19** (era pergunta sobre
   `false`/`null` tratados igual; ficou sem objeto porque a pendência inteira
   está sendo apagada pelo `CONTAI-038`, não recolorida por este ticket). Ver

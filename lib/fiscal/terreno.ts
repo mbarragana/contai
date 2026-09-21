@@ -34,6 +34,7 @@ import type {
   TipoDesembolsoTerreno,
 } from "@/lib/types";
 import { formatarBRL } from "@/lib/money";
+import { gravidadeDaRegua, type Gravidade } from "./gravidade";
 
 // ── O ano-calendário de um desembolso ────────────────────────────────────
 
@@ -526,6 +527,23 @@ export const AGUARDANDO_INFORME =
  * Uma definição só, usada pela home e pelo painel do terreno: duas cópias do
  * mesmo texto fiscal descolam no dia em que uma delas for corrigida.
  */
+/**
+ * **Item B do CONTAI-035 — VERMELHO, e o texto acima já dizia por quê.**
+ *
+ * O ano fechou, o banco publicou o extrato, o dinheiro saiu em doze parcelas —
+ * e o custo daquele ano-calendário não existe no sistema. É o caso em que a
+ * home tinha o argumento do vermelho escrito no comentário e `border-amb` na
+ * linha seguinte (`docs/backlog/25-2026-08-23-...`).
+ *
+ * Uma constante só, usada pela home e pelo painel do terreno — pelo mesmo
+ * motivo de `faltaLancarInforme` ser uma só: duas cópias descolam no dia da
+ * correção, e foi exatamente assim que a régua passou a discordar de si mesma.
+ */
+export const GRAVIDADE_FALTA_LANCAR_INFORME: Gravidade = gravidadeDaRegua({
+  dinheiroSaiu: true,
+  apoioHabilNoAnoCerto: false,
+});
+
 export function faltaLancarInforme(ano: number): string {
   return (
     `Falta lançar o informe anual de ${ano}. Sem ele, o custo de aquisição ` +
@@ -623,6 +641,29 @@ export const FINANCIAMENTO_FORA_DAS_OUTRAS_APURACOES =
   "Pagamentos Efetuados, não entra na base de aferição do INSS e não entra no " +
   "custo em risco da home. Se entrasse, viraria um 'pago sem nota' vermelho " +
   "todo ano, para sempre, sem nada de errado acontecendo.";
+
+/**
+ * **Item E do CONTAI-035 — o contrato do financiamento não cadastrado.**
+ *
+ * Quando a natureza é `financiado`, a obra tem um financiamento correndo: as
+ * parcelas saem todo mês e **o custo do financiamento fica inteiro fora do
+ * sistema** enquanto não houver contrato onde pendurar o informe. Fato
+ * consumado, nada no acervo sustenta o valor — vermelho.
+ *
+ * Nas outras naturezas (e enquanto ela não foi respondida) não há
+ * financiamento a registrar: nada saiu por essa via, e a cor é âmbar. É essa
+ * a troca de gate que o critério 7 pede na tela do informe anual, que hoje
+ * decide a cor por `!financiamento` — campo errado: a ausência do contrato é o
+ * que faz o aviso aparecer, não o que mede a gravidade dele.
+ */
+export function gravidadeDoContratoNaoCadastrado(
+  natureza: NaturezaAquisicaoTerreno | null,
+): Gravidade {
+  return gravidadeDaRegua({
+    dinheiroSaiu: natureza === "financiado",
+    apoioHabilNoAnoCerto: false,
+  });
+}
 
 /** Rótulo curto de cada natureza, para lista e cabeçalho. */
 export const NOME_DA_NATUREZA: Record<

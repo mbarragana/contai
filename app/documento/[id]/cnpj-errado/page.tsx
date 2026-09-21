@@ -23,13 +23,20 @@ import {
 import {
   carregarDocumento,
   carregarPendencias,
+  carregarVinculosDoDocumento,
   classificarErro,
   marcarEmitenteErrado,
   mensagemDeErro,
   type ErroDeTela,
 } from "@/lib/data";
+import { bordaDaGravidade } from "@/lib/fiscal/gravidade";
 import { formatarDocumento } from "@/lib/fiscal/identificacao";
 import { formatarDataBR } from "@/lib/fiscal/obra";
+import {
+  sinalDoEmitenteErrado,
+  type SinalDoEmitenteErrado,
+} from "@/lib/fiscal/revisao";
+import { hojeIso } from "@/lib/hoje";
 import type { Documento, StatusDocumento } from "@/lib/types";
 
 /**
@@ -67,6 +74,11 @@ export default function CnpjErrado() {
   const { pedirReautenticacao } = useSessao();
   const [documento, setDocumento] = useState<Documento | null>(null);
   const [marcadoEm, setMarcadoEm] = useState<string | null>(null);
+  /**
+   * Item D do CONTAI-035 — a cor do card "Já marcado" depende de existir
+   * pagamento ligado a este documento, e a tela não carregava vínculo nenhum.
+   */
+  const [sinal, setSinal] = useState<SinalDoEmitenteErrado | null>(null);
   const [erroCarregar, setErroCarregar] = useState<ErroDeTela | null>(null);
   const [tentativa, setTentativa] = useState(0);
   const [marcando, setMarcando] = useState(false);
@@ -76,9 +88,10 @@ export default function CnpjErrado() {
     let cancelado = false;
     void (async () => {
       try {
-        const [doc, pendencias] = await Promise.all([
+        const [doc, pendencias, vinculos] = await Promise.all([
           carregarDocumento(id),
           carregarPendencias(),
+          carregarVinculosDoDocumento(id),
         ]);
         if (cancelado) return;
         setDocumento(doc);
@@ -89,6 +102,13 @@ export default function CnpjErrado() {
             p.desfecho === null,
         );
         setMarcadoEm(aberta?.abertaEm ?? null);
+        setSinal(
+          sinalDoEmitenteErrado({
+            documentoId: id,
+            vinculos,
+            anoCorrente: Number(hojeIso().slice(0, 4)),
+          }),
+        );
       } catch (erro) {
         if (!cancelado) setErroCarregar(classificarErro(erro));
       }
@@ -149,6 +169,17 @@ export default function CnpjErrado() {
   const cnpj = documento.favorecidoDocumento
     ? formatarDocumento(documento.favorecidoDocumento)
     : "—";
+
+  // `sinal` chega junto com o documento, na mesma carga. O fallback é só para o
+  // tipo — e é o estado sem vínculo, que é o que uma leitura ainda em branco
+  // de fato sabe: nenhum pagamento observado, âmbar.
+  const sinalDoCard =
+    sinal ??
+    sinalDoEmitenteErrado({
+      documentoId: id,
+      vinculos: [],
+      anoCorrente: Number(hojeIso().slice(0, 4)),
+    });
 
   return (
     <>
@@ -229,10 +260,22 @@ export default function CnpjErrado() {
         </Card>
 
         <Passo>O que você pode fazer agora</Passo>
-        <Card className={marcadoEm ? "border-amb" : undefined}>
+        <Card
+          className={
+            marcadoEm ? bordaDaGravidade(sinalDoCard.gravidade) : undefined
+          }
+        >
           {marcadoEm ? (
             <>
-              <Chip cor="amb">Já marcado — CNPJ errado, a tratar</Chip>
+              <Chip cor={sinalDoCard.gravidade}>
+                Já marcado — CNPJ errado, a tratar
+              </Chip>
+              {/* Âmbar mesmo no card vermelho: informa a escalada, não a cor. */}
+              {sinalDoCard.avisoAnoAnterior ? (
+                <Consequencia cor="amb">
+                  {sinalDoCard.avisoAnoAnterior}
+                </Consequencia>
+              ) : null}
               <Dica>
                 É uma pendência <strong>por documento</strong>. Voltar aqui e
                 marcar outra vez deixa a lista com uma linha só — não existe

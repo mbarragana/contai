@@ -23,13 +23,18 @@ import {
   classificarErro,
   type ErroDeTela,
 } from "@/lib/data";
+import { bordaDaGravidade } from "@/lib/fiscal/gravidade";
 import { formatarDataBR } from "@/lib/fiscal/obra";
 import {
   AVISO_ANO_ANTERIOR,
   EMITENTE_ERRADO_O_QUE_FALTA,
+  GRAVIDADE_CORRECAO_ANO_ANTERIOR,
   montarPendenciasDeAno,
+  sinalDoEmitenteErrado,
   type PendenciaDeAno,
+  type VinculoDeDocumento,
 } from "@/lib/fiscal/revisao";
+import { hojeIso } from "@/lib/hoje";
 import { formatarBRL } from "@/lib/money";
 import type { PendenciaPersistente } from "@/lib/types";
 
@@ -50,6 +55,9 @@ type Estado =
       anos: PendenciaDeAno[];
       emitente: PendenciaPersistente[];
       obras: Map<string, string>;
+      /** Item D do CONTAI-035: o vínculo decide a cor do "CNPJ errado". */
+      vinculos: VinculoDeDocumento[];
+      anoCorrente: number;
     };
 
 /**
@@ -79,6 +87,8 @@ export default function Pendencias() {
           anos: montarPendenciasDeAno(painel),
           emitente: painel.pendencias.filter((p) => p.tipo === "emitente_errado"),
           obras: new Map(obras.map((o) => [o.id, o.nome])),
+          vinculos: painel.vinculos,
+          anoCorrente: Number(hojeIso().slice(0, 4)),
         });
       } catch (erro) {
         if (!cancelado) setEstado({ fase: "erro", erro: classificarErro(erro) });
@@ -113,6 +123,8 @@ export default function Pendencias() {
             anos={estado.anos}
             emitente={estado.emitente}
             obras={estado.obras}
+            vinculos={estado.vinculos}
+            anoCorrente={estado.anoCorrente}
           />
         ) : null}
       </Corpo>
@@ -125,10 +137,14 @@ function ListaDePendencias({
   anos,
   emitente,
   obras,
+  vinculos,
+  anoCorrente,
 }: {
   anos: PendenciaDeAno[];
   emitente: PendenciaPersistente[];
   obras: Map<string, string>;
+  vinculos: VinculoDeDocumento[];
+  anoCorrente: number;
 }) {
   const abertas = anos.filter((p) => p.desfecho === null);
   const baixadas = anos.filter((p) => p.desfecho !== null);
@@ -158,8 +174,14 @@ function ListaDePendencias({
       ) : null}
 
       {abertas.map((p) => (
-        <Card key={p.id} className="border-amb" data-pendencia={p.ano}>
-          <Chip cor="amb">Correção mexeu em ano anterior</Chip>
+        <Card
+          key={p.id}
+          className={bordaDaGravidade(GRAVIDADE_CORRECAO_ANO_ANTERIOR)}
+          data-pendencia={p.ano}
+        >
+          <Chip cor={GRAVIDADE_CORRECAO_ANO_ANTERIOR}>
+            Correção mexeu em ano anterior
+          </Chip>
           <div className="mt-1.5 font-semibold">
             {p.ano} — o custo do ano mudou depois de {p.quantidadeDeAtos}{" "}
             {p.quantidadeDeAtos === 1 ? "correção sua" : "correções suas"}
@@ -181,7 +203,9 @@ function ListaDePendencias({
             aberta em {formatarDataBR(p.abertaEm.slice(0, 10))} · última correção
             em {formatarDataBR(p.ultimaCorrecaoEm.slice(0, 10))}
           </Dica>
-          <Consequencia cor="amb">{AVISO_ANO_ANTERIOR}</Consequencia>
+          <Consequencia cor={GRAVIDADE_CORRECAO_ANO_ANTERIOR}>
+            {AVISO_ANO_ANTERIOR}
+          </Consequencia>
           <div className="mt-2.5">
             <BotaoLink href={`/pendencias/${p.id}`} variante="primary">
               Abrir a pendência de {p.ano}
@@ -190,14 +214,30 @@ function ListaDePendencias({
         </Card>
       ))}
 
-      {emitenteAbertas.map((p) => (
-        <Card key={p.id} className="border-amb" data-pendencia-emitente={p.id}>
-          <Chip cor="amb">CNPJ errado — tratar</Chip>
+      {emitenteAbertas.map((p) => {
+        const sinal = sinalDoEmitenteErrado({
+          documentoId: p.documentoId ?? "",
+          vinculos,
+          anoCorrente,
+        });
+        return (
+        <Card
+          key={p.id}
+          className={bordaDaGravidade(sinal.gravidade)}
+          data-pendencia-emitente={p.id}
+        >
+          <Chip cor={sinal.gravidade}>CNPJ errado — tratar</Chip>
           <div className="mt-1.5 font-semibold">
             O CNPJ do emitente de 1 documento está errado
           </div>
           <Dica>marcado por você em {formatarDataBR(p.abertaEm.slice(0, 10))}</Dica>
-          <Consequencia cor="amb">{EMITENTE_ERRADO_O_QUE_FALTA}</Consequencia>
+          <Consequencia cor={sinal.gravidade}>
+            {EMITENTE_ERRADO_O_QUE_FALTA}
+          </Consequencia>
+          {/* Âmbar mesmo no card vermelho: informa a escalada, não a cor. */}
+          {sinal.avisoAnoAnterior ? (
+            <Consequencia cor="amb">{sinal.avisoAnoAnterior}</Consequencia>
+          ) : null}
           <div className="mt-2.5">
             <BotaoLink href={`/documento/${p.documentoId}`}>
               Ver o documento marcado
@@ -209,7 +249,8 @@ function ListaDePendencias({
             </BotaoLink>
           </div>
         </Card>
-      ))}
+        );
+      })}
 
       {baixadas.length > 0 || emitenteBaixadas.length > 0 ? (
         <>

@@ -36,6 +36,7 @@ import type {
   EscolhaDeDocumento,
   EscolhaDePagamento,
   LinhaDeAnoDaPendencia,
+  VinculoDeDocumento,
 } from "@/lib/fiscal/revisao";
 import type { DocumentoRegistrado } from "@/lib/fiscal/documento";
 import { podeVincular } from "@/lib/fiscal/vinculo";
@@ -732,15 +733,76 @@ export async function carregarPainelDePendencias(): Promise<{
   pendencias: PendenciaPersistente[];
   linhas: LinhaDeAnoDaPendencia[];
   revisoes: Revisao[];
+  /** CONTAI-035, item D: é o vínculo que decide a cor do "CNPJ errado". */
+  vinculos: VinculoDeDocumento[];
 }> {
-  const [pendencias, linhas] = await Promise.all([
+  const [pendencias, linhas, vinculos] = await Promise.all([
     carregarPendencias(),
     carregarAnosDasPendencias(),
+    carregarVinculosDosDocumentos(),
   ]);
   const revisoes = await carregarRevisoesPorId([
     ...new Set(linhas.map((l) => l.revisaoId)),
   ]);
-  return { pendencias, linhas, revisoes };
+  return { pendencias, linhas, revisoes, vinculos };
+}
+
+/**
+ * Os vínculos pagamento↔documento com o **ano do pagamento** junto — a
+ * consulta que faltava para o item D do CONTAI-035.
+ *
+ * ⚠️ **Sem migration, e o embed é o motivo.** `pagamento_documento` já existe e
+ * já tem `select` concedido a `authenticated` (migrations 0005 e 0006); o ano
+ * mora em `pagamento.data_pagamento`, que vem ANINHADO num pedido só. A RLS do
+ * `pagamento` vale dentro do embed: o que a policy esconde não aparece
+ * aninhado, e um vínculo cujo pagamento não é do dono chega sem `pagamento` —
+ * por isso o `filter` abaixo, e não um `!` otimista.
+ *
+ * Vem sem filtro de obra de propósito, como os outros vínculos que o painel
+ * carrega: a pendência de CNPJ errado é do DOCUMENTO e a lista de pendências é
+ * de todas as obras. O volume é uma linha por par conciliado.
+ */
+export async function carregarVinculosDosDocumentos(): Promise<
+  VinculoDeDocumento[]
+> {
+  const { data, error } = await getSupabase()
+    .from("pagamento_documento")
+    .select(VINCULO_COM_ANO);
+  if (error) throw error;
+  return paraVinculosDeDocumento(data);
+}
+
+/** Os vínculos de UM documento — a tela `cnpj-errado`, que carrega só ele. */
+export async function carregarVinculosDoDocumento(
+  documentoId: string,
+): Promise<VinculoDeDocumento[]> {
+  const { data, error } = await getSupabase()
+    .from("pagamento_documento")
+    .select(VINCULO_COM_ANO)
+    .eq("documento_id", documentoId);
+  if (error) throw error;
+  return paraVinculosDeDocumento(data);
+}
+
+const VINCULO_COM_ANO = "documento_id, pagamento_id, pagamento(data_pagamento)";
+
+interface VinculoComPagamento {
+  documento_id: string;
+  pagamento_id: string;
+  pagamento: { data_pagamento: string } | null;
+}
+
+function paraVinculosDeDocumento(data: unknown): VinculoDeDocumento[] {
+  return ((data ?? []) as VinculoComPagamento[])
+    .filter((v): v is VinculoComPagamento & { pagamento: { data_pagamento: string } } =>
+      v.pagamento !== null,
+    )
+    .map((v) => ({
+      documentoId: v.documento_id,
+      pagamentoId: v.pagamento_id,
+      // Regime de caixa: o ano é o da data do pagamento, nunca o da nota.
+      anoDoPagamento: Number(v.pagamento.data_pagamento.slice(0, 4)),
+    }));
 }
 
 /** As linhas de rastro pedidas por id — o detalhe de cada ato da pendência. */

@@ -67,11 +67,13 @@ import {
   DESEMBOLSO_SEM_DATA,
   ESTIMATIVA_NAO_E_APURACAO,
   faltaLancarInforme,
+  GRAVIDADE_FALTA_LANCAR_INFORME,
   NOME_DO_DESEMBOLSO,
   pagosSemComprovante,
   pendenciaDeDatasAberta,
   TERRENO_ZERO_NAO_E_NADA_PAGO,
 } from "./terreno";
+import { gravidadeDaRegua, type Gravidade } from "./gravidade";
 import {
   anoCalendario,
   consequenciaPagoSemComprovante,
@@ -124,7 +126,12 @@ export interface Pendencia {
   detalhe: string;
   valorCentavos: number;
   consequencia: string;
-  gravidade: "red" | "amb";
+  /**
+   * ⚠️ **Tipo branded (CONTAI-035, critério 2)**: só sai de `gravidadeDaRegua`.
+   * Pendência nova não compila com cor literal — para ter cor ela declara se o
+   * dinheiro saiu e se o acervo sustenta o valor no ano certo.
+   */
+  gravidade: Gravidade;
   /** Rota do detalhe, quando existe documento único por trás. */
   href?: string;
   /** Critério 3: o cartão "pago sem nota" leva ao seletor, registro a registro. */
@@ -211,6 +218,12 @@ export interface FinanciamentoFaltaLancar {
   ano: number;
   aviso: string;
   href: string;
+  /**
+   * **VERMELHO** (CONTAI-035, item B). Vem calculada e não escrita na tela: a
+   * home e o painel do terreno mostram a mesma pendência, e era justamente
+   * aqui que as duas divergiam da régua ao mesmo tempo.
+   */
+  gravidade: Gravidade;
 }
 
 /**
@@ -525,7 +538,15 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
       detalhe: d.favorecidoNome ?? SEM_FAVORECIDO,
       valorCentavos: d.valorCentavos ?? 0,
       consequencia: CONSEQUENCIA_QUARENTENA,
-      gravidade: "red",
+      // Documento em quarentena entra no headline "Custo em risco no IR" pelo
+      // valor cheio (`risco.ts`, §1 item 2b do parecer de 16/08): o app já
+      // afirma que esse dispêndio é fato consumado. E quarentena significa uma
+      // coisa só — destinatário diferente do CPF do dono —, então não existe
+      // apoio hábil nenhum sustentando aquele valor.
+      gravidade: gravidadeDaRegua({
+        dinheiroSaiu: true,
+        apoioHabilNoAnoCerto: false,
+      }),
       href: `/documento/${d.id}`,
     });
   }
@@ -543,7 +564,12 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
       detalhe: d.favorecidoNome ?? SEM_FAVORECIDO,
       valorCentavos: d.valorCentavos ?? 0,
       consequencia: CONSEQUENCIA_BOLETO,
-      gravidade: "amb",
+      // Âmbar legítimo (CONTAI-035, critério 9): título de cobrança não é
+      // desembolso. `aguardando_pagamento` é literalmente "nada saiu ainda".
+      gravidade: gravidadeDaRegua({
+        dinheiroSaiu: false,
+        apoioHabilNoAnoCerto: false,
+      }),
       href: `/documento/${d.id}`,
     });
   }
@@ -602,7 +628,12 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
       detalhe: agregado.nome,
       valorCentavos: agregado.total,
       consequencia: rotulos.consequencia,
-      gravidade: "red",
+      // O caso canônico do vermelho: o pagamento saiu e o excedente não
+      // coberto não tem documento hábil nenhum por trás.
+      gravidade: gravidadeDaRegua({
+        dinheiroSaiu: true,
+        apoioHabilNoAnoCerto: false,
+      }),
       itens: agregado.itens,
     });
   }
@@ -639,7 +670,12 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
       // minuta anterior foi reprovada por ancorar a consequência no PREVISTO —
       // previsão não decide custo; quem limita é o documento hábil.
       consequencia: textoDiferencaSemExplicacao(p.naoExplicadoCentavos),
-      gravidade: "red",
+      // O pagamento está gravado e o dinheiro saiu; a parte sem explicação
+      // fica fora do custo justamente porque nada a sustenta.
+      gravidade: gravidadeDaRegua({
+        dinheiroSaiu: true,
+        apoioHabilNoAnoCerto: false,
+      }),
       href: `/pagamento/${p.id}`,
     });
   }
@@ -696,7 +732,19 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
       detalhe: d.favorecidoNome ?? SEM_FAVORECIDO,
       valorCentavos: d.valorCentavos ?? 0,
       consequencia: CONSEQUENCIA_SEM_RETENCAO,
-      gravidade: "amb",
+      // ⚠️ Âmbar, e quem decide é o SEGUNDO eixo: o custo de aquisição desta
+      // nota está intacto e no ano certo — o que está aberto é o INSS, que é
+      // outra apuração e nunca soma com esta. `dinheiroSaiu: true` é a
+      // codificação conservadora de propósito: se um dia o apoio hábil cair,
+      // a régua acende sozinha em vez de calar.
+      //
+      // ⚠️ Esta pendência está sendo APAGADA pelo `CONTAI-038`, não recolorida
+      // (item F, fora de escopo deste ticket —
+      // `docs/backlog/31-2026-09-19-sequenciamento-contai-035-038.md`).
+      gravidade: gravidadeDaRegua({
+        dinheiroSaiu: true,
+        apoioHabilNoAnoCerto: true,
+      }),
       href: `/documento/${d.id}`,
     });
   }
@@ -743,7 +791,12 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
       detalhe: `${d.favorecidoNome ?? SEM_FAVORECIDO} — ${ACAO_NOTA_SEM_CNO}`,
       valorCentavos: d.valorCentavos ?? 0,
       consequencia: CONSEQUENCIA_CNO_DA_NOTA,
-      gravidade: "amb",
+      // Mesma forma da irmã fiscal logo acima, e pelo mesmo eixo: o custo de
+      // aquisição segue intacto no ano certo; o que não abate é a aferição.
+      gravidade: gravidadeDaRegua({
+        dinheiroSaiu: true,
+        apoioHabilNoAnoCerto: true,
+      }),
       href: `/documento/${d.id}`,
     });
   }
@@ -912,6 +965,7 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
             ano: a.ano,
             aviso: faltaLancarInforme(a.ano),
             href: `/obras/${obra.id}/terreno/informe/${a.ano}`,
+            gravidade: GRAVIDADE_FALTA_LANCAR_INFORME,
           }));
 
   // ── CONTAI-025 · o custo do terreno passa a ser DOIS números ───────────

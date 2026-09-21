@@ -44,9 +44,11 @@ import {
   type ErroDeTela,
   type PainelDados,
 } from "@/lib/data";
+import { bordaDaGravidade } from "@/lib/fiscal/gravidade";
 import {
   anosAfetadosDeUmaObra,
   AVISO_ANO_ANTERIOR,
+  GRAVIDADE_CORRECAO_ANO_ANTERIOR,
   SO_SEI_QUE_E_ANO_ANTERIOR,
 } from "@/lib/fiscal/revisao";
 import { custoComprovadoAteOAno, alocarCusto } from "@/lib/fiscal/vinculo";
@@ -215,9 +217,13 @@ export default function CorrigirValor() {
             </Card>
           ))}
           {fase.anos.some((a) => a.pendencia) ? (
-            <Card className="border-amb">
-              <Chip cor="amb">Correção mexeu em ano anterior</Chip>
-              <Consequencia cor="amb">{AVISO_ANO_ANTERIOR}</Consequencia>
+            <Card className={bordaDaGravidade(GRAVIDADE_CORRECAO_ANO_ANTERIOR)}>
+              <Chip cor={GRAVIDADE_CORRECAO_ANO_ANTERIOR}>
+                Correção mexeu em ano anterior
+              </Chip>
+              <Consequencia cor={GRAVIDADE_CORRECAO_ANO_ANTERIOR}>
+                {AVISO_ANO_ANTERIOR}
+              </Consequencia>
               <Dica>{SO_SEI_QUE_E_ANO_ANTERIOR}</Dica>
               <div className="mt-2.5">
                 <BotaoLink href="/pendencias">Ver a pendência na lista</BotaoLink>
@@ -433,9 +439,15 @@ export default function CorrigirValor() {
 
             {conta.anos.some((a) => a.pendencia) ? (
               <>
-                <Consequencia cor="amb">{AVISO_ANO_ANTERIOR}</Consequencia>
+                <Consequencia cor={GRAVIDADE_CORRECAO_ANO_ANTERIOR}>
+                  {AVISO_ANO_ANTERIOR}
+                </Consequencia>
                 <Dica>{SO_SEI_QUE_E_ANO_ANTERIOR}</Dica>
-                <Consequencia cor="amb">
+                {/* A mesma pendência, e por isso a mesma cor: as duas frases
+                    estão no mesmo ramo e falam do mesmo fato consumado. Uma
+                    vermelha ao lado de uma âmbar seria a régua discordando de
+                    si mesma dentro de um card só. */}
+                <Consequencia cor={GRAVIDADE_CORRECAO_ANO_ANTERIOR}>
                   <strong>Vai virar uma pendência na tela inicial.</strong> Este
                   aviso não some quando você fechar a tela: ele fica na lista de
                   pendências até você marcar que já tratou com o contador.

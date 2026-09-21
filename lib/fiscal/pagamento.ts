@@ -8,6 +8,7 @@
 
 import type { StatusPagamento, TipoFavorecido } from "@/lib/types";
 import { formatarBRL } from "@/lib/money";
+import { gravidadeDaRegua, type Gravidade } from "./gravidade";
 import { tipoPorDocumento } from "./identificacao";
 
 /** Pago sem documento hábil vinculado — critério 3 da US-007. */
@@ -196,21 +197,33 @@ export function validarPagamentoAvulso(
 export interface RotulosPagoSemComprovante {
   chip: string;
   consequencia: string;
-  gravidade: "red" | "amb";
+  gravidade: Gravidade;
 }
 
+/**
+ * ⚠️ **A ÚNICA exceção nomeada da régua hoje** (CONTAI-035, critério 10). Os
+ * dois fatos são os mesmos da linha PF logo abaixo — o dinheiro saiu, e o
+ * comprovante não está no acervo. O que muda é a decisão escrita do `contador`
+ * (§601-602): a NF já sustenta o custo, falta só corroborar o desembolso.
+ * Passar pela exceção, e não por `"amb"` literal, é o que mantém esta linha
+ * dentro da malha do teste-trava em vez de fora dela.
+ */
 const SEM_COMPROVANTE_PJ: RotulosPagoSemComprovante = {
   chip: "Pago sem comprovante",
   consequencia:
     "pago sem comprovante — o custo existe, ainda não está demonstrável",
-  gravidade: "amb",
+  gravidade: gravidadeDaRegua(
+    { dinheiroSaiu: true, apoioHabilNoAnoCerto: false },
+    "pj_pago_sem_comprovante",
+  ),
 };
 
 const SEM_COMPROVANTE_PF: RotulosPagoSemComprovante = {
   chip: "Pago sem comprovante",
   consequencia:
     "sem o comprovante da transferência, este recibo não sustenta custo nenhum",
-  gravidade: "red",
+  // A regra geral, sem exceção: o comprovante é CONSTITUTIVO do custo para PF.
+  gravidade: gravidadeDaRegua({ dinheiroSaiu: true, apoioHabilNoAnoCerto: false }),
 };
 
 /**
@@ -240,7 +253,9 @@ const SEM_COMPROVANTE_DESCONHECIDO: RotulosPagoSemComprovante = {
   chip: "Pago sem comprovante",
   consequencia:
     "sem o comprovante não dá para dizer o quanto este pagamento sustenta — informe o CNPJ/CPF do favorecido: para PF o comprovante da transferência é o que constitui o custo",
-  gravidade: "red",
+  // Regra geral, e **sem exceção de propósito**: a exceção do PJ depende de
+  // saber que é PJ. Sem o tipo, não dá para DESCARTAR o caminho PF.
+  gravidade: gravidadeDaRegua({ dinheiroSaiu: true, apoioHabilNoAnoCerto: false }),
 };
 
 export function rotulosPagoSemComprovante(

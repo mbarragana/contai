@@ -36,10 +36,14 @@ import {
   DESFECHOS_DE_RETIFICADORA,
   DESFECHO_MANUAL_EMITENTE_ERRADO,
   EMITENTE_ERRADO_O_QUE_FALTA,
+  GRAVIDADE_CORRECAO_ANO_ANTERIOR,
   montarPendenciasDeAno,
+  sinalDoEmitenteErrado,
   SO_SEI_QUE_E_ANO_ANTERIOR,
   type PendenciaDeAno,
+  type SinalDoEmitenteErrado,
 } from "@/lib/fiscal/revisao";
+import { hojeIso } from "@/lib/hoje";
 import { formatarBRL } from "@/lib/money";
 import type {
   DesfechoPendencia,
@@ -64,6 +68,11 @@ type Estado =
       emitente: PendenciaPersistente | null;
       revisoes: Revisao[];
       obras: Map<string, string>;
+      /**
+       * Item D do CONTAI-035 — `null` quando a pendência desta tela não é de
+       * CNPJ errado (a de retificadora não tem documento por trás).
+       */
+      sinalDoEmitente: SinalDoEmitenteErrado | null;
     };
 
 /**
@@ -100,13 +109,21 @@ export default function DetalheDaPendencia() {
         ]);
         if (cancelado) return;
         const anos = montarPendenciasDeAno(painel);
+        const emitente =
+          painel.pendencias.find(
+            (p) => p.id === id && p.tipo === "emitente_errado",
+          ) ?? null;
         setEstado({
           fase: "pronto",
           ano: anos.find((p) => p.id === id) ?? null,
-          emitente:
-            painel.pendencias.find(
-              (p) => p.id === id && p.tipo === "emitente_errado",
-            ) ?? null,
+          emitente,
+          sinalDoEmitente: emitente
+            ? sinalDoEmitenteErrado({
+                documentoId: emitente.documentoId ?? "",
+                vinculos: painel.vinculos,
+                anoCorrente: Number(hojeIso().slice(0, 4)),
+              })
+            : null,
           revisoes: painel.revisoes.filter((r) =>
             painel.linhas.some(
               (l) => l.pendenciaId === id && l.revisaoId === r.id,
@@ -177,6 +194,15 @@ export default function DetalheDaPendencia() {
   // ── A pendência de CNPJ errado (critério 19) ───────────────────────────
   if (estado.emitente) {
     const p = estado.emitente;
+    // Sempre presente neste ramo: quem carrega o sinal é a mesma leitura que
+    // achou a pendência. O `??` existe só para o tipo, não para o caso real.
+    const sinal =
+      estado.sinalDoEmitente ??
+      sinalDoEmitenteErrado({
+        documentoId: p.documentoId ?? "",
+        vinculos: [],
+        anoCorrente: Number(hojeIso().slice(0, 4)),
+      });
     return (
       <>
         <AppBar
@@ -199,7 +225,16 @@ export default function DetalheDaPendencia() {
               <strong>nada foi apagado para isso acontecer</strong>.
             </Banner>
           ) : (
-            <Consequencia cor="amb">{EMITENTE_ERRADO_O_QUE_FALTA}</Consequencia>
+            <>
+              <Consequencia cor={sinal.gravidade}>
+                {EMITENTE_ERRADO_O_QUE_FALTA}
+              </Consequencia>
+              {/* Âmbar mesmo quando a pendência é vermelha: o aviso informa a
+                  escalada (critério 6), não a gravidade. */}
+              {sinal.avisoAnoAnterior ? (
+                <Consequencia cor="amb">{sinal.avisoAnoAnterior}</Consequencia>
+              ) : null}
+            </>
           )}
 
           <Card>
@@ -428,7 +463,9 @@ export default function DetalheDaPendencia() {
           </Dica>
         </Card>
 
-        <Consequencia cor="amb">{AVISO_ANO_ANTERIOR}</Consequencia>
+        <Consequencia cor={GRAVIDADE_CORRECAO_ANO_ANTERIOR}>
+          {AVISO_ANO_ANTERIOR}
+        </Consequencia>
         <Dica>{SO_SEI_QUE_E_ANO_ANTERIOR}</Dica>
         <Dica>
           O app <strong>não decide</strong> se você precisa retificar. Ele não

@@ -29,6 +29,7 @@ import {
   classificarErro,
   type ErroDeTela,
 } from "@/lib/data";
+import { bordaDaGravidade } from "@/lib/fiscal/gravidade";
 import { formatarDataBR } from "@/lib/fiscal/obra";
 import {
   AGUARDANDO_INFORME,
@@ -42,6 +43,8 @@ import {
   foraDesteCardPorFaltaDeData,
   FORA_DO_CUSTO_CONFIRMADO,
   FORA_DO_CUSTO_CONFIRMADO_PORQUE,
+  gravidadeDoContratoNaoCadastrado,
+  GRAVIDADE_FALTA_LANCAR_INFORME,
   INSUMO_PARA_REVISAO_CRC,
   NOME_DA_NATUREZA,
   NOME_DO_DESEMBOLSO,
@@ -304,8 +307,22 @@ export default function PainelDoTerreno() {
             <Consequencia cor="amb">{SALDO_DEVEDOR_INFORMATIVO}</Consequencia>
           </Card>
         ) : obra.naturezaAquisicaoTerreno === "financiado" ? (
-          <Card className="border-amb">
-            <Chip cor="amb">Contrato do financiamento não cadastrado</Chip>
+          // ⚠️ CONTAI-035, item E. A branch já era gated pela natureza
+          // `financiado` — e mesmo assim pintava âmbar: o financiamento está
+          // correndo, as parcelas saem, e o custo delas fica inteiro fora do
+          // sistema enquanto não houver contrato onde pendurar o informe.
+          <Card
+            className={bordaDaGravidade(
+              gravidadeDoContratoNaoCadastrado(obra.naturezaAquisicaoTerreno),
+            )}
+          >
+            <Chip
+              cor={gravidadeDoContratoNaoCadastrado(
+                obra.naturezaAquisicaoTerreno,
+              )}
+            >
+              Contrato do financiamento não cadastrado
+            </Chip>
             <Dica>
               Sem o contrato não há onde registrar o informe anual, e o custo do
               financiamento fica inteiro fora do sistema.
@@ -332,7 +349,7 @@ export default function PainelDoTerreno() {
                   a.situacao === "registrado"
                     ? "border-grn"
                     : a.situacao === "falta_lancar"
-                      ? "border-amb"
+                      ? bordaDaGravidade(GRAVIDADE_FALTA_LANCAR_INFORME)
                       : ""
                 }
                 data-ano={a.ano}
@@ -343,7 +360,9 @@ export default function PainelDoTerreno() {
                   {a.situacao === "registrado" ? (
                     <Chip cor="grn">informe registrado</Chip>
                   ) : a.situacao === "falta_lancar" ? (
-                    <Chip cor="amb">falta lançar</Chip>
+                    <Chip cor={GRAVIDADE_FALTA_LANCAR_INFORME}>
+                      falta lançar
+                    </Chip>
                   ) : (
                     <Chip cor="amb" vazado>
                       aguardando informe
@@ -361,9 +380,11 @@ export default function PainelDoTerreno() {
 
                 {a.situacao === "falta_lancar" ? (
                   <>
-                    {/* Uma definição só do texto: a home mostra o mesmo
-                        aviso, e duas cópias descolam no dia da correção. */}
-                    <Consequencia cor="amb">
+                    {/* Uma definição só do texto — e, desde o CONTAI-035, uma
+                        definição só da COR: a home mostra o mesmo aviso, e
+                        duas cópias descolam no dia da correção. Foi assim que
+                        a régua passou a discordar de si mesma. */}
+                    <Consequencia cor={GRAVIDADE_FALTA_LANCAR_INFORME}>
                       {faltaLancarInforme(a.ano)}
                     </Consequencia>
                     <div className="mt-2.5">

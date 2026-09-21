@@ -29,6 +29,7 @@ import {
   type ErroDeTela,
   type PainelDados,
 } from "@/lib/data";
+import { bordaDaGravidade } from "@/lib/fiscal/gravidade";
 import { formatarDataBR, podeCorrigirObra } from "@/lib/fiscal/obra";
 import {
   anosAfetados,
@@ -40,6 +41,7 @@ import {
   documentosImpedidosDeIrJunto,
   documentosVinculados,
   DOCUMENTO_LIGADO_A_OUTRO_PAGAMENTO,
+  GRAVIDADE_CORRECAO_ANO_ANTERIOR,
   MOVE_DE_PAGAMENTO_SEM_VINCULO,
   MOVE_NAO_PERGUNTA_MOTIVO,
   resumoDesfechoMistoDoPagamento,
@@ -351,10 +353,20 @@ export default function CorrigirObraDoPagamento() {
             </Card>
           )}
 
+          {/* ⚠️ CONTAI-035, item C. Estes DOIS sites não estão na lista de
+              sete do critério 4: a tela de mover PAGAMENTO de obra nasceu no
+              CONTAI-008, depois do inventário de 23/08, como gêmea de
+              `documento/[id]/obra`. É a mesma pendência, com o mesmo texto —
+              deixá-la âmbar reintroduziria a dor de origem dentro do ticket
+              que a fecha (pre-mortem 1). */}
           {estado.comPendencia ? (
-            <Card className="border-amb">
-              <Chip cor="amb">Correção mexeu em ano anterior</Chip>
-              <Consequencia cor="amb">{AVISO_ANO_ANTERIOR}</Consequencia>
+            <Card className={bordaDaGravidade(GRAVIDADE_CORRECAO_ANO_ANTERIOR)}>
+              <Chip cor={GRAVIDADE_CORRECAO_ANO_ANTERIOR}>
+                Correção mexeu em ano anterior
+              </Chip>
+              <Consequencia cor={GRAVIDADE_CORRECAO_ANO_ANTERIOR}>
+                {AVISO_ANO_ANTERIOR}
+              </Consequencia>
               <Dica>{SO_SEI_QUE_E_ANO_ANTERIOR}</Dica>
               <div className="mt-2.5">
                 <BotaoLink href="/pendencias">
@@ -629,7 +641,9 @@ export default function CorrigirObraDoPagamento() {
 
             {conta.anos.some((a) => a.pendencia) ? (
               <>
-                <Consequencia cor="amb">{AVISO_ANO_ANTERIOR}</Consequencia>
+                <Consequencia cor={GRAVIDADE_CORRECAO_ANO_ANTERIOR}>
+                  {AVISO_ANO_ANTERIOR}
+                </Consequencia>
                 <Dica>{SO_SEI_QUE_E_ANO_ANTERIOR}</Dica>
               </>
             ) : null}

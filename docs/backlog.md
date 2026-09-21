@@ -542,6 +542,20 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
   Precisa de decisão de arquitetura do `cto-obra` (unificar duas pipelines de
   agregação) — ticket próprio, fora do CONTAI-005
 
+### `37-2026-09-20-contai-035-entregue.md` — 25 linhas
+**CONTAI-035 entregue — 2026-09-20 — D39 revisada reconciliada com todos os call sites**
+
+- `gravidadeDaRegua(...)` (`lib/fiscal/gravidade.ts`) vira único produtor de
+  `Gravidade` branded; zero literal de cor sobrevive fora do módulo (D54)
+- Item C tinha **9 sites, não 7**: os 2 a mais (`app/pagamento/[id]/obra`)
+  nasceram no CONTAI-008, depois do inventário de 23/08 que gerou este
+  ticket — achado no Gate 1, aceito por `cto-obra` e `contador` no Gate 2
+- 742 unitários (30 novos) + 203/204 E2E (falha pré-existente não-fiscal, `35`)
+- Sem dívida fiscal nova. Nota para o futuro: **telas espelhadas
+  (documento↔pagamento) precisam ser conferidas juntas** quando um ticket
+  novo tocar uma régua fiscal — a espelhada pode ter nascido depois do
+  inventário original
+
 ## Ao acrescentar ao backlog
 
 Nova entrada = **arquivo novo** em `docs/backlog/`, nomeado

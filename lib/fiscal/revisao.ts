@@ -27,6 +27,7 @@ import type {
   Revisao,
 } from "@/lib/types";
 
+import { gravidadeDaRegua, type Gravidade } from "./gravidade";
 import { anoCalendario } from "./pagamento";
 import {
   alocarCusto,
@@ -266,6 +267,26 @@ export function resumoDesfechoMistoDoPagamento(entrada: {
 export const AVISO_ANO_ANTERIOR =
   "Esta correção mudou o custo de um ano anterior; se a DAA daquele ano já " +
   "foi entregue, avalie retificadora com seu contador.";
+
+/**
+ * **Item C do CONTAI-035 — VERMELHO nos SETE call sites, no mesmo diff.**
+ *
+ * A correção **já está lançada**: é fato consumado, e o custo do ano anterior
+ * que ela mudou não corresponde mais ao que foi (ou vai ser) declarado. Nada
+ * no acervo sustenta o valor no lugar certo até a retificadora ter um desfecho
+ * — e é por isso que esta pendência é PERSISTENTE e não some ao fechar a tela.
+ *
+ * ⚠️ **Uma constante só, e é de propósito.** O item C tem sete superfícies
+ * (home, lista, detalhe, corrigir valor ×2, mover documento de obra ×2) — mais
+ * as duas de mover PAGAMENTO de obra, que nasceram no `CONTAI-008` depois do
+ * inventário. Foi a cópia da cor em cada tela que deixou a régua discordar de
+ * si mesma por dois meses; com uma definição só, divergir exige apagar esta
+ * linha, que é visível em review.
+ */
+export const GRAVIDADE_CORRECAO_ANO_ANTERIOR: Gravidade = gravidadeDaRegua({
+  dinheiroSaiu: true,
+  apoioHabilNoAnoCerto: false,
+});
 
 /**
  * A fronteira do §6 e do adendo §5.3, dita como o app pode provar. O app
@@ -1154,3 +1175,78 @@ export const EMITENTE_ERRADO_O_QUE_FALTA =
   "favorecido que não é o que emitiu a nota — e é esse favorecido que sairia " +
   "na ficha Pagamentos Efetuados. A correção do apontamento ainda não existe " +
   "no app.";
+
+/**
+ * **Item D, critério 6 do CONTAI-035 — o aviso condicional "exige CRC".**
+ *
+ * Esqueleto copiado de `AVISO_ANO_ANTERIOR`: só a cláusula que NOMEIA O FATO
+ * muda. A cláusula de efeito — *"se a DAA daquele ano já foi entregue, avalie
+ * retificadora com seu contador"* — é **literal**, não reescrita, porque é ela
+ * que carrega a consequência fiscal.
+ *
+ * ⚠️ **O gatilho é a heurística de calendário**, a mesma de
+ * `SO_SEI_QUE_E_ANO_ANTERIOR`: ano do pagamento vinculado < ano corrente. O
+ * app **não sabe** se uma DAA foi entregue, e é exatamente por isso que aquela
+ * constante existe — o aviso afirma só o que é verificável e devolve a decisão
+ * a quem a tem.
+ */
+export const AVISO_CNPJ_ERRADO_ANO_ANTERIOR =
+  "Este documento com CNPJ errado sustenta um pagamento de um ano anterior; " +
+  "se a DAA daquele ano já foi entregue, avalie retificadora com seu contador.";
+
+/**
+ * Um pagamento ligado ao documento marcado com CNPJ errado — o mínimo que a
+ * régua precisa saber: que ele existe, e de que ano-calendário ele é.
+ */
+export interface VinculoDeDocumento {
+  documentoId: string;
+  pagamentoId: string;
+  /** Regime de caixa: o ano sai da DATA DO PAGAMENTO, e de nada mais. */
+  anoDoPagamento: number;
+}
+
+export interface SinalDoEmitenteErrado {
+  gravidade: Gravidade;
+  /**
+   * A segunda `Consequencia`, **sempre âmbar**: o aviso informa a escalada,
+   * não carrega a cor da pendência. `null` quando não há pagamento vinculado
+   * de ano anterior.
+   */
+  avisoAnoAnterior: string | null;
+}
+
+/**
+ * **Item D do CONTAI-035 — a única pendência da régua cuja cor é condicional.**
+ *
+ * `docs/pareceres/2026-08-18-correcao-de-documento-registrado.md` §4.4: o
+ * pagamento **herda o favorecido errado no momento em que é ligado ao
+ * documento**. A partir daí o acervo já reflete o favorecido errado na ficha
+ * Pagamentos Efetuados — fato consumado, e nada sustenta aquele valor no lugar
+ * certo. Sem pagamento ligado nada saiu por causa deste erro, e o documento
+ * sozinho não vai para ficha nenhuma: âmbar.
+ *
+ * ⚠️ **Não depende de valor, de PF/PJ, nem de ano fechado** (Gate Fiscal,
+ * FECHADO): só de existir vínculo. Ano fechado muda a ESCALADA — soma o aviso
+ * de CRC —, nunca a cor.
+ *
+ * ⚠️ **Não é exceção nomeada, nem quando fica âmbar**: é a regra geral se
+ * aplicando a um fato que não aconteceu.
+ */
+export function sinalDoEmitenteErrado(entrada: {
+  documentoId: string;
+  vinculos: readonly VinculoDeDocumento[];
+  anoCorrente: number;
+}): SinalDoEmitenteErrado {
+  const meus = entrada.vinculos.filter(
+    (v) => v.documentoId === entrada.documentoId,
+  );
+  const gravidade = gravidadeDaRegua({
+    dinheiroSaiu: meus.length > 0,
+    apoioHabilNoAnoCerto: false,
+  });
+  const anoAnterior = meus.some((v) => v.anoDoPagamento < entrada.anoCorrente);
+  return {
+    gravidade,
+    avisoAnoAnterior: anoAnterior ? AVISO_CNPJ_ERRADO_ANO_ANTERIOR : null,
+  };
+}

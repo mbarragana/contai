@@ -12,6 +12,15 @@ Convenção de cor no código: vermelho = `cor="red"` (chip/consequência) +
 `border-red` (card); âmbar = `cor="amb"` + `border-amb`. `Card`, `Chip`,
 `Consequencia` são os componentes de `app/_components/ui.tsx`.
 
+⚠️ **Divergências entre esta tabela (Gate 0, 24/08) e o entregue (Gate 2,
+2026-09-20)**: item C ganhou **2 sites a mais** (9, não 7) —
+`app/pagamento/[id]/obra/page.tsx:355` e `:632`, tela que nasceu no CONTAI-008
+depois desta tabela ser aprovada; mesma constante `GRAVIDADE_CORRECAO_ANO_ANTERIOR`,
+confirmada por `cto-obra` e `contador` no Gate 2 (ver critério 4 do ticket).
+Item F (linha 16 acima) **saiu de escopo em 2026-09-19** por conflito com o
+CONTAI-038 — ver "Perguntas Abertas" do ticket — e não foi implementado aqui;
+a exceção nomeada ficou pronta para recebê-lo depois, sem reabrir este ticket.
+
 Origem da régua: D39, revisada em
 `docs/backlog/25-2026-08-23-a-regua-de-cor-e-o-que-ela-escondia.md`:
 
