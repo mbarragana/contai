@@ -16,13 +16,16 @@ Fora de escopo declarado: agendamento / pagamento futuro → CONTAI-019
 - **Fila de conciliação** (`#s12`): wireframe ASCII, não é tela desenhada
 
 ## Campos
-- `pagamentos candidatos` (`#s2`) — multisseleção (checkbox por candidato) — ao menos 1 obrigatório (botão desabilitado com
+- `jaPaguei` "Já paguei esta nota" (`#s1`) — caixa única que ABRE a lista de candidatos no ato do
+  registro (caminho A do critério 1) — nasce desmarcada — SEM DEFAULT. Declarada aqui pelo
+  CONTAI-034: existia na tela de registro sem estar em spec nenhum
+- `pagamentos candidatos`, `pagamentosCandidatos` (`#s2`) — multisseleção (checkbox por candidato) — ao menos 1 obrigatório (botão desabilitado com
   "Marque ao menos um pagamento") — **SEM DEFAULT — campo fiscal**: nada vem marcado, nenhum vínculo nasce sem toque
-- `favorecido` (`#s3b`) — READ-ONLY — vem da nota; "Vem da nota. Se estiver errado, corrige-se na nota." (CONTAI-021, critério 14)
+- `favorecido` (`#s3b`) — SOMENTE LEITURA — vem da nota; "Vem da nota. Se estiver errado, corrige-se na nota." (CONTAI-021, critério 14)
 - `valor` (`#s3b`) — moeda — OBRIGATÓRIO (*) — SEM DEFAULT — campo fiscal
 - `data do pagamento` (`#s3b`) — data — OBRIGATÓRIO (*) — SEM DEFAULT — campo fiscal (regime de caixa)
 - `comprovante` (`#s3b`) — anexo — OBRIGATÓRIO (*) — SEM DEFAULT
-- Saldo ao vivo (`#s2`, calculado, não campo): restante = valor da nota − marcado; excedente = marcado − valor da nota;
+- NÃO É CONTROLE — saldo ao vivo (`#s2`, calculado, não campo): restante = valor da nota − marcado; excedente = marcado − valor da nota;
   comprovado = mínimo(marcado, valor da nota)
 
 ## Textos com consequência fiscal

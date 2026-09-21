@@ -183,6 +183,8 @@ no bloco de decisões pendentes acima.
 | **D57 — falta o único campo que de fato abate a aferição do SERO** ("esta mão de obra foi declarada no CNO?", A.5/Pergunta 2 do parecer de 2026-08-18): não existe em schema, tela nem ticket, confirmado por busca em 2026-09-19 | `31-2026-09-19-sequenciamento-contai-035-038.md` → sem ticket ainda, fica para quando o Mateus priorizar |
 | **D58 — `/adicionar/pagamento` também mostra "Arquivo guardado no acervo" ao salvar sem comprovante** (mesmo `Registrado`, mesmo texto fixo; bug anterior ao CONTAI-033) | `33-2026-09-20-tres-bugs-achados-no-teste-manual-do-contai-033.md` → prop `arquivoNoAcervo` já existe em `Registrado`, falta só a chamada em `/adicionar/pagamento` |
 | **D59 — o banner "Nenhuma pendência" da home só olha `resumo.pendencias`, ignorando todo agregado "fora de pendencias"** (`terrenoPagoSemComprovante` e os outros cinco); corrigido só para `documentosSemArquivo` | `33-2026-09-20-tres-bugs-achados-no-teste-manual-do-contai-033.md` → auditoria dos outros cinco, decidir se vira um helper único |
+| **D65 — RESPONDIDA no Gate 2 do `CONTAI-034` (21/09)**: `cValor` pré-preenchido com o saldo previsto em `/compromisso/[id]/confirmar`, mesma forma da D44; corrigida dentro do próprio ticket por decisão do `contador`, não em ticket separado | `40-2026-09-21-contai-034-entregue.md` — fechada, sem ticket futuro |
+| **D66 — `unidades_autonomas` nasce `"1"` contra o `SEM DEFAULT` do `CONTAI-003`**, achada pelo mapa do `CONTAI-034` e não corrigida (doutrina "prova, não conserta" do próprio ticket); passo 4 do assistente de `/obras/nova`, fora da rota que a suíte visita | `40-2026-09-21-contai-034-entregue.md` → falta ticket de conserto |
 
 O status de cada uma está na própria entrada — este índice aponta, não duplica.
 
@@ -575,6 +577,27 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
 - **D63** — correção de `rotulo_literal`/`valor` de linha já gravada sem
   caminho pela interface; mesma categoria de D62, mesmo caminho futuro
   (extensão de `corrigir_documento`)
+
+### `40-2026-09-21-contai-034-entregue.md` — 32 linhas
+**CONTAI-034 entregue — 2026-09-21 — a D44 vira trava executável**
+
+- `data-campo="<id do mock>"` amarra `design/mocks/*.md` a todo controle
+  fiscal; `lib/design/campos-do-spec.ts` parseia `## Campos` **fail-closed**
+  (linha fora da gramática = suíte vermelha, nunca ignorada); `e2e/campos-
+  fiscais.spec.ts` cruza spec × DOM e exige toda rota classificada
+- **Provado contra a D44 real**: `useState(hojeIso)`/`useState("pix")`
+  reintroduzidos em `/adicionar/pagamento` deixam a suíte vermelha nomeando
+  `fData` e `meio`; revertido, volta a verde — checado manualmente no Gate 4
+- Cobertura é só das 9 rotas que a suíte abre; falso negativo assumido e
+  escrito no teste (mesmo desenho do `privilegios.spec.ts`)
+- 839 unitários (22 novos) + 239 E2E (19 novos) + validação manual
+- **D65** — `cValor` pré-preenchido em `/compromisso/[id]/confirmar` (mesma
+  forma da D44); corrigido dentro do próprio ticket por decisão do
+  `contador` no Gate 2, não em ticket separado — mas só documentado em
+  comentário de código até esta entrada
+- **D66** — `unidades_autonomas` nasce `"1"` contra `SEM DEFAULT` do
+  `CONTAI-003`; achada, não corrigida (passo 4 do assistente, fora da visita
+  da suíte) — falta ticket
 
 ### `39-2026-09-21-contai-006-entregue.md` — 30 linhas
 **CONTAI-006 entregue — 2026-09-21 — estados de rede lenta e indisponível**

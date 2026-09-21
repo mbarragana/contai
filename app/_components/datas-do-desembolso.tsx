@@ -69,6 +69,7 @@ export function PerguntaQuandoSaiu({
           entrega sem o enunciado. */}
       <Escolha
         destaque
+        campo="quando"
         rotulo={PERGUNTA_QUANDO_SAIU}
         opcoes={[
           {

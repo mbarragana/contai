@@ -25,11 +25,26 @@ sozinho, sem olhar a data — é o achado "RECUSA_CARTAO alcançável de verdade
 Sem loading, sem vazio (não há lista), sem erro de rede — é formulário puro.
 
 ## Campos
+- NÃO É CONTROLE — ⚠️ a lista abaixo é a de `/adicionar/pagamento` INTEIRA, e
+  não só a dos dois campos que este ticket mexe: desde o CONTAI-034 é ela que o
+  `e2e/campos-fiscais.spec.ts` cruza com o DOM da tela, e campo não declarado
+  aqui deixa a suíte vermelha. `favorecido` e `favorecidoDocumento` entraram
+  nesta rodada porque existiam na tela sem estar declarados em spec nenhum — que
+  é exatamente a invisibilidade que o 034 veio fechar.
 - `meio` — Escolha 1-de-3 (PIX/Boleto/Cartão) — **nasce sem nenhum marcado** — SEM DEFAULT
 - `fData` — `type=date` — **nasce vazio** — SEM DEFAULT — decide o branch junto com `meio`
-- `fValor` — inalterado por este ticket (rótulo só troca o qualificador; validação já existia)
+- `fValor` — inalterado por este ticket (rótulo só troca o qualificador; validação já existia) — SEM
+  DEFAULT, como no CONTAI-019
 - `comprovante` — inalterado por este ticket (nunca bloqueia; mock inclui para mostrar que os
-  banners de "sem comprovante" continuam corretos nos estados resolvidos)
+  banners de "sem comprovante" continuam corretos nos estados resolvidos) — SEM DEFAULT, como no
+  CONTAI-019
+- `favorecido` "Favorecido" — texto — obrigatório — inalterado por este ticket (vem do `#s10` do
+  CONTAI-001); quando o pagamento nasce ligado a uma nota, o campo não existe: o favorecido é
+  herdado e não editável (CONTAI-018) — SEM DEFAULT
+- `favorecidoDocumento` "CNPJ / CPF do favorecido" — texto `inputmode=numeric` — obrigatório —
+  inalterado por este ticket; a dedup do favorecido é pela chave (dono, documento), então dígito
+  trocado cria um SEGUNDO favorecido e a ficha Pagamentos Efetuados sai com a mesma empresa em duas
+  linhas — SEM DEFAULT — campo fiscal
 
 ## Textos com consequência fiscal
 - "Informe a data em que o pagamento saiu." — `lib/fiscal/pagamento.ts:150-154`, já existe

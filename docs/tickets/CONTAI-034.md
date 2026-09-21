@@ -70,52 +70,52 @@ deixa a suíte vermelha com o nome dela**. Foi a defesa que **escalou** — a ou
 
 ### 1. O elo: `data-campo`
 
-1. [ ] Todo controle de campo fiscal recebe `data-campo="<id do mock>"` — **o id
+1. [x] Todo controle de campo fiscal recebe `data-campo="<id do mock>"` — **o id
        do spec** (`fData`, `cData`, `iTotal`…), **não** o nome do state. É o que
        amarra `fData` (spec) a `useState(hojeIso)` (código). Idioma que o repo já
        usa: `data-pendencia`, `data-agendado`, `data-trava`
-2. [ ] **Fecha nos dois sentidos**: campo listado no spec **sem** `data-campo` no
+2. [x] **Fecha nos dois sentidos**: campo listado no spec **sem** `data-campo` no
        DOM → **vermelho com o nome dele**
 
 ### 2. O parser do spec — `fail-closed`, e isso é condição do `cto-obra`
 
-3. [ ] Vitest (sem browser) parseia a seção `## Campos` dos specs em
+3. [x] Vitest (sem browser) parseia a seção `## Campos` dos specs em
        `design/mocks/*.md`. Gramática medida pelo `lead-engineer` nos 10 specs:
        **~45 linhas**, formato `- \`campo\` — tipo — obrigatório? — validação —
        SEM DEFAULT`, **uma por linha, zero fragmento multi-linha**
-4. [ ] ⛔ **`fail-closed`**: linha sob `## Campos` que **não case com a
+4. [x] ⛔ **`fail-closed`**: linha sob `## Campos` que **não case com a
        gramática** → **suíte vermelha com a linha**, nunca `skip`.
        *"Parser que ignora o que não entende é a D44 de novo: o spec deriva para
        prosa e a trava se desliga em silêncio"* — `cto-obra`
-5. [ ] O formato tabular do `## Campos` vira **contrato versionado**, e isso fica
+5. [x] O formato tabular do `## Campos` vira **contrato versionado**, e isso fica
        **dito dentro do próprio teste**
-6. [ ] Campo com `SEM DEFAULT` no spec → **nenhuma justificativa no mapa
+6. [x] Campo com `SEM DEFAULT` no spec → **nenhuma justificativa no mapa
        salva**. É o buraco do "declare e siga": mapa escrito à mão é escape hatch
        exatamente para quem a trava existe
 
 ### 3. A enumeração comportamental — `e2e/campos-fiscais.spec.ts`
 
-7. [ ] Nas rotas que a suíte **já abre**, enumera os controles dentro do
+7. [x] Nas rotas que a suíte **já abre**, enumera os controles dentro do
        `<form>` **no instante em que a tela nasce** e compara com o declarado:
        controle **não listado** → vermelho **com o nome dele**; listado como
        vazio e **com valor inicial** → vermelho
-8. [ ] **Enumera as rotas do filesystem** (`app/**/page.tsx`) e exige que **toda
+8. [x] **Enumera as rotas do filesystem** (`app/**/page.tsx`) e exige que **toda
        rota esteja classificada**: *"tem campos fiscais: quais"* ou *"não tem"*.
        **Tela nova sem classificação → vermelho com o nome dela.** É a
        propriedade que fez o `privilegios.spec.ts` escalar
-9. [ ] **Só afirma sobre controle presente naquele instante** — resolve o ruído
+9. [x] **Só afirma sobre controle presente naquele instante** — resolve o ruído
        de campo condicional (`cEncargos` só existe quando pago > previsto)
-10. [ ] Exceções legítimas entram **nomeadas**, com proveniência, como a exceção
+10. [x] Exceções legítimas entram **nomeadas**, com proveniência, como a exceção
         do DELETE já entrou no E2E
 
 ### 4. A prova de que pega o caso real
 
-11. [ ] **Teste provado contra a D44**: com `useState(hojeIso)` e
+11. [x] **Teste provado contra a D44**: com `useState(hojeIso)` e
         `useState("pix")` restaurados, a suíte fica **vermelha nomeando `fData` e
         `meio`**; com o `CONTAI-032` aplicado, verde. Teste que não falha contra
         o defeito não prova nada — foi assim que o bug do trigger do `CONTAI-027`
         passou
-12. [ ] **Falso positivo conhecido, e ele tem que passar**: `cData` do spec do
+12. [x] **Falso positivo conhecido, e ele tem que passar**: `cData` do spec do
         `019` *"vem pré-preenchida com a data prevista e é editável"* — **default
         legítimo e declarado**. O cruzamento é **por linha do spec**, nunca pela
         regra geral *"todo campo fiscal nasce vazio"*

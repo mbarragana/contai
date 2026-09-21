@@ -782,6 +782,7 @@ function RegistrarPagamento() {
                 `decidirRegistro` nem por este estado. */}
             <Card className="flex flex-col gap-3.5">
               <Escolha
+                campo="meio"
                 rotulo="Como foi pago"
                 opcoes={[
                   { valor: "pix", texto: "PIX" },
@@ -842,6 +843,7 @@ function RegistrarPagamento() {
               ) : (
                 <>
                   <CampoTexto
+                    campo="favorecido"
                     rotulo="Favorecido"
                     valor={nome}
                     onChange={setNome}
@@ -849,6 +851,7 @@ function RegistrarPagamento() {
                     erro={erroDe("favorecidoNome")}
                   />
                   <CampoTexto
+                    campo="favorecidoDocumento"
                     rotulo="CNPJ / CPF do favorecido"
                     valor={documento}
                     onChange={setDocumento}
@@ -865,6 +868,7 @@ function RegistrarPagamento() {
                   fato que a tela ainda não sabe. */}
               <div className="flex flex-col gap-1.5">
                 <CampoTexto
+                  campo="fData"
                   rotulo={
                     indefinido
                       ? "Data"
@@ -895,6 +899,7 @@ function RegistrarPagamento() {
                   previsão. O nome é parte da proteção — "valor" convida à
                   soma mista. */}
               <CampoTexto
+                campo="fValor"
                 rotulo={vaiAgendar ? "Valor previsto" : "Valor"}
                 valor={valor}
                 onChange={setValor}
@@ -917,6 +922,7 @@ function RegistrarPagamento() {
                 </Dica>
               ) : (
                 <CampoArquivo
+                  campo="comprovante"
                   rotulo="Comprovante"
                   ajuda={
                     indefinido

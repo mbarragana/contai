@@ -43,7 +43,7 @@ Aprovado pelo Mateus em 2026-08-19 (v2). Larguras do mock: 375px (piso) e 720px 
 - `inpDataDesf` (s7d) — data `dd/mm/aaaa`, rótulo dinâmico "Data da retificadora — obrigatória" / "Data em que seu contador respondeu — obrigatória" — obrigatória nos desfechos a e b; **o desfecho c não pede data** — SEM DEFAULT
 - `obraDestino` (s8/s8b) — 1 opção por obra ("Reforma do apartamento · CNO próprio · iniciada em 03/2025") — obrigatório — **SEM DEFAULT** ("Nada nasce marcado.")
 - `escolhaPag[p1]`, `escolhaPag[p2]` (s8) — por pagamento, 2 opções: "Este pagamento também é da Reforma do apartamento" | "Este pagamento é mesmo da Casa Tanheiros" — obrigatórios, um a um, nunca em cascata — **SEM DEFAULT — campo fiscal**
-- Campos exibidos e **não editáveis**: CNPJ/CPF do favorecido, situação do documento, arquivo anexado (só se acrescenta), tipo, vencimento, "a nota está no meu CPF", número/série/data de emissão (não existem no app).
+- NÃO É CONTROLE — campos exibidos e **não editáveis**: CNPJ/CPF do favorecido, situação do documento, arquivo anexado (só se acrescenta), tipo, vencimento, "a nota está no meu CPF", número/série/data de emissão (não existem no app).
 
 ## Textos com consequência fiscal
 - "entra no custo de aquisição pela data do pagamento — regime de caixa" — s1, sob "Custo comprovado"

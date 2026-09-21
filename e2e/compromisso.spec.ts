@@ -324,7 +324,13 @@ test.describe("confirmar o pagamento de um agendamento", () => {
     await expect(page.locator("[data-marca='valor-previsto']")).toContainText("~");
     await expect(page.getByText(dataBR(prevista)).first()).toBeVisible();
 
-    // Botão desabilitado, e dizendo o que falta.
+    // ⚠️ **D65** — o VALOR nasce vazio pelo mesmo motivo que a data: é ele que
+    // vira custo de aquisição, e o previsto não o antecipa. Até 2026-09-21 o
+    // campo vinha carregado com o saldo do agendamento, e um toque gravava um
+    // desembolso que ninguém conferiu.
+    await expect(page.getByLabel("Valor efetivamente pago")).toHaveValue("");
+
+    // Botão desabilitado, e dizendo o que falta — um motivo de cada vez.
     await expect(
       page.getByRole("button", { name: "Informe a data em que o dinheiro saiu" }),
     ).toBeDisabled();
@@ -332,8 +338,14 @@ test.describe("confirmar o pagamento de um agendamento", () => {
     // ⚠️ Não existe atalho que preencha data.
     await expect(page.getByRole("button", { name: /hoje/i })).toHaveCount(0);
 
-    // Preenchido com HOJE, grava HOJE — nunca a data prevista.
+    // Com a data, o bloqueio passa a ser o valor: nunca um botão mudo.
     await page.getByLabel("Data em que o dinheiro saiu").fill(hoje());
+    await expect(
+      page.getByRole("button", { name: "Informe o valor efetivamente pago" }),
+    ).toBeDisabled();
+
+    // Preenchido com HOJE, grava HOJE — nunca a data prevista.
+    await page.getByLabel("Valor efetivamente pago").fill("10.000,00");
     await page.getByRole("button", { name: "Salvar pagamento" }).click();
 
     // ⚠️ Espera pela URL, e não pelo título: `name: "Pagamento"` casa por
@@ -361,6 +373,9 @@ test.describe("confirmar o pagamento de um agendamento", () => {
 
     await page.goto(`/compromisso/${id}/confirmar`);
     await page.getByLabel("Data em que o dinheiro saiu").fill(hoje());
+    // D65: o valor não vem mais pré-preenchido — quem afirma o desembolso é o
+    // dedo do Mateus, aqui como no registro direto.
+    await page.getByLabel("Valor efetivamente pago").fill("10.000,00");
     await page.getByRole("button", { name: "Salvar pagamento" }).click();
     // ⚠️ Espera pela URL, e não pelo título: `name: "Pagamento"` casa por
     // SUBSTRING com "Registrar o pagamento", e o teste seguia com o botão
@@ -487,6 +502,7 @@ test.describe("confirmar o pagamento de um agendamento", () => {
 
     await page.goto(`/compromisso/${id}/confirmar`);
     await page.getByLabel("Data em que o dinheiro saiu").fill(hoje());
+    await page.getByLabel("Valor efetivamente pago").fill("10.000,00");
 
     // Só o vínculo cai. O pagamento entra normalmente.
     await page.route(`${URL_SUPABASE_LOCAL}/rest/v1/compromisso_pagamento*`, (rota) =>

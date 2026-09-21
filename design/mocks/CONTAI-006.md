@@ -97,6 +97,10 @@ resultado quando de fato não sabe.
 
 ---
 
+## Campos
+- SEM CAMPOS — este spec é de ESTADO de rede (lento, indisponível, retomada),
+  não de formulário: nenhum controle novo nasce em tela nenhuma.
+
 ## Textos exatos
 
 ### Leitura

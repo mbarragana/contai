@@ -32,7 +32,7 @@ Telas: 16
 - `valor_terreno` — moeda — obrigatório (*) — — SEM DEFAULT — campo fiscal
 - `itbi` — moeda — opcional (preenchível depois) — integra o custo de aquisição — SEM DEFAULT — campo fiscal
 - `escritura_registro` — moeda — opcional (preenchível depois) — integra o custo de aquisição — SEM DEFAULT — campo fiscal
-- `custo_terreno` — moeda — derivado (valor + ITBI + escritura), somente leitura — —
+- `custo_terreno` — moeda — derivado (valor + ITBI + escritura) — SOMENTE LEITURA
 - `unidades_autonomas` — número — obrigatório (*) — >1 dispara aviso permanente de incorporação (não bloqueia) — SEM DEFAULT — campo fiscal
 - `origem_desmembramento` — sim/não — obrigatório (*) — "sim" dispara o mesmo aviso (não bloqueia) — SEM DEFAULT — campo fiscal
 - `registro.obra` — obra afirmada no formulário — obrigatório — vale a obra **na tela**, não a preferência guardada no aparelho — SEM DEFAULT — campo fiscal

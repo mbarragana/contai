@@ -37,6 +37,25 @@ para lá, mesmo padrão visual (`Card className="border-red"`, chip, valor mono,
   memória quando registrou. As perguntas voltam porque agora há papel para conferir — e é o papel que a
   fiscalização lê, não o app."
 
+## Campos
+
+### `/documento/[id]/anexar` (s3) — a rota nova
+
+- `arquivo` "Arquivo da nota" — `input[type=file]` real — **obrigatório**: é
+  a razão de a tela existir — SEM DEFAULT
+- `notaNoCpf` "A nota está no seu CPF?" — escolha sim/não — **obrigatória, e
+  REPERGUNTADA EM BRANCO** mesmo já respondida no registro original (ADENDO 1
+  §A.7.3): a resposta antiga foi dada sem o papel à vista, e afirmação fiscal
+  não se herda — **SEM DEFAULT — campo fiscal**
+- `retencaoNaNota` "Esta nota destaca alguma retenção?" — escolha "Nenhuma"/"Destacada" —
+  obrigatória em NF de serviço (`exigeRetencao`), reperguntada em branco pelo
+  mesmo motivo; o rótulo e as opções são os do CONTAI-038 — **SEM DEFAULT —
+  campo fiscal**
+
+- NÃO É CONTROLE — ⚠️ seção acrescentada pelo CONTAI-034: a rota nasceu sem
+  `## Campos`, e tela sem declaração é invisível para a trava de default
+  (critério 8). Os três campos são os que a tela já tem — nada de desenho novo
+  aqui.
 ## Decisões de design
 1. **Diálogo é overlay dentro da mesma tela**, não navegação nova — a captura continua em 1 tela/3 passos.
    "Anexar agora" fecha o diálogo e devolve o foco ao campo do anexo, sem perder nada já digitado.

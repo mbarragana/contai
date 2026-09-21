@@ -292,15 +292,15 @@ mesmo lugar — não é modal, não é rota nova):
   - "Eu" → banco `eu`
   - "A empresa" → banco `empresa`
   - "Ainda não sei" → banco `nao_sei` (resposta de primeira classe, não erro)
-- Nenhum anexo por linha: o papel já é o mesmo anexado no registro do
-  documento — a linha só transcreve um valor que já está nesse arquivo.
-- Cada linha nova nasce **inteiramente em branco**, mesmo que a anterior já
+- NÃO É CONTROLE — nenhum anexo por linha: o papel já é o mesmo anexado no
+  registro do documento — a linha só transcreve um valor que já está nesse arquivo.
+- NÃO É CONTROLE — cada linha nova nasce **inteiramente em branco**, mesmo que a anterior já
   tenha sido preenchida — nenhum campo herda valor da linha anterior (mesmo
   princípio do CONTAI-021 s8: "obrigatórios, um a um, nunca em cascata").
 
 ### `/documento/[id]` — correção de linha já gravada
 
-- `quemRecolhe` é o **único** campo de uma linha existente que este ticket
+- NÃO É CONTROLE — `quemRecolhe` é o **único** campo de uma linha existente que este ticket
   torna editável (grant de UPDATE existe exatamente para isto — Viabilidade,
   critério 16). `rotuloLiteral`/`valor`/`composicao`/`tributo`/`eDescontoEfetivo`
   não têm edição nesta rodada (dívida já declarada no Out of Scope do ticket

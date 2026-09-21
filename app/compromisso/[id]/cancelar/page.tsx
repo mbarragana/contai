@@ -136,6 +136,7 @@ export default function CancelarAgendamento() {
 
             <Card>
               <CampoTexto
+                campo="fMotivo"
                 rotulo="Por que não vai ser pago?"
                 valor={motivo}
                 onChange={setMotivo}

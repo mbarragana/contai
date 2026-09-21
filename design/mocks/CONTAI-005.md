@@ -64,7 +64,7 @@ Fonte: `docs/pareceres/2026-08-16-gate-fiscal-contai-004-005.md`, §4, Blocos 1-
   ao `contador`**, não é cópia literal de nada.
 
 ## Campos
-Nenhum — tela é só leitura (cenário de gestão, sem captura). Nenhum input novo.
+- SEM CAMPOS — tela é só leitura (cenário de gestão, sem captura). Nenhum input novo.
 
 ## Navegação
 Sem navegação nova. O card de risco não tem CTA próprio — a ação continua nos cards individuais de

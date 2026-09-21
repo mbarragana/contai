@@ -73,6 +73,10 @@ Origem da régua: D39, revisada em
 
 ---
 
+## Campos
+- SEM CAMPOS — este spec troca TEXTO em telas que já existem (17 mudam, 8
+  conferidos sem mudança). Nenhum controle novo, nenhum default tocado.
+
 ## Achado 1 — a citação `app/_components/pago-sem-comprovante.tsx:81` não é o exceção-site real ⚠️
 
 O enunciado cita `app/_components/pago-sem-comprovante.tsx:81` como o local da

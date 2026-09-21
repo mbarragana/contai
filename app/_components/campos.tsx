@@ -4,6 +4,22 @@ import { useId } from "react";
 
 /** Campos do formulário manual. Alvos grandes: canteiro, uma mão livre. */
 
+/**
+ * ⚠️ **`campo` é o elo do CONTAI-034**, e o valor dele é o **id do spec do
+ * mock** (`fData`, `cData`, `iTotal`…) — nunca o nome do state. É o que amarra
+ * a linha `- \`fData\` … SEM DEFAULT` do `design/mocks/*.md` ao controle que
+ * nasce na tela, e é por ele que `e2e/campos-fiscais.spec.ts` compara os dois.
+ *
+ * Sem ele, o controle aparece na enumeração do E2E como "sem `data-campo`" e a
+ * suíte fica vermelha com o rótulo dele. O tipo não obriga (radio pré-marcado
+ * no JSX escaparia de qualquer invariante de tipo — foi por isso que o helper
+ * `useCampoFiscal` foi recusado no ticket); quem obriga é o teste.
+ */
+export type ComCampo = {
+  /** O id do spec do mock. Ver o bloco acima. */
+  campo?: string;
+};
+
 export function Rotulo({ children }: { children: React.ReactNode }) {
   return <span className="text-[12px] text-mut">{children}</span>;
 }
@@ -19,6 +35,7 @@ export function ErroCampo({ mensagem }: { mensagem?: string }) {
 
 export function CampoTexto({
   rotulo,
+  campo,
   valor,
   onChange,
   erro,
@@ -29,7 +46,7 @@ export function CampoTexto({
   autoComplete,
   desabilitado = false,
   classe = "",
-}: {
+}: ComCampo & {
   rotulo: string;
   valor: string;
   onChange: (v: string) => void;
@@ -63,6 +80,7 @@ export function CampoTexto({
       </label>
       <input
         id={id}
+        data-campo={campo}
         type={tipo}
         value={valor}
         inputMode={inputMode}
@@ -86,12 +104,13 @@ export function CampoTexto({
 
 export function Escolha<T extends string>({
   rotulo,
+  campo,
   opcoes,
   valor,
   onChange,
   erro,
   destaque = false,
-}: {
+}: ComCampo & {
   rotulo: string;
   opcoes: readonly { valor: T; texto: string }[];
   valor: T | null;
@@ -102,7 +121,9 @@ export function Escolha<T extends string>({
 }) {
   const nome = useId();
   return (
-    <fieldset className="flex flex-col gap-1.5">
+    // O `data-campo` fica no FIELDSET, não em cada rádio: o campo é a ESCOLHA,
+    // e "nasce sem default" quer dizer nenhum dos rádios marcado.
+    <fieldset data-campo={campo} className="flex flex-col gap-1.5">
       <legend className={destaque ? "text-[13px] font-semibold" : ""}>
         <Rotulo>{rotulo}</Rotulo>
       </legend>
@@ -140,12 +161,13 @@ export function Escolha<T extends string>({
 
 export function CampoArquivo({
   rotulo,
+  campo,
   ajuda,
   arquivo,
   onChange,
   erro,
   accept,
-}: {
+}: ComCampo & {
   rotulo: string;
   ajuda: string;
   arquivo: File | null;
@@ -161,6 +183,7 @@ export function CampoArquivo({
       </label>
       <input
         id={id}
+        data-campo={campo}
         type="file"
         accept={accept}
         onChange={(e) => onChange(e.target.files?.[0] ?? null)}

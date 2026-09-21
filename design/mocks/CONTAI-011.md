@@ -25,14 +25,14 @@ Telas: 23   Status no mock: "Mock NÃO aprovado — aprovação é ato do Mateus
 - **Avisos** (`#s23`): sucesso; toggle de 2 opções
 
 ## Campos
-- `motivo do descarte` (`#s13`) — texto livre — OPCIONAL ("Por quê? (opcional)") — sem validação — vazio, placeholder "ex.: subiu duas vezes"
+- `motivo do descarte` (`#s13`) — texto livre — OPCIONAL ("Por quê? (opcional)") — sem validação — nasce vazio, placeholder "ex.: subiu duas vezes" — SEM DEFAULT
 - `tipo de documento da obra` (`#s14`) — seleção — OBRIGATÓRIO (*) — lista: Alvará · ART/RRT · Matrícula do imóvel · Habite-se ·
   Projeto aprovado · Contrato de empreitada · CND da obra · Outro — SEM DEFAULT — campo fiscal
 - `obra` (`#s14`) — seleção — OBRIGATÓRIO (*) — "o dossiê é por obra, e um documento sem obra não entra em dossiê nenhum" — SEM DEFAULT — campo fiscal
 - `data do documento` (`#s14`) — data — opcional (sem *) — sem validação declarada — SEM DEFAULT
 - `para quem` (`#s20`) — e-mail — OBRIGATÓRIO (*) — sem validação declarada — SEM DEFAULT
 - `quem é` (`#s20`) — texto — opcional — sem validação — SEM DEFAULT
-- `avisos` (`#s23`) — toggle 2 opções ["só quando falhar" | "a cada cópia"] — default desenhado: "só quando falhar" (declarado como pergunta M3 em aberto)
+- `avisos` (`#s23`) — toggle 2 opções ["só quando falhar" | "a cada cópia"] — DEFAULT DECLARADO: "só quando falhar" — preferência de aviso, sem consequência fiscal nenhuma (declarado como pergunta M3 em aberto)
 
 ## Textos com consequência fiscal
 - "Não entra no custo de aquisição. Peça a nota no seu CPF." — card de quarentena na home (`#s1`)

@@ -260,6 +260,7 @@ export default function NovaCompraCartao() {
             <Card className="flex flex-col gap-3.5">
               <Escolha
                 destaque
+                campo="parc"
                 rotulo="Parcelado?"
                 opcoes={RESPOSTAS_PARC}
                 valor={parcelado}
@@ -276,6 +277,7 @@ export default function NovaCompraCartao() {
             {parcelado === "vista" ? (
               <Card className="flex flex-col gap-3.5">
                 <CampoTexto
+                  campo="favorecido"
                   rotulo="Favorecido"
                   valor={nome}
                   onChange={setNome}
@@ -283,6 +285,7 @@ export default function NovaCompraCartao() {
                   erro={erroDe("favorecidoNome")}
                 />
                 <CampoTexto
+                  campo="favorecidoDocumento"
                   rotulo="CNPJ / CPF do favorecido"
                   valor={documento}
                   onChange={setDocumento}
@@ -290,6 +293,7 @@ export default function NovaCompraCartao() {
                   placeholder="00.000.000/0000-00"
                 />
                 <CampoTexto
+                  campo="fValor"
                   rotulo="Valor da compra"
                   valor={valor}
                   onChange={setValor}
@@ -298,6 +302,7 @@ export default function NovaCompraCartao() {
                   erro={erroDe("valorCentavos")}
                 />
                 <CampoTexto
+                  campo="fCompra"
                   rotulo="Data da compra"
                   tipo="date"
                   valor={dataCompra}
@@ -306,6 +311,7 @@ export default function NovaCompraCartao() {
                   erro={erroDe("dataCompra")}
                 />
                 <CampoTexto
+                  campo="fVenc"
                   rotulo="Vencimento da fatura"
                   tipo="date"
                   valor={dataVencimento}

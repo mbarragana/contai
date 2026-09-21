@@ -23,6 +23,10 @@ fiscal em jogo nesta mudança.
 |---|---|---|---|
 | Não há como ir da nota ao pagamento vinculado sem passar pela lista de pendências/documento | `app/documento/[id]/page.tsx`, `PagamentosDesteDocumento`, ~206-224 (bloco `<div className="mt-2">` que hoje só tem o `BotaoLink` de "Desligar este pagamento") | Um `BotaoLink` só, para desligar: `<BotaoLink href={`/documento/${documento.id}/desligar?pagamento=${p.id}`}>Desligar este pagamento</BotaoLink>` | → **Dois `BotaoLink`, o novo antes do existente**: `<BotaoLink href={`/pagamento/${p.id}`}>Ver o pagamento</BotaoLink>` seguido do `Desligar este pagamento` já existente, sem alterar href/texto/condição dele | Ticket CONTAI-037; rótulo espelha o par já em produção em `app/pagamento/[id]/page.tsx:305` (`Ver o documento`) |
 
+## Campos
+- SEM CAMPOS — este spec só troca o RÓTULO de um controle que já existe e já
+  está declarado no spec de origem. Nenhum campo novo, nenhum default tocado.
+
 ## Rótulo escolhido
 
 **"Ver o pagamento"** — simétrico ao `"Ver o documento"` que já existe na

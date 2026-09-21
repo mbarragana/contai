@@ -588,6 +588,7 @@ export default function DesembolsosDoTerreno() {
       <div className="mt-2.5 flex flex-col gap-3">
         {faltaData ? (
           <CampoTexto
+            campo="fData"
             rotulo="Data em que saiu da conta"
             tipo="date"
             valor={dataCompletar}
@@ -596,6 +597,8 @@ export default function DesembolsosDoTerreno() {
           />
         ) : null}
         <EscolhaDeAnexos
+          campo="fPapeis"
+          campoPapel="fPapel"
           rotulo="Anexar papel"
           ajuda={PAPEL_NOVO_E_ACRESCIMO}
           itens={anexosCompletar}
@@ -797,6 +800,7 @@ export default function DesembolsosDoTerreno() {
         <Card className="flex flex-col gap-3.5">
           <Escolha
             destaque
+            campo="fTipo"
             rotulo="O que é este desembolso?"
             opcoes={tipos}
             valor={tipo}
@@ -804,6 +808,7 @@ export default function DesembolsosDoTerreno() {
             erro={erroDe("tipo")}
           />
           <CampoTexto
+            campo="fValor"
             rotulo="Valor"
             valor={valor}
             onChange={setValor}
@@ -813,6 +818,7 @@ export default function DesembolsosDoTerreno() {
           />
           <Escolha
             destaque
+            campo="fEstado"
             rotulo="Este valor já foi pago?"
             opcoes={ESTADOS}
             valor={estado}
@@ -827,6 +833,7 @@ export default function DesembolsosDoTerreno() {
           {estado === "pago" ? (
             <>
               <CampoTexto
+                campo="fData"
                 rotulo="Data em que saiu da conta"
                 tipo="date"
                 valor={data}
@@ -839,6 +846,8 @@ export default function DesembolsosDoTerreno() {
                   O que o comprovante decide é se o valor entra no custo
                   CONFIRMADO, não se o registro existe. */}
               <EscolhaDeAnexos
+                campo="fPapeis"
+                campoPapel="fPapel"
                 rotulo="Papéis deste desembolso"
                 ajuda="Pode ser mais de um. Não são obrigatórios para gravar — é o comprovante que decide se este valor entra no custo confirmado."
                 itens={anexos}
@@ -882,6 +891,7 @@ export default function DesembolsosDoTerreno() {
           {tipo === "entrada" ? (
             <>
               <Escolha
+                campo="entrada.origem"
                 rotulo="De onde saiu o dinheiro da entrada?"
                 opcoes={ORIGENS}
                 valor={origem}

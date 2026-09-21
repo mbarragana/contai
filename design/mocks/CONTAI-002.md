@@ -13,8 +13,11 @@ Telas: 7
 
 ## Campos
 - `email` — e-mail — obrigatório — o e-mail tem que existir (signup desligado, `shouldCreateUser: false`) — SEM DEFAULT
+- `senha` "Sua senha" — `type=password`, `autocomplete=current-password` — obrigatória — é o campo
+  que a tela tem HOJE, ao lado do e-mail; declarado aqui pelo CONTAI-034 porque existia sem estar
+  em spec nenhum — SEM DEFAULT
 - `codigo` — 6 dígitos numéricos — obrigatório — expira; **pedir um novo invalida o anterior**; teclado numérico e autofill de OTP do iOS/Android — SEM DEFAULT
-- Rascunho preservado em `#s6` (não são campos desta tela, são do formulário de registro que sobreviveu): `anexo`, `emitente`, `valor`, `nota_no_seu_cpf`
+- NÃO É CONTROLE — rascunho preservado em `#s6` (não são campos desta tela, são do formulário de registro que sobreviveu): `anexo`, `emitente`, `valor`, `nota_no_seu_cpf`
 
 ## Textos com consequência fiscal
 - "O app guarda CPF, CNO e as notas da obra. O login é o que separa esses dados de qualquer outra pessoa — não é formalidade." — `#s1`, card

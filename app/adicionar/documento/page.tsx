@@ -805,6 +805,7 @@ export default function RegistrarDocumento() {
                   a recusa antiga sobrevivendo como texto. Sem `erro`: a falta
                   do arquivo não é erro de campo, é a pergunta do §A.7.1. */}
               <CampoArquivo
+                campo="arquivo"
                 rotulo="Arquivo"
                 ajuda="PDF, XML ou foto — é ele que faz a nota valer no acervo. Não tem à mão? Dá para registrar e anexar depois."
                 accept=".pdf,.xml,image/*"
@@ -841,6 +842,7 @@ export default function RegistrarDocumento() {
                 </div>
               ) : null}
               <Escolha
+                campo="tipo"
                 rotulo="Tipo"
                 opcoes={TIPOS}
                 valor={tipo}
@@ -853,6 +855,7 @@ export default function RegistrarDocumento() {
               {exigeIdentificacaoDaNota(tipo) ? (
                 <>
                   <CampoTexto
+                    campo="numero"
                     rotulo="Número da nota"
                     valor={numero}
                     onChange={setNumero}
@@ -864,6 +867,7 @@ export default function RegistrarDocumento() {
                       e sem erro possível — nem toda NFS-e tem série, e exigir
                       aqui faria o Mateus inventar um valor para poder salvar. */}
                   <CampoTexto
+                    campo="serie"
                     rotulo="Série (quando houver)"
                     valor={serie}
                     onChange={setSerie}
@@ -873,6 +877,7 @@ export default function RegistrarDocumento() {
                       É. Sem esta frase o campo é lido como "a data que vale
                       para o IR" — e quem decide o ano do custo é o pagamento. */}
                   <CampoTexto
+                    campo="data_emissao"
                     rotulo="Data de emissão"
                     tipo="date"
                     valor={dataEmissao}
@@ -883,6 +888,7 @@ export default function RegistrarDocumento() {
                 </>
               ) : null}
               <CampoTexto
+                campo="emitente"
                 rotulo="Emitente"
                 valor={nome}
                 onChange={setNome}
@@ -890,6 +896,7 @@ export default function RegistrarDocumento() {
                 erro={erroDe("favorecidoNome")}
               />
               <CampoTexto
+                campo="cnpj"
                 rotulo="CNPJ / CPF do emitente"
                 valor={documento}
                 onChange={setDocumento}
@@ -921,6 +928,7 @@ export default function RegistrarDocumento() {
                 </Banner>
               ) : null}
               <CampoTexto
+                campo="valor"
                 rotulo="Valor"
                 valor={valor}
                 onChange={setValor}
@@ -930,6 +938,7 @@ export default function RegistrarDocumento() {
               />
               {tipo === "boleto" ? (
                 <CampoTexto
+                  campo="vencimento"
                   rotulo="Vencimento"
                   tipo="date"
                   valor={vencimento}
@@ -938,6 +947,7 @@ export default function RegistrarDocumento() {
                 />
               ) : null}
               <Escolha
+                campo="classificacao"
                 rotulo="Classificação"
                 opcoes={CLASSIFICACOES}
                 valor={classificacao}
@@ -949,6 +959,7 @@ export default function RegistrarDocumento() {
             <Card className="flex flex-col gap-3.5">
               <Escolha
                 destaque
+                campo="nota_no_seu_cpf"
                 rotulo="A nota está no seu CPF?"
                 opcoes={RESPOSTAS_CPF}
                 valor={notaNoCpf}
@@ -976,6 +987,7 @@ export default function RegistrarDocumento() {
                 <>
                   <Escolha
                     destaque
+                    campo="retencaoNaNota"
                     rotulo={PERGUNTA_GATE}
                     opcoes={OPCOES_GATE}
                     valor={retencaoNaNota}
@@ -1001,6 +1013,7 @@ export default function RegistrarDocumento() {
                 <>
                   <Escolha
                     destaque
+                    campo="cno_referenciado"
                     rotulo="Qual CNO está impresso nesta nota?"
                     opcoes={
                       semCnoNaObra
@@ -1068,6 +1081,7 @@ export default function RegistrarDocumento() {
             <Card className="flex flex-col gap-2">
               <label className="flex min-h-[44px] cursor-pointer items-center gap-3">
                 <input
+                  data-campo="jaPaguei"
                   type="checkbox"
                   checked={jaPaguei}
                   onChange={(e) => {
@@ -1130,6 +1144,7 @@ export default function RegistrarDocumento() {
                         }`}
                       >
                         <input
+                          data-campo="pagamentosCandidatos"
                           type="checkbox"
                           checked={marcado}
                           onChange={() =>

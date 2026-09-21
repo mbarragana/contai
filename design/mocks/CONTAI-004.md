@@ -24,12 +24,14 @@ Telas: 8.
   **ausente em boleto** — preservado literalmente (zeros à esquerda, letras, barras) — SEM DEFAULT — campo
   fiscal — obrigatório **também em quarentena** (não modelado como tela própria; validação roda antes da
   bifurcação de CPF, ver Decisões)
-- `serie` — texto opcional, não-bloqueante — "campo próprio, nunca concatenado no número" (R6)
+- `serie` — texto opcional, não-bloqueante — "campo próprio, nunca concatenado no número" (R6) — SEM
+  DEFAULT
 - `data_emissao` — data — **obrigatório e bloqueante** nos mesmos dois tipos, ausente em boleto — SEM
   DEFAULT — campo fiscal — futuro **recusado com mensagem própria** — anterior ao início da obra é legítimo
   (sem UI dedicada: ausência de aviso é o comportamento, não há o que desenhar)
 - `cno_referenciado` — escolha tocável entre 3 opções, **zero digitação** — só aparece em `nf_servico` —
-  campo fiscal — "desta obra" segue; "outra obra" bloqueia (`#s5`); "não traz CNO" salva com pendência (`#s7`)
+  campo fiscal — "desta obra" segue; "outra obra" bloqueia (`#s5`); "não traz CNO" salva com pendência
+  (`#s7`) — SEM DEFAULT: nenhuma das três nasce marcada
 
 ## Textos com consequência fiscal (origem)
 - "Copie como está impresso — zeros à esquerda e letras contam. Nunca é normalizado." — `#s1`/`#s3`, sob

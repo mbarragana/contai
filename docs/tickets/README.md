@@ -115,6 +115,20 @@ rota que pendura em E2E — o 503 do PostgREST continua a única falsificação
 de rede permitida. Sem migration. Dívida nova: **D64**
 (`docs/backlog/39-2026-09-21-contai-006-entregue.md`).
 
+**2026-09-21**: **`034`** saiu da fila — implementado (`lead-engineer`),
+revisado pelo Gate 2 (`cto-obra` APPROVE + `contador` REQUEST CHANGES numa
+rodada — achou bug fiscal real, não só nota de cobertura: `cValor` em
+`/compromisso/[id]/confirmar` pré-preenchia com o saldo previsto, mesma forma
+da D44; corrigido dentro do próprio ticket por decisão do `contador`, virou
+**D65**, RESPONDIDA), testado (839 unitários + 239 E2E + validação manual no
+browser confirmando o campo vazio e o botão nomeando o que falta) e validado
+pelo `po` (Gate 4 PASS, 12/12 critérios). Prova executável do invariante
+"campo fiscal nasce sem default": `data-campo` amarra spec↔DOM, parser
+`fail-closed` da seção `## Campos`, `e2e/campos-fiscais.spec.ts` classificando
+as 40 rotas do app. Achou também **D66** (`unidades_autonomas` nasce `"1"`
+contra o CONTAI-003, não corrigida — doutrina "prova, não conserta" do
+próprio ticket). Sem migration.
+
 **2026-09-21**: **`014`** ficou **PARADO, não fechado** — critérios 1-3
 (ícone/manifest) exigem aprovação explícita do Mateus sobre a arte, e os
 critérios 5-6 exigem teste no iPhone físico dele (com lembretes D+7/D+21 em
@@ -129,8 +143,7 @@ ticket; retomar quando o Mateus puder aprovar o ícone e testar no aparelho.
 
 | # | ID | O que é | P |
 |---|---|---|---|
-| 1 | **034** | **Campo fiscal não nasce preenchido, e o teste prova** | P1 |
-| 2 | **037** | **Porta para o pagamento conciliado a partir do documento** | P1 |
+| 1 | **037** | **Porta para o pagamento conciliado a partir do documento** | P1 |
 
 ### Parado, aguardando o Mateus (fora da fila ativa)
 
@@ -165,7 +178,7 @@ ticket; retomar quando o Mateus puder aprovar o ícone e testar no aparelho.
 |---|---|
 | **Espera o Mateus** | apenas a **Q14** (13 dias, trava o `016`) — nenhum mock pendente na fila ativa |
 | **Saiu da fila, superado** | `009` — entregue via `CONTAI-018` sem citação cruzada; resto vivo virou o `037` |
-| **Saiu da fila, entregue** | `032`, `022` — commitados em 2026-09-19 (`13953f2`); `033`, `007`, `008`, `005`, `031`, `035` — entregues em 2026-09-20; `038`, `006` — entregues em 2026-09-21 (**push pendente** — ver nota no topo); ver "Em produção" |
+| **Saiu da fila, entregue** | `032`, `022` — commitados em 2026-09-19 (`13953f2`); `033`, `007`, `008`, `005`, `031`, `035` — entregues em 2026-09-20; `038`, `006`, `034` — entregues em 2026-09-21 (**push pendente** — ver nota no topo); ver "Em produção" |
 | **Parado, aguardando o Mateus** | `014` — só o critério 4 entregue; ícone/aparelho físico não são delegáveis |
 | **Pronto para `/develop`** | `037` — único item restante da fila ativa |
 | **Falta mock (`/design`)** | `038` — dependência técnica (`lib/fiscal/gravidade.ts`) já entregue pelo `035`; falta só rodar `/design` (sem HTML nem aprovação pela política atual) |
@@ -285,6 +298,7 @@ futura — este bloco fica só como prova de que o furo de 21-23/08 foi fechado.
 | 031 | E2E da condição 6 do Gate Fiscal (CONTAI-028) | ⚠️ *(ver nota no topo do arquivo)* | **Entregue em 2026-09-20, 8/8 critérios.** Sem UI nova, sem regra fiscal nova — cobertura de teste para a condição 6 (corrigir classificação nunca abre pendência de retificadora nem grava ano afetado), já adjudicada. `test.describe` novo em `e2e/correcao.spec.ts` + comentário-guarda da D43 ancorado por conteúdo. Gate 2 (`cto-obra`) APPROVE. 17/17 no spec tocado; suíte completa 202/203 (falha restante pré-existente e não-fiscal, `docs/backlog/35-...md`) + validação manual no browser (correção real material → mão de obra). Gate 4 (`po`) PASS. Marca a fatia 5 do CONTAI-028 como bloqueada por este ticket |
 | 035 | Reconciliar a régua de cor (D39) com todo o app | ⚠️ *(ver nota no topo do arquivo)* | **Entregue em 2026-09-20, 11/11 critérios.** `gravidadeDaRegua(...)` (`lib/fiscal/gravidade.ts`) vira único produtor de `Gravidade` branded — zero cor literal sobrevive (D54). Itens B/C/D/E reconciliados em ~19 call sites; item C tinha 9 sites, não 7 (2 a mais nasceram no `CONTAI-008`, depois do inventário original) — extensão confirmada por `cto-obra` e `contador` no Gate 2, ambos APPROVE. 742 unitários (30 novos) + 203/204 E2E (falha pré-existente e não-fiscal, `docs/backlog/35-...md`) + validação manual no browser (CNPJ errado + pagamento de ano anterior → card vermelho + aviso condicional de retificadora). Gate 4 (`po`) PASS. Sem migration. **Destrava o `038`** |
 | 038 | Retenção de NF de serviço PJ vira lista de linhas | ⚠️ **commitado (`6dd771e`), push pendente** | **Entregue em 2026-09-21, 18/18 critérios** (7a incluído). `retencao_11` sai do schema; entram o gate `retencao_na_nota` (captura) e a tabela `documento_retencao` (repeater na gestão). `retencao_sem_recolhedor` é a primeira pendência que AGRAVA a régua de cor. `lib/fiscal/risco.ts`/`afericao.ts` pararam de ler retenção para decidir abatimento do SERO (§2 do parecer 18/09 — efeito correto, não regressão). Gate 2 com 1 rodada de REQUEST CHANGES fiscal (texto desatualizado, corrigido), APPROVE na segunda. 791 unitários + 217/217 E2E + validação manual no browser. Gate 4 (`po`) PASS. **BLOQUEADO para `db push`**: critério 18 exige contar `retencao_11 is not null` no remoto antes da migration `0017` dropar a coluna — aguardando o Mateus rodar a contagem e o push. Dívidas novas: **D62**, **D63** |
+| 034 | Campo fiscal não nasce preenchido, e o teste prova | ⚠️ **push pendente** (na mesma fila do `038`) | **Entregue em 2026-09-21, 12/12 critérios.** `data-campo="<id do mock>"` amarra `design/mocks/*.md` a todo controle fiscal; `lib/design/campos-do-spec.ts` parseia a seção `## Campos` fail-closed (linha fora da gramática = vermelho com arquivo:linha, nunca `skip`); `e2e/campos-fiscais.spec.ts` exige toda rota de `app/**/page.tsx` classificada e cruza spec×DOM no instante em que a tela nasce. Provado contra a D44 real: reintroduzir `useState(hojeIso)`/`useState("pix")` deixa a suíte vermelha nomeando `fData`/`meio`. Gate 2 achou bug fiscal ativo (não só cobertura): `cValor` em `/compromisso/[id]/confirmar` pré-preenchia com o saldo previsto — mesma forma da D44 — corrigido dentro do próprio ticket por decisão do `contador` (**D65**, RESPONDIDA). 839 unitários + 239 E2E + validação manual no browser. Gate 4 (`po`) PASS. Sem migration. Dívida nova, não corrigida: **D66** (`unidades_autonomas` nasce `"1"` contra o CONTAI-003, fora do alcance da suíte hoje) |
 | 006 | Estados de rede lenta/indisponível | ⚠️ **commitado (`234db4d`), push pendente** | **Entregue em 2026-09-21, 9/9 critérios.** Política de rede única em `lib/rede.ts` (`db.retry:false`): leitura 3 tentativas/teto 5s com texto honesto desde a 1ª falha; gravação 1 tentativa/teto 10s, nunca repetida, distinguindo "não foi salvo" de "não deu para confirmar" (evita duplicar registro). `Carregando` virou máquina de 4 níveis (45 usos/38 arquivos); novo trio `BotaoSalvar`/`AvisoDeGravacao`/`ErroDeGravacao`. Gate 2 (`cto-obra`) APPROVE com 1 rodada de rework (aviso de "sem resposta" disparava também em escrita — falso; corrigido, 2 testes novos). Decisão do `cto-obra`: teto de leitura se prova por unitário com relógio injetado, não por rota que pendura em E2E — o 503 do PostgREST segue sendo a única falsificação de rede permitida. 817 unitários + 220/220 E2E + validação manual no browser (Postgres pausado/despausado, 4 estados, textos exatos confirmados). Gate 4 (`po`) PASS. Sem migration. Dívida nova: **D64** |
 | 014 | Manifest de PWA + prova no aparelho (critério 4 apenas) | ⚠️ **commitado (`e7dd434`)** | **PARADO em 2026-09-21** — critérios 1-3 (ícone/manifest) e 5-6 (teste no iPhone físico, lembretes D+7/D+21) exigem o Mateus pessoalmente, não delegável. Só o **critério 4** entregue: `maximumScale` sai do viewport, inputs sobem para 16px (evita auto-zoom do Safari no canteiro), com E2E travando a regressão. Gate 2 (`cto-obra`) APPROVE. 3/3 E2E novos + suíte completa verde. Ver nota no topo de `docs/tickets/CONTAI-014.md` para retomar |
 
@@ -318,9 +332,9 @@ revisão descreveu.
 ⚠️ **`027`, `025` e `036` saíram desta tabela em 24/08** — os três estão
 entregues e commitados; ver "Em produção" acima. `004` também saiu (entregue,
 commit `05cb1e7`). **`032` e `022` saíram em 2026-09-19** (entregues,
-`13953f2`). **`033`, `007`, `008`, `005`, `031`, `035`, `038` e `006` saíram
-em 2026-09-20/21** (entregues — ver a nota no topo do arquivo; `038` e `006`
-com push pendente). **`014` saiu para "Parado, aguardando o Mateus"** (só o
+`13953f2`). **`033`, `007`, `008`, `005`, `031`, `035`, `038`, `006` e `034`
+saíram em 2026-09-20/21** (entregues — ver a nota no topo do arquivo; `038`,
+`006` e `034` com push pendente). **`014` saiu para "Parado, aguardando o Mateus"** (só o
 critério 4 entregue). Nenhum item desta tabela fica sem construir.
 
 | **1** | **034** | **Campo fiscal não nasce preenchido, e o teste prova** | P1 | 🟢 **pronto para `/develop`** | Chore de infraestrutura de teste, sem Gate 0 (sem tela) e sem regra fiscal nova. `data-campo` nos controles + parser `fail-closed` do `## Campos` dos specs (`design/mocks/*.md`) + `e2e/campos-fiscais.spec.ts` enumerando rotas/controles. Prova contra a D44 real (`useState(hojeIso)`/`"pix"` tem que acender vermelho). Decisão já delegada pelo Mateus em 23/08 |

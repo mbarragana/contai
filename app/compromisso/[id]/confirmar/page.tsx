@@ -69,7 +69,7 @@ import {
   textoDiferencaSemExplicacao,
 } from "@/lib/fiscal/pagamento";
 import { hojeIso } from "@/lib/hoje";
-import { centavosParaInput, formatarBRL, parseValorInput } from "@/lib/money";
+import { formatarBRL, parseValorInput } from "@/lib/money";
 import type { Compromisso, Pagamento, TipoFavorecido } from "@/lib/types";
 
 /**
@@ -148,13 +148,14 @@ export default function ConfirmarPagamento() {
             ? null
             : ((await carregarFavorecido(c.favorecidoId))?.tipo ?? null),
         );
-        // ⚠️ O VALOR vem pré-preenchido — o documento afirma o valor. A DATA
-        // não: ver o cabeçalho. São os dois campos obrigatórios do critério 45.
-        setValor(
-          centavosParaInput(
-            saldoDoCompromisso(c, painel.pagamentos) || c.valorPrevistoCentavos,
-          ),
-        );
+        // ⚠️ **NADA DE PRÉ-PREENCHER O VALOR** (D65, Gate 2 do CONTAI-034).
+        // Até 2026-09-21 esta linha carregava o campo com o saldo do
+        // agendamento, e era a D44 de novo com outra roupa: `cValor` é o que
+        // foi PAGO, e é ele que vira custo de aquisição no regime de caixa —
+        // o previsto nunca é o número que conta. O campo gêmeo do registro
+        // direto (`fValor`, /adicionar/pagamento) nasce vazio pelo mesmo
+        // motivo; ter um dos dois pré-preenchido era o app afirmando um
+        // desembolso que ninguém conferiu.
       } catch (e) {
         if (!cancelado) setErroCarregar(classificarErro(e));
       }
@@ -354,6 +355,7 @@ export default function ConfirmarPagamento() {
         <Card className="flex flex-col gap-3.5">
           {/* CAMPO 1 DOS DOIS OBRIGATÓRIOS (critério 45). NASCE VAZIO. */}
           <CampoTexto
+            campo="cData"
             rotulo="Data em que o dinheiro saiu"
             tipo="date"
             valor={data}
@@ -370,8 +372,10 @@ export default function ConfirmarPagamento() {
             }
           />
 
-          {/* CAMPO 2 DOS DOIS. Pré-preenchido: o documento afirma o valor. */}
+          {/* CAMPO 2 DOS DOIS. NASCE VAZIO, como a data — é o valor PAGO que
+              vira custo, e o previsto não o antecipa (D65). */}
           <CampoTexto
+            campo="cValor"
             rotulo="Valor efetivamente pago"
             valor={valor}
             onChange={setValor}
@@ -402,6 +406,7 @@ export default function ConfirmarPagamento() {
                 inteiro no custo, e quem limita é a nota.
               </Banner>
               <CampoTexto
+                campo="cEncargos"
                 rotulo="Juros e multa por atraso"
                 valor={encargos}
                 onChange={setEncargos}
@@ -455,6 +460,7 @@ export default function ConfirmarPagamento() {
               {escolhaMenor === "falta" ? (
                 <div className="flex flex-col gap-2">
                   <CampoTexto
+                    campo="cSaldoData"
                     rotulo="Quando você pretende pagar o resto?"
                     tipo="date"
                     valor={dataSaldo}
@@ -483,6 +489,7 @@ export default function ConfirmarPagamento() {
           ) : null}
 
           <CampoArquivo
+            campo="comprovante"
             rotulo="Comprovante"
             ajuda="O botão salva mesmo sem ele — o que muda é o estado que nasce."
             accept=".pdf,image/*"
@@ -530,9 +537,11 @@ export default function ConfirmarPagamento() {
               ? "Tentar de novo — só falta ligar ao agendamento"
               : data === ""
                 ? "Informe a data em que o dinheiro saiu"
-                : pagouMenos && escolhaMenor === null
-                  ? "Diga se quita ou se falta o resto"
-                  : "Salvar pagamento"}
+                : pagoCentavos === null || pagoCentavos <= 0
+                  ? "Informe o valor efetivamente pago"
+                  : pagouMenos && escolhaMenor === null
+                    ? "Diga se quita ou se falta o resto"
+                    : "Salvar pagamento"}
         </BotaoSalvar>
         {/* Critério 44: sair sem gravar não altera nada e não deixa rascunho. */}
         <BotaoLink href={`/compromisso/${compromisso.id}`}>

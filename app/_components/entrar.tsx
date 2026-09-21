@@ -136,6 +136,7 @@ export function FluxoEntrar({
 
         <div className="mt-5 flex flex-col gap-3">
           <CampoTexto
+            campo="email"
             rotulo="Seu e-mail"
             valor={email}
             onChange={setEmailDigitado}
@@ -148,6 +149,7 @@ export function FluxoEntrar({
               iPhone oferecer a senha guardada — sem isso, entrar no canteiro
               vira digitar senha na tela pequena, com uma mão. */}
           <CampoTexto
+            campo="senha"
             rotulo="Sua senha"
             valor={senha}
             onChange={setSenha}

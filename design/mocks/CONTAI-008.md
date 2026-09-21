@@ -43,14 +43,15 @@ Larguras: 375px (piso) e 720px (mesa, ligada por padrão).
   demonstração isolada, não amarrada ao clique real de Gravar de p2/p3).
 
 ## Campos
-**Nenhum campo de texto/número/data novo.** A interação inteira é escolha por
-clique — confirmado lendo o critério 2 (não critério de UI, mas a forma do
-ato: "para CADA documento, um a um, em ato explícito... escolhe um (i)...(ii)")
-e o critério 5 (não há pergunta de motivo nesta tela). Os dois "campos" no
-sentido do CONTAI-021 (i.e. escolha obrigatória, sem default) são:
+- NÃO É CONTROLE — **Nenhum campo de texto/número/data novo.** A interação
+  inteira é escolha por clique — confirmado lendo o critério 2 (não critério de
+  UI, mas a forma do ato: "para CADA documento, um a um, em ato explícito...
+  escolhe um (i)...(ii)") e o critério 5 (não há pergunta de motivo nesta
+  tela). Os dois "campos" no sentido do CONTAI-021 (i.e. escolha obrigatória,
+  sem default) são os dois abaixo.
 - `obraDestino` (p1/p2/p3) — 1 opção entre as obras cadastradas — obrigatório
   — **SEM DEFAULT** ("Nada nasce marcado") — já existia no 021, reusado aqui
-- `escolhaDoc[d]` (p2/p3), por documento vinculado — 2 opções: "esta nota
+- `escolhaDoc[d]` (p2/p3) — por documento vinculado, 2 opções: "esta nota
   também é da obra de destino" | "esta nota é mesmo da obra de origem" —
   obrigatório, um a um, nunca em cascata — **SEM DEFAULT — campo fiscal**.
   ⚠️ **SUBSTITUÍDO em 2026-09-20** (mesmo parecer da nota em "Telas e
@@ -59,11 +60,13 @@ sentido do CONTAI-021 (i.e. escolha obrigatória, sem default) são:
   opção. O parágrafo abaixo descreve o comportamento antigo, mantido só
   como registro histórico do que o mock original mostrava.
 
-  ~~Em p3, a Nota B tem só a 2ª opção **habilitada**; a indisponibilidade da
-  1ª não é um default (nada se marca sozinho), é a opção sumindo do conjunto
-  de escolhas possíveis — a discriminação normal de "campo vazio pergunta,
-  campo preenchido afirma" ainda vale: enquanto não clicado, o Gravar
-  continua bloqueado para aquele documento.~~
+- NÃO É CONTROLE — registro histórico do que o mock original mostrava em p3,
+  substituído pela nota acima: ~~Em p3, a Nota B tem só a 2ª opção
+  **habilitada**; a indisponibilidade da 1ª não é um default (nada se marca
+  sozinho), é a opção sumindo do conjunto de escolhas possíveis — a
+  discriminação normal de "campo vazio pergunta, campo preenchido afirma" ainda
+  vale: enquanto não clicado, o Gravar continua bloqueado para aquele
+  documento.~~
 
 ## Textos com consequência fiscal (todos com origem citada na própria tela)
 - "Vai junto com o pagamento. O par continua inteiro, só muda de imóvel..." —

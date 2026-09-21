@@ -23,22 +23,29 @@ Telas: 17   Aprovado pelo Mateus em 2026-08-19 (v2)   ⚠️ topo do arquivo mar
 
 ## Campos
 - `cData` "Quando você comprou" — date — sublabel "a data do contrato ou da escritura — é o marco da aquisição" — obrigatoriedade não declarada no mock — SEM DEFAULT — campo fiscal
-- Tipo de compra — escolha 1-de-4 (À vista / Financiado com um banco / Parcelado direto com o vendedor / Recebido — herança, doação ou permuta) — obrigatório (é a bifurcação) — SEM DEFAULT — campo fiscal
-- Entrada: `valor` — nº — ; `data em que foi paga` — date — **obrigatória** ; `de onde saiu o dinheiro` — recurso próprio / FGTS ; `comprovante` — arquivo — **obrigatório** — todos SEM DEFAULT — campos fiscais
-- ITBI: `valor recolhido` — nº ; `data do recolhimento` — date — **obrigatória** — SEM DEFAULT — campo fiscal
-- Escritura e registro: `valor pago` — nº ; `data do pagamento` — date — **obrigatória** — SEM DEFAULT — campo fiscal
-- Ramo à vista: `valor pago` — nº ; `data em que saiu da conta` — date — **obrigatória** ; `comprovante` — **obrigatório** — SEM DEFAULT
-- Anexo do extrato (`#fArq`/`#fCam`) — file, `accept="application/pdf,image/*"`, câmera com `capture="environment"` — **obrigatório: sem ele não grava** — SEM DEFAULT
-- `iAmort` Amortização — nº step .01 — placeholder "0,00" — entra na soma da trava E no custo — SEM DEFAULT — campo fiscal
-- `iJuros` Juros / Correção Monetária — nº step .01 — entra na trava E no custo — SEM DEFAULT — campo fiscal
-- `iSeg` Seguros (MIP e DFI) — nº step .01 — entra na trava, fora do custo — SEM DEFAULT — campo fiscal
-- `iTaxas` Taxas + FCVS — nº step .01 — entra na trava, fora do custo; valor > 0 abre aviso de revisão humana — SEM DEFAULT — campo fiscal
-- `iMora` Mora — nº step .01 — entra na trava, fora do custo — SEM DEFAULT — campo fiscal
-- `iMulta` Multa — nº step .01 — entra na trava, fora do custo — SEM DEFAULT — campo fiscal
-- `iDif` Diferença Teórico / Pago — nº step .01 — entra na trava, fora do custo — SEM DEFAULT — campo fiscal
-- `iTotal` Total Pago no Exercício — nº step .01 — **obrigatório**; validação: soma das 7 rubricas == total, tolerância `< 0,005` (zero centavo) — SEM DEFAULT — campo fiscal
-- `iSaldo` Saldo Devedor em 31/12/AAAA — nº step .01 — informativo, fora de toda soma — SEM DEFAULT — campo fiscal
-- Derivado (não editável): custo = `iAmort + iJuros`
+- `tipoCompra` "Tipo de compra" — escolha 1-de-4 (À vista / Financiado com um banco / Parcelado direto com o vendedor / Recebido — herança, doação ou permuta) — obrigatório (é a bifurcação) — SEM DEFAULT — campo fiscal
+- `entrada.valor` "Entrada — valor" — nº — SEM DEFAULT — campo fiscal
+- `entrada.data` "Entrada — data em que foi paga" — date — **obrigatória** — SEM DEFAULT — campo fiscal
+- `entrada.origem` "Entrada — de onde saiu o dinheiro" — recurso próprio / FGTS — SEM DEFAULT — campo fiscal
+- `entrada.comprovante` "Entrada — comprovante" — arquivo — **obrigatório** — SEM DEFAULT — campo fiscal
+- `itbi.valor` "ITBI — valor recolhido" — nº — SEM DEFAULT — campo fiscal
+- `itbi.data` "ITBI — data do recolhimento" — date — **obrigatória** — SEM DEFAULT — campo fiscal
+- `escritura.valor` "Escritura e registro — valor pago" — nº — SEM DEFAULT — campo fiscal
+- `escritura.data` "Escritura e registro — data do pagamento" — date — **obrigatória** — SEM DEFAULT — campo fiscal
+- `aVista.valor` "Ramo à vista — valor pago" — nº — SEM DEFAULT — campo fiscal
+- `aVista.data` "Ramo à vista — data em que saiu da conta" — date — **obrigatória** — SEM DEFAULT — campo fiscal
+- `aVista.comprovante` "Ramo à vista — comprovante" — arquivo — **obrigatório** — SEM DEFAULT — campo fiscal
+- `fArq`, `fCam` "Anexo do extrato" — file, `accept="application/pdf,image/*"`, câmera com `capture="environment"` — **obrigatório: sem ele não grava** — SEM DEFAULT
+- `iAmort` "Amortização" — nº step .01 — placeholder "0,00" — entra na soma da trava E no custo — SEM DEFAULT — campo fiscal
+- `iJuros` "Juros / Correção Monetária" — nº step .01 — entra na trava E no custo — SEM DEFAULT — campo fiscal
+- `iSeg` "Seguros (MIP e DFI)" — nº step .01 — entra na trava, fora do custo — SEM DEFAULT — campo fiscal
+- `iTaxas` "Taxas + FCVS" — nº step .01 — entra na trava, fora do custo; valor > 0 abre aviso de revisão humana — SEM DEFAULT — campo fiscal
+- `iMora` "Mora" — nº step .01 — entra na trava, fora do custo — SEM DEFAULT — campo fiscal
+- `iMulta` "Multa" — nº step .01 — entra na trava, fora do custo — SEM DEFAULT — campo fiscal
+- `iDif` "Diferença Teórico / Pago" — nº step .01 — entra na trava, fora do custo — SEM DEFAULT — campo fiscal
+- `iTotal` "Total Pago no Exercício" — nº step .01 — **obrigatório**; validação: soma das 7 rubricas == total, tolerância `< 0,005` (zero centavo) — SEM DEFAULT — campo fiscal
+- `iSaldo` "Saldo Devedor em 31/12/AAAA" — nº step .01 — informativo, fora de toda soma — SEM DEFAULT — campo fiscal
+- NÃO É CONTROLE — derivado (não editável): custo = `iAmort + iJuros`
 
 ## Textos com consequência fiscal
 - "O preço contratado nunca vai para o custo." / "Declarar o imóvel pelo preço cheio sem declarar a dívida produz evolução de patrimônio sem renda que a explique." — s2

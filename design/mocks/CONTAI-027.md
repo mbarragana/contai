@@ -17,15 +17,15 @@ Telas: 13   Aprovado pelo Mateus em 2026-08-21 (v1)
 - **O critério 13 — o bloqueio que saiu** (`#s3c`): tela de comparação, **não implementar** — mostra o botão desabilitado "Resolva a pendência para gerar"
 
 ## Campos
-- Tipo do desembolso (`data-radio="tipo"`) — escolha 1-de-3 (Entrada / ITBI / Escritura e registro) — obrigatório — SEM DEFAULT — campo fiscal
-- `inpValorS2` "Valor" — texto `inputmode="decimal"`, placeholder "0,00" — obrigatório — SEM DEFAULT — campo fiscal
-- "Este valor já foi pago?" (`data-radio="estado"`) — 1-de-2 (Já saiu da conta / Ainda vou pagar) — obrigatório — SEM DEFAULT — campo fiscal
-- `inpDataS2` "Data em que saiu da conta" — date — obrigatória para o desembolso pago; sem ela a pergunta do 2º comprovante fica **represada** — **no mock vem com `value="2026-08-21"` (ver Dúvidas)** — deve ser SEM DEFAULT — campo fiscal
-- Papéis do desembolso — `<input type="file" multiple>`, e câmera com `accept="image/*" capture="environment"` — **obrigatório: ao menos um** — SEM DEFAULT
-- "O que é este papel?" (por arquivo) — 1-de-3 (Comprovante do pagamento / Nota ou recibo / Contrato ou escritura) — **obrigatório por papel** — validação "Escolha um — sem isso este papel não grava." — **nasce VAZIO: campo com consequência fiscal não tem default** — campo fiscal
-- "Quando esse dinheiro saiu da sua conta?" (`data-radio="quando"`) — 1-de-2 ("Tudo em `<data do desembolso>`" / "Em mais de um dia") — obrigatório **quando** houver ≥2 papéis marcados "Comprovante do pagamento" — SEM DEFAULT — campo fiscal
+- `fTipo` "Tipo do desembolso" (`data-radio="tipo"`) — escolha 1-de-3 (Entrada / ITBI / Escritura e registro) — obrigatório — SEM DEFAULT — campo fiscal
+- `fValor`, `inpValorS2` "Valor" — texto `inputmode="decimal"`, placeholder "0,00" — obrigatório — SEM DEFAULT — campo fiscal
+- `fEstado` "Este valor já foi pago?" (`data-radio="estado"`) — 1-de-2 (Já saiu da conta / Ainda vou pagar) — obrigatório — SEM DEFAULT — campo fiscal
+- `fData`, `inpDataS2` "Data em que saiu da conta" — date — obrigatória para o desembolso pago; sem ela a pergunta do 2º comprovante fica **represada** — **no mock vem com `value="2026-08-21"` (ver Dúvidas)** — deve ser SEM DEFAULT — campo fiscal
+- `fPapeis` "Papéis do desembolso" — `<input type="file" multiple>`, e câmera com `accept="image/*" capture="environment"` — **obrigatório: ao menos um** — SEM DEFAULT
+- `fPapel` "O que é este papel?" (por arquivo) — 1-de-3 (Comprovante do pagamento / Nota ou recibo / Contrato ou escritura) — **obrigatório por papel** — validação "Escolha um — sem isso este papel não grava." — **SEM DEFAULT**: "nasce VAZIO: campo com consequência fiscal não tem default" — campo fiscal
+- `quando` "Quando esse dinheiro saiu da sua conta?" (`data-radio="quando"`) — 1-de-2 ("Tudo em `<data do desembolso>`" / "Em mais de um dia") — obrigatório **quando** houver ≥2 papéis marcados "Comprovante do pagamento" — SEM DEFAULT — campo fiscal
 - `inpValorS1b` "Valor que está no papel" — texto `inputmode="decimal"`, placeholder "0,00" — SEM DEFAULT — campo fiscal
-- Não existem, de propósito: **valor por papel**, **data por papel**, **trava de soma dos comprovantes**
+- NÃO É CONTROLE — não existem, de propósito: **valor por papel**, **data por papel**, **trava de soma dos comprovantes**
 
 ## Textos com consequência fiscal
 - "Obrigatório: é o que sustenta este custo no dia da venda. **Pode ser mais de um.**" — s2, cabeçalho dos papéis

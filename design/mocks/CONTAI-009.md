@@ -24,15 +24,16 @@ Escopo: o detalhe de UM pagamento. Não é inventário (US-009), não abre o com
 - **Proposta: pagamentos no detalhe do documento** (`#s14`): PROPOSTA, não decisão
 
 ## Campos
-Nenhum campo editável neste mock — é tela de leitura. Os campos exibidos (read-only):
-- `valor` — moeda — exibido — não editável aqui
-- `data do pagamento` — data — exibida — não editável aqui
-- `favorecido` — nome + CNPJ/CPF — exibido; ausente vira "Favorecido não informado" (`#s6`) — não editável aqui
-- `meio` — PIX | Boleto — exibido
-- `documento vinculado` — "nenhum ainda" (warn) | "NF de serviço 1042 ✓" (ok)
+- NÃO É CONTROLE — nenhum campo editável neste mock: é tela de leitura. Os oito abaixo são os campos
+  EXIBIDOS, e é por isso que os sete primeiros são SOMENTE LEITURA.
+- `valor` — moeda — exibido — SOMENTE LEITURA
+- `data do pagamento` — data — exibida — SOMENTE LEITURA
+- `favorecido` — nome + CNPJ/CPF — exibido; ausente vira "Favorecido não informado" (`#s6`) — SOMENTE LEITURA
+- `meio` — PIX | Boleto — exibido — SOMENTE LEITURA
+- `documento vinculado` — "nenhum ainda" (warn) | "NF de serviço 1042 ✓" (ok) — SOMENTE LEITURA
 - `comprovante` — anexo citado como existente, **não servido** (abrir/baixar é US-010); ausente vira
-  "Sem comprovante anexado / Registro antigo, de antes de o anexo ser obrigatório." (`#s6`)
-- `obra` — exibida em bloco próprio + botão "Corrigir a obra deste registro" — **único campo corrigível**, e por outra tela
+  "Sem comprovante anexado / Registro antigo, de antes de o anexo ser obrigatório." (`#s6`) — SOMENTE LEITURA
+- `obra` — exibida em bloco próprio + botão "Corrigir a obra deste registro" — **único campo corrigível**, e por outra tela — SOMENTE LEITURA
 - `obra destino` (`#s9`) — seleção — OBRIGATÓRIO — SEM DEFAULT — campo fiscal
 
 ## Textos com consequência fiscal

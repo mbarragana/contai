@@ -20,9 +20,14 @@ Telas: 10
 - `tipo` — escolha: NF material · NF serviço · boleto — obrigatório — SEM DEFAULT — campo fiscal
 - `emitente` / `cnpj` — texto — obrigatório — "— toque para preencher —" (placeholder, não valor) — SEM DEFAULT
 - `valor` — moeda — obrigatório — "— toque para preencher —" — SEM DEFAULT
+- `vencimento` — data — só existe em boleto (NF não tem vencimento nesta tela) — SEM DEFAULT — campo
+  fiscal. Declarado aqui pelo CONTAI-034: existia na tela sem estar em spec nenhum
 - `classificacao` — escolha: material · mão de obra — obrigatório — SEM DEFAULT — campo fiscal
 - `nota_no_seu_cpf` — sim · não — **obrigatório, sem salvar sem resposta** — "não" → quarentena (`#s6`) — SEM DEFAULT — campo fiscal
-- `retencao_11_inss` — sim · não · não sei — **obrigatório** para NF de serviço — "não"/"não sei" → aviso INSS (`#s7`) — SEM DEFAULT — campo fiscal
+- `retencao_11_inss` — sim · não · não sei — **obrigatório** para NF de serviço — "não"/"não sei" → aviso INSS (`#s7`) — SEM DEFAULT — campo fiscal.
+  ⚠️ **NÃO EXISTE MAIS NA TELA desde o CONTAI-038 (2026-09-20)**: o check de 11% foi substituído pelo
+  `retencaoNaNota` ("Nenhuma" / "Destacada"), e a premissa que ele carregava caiu no parecer de
+  2026-09-18. A linha fica como registro do que o mock mostrava
 
 ### `#s10` — registrar pagamento
 - `favorecido` — texto com sugestão de recentes ("AJE Construções (recente)") — obrigatório — sugestão não é default preenchido — SEM DEFAULT
@@ -31,7 +36,7 @@ Telas: 10
 - `comprovante` — anexo do PIX — **obrigatório** ("anexar PIX — obrigatório") — SEM DEFAULT
 
 ### `#s4`/`#s5` — proposta da extração (fase 2), campos somente-conferência
-- `emitente`+CNPJ, `destinatario` ("Seu CPF ✓"), `valor`, `emissao`, `classificacao` (estado "revisar") / boleto: `beneficiario`+CNPJ, `valor`, `vencimento`
+- NÃO É CONTROLE — conferência da proposta da extração (fase 2, ainda não existe na tela): `emitente`+CNPJ, `destinatario` ("Seu CPF ✓"), `valor`, `emissao`, `classificacao` (estado "revisar") / boleto: `beneficiario`+CNPJ, `valor`, `vencimento`
 
 ## Textos com consequência fiscal
 - "= situação em 31/12 na ficha Bens e Direitos (terreno + obra)" — `#s1`, sob o acumulado

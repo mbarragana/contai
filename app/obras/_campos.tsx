@@ -144,6 +144,7 @@ export function CamposIdentidade({ estado, atualizar, erroDe }: PropsCampos) {
   return (
     <Card className="flex flex-col gap-3.5">
       <CampoTexto
+        campo="nome_obra"
         rotulo="Nome da obra"
         valor={estado.nome}
         onChange={(v) => atualizar("nome", v)}
@@ -152,6 +153,7 @@ export function CamposIdentidade({ estado, atualizar, erroDe }: PropsCampos) {
       />
       <Dica>É este nome que vai aparecer toda vez que você registrar algo.</Dica>
       <CampoTexto
+        campo="municipio"
         rotulo="Município"
         valor={estado.municipio}
         onChange={(v) => atualizar("municipio", v)}
@@ -159,6 +161,7 @@ export function CamposIdentidade({ estado, atualizar, erroDe }: PropsCampos) {
         erro={erroDe("municipio")}
       />
       <CampoTexto
+        campo="matricula_imovel"
         rotulo="Matrícula do imóvel"
         valor={estado.matricula}
         onChange={(v) => atualizar("matricula", v)}
@@ -166,6 +169,7 @@ export function CamposIdentidade({ estado, atualizar, erroDe }: PropsCampos) {
         erro={erroDe("matricula")}
       />
       <CampoTexto
+        campo="cartorio_registro"
         rotulo="Cartório de registro"
         valor={estado.cartorio}
         onChange={(v) => atualizar("cartorio", v)}
@@ -173,6 +177,7 @@ export function CamposIdentidade({ estado, atualizar, erroDe }: PropsCampos) {
         erro={erroDe("cartorio")}
       />
       <CampoTexto
+        campo="data_inicio_obra"
         rotulo="Data de início da obra"
         tipo="date"
         valor={estado.dataInicioObra}
@@ -210,6 +215,7 @@ export function CamposCno({
         </Dica>
         <Escolha
           destaque
+          campo="tem_cno"
           rotulo="Esta obra já tem CNO?"
           opcoes={RESPOSTAS_CNO}
           valor={estado.temCno}
@@ -219,6 +225,7 @@ export function CamposCno({
         {estado.temCno === "sim" ? (
           <>
             <CampoTexto
+              campo="numero_cno"
               rotulo="Número do CNO"
               valor={estado.cno}
               onChange={(v) => atualizar("cno", v)}
@@ -226,6 +233,7 @@ export function CamposCno({
               erro={erroDe("cno")}
             />
             <CampoTexto
+              campo="data_registro_cno"
               rotulo="Data em que o CNO foi registrado"
               tipo="date"
               valor={estado.cnoRegistradoEm}
@@ -300,6 +308,7 @@ export function CamposTerreno({ estado, atualizar }: PropsCampos) {
       <Card className="flex flex-col gap-3.5">
         <Escolha
           destaque
+          campo="tipoCompra"
           rotulo="Como você adquiriu o terreno?"
           opcoes={NATUREZAS}
           valor={estado.naturezaAquisicaoTerreno}
@@ -343,6 +352,7 @@ export function CamposPremissas({ estado, atualizar, erroDe }: PropsCampos) {
         situação.
       </Dica>
       <CampoTexto
+        campo="unidades_autonomas"
         rotulo="Quantas unidades autônomas tem a matrícula?"
         valor={estado.unidadesAutonomas}
         onChange={(v) => atualizar("unidadesAutonomas", v)}
@@ -350,6 +360,7 @@ export function CamposPremissas({ estado, atualizar, erroDe }: PropsCampos) {
         erro={erroDe("unidadesAutonomas")}
       />
       <Escolha
+        campo="origem_desmembramento"
         rotulo="O terreno veio de desmembramento ou loteamento?"
         opcoes={SIM_NAO}
         valor={estado.origemDesmembramento}

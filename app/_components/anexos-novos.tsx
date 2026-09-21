@@ -23,7 +23,7 @@
 
 import { useId } from "react";
 
-import { ErroCampo, Escolha, Rotulo } from "@/app/_components/campos";
+import { ComCampo, ErroCampo, Escolha, Rotulo } from "@/app/_components/campos";
 import { extensaoDoArquivoNoAcervo } from "@/lib/acervo";
 import { PAPEIS_DE_ANEXO, ROTULO_DO_PAPEL } from "@/lib/fiscal/terreno";
 import type { PapelDeAnexo } from "@/lib/types";
@@ -72,12 +72,16 @@ function tamanho(bytes: number): string {
 
 export function EscolhaDeAnexos({
   rotulo,
+  campo,
+  campoPapel,
   ajuda,
   itens,
   onChange,
   erro,
-}: {
+}: ComCampo & {
   rotulo: string;
+  /** Id do spec da escolha "O que é este papel?" (uma por arquivo). */
+  campoPapel?: string;
   ajuda: string;
   itens: readonly AnexoEscolhido[];
   onChange: (itens: AnexoEscolhido[]) => void;
@@ -99,6 +103,7 @@ export function EscolhaDeAnexos({
       </label>
       <input
         id={id}
+        data-campo={campo}
         type="file"
         multiple
         accept=".pdf,image/*"
@@ -155,6 +160,7 @@ export function EscolhaDeAnexos({
 
               <div className="mt-2">
                 <Escolha
+                  campo={campoPapel}
                   rotulo="O que é este papel?"
                   opcoes={OPCOES_DE_PAPEL}
                   valor={item.papel}

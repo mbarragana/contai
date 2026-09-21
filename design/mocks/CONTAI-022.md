@@ -33,19 +33,24 @@ densidade da fatura (N compras + total, sem virar dashboard).
 ## Campos
 - `parc` (s1) — "À vista" | "Parcelado" — **nasce sem nenhum marcado, SEM DEFAULT** — parcelado
   bloqueia a gravação, à vista libera o resto do formulário
+- `favorecido` "Favorecido" (s1) — texto — obrigatório — o lojista, nunca o banco nem a
+  administradora — SEM DEFAULT
+- `favorecidoDocumento` "CNPJ / CPF do favorecido" (s1) — texto `inputmode=numeric` —
+  obrigatório — mesma dedup por (dono, documento) do CONTAI-032 — SEM DEFAULT — campo fiscal
 - `fValor` (s1) — "Valor da compra *" — `number` — obrigatório — SEM DEFAULT
 - `fCompra` (s1) — "Data da compra *" — `date` — obrigatória — não decide ano — SEM DEFAULT
 - `fVenc` (s1) — "Vencimento da fatura *" — `date` — obrigatória — **vira a data prevista do
   agendamento** — campo novo deste ticket — SEM DEFAULT
-- anexo de nota (s1) — opcional, exceção nomeada do agendamento (CONTAI-019 §4) — nunca bloqueia
+- `anexoDaNota` "anexo de nota" (s1) — opcional, exceção nomeada do agendamento (CONTAI-019 §4) — nunca
+  bloqueia — SEM DEFAULT
 - `fFaturaData` (s4) — "Data em que a fatura foi paga *" — `date` — vira a data de cada um dos N
   pagamentos — SEM DEFAULT (mock traz 10/09 de demonstração). Anexo da fatura (s4) — um só, compartilhado
   por N pagamentos — nunca bloqueia
 - `fParcData` (s6) — "Data em que você pagou *" — `date` — obrigatória — SEM DEFAULT
 - `fParcValor` (s6) — "Valor pago *" — `number` — obrigatório — **sempre aceito**, mesmo abaixo do
   previsto — SEM DEFAULT
-- seleção de compras (s7) — N checkboxes, cada um trava se marcá-lo estourar a soma do valor pago —
-  nenhuma pré-marcada — SEM DEFAULT
+- `selecaoDeCompras` "seleção de compras" (s7) — N checkboxes, cada um trava se marcá-lo estourar a soma
+  do valor pago — nenhuma pré-marcada — SEM DEFAULT
 
 ## Textos com consequência fiscal (copiados do parecer 2026-08-18, Adendo §B / Adendo 2 §5,7 / Adendo 3 §G.1-G.2)
 - "Esta compra nasce sempre agendamento… o favorecido é o lojista, nunca o banco nem a

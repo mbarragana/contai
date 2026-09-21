@@ -150,6 +150,7 @@ export default function MudarData() {
 
             <Card>
               <CampoTexto
+                campo="fNovaData"
                 rotulo={ehCartao ? "Novo vencimento da fatura" : "Nova data prevista"}
                 tipo="date"
                 valor={nova}
