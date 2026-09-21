@@ -30,7 +30,11 @@ import {
   Linha,
   Passo,
 } from "@/app/_components/ui";
-import { agruparPorAto, type AtoDeCorrecao } from "@/lib/fiscal/revisao";
+import {
+  agruparPorAto,
+  quandoDoAtoLegivel,
+  type AtoDeCorrecao,
+} from "@/lib/fiscal/revisao";
 import { formatarBRL, numericParaCentavos } from "@/lib/money";
 import type { MotivoRevisao, Revisao } from "@/lib/types";
 
@@ -334,7 +338,29 @@ const ROTULO_CLASSIFICACAO: Record<string, string> = {
  * ⚠️ `null` NÃO vira "R$ 0,00". Zero é um valor; branco é a ausência dele, e a
  * diferença é o caso da dor D-018.5 (documento que entrou sem valor).
  */
-function legivel(campo: string, valor: string | null, obras: Map<string, string>) {
+function legivel(
+  campo: string,
+  valor: string | null,
+  obras: Map<string, string>,
+  /**
+   * CONTAI-008, critério 14 — id do documento → rótulo. Quem tem o mapa é a
+   * tela; aqui só se traduz. Vazio é estado normal (a tela do documento conhece
+   * um documento só).
+   */
+  documentos: Map<string, string>,
+) {
+  /**
+   * ⚠️ `vinculo` ANTES do teste de `null`, e a ordem é o ponto (critério 14).
+   * O `antes` desta linha é `documento_id::text` e o `depois` é `null`
+   * (0009:823 e 0016): pela regra geral ela sairia como
+   * *"e3f1…-…" → "(em branco)"* — UUID cru numa tela cujo propósito declarado é
+   * ser lida em 2034. Aqui `null` não é "campo vazio": é o vínculo que deixou
+   * de existir, e é isso que se escreve.
+   */
+  if (campo === "vinculo") {
+    if (valor === null) return "vínculo desfeito";
+    return documentos.get(valor) ?? "nota deste acervo";
+  }
   if (valor === null) return "(em branco)";
   if (campo === "valor") {
     const centavos = numericParaCentavos(valor);
@@ -345,11 +371,9 @@ function legivel(campo: string, valor: string | null, obras: Map<string, string>
   return valor;
 }
 
-function quandoLegivel(iso: string): string {
-  const [data, hora] = iso.split("T");
-  const [ano, mes, dia] = data.split("-");
-  return `${dia}/${mes}/${ano}, ${(hora ?? "").slice(0, 5)}`;
-}
+// `quandoDoAtoLegivel` mora em `lib/fiscal/revisao.ts` (módulo puro, com teste)
+// e não aqui: ele deixou de ser fatia de string e virou conversão de fuso —
+// CONTAI-008, critério 14.
 
 /**
  * UMA linha por ATO — nunca uma por linha do banco.
@@ -361,20 +385,40 @@ function quandoLegivel(iso: string): string {
 function LinhaDoAto({
   ato,
   obras,
+  documentos,
   cnpj,
 }: {
   ato: AtoDeCorrecao;
   obras: Map<string, string>;
+  documentos: Map<string, string>;
   cnpj: string | null;
 }) {
   const principal = ato.linhas[0];
-  const pagamentos = ato.linhas.filter((l) => l.entidade === "pagamento");
+  /**
+   * ⚠️ **As secundárias são as linhas DEPOIS da principal**, e não "todas as de
+   * entidade pagamento" (CONTAI-008). O move do DOCUMENTO grava
+   * `documento:obra` primeiro e N linhas de pagamento; o move do PAGAMENTO
+   * grava `pagamento:obra` primeiro e N linhas de nota. Contar por entidade
+   * fixa fazia a linha principal contar a si mesma — *"com 1 pagamento"* num
+   * ato que não tocou pagamento nenhum além do próprio.
+   */
+  const secundarias = ato.linhas.slice(1);
+  const pagamentos = secundarias.filter((l) => l.entidade === "pagamento");
+  const notas = secundarias.filter((l) => l.entidade === "documento");
+  const acompanham = [
+    pagamentos.length > 0
+      ? `${pagamentos.length} ${pagamentos.length === 1 ? "pagamento" : "pagamentos"}`
+      : null,
+    notas.length > 0
+      ? `${notas.length} ${notas.length === 1 ? "nota" : "notas"}`
+      : null,
+  ].filter((p): p is string => p !== null);
   const campo = ROTULO_CAMPO[principal.campo] ?? principal.campo;
 
   return (
     <div className="border-t border-line py-2.5 first:border-t-0">
       <div className="text-[11.5px] text-mut">
-        {quandoLegivel(ato.quando)} · por você
+        {quandoDoAtoLegivel(ato.quando)} · por você
       </div>
       <div className="mt-0.5 font-semibold">
         {campo}
@@ -383,11 +427,9 @@ function LinhaDoAto({
         ) : null}
       </div>
       <div className="mono text-[13px]">
-        {legivel(principal.campo, principal.antes, obras)} →{" "}
-        {legivel(principal.campo, principal.depois, obras)}
-        {pagamentos.length > 0
-          ? `, com ${pagamentos.length} ${pagamentos.length === 1 ? "pagamento" : "pagamentos"}`
-          : ""}
+        {legivel(principal.campo, principal.antes, obras, documentos)} →{" "}
+        {legivel(principal.campo, principal.depois, obras, documentos)}
+        {acompanham.length > 0 ? `, com ${acompanham.join(" e ")}` : ""}
       </div>
       <div className="text-[12px] text-mut">
         motivo: {ato.motivoTexto ?? ROTULO_MOTIVO_NO_RASTRO[ato.motivo]}
@@ -418,10 +460,17 @@ function LinhaDoAto({
 export function HistoricoDeCorrecoes({
   correcoes,
   obras,
+  documentos = new Map(),
   cnpj,
 }: {
   correcoes: Revisao[];
   obras: Map<string, string>;
+  /**
+   * id do documento → rótulo legível, para a linha de `vinculo` não exibir UUID
+   * cru (critério 14). Opcional: a tela que não conhece nenhum documento cai no
+   * texto genérico, que continua sendo uma frase e não um identificador.
+   */
+  documentos?: Map<string, string>;
   cnpj: string | null;
 }) {
   const atos = agruparPorAto(correcoes);
@@ -434,7 +483,13 @@ export function HistoricoDeCorrecoes({
         <>
           <div className="mt-1">
             {atos.map((a) => (
-              <LinhaDoAto key={a.atoId} ato={a} obras={obras} cnpj={cnpj} />
+              <LinhaDoAto
+                key={a.atoId}
+                ato={a}
+                obras={obras}
+                documentos={documentos}
+                cnpj={cnpj}
+              />
             ))}
           </div>
           <Dica>

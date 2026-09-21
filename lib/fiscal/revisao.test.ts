@@ -3,6 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   abrePendencia,
   agruparPorAto,
+  documentosImpedidosDeIrJunto,
+  documentosVinculados,
+  quandoDoAtoLegivel,
+  resumoDesfechoMistoDoPagamento,
+  simularMovePagamentoDeObra,
   anosAfetados,
   anosAfetadosDeUmaObra,
   anosComPendencia,
@@ -1034,5 +1039,308 @@ describe("composicaoDoAno — parecer de 2026-08-24", () => {
       semClassificacaoCentavos: 0,
       totalCentavos: 0,
     });
+  });
+});
+
+// ══ CONTAI-008 — o ESPELHO: mover o PAGAMENTO de obra ═══════════════════
+//
+// O cenário do adendo §5.2 com os papéis trocados, e os mesmos números: um
+// pagamento de R$ 9.400,00 (20/10/2025) na Casa Tanheiros, comprovado por DUAS
+// notas — NF de R$ 6.000,00 e NF de R$ 3.400,00. A Reforma começa vazia.
+
+function cenarioEspelhado() {
+  const notaA = doc({ id: "d-a", valorCentavos: 600_000, numero: "1042" });
+  const notaB = doc({ id: "d-b", valorCentavos: 340_000, numero: "1043" });
+  const pagamento = pag({
+    id: "p-pix",
+    valorCentavos: 940_000,
+    dataPagamento: "2025-10-20",
+    documentoIds: ["d-a", "d-b"],
+  });
+  return {
+    notaA,
+    notaB,
+    pagamento,
+    origem: {
+      obraId: CASA,
+      documentos: [notaA, notaB],
+      pagamentos: [pagamento],
+    },
+    destino: { obraId: REFORMA, documentos: [], pagamentos: [] },
+  };
+}
+
+describe("simularMovePagamentoDeObra — o espelho (CONTAI-008)", () => {
+  it("todas vão junto: o custo SAI de uma e ENTRA na outra, e o total se conserva", () => {
+    const c = cenarioEspelhado();
+    const s = simularMovePagamentoDeObra({
+      pagamento: c.pagamento,
+      origem: c.origem,
+      destino: c.destino,
+      escolhas: [
+        { documentoId: "d-a", desfecho: "vai_junto" },
+        { documentoId: "d-b", desfecho: "vai_junto" },
+      ],
+    });
+
+    const origemAntes = alocarCusto(s.origemAntes);
+    const origemDepois = alocarCusto(s.origemDepois);
+    const destinoDepois = alocarCusto(s.destinoDepois);
+
+    expect(custoComprovadoDoAno(origemAntes, 2025)).toBe(940_000);
+    expect(custoComprovadoDoAno(origemDepois, 2025)).toBe(0);
+    expect(custoComprovadoDoAno(destinoDepois, 2025)).toBe(940_000);
+    // Desfecho (i) puro é TRANSFERÊNCIA: nada vira "pago sem nota".
+    expect(semNotaDoAno(destinoDepois, 2025)).toBe(0);
+  });
+
+  it("desfecho MISTO: o que sai da origem ou entra no destino, ou vira 'pago sem nota' — não evapora (critério 9)", () => {
+    const c = cenarioEspelhado();
+    const s = simularMovePagamentoDeObra({
+      pagamento: c.pagamento,
+      origem: c.origem,
+      destino: c.destino,
+      escolhas: [
+        { documentoId: "d-a", desfecho: "vai_junto" },
+        { documentoId: "d-b", desfecho: "fica_na_origem" },
+      ],
+    });
+
+    const origemAntes = alocarCusto(s.origemAntes);
+    const origemDepois = alocarCusto(s.origemDepois);
+    const destinoAntes = alocarCusto(s.destinoAntes);
+    const destinoDepois = alocarCusto(s.destinoDepois);
+
+    // min(9.400; 6.000) = 6.000 no destino; a origem fica com a nota sozinha.
+    expect(custoComprovadoDoAno(origemDepois, 2025)).toBe(0);
+    expect(custoComprovadoDoAno(destinoDepois, 2025)).toBe(600_000);
+    // ⚠️ "Pago sem nota" sobe NO DESTINO — é para lá que o pagamento foi, e ali
+    // é a VERDADE: a nota que ficou nunca comprovou esse pedaço.
+    expect(semNotaDoAno(destinoDepois, 2025)).toBe(340_000);
+    expect(semNotaDoAno(origemDepois, 2025)).toBe(0);
+
+    // Critério 9, ao centavo: o custo que saiu de A ou apareceu em B, ou virou
+    // alarme de "pago sem nota" em B. Não existe evaporação.
+    const saiu =
+      custoComprovadoDoAno(origemAntes, 2025) -
+      custoComprovadoDoAno(origemDepois, 2025);
+    const entrou =
+      custoComprovadoDoAno(destinoDepois, 2025) -
+      custoComprovadoDoAno(destinoAntes, 2025);
+    const virouAlarme =
+      semNotaDoAno(destinoDepois, 2025) - semNotaDoAno(destinoAntes, 2025);
+    expect(saiu).toBe(entrou + virouAlarme);
+
+    const anos = anosAfetados(
+      [
+        { obraId: CASA, antes: origemAntes, depois: origemDepois },
+        { obraId: REFORMA, antes: destinoAntes, depois: destinoDepois },
+      ],
+      2026,
+    );
+    expect(anos).toEqual([
+      {
+        obraId: CASA,
+        ano: 2025,
+        antesCentavos: 940_000,
+        depoisCentavos: 0,
+        pendencia: true,
+      },
+      {
+        obraId: REFORMA,
+        ano: 2025,
+        antesCentavos: 0,
+        depoisCentavos: 600_000,
+        pendencia: true,
+      },
+    ]);
+  });
+
+  it("todas ficam na origem: a obra de DESTINO não entra no conjunto de afetadas", () => {
+    const c = cenarioEspelhado();
+    const s = simularMovePagamentoDeObra({
+      pagamento: c.pagamento,
+      origem: c.origem,
+      destino: c.destino,
+      escolhas: [
+        { documentoId: "d-a", desfecho: "fica_na_origem" },
+        { documentoId: "d-b", desfecho: "fica_na_origem" },
+      ],
+    });
+
+    const anos = anosAfetados(
+      [
+        {
+          obraId: CASA,
+          antes: alocarCusto(s.origemAntes),
+          depois: alocarCusto(s.origemDepois),
+        },
+        {
+          obraId: REFORMA,
+          antes: alocarCusto(s.destinoAntes),
+          depois: alocarCusto(s.destinoDepois),
+        },
+      ],
+      2026,
+    );
+    // A Reforma é CANDIDATA e não é afetada: o pagamento chegou sem nota
+    // nenhuma, e `min(valor, 0) = 0` — nenhum número dela se mexeu.
+    expect(anos).toHaveLength(1);
+    expect(anos[0].obraId).toBe(CASA);
+    expect(anos[0].depoisCentavos).toBe(0);
+  });
+
+  it("sem nota ligada, nenhum número muda nas duas obras (critério 7 / Gate Fiscal, pergunta 4)", () => {
+    const solto = pag({ id: "p-solto", valorCentavos: 100_000 });
+    const s = simularMovePagamentoDeObra({
+      pagamento: solto,
+      origem: { obraId: CASA, documentos: [], pagamentos: [solto] },
+      destino: { obraId: REFORMA, documentos: [], pagamentos: [] },
+      escolhas: [],
+    });
+
+    const anos = anosAfetados(
+      [
+        {
+          obraId: CASA,
+          antes: alocarCusto(s.origemAntes),
+          depois: alocarCusto(s.origemDepois),
+        },
+        {
+          obraId: REFORMA,
+          antes: alocarCusto(s.destinoAntes),
+          depois: alocarCusto(s.destinoDepois),
+        },
+      ],
+      2026,
+    );
+    expect(anos).toEqual([]);
+    expect(abrePendencia(anos)).toBe(false);
+  });
+
+  it("a simulação NUNCA deixa vínculo cruzando obras — nem na origem, nem no destino (critérios 8 e 12)", () => {
+    const c = cenarioEspelhado();
+    // Um segundo pagamento da origem também comprova a nota que vai junto:
+    // é o caso que a tela impede e que, se passasse, deixaria o vínculo DELE
+    // atravessado. A simulação tem de descrever o estado sem órfão nenhum.
+    const outro = pag({
+      id: "p-outro",
+      valorCentavos: 100_000,
+      documentoIds: ["d-a"],
+    });
+    const s = simularMovePagamentoDeObra({
+      pagamento: c.pagamento,
+      origem: {
+        obraId: CASA,
+        documentos: [c.notaA, c.notaB],
+        pagamentos: [c.pagamento, outro],
+      },
+      destino: c.destino,
+      escolhas: [
+        { documentoId: "d-a", desfecho: "vai_junto" },
+        { documentoId: "d-b", desfecho: "fica_na_origem" },
+      ],
+    });
+
+    expect(alocarCusto(s.origemDepois).vinculosOrfaos).toEqual([]);
+    expect(alocarCusto(s.destinoDepois).vinculosOrfaos).toEqual([]);
+    // E a tela recusa esse desfecho antes de chegar ao banco.
+    expect(
+      documentosImpedidosDeIrJunto(
+        c.pagamento,
+        [c.notaA, c.notaB],
+        [c.pagamento, outro],
+      ).map((d) => d.id),
+    ).toEqual(["d-a"]);
+  });
+});
+
+describe("documentos vinculados e a guarda do vínculo cruzado (CONTAI-008)", () => {
+  it("lista só as notas deste pagamento", () => {
+    const c = cenarioEspelhado();
+    const outra = doc({ id: "d-z" });
+    expect(
+      documentosVinculados(c.pagamento, [c.notaA, c.notaB, outra]).map((d) => d.id),
+    ).toEqual(["d-a", "d-b"]);
+  });
+
+  it("nota que comprova SÓ este pagamento não é impedida — é o caso normal", () => {
+    const c = cenarioEspelhado();
+    expect(
+      documentosImpedidosDeIrJunto(
+        c.pagamento,
+        [c.notaA, c.notaB],
+        [c.pagamento],
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe("resumoDesfechoMistoDoPagamento — os números vêm da alocação", () => {
+  const base = {
+    totalCentavos: 940_000,
+    juntoCentavos: 600_000,
+    ficaCentavos: 340_000,
+    obraOrigemNome: "Casa Tanheiros",
+    obraDestinoNome: "Reforma do apartamento",
+    formatar: formatarBRL,
+  };
+
+  it("narra a partição das notas e o efeito na alocação, sem prometer que o total não muda", () => {
+    const texto = resumoDesfechoMistoDoPagamento({
+      ...base,
+      semNotaSobeCentavos: 340_000,
+      quedaCentavos: 340_000,
+    });
+    // ⚠️ Os valores vêm de `formatarBRL` (espaço ESTREITO, não o do teclado):
+    // montar a string à mão aqui faria o teste passar a comparar a formatação
+    // de dinheiro do projeto com uma cópia dela.
+    expect(texto).toContain(`${formatarBRL(600_000)} acompanham o pagamento`);
+    expect(texto).toContain(`${formatarBRL(340_000)} continuam em Casa Tanheiros`);
+    expect(texto).toContain(
+      `o "pago sem nota" de Reforma do apartamento sobe ${formatarBRL(340_000)}`,
+    );
+    expect(texto).toContain(`cai ${formatarBRL(340_000)}`);
+    // A frase proibida pelo adendo §5.2, em qualquer variação.
+    expect(texto).not.toContain("o total não muda");
+  });
+
+  it('subida zero não vira "sobe R$ 0,00": a oração inteira sai', () => {
+    const texto = resumoDesfechoMistoDoPagamento({
+      ...base,
+      semNotaSobeCentavos: 0,
+      quedaCentavos: 200_000,
+    });
+    expect(texto).not.toContain("pago sem nota");
+    expect(texto).toContain(`cai ${formatarBRL(200_000)}`);
+  });
+
+  it("queda zero não se anuncia como queda", () => {
+    const texto = resumoDesfechoMistoDoPagamento({
+      ...base,
+      semNotaSobeCentavos: 0,
+      quedaCentavos: 0,
+    });
+    expect(texto).toContain("não muda — essas notas já não comprovavam");
+    expect(texto).not.toContain("cai R$");
+  });
+});
+
+describe("quandoDoAtoLegivel — o rastro é lido em 2034, no fuso de quem gravou", () => {
+  it("converte para o fuso pedido, em vez de fatiar a string UTC (critério 14)", () => {
+    // 20:19Z é 17:19 em Florianópolis. A versão anterior mostrava "20:19".
+    expect(
+      quandoDoAtoLegivel("2026-09-20T20:19:00.000Z", "America/Sao_Paulo"),
+    ).toBe("20/09/2026, 17:19");
+  });
+
+  it("vira o DIA quando o UTC já virou o ano — o caso que mais dói na DAA", () => {
+    expect(
+      quandoDoAtoLegivel("2027-01-01T01:30:00.000Z", "America/Sao_Paulo"),
+    ).toBe("31/12/2026, 22:30");
+  });
+
+  it("data ilegível volta como veio, em vez de virar 'Invalid Date'", () => {
+    expect(quandoDoAtoLegivel("não é data")).toBe("não é data");
   });
 });

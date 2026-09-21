@@ -1297,10 +1297,14 @@ describe("⚠️ o grafo de alocarCusto não tem nó de compromisso (§2, item 7
     });
 
     const a = alocarCusto({ documentos, pagamentos });
+    // `vinculosOrfaos` entrou no CONTAI-008 (critério 12) e é a rede do vínculo
+    // que cruza duas obras — não é nó de custo, não soma nada, e continua sem
+    // existir nó de compromisso nenhum aqui.
     expect(Object.keys(a).sort()).toEqual([
       "componentes",
       "porDocumento",
       "porPagamento",
+      "vinculosOrfaos",
     ]);
     // O componente só conhece pagamento e documento — não há terceira lista.
     expect(Object.keys(a.componentes[0]).sort()).toEqual([
@@ -1311,5 +1315,55 @@ describe("⚠️ o grafo de alocarCusto não tem nó de compromisso (§2, item 7
       "somaDocumentosHabeisCentavos",
       "somaPagamentosCentavos",
     ]);
+  });
+});
+
+describe("vínculo cruzando obras: reportado, nunca engolido (CONTAI-008, critério 12)", () => {
+  it("o vínculo que aponta para fora desta obra vira linha em `vinculosOrfaos`", () => {
+    // `d-de-outra-obra` não está na entrada porque a entrada é de UMA obra —
+    // é exatamente o estado que `moverPagamentoDeObra` produzia antes deste
+    // ticket, e que `alocarCusto` descartava sob um `continue` mudo.
+    const a = alocarCusto({
+      documentos: [doc({ id: "d1" })],
+      pagamentos: [
+        pag({ id: "p1", documentoIds: ["d1", "d-de-outra-obra"] }),
+      ],
+    });
+
+    expect(a.vinculosOrfaos).toEqual([
+      { pagamentoId: "p1", documentoId: "d-de-outra-obra" },
+    ]);
+  });
+
+  it("reportar NÃO muda o custo: o vínculo entre obras continua não somando nada", () => {
+    const semOrfao = alocarCusto({
+      documentos: [doc({ id: "d1", valorCentavos: 300_000 })],
+      pagamentos: [pag({ id: "p1", documentoIds: ["d1"], valorCentavos: 300_000 })],
+    });
+    const comOrfao = alocarCusto({
+      documentos: [doc({ id: "d1", valorCentavos: 300_000 })],
+      pagamentos: [
+        pag({
+          id: "p1",
+          documentoIds: ["d1", "d-de-outra-obra"],
+          valorCentavos: 300_000,
+        }),
+      ],
+    });
+
+    // Nada soma entre obras — antes e depois deste ticket. O que mudou é que
+    // agora alguém fica sabendo.
+    expect(custoComprovadoDoAno(comOrfao, 2026)).toBe(
+      custoComprovadoDoAno(semOrfao, 2026),
+    );
+    expect(semOrfao.vinculosOrfaos).toEqual([]);
+  });
+
+  it("obra saudável tem a lista vazia — o card não pode acender à toa", () => {
+    const a = alocarCusto({
+      documentos: [doc({ id: "d1" }), doc({ id: "d2" })],
+      pagamentos: [pag({ id: "p1", documentoIds: ["d1"] }), pag({ id: "p2" })],
+    });
+    expect(a.vinculosOrfaos).toEqual([]);
   });
 });

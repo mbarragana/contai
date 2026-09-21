@@ -352,10 +352,53 @@ export interface Componente {
   custoComprovadoCentavos: number;
 }
 
+/**
+ * Um vínculo vivo que aponta para documento FORA desta obra — o estado
+ * inválido que o critério 11 do CONTAI-018 proíbe pela porta da frente.
+ *
+ * ⚠️ **Não é diagnóstico de cálculo: é a rede do critério 12 do CONTAI-008.**
+ * O custo continua sendo o de sempre (o vínculo não soma entre obras, e não
+ * pode), mas ele deixa de ser DESCARTADO EM SILÊNCIO.
+ */
+export interface VinculoOrfao {
+  pagamentoId: string;
+  documentoId: string;
+}
+
+/** Título do card da rede (CONTAI-008, critério 12). */
+export const VINCULO_CRUZANDO_OBRAS_TITULO = "Vínculo entre obras diferentes";
+
+/**
+ * O efeito, sem exagero e sem eufemismo — tudo aqui é derivado da própria
+ * regra de `alocarCusto`, nada é inferido: o componente conexo não se forma
+ * entre obras, então `min(Σ pagamentos, Σ documentos hábeis)` não enxerga esse
+ * par em nenhuma das duas.
+ */
+export const VINCULO_CRUZANDO_OBRAS_EFEITO =
+  "Um pagamento desta obra está ligado a uma nota que está em OUTRA obra. Esse " +
+  'par não comprova custo em obra nenhuma: o pagamento conta como "pago sem ' +
+  'nota" aqui, e a nota aparece sem pagamento lá. Corrija a obra de um dos ' +
+  "dois — pagamento e nota têm de ficar na mesma obra.";
+
+/**
+ * ⚠️ A segunda frase é o ponto do critério 12: com as duas portas fechadas
+ * (0009 e 0016), este card só acende se algo gravou o estado **por fora** do
+ * app. Dizer isso é o que o transforma de ruído em sinal.
+ */
+export const VINCULO_CRUZANDO_OBRAS_NAO_DEVERIA_EXISTIR =
+  "O app não tem mais por onde criar esse estado. Se ele apareceu, alguma " +
+  "coisa o gravou fora das telas — confira antes de usar os números do ano.";
+
 export interface Alocacao {
   componentes: Componente[];
   porPagamento: Map<string, PagamentoAlocado>;
   porDocumento: Map<string, DocumentoAlocado>;
+  /**
+   * Vazio em toda obra saudável. Ver `VinculoOrfao` e o critério 12 do
+   * CONTAI-008: *"nenhum vínculo cruzando obras pode ser descartado sem que
+   * alguém fique sabendo"*.
+   */
+  vinculosOrfaos: VinculoOrfao[];
 }
 
 export interface EntradaAlocacao {
@@ -426,23 +469,21 @@ class Conjuntos {
  * O cálculo central. Monta o grafo bipartido pagamento↔documento, acha os
  * componentes conexos e reparte o custo comprovado de cada um.
  *
- * Vínculo que aponta para documento fora desta entrada é IGNORADO — a entrada
- * é sempre de UMA obra (nada soma entre obras), e o critério 11 impede que
- * esse caso nasça pela interface.
+ * Vínculo que aponta para documento fora desta entrada não soma nada — a
+ * entrada é sempre de UMA obra, e nada soma entre obras.
  *
- * ⚠️ ACRÉSCIMO DE 2026-08-19 (CONTAI-021, critério 13). A frase acima estava
- * FALSA pelos dois lados, e continua falsa por um deles:
+ * ⚠️ **ELE DEIXOU DE SER IGNORADO EM SILÊNCIO** (CONTAI-008, critério 12), e a
+ * história de por quê é a razão de a rede existir:
  * - **documento**: `moverDocumentoDeObra` era um `UPDATE obra_id` seco e fazia
- *   o caso nascer pela porta dos fundos. **FECHADO** pelo CONTAI-021: o move
- *   virou ato transacional que resolve cada pagamento vinculado, um a um, e
- *   não conclui com pagamento indeciso (migration 0009).
- * - **pagamento**: `moverPagamentoDeObra` (`/pagamento/[id]/obra`) é o MESMO
- *   `UPDATE` seco, na direção inversa, e **continua aberto** — é o critério 12
- *   do `CONTAI-008`, reaberto em 19/08. Enquanto ele existir, este `continue`
- *   segue engolindo em silêncio um vínculo que cruza duas obras.
- * Se `alocarCusto` deve REPORTAR o vínculo órfão como rede de segurança, em
- * vez de ignorá-lo, é pergunta de arquitetura registrada para o Gate 2 do
- * CONTAI-021 — não se decide aqui, e nada neste arquivo mudou por causa dela.
+ *   o caso nascer pela porta dos fundos. **FECHADO** pelo CONTAI-021 (0009);
+ * - **pagamento**: `moverPagamentoDeObra` era o MESMO `UPDATE` seco na direção
+ *   inversa. **FECHADO** pelo CONTAI-008 (0016).
+ *
+ * Com as duas portas fechadas, este ramo virou inalcançável — e é exatamente
+ * por isso que ele **reporta** em vez de `continue`. O critério 12 mudou o
+ * verbo de propósito: *"fechar este ticket é fechar a porta; reportar é a rede
+ * que sobra para o dia em que uma porta nova aparecer"*. Comentário honesto
+ * não é rede. Quem lê `vinculosOrfaos` é `calcularResumo`, e de lá a home.
  */
 export function alocarCusto(entrada: EntradaAlocacao): Alocacao {
   const { documentos, pagamentos } = entrada;
@@ -451,12 +492,16 @@ export function alocarCusto(entrada: EntradaAlocacao): Alocacao {
   const conjuntos = new Conjuntos();
   const chaveP = (id: string) => `p:${id}`;
   const chaveD = (id: string) => `d:${id}`;
+  const vinculosOrfaos: VinculoOrfao[] = [];
 
   for (const d of documentos) conjuntos.raiz(chaveD(d.id));
   for (const p of pagamentos) {
     conjuntos.raiz(chaveP(p.id));
     for (const documentoId of p.documentoIds) {
-      if (!docPorId.has(documentoId)) continue;
+      if (!docPorId.has(documentoId)) {
+        vinculosOrfaos.push({ pagamentoId: p.id, documentoId });
+        continue;
+      }
       conjuntos.unir(chaveP(p.id), chaveD(documentoId));
     }
   }
@@ -545,7 +590,7 @@ export function alocarCusto(entrada: EntradaAlocacao): Alocacao {
     }
   }
 
-  return { componentes, porPagamento, porDocumento };
+  return { componentes, porPagamento, porDocumento, vinculosOrfaos };
 }
 
 // ── Leituras derivadas ───────────────────────────────────────────────────

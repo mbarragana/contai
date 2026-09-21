@@ -304,6 +304,30 @@ export interface DocumentosSemArquivo {
   href: string | null;
 }
 
+/**
+ * **CONTAI-008, critério 12** — a rede, não a porta.
+ *
+ * Um pagamento desta obra que aponta para uma nota de OUTRA obra. As duas
+ * portas por onde esse estado nascia estão fechadas (migrations 0009 e 0016), e
+ * é justamente por isso que ele precisa ser REPORTADO em vez de descartado: o
+ * verbo do critério 12 mudou de propósito — *"fechar este ticket é fechar a
+ * porta; reportar é a rede que sobra para o dia em que uma porta nova
+ * aparecer"*.
+ *
+ * ⚠️ **Fora de `pendencias`, fora de `emPendenciaCentavos`, fora de
+ * `custoConfirmadoAnoCentavos`** — e há teste afirmando cada um desses "não",
+ * pela mesma régua de `terrenoPagoSemComprovante` e `documentosSemArquivo`.
+ * Não é dinheiro em risco a somar: é um defeito de dado, com valor nenhum
+ * próprio, e somá-lo contaria duas vezes um pagamento que já está em "pago sem
+ * nota".
+ */
+export interface VinculoCruzandoObras {
+  pagamentoId: string;
+  documentoId: string;
+  /** O pagamento desta obra — a ponta que esta home consegue abrir. */
+  href: string;
+}
+
 export interface TerrenoSemRegistro {
   /** A parte do terreno dentro do acumulado — zero, e é esse o ponto. */
   terrenoNoAcumuladoCentavos: number;
@@ -353,6 +377,11 @@ export interface ResumoObra {
    * `terrenoPagoSemComprovante`.
    */
   documentosSemArquivo: DocumentosSemArquivo | null;
+  /**
+   * CONTAI-008, critério 12. Vazio em toda obra saudável; ver
+   * `VinculoCruzandoObras` para por que fica fora das três somas.
+   */
+  vinculosCruzandoObras: VinculoCruzandoObras[];
   /**
    * **Critério 9** — o que o portão do comprovante TIROU de
    * `acumuladoImovelCentavos`, para o card do acumulado nunca encolher em
@@ -905,6 +934,13 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
     terrenoMaisDeUmaData,
     terrenoPagoSemComprovante,
     documentosSemArquivo,
+    // CONTAI-008, critério 12: o que `alocarCusto` descartaria em silêncio sobe
+    // até a tela. Nenhum valor entra em soma nenhuma — ver `VinculoCruzandoObras`.
+    vinculosCruzandoObras: alocacao.vinculosOrfaos.map((v) => ({
+      pagamentoId: v.pagamentoId,
+      documentoId: v.documentoId,
+      href: `/pagamento/${v.pagamentoId}`,
+    })),
     // ⚠️ Linha nomeada, NUNCA somada ao acumulado (§2.4).
     terrenoForaDoAcumuladoCentavos: custoDoTerreno.semComprovanteCentavos,
     financiamentoAguardandoInforme,

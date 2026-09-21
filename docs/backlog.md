@@ -494,6 +494,24 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
   `documentosSemArquivo`; os outros cinco agregados "fora de pendencias" não
   foram auditados
 
+### `34-2026-09-20-contai-008-entregue.md` — 30 linhas
+**CONTAI-008 entregue — 2026-09-20 — mover pagamento entre obras vira ato transacional**
+
+- Espelho do CONTAI-021 (lado do documento): migration 0016, `ato_id`
+  compartilhado, decisão por documento (vai_junto/fica_na_origem), guarda de
+  contagem também em `mover_documento_de_obra`. `corrigir-obra.tsx` (órfão)
+  apagado
+- Gate 2 aproveitou a correção fiscal do CONTAI-007 — a leitura de 24/08 da
+  pergunta 1/critério 16 (bloquear por CNO divergente) estava errada; a
+  implementação já nasceu com a leitura vigente (aviso, nunca bloqueio)
+- 687 unitários + 202 E2E + validação manual no browser (duas obras, CNO
+  diferentes, move com aviso preservando o vínculo)
+- **D60** — `HistoricoDeCorrecoes` só renderiza em `/documento/[id]`; mover um
+  PAGAMENTO não aparece em tela nenhuma pelo lado do pagamento (nem na nota
+  que "fica", nem em `/pagamento/[id]`, que não tem histórico algum). Nada
+  fiscal fica mudo (pendência visível em `/pendencias`), mas o rastro fica
+  invisível na tela errada
+
 ## Ao acrescentar ao backlog
 
 Nova entrada = **arquivo novo** em `docs/backlog/`, nomeado

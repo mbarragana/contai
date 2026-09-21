@@ -1011,10 +1011,13 @@ describe("os oito lugares (parecer §2, itens 1 a 8)", () => {
     // `alocarCusto` + a forma do componente). Aqui fica o elo: o resumo inteiro
     // vem daquele grafo, então o que não entra lá não entra em número nenhum.
     const r = calcularResumo({ obra: OBRA, ...painel, ano: 2026 });
+    // `vinculosOrfaos`: CONTAI-008, critério 12 — rede de vínculo cruzando
+    // obras, sem valor e fora de toda soma. Compromisso continua não existindo.
     expect(Object.keys(r.alocacao).sort()).toEqual([
       "componentes",
       "porDocumento",
       "porPagamento",
+      "vinculosOrfaos",
     ]);
   });
 
@@ -1627,5 +1630,57 @@ describe("terreno e financiamento fora das pendências (critério 21)", () => {
         "não um número apurado",
       );
     });
+  });
+});
+
+describe("vínculo cruzando obras no resumo (CONTAI-008, critério 12)", () => {
+  function comOrfao() {
+    return resumo({
+      documentos: [doc({ id: "d1", valorCentavos: 100_000 })],
+      pagamentos: [
+        pag({
+          id: "p1",
+          documentoIds: ["d1", "d-de-outra-obra"],
+          valorCentavos: 100_000,
+          dataPagamento: "2026-03-01",
+        }),
+      ],
+    });
+  }
+
+  it("sobe até a tela, com o pagamento que o app consegue abrir", () => {
+    expect(comOrfao().vinculosCruzandoObras).toEqual([
+      {
+        pagamentoId: "p1",
+        documentoId: "d-de-outra-obra",
+        href: "/pagamento/p1",
+      },
+    ]);
+  });
+
+  it("FORA de `pendencias`, de `emPendenciaCentavos` e do custo confirmado", () => {
+    const r = comOrfao();
+    const semOrfao = resumo({
+      documentos: [doc({ id: "d1", valorCentavos: 100_000 })],
+      pagamentos: [
+        pag({
+          id: "p1",
+          documentoIds: ["d1"],
+          valorCentavos: 100_000,
+          dataPagamento: "2026-03-01",
+        }),
+      ],
+    });
+
+    // Não é dinheiro novo em risco: é defeito de dado, e somá-lo contaria duas
+    // vezes um pagamento que já aparece onde tem de aparecer.
+    expect(r.pendencias.map((p) => p.tipo)).toEqual(
+      semOrfao.pendencias.map((p) => p.tipo),
+    );
+    expect(r.emPendenciaCentavos).toBe(semOrfao.emPendenciaCentavos);
+    expect(r.custoConfirmadoAnoCentavos).toBe(
+      semOrfao.custoConfirmadoAnoCentavos,
+    );
+    expect(semOrfao.vinculosCruzandoObras).toEqual([]);
   });
 });

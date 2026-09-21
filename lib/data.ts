@@ -33,6 +33,7 @@ import type {
 } from "@/lib/dados/comum";
 import { podeQuitar } from "@/lib/fiscal/compromisso";
 import type {
+  EscolhaDeDocumento,
   EscolhaDePagamento,
   LinhaDeAnoDaPendencia,
 } from "@/lib/fiscal/revisao";
@@ -456,15 +457,48 @@ export async function moverDocumentoDeObra(
   return data as string;
 }
 
+/**
+ * Correção da obra de um PAGAMENTO já salvo — **o espelho** (CONTAI-008).
+ *
+ * ⚠️ **Isto conserta o outro lado do mesmo bug em produção.** Até este ticket
+ * a função era um `UPDATE pagamento SET obra_id` **seco**, e o `Out of Scope`
+ * do CONTAI-021 declarava, por escrito, que a porta dos fundos continuava
+ * aberta. O efeito real (adendo §5.1, direção espelhada; Dor D19):
+ *
+ * 1. na ORIGEM o documento fica sozinho: `min(Σ pagamentos, Σ documentos)` cai
+ *    a zero naquele componente e o custo comprovado do ano **cai**;
+ * 2. no DESTINO entra pagamento sem documento naquela obra: o custo **não
+ *    sobe** e **"pago sem nota" sobe lá** — alarme vermelho da meta 1 por um
+ *    fato que não aconteceu, porque o pagamento **tem** nota: ela ficou na
+ *    origem;
+ * 3. no BANCO sobra vínculo vivo cruzando duas obras.
+ *
+ * Agora é UM ATO TRANSACIONAL (critérios 2 e 4): pagamento, N `documento.obra_id`,
+ * N deleções de vínculo, N linhas de `revisao` com o MESMO `ato_id` e a
+ * pendência do ano gravam juntos, ou nada grava. A escolha de cada documento
+ * vem da tela, **um a um** — cascata silenciosa é proibida (parecer §4.4) — e a
+ * função recusa o ato se algum documento vinculado ficar sem desfecho.
+ *
+ * ⚠️ O CNO **não decide nada aqui**: ele avisa (parecer de 2026-09-20). Quem
+ * calcula o que muda no custo é `lib/fiscal/revisao.ts`; aqui só grava.
+ */
 export async function moverPagamentoDeObra(
   id: string,
   obraDestinoId: string,
-): Promise<void> {
-  const { error } = await getSupabase()
-    .from("pagamento")
-    .update({ obra_id: obraDestinoId })
-    .eq("id", id);
+  escolhas: readonly EscolhaDeDocumento[],
+  anos: readonly AnoAfetado[],
+): Promise<string> {
+  const { data, error } = await getSupabase().rpc("mover_pagamento_de_obra", {
+    p_pagamento_id: id,
+    p_obra_destino: obraDestinoId,
+    p_documentos: escolhas.map((e) => ({
+      documento_id: e.documentoId,
+      desfecho: e.desfecho,
+    })),
+    p_anos: paraAnosJson(anos),
+  });
   if (error) throw error;
+  return data as string;
 }
 
 // ══ CONTAI-021 · as três ações nomeadas de correção ═════════════════════

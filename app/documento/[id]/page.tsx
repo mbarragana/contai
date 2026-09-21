@@ -547,6 +547,17 @@ function DetalheDocumento() {
     <HistoricoDeCorrecoes
       correcoes={estado.correcoes}
       obras={estado.obras}
+      /* CONTAI-008, critério 14: a linha de `vinculo` guarda o id do documento.
+         Esta tela conhece UM documento — o dela —, e é justamente ele que
+         aparece quando o vínculo se desfez aqui. */
+      documentos={
+        new Map([
+          [
+            d.id,
+            `${NOME_TIPO[d.tipo]}${d.numero ? ` nº ${d.numero}` : ""}`,
+          ],
+        ])
+      }
       cnpj={
         d.favorecidoDocumento ? formatarDocumento(d.favorecidoDocumento) : null
       }

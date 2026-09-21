@@ -171,6 +171,15 @@ const FUNCOES_ESPERADAS: Record<string, string> = {
   pendencia_do_ano: "authenticated",
   revisao_gravar_anos: "authenticated",
 
+  // ── CONTAI-008 (migration 0016) ────────────────────────────────────────
+  // O ato espelhado: mover o PAGAMENTO de obra resolvendo cada nota vinculada.
+  // ⚠️ Nenhuma tabela nova neste ticket, e mesmo assim este mapa MUDA — pelo
+  // mesmo motivo da 0014: função nasce com `execute` para `public`, e sem o
+  // revoke da 0016 o anônimo poderia mover registros entre obras e gravar
+  // rastro. `mover_documento_de_obra` foi substituída por `create or replace`
+  // no mesmo arquivo e continua com o privilégio dela, declarado acima.
+  mover_pagamento_de_obra: "authenticated",
+
   // ⚠️ A FUNÇÃO DO TRIGGER, e ela aparece com `execute` para `PUBLIC` e `anon`
   // de propósito — **documentada, não silenciada**. Ela é `returns trigger`, e
   // o Postgres RECUSA chamada direta de função de trigger ("trigger functions

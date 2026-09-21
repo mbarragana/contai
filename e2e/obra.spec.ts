@@ -525,9 +525,9 @@ test.describe("correção da obra de um registro", () => {
     //
     // ⚠️ Título e rótulo do botão MUDARAM no CONTAI-021: a tela do documento
     // deixou de reusar `app/_components/corrigir-obra.tsx` e virou o ato
-    // transacional do critério 13. O componente antigo continua servindo o
-    // caminho do PAGAMENTO (`/pagamento/[id]/obra`), que o CONTAI-008 reabre e
-    // que este ticket não altera — e é ele que o teste do pagamento exercita.
+    // transacional do critério 13. O CONTAI-008 **apagou** aquele componente
+    // (critério 15): o caminho do PAGAMENTO virou o ato espelhado, e o que o
+    // exercita é `correcao.spec.ts` ("mover pagamento entre obras").
     await page.getByRole("link", { name: "Corrigir a obra deste registro" }).click();
     await expect(
       page.getByRole("heading", { name: "Corrigir a obra deste registro" }),

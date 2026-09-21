@@ -28,11 +28,14 @@ Larguras: 375px (piso) e 720px (mesa, ligada por padrão).
   de 2025"); bloco de delta oculto até as 3 respostas. Sem loading/erro.
 - **p2b — Gravado, pendência de 2025 aberta**: só sucesso (desfecho misto:
   1 nota junto, 1 fica — mostra a variante mais rica do resumo).
-- **p3 — Corrigir a obra, vínculo com CNO bloqueado** (cenário c, NOVO):
-  **vazio** inicial igual a p2; a Nota B nasce com a opção (i) **desabilitada**
-  (`<button disabled>`) e texto de consequência fixo — não é um 3º estado de
-  escolha, é (i) indisponível com (ii) como único caminho clicável. Nota A
-  seque livre. Sem loading/erro.
+- **p3 — Corrigir a obra, vínculo com CNO bloqueado** (cenário c) — ⚠️
+  **SUBSTITUÍDA em 2026-09-20**, mesmo parecer que corrigiu o critério 16 do
+  ticket (`docs/pareceres/2026-09-20-cno-nao-bloqueia-correcao-de-obra.md`).
+  A opção (i) **nunca fica desabilitada** por CNO — as duas opções continuam
+  sempre clicáveis, e a divergência de CNO aparece como banner de aviso ao
+  lado da nota (texto exato no critério 7(b) do CONTAI-007 e no ticket
+  CONTAI-008), não como bloqueio. Quem for redesenhar esta tela usa o
+  comportamento vigente, não o descrito abaixo.
 - **p3b — Gravado, nota ficou pelo CNO**: só sucesso.
 - **pG — Gravando / falha**: **loading** ("Gravando…", botão desabilitado) +
   **erro** com retry ("Tentar de novo") + saída ("Voltar ao fluxo") — mesma
@@ -50,11 +53,17 @@ sentido do CONTAI-021 (i.e. escolha obrigatória, sem default) são:
 - `escolhaDoc[d]` (p2/p3), por documento vinculado — 2 opções: "esta nota
   também é da obra de destino" | "esta nota é mesmo da obra de origem" —
   obrigatório, um a um, nunca em cascata — **SEM DEFAULT — campo fiscal**.
-  Em p3, a Nota B tem só a 2ª opção **habilitada**; a indisponibilidade da 1ª
-  não é um default (nada se marca sozinho), é a opção sumindo do conjunto de
-  escolhas possíveis — a discriminação normal de "campo vazio pergunta,
+  ⚠️ **SUBSTITUÍDO em 2026-09-20** (mesmo parecer da nota em "Telas e
+  estados", p3): em p3 as DUAS opções continuam sempre habilitadas — a
+  divergência de CNO vira aviso ao lado da nota, nunca desabilita a 1ª
+  opção. O parágrafo abaixo descreve o comportamento antigo, mantido só
+  como registro histórico do que o mock original mostrava.
+
+  ~~Em p3, a Nota B tem só a 2ª opção **habilitada**; a indisponibilidade da
+  1ª não é um default (nada se marca sozinho), é a opção sumindo do conjunto
+  de escolhas possíveis — a discriminação normal de "campo vazio pergunta,
   campo preenchido afirma" ainda vale: enquanto não clicado, o Gravar
-  continua bloqueado para aquele documento.
+  continua bloqueado para aquele documento.~~
 
 ## Textos com consequência fiscal (todos com origem citada na própria tela)
 - "Vai junto com o pagamento. O par continua inteiro, só muda de imóvel..." —
@@ -65,12 +74,19 @@ sentido do CONTAI-021 (i.e. escolha obrigatória, sem default) são:
   [destino]..." — p2/p3, opção (ii) — mesma origem + critério 2 do CONTAI-008
 - "Nada muda, e por isso NÃO abre pendência... pagamento sozinho não comprova
   custo" — p1 — critério 7 do CONTAI-008 / Gate Fiscal pergunta 4 (24/08)
-- **"Esta nota não abate a aferição desta obra. Sem a aferição fechada não há
-  regularização, e sem regularização a construção não é averbada na
-  matrícula."** — p3, Nota B — **cópia literal do critério 2 do CONTAI-007**
-- "O CNO desta NF de serviço é diferente do CNO da obra de destino — mover
+- ⚠️ **Os dois textos abaixo são o texto ANTIGO (bloqueio), SUBSTITUÍDOS em
+  2026-09-20** pelo texto vigente de `AVISO_CNO_NA_CORRECAO_DE_OBRA`
+  (`lib/fiscal/obra.ts`, cópia literal do §5 do parecer
+  `2026-09-20-cno-nao-bloqueia-correcao-de-obra.md`): a nota não abate a
+  aferição de nenhuma das duas obras até reemissão/retificação, **mas o
+  custo de aquisição segue registrado normalmente na obra de destino** —
+  nunca um bloqueio:
+  ~~**"Esta nota não abate a aferição desta obra. Sem a aferição fechada não
+  há regularização, e sem regularização a construção não é averbada na
+  matrícula."** — p3, Nota B — cópia literal do critério 2 do CONTAI-007~~
+  ~~"O CNO desta NF de serviço é diferente do CNO da obra de destino — mover
   inflaria a base de aferição do CNO errado." — p3, Nota B — cópia literal do
-  `motivo` retornado por `podeCorrigirObra` (`lib/fiscal/obra.ts:296-303`)
+  `motivo` retornado por `podeCorrigirObra`~~
 - "Não existe uma terceira saída... vínculo cruzando duas obras é o estado
   que o critério 11 do CONTAI-018 proíbe" — p2 — crit. 2 do CONTAI-008
 - "Esta tela não pergunta o motivo... o papel não tem obra" — p2/p3 —
@@ -85,11 +101,14 @@ pG é aba isolada, não amarrada ao clique de Gravar de p2/p3 (mesmo tratamento
 do s3e no 021).
 
 ## Decisões de design
-- **A recusa é por linha, nunca pelo card inteiro** — Nota B bloqueada não
+⚠️ **As duas decisões abaixo descrevem o comportamento ANTIGO, SUBSTITUÍDO em
+2026-09-20.** Vigente: nenhuma opção fica indisponível por CNO; a divergência
+é sempre aviso âmbar ao lado da nota, nunca vermelho de bloqueio.
+- ~~**A recusa é por linha, nunca pelo card inteiro** — Nota B bloqueada não
   desabilita a Nota A nem o resto da tela (crit. 16: "a recusa é por
-  documento, nunca pelo ato inteiro").
-- **Opção indisponível usa vermelho, não âmbar** — bloqueio fiscal duro
-  (mesma gravidade do crit. 2 do CONTAI-007), não um aviso.
+  documento, nunca pelo ato inteiro").~~
+- ~~**Opção indisponível usa vermelho, não âmbar** — bloqueio fiscal duro
+  (mesma gravidade do crit. 2 do CONTAI-007), não um aviso.~~
 - **loading/erro não duplicado por cenário** — precedente do s3e/021, que já
   concentra os dois estados numa aba isolada em vez de repetir por fluxo.
 - **Delta oculto até a última resposta**, botão desabilitado diz o que falta

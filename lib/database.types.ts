@@ -1059,6 +1059,15 @@ export type Database = {
         }
         Returns: string
       }
+      mover_pagamento_de_obra: {
+        Args: {
+          p_anos: Json
+          p_documentos: Json
+          p_obra_destino: string
+          p_pagamento_id: string
+        }
+        Returns: string
+      }
       pendencia_do_ano: { Args: { p_ano: number }; Returns: string }
       revisao_gravar_anos: {
         Args: { p_anos: Json; p_revisao_id: string }

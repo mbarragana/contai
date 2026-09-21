@@ -81,7 +81,7 @@ sem nota" por um fato que não aconteceu.
    **documento → N pagamentos**; aqui é **pagamento → N documentos**), mais
    o estado de recusa por CNO incompatível (critério 16). Cenário: gestão
    em casa, sentado — 375px é piso, não alvo. Mock aprovado em 2026-08-24.
-2. [ ] **Mover pagamento com vínculo em `pagamento_documento` é UM ato
+2. [x] **Mover pagamento com vínculo em `pagamento_documento` é UM ato
    transacional que não conclui com documento indeciso.** Para **cada**
    documento vinculado, o Mateus escolhe **um a um, em ato explícito** (§4.4 do
    parecer de 18/08 — **cascata silenciosa é proibida**):
@@ -95,7 +95,7 @@ sem nota" por um fato que não aconteceu.
 
    **Não existe terceira saída**, e **é proibido o caminho que grava e não
    avisa** (critério 1 da versão original deste ticket).
-3. [ ] **A revalidação de CNO roda no desfecho (i), por documento.**
+3. [x] **A revalidação de CNO roda no desfecho (i), por documento.**
    `podeCorrigirObra` (`lib/fiscal/obra.ts`) recusa mover **NF de serviço**
    para obra cujo CNO ela não referencia — a tela do pagamento hoje a chama
    com `tipo: null`; passa a chamar com `documento.cno_referenciado`
@@ -103,15 +103,15 @@ sem nota" por um fato que não aconteceu.
    porta do pagamento** não pode contrabandear o que a porta do documento
    barra. Respondida pela pergunta 1 do Gate Fiscal (24/08) — ver critério
    11 para o estado de tela que essa resposta abre.
-4. [ ] **Gravação atômica**: pagamento + N documentos + N rastros numa **única
+4. [x] **Gravação atômica**: pagamento + N documentos + N rastros numa **única
    função Postgres**, com **`ato_id` compartilhado** — granular no banco, **uma**
    linha no histórico e **uma** na pendência. Reusa a função e a tabela `revisao`
    do `CONTAI-021` (critérios 7-9); **não** cria mecanismo paralelo.
-5. [ ] **Motivo é `arquivamento_corrigido`, gravado sozinho — esta tela não
+5. [x] **Motivo é `arquivamento_corrigido`, gravado sozinho — esta tela não
    pergunta motivo** (adendo §5: o papel não tem obra).
-6. [ ] **Delta antes→depois por ano-calendário das duas obras, antes de gravar**,
+6. [x] **Delta antes→depois por ano-calendário das duas obras, antes de gravar**,
    pelo **mesmo detector** do critério 4 do `CONTAI-021` — construído uma vez.
-7. [ ] **Pendência**: mesma regra do critério 20 do `CONTAI-021`, sem emenda —
+7. [x] **Pendência**: mesma regra do critério 20 do `CONTAI-021`, sem emenda —
    chave por **ano**, conjunto de **obras afetadas** vindo do **rastro**
    (`antes ∪ depois` do campo `obra`), **filtrado** para as obras cujo custo
    daquele ano efetivamente mudou. **Sem documento vinculado**: rastro e aviso,
@@ -119,20 +119,20 @@ sem nota" por um fato que não aconteceu.
    (`min(valor, 0) = 0` dos dois lados), então o delta é zero nas duas. É o
    espelho exato da tela `s8b` do mock do 021 — confirmado pela pergunta 4
    do Gate Fiscal (24/08), sem emenda.
-8. [ ] **O par nunca fica atravessado sem registro**: não existe estado em que P
+8. [x] **O par nunca fica atravessado sem registro**: não existe estado em que P
    (obra B, vinculado) aponte para D (obra A) e as duas obras se declarem em
    ordem.
-9. [ ] **O resumo (`lib/fiscal/resumo.ts`) nunca perde valor sem contrapartida**:
+9. [x] **O resumo (`lib/fiscal/resumo.ts`) nunca perde valor sem contrapartida**:
    se um custo sai da obra A, ou ele aparece em B, ou vira pendência em A.
    Não existe evaporação.
-10. [ ] **E2E contra o Postgres local** afirma **estado gravado**, não tela:
+10. [x] **E2E contra o Postgres local** afirma **estado gravado**, não tela:
     montar P vinculado a D na obra A, mover P para B com desfecho misto, e provar
     que (i) não sobrou vínculo cruzando obras, (ii) o rastro tem as N linhas com o
     mesmo `ato_id`, (iii) a soma dos custos de A e B mais as pendências fecha com
     o total de antes, (iv) o rastro não aceita update nem delete.
-11. [ ] **Regressão do caso benigno**: mover pagamento **sem** vínculo continua
+11. [x] **Regressão do caso benigno**: mover pagamento **sem** vínculo continua
     funcionando exatamente como hoje, **sem atrito novo** — é 99% dos casos.
-12. [ ] **`alocarCusto` REPORTA o vínculo órfão — não basta "deixar de ignorar
+12. [x] **`alocarCusto` REPORTA o vínculo órfão — não basta "deixar de ignorar
     em silêncio"**. ⚠️ **Redigido pelo `po` no Gate 4 do `CONTAI-021`
     (21/08), e o verbo mudou de propósito.** O comentário de
     `lib/fiscal/vinculo.ts:394-411` já ficou honesto no Gate 1 do `021` — ele
@@ -151,7 +151,7 @@ na validação, que **não seguraram** aquele gate porque são inalcançáveis p
 tela ou puramente cosméticos hoje. Este ticket escreve a função **espelhada** —
 ela não pode nascer com eles.*
 
-13. [ ] **A guarda do array de decisões conta, não só verifica existência.**
+13. [x] **A guarda do array de decisões conta, não só verifica existência.**
     Em `supabase/migrations/0009_correcao_documento.sql:762-771`, a guarda de
     *"o ato não conclui com pagamento indeciso"* pergunta se **existe** desfecho
     para cada pagamento vinculado — nunca **quantos**. Duas consequências, as
@@ -166,7 +166,7 @@ ela não pode nascer com eles.*
     `count(distinct (e ->> 'pagamento_id'))` do mesmo array e recusar quando
     divergirem. Vale para a função **espelhada** deste ticket e, no mesmo diff,
     para a do `021`.
-14. [ ] **O rastro do vínculo é legível por gente.** `legivel()`
+14. [x] **O rastro do vínculo é legível por gente.** `legivel()`
     (`app/_components/corrigir.tsx:318-332`) não tem ramo para
     `campo = "vinculo"`, cujo `antes` é `documento_id::text`
     (`0009_correcao_documento.sql:823`). Hoje **some**, porque no move do
@@ -175,7 +175,7 @@ ela não pode nascer com eles.*
     histórico exibe **UUID cru**. Junto: `quandoLegivel()` fatia a string ISO e
     mostra a hora em **UTC** (17:19 de Florianópolis vira "20:19") numa tela cujo
     propósito declarado é ser lida em **2034**.
-15. [ ] **`app/_components/corrigir-obra.tsx` não sobrevive a este ticket.** A
+15. [x] **`app/_components/corrigir-obra.tsx` não sobrevive a este ticket.** A
     tela do documento deixou de reusá-lo de propósito no `021`
     (`app/documento/[id]/obra/page.tsx:75-95`): um lado pergunta o desfecho de
     cada pagamento, o outro não pergunta nada. Quando este ticket reescrever o
@@ -183,7 +183,7 @@ ela não pode nascer com eles.*
     compartilhado que sobrou de uma bifurcação é o próximo a receber "só mais um
     parâmetro".
 
-16. [ ] ⚠️ **SUBSTITUÍDO em 2026-09-20** — ver
+16. [x] ⚠️ **SUBSTITUÍDO em 2026-09-20** — ver
     `docs/pareceres/2026-09-20-cno-nao-bloqueia-correcao-de-obra.md` e a nota
     na tabela do Gate Fiscal acima. A revalidação de CNO do critério 3 nunca
     recusa o desfecho (i); ela **avisa**. Não existe mais estado de "opção

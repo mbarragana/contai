@@ -136,6 +136,128 @@ export function resumoDesfechoMisto(entrada: {
 }
 
 
+// ── O ESPELHO: mover o PAGAMENTO de obra (CONTAI-008) ────────────────────
+//
+// ⚠️ Os textos abaixo são o adendo §5.2 **na direção espelhada**, e a simetria
+// foi RATIFICADA pelo `contador`, não reinventada aqui (Gate Fiscal do
+// CONTAI-008, pergunta 1, 24/08: *"a simetria foi ratificada, não
+// reinventada"*). A norma é a mesma; o que muda é quem sai do lugar.
+
+/**
+ * Desfecho (i) visto do lado do pagamento — **o único que transfere custo entre
+ * obras** (adendo §5.2, desfecho (i)).
+ */
+export const DESFECHO_NOTA_VAI_JUNTO =
+  "Vai junto com o pagamento. O par pagamento↔nota continua inteiro, só muda " +
+  "de imóvel: sai do custo de aquisição de um bem e entra no do outro, sem " +
+  "que o seu gasto mude um centavo.";
+
+/**
+ * Desfecho (ii) visto do lado do pagamento (adendo §5.2(ii) + critério 2 do
+ * CONTAI-008).
+ *
+ * ⚠️ O "pago sem nota" sobe **no DESTINO**, e não na origem — é essa a
+ * diferença em relação ao `DESFECHO_FICA_NA_ORIGEM` do move do documento. E
+ * ali ele é a VERDADE, não um alarme falso: *"a nota de outro imóvel nunca
+ * comprovou aquele pagamento"* (critério 2). O texto não pode sugerir prejuízo
+ * nem erro do Mateus (ressalva 3 do `contador`): o dispêndio continua inteiro,
+ * o que falta é o documento hábil que o comprove.
+ *
+ * Função, e não constante, porque o mock nomeia a obra de destino na própria
+ * frase — dizer "na obra de destino" quando a tela já sabe o nome é obrigar a
+ * tradução mental bem no ponto em que a consequência é decidida.
+ */
+export function desfechoNotaFicaNaOrigem(obraDestinoNome: string): string {
+  return (
+    "Então o pagamento foi ligado ao papel errado. O vínculo se desfaz, com " +
+    `registro, e o pagamento entra em "pago sem nota" em ${obraDestinoNome} — ` +
+    "e ali isso é a verdade: a nota de outro imóvel nunca comprovou esse " +
+    "pagamento. O pagamento continua sendo dispêndio dessa obra; o que falta é " +
+    "o documento hábil que o comprove."
+  );
+}
+
+/**
+ * O espelho de `PAGAMENTO_LIGADO_A_OUTRA_NOTA`: a nota que comprova MAIS DE UM
+ * pagamento não pode acompanhar este — levá-la deixaria o OUTRO vínculo
+ * cruzando duas obras, o mesmo estado inválido com os papéis trocados.
+ *
+ * A guarda também existe dentro de `mover_pagamento_de_obra` (migration 0016):
+ * a tela explica, o banco recusa.
+ */
+export const DOCUMENTO_LIGADO_A_OUTRO_PAGAMENTO =
+  "Esta nota também comprova outro pagamento desta obra. Levá-la junto " +
+  "deixaria aquele vínculo cruzando duas obras — o mesmo estado que esta " +
+  "correção existe para desfazer. Desligue-a do outro pagamento antes, ou " +
+  "deixe-a na obra de origem.";
+
+/**
+ * Critério 7 / Gate Fiscal, pergunta 4 (24/08) — **confirmada sem emenda**:
+ * mover pagamento SEM nota ligada não muda número em obra nenhuma
+ * (`min(valor, 0) = 0` dos dois lados), então **marca rastro, avisa, e não abre
+ * pendência**. É o espelho exato da tela `s8b` do mock do CONTAI-021.
+ */
+export const MOVE_DE_PAGAMENTO_SEM_VINCULO =
+  "Nada muda, e por isso não abre pendência. Sem nota ligada, mover de obra " +
+  "não muda o custo nem na origem nem no destino — pagamento sozinho não " +
+  "comprova custo em obra nenhuma. Fica o registro e o aviso, e acabou.";
+
+/**
+ * O resumo do desfecho MISTO do lado do pagamento — o único lugar em que a tela
+ * narra a mistura.
+ *
+ * ⚠️ **Os números saem da ALOCAÇÃO, nunca da soma das notas escolhidas**, e a
+ * regra é a mesma do bloqueante 1 do Gate 2 do CONTAI-021 (redigido pelo
+ * `contador`): partição e delta só coincidem quando Σ notas ≤ Σ pagamentos, e
+ * fora disso a soma superestima a queda — inflando o alarme sobre o número da
+ * meta 1, que é justamente o número pelo qual ele decide se pode pagar alguém.
+ *
+ * `{total}`, `{junto}` e `{fica}` continuam sendo a PARTIÇÃO DAS NOTAS, e é o
+ * que a primeira frase descreve — ali ela é verdadeira.
+ *
+ * ⚠️ A frase *"o total não muda"* segue **proibida** como afirmação geral
+ * (adendo §5.2).
+ */
+export function resumoDesfechoMistoDoPagamento(entrada: {
+  totalCentavos: number;
+  juntoCentavos: number;
+  ficaCentavos: number;
+  /** Da alocação do DESTINO, nunca da soma das notas que ficaram. */
+  semNotaSobeCentavos: number;
+  /** Da alocação, somando as duas obras. */
+  quedaCentavos: number;
+  obraOrigemNome: string;
+  obraDestinoNome: string;
+  formatar: (centavos: number) => string;
+}): string {
+  const { formatar, obraOrigemNome: origem, obraDestinoNome: destino } = entrada;
+
+  const primeira =
+    `Das notas ligadas a este pagamento (${formatar(entrada.totalCentavos)}), ` +
+    `${formatar(entrada.juntoCentavos)} acompanham o pagamento e ` +
+    `${formatar(entrada.ficaCentavos)} continuam em ${origem}.`;
+
+  // Variação obrigatória 1: "sobe R$ 0,00" é o mesmo defeito com outro sinal.
+  const subida =
+    entrada.semNotaSobeCentavos > 0
+      ? `o "pago sem nota" de ${destino} sobe ${formatar(entrada.semNotaSobeCentavos)}, e `
+      : "";
+
+  // Variação obrigatória 2: queda zero não se anuncia como queda. O `else`
+  // cobre também a soma SUBIR — impreciso, nunca falso na direção perigosa.
+  const efeito =
+    entrada.quedaCentavos > 0
+      ? `o custo confirmado, somando as duas obras, cai ${formatar(entrada.quedaCentavos)}.`
+      : "o custo confirmado, somando as duas obras, não muda — essas notas já " +
+        "não comprovavam esse valor.";
+
+  return (
+    `${primeira} Depois desta correção, ${subida}${efeito} Isso não é perda: ` +
+    `esse dinheiro continua sendo dispêndio de ${destino} — o que falta é o ` +
+    "documento hábil que o comprove."
+  );
+}
+
 /**
  * Critério 4 / parecer §6.3 — copiado literalmente, e é o mesmo texto na
  * correção de valor e no move. **Construir uma vez**: saindo duas vezes, o
@@ -218,6 +340,48 @@ export function pagamentosVinculados(
   return pagamentos.filter((p) => p.documentoIds.includes(documento.id));
 }
 
+// ── O mesmo par de desfechos, visto do lado do PAGAMENTO (CONTAI-008) ────
+
+/**
+ * Os dois desfechos do adendo §5.2 vistos da outra ponta. É um ALIAS de
+ * propósito — são o MESMO par de saídas do mesmo parecer, e um segundo tipo
+ * com os mesmos dois literais só serviria para alguém, um dia, acrescentar uma
+ * terceira saída a um deles e não ao outro.
+ */
+export type DesfechoDoDocumento = DesfechoDoPagamento;
+
+export interface EscolhaDeDocumento {
+  documentoId: string;
+  desfecho: DesfechoDoDocumento;
+}
+
+/** As notas que hoje comprovam este pagamento — as que a tela pergunta. */
+export function documentosVinculados(
+  pagamento: Pick<Pagamento, "documentoIds">,
+  documentos: readonly Documento[],
+): Documento[] {
+  return documentos.filter((d) => pagamento.documentoIds.includes(d.id));
+}
+
+/**
+ * As notas vinculadas a este pagamento que **não podem** acompanhá-lo, com o
+ * motivo: a nota que também comprova OUTRO pagamento da obra. Lista vazia é o
+ * caso normal.
+ *
+ * ⚠️ `pagamentos` é a lista da obra de ORIGEM, e é ela que responde "esta nota
+ * comprova mais alguém?" — `Documento` não guarda os vínculos, quem os guarda é
+ * `Pagamento.documentoIds`.
+ */
+export function documentosImpedidosDeIrJunto(
+  pagamento: Pick<Pagamento, "id" | "documentoIds">,
+  documentos: readonly Documento[],
+  pagamentos: readonly Pagamento[],
+): Documento[] {
+  return documentosVinculados(pagamento, documentos).filter((d) =>
+    pagamentos.some((p) => p.id !== pagamento.id && p.documentoIds.includes(d.id)),
+  );
+}
+
 // ── Simulação do move, sobre cópia (nunca sobre o painel real) ───────────
 
 export interface PainelDeObra {
@@ -277,6 +441,69 @@ export function simularMoveDeObra(entrada: {
         .filter((p) => vaoJunto.has(p.id))
         .map((p) => ({ ...p, obraId: destino.obraId })),
     ],
+  };
+
+  return {
+    origemAntes: { documentos: origem.documentos, pagamentos: origem.pagamentos },
+    origemDepois,
+    destinoAntes: { documentos: destino.documentos, pagamentos: destino.pagamentos },
+    destinoDepois,
+  };
+}
+
+/**
+ * O estado das DUAS obras depois de mover o PAGAMENTO, sem tocar em nada.
+ *
+ * O que o move de verdade faz, e o que esta cópia reproduz:
+ * - o pagamento sai da origem e entra no destino;
+ * - cada nota `vai_junto` sai da origem e entra no destino **com o vínculo
+ *   intacto** — é o único desfecho que transfere custo (§5.2(i));
+ * - cada nota `fica_na_origem` continua na origem **sem o vínculo**, e o
+ *   pagamento entra em "pago sem nota" no DESTINO (§5.2(ii), espelhado).
+ *
+ * ⚠️ Os `documentoIds` são filtrados nos dois lados — no pagamento que vai e
+ * nos que ficam. Deixar apontando para nota que mudou de obra seria simular
+ * exatamente o estado inválido que este ticket existe para impedir, e
+ * `alocarCusto` o contaria como vínculo órfão (critério 12).
+ */
+export function simularMovePagamentoDeObra(entrada: {
+  pagamento: Pagamento;
+  origem: PainelDeObra;
+  destino: PainelDeObra;
+  escolhas: readonly EscolhaDeDocumento[];
+}): MoveSimulado {
+  const { pagamento, origem, destino } = entrada;
+  const vaoJunto = new Set(
+    entrada.escolhas
+      .filter((e) => e.desfecho === "vai_junto")
+      .map((e) => e.documentoId),
+  );
+
+  const pagamentoNoDestino: Pagamento = {
+    ...pagamento,
+    obraId: destino.obraId,
+    documentoIds: pagamento.documentoIds.filter((id) => vaoJunto.has(id)),
+  };
+
+  const origemDepois: EntradaAlocacao = {
+    documentos: origem.documentos.filter((d) => !vaoJunto.has(d.id)),
+    pagamentos: origem.pagamentos
+      .filter((p) => p.id !== pagamento.id)
+      .map((p) =>
+        p.documentoIds.some((id) => vaoJunto.has(id))
+          ? { ...p, documentoIds: p.documentoIds.filter((id) => !vaoJunto.has(id)) }
+          : p,
+      ),
+  };
+
+  const destinoDepois: EntradaAlocacao = {
+    documentos: [
+      ...destino.documentos,
+      ...origem.documentos
+        .filter((d) => vaoJunto.has(d.id))
+        .map((d) => ({ ...d, obraId: destino.obraId })),
+    ],
+    pagamentos: [...destino.pagamentos, pagamentoNoDestino],
   };
 
   return {
@@ -391,6 +618,32 @@ export interface AtoDeCorrecao {
   motivoTexto: string | null;
   linhas: Revisao[];
   anosAfetados: AnoAfetado[];
+}
+
+/**
+ * O instante do ato, **na hora de quem o fez** (CONTAI-008, critério 14).
+ *
+ * ⚠️ A versão anterior (`app/_components/corrigir.tsx`) fatiava a string ISO e
+ * exibia **UTC**: um ato das 17:19 em Florianópolis aparecia como "20:19", numa
+ * tela cujo propósito declarado é ser lida em 2034. Três horas não parecem
+ * muito até a correção ser de 31/12 às 22h — aí o UTC mostra o ANO errado, e o
+ * ano é exatamente o que essa tela existe para provar.
+ *
+ * `timeZone` existe para o TESTE fixar o fuso. Em tela fica indefinido, e o
+ * fuso é o do aparelho — que é onde a correção foi feita. Fuso fixo no código
+ * mentiria no dia em que ele corrigisse o acervo viajando.
+ */
+export function quandoDoAtoLegivel(iso: string, timeZone?: string): string {
+  const quando = new Date(iso);
+  if (Number.isNaN(quando.getTime())) return iso;
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone,
+  }).format(quando);
 }
 
 /**

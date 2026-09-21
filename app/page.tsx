@@ -53,6 +53,9 @@ import {
 import {
   EXPLICACAO_CUSTO_ZERO,
   EXPLICACAO_NOTAS_SEM_PAGAMENTO,
+  VINCULO_CRUZANDO_OBRAS_EFEITO,
+  VINCULO_CRUZANDO_OBRAS_NAO_DEVERIA_EXISTIR,
+  VINCULO_CRUZANDO_OBRAS_TITULO,
 } from "@/lib/fiscal/vinculo";
 import { hojeIso } from "@/lib/hoje";
 import { formatarBRL } from "@/lib/money";
@@ -481,7 +484,8 @@ export default function Home() {
                 (terreno, financiamento) — auditoria maior, fora deste ticket;
                 registrado como dívida no backlog. */}
             {estado.resumo.pendencias.length === 0 &&
-            !estado.resumo.documentosSemArquivo ? (
+            !estado.resumo.documentosSemArquivo &&
+            estado.resumo.vinculosCruzandoObras.length === 0 ? (
               <Banner cor="grn" role="status">
                 <strong>Nenhuma pendência.</strong> Todo documento e pagamento
                 registrado está com a documentação em ordem.
@@ -514,6 +518,35 @@ export default function Home() {
                 ))}
               </Card>
             ))}
+
+            {/* ── CONTAI-008, critério 12 · a REDE, não a porta ────────────
+                `alocarCusto` descartava em silêncio o vínculo que cruza duas
+                obras, sob um comentário que dizia que o caso não nascia pela
+                interface. As duas portas estão fechadas (migrations 0009 e
+                0016) e este card é o que sobra para o dia em que uma porta nova
+                aparecer: "nenhum vínculo cruzando obras pode ser descartado sem
+                que alguém fique sabendo". Fora de `pendencias` e das somas —
+                não é dinheiro novo em risco, é defeito de dado. */}
+            {estado.resumo.vinculosCruzandoObras.length > 0 ? (
+              <>
+                <Passo>Vínculo entre obras — conferir</Passo>
+                {estado.resumo.vinculosCruzandoObras.map((v) => (
+                  <Card
+                    key={`${v.pagamentoId}:${v.documentoId}`}
+                    className="border-red"
+                  >
+                    <Chip cor="red">{VINCULO_CRUZANDO_OBRAS_TITULO}</Chip>
+                    <Consequencia cor="red">
+                      {VINCULO_CRUZANDO_OBRAS_EFEITO}
+                    </Consequencia>
+                    <Dica>{VINCULO_CRUZANDO_OBRAS_NAO_DEVERIA_EXISTIR}</Dica>
+                    <div className="mt-2.5">
+                      <BotaoLink href={v.href}>Abrir o pagamento</BotaoLink>
+                    </div>
+                  </Card>
+                ))}
+              </>
+            ) : null}
 
             {/* ⚠️ CONTAI-010 — os dois estados do TERRENO. Bloco próprio,
                 DEPOIS das pendências fiscais e fora delas (critério 21):
