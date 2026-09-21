@@ -1,6 +1,6 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 12 tickets
+## 🔎 O que está em aberto — 10 tickets (mais 1 parado, aguardando o Mateus)
 
 *Uma linha por ticket, sem justificativa. O **porquê** de cada posição está nas
 seções longas abaixo; o **porquê da decisão** está em `../backlog.md`.
@@ -86,15 +86,45 @@ retificadora) e validado pelo `po` (Gate 4 PASS). `lib/fiscal/gravidade.ts`
 criado — **destrava o `038`** (falta só `/design`, sem HTML nem aprovação
 pela política atual).
 
+**2026-09-21**: **`038`** saiu da fila — `/design` rodado (3 perguntas abertas
+fechadas antes do Gate 1: correção de linha = remover+recriar com DELETE
+concedido em `documento_retencao`, decisão de arquitetura do `cto-obra`;
+pendência nova fora de `pagoSemComprovanteCentavos`; correção do gate vira
+dívida D62). Implementado (`lead-engineer`), Gate 2 com uma rodada de
+REQUEST CHANGES do `contador` (texto citava premissa morta "retenção de
+11%", corrigido) e ajustes cosméticos do `cto-obra`, ambos APPROVE na
+segunda rodada. Testado (791 unitários + 217/217 E2E + validação manual no
+browser: gate de captura sem repeater, repeater completo com cascata,
+pendência vermelha nascendo e aparecendo na home). Validado pelo `po` (Gate
+4 PASS). **Commitado (`6dd771e`), mas NÃO pushado**: a migration `0017`
+dropa `retencao_11`, e o critério 18 exige uma contagem no banco remoto
+antes do `db push` — bloqueio genuíno de credencial/dado de produção,
+aguardando o Mateus. Dívidas novas: **D62**, **D63**
+(`docs/backlog/38-2026-09-21-contai-038-entregue.md`).
+
+**2026-09-21**: **`014`** ficou **PARADO, não fechado** — critérios 1-3
+(ícone/manifest) exigem aprovação explícita do Mateus sobre a arte, e os
+critérios 5-6 exigem teste no iPhone físico dele (com lembretes D+7/D+21 em
+datas futuras) — nenhum dos dois é delegável a subagente. Só o **critério
+4** foi implementado e fechado, isolado do resto (`maximumScale` sai do
+viewport + inputs sobem para 16px, para não quebrar o auto-zoom do Safari
+no canteiro), revisado pelo `cto-obra` (APPROVE) e testado (3/3 E2E novos +
+suíte completa verde). Commitado (`e7dd434`). Nota de pausa no corpo do
+ticket; retomar quando o Mateus puder aprovar o ícone e testar no aparelho.
+
 ### Fila de implementação — nesta ordem
 
 | # | ID | O que é | P |
 |---|---|---|---|
-| 1 | **038** | **Retenção de NF de serviço PJ vira lista de linhas** — 🟡 falta `/design` | **P0** |
-| 2 | **034** | **Campo fiscal não nasce preenchido, e o teste prova** | P1 — ⚠️ existe só neste resumo, falta linha própria na tabela detalhada abaixo |
-| 3 | **014** | Manifest de PWA + prova no aparelho | P1 |
-| 4 | **006** | Estados de rede lenta/indisponível | P1 |
-| 5 | **037** | **Porta para o pagamento conciliado a partir do documento** | P1 |
+| 1 | **034** | **Campo fiscal não nasce preenchido, e o teste prova** | P1 — ⚠️ existe só neste resumo, falta linha própria na tabela detalhada abaixo |
+| 2 | **006** | Estados de rede lenta/indisponível | P1 |
+| 3 | **037** | **Porta para o pagamento conciliado a partir do documento** | P1 |
+
+### Parado, aguardando o Mateus (fora da fila ativa)
+
+| ID | O que é | P | O que falta |
+|---|---|---|---|
+| **014** | Manifest de PWA + prova no aparelho | P1 | Aprovar arte do ícone/`short_name` (critérios 1-3) e testar no iPhone físico (critérios 5-6, com lembretes D+7/D+21). Critério 4 já entregue |
 
 ### Bloco de deploy — fora da fila
 
@@ -123,8 +153,9 @@ pela política atual).
 |---|---|
 | **Espera o Mateus** | apenas a **Q14** (13 dias, trava o `016`) — nenhum mock pendente na fila ativa |
 | **Saiu da fila, superado** | `009` — entregue via `CONTAI-018` sem citação cruzada; resto vivo virou o `037` |
-| **Saiu da fila, entregue** | `032`, `022` — commitados em 2026-09-19 (`13953f2`); `033`, `007`, `008`, `005`, `031`, `035` — entregues em 2026-09-20; ver "Em produção" |
-| **Pronto para `/develop`** | `014`, `006`, `037` — 3 dos 4 itens restantes da fila |
+| **Saiu da fila, entregue** | `032`, `022` — commitados em 2026-09-19 (`13953f2`); `033`, `007`, `008`, `005`, `031`, `035` — entregues em 2026-09-20; `038` — entregue em 2026-09-21 (commitado, **push pendente** — ver nota no topo); ver "Em produção" |
+| **Parado, aguardando o Mateus** | `014` — só o critério 4 entregue; ícone/aparelho físico não são delegáveis |
+| **Pronto para `/develop`** | `006`, `037` — 2 dos 2 itens restantes da fila ativa |
 | **Falta mock (`/design`)** | `038` — dependência técnica (`lib/fiscal/gravidade.ts`) já entregue pelo `035`; falta só rodar `/design` (sem HTML nem aprovação pela política atual) |
 
 ⚠️ **Esta tabela é resumo, não fonte.** Ela repete o que está abaixo — se
@@ -241,6 +272,8 @@ futura — este bloco fica só como prova de que o furo de 21-23/08 foi fechado.
 | 005 | Headline da home: "Custo em risco no IR" | ⚠️ *(ver nota no topo do arquivo)* | **Entregue em 2026-09-20, 6/6 critérios da Parte A.** `emPendenciaCentavos` (4 moedas fiscais somadas) removido; `custoEmRiscoIr` (3 parcelas: pago sem nota, nota fora do CPF, pago sem comprovante) + `exposicaoInssBaseCentavos` (base, deduplicada por `documento.id`). Gate 2 fiscal voltou REQUEST CHANGES na 1ª rodada — o mock de 16/08 não previa "pago sem comprovante" nem `nf_servico_sem_cno` (nasceram depois, no CONTAI-019/025); o `contador` decidiu as duas lacunas, parecer `docs/pareceres/2026-09-20-gate-fiscal-contai-005-rodada-2.md`. Gate 4 (`po`) FAIL na 1ª rodada por falta do parecer transcrito (regra "parecer só em transcript é a mesma falha"), PASS depois de escrito. 712 unitários + 201/202 E2E (falha restante é teste flaky de fuso horário, não fiscal — `docs/backlog/35-...md`) + validação manual no browser. Dívida nova: **D61** (`terrenoPagoSemComprovante` fora do headline, mesma moeda fiscal, precisa de decisão de arquitetura do `cto-obra`) |
 | 031 | E2E da condição 6 do Gate Fiscal (CONTAI-028) | ⚠️ *(ver nota no topo do arquivo)* | **Entregue em 2026-09-20, 8/8 critérios.** Sem UI nova, sem regra fiscal nova — cobertura de teste para a condição 6 (corrigir classificação nunca abre pendência de retificadora nem grava ano afetado), já adjudicada. `test.describe` novo em `e2e/correcao.spec.ts` + comentário-guarda da D43 ancorado por conteúdo. Gate 2 (`cto-obra`) APPROVE. 17/17 no spec tocado; suíte completa 202/203 (falha restante pré-existente e não-fiscal, `docs/backlog/35-...md`) + validação manual no browser (correção real material → mão de obra). Gate 4 (`po`) PASS. Marca a fatia 5 do CONTAI-028 como bloqueada por este ticket |
 | 035 | Reconciliar a régua de cor (D39) com todo o app | ⚠️ *(ver nota no topo do arquivo)* | **Entregue em 2026-09-20, 11/11 critérios.** `gravidadeDaRegua(...)` (`lib/fiscal/gravidade.ts`) vira único produtor de `Gravidade` branded — zero cor literal sobrevive (D54). Itens B/C/D/E reconciliados em ~19 call sites; item C tinha 9 sites, não 7 (2 a mais nasceram no `CONTAI-008`, depois do inventário original) — extensão confirmada por `cto-obra` e `contador` no Gate 2, ambos APPROVE. 742 unitários (30 novos) + 203/204 E2E (falha pré-existente e não-fiscal, `docs/backlog/35-...md`) + validação manual no browser (CNPJ errado + pagamento de ano anterior → card vermelho + aviso condicional de retificadora). Gate 4 (`po`) PASS. Sem migration. **Destrava o `038`** |
+| 038 | Retenção de NF de serviço PJ vira lista de linhas | ⚠️ **commitado (`6dd771e`), push pendente** | **Entregue em 2026-09-21, 18/18 critérios** (7a incluído). `retencao_11` sai do schema; entram o gate `retencao_na_nota` (captura) e a tabela `documento_retencao` (repeater na gestão). `retencao_sem_recolhedor` é a primeira pendência que AGRAVA a régua de cor. `lib/fiscal/risco.ts`/`afericao.ts` pararam de ler retenção para decidir abatimento do SERO (§2 do parecer 18/09 — efeito correto, não regressão). Gate 2 com 1 rodada de REQUEST CHANGES fiscal (texto desatualizado, corrigido), APPROVE na segunda. 791 unitários + 217/217 E2E + validação manual no browser. Gate 4 (`po`) PASS. **BLOQUEADO para `db push`**: critério 18 exige contar `retencao_11 is not null` no remoto antes da migration `0017` dropar a coluna — aguardando o Mateus rodar a contagem e o push. Dívidas novas: **D62**, **D63** |
+| 014 | Manifest de PWA + prova no aparelho (critério 4 apenas) | ⚠️ **commitado (`e7dd434`)** | **PARADO em 2026-09-21** — critérios 1-3 (ícone/manifest) e 5-6 (teste no iPhone físico, lembretes D+7/D+21) exigem o Mateus pessoalmente, não delegável. Só o **critério 4** entregue: `maximumScale` sai do viewport, inputs sobem para 16px (evita auto-zoom do Safari no canteiro), com E2E travando a regressão. Gate 2 (`cto-obra`) APPROVE. 3/3 E2E novos + suíte completa verde. Ver nota no topo de `docs/tickets/CONTAI-014.md` para retomar |
 
 ## Fila de implementação
 
@@ -272,13 +305,13 @@ revisão descreveu.
 ⚠️ **`027`, `025` e `036` saíram desta tabela em 24/08** — os três estão
 entregues e commitados; ver "Em produção" acima. `004` também saiu (entregue,
 commit `05cb1e7`). **`032` e `022` saíram em 2026-09-19** (entregues,
-`13953f2`). **`033`, `007`, `008`, `005`, `031` e `035` saíram em 2026-09-20**
-(entregues — ver a nota no topo do arquivo). Nenhum item desta tabela fica
-sem construir.
+`13953f2`). **`033`, `007`, `008`, `005`, `031`, `035` e `038` saíram em
+2026-09-20/21** (entregues — ver a nota no topo do arquivo; `038` com push
+pendente). **`014` saiu para "Parado, aguardando o Mateus"** (só o critério
+4 entregue). Nenhum item desta tabela fica sem construir.
 
-| **1** | **014** | Manifest de PWA + prova no aparelho | P1 | 🟢 | Gate 0 substituído por aprovação de ícone. Fica no fim de propósito: nenhuma das três metas depende dele |
-| **2** | **006** | Estados de rede lenta/indisponível | P1 | 🟢 | Sem bloqueio. ⚠️ **rodar sozinho na árvore** — toca muitos arquivos |
-| **3** | **037** | **Porta para o pagamento conciliado a partir do documento** | P1 | 🟢 **pronto para `/develop`** | Nasceu em 24/08 da reconciliação do `009` (único trabalho vivo do que sobrou). Ticket + mock nível 3 escritos e aprovados em 24/08 (`docs/tickets/CONTAI-037.md`, `design/mocks/CONTAI-037.md`) — complexidade XS, sem migration, um `BotaoLink` a mais numa linha que já existe |
+| **1** | **006** | Estados de rede lenta/indisponível | P1 | 🟢 | Sem bloqueio. ⚠️ **rodar sozinho na árvore** — toca muitos arquivos |
+| **2** | **037** | **Porta para o pagamento conciliado a partir do documento** | P1 | 🟢 **pronto para `/develop`** | Nasceu em 24/08 da reconciliação do `009` (único trabalho vivo do que sobrou). Ticket + mock nível 3 escritos e aprovados em 24/08 (`docs/tickets/CONTAI-037.md`, `design/mocks/CONTAI-037.md`) — complexidade XS, sem migration, um `BotaoLink` a mais numa linha que já existe |
 
 ### ⚠️ O que a fila diz de si mesma, e é desconfortável
 
