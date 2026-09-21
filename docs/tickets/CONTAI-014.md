@@ -1,5 +1,18 @@
 # CONTAI-014 — Manifest de PWA, `apple-touch-icon` e a prova no aparelho real
 
+⚠️ **PARADO em 2026-09-21, pelo `/develop` — não é gate pulado, é bloqueio
+genuíno.** Critérios 1-3 (manifest + ícones) exigem **aprovação explícita do
+Mateus** sobre a arte do ícone e o `short_name` (Gate 0 substituto do próprio
+ticket) — decisão de marca/estética que não é delegável a `contador`/`po`/
+`designer`. Critérios 5 e 6 exigem **teste no iPhone físico do Mateus**,
+incluindo lembretes D+7/D+21 em datas futuras — fisicamente impossível de
+fazer por um agente. Só o **critério 4 foi implementado e fechado** (isolado,
+sem depender do resto): `maximumScale` saiu do viewport, inputs subiram para
+16px, com E2E travando a regressão (`e2e/viewport.spec.ts`) — ver o critério
+abaixo para o commit e a decisão sobre os `input type="file"`. Critério 9
+ficou **parcial** (só a parte do viewport). Retomar este ticket quando o
+Mateus estiver disponível para aprovar o ícone e rodar a prova no aparelho.
+
 ## Tipo e Prioridade
 
 chore + verificação — **P1, DENTRO da R1** por decisão do Mateus (2026-08-16).
@@ -81,15 +94,23 @@ mão.
    `apple-mobile-web-app-capable` / `mobile-web-app-capable`. [Likely] o iOS só
    honra o `display` do manifest a partir de versões recentes; as duas coisas
    juntas custam uma linha
-4. [ ] ⚠️ **`maximumScale: 1` sai do viewport — MAS NÃO SOZINHO.** É problema de
+4. [x] ⚠️ **`maximumScale: 1` sai do viewport — MAS NÃO SOZINHO.** É problema de
    acessibilidade (WCAG 1.4.4, bloqueia pinch-zoom) e [Likely] o iOS o ignora
    desde o iOS 10, ou seja, hoje ele só pune Android sem entregar o que promete.
-   **A armadilha**: os inputs do app são `text-[15px]`
-   (`app/_components/campos.tsx:58`), e **abaixo de 16px o Safari faz auto-zoom a
-   cada foco de campo**. Remover o `maximumScale` **exige subir os inputs para
-   16px no mesmo commit** — senão é um pulo de tela por campo, oito vezes por
-   registro, no canteiro. Quem tratar isso como "apagar uma linha" reintroduz
-   fricção exatamente no fluxo que o produto mais protege
+   **A armadilha**: os inputs do app eram `text-[15px]`
+   (`app/_components/campos.tsx`), e **abaixo de 16px o Safari faz auto-zoom a
+   cada foco de campo**. Remover o `maximumScale` **exigiu subir os inputs para
+   16px no mesmo commit** — feito: `CampoTexto` e o textarea de
+   `app/_components/corrigir.tsx` foram para 16px, mais um piso
+   `input, select, textarea { font-size: 16px }` em `@layer base`
+   (`app/globals.css`) para campo futuro sem classe explícita não regredir.
+   **Entregue em 2026-09-21, isolado do resto do ticket** (que segue bloqueado
+   em aprovação de ícone/teste físico — ver nota no topo do arquivo).
+   Decisão registrada: os dois `input type="file"` (`campos.tsx`,
+   `anexos-novos.tsx`) ficaram em 13px de propósito — o WebKit não amplia
+   `type=file` (abre folha nativa, não teclado), e subir a fonte encurtaria o
+   nome do arquivo legível em 375px. É `[Likely]`, confirmado só pelo teste no
+   aparelho do critério 5 (item novo abaixo).
 5. [ ] **A prova no aparelho real** — feita **pelo Mateus**, no iPhone dele,
    contra um **deploy de preview** apontando para o Supabase de produção (**no
    mesmo deploy da prova do `CONTAI-013`**):
@@ -103,6 +124,13 @@ mão.
    - (e) abrir o formulário de registro e **acionar a câmera dentro do
      standalone**, sem salvar — prova que a captura funciona no container **sem
      sujar o acervo de produção com registro de teste**
+   - (f) **acrescentado em 2026-09-21, achado do Gate 2 do critério 4**: tocar
+     no campo de anexo ("Escolher arquivo") **não pode dar zoom**. É o único
+     jeito de confirmar (ou derrubar) a hipótese `[Likely]` de que o WebKit não
+     amplia `input type="file"` — os dois inputs de arquivo do app ficaram em
+     13px de propósito, apostando nisso. Se der zoom no aparelho, a correção é
+     remover `"file"` de `TIPOS_SEM_DIGITACAO` em `e2e/viewport.spec.ts` e
+     subir as duas classes para 16px
 6. [ ] **A prova diferida, e não dá para encurtar.** O critério 3 do CONTAI-002
    afirma sobrevivência de sessão por **mais de 14 dias**; nenhuma sessão de
    teste prova 14 dias. Aceite: lembretes no Google Calendar em **D+7 e D+21** —
@@ -117,11 +145,13 @@ mão.
 8. [ ] **A R2 do `CONTAI-002` é marcada como *transferida para o CONTAI-014***
    no arquivo dele, e o CONTAI-002 fica como **"DONE com ressalva aberta"** até
    este ticket fechar
-9. [ ] **O CI afirma os artefatos** (E2E já roda em webkit / iPhone SE): GET em
-   `/manifest.webmanifest` devolve 200 com `display: "standalone"`; cada ícone
-   resolve 200; `<link rel="manifest">` e `<link rel="apple-touch-icon">` no
-   head; e a meta viewport **não** contém `maximum-scale` — esta última trava a
-   regressão do critério 4.
+9. [ ] **PARCIAL, 2026-09-21** — **O CI afirma os artefatos** (E2E já roda em
+   webkit / iPhone SE): GET em `/manifest.webmanifest` devolve 200 com
+   `display: "standalone"`; cada ícone resolve 200; `<link rel="manifest">` e
+   `<link rel="apple-touch-icon">` no head; e a meta viewport **não** contém
+   `maximum-scale` — esta última trava a regressão do critério 4, **já
+   implementada e verde** (`e2e/viewport.spec.ts`). O resto (manifest/ícones)
+   segue bloqueado nos critérios 1-3.
    ⚠️ **O que o CI NÃO prova, e é o que mais importa**: o container do ícone no
    iOS com cookie jar separado do Safari. Não é lacuna de ferramenta, é
    isolamento do iOS — [Likely] nenhuma emulação do Playwright exercita o storage

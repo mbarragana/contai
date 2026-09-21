@@ -8,11 +8,22 @@ export const metadata: Metadata = {
   description: "Contabilidade fiscal da obra — documentos, pagamentos e acervo",
 };
 
-// Cenário primário: celular no canteiro, uma mão livre (375px).
+/**
+ * 375px é o piso, não o alvo.
+ *
+ * Sem `maximumScale`/`userScalable` de propósito (CONTAI-014, critério 4):
+ * travar a escala viola a WCAG 1.4.4, o iOS ignora a trava desde a v10 — só o
+ * Android era punido — e a meta 3 do produto exige legibilidade verificada do
+ * acervo, o que inclui dar zoom na foto de uma nota.
+ *
+ * ⚠️ Quem reintroduzir a trava aqui quebra `e2e/viewport.spec.ts`. E quem
+ * pensar em reintroduzi-la para conter o auto-zoom do Safari: o auto-zoom não
+ * se resolve aqui, se resolve mantendo TODO campo de digitação em 16px ou mais
+ * (`app/globals.css` + `app/_components/campos.tsx`).
+ */
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

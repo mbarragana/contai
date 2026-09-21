@@ -71,7 +71,10 @@ export function CampoTexto({
         onChange={(e) => onChange(e.target.value)}
         disabled={desabilitado}
         aria-invalid={erro ? true : undefined}
-        className={`min-h-[44px] rounded-lg border bg-white px-3 text-[15px] disabled:bg-soft disabled:text-mut ${
+        // 16px não é escolha estética: abaixo disso o Safari do iPhone dá zoom
+        // a cada foco de campo, e o viewport não trava mais a escala para
+        // segurar o pulo (CONTAI-014, critério 4).
+        className={`min-h-[44px] rounded-lg border bg-white px-3 text-[16px] disabled:bg-soft disabled:text-mut ${
           erro ? "border-red" : "border-line"
         } ${classe}`}
       />

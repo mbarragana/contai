@@ -32,6 +32,24 @@ body {
   line-height: 1.45;
 }
 
+/* Piso de 16px em campo de digitação — CONTAI-014, critério 4.
+   O `body` é 15px e o preflight do Tailwind manda o formulário herdar a fonte:
+   um campo novo SEM classe de tamanho nasceria em 15px, e abaixo de 16px o
+   Safari do iPhone dá zoom a cada foco. Como o viewport não trava mais a
+   escala, o zoom não volta sozinho — é um pulo de tela por campo, no meio do
+   registro no canteiro.
+   Fica em `@layer base` de propósito: assim utilitário de classe continua
+   vencendo, e isto é rede de segurança para o campo que ninguém dimensionou —
+   não teto. Solto (sem layer) venceria até `text-[Npx]`, porque estilo fora de
+   layer ganha de qualquer layer. */
+@layer base {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
 /* Números fiscais: sempre tabulares, sempre legíveis a uma mão. */
 .mono {
   font-family: var(--font-mono);

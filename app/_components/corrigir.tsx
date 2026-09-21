@@ -188,7 +188,9 @@ export function PassoMotivo({
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
             rows={3}
-            className="min-h-[66px] rounded-lg border border-line bg-white px-3 py-2 text-[15px]"
+            // 16px: abaixo disso o Safari do iPhone dá zoom ao focar o campo
+            // (CONTAI-014, critério 4).
+            className="min-h-[66px] rounded-lg border border-line bg-white px-3 py-2 text-[16px]"
           />
         </div>
       ) : null}
