@@ -270,8 +270,11 @@ describe("rastro antes→depois da correção de valor", () => {
   // ⚠️ ÚNICO CASO DESTE ARQUIVO QUE NÃO CHAMA A UNIDADE SOB TESTE, e o nome
   // diz isso: ele trava o CONTRATO DE FORMATO do rastro (a composição
   // `centavosParaNumeric` + `toFixed`), e NÃO o call-site. Nada aqui impede
-  // `lib/data.ts:504` de virar `String(n)` — quem prova o call-site é
-  // `e2e/correcao.spec.ts:96`, contra o Postgres local.
+  // `lib/data.ts:504` de virar `String(n)` — quem prova o call-site é a
+  // asserção `depois: "12800.00"` do teste de correção de valor em
+  // `e2e/correcao.spec.ts`, contra o Postgres local. Âncora pelo CONTEÚDO da
+  // asserção, nunca por número de linha (D43, CONTAI-031): aquele arquivo
+  // ganha teste novo e a numeração escorrega.
   it("o formato do rastro é texto de duas casas: String(n) e toString() perdem o centavo", () => {
     // `revisao.antes`/`depois` são colunas `text` (migration 0009) — daí o
     // `.toFixed(2)`. Trocar por `String(n)` publica "4850" e por `toString()`

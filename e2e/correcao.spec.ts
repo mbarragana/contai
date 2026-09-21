@@ -86,6 +86,20 @@ test.describe("corrigir o valor de um documento já registrado (critério 15)", 
     expect(Number(doc.valor)).toBe(12800);
 
     // (ii) a linha de rastro, com antes/depois como TEXTO
+    //
+    // ⚠️ COMENTÁRIO-GUARDA (D43, CONTAI-031). Estas duas strings são a ÚNICA
+    // prova, contra o Postgres local, de que o `p_depois` de
+    // `corrigirValorDoDocumento` sai como TEXTO DE DUAS CASAS — condição 4a do
+    // Gate Fiscal do CONTAI-028,
+    // `docs/pareceres/2026-08-18-correcao-de-documento-registrado.md` §5.
+    //
+    // NÃO envolver em `Number(...)`: `Number("12800")` e `Number("12800.00")`
+    // são o mesmo número, então a "simplificação" mataria a prova em silêncio —
+    // o teste seguiria verde com `String(n)` no lugar do `.toFixed(2)`.
+    //
+    // É o PAR, do lado do call-site, do comentário-guarda de
+    // `lib/dados/comum.test.ts` (perto da linha 275), que trava o contrato de
+    // formato na unidade e aponta para cá como o call-site real.
     const rastro = await revisoes(db);
     expect(rastro).toHaveLength(1);
     expect(rastro[0]).toMatchObject({
@@ -159,6 +173,78 @@ test.describe("corrigir o valor de um documento já registrado (critério 15)", 
       page.getByRole("button", { name: "Nada a corrigir" }),
     ).toBeDisabled();
     expect(await revisoes(db)).toHaveLength(0);
+  });
+});
+
+/**
+ * CONTAI-031 — a condição 6 do Gate Fiscal do CONTAI-028, contra o Postgres
+ * local: corrigir a CLASSIFICAÇÃO grava rastro e **nunca** abre pendência de
+ * retificadora nem linha de ano afetado. Parecer §1: "muda a COMPOSIÇÃO, não o
+ * total"; pendência persistente só nasce quando a correção muda um NÚMERO que
+ * foi ou será declarado. `corrigirClassificacaoDoDocumento` passa `p_anos: []`
+ * literal, e a RPC `corrigir_documento` (migration 0009) só grava
+ * `revisao_ano_afetado` a partir do que vier em `p_anos`.
+ *
+ * O pagamento vinculado é de ano **anterior** ao corrente — calculado, nunca
+ * hardcoded. É o cenário mais forte possível: a RPC não olha vínculo nenhum ao
+ * gravar classificação, então só um vínculo em ano já declarado torna
+ * observável uma regressão futura que religue o cálculo de `anos` por um
+ * caminho comum às três correções (fatia 5 do CONTAI-028).
+ */
+test.describe("corrigir a classificação de um documento já registrado (condição 6)", () => {
+  test("grava classificação e rastro — e NÃO abre pendência nem grava ano afetado", async ({
+    page,
+    db,
+  }) => {
+    const anoAnterior = new Date().getFullYear() - 1;
+    const favorecidoId = await cenarioFavorecido(db);
+    const documentoId = await criarDocumento(db, {
+      tipo: "nf_material",
+      favorecido_id: favorecidoId,
+      valor: 4850,
+      classificacao: "material",
+      destinatario_cpf_ok: true,
+    });
+    const pagamentoId = await criarPagamento(db, {
+      favorecido_id: favorecidoId,
+      valor: 4850,
+      data_pagamento: `${anoAnterior}-11-12`,
+      meio: "pix",
+      comprovante_path: "u/comprovante/pix.png",
+    });
+    await criarVinculo(db, pagamentoId, documentoId);
+
+    await page.goto(`/documento/${documentoId}/corrigir/classificacao`);
+    await escolherMotivoDeDigitacao(page);
+    await page.getByRole("button", { name: /^Mão de obra/ }).click();
+    await page.getByRole("button", { name: "Gravar a correção" }).click();
+    // A confirmação: o caminho passou pela UI real, não por chamada direta.
+    await expect(page.getByRole("status")).toContainText("Corrigido.");
+
+    // (i) a classificação nova
+    const doc = (await documentos(db)).find((d) => d.id === documentoId)!;
+    expect(doc.classificacao).toBe("mao_obra");
+
+    // (ii) o rastro é obrigatório MESMO sem número se mover (parecer §5). A
+    // presença vem ANTES das ausências: provar "zero linhas" sem antes provar
+    // que o ato gravou é asserção vazia — passaria com a tela quebrada.
+    const rastro = await revisoes(db);
+    expect(rastro).toHaveLength(1);
+    expect(rastro[0]).toMatchObject({
+      entidade: "documento",
+      entidade_id: documentoId,
+      campo: "classificacao",
+      antes: "material",
+      depois: "mao_obra",
+    });
+
+    // (iii) NENHUM ano afetado — `p_anos: []`. Asserção distinta da (iv) e não
+    // substituível por ela: uma regressão que gravasse `revisao_ano_afetado`
+    // com `pendencia_id: null` passaria despercebida se só a (iv) existisse.
+    expect(await anosAfetados(db)).toHaveLength(0);
+
+    // (iv) e NENHUMA pendência, mesmo com o pagamento num ano já declarado.
+    expect(await pendencias(db)).toHaveLength(0);
   });
 });
 

@@ -30,9 +30,9 @@ regressão futura (ex.: a fatia 5 do `CONTAI-028`) seja pega por teste, não
 pelo Mateus na hora de montar a discriminação.
 
 ## Critérios de Aceite
-1. [ ] E2E em `e2e/correcao.spec.ts`, contra o Postgres local (sem stub),
+1. [x] E2E em `e2e/correcao.spec.ts`, contra o Postgres local (sem stub),
        exercitando a tela `/documento/[id]/corrigir/classificacao`.
-2. [ ] **Given** documento com `classificacao: "material"`, vinculado a
+2. [x] **Given** documento com `classificacao: "material"`, vinculado a
        pagamento com `data_pagamento` de ano **anterior** ao ano corrente do
        teste — calculado (`new Date().getFullYear() - 1`, padrão de
        `e2e/acervo.spec.ts:241-242`), **nunca hardcoded** — **When** corrige
@@ -42,21 +42,21 @@ pelo Mateus na hora de montar a discriminação.
        Este é o cenário mais forte possível: como a RPC não olha vínculos ao
        gravar classificação, só um vínculo em ano passado torna uma
        regressão futura observável.
-3. [ ] **Then**: `revisoes(db)` ganha exatamente **1** linha
+3. [x] **Then**: `revisoes(db)` ganha exatamente **1** linha
        (`entidade: "documento"`, `campo: "classificacao"`,
        `antes: "material"`, `depois: "mao_obra"`) — rastro obrigatório mesmo
        sem número se mover (mesmo parecer §5). **Asserção de presença antes
        das de ausência** (critérios 4-5) — provar "zero linhas" antes de
        provar que o ato gravou é asserção vazia.
-4. [ ] **Then**: `anosAfetados(db)` **não ganha linha nova** — `p_anos: []`
+4. [x] **Then**: `anosAfetados(db)` **não ganha linha nova** — `p_anos: []`
        (condição 6). Critério distinto do 5, não substituível por ele: uma
        regressão que grave `revisao_ano_afetado` com `pendencia_id: null`
        passaria despercebida se só o critério 5 existisse.
-5. [ ] **Then**: `pendencias(db)` **não ganha linha nova**.
-6. [ ] **Then**: a tela mostra a confirmação de gravação (padrão já usado no
+5. [x] **Then**: `pendencias(db)` **não ganha linha nova**.
+6. [x] **Then**: a tela mostra a confirmação de gravação (padrão já usado no
        spec, `getByRole("status")`) — prova que o caminho passou pela UI
        real, não por chamada direta à função.
-7. [ ] **Comentário-guarda** na asserção `depois: "12800.00"` do teste de
+7. [x] **Comentário-guarda** na asserção `depois: "12800.00"` do teste de
        correção de **valor** já existente no mesmo arquivo (âncora pelo
        conteúdo da asserção, não por número de linha — o teste novo desloca
        a numeração do próprio arquivo no mesmo diff), com três pontos: (a)
@@ -67,7 +67,7 @@ pelo Mateus na hora de montar a discriminação.
        porque `Number("12800")` e `Number("12800.00")` são iguais; (c) é o
        par, do lado do call-site, do comentário-guarda já existente em
        `lib/dados/comum.test.ts` perto da linha 275.
-8. [ ] `npm run test:e2e` verde com o teste novo, stack local de pé.
+8. [x] `npm run test:e2e` verde com o teste novo, stack local de pé.
 
 ## Out of Scope
 - Extração de `textoDoRastro` (raiz estrutural da D43) — fica para a fatia 5

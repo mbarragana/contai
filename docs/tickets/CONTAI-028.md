@@ -301,8 +301,12 @@ e o corte por entidade + barrel o resolve inteiro.
 
 ## Dependências
 
-- Bloqueado por: **nenhum ticket** — mas **bloqueado pela fila**: roda sozinho,
-  com a fila parada
+- Bloqueado por: **nenhum ticket** para as fatias 1-4 — mas **bloqueado pela
+  fila**: roda sozinho, com a fila parada
+- **A fatia 5** (mover `correcao.ts` + `pendencia.ts` para fora de
+  `lib/data.ts`) **é bloqueada pelo `CONTAI-031`** — rede antes do refactor,
+  nunca depois: teste escrito por quem acabou de mover o código prova a
+  movimentação, não a regra
 - Bloqueia: nenhum
 
 ## Linha de base a capturar ANTES da fatia 1
