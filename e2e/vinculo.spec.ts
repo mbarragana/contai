@@ -207,6 +207,67 @@ test.describe("caminho B — a partir do documento já registrado", () => {
     expect(pagos).toHaveLength(1);
     expect(pagos[0].status).toBe("aguardando_nf");
   });
+
+  /**
+   * CONTAI-037, critério 5: com mais de um pagamento ligado, a nota é o único
+   * caminho até cada um deles — a home linka só para o documento. O que o
+   * teste prova é que a porta abre no pagamento CLICADO, e não no primeiro da
+   * lista: a lista vem ordenada por `cronologico` (`lib/fiscal/vinculo.ts`),
+   * então a segunda linha é a do PIX mais recente.
+   */
+  test("com 2 pagamentos ligados, 'Ver o pagamento' abre o da linha clicada", async ({
+    page,
+    db,
+  }) => {
+    const wk = await criarFavorecido(db, {
+      nome: "WK Construções LTDA",
+      documento: CNPJ_WK_DIGITOS,
+      tipo: "pj",
+    });
+    const documentoId = await criarDocumento(db, {
+      favorecido_id: wk,
+      tipo: "nf_servico",
+      classificacao: "mao_obra",
+      valor: 3000,
+      retencao_na_nota: "destacada",
+      destinatario_cpf_ok: true,
+      status: "registrado",
+    });
+    const pagamentoAntigo = await criarPagamento(db, {
+      favorecido_id: wk,
+      valor: 1000,
+      data_pagamento: `${ANO}-07-01`,
+      meio: "pix",
+      status: "aguardando_nf",
+      comprovante_path: `${USER_ID_SEED}/comprovante/pix-antigo.png`,
+    });
+    const pagamentoNovo = await criarPagamento(db, {
+      favorecido_id: wk,
+      valor: 2000,
+      data_pagamento: `${ANO}-08-12`,
+      meio: "pix",
+      status: "aguardando_nf",
+      comprovante_path: `${USER_ID_SEED}/comprovante/pix-novo.png`,
+    });
+    await criarVinculo(db, pagamentoAntigo, documentoId);
+    await criarVinculo(db, pagamentoNovo, documentoId);
+
+    await page.goto(`/documento/${documentoId}`);
+    const portas = page.getByRole("link", { name: "Ver o pagamento" });
+    await expect(portas).toHaveCount(2);
+    // A ordem da lista é a cronológica, e cada linha leva ao SEU pagamento.
+    await expect(portas.first()).toHaveAttribute(
+      "href",
+      `/pagamento/${pagamentoAntigo}`,
+    );
+
+    await portas.nth(1).click();
+
+    await expect(page).toHaveURL(new RegExp(`/pagamento/${pagamentoNovo}$`));
+    await expect(page.getByRole("heading", { name: "Pagamento" })).toBeVisible();
+    // O valor confirma que é o pagamento clicado, não o primeiro da lista.
+    await expect(page.getByText("R$ 2.000,00").first()).toBeVisible();
+  });
 });
 
 test.describe("caminho A — vínculo no ato do registro", () => {

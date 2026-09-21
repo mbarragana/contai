@@ -22,19 +22,19 @@ corrigir a obra dele sem precisar do banco.
 ## Critérios de Aceite
 1. [x] **Gate de mock nível 3 em `design/mocks/CONTAI-037.md`** — tabela
        antes/depois, sem tela nova. Mock aprovado em 2026-08-24.
-2. [ ] Em `/documento/[id]`, cada linha da lista "Pagamentos desta nota"
+2. [x] Em `/documento/[id]`, cada linha da lista "Pagamentos desta nota"
        (`app/documento/[id]/page.tsx`, `PagamentosDesteDocumento`, ~linhas
        206-224) ganha um `BotaoLink` **"Ver o pagamento"**, `href="/pagamento/${p.id}"`,
        posicionado **antes** do "Desligar este pagamento" existente (ordem:
        navegação antes de ação de estado — mesma ordem já usada na tela
        irmã).
-3. [ ] O rótulo espelha a convenção já em produção na direção inversa:
+3. [x] O rótulo espelha a convenção já em produção na direção inversa:
        `app/pagamento/[id]/page.tsx:305` já tem "Ver o documento" apontando
        de volta para `/documento/${d.id}`.
-4. [ ] Nenhum campo, dado ou formatação da linha muda — data
+4. [x] Nenhum campo, dado ou formatação da linha muda — data
        (`formatarDataBR`), favorecido (`p.favorecidoNome`) e valor
        (`formatarBRL(p.valorCentavos)`) continuam exatamente como estão.
-5. [ ] E2E: documento com 2+ pagamentos vinculados → abrir `/documento/[id]`
+5. [x] E2E: documento com 2+ pagamentos vinculados → abrir `/documento/[id]`
        → clicar "Ver o pagamento" na segunda linha → chegar em
        `/pagamento/[id]` correto (o `id` do pagamento clicado, não do
        primeiro da lista).

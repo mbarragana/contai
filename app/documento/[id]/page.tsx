@@ -243,7 +243,11 @@ function PagamentosDesteDocumento({
                 {formatarBRL(p.valorCentavos)}
               </span>
             </div>
-            <div className="mt-2">
+            {/* CONTAI-037 — a porta que faltava: navegação (neutra) antes da
+                ação de estado, mesma ordem da tela irmã `/pagamento/[id]`, que
+                já linka na direção inversa ("Ver o documento"). */}
+            <div className="mt-2 flex flex-col gap-2">
+              <BotaoLink href={`/pagamento/${p.id}`}>Ver o pagamento</BotaoLink>
               <BotaoLink
                 href={`/documento/${documento.id}/desligar?pagamento=${p.id}`}
               >

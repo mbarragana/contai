@@ -578,6 +578,18 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
   caminho pela interface; mesma categoria de D62, mesmo caminho futuro
   (extensão de `corrigir_documento`)
 
+### `41-2026-09-21-contai-037-entregue.md` — 20 linhas
+**CONTAI-037 entregue — 2026-09-21 — porta para o pagamento conciliado a partir do documento**
+
+- `BotaoLink` "Ver o pagamento" em cada linha de "Pagamentos desta nota"
+  (`/documento/[id]`), simetria literal com "Ver o documento" já existente
+  em `/pagamento/[id]`. Reusa `alocado.pagamentos`, sem segunda derivação
+- Sem regra fiscal nova (Gate Fiscal fechado, automático); segunda porta de
+  leitura para dado já calculado
+- 839 unitários + 240 E2E (novo teste prova que o clique na 2ª linha abre o
+  pagamento clicado, não o primeiro) + validação manual. Gate 4 (`po`) PASS
+- Sem migration, sem dívida nova. **Fecha a fila ativa do índice de tickets**
+
 ### `40-2026-09-21-contai-034-entregue.md` — 32 linhas
 **CONTAI-034 entregue — 2026-09-21 — a D44 vira trava executável**
 
