@@ -512,6 +512,36 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
   fiscal fica mudo (pendência visível em `/pendencias`), mas o rastro fica
   invisível na tela errada
 
+### `35-2026-09-20-discriminacao-veto-transversal-teste-flaky.md` — 35 linhas
+**`e2e/discriminacao.spec.ts:215` vermelho — é o teste, não o veto fiscal (correção de diagnóstico do Gate 2 do CONTAI-005)**
+
+- O `cto-obra` achou o teste vermelho na árvore pré-CONTAI-005 e concluiu
+  "veto transversal do CONTAI-036 não dispara — erro fiscal P0 em produção".
+  **Diagnóstico errado, investigado e corrigido**: `podeGerarRelatorioAnual`
+  está certo (40+ testes unitários verdes); o bug é o helper do E2E
+  calculando "ontem" com `toISOString()` (UTC) em vez do fuso local que
+  `hojeIso()` usa — falha só entre ~21h e 23h59 local, quando o dia UTC já
+  virou e "ontem" em UTC vira "hoje" em local
+- **Não é dívida fiscal (sem D-número)**: nenhum defeito de produto. Correção
+  sugerida é uma linha no teste, sem parecer do `contador` nem ticket próprio
+
+### `36-2026-09-20-contai-005-entregue.md` — 25 linhas
+**CONTAI-005 entregue — 2026-09-20 — headline "Custo em risco no IR" com três parcelas**
+
+- `emPendenciaCentavos` (quatro moedas fiscais somadas) removido; entram
+  `custoEmRiscoIr` (3 parcelas: pago sem nota, nota fora do CPF, pago sem
+  comprovante) e `exposicaoInssBaseCentavos` (base do INSS, deduplicada por
+  `documento.id`)
+- Gate 2 fiscal decidiu duas lacunas do mock original de 16/08: "pago sem
+  comprovante" entra no headline (mesma moeda, art. 17); `nf_servico_sem_cno`
+  entra na base de INSS sem contar em dobro documento com duas pendências
+- 712 unitários + 201/202 E2E (falha restante é do teste, não fiscal — `35`)
+- **D61** — `terrenoPagoSemComprovante` continua fora do headline por corte de
+  escopo herdado (CONTAI-010/025), mas é a MESMA moeda que acabou de entrar;
+  terreno + obra são o mesmo bem. Headline hoje subestima a exposição real.
+  Precisa de decisão de arquitetura do `cto-obra` (unificar duas pipelines de
+  agregação) — ticket próprio, fora do CONTAI-005
+
 ## Ao acrescentar ao backlog
 
 Nova entrada = **arquivo novo** em `docs/backlog/`, nomeado

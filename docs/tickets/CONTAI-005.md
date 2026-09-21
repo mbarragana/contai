@@ -62,29 +62,29 @@ a nenhuma linha de nenhuma declaração.
    base), boleto fora da soma. Texto do estado zero ratificado pelo
    `contador` no mesmo dia. Não desenhável antes
    da resposta
-2. [ ] **Nenhum número da home soma entre obras.** Não regredir o critério 9 do
+2. [x] **Nenhum número da home soma entre obras.** Não regredir o critério 9 do
    CONTAI-003 — `app/page.tsx:129` já carrega `· {obra.nome}` e a dica *"Nada é
    somado com as outras obras"*. Bens e Direitos não soma entre matrículas
    (Q9b); aferição não soma entre CNOs
-3. [ ] **(R5 do contador — a ressalva maior desta tela)** **A tela não pode
+3. [x] **(R5 do contador — a ressalva maior desta tela)** **A tela não pode
    exibir "Custo confirmado R$ 0,00" ao lado do headline sem dizer por quê.** Ou
    o zero ganha a ressalva (*"ainda não é possível confirmar custo: a vinculação
    entre pagamento e nota chega na US-003"*), ou os dois números não convivem.
    Como está, a home afirma que **100% do que foi gasto está em risco** — e isso
    é falso sobre a obra, verdadeiro apenas sobre o app. **Uma linha de texto de
    estado, nenhum número novo**
-4. [ ] **(R2)** A exposição de INSS é expressa **em base** (R$ de NF de serviço
+4. [x] **(R2)** A exposição de INSS é expressa **em base** (R$ de NF de serviço
    sem retenção), **nunca em reais de imposto**. A razão não é estética: a
    **pergunta nº 1 ao CRC** está aberta — o art. 31 da Lei 8.212/91 dirige a
    retenção à **empresa** contratante, e é discutível que o tomador pessoa física
    esteja obrigado a reter. Um número em reais de imposto vira número errado em
    tela se o CRC disser isso; um número **em base** continua verdadeiro nos dois
    desfechos
-5. [ ] **Não mexer na classificação de `retencao_11 = false`** neste ticket. O
+5. [x] **Não mexer na classificação de `retencao_11 = false`** neste ticket. O
    backlog proíbe até a resposta do CRC: *"trocar fatal por benigno com base em
    inferência é o mesmo erro na direção oposta, e essa é mais cara, porque some
    com o alerta"*
-6. [ ] **(R1)** Teste unitário de `lib/fiscal/resumo.ts` cobre a composição do
+6. [x] **(R1)** Teste unitário de `lib/fiscal/resumo.ts` cobre a composição do
    headline com cada tipo isolado e combinado, e afirma que o headline **não** é
    a soma de `pendencias[]`. Inclui a **dedup por vínculo explícito**, escrita já
    agora **mesmo sem efeito hoje** — sem ela, o número passa a mentir quando a
@@ -102,6 +102,36 @@ IR" = R$ 49.850**
   vinculados já contados em (i)
 - **(R4)** O total **nunca aparece sem a decomposição visível**: *"composto de:
   R$ 45.000 pagos sem nota · R$ 4.850 em nota fora do seu CPF"*
+
+  **Atualização 2026-09-20 (Gate 2 de implementação — REQUEST CHANGES do
+  `contador`, depois APPROVE).** A composição de (R4) **passou de duas para
+  três parcelas**. O `lead-engineer` levantou, no Gate 2, duas perguntas que a
+  rodada de 16/08 não cobria (os tipos de pendência são posteriores ao
+  parecer): `pago_sem_comprovante` e `nf_servico_sem_cno` entram na soma ou
+  ficam fora? O `contador` respondeu com fundamento completo em
+  `docs/pareceres/2026-09-20-gate-fiscal-contai-005-rodada-2.md`. Resumo:
+  - **`pago_sem_comprovante` ENTRA** como terceira parcela do headline — o
+    art. 17 da IN SRF 84/2001 é condição composta (dispêndio comprovado **e**
+    documentação hábil); "pago sem nota" falha a perna documental, "pago sem
+    comprovante" falha a perna da comprovação do desembolso. Mesma moeda,
+    mesma unidade, mesma consequência. As duas parcelas são mutuamente
+    exclusivas por construção (elegível zera sem comprovante), então nenhum
+    pagamento é contado duas vezes. A frase de (R4) passa a ler: *"composto
+    de: R$ X pagos sem nota · R$ Y em nota fora do seu CPF · R$ Z pagos sem
+    comprovante"* — as três aparecem sempre, mesmo zeradas.
+  - **`diferenca_sem_explicacao` continua FORA**, agora por decisão expressa
+    (não por omissão): a natureza fiscal dela é indeterminada — pode nunca
+    virar custo (mora, item não incorporado, erro de registro) — e somá-la
+    afirmaria a perda de um custo que talvez não exista.
+  - **`nf_servico_sem_cno` passou a compor `exposicaoInssBaseCentavos`** (o
+    bloco de INSS, R2), junto de `servico_sem_retencao`, **deduplicado por
+    `documento.id`**: uma nota com as duas pendências ao mesmo tempo conta o
+    valor uma única vez na base — nunca a soma dos dois arrays de
+    `pendencias`. As duas pendências continuam existindo e aparecendo em tela
+    como cards separados.
+  - Implementado e testado (`lib/fiscal/risco.ts`, `risco.test.ts`,
+    `resumo.ts`, `resumo.test.ts`) — Gate 2 fechado em APROVE depois da
+    correção.
 - **(R3)** Linha de imposto **só com "até"**, fórmula `0,15 × headline` e
   disclaimer de redução/isenção, aplicada **exclusivamente** sobre a base de
   IRPF. Citação correta: Lei 8.981/95 art. 21 (alíquotas, redação da Lei

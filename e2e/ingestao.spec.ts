@@ -148,8 +148,46 @@ test.describe("home de pendências", () => {
     await expect(page.getByText(/Acumulado desta obra/)).toContainText(
       "800.000,00",
     );
-    // 4.850 (quarentena) + 25.000 (boleto) + 18.000 (sem retenção) + 45.000 (PIX sem NF)
-    await expect(page.getByText(/Em pendência/)).toContainText("92.850,00");
+    // ── CONTAI-005 · o headline, e o que ele deixou de ser ────────────────
+    //
+    // ⚠️ Esta asserção dizia **92.850** — 4.850 (quarentena) + 25.000 (boleto)
+    // + 18.000 (sem retenção) + 45.000 (PIX sem NF), a soma crua da lista de
+    // pendências. O `contador` **não carimba esse número**: são quatro moedas
+    // somadas, e uma delas (INSS) afirma o inverso da verdade fiscal sobre as
+    // notas que a compõem. O número certo neste cenário é **R$ 49.850**.
+    const cardDeRisco = page.locator("[data-custo-em-risco]");
+    await expect(cardDeRisco).toContainText("Custo em risco no IR");
+    // Critério 9 do CONTAI-003: o número carrega o nome da obra.
+    await expect(cardDeRisco).toContainText("Casa Cachoeira");
+    await expect(cardDeRisco).toContainText("49.850,00");
+    // R4, bloqueante: o total NUNCA aparece sem a decomposição.
+    await expect(cardDeRisco).toContainText("45.000,00");
+    await expect(cardDeRisco).toContainText("pagos sem nota");
+    await expect(cardDeRisco).toContainText("4.850,00");
+    await expect(cardDeRisco).toContainText("em nota fora do seu CPF");
+    // A TERCEIRA parcela (Gate 2): aqui todos os PIX têm comprovante, então ela
+    // é zero — e aparece mesmo assim, porque a R4 é sobre a composição inteira.
+    await expect(cardDeRisco).toContainText("pagos sem comprovante");
+    // R3: linha de imposto só com "até", fórmula visível e disclaimer.
+    await expect(cardDeRisco).toContainText("Pode custar até");
+    await expect(cardDeRisco).toContainText("7.477,50");
+    await expect(cardDeRisco).toContainText(
+      "o fator de redução por tempo de posse e as isenções podem diminuir",
+    );
+    // E o rótulo velho não sobrevive em canto nenhum da tela.
+    await expect(page.getByText(/Em pendência/)).toHaveCount(0);
+
+    // R2 · o INSS em bloco PRÓPRIO, em BASE, com a frase que não é opcional.
+    const cardDoInss = page.locator("[data-afericao-inss]");
+    await expect(cardDoInss).toContainText("Outra apuração — não soma com a de cima");
+    await expect(cardDoInss).toContainText("Aferição do INSS — CNO 12.345.67890/26");
+    await expect(cardDoInss).toContainText("18.000,00");
+    await expect(cardDoInss).toContainText(
+      "Estas notas continuam valendo integralmente como custo de aquisição no IRPF.",
+    );
+    // ⚠️ A prova de que as duas apurações não se encostam: 49.850 + 18.000 =
+    // 67.850 não aparece em lugar nenhum da tela.
+    await expect(page.getByText("67.850,00")).toHaveCount(0);
 
     await expect(page.getByText("NF fora do seu CPF")).toBeVisible();
     await expect(
@@ -159,6 +197,13 @@ test.describe("home de pendências", () => {
     await expect(page.getByText("Boleto sem nota vinculada")).toBeVisible();
     await expect(
       page.getByText("Boleto não é documento hábil. O custo só se sustenta com a NF."),
+    ).toBeVisible();
+    // CONTAI-005, Bloco 3 · o boleto saiu do total, e a tela diz por quê —
+    // senão o número teria encolhido em silêncio.
+    await expect(
+      page.getByText(
+        "Não entra no total acima: enquanto não for pago, não houve dispêndio.",
+      ),
     ).toBeVisible();
 
     await expect(page.getByText("3 PIX sem NF vinculada")).toBeVisible();
@@ -207,6 +252,25 @@ test.describe("home de pendências", () => {
     await page.goto("/");
     await expect(page.getByText("Nenhuma pendência.")).toBeVisible();
     await expect(page.getByText(/Em pendência/)).toHaveCount(0);
+
+    // ── CONTAI-005 · o estado ZERO do headline ────────────────────────────
+    //
+    // ⚠️ O card **não some** no zero, ao contrário dos outros blocos (decisão
+    // 3 do mock v5): "zero risco de IR" não é o mesmo fato que "zero
+    // pendência" — pode haver boleto e "sem retenção" abertos e nenhum risco de
+    // IR. Sumir esconderia a confirmação de que este risco está zerado.
+    const cardDeRisco = page.locator("[data-custo-em-risco]");
+    await expect(cardDeRisco).toContainText("Custo em risco no IR");
+    await expect(cardDeRisco).toContainText("R$ 0,00");
+    await expect(cardDeRisco).toContainText(
+      "Nenhum gasto desta obra está sem documento hábil no seu CPF, hoje.",
+    );
+    // Sem exposição não há o que decompor, e 15% de zero não informa nada.
+    await expect(cardDeRisco).not.toContainText("Composto de");
+    await expect(cardDeRisco).not.toContainText("Pode custar até");
+    // O card de INSS, esse sim, some — mesma regra condicional de "Notas sem
+    // pagamento", já em produção.
+    await expect(page.locator("[data-afericao-inss]")).toHaveCount(0);
   });
 
   test("estado de erro: banco fora, com saída", async ({ page }) => {

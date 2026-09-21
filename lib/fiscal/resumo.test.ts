@@ -290,7 +290,7 @@ describe("o terceiro estado — nota hábil sem pagamento (parecer §5.2)", () =
     });
     // A regra dura: este número não entra em nenhuma das duas somas.
     expect(r.custoConfirmadoAnoCentavos).toBe(0);
-    expect(r.emPendenciaCentavos).toBe(0);
+    expect(r.custoEmRiscoIr.totalCentavos).toBe(0);
     expect(r.pendencias).toEqual([]);
   });
 
@@ -306,7 +306,7 @@ describe("o terceiro estado — nota hábil sem pagamento (parecer §5.2)", () =
       ],
     });
     expect(r.notasSemPagamento).toEqual([]);
-    expect(r.emPendenciaCentavos).toBe(485_000);
+    expect(r.custoEmRiscoIr.totalCentavos).toBe(485_000);
   });
 
   it("depois do vínculo a nota sai do terceiro número", () => {
@@ -663,7 +663,18 @@ describe("pendências", () => {
     expect(r.pendencias.map((p) => p.tipo)).toEqual(["quarentena"]);
   });
 
-  it("total em pendência soma tudo que está listado", () => {
+  /**
+   * ⚠️ **O TESTE QUE MUDOU DE SINAL NO CONTAI-005.**
+   *
+   * Ele afirmava `485.000 + 2.500.000 + 1.800.000 + 4.500.000` = **R$ 92.850**,
+   * a soma crua de `pendencias[]` — e era exatamente o defeito: quatro moedas
+   * num número só (perda de custo, conta a pagar, base de INSS). O `contador`
+   * **não carimba os 92.850**; o número certo neste cenário é **R$ 49.850**.
+   *
+   * O cenário é o mesmo de propósito: a regressão que importa é alguém voltar a
+   * somar a lista inteira.
+   */
+  it("o headline NÃO é a soma de `pendencias[]` — boleto e INSS ficam fora", () => {
     const r = resumo({
       documentos: [
         doc({ id: "d1", status: "quarentena", destinatarioCpfOk: false, valorCentavos: 485_000 }),
@@ -672,7 +683,25 @@ describe("pendências", () => {
       ],
       pagamentos: [pag({ id: "p1", valorCentavos: 4_500_000 })],
     });
-    expect(r.emPendenciaCentavos).toBe(485_000 + 2_500_000 + 1_800_000 + 4_500_000);
+
+    const somaCruaDaLista = r.pendencias.reduce(
+      (s, p) => s + p.valorCentavos,
+      0,
+    );
+    expect(somaCruaDaLista).toBe(9_285_000);
+    expect(r.custoEmRiscoIr.totalCentavos).not.toBe(somaCruaDaLista);
+
+    // R$ 49.850 = 45.000 pagos sem nota + 4.850 em nota fora do CPF.
+    expect(r.custoEmRiscoIr).toEqual({
+      totalCentavos: 4_985_000,
+      pagosSemNotaCentavos: 4_500_000,
+      notaForaDoCpfCentavos: 485_000,
+      pagosSemComprovanteCentavos: 0,
+    });
+
+    // R2: o INSS sai em campo PRÓPRIO, em base — e o boleto não aparece em
+    // agregado nenhum, só no card dele.
+    expect(r.exposicaoInssBaseCentavos).toBe(1_800_000);
   });
 
   it("obra em dia: nenhuma pendência", () => {
@@ -681,7 +710,7 @@ describe("pendências", () => {
       pagamentos: [pag({ id: "p1", documentoIds: ["d1"] })],
     });
     expect(r.pendencias).toEqual([]);
-    expect(r.emPendenciaCentavos).toBe(0);
+    expect(r.custoEmRiscoIr.totalCentavos).toBe(0);
   });
 });
 
@@ -755,7 +784,22 @@ describe("pendência 'pago sem comprovante' (critérios 46-47)", () => {
     expect(r.pendencias.filter((p) => p.tipo === "pago_sem_nota")).toEqual([]);
     // O mesmo dinheiro em UMA pendência só: a exposição é R$ 10.000, não
     // R$ 20.000.
-    expect(r.emPendenciaCentavos).toBe(1_000_000);
+    expect(
+      r.pendencias
+        .filter((p) => p.tipo === "pago_sem_comprovante")
+        .reduce((s, p) => s + p.valorCentavos, 0),
+    ).toBe(1_000_000);
+
+    // ⚠️ **E ela ENTRA no headline do CONTAI-005, como TERCEIRA parcela** —
+    // decisão do `contador` no Gate 2, respondendo à pergunta aberta no Gate 1.
+    // O art. 17 da IN SRF 84/2001 é condição COMPOSTA: dispêndio comprovado E
+    // documentação hábil. "Pago sem nota" falha a perna documental; "pago sem
+    // comprovante" falha a perna da comprovação do desembolso. Mesma moeda,
+    // mesma unidade, mesma consequência — logo, mesma soma.
+    expect(r.custoEmRiscoIr.totalCentavos).toBe(1_000_000);
+    expect(r.custoEmRiscoIr.pagosSemComprovanteCentavos).toBe(1_000_000);
+    // E continua sendo UMA linha só: o valor não aparece também em (a).
+    expect(r.custoEmRiscoIr.pagosSemNotaCentavos).toBe(0);
   });
 
   describe("⚠️ reclassificação quando o CNPJ/CPF chega depois (ADENDO 3 §G.3)", () => {
@@ -1106,7 +1150,7 @@ describe("terreno e financiamento fora das pendências (critério 21)", () => {
       expect(p.id.startsWith("financiamento")).toBe(false);
     }
     expect(r.pendencias).toHaveLength(0);
-    expect(r.emPendenciaCentavos).toBe(0);
+    expect(r.custoEmRiscoIr.totalCentavos).toBe(0);
   });
 
   it("não entram em `custoConfirmadoAnoCentavos`", () => {
@@ -1131,7 +1175,7 @@ describe("terreno e financiamento fora das pendências (critério 21)", () => {
     );
     // Não somou em lugar nenhum: o acumulado de 2026 é terreno datado + informe.
     expect(r.acumuladoImovelCentavos).toBe(TERRENO_CENTAVOS + 5_993_475);
-    expect(r.emPendenciaCentavos).toBe(0);
+    expect(r.custoEmRiscoIr.totalCentavos).toBe(0);
   });
 
   /**
@@ -1156,7 +1200,7 @@ describe("terreno e financiamento fora das pendências (critério 21)", () => {
     // headline do CONTAI-005 mede o que pode ficar de fora, e este valor está
     // dentro.
     expect(r.acumuladoImovelCentavos).toBe(TERRENO_CENTAVOS);
-    expect(r.emPendenciaCentavos).toBe(0);
+    expect(r.custoEmRiscoIr.totalCentavos).toBe(0);
     expect(r.pendencias).toHaveLength(0);
     expect(r.custoConfirmadoAnoCentavos).toBe(0);
     expect(r.notasSemPagamento).toHaveLength(0);
@@ -1223,7 +1267,7 @@ describe("terreno e financiamento fora das pendências (critério 21)", () => {
     it("⚠️ FORA de `pendencias`, de `emPendenciaCentavos` e do custo do ano", () => {
       const r = resumo({ desembolsosTerreno: [SO_ESCRITURA, SEM_DATA] });
       expect(r.pendencias).toHaveLength(0);
-      expect(r.emPendenciaCentavos).toBe(0);
+      expect(r.custoEmRiscoIr.totalCentavos).toBe(0);
       expect(r.custoConfirmadoAnoCentavos).toBe(0);
       expect(r.notasSemPagamento).toHaveLength(0);
       expect(r.despesas).toHaveLength(0);
@@ -1413,7 +1457,7 @@ describe("terreno e financiamento fora das pendências (critério 21)", () => {
     // ⚠️ E ela NÃO entra em número nenhum do resumo.
     expect(r.acumuladoImovelCentavos).toBe(TERRENO_CENTAVOS + 5_993_475);
     expect(r.custoConfirmadoAnoCentavos).toBe(0);
-    expect(r.emPendenciaCentavos).toBe(0);
+    expect(r.custoEmRiscoIr.totalCentavos).toBe(0);
   });
 
   it("com o informe do ano em tela, não há 'aguardando informe'", () => {
@@ -1510,7 +1554,7 @@ describe("terreno e financiamento fora das pendências (critério 21)", () => {
       expect(comContrato.acumuladoImovelCentavos).toBe(
         semContrato.acumuladoImovelCentavos,
       );
-      expect(comContrato.emPendenciaCentavos).toBe(0);
+      expect(comContrato.custoEmRiscoIr.totalCentavos).toBe(0);
     });
   });
 
@@ -1677,7 +1721,7 @@ describe("vínculo cruzando obras no resumo (CONTAI-008, critério 12)", () => {
     expect(r.pendencias.map((p) => p.tipo)).toEqual(
       semOrfao.pendencias.map((p) => p.tipo),
     );
-    expect(r.emPendenciaCentavos).toBe(semOrfao.emPendenciaCentavos);
+    expect(r.custoEmRiscoIr.totalCentavos).toBe(semOrfao.custoEmRiscoIr.totalCentavos);
     expect(r.custoConfirmadoAnoCentavos).toBe(
       semOrfao.custoConfirmadoAnoCentavos,
     );

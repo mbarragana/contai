@@ -120,6 +120,21 @@ export const CONSEQUENCIA_SEM_RETENCAO =
 export const CONSEQUENCIA_BOLETO =
   "Boleto não é documento hábil. O custo só se sustenta com a NF.";
 
+/**
+ * **CONTAI-005 — a linha nova do card de boleto** (Bloco 3 do parecer de
+ * 2026-08-16; as duas de cima não mudam).
+ *
+ * O boleto **saiu do headline** de "Custo em risco no IR", e a razão é mais
+ * forte que evitar contar duas vezes: no regime de caixa, **sem desembolso não
+ * há dispêndio** — não existe custo a perder ainda. O risco real do boleto é de
+ * outra moeda (juros e multa de mora, que não integram o custo de aquisição).
+ *
+ * ⚠️ Sem esta linha, a saída do boleto do total viraria encolhimento
+ * silencioso: o Mateus veria o número cair e não saberia por quê.
+ */
+export const BOLETO_FORA_DO_TOTAL =
+  "Não entra no total acima: enquanto não for pago, não houve dispêndio.";
+
 // ── CONTAI-004: identificação da nota ────────────────────────────────────
 
 /**

@@ -24,8 +24,13 @@ import {
   Passo,
 } from "@/app/_components/ui";
 import { BlocoAgendados } from "@/app/_components/agendado";
+import {
+  CardAfericaoInss,
+  CardCustoEmRisco,
+} from "@/app/_components/custo-em-risco";
 import { PendenciaDeDatas } from "@/app/_components/datas-do-desembolso";
 import { CardDocumentosSemArquivo } from "@/app/_components/documento-sem-arquivo";
+import { BOLETO_FORA_DO_TOTAL } from "@/lib/fiscal/documento";
 import { CardPagoSemComprovante } from "@/app/_components/pago-sem-comprovante";
 import {
   carregarCompromissos,
@@ -310,16 +315,39 @@ export default function Home() {
                 Nada é somado com as outras obras — cada matrícula é um item da
                 declaração.
               </Dica>
-              {estado.resumo.pendencias.length > 0 ? (
-                <p className="mt-1.5 text-[12px] text-mut">
-                  Em pendência:{" "}
-                  <span className="mono font-semibold text-red">
-                    {formatarBRL(estado.resumo.emPendenciaCentavos)}
-                  </span>{" "}
-                  — resolver abaixo
-                </p>
-              ) : null}
+              {/* ⚠️ A linha "Em pendência: R$ X — resolver abaixo" MORREU aqui
+                  (CONTAI-005). Ela exibia a soma crua de `pendencias[]`: perda
+                  de custo + conta a pagar + base de INSS no mesmo número, e o
+                  mesmo dispêndio podendo entrar duas vezes (boleto registrado +
+                  o pagamento avulso dele). O que entra no lugar é o card
+                  abaixo, com UMA moeda e a composição sempre visível. */}
             </Card>
+
+            {/* ── CONTAI-005 · o headline ────────────────────────────────────
+                Card PRÓPRIO, e não uma linha dentro do card de cima (decisão 1
+                do mock v5): a R4 exige a decomposição colada ao total, e o
+                texto inteiro não cabe como linha secundária sem competir com o
+                número principal do "Custo confirmado".
+
+                ⚠️ **R5 já está atendida pelo card de cima**, por código que não
+                é deste ticket: `EXPLICACAO_CUSTO_ZERO` aparece sempre que o
+                custo confirmado é zero havendo registro. O zero nunca convive
+                com este headline sem dizer por quê — que é o que a ressalva
+                pede. Repetir a ressalva aqui seria um segundo caminho para o
+                mesmo texto fiscal. */}
+            <CardCustoEmRisco
+              risco={estado.resumo.custoEmRiscoIr}
+              nomeDaObra={obra.nome}
+            />
+
+            {/* Outra apuração, em BASE, e nunca somada à de cima (R2). Só com
+                CNO e só com exposição — ver `CardAfericaoInss`. */}
+            {obra.cno && estado.resumo.exposicaoInssBaseCentavos > 0 ? (
+              <CardAfericaoInss
+                cno={obra.cno}
+                baseCentavos={estado.resumo.exposicaoInssBaseCentavos}
+              />
+            ) : null}
 
             <AvisoEquiparacao obra={obra} />
 
@@ -501,6 +529,13 @@ export default function Home() {
                   <span className="mono">{formatarBRL(p.valorCentavos)}</span>
                 </Dica>
                 <Consequencia cor={p.gravidade}>{p.consequencia}</Consequencia>
+                {/* CONTAI-005, Bloco 3 · a linha NOVA do card de boleto — as
+                    duas de cima não mudaram. Ela existe porque o boleto saiu do
+                    headline: sem dizer isso, o número teria encolhido em
+                    silêncio. */}
+                {p.tipo === "boleto_sem_nf" ? (
+                  <Dica>{BOLETO_FORA_DO_TOTAL}</Dica>
+                ) : null}
                 {p.href && ACAO_POR_TIPO[p.tipo] ? (
                   <div className="mt-2.5">
                     <BotaoLink href={p.href}>{ACAO_POR_TIPO[p.tipo]}</BotaoLink>
@@ -550,8 +585,8 @@ export default function Home() {
 
             {/* ⚠️ CONTAI-010 — os dois estados do TERRENO. Bloco próprio,
                 DEPOIS das pendências fiscais e fora delas (critério 21):
-                nenhum dos dois entra em `emPendenciaCentavos`, e o CONTAI-005
-                não muda de código. O primeiro é pendência de COMPLEMENTO (falta
+                nenhum dos dois entra no headline de "Custo em risco no IR"
+                (CONTAI-005). O primeiro é pendência de COMPLEMENTO (falta
                 um dado que só o Mateus tem); o segundo é o calendário do banco.
                 Nenhum dos dois é bloqueio. */}
             {/* ── CONTAI-025, critério 11 · o card agregado da pendência ───

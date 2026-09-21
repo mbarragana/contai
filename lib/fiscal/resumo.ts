@@ -20,9 +20,16 @@
  *
  * ⚠️ **COMPROMISSO NÃO ENTRA AQUI POR CAMINHO NENHUM** (CONTAI-019, critério
  * 3; parecer de 2026-08-18, §2). Não em `custoConfirmadoAnoCentavos`, não em
- * `acumuladoImovelCentavos`, não em `emPendenciaCentavos`, não em
+ * `acumuladoImovelCentavos`, não em `custoEmRiscoIr`, não em
  * `notasSemPagamento` (o TERCEIRO NÚMERO, que "é composto por documentos, não
  * por previsões" — §2, item 6) e não em `despesas`.
+ *
+ * ⚠️ **`emPendenciaCentavos` MORREU no CONTAI-005**, e não coexiste com o que
+ * entrou no lugar: ele somava quatro moedas (perda de custo, conta a pagar,
+ * base de INSS) e podia contar o mesmo dispêndio duas vezes. O headline agora é
+ * `custoEmRiscoIr` (`lib/fiscal/risco.ts`), a exposição previdenciária é
+ * `exposicaoInssBaseCentavos`, **em base**, e as duas nunca se somam. Dois
+ * agregados no mesmo módulo seria o convite para a próxima tela usar o errado.
  *
  * A proteção é de TIPO, não de atenção: `EntradaResumo` **não tem campo de
  * compromisso**, este arquivo **não importa `lib/fiscal/compromisso.ts`**, e
@@ -47,6 +54,11 @@ import {
   faltaOArquivo,
 } from "./documento";
 import { ACAO_NOTA_SEM_CNO, CONSEQUENCIA_CNO_DA_NOTA } from "./obra";
+import {
+  custoEmRiscoIr,
+  exposicaoInssBaseCentavos,
+  type CustoEmRiscoIr,
+} from "./risco";
 import {
   AGUARDANDO_INFORME,
   anosDoFinanciamento,
@@ -122,8 +134,8 @@ export interface Pendencia {
 /**
  * O terceiro estado do parecer §5.2: nota hábil registrada, ainda sem
  * pagamento ligado. **Não soma** com o custo confirmado nem com o em risco —
- * é por isso que isto NÃO é uma `Pendencia` (a lista de pendências alimenta
- * `emPendenciaCentavos`, e somar aqui inflaria a exposição).
+ * é por isso que isto NÃO é uma `Pendencia` (nota hábil e não paga não é
+ * dispêndio nenhum, e somá-la inflaria a exposição).
  */
 export interface NotaSemPagamento {
   id: string;
@@ -153,10 +165,10 @@ export interface DespesaComprovada {
  * sem data de pagamento conhecida (critério 23).
  *
  * ⚠️ Campo PRÓPRIO, fora de `pendencias` e fora de todas as somas (critério
- * 21). Não é `Pendencia` porque a lista de pendências alimenta
- * `emPendenciaCentavos`, que é o headline de "custo em risco" do CONTAI-005 —
- * e o CONTAI-005 **não muda de código** neste ticket. É pendência de
- * COMPLEMENTO, não de risco fiscal: **não é bloqueio**.
+ * 21) — inclusive fora de `custoEmRiscoIr`, que desde o CONTAI-005 conta só
+ * dispêndio sem documento hábil e quarentena. É pendência de COMPLEMENTO, não
+ * de risco fiscal: o dinheiro saiu, o documento existe, **falta a data**. E
+ * **não é bloqueio**.
  */
 export interface TerrenoSemData {
   id: string;
@@ -215,10 +227,8 @@ export interface FinanciamentoFaltaLancar {
  * *"em mais de um dia"*, e cujo valor está numa data só.
  *
  * ⚠️ **Campo próprio, fora de `pendencias` e fora de TODA soma**, pelo mesmo
- * motivo de `terrenoSemData`: `pendencias` alimenta `emPendenciaCentavos`, que
- * é o headline de "custo em risco" do CONTAI-005 — e aqui **não há custo em
- * risco de ficar de fora**. O dinheiro saiu e ESTÁ no custo; o que está aberto
- * é o ANO dele.
+ * motivo de `terrenoSemData` — e aqui **não há custo em risco de ficar de
+ * fora**. O dinheiro saiu e ESTÁ no custo; o que está aberto é o ANO dele.
  *
  * ⚠️ **É VERMELHA, e não âmbar** (D39 do `po`): *"vermelho = fato consumado
  * com consequência fiscal aberta; âmbar = nada saiu ainda"*.
@@ -246,8 +256,8 @@ export interface TerrenoMaisDeUmaData {
  * completar"* (§1.5 do parecer). Na venda dá no mesmo, com a agravante de
  * parecer resolvido.
  *
- * ⚠️ **Campo próprio, fora de `pendencias`, fora de `emPendenciaCentavos` e
- * fora de `custoConfirmadoAnoCentavos`** (critério 21 do CONTAI-010), com teste
+ * ⚠️ **Campo próprio, fora de `pendencias`, fora de `custoEmRiscoIr` e fora de
+ * `custoConfirmadoAnoCentavos`** (critério 21 do CONTAI-010), com teste
  * afirmando cada "não".
  *
  * ⚠️ **VERMELHO** (D39): *vermelho = fato consumado com consequência fiscal
@@ -314,7 +324,7 @@ export interface DocumentosSemArquivo {
  * porta; reportar é a rede que sobra para o dia em que uma porta nova
  * aparecer"*.
  *
- * ⚠️ **Fora de `pendencias`, fora de `emPendenciaCentavos`, fora de
+ * ⚠️ **Fora de `pendencias`, fora de `custoEmRiscoIr`, fora de
  * `custoConfirmadoAnoCentavos`** — e há teste afirmando cada um desses "não",
  * pela mesma régua de `terrenoPagoSemComprovante` e `documentosSemArquivo`.
  * Não é dinheiro em risco a somar: é um defeito de dado, com valor nenhum
@@ -343,36 +353,67 @@ export interface ResumoObra {
    * Gasto real da obra — `acumuladoImovelCentavos` mais o que já foi pago mas
    * ainda não tem nota/comprovante vinculado (obra + terreno). **Nunca é o
    * valor da declaração**: existe só para o Mateus acompanhar o quanto de
-   * fato já saiu do bolso, comprovado ou não. Não soma com `emPendenciaCentavos`
-   * nem o substitui — `emPendenciaCentavos` inclui pendências que não são
-   * "dinheiro pago sem comprovante" (ex.: `diferenca_sem_explicacao`,
-   * `servico_sem_retencao`).
+   * fato já saiu do bolso, comprovado ou não. Não soma com `custoEmRiscoIr`
+   * nem o substitui — as duas contas partem de perguntas diferentes: esta é
+   * "quanto saiu do bolso", aquela é "quanto do que saiu não entra no custo".
    */
   gastoRealComPendentesCentavos: number;
-  emPendenciaCentavos: number;
+  /**
+   * **CONTAI-005 — o headline, e o único número de "risco" da tela.**
+   *
+   * Quarentena + pago sem nota + pago sem comprovante — a regra do §1 do
+   * parecer de 2026-08-16 com a **terceira parcela** que o `contador` acrescentou
+   * no Gate 2 (art. 17 da IN SRF 84/2001 é condição COMPOSTA: dispêndio
+   * comprovado E documentação hábil; cada parcela falha uma das pernas). Veio
+   * no lugar de `emPendenciaCentavos`, que somava quatro moedas e **não
+   * coexiste com este** (decisão do `cto-obra`: *"dois agregados no mesmo
+   * módulo é o convite para a próxima tela usar o errado"*).
+   *
+   * ⚠️ Vem como ESTRUTURA, não escalar, porque a R4 é bloqueante: *"o total
+   * nunca aparece sem a decomposição visível"*. Total e parcelas viajam juntos
+   * para não existir caminho em que a tela tenha um sem as outras.
+   */
+  custoEmRiscoIr: CustoEmRiscoIr;
+  /**
+   * **R2 — a exposição previdenciária, EM BASE (R$ de NF de serviço que não
+   * abate a aferição), nunca em reais de imposto.**
+   *
+   * Duas famílias, **uma vez por documento**: sem retenção de 11% e sem CNO
+   * impresso na nota. Ver `exposicaoInssBaseCentavos` em `lib/fiscal/risco.ts`.
+   *
+   * ⚠️ **Não soma com `custoEmRiscoIr` em direção nenhuma** (§2): são apurações
+   * distintas, e a nota que compõe este número — estando no CPF do Mateus e
+   * paga — é custo **confirmado** no IRPF, não custo em risco. É por isso que
+   * ela tem campo próprio, e é por isso que a tela carrega a frase do Bloco 2.
+   *
+   * A unidade também é hedge: a **pergunta nº 1 ao CRC** segue aberta (o art.
+   * 31 da Lei 8.212/91 dirige a retenção à *empresa* contratante). Se a tese
+   * cair, muda o rótulo — não o dado.
+   */
+  exposicaoInssBaseCentavos: number;
   pendencias: Pendencia[];
   /**
    * ⚠️ Os DOIS estados do terreno ficam aqui, em campo próprio, e **não** em
-   * `pendencias`, **não** em `emPendenciaCentavos`, **não** em
+   * `pendencias`, **não** em `custoEmRiscoIr`, **não** em
    * `custoConfirmadoAnoCentavos`, **não** em `notasSemPagamento` e **não** em
    * `despesas` (critério 21). Há teste afirmando cada um desses "não".
    */
   terrenoSemData: TerrenoSemData[];
   /**
-   * CONTAI-027, critério 12c. Fora de `pendencias`, fora de
-   * `emPendenciaCentavos`, fora de `custoConfirmadoAnoCentavos` — e há teste
-   * afirmando cada um desses "não", como para `terrenoSemData`.
+   * CONTAI-027, critério 12c. Fora de `pendencias`, fora de `custoEmRiscoIr`,
+   * fora de `custoConfirmadoAnoCentavos` — e há teste afirmando cada um desses
+   * "não", como para `terrenoSemData`.
    */
   terrenoMaisDeUmaData: TerrenoMaisDeUmaData[];
   /**
    * CONTAI-025, critério 11. `null` quando não há nenhum. Fora de
-   * `pendencias`, de `emPendenciaCentavos` e de `custoConfirmadoAnoCentavos` —
+   * `pendencias`, de `custoEmRiscoIr` e de `custoConfirmadoAnoCentavos` —
    * com teste afirmando cada um desses "não".
    */
   terrenoPagoSemComprovante: TerrenoPagoSemComprovante | null;
   /**
    * CONTAI-033, critério 11. `null` quando não há nenhum. Fora de
-   * `pendencias`, de `emPendenciaCentavos` e de `custoConfirmadoAnoCentavos` —
+   * `pendencias`, de `custoEmRiscoIr` e de `custoConfirmadoAnoCentavos` —
    * com teste afirmando cada um desses "não", pela mesma régua do
    * `terrenoPagoSemComprovante`.
    */
@@ -707,7 +748,31 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
     });
   }
 
-  const emPendencia = pendencias.reduce((s, p) => s + p.valorCentavos, 0);
+  // ── CONTAI-005 · o headline, e o que ele NÃO é ─────────────────────────
+  //
+  // ⚠️ **Não é mais a soma de `pendencias[]`.** Era, e por isso somava perda de
+  // custo com conta a pagar com base de INSS — quatro moedas num número só, que
+  // não corresponde a nenhuma linha de nenhuma declaração. A regra de
+  // composição inteira vive em `lib/fiscal/risco.ts`, com o parecer citado
+  // linha a linha; aqui só se chama.
+  //
+  // O anti-divergência com a US-004 é IMPORTAR esta função, nunca reescrever a
+  // fórmula numa view do Postgres: seriam duas implementações da mesma regra
+  // fiscal, e a segunda fora do alcance do Vitest.
+  const emRisco = custoEmRiscoIr({ documentos, pagamentos, alocacao });
+
+  // R2 · a exposição do INSS, **em base** e em campo próprio.
+  //
+  // ⚠️ **As DUAS famílias entram** — sem retenção 11% E sem CNO impresso
+  // (decisão do `contador` no Gate 2 do CONTAI-005): as duas são NF de serviço
+  // que não abate a aferição desta obra. E entram por **união de `documento.id`**,
+  // calculada sobre os DOCUMENTOS, porque uma nota pode carregar as duas
+  // pendências ao mesmo tempo e somar as duas listas contaria o valor dela
+  // duas vezes. A regra literal está em `lib/fiscal/risco.ts`.
+  const exposicaoInss = exposicaoInssBaseCentavos({
+    documentos,
+    obraTemCno: obra.cno !== null,
+  });
 
   // Gasto real da obra (relato do Mateus, 2026-09-18): pagamento feito sem
   // comprovante ainda continua sendo dinheiro que saiu do bolso dele, e ele
@@ -775,8 +840,8 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
 
   // ── CONTAI-010 · os dois estados do terreno, FORA de toda soma ─────────
   //
-  // Ficam depois do `emPendencia` de propósito: nenhum dos dois participa
-  // daquela soma. O primeiro é pendência de COMPLEMENTO (falta um dado que só
+  // Ficam depois do headline de propósito: nenhum dos dois participa da soma
+  // do `custoEmRiscoIr`. O primeiro é pendência de COMPLEMENTO (falta um dado que só
   // o Mateus tem); o segundo é o calendário do banco. Nenhum é risco fiscal.
   const terrenoSemData: TerrenoSemData[] = desembolsosTerreno
     .filter((d) => d.estado === "pago" && d.dataPagamento === null)
@@ -928,7 +993,8 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
       custoAteFimDoAno +
       pagoSemComprovanteCentavos +
       custoDoTerreno.semComprovanteCentavos,
-    emPendenciaCentavos: emPendencia,
+    custoEmRiscoIr: emRisco,
+    exposicaoInssBaseCentavos: exposicaoInss,
     pendencias,
     terrenoSemData,
     terrenoMaisDeUmaData,

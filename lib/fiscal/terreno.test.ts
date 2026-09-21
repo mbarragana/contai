@@ -1777,6 +1777,23 @@ describe("CONTAI-036 · o veto é por saída, e a porta continua única", () => 
      * dispensado de uma vez, que era o buraco de ontem.
      */
     const FORA_COM_MOTIVO: Record<string, string> = {
+      "app/_components/custo-em-risco.tsx::CardAfericaoInss":
+        "não produz saída anual: é o CARD da home do CONTAI-005 (Bloco 2 do " +
+        "parecer de 16/08). Recebe dois valores prontos (`cno` e " +
+        "`baseCentavos`) e desenha texto — não lê documento, não lê pagamento, " +
+        "não apura nada e não conhece ano-calendário. E diz em tela, com a " +
+        "frase que a R2 torna obrigatória, que aquilo **não** é a aferição: " +
+        "*o valor em reais só existe quando a aferição for calculada* — que é " +
+        "justamente o que mora atrás da porta única.",
+      "lib/fiscal/risco.ts::tituloAfericaoInss":
+        "não produz saída anual: é o TÍTULO do card de INSS da home " +
+        "(CONTAI-005, Bloco 2 do parecer de 16/08) — `Aferição do INSS — CNO " +
+        "<nº>`, interpolação de uma string com o CNO que a obra já carrega. " +
+        "Não lê documento, não lê pagamento, não calcula base e não conhece " +
+        "ano-calendário. A POSIÇÃO da aferição, essa sim, continua atrás da " +
+        "porta única, e este símbolo não chega perto dela: o número que o card " +
+        "mostra é `exposicaoInssBaseCentavos`, exposição EM BASE, explicitamente " +
+        "rotulada em tela como o que **não** é apuração.",
       "lib/fiscal/revisao.ts::composicaoDaDiscriminacao":
         "não gera saída nenhuma: é o antes→depois de material × mão de obra " +
         "DENTRO da tela de correção (CONTAI-021). Reparte um total que já " +

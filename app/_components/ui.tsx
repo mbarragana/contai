@@ -152,7 +152,13 @@ export function Consequencia({
   cor,
   children,
 }: {
-  cor: "red" | "amb";
+  /**
+   * `grn` entrou no CONTAI-005: a frase de fechamento do card de INSS ("estas
+   * notas continuam valendo integralmente como custo de aquisição no IRPF") é
+   * uma consequência **boa**, e pintá-la de âmbar ao lado do aviso âmbar logo
+   * acima faria as duas lerem como o mesmo alerta.
+   */
+  cor: "red" | "amb" | "grn";
   children: ReactNode;
 }) {
   return (
