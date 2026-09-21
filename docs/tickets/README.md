@@ -38,6 +38,18 @@ browser com 3 famílias de pendência simultâneas) e validado pelo `po`
 **Destrava o `040`.** Detalhe:
 `docs/backlog/47-2026-09-21-contai-042-entregue.md`.
 
+**2026-09-21**: **`040`** saiu da fila — implementado (`lead-engineer`),
+revisado pelo Gate 2 (`cto-obra` + `po` + `contador` em paralelo, todos
+APPROVE; 1 rodada de rework — `OPCOES_DE_REGISTRO` duplicada, extraída
+para `lib/gestao/navegacao.ts` com teste-trava verbatim contra
+`/adicionar/page.tsx`), testado (877 unitários + 248 E2E + validação
+manual extensa no browser) e validado pelo `po` (Gate 4 PASS, 13/13
+critérios). Route groups Next 16 — `(gestao)` com shell novo (sidebar,
+dashboard "Visão geral"), `(captura)` intocado. `Secao`/`Faixa`/`largo`/
+`alinharComFila`/`data-largo` do `039` apagados (órfãos). Sem migration.
+**Destrava o `041`.** Detalhe:
+`docs/backlog/49-2026-09-21-contai-040-entregue.md`.
+
 **2026-09-21**: **`039`** entrou e saiu da fila no mesmo dia — layout desktop
 da home, convergência entre `designer`, `cto-obra` e `po`
 (`docs/backlog/43-2026-09-21-convergencia-home-desktop.md`), Conceito 2
@@ -213,12 +225,11 @@ com o `cto-obra` (18 famílias de pendência, não 7 — ver
 `docs/backlog/46-2026-09-21-cinco-decisoes-desktop-shell-contai-040-042.md`,
 seção "Adendo").
 
-**`042` saiu em 2026-09-21** (entregue, sem push ainda — ver nota no topo).
+**`042` e `040` saíram em 2026-09-21**, ambos entregues e pushados.
 
 | # | ID | O que é | P |
 |---|---|---|---|
-| 1 | **040** | Shell de navegação desktop + Dashboard ("Visão geral"), destravado pelo `042` | P1 |
-| 2 | **041** | Despesas — tabela de verdade (`/despesas`), bloqueado por `040` | P1 |
+| 1 | **041** | Despesas — tabela de verdade (`/despesas`), destravado pelo `040` | P1 |
 
 ### Parado, aguardando o Mateus (fora da fila ativa)
 
@@ -253,9 +264,9 @@ seção "Adendo").
 |---|---|
 | **Espera o Mateus** | apenas a **Q14** (13 dias, trava o `016`) — nenhum mock pendente na fila ativa |
 | **Saiu da fila, superado** | `009` — entregue via `CONTAI-018` sem citação cruzada; resto vivo virou o `037` |
-| **Saiu da fila, entregue** | `032`, `022` — commitados em 2026-09-19 (`13953f2`); `033`, `007`, `008`, `005`, `031`, `035` — entregues em 2026-09-20; `038`, `006`, `034`, `037`, `039`, `042` — entregues em 2026-09-21 (`042` ainda sem push); ver "Em produção" |
+| **Saiu da fila, entregue** | `032`, `022` — commitados em 2026-09-19 (`13953f2`); `033`, `007`, `008`, `005`, `031`, `035` — entregues em 2026-09-20; `038`, `006`, `034`, `037`, `039`, `042`, `040` — entregues em 2026-09-21, todos pushados; ver "Em produção" |
 | **Parado, aguardando o Mateus** | `014` — só o critério 4 entregue; ícone/aparelho físico não são delegáveis |
-| **Pronto para `/develop`** | **`040`** (destravado pelo `042`); `041` bloqueado por `040` |
+| **Pronto para `/develop`** | **`041`** (destravado pelo `040`) |
 | **Falta mock (`/design`)** | nenhum |
 
 ⚠️ **Esta tabela é resumo, não fonte.** Ela repete o que está abaixo — se
@@ -373,7 +384,8 @@ futura — este bloco fica só como prova de que o furo de 21-23/08 foi fechado.
 | 031 | E2E da condição 6 do Gate Fiscal (CONTAI-028) | ⚠️ *(ver nota no topo do arquivo)* | **Entregue em 2026-09-20, 8/8 critérios.** Sem UI nova, sem regra fiscal nova — cobertura de teste para a condição 6 (corrigir classificação nunca abre pendência de retificadora nem grava ano afetado), já adjudicada. `test.describe` novo em `e2e/correcao.spec.ts` + comentário-guarda da D43 ancorado por conteúdo. Gate 2 (`cto-obra`) APPROVE. 17/17 no spec tocado; suíte completa 202/203 (falha restante pré-existente e não-fiscal, `docs/backlog/35-...md`) + validação manual no browser (correção real material → mão de obra). Gate 4 (`po`) PASS. Marca a fatia 5 do CONTAI-028 como bloqueada por este ticket |
 | 035 | Reconciliar a régua de cor (D39) com todo o app | ⚠️ *(ver nota no topo do arquivo)* | **Entregue em 2026-09-20, 11/11 critérios.** `gravidadeDaRegua(...)` (`lib/fiscal/gravidade.ts`) vira único produtor de `Gravidade` branded — zero cor literal sobrevive (D54). Itens B/C/D/E reconciliados em ~19 call sites; item C tinha 9 sites, não 7 (2 a mais nasceram no `CONTAI-008`, depois do inventário original) — extensão confirmada por `cto-obra` e `contador` no Gate 2, ambos APPROVE. 742 unitários (30 novos) + 203/204 E2E (falha pré-existente e não-fiscal, `docs/backlog/35-...md`) + validação manual no browser (CNPJ errado + pagamento de ano anterior → card vermelho + aviso condicional de retificadora). Gate 4 (`po`) PASS. Sem migration. **Destrava o `038`** |
 | 038 | Retenção de NF de serviço PJ vira lista de linhas | ✅ `6dd771e` | **Entregue em 2026-09-21, 18/18 critérios** (7a incluído, e 18 fechado com a contagem no remoto = 1, sem backfill). `retencao_11` sai do schema; entram o gate `retencao_na_nota` (captura) e a tabela `documento_retencao` (repeater na gestão). `retencao_sem_recolhedor` é a primeira pendência que AGRAVA a régua de cor. `lib/fiscal/risco.ts`/`afericao.ts` pararam de ler retenção para decidir abatimento do SERO (§2 do parecer 18/09 — efeito correto, não regressão). Gate 2 com 1 rodada de REQUEST CHANGES fiscal (texto desatualizado, corrigido), APPROVE na segunda. 791 unitários + 217/217 E2E + validação manual no browser. Gate 4 (`po`) PASS. Migration `0017` aplicada no remoto em 2026-09-21. Dívidas novas: **D62**, **D63** |
-| 042 | Pendências — unificação das 18 famílias (derivadas+persistentes) | ⚠️ **commitado (`f5867d6`), push pendente** | **Entregue em 2026-09-21, 6/6 critérios + 9/9 do checklist fiscal.** `lib/fiscal/pendencias-unificadas.ts` agrega as 18 famílias (7 de `pendencias[]` + 11 antes só agregadas na home) numa lista única por gravidade; `/pendencias` renderiza tudo, sem shell (isso é o `040`). Parecer do `contador`: 8 famílias de cor literal não passam por `gravidadeDaRegua` (fabricaria fato fiscal) — viraram constante nomeada, lida também pela home. Gate 2 com 1 rodada de REQUEST CHANGES (6 cards copiados em vez de extraídos — corrigido em `app/_components/pendencias-derivadas.tsx`, fonte única para home e `/pendencias`). 859 unitários + 247 E2E + validação manual no browser com 3 famílias simultâneas. Gate 4 (`po`) PASS. Sem migration. **Destrava o `040`** |
+| 040 | Shell de navegação desktop + Dashboard ("Visão geral") | ✅ `00b4475` | **Entregue em 2026-09-21, 13/13 critérios.** Route groups Next 16: `(gestao)` com shell novo (sidebar 264px + faixa mínima mobile, dashboard com 3 KPIs verbatim, `/despesas` stub, `/pendencias`, `/obras`) atrás de um `ProvedorDeGestao` único; `(captura)` intocado (~40 telas movidas sem mudança de comportamento). Hacks do `039` apagados (órfãos). Badge da sidebar vem de `unificarPendencias().abertas`. Gate 2 (`cto-obra`+`po`+`contador`) com 1 rework (`OPCOES_DE_REGISTRO` duplicada → `lib/gestao/navegacao.ts` com teste-trava). 877 unitários + 248 E2E + validação manual extensa. Gate 4 (`po`) PASS. Sem migration. Decisões de produto do `po`: seletor de ano vira texto (ticket futuro P1); painel usa cards completos do `ItemDaFila`. **Destrava o `041`** |
+| 042 | Pendências — unificação das 18 famílias (derivadas+persistentes) | ✅ `f5867d6` | **Entregue em 2026-09-21, 6/6 critérios + 9/9 do checklist fiscal.** `lib/fiscal/pendencias-unificadas.ts` agrega as 18 famílias (7 de `pendencias[]` + 11 antes só agregadas na home) numa lista única por gravidade; `/pendencias` renderiza tudo, sem shell (isso é o `040`). Parecer do `contador`: 8 famílias de cor literal não passam por `gravidadeDaRegua` (fabricaria fato fiscal) — viraram constante nomeada, lida também pela home. Gate 2 com 1 rodada de REQUEST CHANGES (6 cards copiados em vez de extraídos — corrigido em `app/_components/pendencias-derivadas.tsx`, fonte única para home e `/pendencias`). 859 unitários + 247 E2E + validação manual no browser com 3 famílias simultâneas. Gate 4 (`po`) PASS. Sem migration. **Destrava o `040`** |
 | 039 | Home ganha layout desktop (régua fixa + fila em grid) | ✅ `2e38c3b` | **Entregue em 2026-09-21, 12/12 critérios.** A partir de `lg` (1280px): `<aside>` sticky com a posição fiscal (custo confirmado/em risco/INSS) à esquerda, fila de pendências/despesas em grid 2 colunas à direita, mesma ordem fiscal de hoje. Abaixo de `lg`, idêntico ao mobile de sempre. Convergência `designer`+`cto-obra`+`po` escolheu o Conceito 2 ("Régua fixa + fila de trabalho") sobre 2 alternativas descartadas (tabela truncaria `Consequencia`; mestre-detalhe esconderia cards sempre-visíveis atrás de seleção); sanity check do `contador` antes do Gate 1 (sem regra fiscal nova). Gate 2 achou bug real: aside sticky escondia `CardAfericaoInss` quando a régua era mais alta que a viewport — corrigido com scroll próprio. Segundo achado: `lg:max-w`/`BarraAdicionar` viraram opt-in por página (`Corpo largo?`, `data-largo`, `alinharComFila`) em vez de globais, eliminando o efeito colateral nas outras 43 telas — a dívida **D67** cogitada pelo `po` nunca chegou a ser registrada. 839 unitários + 242 E2E (240 mobile + 2 desktop) + validação manual no browser em 1280px. Gate 4 (`po`) PASS. Sem migration |
 | 037 | Porta para o pagamento conciliado a partir do documento | ✅ `2a39e71` | **Entregue em 2026-09-21, 5/5 critérios.** `BotaoLink` "Ver o pagamento" em cada linha de "Pagamentos desta nota" (`/documento/[id]`), simetria literal com "Ver o documento" já existente na tela irmã (`/pagamento/[id]`). Reusa `alocado.pagamentos`, sem segunda derivação (Pre-mortem 1). Sem regra fiscal nova (Gate Fiscal fechado, automático, sem CRC) — segunda porta de leitura para dado já calculado. Gate 2 (`cto-obra`) APPROVE sem retrabalho. 839 unitários + 240 E2E (novo teste prova que o clique na 2ª linha abre o pagamento clicado, não o primeiro) + validação manual no browser. Gate 4 (`po`) PASS. Sem migration, sem dívida nova. **Fecha a fila ativa** |
 | 034 | Campo fiscal não nasce preenchido, e o teste prova | ✅ `79237c3` | **Entregue em 2026-09-21, 12/12 critérios.** `data-campo="<id do mock>"` amarra `design/mocks/*.md` a todo controle fiscal; `lib/design/campos-do-spec.ts` parseia a seção `## Campos` fail-closed (linha fora da gramática = vermelho com arquivo:linha, nunca `skip`); `e2e/campos-fiscais.spec.ts` exige toda rota de `app/**/page.tsx` classificada e cruza spec×DOM no instante em que a tela nasce. Provado contra a D44 real: reintroduzir `useState(hojeIso)`/`useState("pix")` deixa a suíte vermelha nomeando `fData`/`meio`. Gate 2 achou bug fiscal ativo (não só cobertura): `cValor` em `/compromisso/[id]/confirmar` pré-preenchia com o saldo previsto — mesma forma da D44 — corrigido dentro do próprio ticket por decisão do `contador` (**D65**, RESPONDIDA). 839 unitários + 239 E2E + validação manual no browser. Gate 4 (`po`) PASS. Sem migration. Dívida nova, não corrigida: **D66** (`unidades_autonomas` nasce `"1"` contra o CONTAI-003, fora do alcance da suíte hoje) |

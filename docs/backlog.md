@@ -106,6 +106,7 @@ que segurar).
 | Ticket novo, 2026-09-21 | `docs/backlog/43-2026-09-21-convergencia-home-desktop.md` → **`CONTAI-039`** (P1, layout desktop da home). Único item da fila; bloqueado por `/design` antes do Gate 1 |
 | Doutrina revertida, 2026-09-21 | `docs/backlog/45-2026-09-21-cenario-desktop-first-contai-039.md` — Mateus: *"o uso atualmente é 100% desktop"* / *"pode quebrar"* o mobile. **"375px é o piso, não o alvo" fica obsoleta** (`CLAUDE.md`, "Cenários de uso — 2ª correção"). Revisita a rejeição do Conceito 1 (tabela) no `CONTAI-039`; novo desenho é trabalho paralelo do `designer`. 3 perguntas abertas, sem resposta ainda |
 | Mock aprovado + 5 decisões + reconciliação técnica, 2026-09-21 | `docs/backlog/46-2026-09-21-cinco-decisoes-desktop-shell-contai-040-042.md` — `design/mocks/desktop-shell-v1.html`/`.md` aprovado ("100% better"), substitui o `CONTAI-039`. As 5 perguntas do spec fechadas pelo `po`; vira **`CONTAI-040`** (shell+dashboard), **`CONTAI-041`** (Despesas), **`CONTAI-042`** (Pendências unificadas). **Adendo do mesmo dia**: achado do `cto-obra` (18 famílias de pendência, não 7) inverte a ordem para **`042` → `040` → `041`** e fecha a arquitetura mobile×desktop (route groups `(gestao)`/`(captura)`) |
+| Gate 1 do `CONTAI-040`, 4 decisões do `po`, 2026-09-21 | `docs/backlog/48-2026-09-21-gate1-decisoes-contai-040.md` — seletor de ano fica texto (não controle) por esta rodada, **ticket futuro não numerado** "seletor de ano sincronizado dashboard + /pendencias" (P1); painel de pendências usa cards completos, mock a corrigir; `/despesas` stub + painel "Notas hábeis sem pagamento" mantido, com ressalva de proveniência (comentário de código não é decisão registrada); texto "na fila de pendências" confirmado sem CRC |
 | Ticket ainda por criar | `15-…-adjudicacao-fiscal-contai-027.md` → *"Ticket novo a criar — correção de valor de desembolso do terreno"*; e **`CONTAI-022`** (D26, cartão de crédito, **P0 fiscal**) e **`CONTAI-031`** (E2E da condição 6, P1, que **bloqueia a fatia 5 do `CONTAI-028`**) e **`CONTAI-032`** (D44, default de `data` e `meio`, **P0**, dependente do `CONTAI-025`) — nenhum dos três existe como arquivo. ➕ **`CONTAI-033`** (D49/D52, *nota grava sem o arquivo*, **P0**, com as **três guardas** do parecer como critério). ➕ ticket pequeno (S, P1) do critério 8 do `29-…-reconciliacao-contai-009.md` — `/documento/[id]` lista os pagamentos vinculados, porta que falta para o pagamento CONCILIADO |
 
 ✅ **7ª revisão aplicada em 2026-08-23**, direto em `docs/tickets/README.md`. O
@@ -669,6 +670,41 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
 - **D64** — upload ao Storage sem teto próprio (pode durar até o timeout TCP
   do browser); não duplica nada, não bloqueou o ticket. Caminho futuro: teto
   via `AbortSignal` no `.upload`, mesmo texto de resultado incerto do critério 6
+
+### `49-2026-09-21-contai-040-entregue.md` — 45 linhas
+**CONTAI-040 entregue — 2026-09-21 — shell de navegação desktop + dashboard**
+
+- Route groups Next 16: `(gestao)` com shell novo (sidebar+faixa mínima
+  mobile, dashboard, `/despesas` stub, `/pendencias`, `/obras`) atrás de um
+  `ProvedorDeGestao` único; `(captura)` intocado, ~40 telas movidas sem
+  mudança de comportamento. Hacks do `039` (`Secao`/`Faixa`/`largo`/
+  `alinharComFila`/`data-largo`) apagados
+- Dashboard: 3 tiles de KPI reproduzindo verbatim as condicionais fiscais
+  dos cards antigos (lidas das constantes vigentes, zero string hardcoded);
+  badge da sidebar vem de `unificarPendencias().abertas`, fonte única
+- Gate 2 (cto-obra+po+contador em paralelo) com 1 rework: `OPCOES_DE_
+  REGISTRO` duplicada, extraída para `lib/gestao/navegacao.ts` com
+  teste-trava verbatim contra `/adicionar/page.tsx`
+- Decisões de produto do `po` no Gate 1 (`48-...md`): seletor de ano vira
+  texto (ticket futuro P1); painel usa cards completos, não linha
+  compacta (proibição de reescrever texto fiscal venceu o mock)
+- 877 unitários + 248 E2E + validação manual extensa. Gate 4 (`po`) PASS,
+  13/13 critérios. Sem migration. **Destrava o `CONTAI-041`**
+
+### `48-2026-09-21-gate1-decisoes-contai-040.md` — 35 linhas
+**Gate 1 do CONTAI-040, 4 decisões do `po` — 2026-09-21**
+
+- Seletor de ano fica texto nesta rodada (controle funcional quebraria o
+  requisito do Gate Fiscal do `042` de mesmo ano em dashboard e
+  `/pendencias`) — ticket futuro não numerado, P1
+- Painel de pendências usa cards completos de `ItemDaFila`, divergindo do
+  mock (linha compacta) — 11 das 18 famílias só têm texto fiscal nos
+  componentes existentes; mock corrigido para não ficar desatualizado
+- `/despesas` stub + painel "Notas hábeis sem pagamento" confirmados, mas
+  a proveniência da 2ª decisão (comentário de código, não registro
+  formal) foi corrigida — mesmo modo de falha do `039`, em escala menor
+- Texto "na fila de pendências" (era "nas seções abaixo") confirmado como
+  copy de navegação, sem CRC do `contador`
 
 ### `45-2026-09-21-cenario-desktop-first-contai-039.md` — 62 linhas
 **Cenário desktop-first — 2026-09-21 — "o uso atualmente é 100% desktop"**
