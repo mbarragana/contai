@@ -155,10 +155,18 @@ linha) — nenhuma frase nova.
 ### Abaixo dos KPIs: dois painéis lado a lado (não três colunas de cards)
 
 - **Pendências mais urgentes** (mais largo, ~63% da largura): as 4
-  pendências de maior gravidade/valor, no MESMO formato compacto que a versão
-  completa da view Pendências (chip + título + detalhe + valor), com link
-  "Ver todas (N) →" que troca para a view Pendências. Não é uma cópia
-  resumida com texto reescrito — é um subconjunto dos mesmos itens.
+  pendências de maior gravidade/valor, com link "Ver todas (N) →" que troca
+  para a view Pendências. Não é uma cópia resumida com texto reescrito — é um
+  subconjunto dos mesmos itens. **Decisão do `po` no Gate 1 do CONTAI-040
+  (2026-09-21, `docs/backlog/48-2026-09-21-gate1-decisoes-contai-040.md`)**:
+  o formato é o card COMPLETO de `ItemDaFila` (o mesmo componente de
+  `/pendencias`), não a linha compacta "chip+título+detalhe+valor" que esta
+  seção descrevia originalmente — 11 das 18 famílias só têm texto fiscal
+  estruturado no componente de card já existente, e montar uma linha
+  compacta exigiria redigir texto novo, proibido pelo critério 9 do ticket
+  (nunca reescrever texto fiscal). Alternativa híbrida (linha compacta só
+  para as 7 famílias com dado estruturado) foi avaliada e rejeitada: cria
+  dois padrões visuais na mesma lista sem ganho para as 3 metas do produto.
 - **Coluna direita** (~37%), dois painéis empilhados:
   - **Despesas recentes**: as 4 despesas comprovadas mais recentes (data +
     favorecido + valor), link "Ver todas (N) →" para a view Despesas.

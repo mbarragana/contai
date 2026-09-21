@@ -188,12 +188,17 @@ export function PortaoSessao({ children }: { children: ReactNode }) {
 
   if (estado.fase === "verificando" || estado.fase === "fora") {
     return (
-      <>
+      // ⚠️ CONTAI-040: a casca de 430px saiu do layout raiz e virou decisão de
+      // cada route group — mas este ramo é ANTERIOR a qualquer um deles (o
+      // portão roda na raiz, para valer em toda rota, inclusive nas abertas por
+      // deep link do lembrete). Sem a div aqui, o esqueleto de sessão pisca
+      // esticado em 1280px e o app "salta" quando o shell monta.
+      <div className="mx-auto flex h-dvh w-full max-w-[430px] flex-col overflow-hidden">
         <AppBar titulo="contai" sub="Verificando sua sessão" />
         <Corpo>
           <Carregando rotulo="Verificando a sessão" />
         </Corpo>
-      </>
+      </div>
     );
   }
 

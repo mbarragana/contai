@@ -280,7 +280,12 @@ test.describe("obra do registro", () => {
     // Troca a obra ativa para a outra obra.
     await page.goto("/obras");
     await page.getByRole("button", { name: /Casa do Morro/ }).click();
-    await expect(page.getByText("Obra aberta")).toBeVisible();
+    // ⚠️ CONTAI-040: "Obra aberta" virou o bloco da SIDEBAR, invisível em
+    // 375px. O KPI afirma a obra no piso — e o texto sai do MESMO contexto de
+    // gestão que alimenta a sidebar, então ele prova a troca de contexto.
+    await expect(
+      page.getByText(/Custo confirmado em \d{4} · Casa do Morro/),
+    ).toBeVisible();
 
     const gravados = await documentos(db);
     expect(gravados).toHaveLength(1);
@@ -336,7 +341,12 @@ test.describe("obra sem CNO", () => {
     const morro = await criarCasaDoMorro(db);
     await page.goto("/obras");
     await page.getByRole("button", { name: /Casa do Morro/ }).click();
-    await expect(page.getByText("Obra aberta")).toBeVisible();
+    // ⚠️ CONTAI-040: "Obra aberta" virou o bloco da SIDEBAR, invisível em
+    // 375px. O KPI afirma a obra no piso — e o texto sai do MESMO contexto de
+    // gestão que alimenta a sidebar, então ele prova a troca de contexto.
+    await expect(
+      page.getByText(/Custo confirmado em \d{4} · Casa do Morro/),
+    ).toBeVisible();
 
     // 1 · NF de material.
     await page.goto("/adicionar/documento");
@@ -465,7 +475,9 @@ test.describe("sem obra ativa persistida", () => {
 
     // Celular novo / storage limpo: o app abre a LISTA e não escolhe obra.
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Suas obras" })).toBeVisible();
+    // ⚠️ CONTAI-040: o título da view vem da barra superior do shell ("Obras"),
+    // não mais de um `AppBar` por página.
+    await expect(page.getByRole("heading", { name: "Obras" })).toBeVisible();
     await expect(page.getByText(/O app não escolhe por você/)).toBeVisible();
 
     // Critério 14 — asserção NEGATIVA, e ela é o critério: valor de obra
@@ -490,14 +502,19 @@ test.describe("sem obra ativa persistida", () => {
 
     // O formulário também não abre em obra nenhuma.
     await page.goto("/adicionar/documento");
-    await expect(page.getByRole("heading", { name: "Suas obras" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Obras" })).toBeVisible();
 
     expect(await documentos(db)).toHaveLength(0);
     expect(await pagamentos(db)).toHaveLength(0);
 
     // Só depois da escolha explícita o app abre uma obra.
     await page.getByRole("button", { name: /Casa Cachoeira/ }).click();
-    await expect(page.getByText("Obra aberta")).toBeVisible();
+    // ⚠️ CONTAI-040: "Obra aberta" virou o bloco da SIDEBAR, que em 375px fica
+    // fora da tela (a faixa estreita não a carrega). Quem afirma a obra aqui é
+    // o KPI — e ele a nomeia junto do número, que é o critério 9 do CONTAI-003.
+    await expect(
+      page.getByText(/Custo confirmado em \d{4} · Casa Cachoeira/),
+    ).toBeVisible();
   });
 });
 
@@ -545,8 +562,14 @@ test.describe("correção da obra de um registro", () => {
     expect(depois[0].obra_id).toBe(morro);
 
     // Saída da obra A: o valor não aparece mais em lugar nenhum dela.
-    await page.goto("/");
-    await expect(page.getByText("Nenhuma pendência.")).toBeVisible();
+    // ⚠️ CONTAI-040/042: a fila das dezoito famílias mora em /pendencias. Sobra
+    // só a do terreno sem registro, que é da obra e não do documento movido —
+    // e o valor de 4.850 não aparece em canto nenhum da obra A.
+    await page.goto("/pendencias");
+    await expect(page.locator("main [data-item-pendencia]")).toHaveCount(1);
+    await expect(
+      page.locator('main [data-item-pendencia="terreno_sem_registro"]'),
+    ).toHaveCount(1);
     await expect(page.getByText("4.850,00")).toHaveCount(0);
   });
 });

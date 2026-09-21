@@ -72,7 +72,12 @@ test.describe("entrar no app", () => {
     await entrarPelaTela(page);
 
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByText("Casa Cachoeira").first()).toBeVisible();
+    // ⚠️ CONTAI-040: "Obra aberta" virou o bloco da SIDEBAR, que em 375px fica
+    // fora da tela. Quem afirma a obra no piso é o KPI, que a nomeia junto do
+    // número (critério 9 do CONTAI-003).
+    await expect(
+      page.getByText(/Custo confirmado em \d{4} · Casa Cachoeira/),
+    ).toBeVisible();
   });
 
   /**
@@ -221,7 +226,12 @@ test.describe("entrar no app", () => {
     await entrarPelaTela(page);
 
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByText("Casa Cachoeira").first()).toBeVisible();
+    // ⚠️ CONTAI-040: "Obra aberta" virou o bloco da SIDEBAR, que em 375px fica
+    // fora da tela. Quem afirma a obra no piso é o KPI, que a nomeia junto do
+    // número (critério 9 do CONTAI-003).
+    await expect(
+      page.getByText(/Custo confirmado em \d{4} · Casa Cachoeira/),
+    ).toBeVisible();
   });
 });
 

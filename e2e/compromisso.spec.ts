@@ -440,8 +440,8 @@ test.describe("confirmar o pagamento de um agendamento", () => {
 
   /**
    * Critérios 13, 14 e 31 — valor MAIOR: separação principal × encargos, e a
-   * diferença sem explicação vira pendência VERMELHA na home, pelo valor
-   * exato, com o texto literal do §F.4.
+   * diferença sem explicação vira pendência VERMELHA na fila de /pendencias,
+   * pelo valor exato, com o texto literal do §F.4.
    */
   test("pagou R$ 10.500 com R$ 200 de encargo: R$ 300,00 viram pendência", async ({
     page,
@@ -470,8 +470,8 @@ test.describe("confirmar o pagamento de um agendamento", () => {
       resolucao: null,
     });
 
-    // A home passa a listar a pendência, com o valor exato.
-    await page.goto("/");
+    // A fila passa a listar a pendência, com o valor exato.
+    await page.goto("/pendencias");
     await expect(page.getByText("Diferença sem explicação").first()).toBeVisible();
     await expect(
       page.getByText(/R\$\s?300,00 do que você pagou ainda estão sem explicação/),

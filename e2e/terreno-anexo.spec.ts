@@ -315,7 +315,7 @@ test.describe("a pendência 'um lançamento, mais de uma data'", () => {
     db,
   }) => {
     await comPendencia(db);
-    await page.goto("/");
+    await page.goto("/pendencias");
 
     const cartao = page.locator('[data-pendencia="terreno-mais-de-uma-data"]');
     await expect(cartao).toBeVisible();

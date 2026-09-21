@@ -50,14 +50,15 @@ export default defineConfig({
       // Canteiro, uma mão livre: 375px é o PISO do produto, e é aqui que ele
       // é provado. Toda a suíte de comportamento mora neste projeto.
       use: { ...devices["iPhone SE"], viewport: { width: 375, height: 812 } },
-      testIgnore: /home-desktop\.spec\.ts/,
+      testIgnore: /shell-desktop\.spec\.ts/,
     },
     {
       name: "desktop",
-      // Gestão, em casa, sentado (CONTAI-039). UM smoke test de layout — não
-      // uma segunda cópia da suíte: comportamento se prova uma vez, no piso.
+      // Gestão, em casa, sentado (CONTAI-040). Testes de LAYOUT e NAVEGAÇÃO —
+      // não uma segunda cópia da suíte: comportamento se prova uma vez, no
+      // piso de 375px, onde mora toda a suíte de `mobile`.
       use: { ...devices["Desktop Safari"], viewport: { width: 1280, height: 800 } },
-      testMatch: /home-desktop\.spec\.ts/,
+      testMatch: /shell-desktop\.spec\.ts/,
     },
   ],
   webServer: {

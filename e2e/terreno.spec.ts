@@ -617,15 +617,16 @@ test.describe("painel do terreno", () => {
       page.getByText("Não bloqueia o app", { exact: false }),
     ).toBeVisible();
 
+    // ⚠️ CONTAI-040/042: as dezoito famílias moram na fila de /pendencias, e o
+    // valor sem data é uma delas — com superfície PRÓPRIA, como sempre teve.
+    await page.goto("/pendencias");
+    await expect(page.getByText("Falta a data", { exact: true })).toBeVisible();
+
+    // Critério 21, que é o ponto deste teste: o terreno NÃO entra no headline
+    // de "custo em risco" do CONTAI-005 — o favorecido não é prestador e o
+    // documento hábil não é NF. O KPI continua zerado.
     await page.goto("/");
-    // O bloco de PENDÊNCIAS FISCAIS continua vazio: nada de vermelho.
-    await expect(
-      page.getByText("Nenhuma pendência.", { exact: false }),
-    ).toBeVisible();
-    // E o valor sem data aparece, em bloco próprio.
-    await expect(
-      page.getByText("Terreno — valores sem data", { exact: true }),
-    ).toBeVisible();
+    await expect(page.locator("[data-custo-em-risco]")).toContainText("R$ 0,00");
   });
 
   test("o ano corrente aparece como 'aguardando informe', nunca em silêncio", async ({
@@ -707,7 +708,7 @@ test.describe("painel do terreno", () => {
 // subestimado vira ganho de capital inflado no dia da venda.
 
 test.describe("o financiamento nunca fica em silêncio (critério 16)", () => {
-  test("contrato cadastrado e ZERO informes: a home NOMEIA os anos não lançados", async ({
+  test("contrato cadastrado e ZERO informes: o app NOMEIA os anos não lançados", async ({
     page,
     db,
   }) => {
@@ -717,7 +718,7 @@ test.describe("o financiamento nunca fica em silêncio (critério 16)", () => {
     await contrato(db); // contrato de ANO_BASE - 1
     await definirNatureza(db, "financiado");
 
-    await page.goto("/");
+    await page.goto("/pendencias");
 
     // O ano JÁ FECHADO, com a consequência por extenso e a ação possível.
     const faltaLancar = page.locator(`[data-falta-lancar="${ANO_BASE}"]`);
@@ -737,18 +738,16 @@ test.describe("o financiamento nunca fica em silêncio (critério 16)", () => {
     ).toBeVisible();
 
     // E o ano CORRENTE, que é outra coisa: o banco ainda não publicou nada.
+    // ⚠️ Na fila unificada o ano vem no CHIP (`comAnoNoChip`): não há `Passo`
+    // por família para carregá-lo, e sem isto o ano se perderia.
     await expect(
-      page.getByText(
-        `Financiamento ${ANO_CORRENTE} — aguardando informe anual`,
-        { exact: true },
-      ),
+      page.getByText(`Aguardando informe de ${ANO_CORRENTE}`, { exact: true }),
     ).toBeVisible();
 
     // ⚠️ Nada disso é pendência fiscal: o headline de "custo em risco" do
     // CONTAI-005 não muda de código neste ticket (critério 21).
-    await expect(
-      page.getByText("Nenhuma pendência.", { exact: false }),
-    ).toBeVisible();
+    await page.goto("/");
+    await expect(page.locator("[data-custo-em-risco]")).toContainText("R$ 0,00");
   });
 
   test("obra SEM contrato não vê uma palavra sobre informe", async ({
@@ -765,7 +764,7 @@ test.describe("o financiamento nunca fica em silêncio (critério 16)", () => {
       data_pagamento: `${ANO_BASE}-06-10`,
     });
 
-    await page.goto("/");
+    await page.goto("/pendencias");
     await expect(page.getByText("aguardando informe", { exact: false })).toHaveCount(
       0,
     );
@@ -799,11 +798,16 @@ test.describe("o R$ 0,00 do terreno não é apuração", () => {
     ).toHaveCount(0);
   });
 
-  test("a home mostra a parte do terreno e o mesmo aviso", async ({ page }) => {
+  test("o dashboard mostra a parte do terreno e o mesmo aviso", async ({ page }) => {
     await page.goto("/");
     await expect(
       page.getByText("Terreno nesta soma:", { exact: false }),
     ).toBeVisible();
+    // ⚠️ **SEM `.first()`, e isso é o teste.** O aviso do terreno sem registro
+    // é a 18ª família da fila (CONTAI-042) E uma condicional do KPI de custo
+    // confirmado (CONTAI-040, critério 8). No dashboard ele pode aparecer UMA
+    // vez só — a mesma frase fiscal duas vezes na mesma tela é a D46, e é por
+    // isso que o painel de pendências não repete esta família.
     await expect(
       page.getByText("nada foi registrado ainda — não que nada foi pago", {
         exact: false,

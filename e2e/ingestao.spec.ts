@@ -195,6 +195,11 @@ test.describe("home de pendências", () => {
     // 67.850 não aparece em lugar nenhum da tela.
     await expect(page.getByText("67.850,00")).toHaveCount(0);
 
+    // ⚠️ CONTAI-040/042: daqui para baixo o assunto é a FILA de pendências, que
+    // deixou de viver na home e virou superfície própria — com as dezoito
+    // famílias, e não as sete que a home enumerava.
+    await page.goto("/pendencias");
+
     await expect(page.getByText("NF fora do seu CPF")).toBeVisible();
     await expect(
       page.getByText("Não entra no custo de aquisição. Peça a nota no seu CPF."),
@@ -226,7 +231,7 @@ test.describe("home de pendências", () => {
     ).toHaveCount(0);
   });
 
-  test("favorecido PF: a home cobra recibo assinado, não NF", async ({
+  test("favorecido PF: a fila cobra recibo assinado, não NF", async ({
     page,
     db,
   }) => {
@@ -244,7 +249,7 @@ test.describe("home de pendências", () => {
       comprovante_path: `${USER_ID_SEED}/comprovante/pix-jose.png`,
     });
 
-    await page.goto("/");
+    await page.goto("/pendencias");
 
     await expect(page.getByText("Pago sem recibo")).toBeVisible();
     await expect(page.getByText("1 PIX sem recibo vinculado")).toBeVisible();
@@ -258,11 +263,22 @@ test.describe("home de pendências", () => {
     expect(await documentos(db)).toHaveLength(0);
     expect(await pagamentos(db)).toHaveLength(0);
 
-    await page.goto("/");
-    await expect(page.getByText("Nenhuma pendência.")).toBeVisible();
+    // ⚠️ **Banco vazio NÃO é fila vazia, e isso é o CONTAI-042 funcionando.**
+    // A 18ª família (`terreno_sem_registro`) abre sozinha porque a obra do seed
+    // não tem desembolso datado: o "R$ 0,00 do terreno" é a AUSÊNCIA de
+    // registro, não uma apuração (Gate Fiscal §1). O que este teste prova é que
+    // nenhuma família de documento/pagamento abriu — e é por isso que ele conta
+    // a fila em vez de procurar um banner de "nenhuma pendência", que foi
+    // justamente o texto que a D59 usou para mentir.
+    await page.goto("/pendencias");
+    await expect(page.locator("main [data-item-pendencia]")).toHaveCount(1);
+    await expect(
+      page.locator('main [data-item-pendencia="terreno_sem_registro"]'),
+    ).toHaveCount(1);
     await expect(page.getByText(/Em pendência/)).toHaveCount(0);
 
     // ── CONTAI-005 · o estado ZERO do headline ────────────────────────────
+    await page.goto("/");
     //
     // ⚠️ O card **não some** no zero, ao contrário dos outros blocos (decisão
     // 3 do mock v5): "zero risco de IR" não é o mesmo fato que "zero
@@ -339,8 +355,11 @@ test.describe("home de pendências", () => {
 
 test.describe("registrar documento", () => {
   async function irParaFormulario(page: Page) {
+    // ⚠️ CONTAI-040: nas telas de `(gestao)` a porta de captura é o
+    // "+ Novo registro" da faixa (375px) / do topbar (desktop). `/adicionar`
+    // em si não mudou de uma linha.
     await page.goto("/");
-    await page.getByRole("link", { name: "+ Adicionar" }).click();
+    await page.getByRole("link", { name: "+ Novo registro" }).click();
     await page.getByRole("link", { name: /Documento — PDF/ }).click();
     await expect(
       page.getByRole("heading", { name: "Registrar documento" }),
@@ -917,7 +936,7 @@ test.describe("identificação da nota (CONTAI-004)", () => {
 test.describe("registrar pagamento avulso", () => {
   async function irParaFormulario(page: Page) {
     await page.goto("/");
-    await page.getByRole("link", { name: "+ Adicionar" }).click();
+    await page.getByRole("link", { name: "+ Novo registro" }).click();
     await page.getByRole("link", { name: "💸 Pagamento" }).click();
     await expect(
       page.getByRole("heading", { name: "Registrar pagamento" }),
@@ -966,9 +985,9 @@ test.describe("registrar pagamento avulso", () => {
     expect(gravados[0]).toMatchObject({ valor: 15000, comprovante_path: null });
     expect(await favorecidos(db)).toHaveLength(1);
 
-    // E na home ele aparece como pendência AMARELA (PJ com NF): o custo
+    // E na fila ele aparece como pendência AMARELA (PJ com NF): o custo
     // existe, ainda não está demonstrável.
-    await page.goto("/");
+    await page.goto("/pendencias");
     const pendencia = page
       .locator("div")
       .filter({ hasText: /^Pago sem comprovante/ })
@@ -1009,7 +1028,7 @@ test.describe("registrar pagamento avulso", () => {
 
     expect(await pagamentos(db)).toHaveLength(1);
 
-    await page.goto("/");
+    await page.goto("/pendencias");
     await expect(
       page.getByText(
         "sem o comprovante da transferência, este recibo não sustenta custo nenhum",

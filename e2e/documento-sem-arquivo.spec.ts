@@ -523,15 +523,15 @@ test.describe("⚠️ o flip barato é impossível (critério 10)", () => {
   });
 });
 
-// ══ s4 · a superfície agregada na home (critério 11) ═════════════════════
+// ══ s4 · a superfície agregada em /pendencias (critério 11) ═════════════
 
-test.describe("card agregado na home (critério 11, D47)", () => {
+test.describe("card agregado na fila de pendências (critério 11, D47)", () => {
   test("um documento: valor, contagem e CTA apontando para ELE", async ({
     page,
     db,
   }) => {
     const id = await notaSemArquivo(db, { valor: 4200 });
-    await page.goto("/");
+    await page.goto("/pendencias");
 
     const card = page.locator('[data-pendencia="documentos-sem-arquivo"]');
     await expect(card).toBeVisible();
@@ -552,7 +552,7 @@ test.describe("card agregado na home (critério 11, D47)", () => {
   }) => {
     await notaSemArquivo(db, { valor: 4200 });
     await notaSemArquivo(db, { valor: 2650 });
-    await page.goto("/");
+    await page.goto("/pendencias");
 
     const card = page.locator('[data-pendencia="documentos-sem-arquivo"]');
     await expect(card).toContainText("2 documentos");
@@ -577,7 +577,7 @@ test.describe("card agregado na home (critério 11, D47)", () => {
       destinatario_cpf_ok: true,
       status: "registrado",
     });
-    await page.goto("/");
+    await page.goto("/pendencias");
     await expect(
       page.locator('[data-pendencia="documentos-sem-arquivo"]'),
     ).toHaveCount(0);

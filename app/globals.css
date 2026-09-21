@@ -15,6 +15,17 @@
   --color-grn: #15803d;
   --color-grn-bg: #e9f5ed;
 
+  /* Rail de navegação do shell de gestão — CONTAI-040
+     (design/mocks/desktop-shell-v1.html, `:root`).
+     Escuro DE PROPÓSITO: o "papel" claro é conteúdo, e navegação permanente
+     com a mesma cor do papel seria lida como mais um bloco de conteúdo. Só o
+     grupo de rotas `(gestao)` usa estes tokens. */
+  --color-side-bg: #1c1b17;
+  --color-side-line: #33312a;
+  --color-side-text: #cfc9ba;
+  --color-side-mut: #8b8578;
+  --color-side-active: #2c2a24;
+
   --font-sans:
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;

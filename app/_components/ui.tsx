@@ -33,91 +33,33 @@ export function AppBar({ titulo, sub }: { titulo: string; sub?: string }) {
 }
 
 /**
- * `className` entrou no CONTAI-039 (critério 3) e é APÊNDICE, nunca
- * substituição: a classe base continua valendo inteira para as 43 telas que
- * chamam `<Corpo>` sem o prop — nenhuma delas muda de pixel. Mesmo padrão do
- * `Card` logo abaixo.
+ * O corpo rolável das telas de `app/(captura)/` — o app de 430px.
  *
- * ⚠️ O prop nasceu para a HOME, que é tela de gestão (`CLAUDE.md`, cenário
- * principal). Ele não é licença para densificar tela de CAPTURA
- * (`/adicionar/*`): lá a régua continua sendo o Teste do Canteiro — uma mão,
- * com pressa. Pre-mortem 2 do CONTAI-039 registra que aqui não há trava de
- * código, só doutrina e revisão.
+ * `className` é APÊNDICE, nunca substituição: a classe base continua valendo
+ * inteira para as telas que chamam `<Corpo>` sem o prop. Mesmo padrão do `Card`
+ * logo abaixo.
  *
- * `largo?: boolean` (CONTAI-039, review do Gate 2) — prop tipado, não spread:
- * um `<main>` compartilhado por 44 telas não ganha `onClick`/`style`/`id`
- * genéricos de graça, e um typo no nome do atributo (`data-lago`) vira erro de
- * tipo em vez de casca presa em 430px em silêncio. **`data-largo`** é o único
- * atributo que existia atrás do spread antigo: é ele que abre a casca de
- * 430px para 1280px em `lg` (`app/layout.tsx`, via `:has()`), e quem o
- * declara é a PÁGINA, no estado em que ela de fato tem duas colunas — nunca o
- * componente compartilhado. Tela sem `largo` continua bit a bit como antes
- * do CONTAI-039.
+ * ⚠️ **`largo`, `Secao` e `Faixa` MORRERAM no CONTAI-040.** Eram o mecanismo do
+ * CONTAI-039: a página declarava `data-largo`, a casca abria de 430px para
+ * 1280px por um `:has()` e a fila virava grid de duas colunas. O Mateus rejeitou
+ * o resultado ("várias telas de celular lado a lado"), a home velha era o único
+ * consumidor dos três, e o desktop agora é um grupo de rotas próprio
+ * (`app/(gestao)/`) com casca própria. Quem for reintroduzir largura variável
+ * aqui está reabrindo o CONTAI-039: a separação é por ROTA, não por breakpoint.
  */
 export function Corpo({
   children,
   className = "",
-  largo = false,
 }: {
   children: ReactNode;
   className?: string;
-  largo?: boolean;
 }) {
   return (
     <main
-      data-largo={largo ? "" : undefined}
       className={`flex flex-1 flex-col gap-3 overflow-y-auto px-[18px] py-4 ${className}`}
     >
       {children}
     </main>
-  );
-}
-
-/**
- * A fila de trabalho em grid — CONTAI-039, critério 4.
- *
- * Abaixo de `lg` é a MESMA coluna de hoje (`flex flex-col gap-3`, a pilha do
- * `Corpo`); a partir de `lg` vira grid de 2 colunas ao lado da régua fiscal.
- *
- * ⚠️ `grid-auto-flow` fica no PADRÃO (`row`), nunca `dense`, e nenhum filho
- * leva `order`: a ordem visual tem de ser a ordem do DOM, que é a ordem
- * FISCAL de gravidade decidida tela a tela. `dense` preencheria buracos fora
- * de ordem e faria a tela mentir sobre a fila (Pre-mortem 1 do ticket).
- *
- * O particionamento é MECÂNICO (spec de design, decisão 2): `Card` é célula
- * própria (span 1, sem classe nenhuma) — inclusive cada item de um `.map()` —
- * e tudo que não é `Card` atravessa as duas colunas via `Faixa`.
- */
-export function Secao({ children }: { children: ReactNode }) {
-  return (
-    <div
-      data-secao
-      className="flex flex-col gap-3 lg:grid lg:min-w-0 lg:flex-1 lg:grid-cols-2 lg:items-start lg:gap-4"
-    >
-      {children}
-    </div>
-  );
-}
-
-/**
- * O filho da `Secao` que atravessa as DUAS colunas — `Passo`, `Banner`,
- * `BlocoAgendados` e os `Dica` de rodapé (spec de design, decisão 2).
- *
- * ⚠️ `contents` abaixo de `lg` NÃO é preciosismo: sem ele este invólucro
- * viraria uma caixa a mais na pilha do celular e, quando o filho renderiza
- * `null` (`AvisoEquiparacao` fora do caso de equiparação, `BlocoAgendados`
- * com agenda vazia), uma caixa VAZIA — que no `gap-3` do `Corpo` abre um
- * buraco de 12px onde hoje não há nada. Com `display: contents` o invólucro
- * não existe no layout: o piso de 375px fica bit a bit como era.
- *
- * `lg:empty:hidden` faz o mesmo serviço em `lg`, onde a caixa precisa existir
- * para valer o `col-span-2`: vazia, ela abriria uma linha de grid inteira.
- */
-export function Faixa({ children }: { children: ReactNode }) {
-  return (
-    <div className="contents lg:col-span-2 lg:block lg:empty:hidden">
-      {children}
-    </div>
   );
 }
 
@@ -153,40 +95,14 @@ export function Rodape({ children }: { children: ReactNode }) {
  * toda tela principal, não só da home: o relato ("não tem um link para
  * acessar a página /adicionar, o que é um absurdo") é sobre isso.
  */
-export function BarraAdicionar({
-  voltar,
-  alinharComFila = false,
-}: {
-  voltar?: ReactNode;
-  /**
-   * ⚠️ CONTAI-039, critério 10 · o espaçador da régua fiscal — **opt-in, e o
-   * default é o comportamento de hoje**.
-   *
-   * Em `lg`, "+ Adicionar" pertence à FILA DE TRABALHO (a coluna da direita,
-   * onde a pendência nasce) e não à régua de leitura do `<aside>`. Ligado, um
-   * bloco invisível reserva a largura do aside e o botão cai exatamente sob a
-   * `Secao`, em vez de esticar pelos 1280px da casca.
-   *
-   * ⚠️ **Só liga onde existe aside, e só no estado em que ele existe.** Foi
-   * medido no Gate 2: incondicional, as 5 telas que usam esta barra abriam um
-   * buraco de 400px à esquerda sem régua nenhuma do outro lado — e, com a
-   * casca de volta aos 430px nelas (`data-largo`, `app/layout.tsx`), 400px +
-   * `gap-8` estouram o rodapé. É a mesma regra do `data-largo`: quem declara
-   * que é larga é a PÁGINA, não o componente compartilhado.
-   *
-   * ⚠️ `lg:w-[400px]` e `lg:gap-8` são a MESMA grafia do `<aside>` e do
-   * `<Corpo>` da home (`app/page.tsx`) — Tailwind exige string literal, então
-   * a sincronia é por comentário cruzado, não por constante compartilhada.
-   * Mudou lá, muda aqui (Pre-mortem 3).
-   */
-  alinharComFila?: boolean;
-}) {
+export function BarraAdicionar({ voltar }: { voltar?: ReactNode }) {
   return (
     <Rodape>
-      <div className={`flex gap-2 ${alinharComFila ? "lg:gap-8" : ""}`}>
-        {alinharComFila ? (
-          <div aria-hidden className="hidden lg:block lg:w-[400px] lg:flex-none" />
-        ) : null}
+      {/* ⚠️ `alinharComFila` MORREU no CONTAI-040 junto com a casca larga
+          opt-in: o espaçador existia para alinhar o botão sob a fila de duas
+          colunas da home velha, que não existe mais. No desktop a porta de
+          registro é o "+ Novo registro" do shell. */}
+      <div className="flex gap-2">
         {voltar ? <div className="flex-1">{voltar}</div> : null}
         <div className={voltar ? "flex-none" : "flex-1"}>
           <BotaoLink href="/adicionar">+ Adicionar</BotaoLink>

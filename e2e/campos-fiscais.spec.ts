@@ -243,6 +243,11 @@ const MAPA: Record<string, Classificacao> = {
       "espelho de `/documento/[id]/obra`: escolha por cartão, fora do alcance da enumeração — `obraDestino` e `escolhaDoc[d]` são botões",
   },
   "/pendencias": { semCamposFiscais: "lista de pendências, só leitura" },
+  // ⚠️ CONTAI-040: a rota nasce sem a tabela (que é do CONTAI-041) — hoje é o
+  // aviso do que falta mais a lista de despesas comprovadas, sem um controle.
+  "/despesas": {
+    semCamposFiscais: "lista de despesas comprovadas + aviso; nenhum campo",
+  },
 
   // ── Classificadas, ainda não visitadas ────────────────────────────────
   // Cada linha diz o que a suíte deixa de conferir. É cobertura declarada,
@@ -360,7 +365,14 @@ function rotasDoFilesystem(): string[] {
       if (entrada.isDirectory()) {
         // `_components` e afins são pastas privadas do Next: não viram rota.
         if (entrada.name.startsWith("_")) continue;
-        andar(join(dir, entrada.name), `${rota}/${entrada.name}`);
+        // ⚠️ CONTAI-040: `(gestao)` e `(captura)` são ROUTE GROUPS — organizam
+        // a árvore e escolhem a casca, mas não entram na URL. Sem esta linha o
+        // mapa passaria a cobrar rotas que não existem ("/(gestao)/despesas").
+        const ehGrupo = /^\(.+\)$/.test(entrada.name);
+        andar(
+          join(dir, entrada.name),
+          ehGrupo ? rota : `${rota}/${entrada.name}`,
+        );
       } else if (entrada.name === "page.tsx") {
         achadas.push(rota === "" ? "/" : rota);
       }

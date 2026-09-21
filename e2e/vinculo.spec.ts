@@ -103,9 +103,13 @@ test.describe("caminho B — a partir do documento já registrado", () => {
     ).toBeVisible();
 
     // Antes do vínculo a mesma despesa ocupa DOIS cartões — é a palavra
-    // "duplicadas" do relato.
+    // "duplicadas" do relato. ⚠️ CONTAI-040/042: o lado do PAGAMENTO é
+    // pendência e mora na fila de /pendencias; o lado da NOTA é o terceiro
+    // estado (§5.2), que não é pendência e continua no painel do dashboard.
+    await page.goto("/pendencias");
     await expect(page.getByText("1 PIX sem NF vinculada")).toBeVisible();
 
+    await page.goto("/");
     await page.getByRole("link", { name: "Ligar a um pagamento" }).click();
     await expect(
       page.getByRole("heading", { name: "Ligar pagamentos a esta nota" }),
@@ -154,14 +158,18 @@ test.describe("caminho B — a partir do documento já registrado", () => {
     const pagos = await pagamentos(db);
     expect(pagos[0].status).toBe("conciliado");
 
-    // Critério 13: na home, UMA despesa — nem a NF nem o PIX soltos.
+    // Critério 13: no dashboard, UMA despesa — nem a NF nem o PIX soltos.
     await page.goto("/");
-    await expect(page.getByText("Despesas comprovadas")).toBeVisible();
-    await expect(page.getByText(/uma despesa, não duas/)).toBeVisible();
-    await expect(page.getByText("1 PIX sem NF vinculada")).toHaveCount(0);
+    const painel = page.locator('[data-painel="despesas-recentes"]');
+    await expect(painel.getByText("Despesas recentes")).toBeVisible();
+    await expect(painel.getByText(/uma despesa, não duas/).first()).toBeVisible();
     await expect(
       page.getByText("NF de serviço sem pagamento ligado"),
     ).toHaveCount(0);
+    // E o lado do pagamento saiu da fila de pendências junto.
+    await page.goto("/pendencias");
+    await expect(page.getByText("1 PIX sem NF vinculada")).toHaveCount(0);
+    await page.goto("/");
     await expect(page.getByText(/Custo confirmado em/).locator("..")).toContainText(
       "3.000,00",
     );
@@ -767,13 +775,13 @@ test.describe("um candidato já ligado por outra aba (B1)", () => {
 });
 
 test.describe("caminho a partir do pagamento (critério 3)", () => {
-  test("o cartão 'pago sem nota' da home leva ao seletor inverso", async ({
+  test("o cartão 'pago sem nota' da fila leva ao seletor inverso", async ({
     page,
     db,
   }) => {
     const { documentoId, pagamentoId } = await cenarioWk(db);
 
-    await page.goto("/");
+    await page.goto("/pendencias");
     await page.getByRole("link", { name: /Ligar a uma nota/ }).click();
 
     await expect(page.getByRole("heading", { name: "Pagamento" })).toBeVisible();
@@ -877,19 +885,26 @@ test.describe("caminho a partir do pagamento (critério 3)", () => {
  * As duas condições que o ticket exige: conteúdo curto e lista longa rolada
  * até o meio. O FAB `sticky` dentro do `Corpo` passava na primeira e pousava
  * sobre o conteúdo na segunda.
+ *
+ * ⚠️ **CONTAI-040, critério 6 — a porta do canteiro NÃO se perde no pivô
+ * desktop.** Nas telas de `(gestao)` o alvo deixou de ser a `BarraAdicionar`
+ * do rodapé e passou a ser o "+ Novo registro" da FAIXA estreita, que fica
+ * fora da área que rola. *"Pode quebrar o mobile"* autoriza densidade feia;
+ * não autoriza o canteiro a perder a entrada de `/adicionar` — e é isso que
+ * estes dois testes continuam medindo, no mesmo piso de 375px.
  */
 test.describe("acesso a /adicionar (critério 12)", () => {
-  test("home com conteúdo curto: o alvo está visível e clicável", async ({
+  test("dashboard com conteúdo curto: o alvo está visível e clicável", async ({
     page,
   }) => {
     await page.goto("/");
-    const alvo = page.getByRole("link", { name: "+ Adicionar" });
+    const alvo = page.getByRole("link", { name: "+ Novo registro" });
     await expect(alvo).toBeInViewport();
     await alvo.click();
     await expect(page.getByRole("heading", { name: "Adicionar" })).toBeVisible();
   });
 
-  test("home com lista longa rolada até o meio: o alvo continua no lugar", async ({
+  test("fila longa rolada até o meio: o alvo continua no lugar", async ({
     page,
     db,
   }) => {
@@ -918,7 +933,7 @@ test.describe("acesso a /adicionar (critério 12)", () => {
       });
     }
 
-    await page.goto("/");
+    await page.goto("/pendencias");
     await expect(page.getByText("Quarentena").first()).toBeVisible();
 
     // Quem rola é o corpo da tela (h-dvh + overflow-y-auto), não a página.
@@ -927,7 +942,7 @@ test.describe("acesso a /adicionar (critério 12)", () => {
       el.scrollTop = el.scrollHeight / 2;
     });
 
-    const alvo = page.getByRole("link", { name: "+ Adicionar" });
+    const alvo = page.getByRole("link", { name: "+ Novo registro" });
     await expect(alvo).toBeInViewport();
     await alvo.click();
     await expect(page.getByRole("heading", { name: "Adicionar" })).toBeVisible();

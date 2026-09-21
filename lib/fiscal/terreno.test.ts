@@ -553,8 +553,8 @@ describe("a marca do FCVS", () => {
 describe("critério 19 — insumo para revisão do CRC, nunca veredito", () => {
   /** As três superfícies que mostram número de custo do financiamento. */
   const SUPERFICIES = [
-    "app/obras/[id]/terreno/page.tsx",
-    "app/obras/[id]/terreno/informe/[anoBase]/page.tsx",
+    "app/(captura)/obras/[id]/terreno/page.tsx",
+    "app/(captura)/obras/[id]/terreno/informe/[anoBase]/page.tsx",
   ];
 
   it("a frase existe e nomeia o CRC, os juros e quem assume a posição", () => {
@@ -580,7 +580,7 @@ describe("critério 19 — insumo para revisão do CRC, nunca veredito", () => {
     // O informe tem duas: a conferência (passo 3) e a tela de gravado. Perder
     // uma das duas é perder a ressalva justamente onde o número vira definitivo.
     const informe = readFileSync(
-      "app/obras/[id]/terreno/informe/[anoBase]/page.tsx",
+      "app/(captura)/obras/[id]/terreno/informe/[anoBase]/page.tsx",
       "utf-8",
     );
     const usos = informe.split("INSUMO_PARA_REVISAO_CRC").length - 1;
@@ -1777,8 +1777,14 @@ describe("CONTAI-036 · o veto é por saída, e a porta continua única", () => 
      * dispensado de uma vez, que era o buraco de ontem.
      */
     const FORA_COM_MOTIVO: Record<string, string> = {
-      "app/_components/custo-em-risco.tsx::CardAfericaoInss":
-        "não produz saída anual: é o CARD da home do CONTAI-005 (Bloco 2 do " +
+      // ⚠️ CONTAI-040: a chave mudou de arquivo e de símbolo — o card mobile
+      // `app/_components/custo-em-risco.tsx::CardAfericaoInss` foi APAGADO
+      // (a home velha era o único consumidor) e o que desenha o mesmo Bloco 2
+      // hoje é o KPI do dashboard. O motivo é o mesmo, palavra por palavra:
+      // mudou a caixa, não o que ela faz.
+      "app/_components/kpi.tsx::TileAfericaoInss":
+        "não produz saída anual: é o KPI do dashboard do CONTAI-040, herdeiro " +
+        "direto do card da home do CONTAI-005 (Bloco 2 do " +
         "parecer de 16/08). Recebe dois valores prontos (`cno` e " +
         "`baseCentavos`) e desenha texto — não lê documento, não lê pagamento, " +
         "não apura nada e não conhece ano-calendário. E diz em tela, com a " +

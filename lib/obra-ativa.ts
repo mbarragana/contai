@@ -31,10 +31,40 @@ export function lerObraPreferida(): string | null {
   return id && id.trim() !== "" ? id : null;
 }
 
+/**
+ * ⚠️ **CONTAI-040, critério 2 — trocar de obra troca o CONTEXTO INTEIRO.**
+ *
+ * O shell de gestão (`app/(gestao)/layout.tsx`) carrega obra, resumo, agenda e
+ * a fila de pendências **uma vez**, e o layout de um route group NÃO é
+ * remontado ao navegar entre as telas do grupo. Sem este aviso, escolher outra
+ * obra em `/obras` — que é uma tela do próprio grupo — deixaria a sidebar, o
+ * badge e os KPIs mostrando a obra ANTERIOR até um recarregamento manual.
+ * Número fiscal atribuído à obra errada é o defeito mais caro do produto.
+ *
+ * `Event` do `window` e não estado do React: quem grava a preferência é uma
+ * função pura chamada de telas diferentes, e o provedor é quem escuta.
+ */
+export const EVENTO_OBRA_ATIVA = "contai:obra-ativa";
+
+function avisar(): void {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(EVENTO_OBRA_ATIVA));
+  }
+}
+
 export function gravarObraPreferida(id: string): void {
   armazenamento()?.setItem(CHAVE_OBRA_ATIVA, id);
+  avisar();
 }
 
 export function limparObraPreferida(): void {
   armazenamento()?.removeItem(CHAVE_OBRA_ATIVA);
+  avisar();
+}
+
+/** Assina a troca de obra. Devolve a função que cancela a assinatura. */
+export function observarObraPreferida(aoTrocar: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(EVENTO_OBRA_ATIVA, aoTrocar);
+  return () => window.removeEventListener(EVENTO_OBRA_ATIVA, aoTrocar);
 }

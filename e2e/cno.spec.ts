@@ -309,8 +309,9 @@ test.describe("o CNO impresso na nota (critérios 1, 2, 3 e 6)", () => {
       status: "registrado",
     });
 
-    // Critério 4: junto das demais pendências, na lista da home.
-    await page.goto("/");
+    // Critério 4: junto das demais pendências, na fila de /pendencias
+    // (a home virou dashboard no CONTAI-040; a lista inteira mora lá).
+    await page.goto("/pendencias");
     await expect(page.getByText("NF de serviço sem CNO impresso")).toBeVisible();
     await expect(
       page.getByText(/pedir nota com o CNO ao prestador/),

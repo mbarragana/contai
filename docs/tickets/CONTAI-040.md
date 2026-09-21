@@ -36,6 +36,17 @@ que acabou de acontecer no canteiro.
 
 ## Escopo e Critérios de Aceite
 
+**✅ Entregue em 2026-09-21, 13/13 critérios.** Separação por route groups
+Next 16: `(gestao)` com shell novo (sidebar, dashboard), `(captura)`
+intocado — ~40 telas movidas sem mudança de comportamento. `Secao`/`Faixa`/
+`largo`/`alinharComFila`/`data-largo` do CONTAI-039 apagados (órfãos).
+Gate 2 (`cto-obra`+`po`+`contador`) com 1 rodada de rework (`OPCOES_DE_
+REGISTRO` extraído com teste-trava). 877 unitários + 248 E2E + validação
+manual extensa no browser. Gate 4 (`po`) PASS. Sem migration. **Destrava o
+CONTAI-041.** Decisões de produto do Gate 1 (seletor de ano como texto,
+painel com cards completos) registradas em `docs/backlog/48-2026-09-21-
+gate1-decisoes-contai-040.md`.
+
 Fonte de verdade do desenho: `design/mocks/desktop-shell-v1.md` (seções
 "Shell de navegação" e "Dashboard") e o protótipo navegável
 `design/mocks/desktop-shell-v1.html`. Arquitetura de separação

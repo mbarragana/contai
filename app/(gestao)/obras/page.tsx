@@ -5,14 +5,11 @@ import { useCallback, useEffect, useState } from "react";
 
 import { ListaDeEscolha } from "@/app/_components/obra";
 import {
-  AppBar,
   Banner,
   BotaoLink,
   Carregando,
-  Corpo,
   Dica,
   EstadoErro,
-  Rodape,
 } from "@/app/_components/ui";
 import {
   carregarPaineis,
@@ -85,73 +82,70 @@ export default function Obras() {
     // de erro sem saída, e matrícula/CNO/valor do terreno só entravam por SQL.
     return (
       <>
-        <AppBar titulo="contai" sub="Primeiro acesso" />
-        <Corpo>
-          <div className="mt-6 text-center">
-            <div className="text-[15px] font-semibold">
-              Nenhuma obra cadastrada
-            </div>
-            <p className="mt-2 text-[12px] text-mut">
-              O contai guarda documento e pagamento por obra, porque cada obra é
-              uma matrícula na sua declaração e um CNO na aferição do INSS.
-              Comece cadastrando a primeira.
-            </p>
+        <div className="mt-6 text-center">
+          <div className="text-[15px] font-semibold">
+            Nenhuma obra cadastrada
           </div>
-        </Corpo>
-        <Rodape>
+          <p className="mt-2 text-[12px] text-mut">
+            O contai guarda documento e pagamento por obra, porque cada obra é
+            uma matrícula na sua declaração e um CNO na aferição do INSS. Comece
+            cadastrando a primeira.
+          </p>
+        </div>
+        <div className="mt-4 max-w-[430px]">
           <BotaoLink href="/obras/nova" variante="primary">
             Cadastrar a primeira obra
           </BotaoLink>
-        </Rodape>
+        </div>
       </>
     );
   }
 
   return (
     <>
-      <AppBar titulo="Suas obras" sub="Escolha em qual você vai mexer" />
-      <Corpo>
-        {estado.fase === "carregando" ? (
-          <Carregando rotulo="Carregando as obras" />
-        ) : null}
+      {estado.fase === "carregando" ? (
+        <Carregando rotulo="Carregando as obras" />
+      ) : null}
 
-        {estado.fase === "erro" ? (
-          <EstadoErro erro={estado.erro} onTentarDeNovo={tentarDeNovo} />
-        ) : null}
+      {estado.fase === "erro" ? (
+        <EstadoErro erro={estado.erro} onTentarDeNovo={tentarDeNovo} />
+      ) : null}
 
-        {estado.fase === "pronto" ? (
-          <>
-            <Banner cor="amb" role="status">
-              <strong>Escolha a obra.</strong> O app não escolhe por você — um
-              documento na obra errada infla a base de INSS da outra e trava a
-              regularização daquele CNO.
-            </Banner>
+      {estado.fase === "pronto" ? (
+        <>
+          <Banner cor="amb" role="status">
+            <strong>Escolha a obra.</strong> O app não escolhe por você — um
+            documento na obra errada infla a base de INSS da outra e trava a
+            regularização daquele CNO.
+          </Banner>
 
-            <ListaDeEscolha
-              obras={estado.paineis.map((p) => p.obra)}
-              hoje={hoje}
-              onEscolher={escolher}
-              pendenciasPorObra={
-                new Map(
-                  estado.paineis.map((p) => [
-                    p.obra.id,
-                    calcularResumo({ ...p, ano }).pendencias.length,
-                  ]),
-                )
-              }
-            />
+          <ListaDeEscolha
+            obras={estado.paineis.map((p) => p.obra)}
+            hoje={hoje}
+            onEscolher={escolher}
+            pendenciasPorObra={
+              new Map(
+                estado.paineis.map((p) => [
+                  p.obra.id,
+                  calcularResumo({ ...p, ano }).pendencias.length,
+                ]),
+              )
+            }
+          />
 
-            <Dica>
-              Sem valores em dinheiro aqui de propósito: dois números lado a lado
-              viram uma soma mental, e não existe total das duas obras em
-              declaração nenhuma. O dinheiro mora dentro da obra.
-            </Dica>
-          </>
-        ) : null}
-      </Corpo>
-      <Rodape>
-        <BotaoLink href="/obras/nova">+ Nova obra</BotaoLink>
-      </Rodape>
+          <Dica>
+            Sem valores em dinheiro aqui de propósito: dois números lado a lado
+            viram uma soma mental, e não existe total das duas obras em
+            declaração nenhuma. O dinheiro mora dentro da obra.
+          </Dica>
+
+          {/* ⚠️ CONTAI-040: era `Rodape` fixo, peça do fluxo de 430px. Dentro
+              do shell a ação fecha a lista, que é onde ela é lida. */}
+          <div className="max-w-[430px]">
+            <BotaoLink href="/obras/nova">+ Nova obra</BotaoLink>
+          </div>
+        </>
+      ) : null}
     </>
   );
 }

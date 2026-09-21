@@ -24,7 +24,7 @@ import {
   paraBanco,
   paraEntrada,
   type EstadoObra,
-} from "@/app/obras/_campos";
+} from "@/app/(captura)/obras/_campos";
 import {
   atualizarObra,
   carregarObra,

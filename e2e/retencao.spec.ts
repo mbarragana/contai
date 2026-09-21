@@ -305,14 +305,14 @@ test.describe("detalhe: o repeater de linhas", () => {
 // ══ 3 · O ciclo da pendência (Gate Fiscal, P1) ═══════════════════════════
 
 test.describe("a pendência nasce, e fecha pelas condições do parecer", () => {
-  test("nasce VERMELHA na home, com o texto literal do parecer", async ({
+  test("nasce VERMELHA na fila de pendências, com o texto literal do parecer", async ({
     page,
     db,
   }) => {
     const id = await notaComRetencaoDestacada(db);
     await criarLinhaDeRetencao(db, linhaDoFrancisco(id));
 
-    await page.goto("/");
+    await page.goto("/pendencias");
     const chip = page.getByText("Retenção sem recolhedor", { exact: true });
     await expect(chip).toBeVisible();
     await expect(
@@ -320,7 +320,7 @@ test.describe("a pendência nasce, e fecha pelas condições do parecer", () => 
     ).toBeVisible();
     await expect(page.getByText(CONSEQUENCIA)).toBeVisible();
     // ⚠️ **VERMELHA**, e a cor vem de `gravidadeDaRegua` com a exceção nomeada
-    // (critério 7a), nunca de um literal solto na tela. O chip da home usa
+    // (critério 7a), nunca de um literal solto na tela. O chip da fila usa
     // `cor={p.gravidade}`, então a classe é o que a régua produziu.
     await expect(chip).toHaveClass(/text-red/);
     // O valor mostrado é o da LINHA aberta, não o bruto da nota: a pendência
@@ -348,8 +348,8 @@ test.describe("a pendência nasce, e fecha pelas condições do parecer", () => 
     ).toHaveCount(0);
     expect((await linhasDeRetencao(db))[0].quem_recolhe).toBe("empresa");
 
-    // E some da home no próximo carregamento.
-    await page.goto("/");
+    // E some da fila no próximo carregamento.
+    await page.goto("/pendencias");
     await expect(page.getByText("Retenção sem recolhedor")).toHaveCount(0);
   });
 
@@ -373,7 +373,7 @@ test.describe("a pendência nasce, e fecha pelas condições do parecer", () => 
       comprovante_path: "u/pix.png",
     });
     await criarVinculo(db, liquido, id);
-    await page.goto("/");
+    await page.goto("/pendencias");
     await expect(page.getByText("Retenção sem recolhedor")).toBeVisible();
 
     // A perna da guia, vinculada à mesma nota: Σ pagamentos == bruto → fecha.
@@ -385,7 +385,7 @@ test.describe("a pendência nasce, e fecha pelas condições do parecer", () => 
       comprovante_path: "u/guia.png",
     });
     await criarVinculo(db, guia, id);
-    await page.goto("/");
+    await page.goto("/pendencias");
     await expect(page.getByText("Retenção sem recolhedor")).toHaveCount(0);
   });
 
@@ -405,7 +405,7 @@ test.describe("a pendência nasce, e fecha pelas condições do parecer", () => 
         quem_recolhe: null,
       }),
     );
-    await page.goto("/");
+    await page.goto("/pendencias");
     await expect(page.getByText("Retenção sem recolhedor")).toHaveCount(0);
   });
 });
@@ -413,14 +413,14 @@ test.describe("a pendência nasce, e fecha pelas condições do parecer", () => 
 // ══ 4 · Remover linha — os dois cenários do `cto-obra` (2026-09-20) ══════
 
 test.describe("remover linha (DELETE concedido na 0017)", () => {
-  test("remover a linha com pendência ABERTA faz a pendência sumir da home", async ({
+  test("remover a linha com pendência ABERTA faz a pendência sumir da fila", async ({
     page,
     db,
   }) => {
     const id = await notaComRetencaoDestacada(db);
     await criarLinhaDeRetencao(db, linhaDoFrancisco(id));
 
-    await page.goto("/");
+    await page.goto("/pendencias");
     await expect(page.getByText("Retenção sem recolhedor")).toBeVisible();
 
     await page.goto(`/documento/${id}`);
@@ -431,7 +431,7 @@ test.describe("remover linha (DELETE concedido na 0017)", () => {
     await expect(page.locator('[data-retencao="linha"]')).toHaveCount(0);
     expect(await linhasDeRetencao(db)).toHaveLength(0);
 
-    await page.goto("/");
+    await page.goto("/pendencias");
     await expect(page.getByText("Retenção sem recolhedor")).toHaveCount(0);
     // E o documento continua lá: a linha é AFIRMAÇÃO, a NF é ACERVO.
     expect(await documentos(db)).toHaveLength(1);
