@@ -672,6 +672,35 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
   do browser); não duplica nada, não bloqueou o ticket. Caminho futuro: teto
   via `AbortSignal` no `.upload`, mesmo texto de resultado incerto do critério 6
 
+### `51-2026-09-21-contai-043-entregue.md` — 35 linhas
+**CONTAI-043 entregue — 2026-09-21 — `/documento/[id]` migra para o shell**
+
+- 10 rotas de `/documento/[id]` saem de `(captura)` e entram em `(gestao)`;
+  `ColunaDeDetalhe` 640px, `RodapeDeAcao` sticky só em formulários,
+  breadcrumb (`migalhaDaRota`) no lugar do botão fixo "Voltar"
+- Nenhum texto fiscal mudou (confirmado pelo `contador` por diff filtrado
+  + grep-travas repontados); `CabecalhoDaTela` evita o Pre-mortem 1 (obra
+  do documento não vira "obra ativa" no topbar)
+- Achado operacional do `cto-obra`: dois agentes rodando E2E ao mesmo tempo
+  corrompem o Postgres local compartilhado — mesmo invariante de "um
+  agente por vez", agora também para o banco
+- 881 unitários + 249/250 E2E (1 falha pré-existente, `discriminacao.spec.
+  ts:215`, do `046` futuro) + validação manual. Gate 4 (`po`) PASS. Sem
+  migration. Primeiro dos 4 tickets `043`-`046` — próximo é o `044`
+
+### `50-2026-09-21-migracao-detalhe-para-shell.md` — 40 linhas
+**Migração de telas de detalhe para o shell — 2026-09-21 — `po` fatia em 4 tickets**
+
+- Dívida nomeada pelo próprio `app/(captura)/layout.tsx` desde o `CONTAI-040`
+  vira `CONTAI-043` (Documento), `044` (Pagamento+Fatura), `045`
+  (Compromisso+Pendências), `046` (Obras+Terreno) — todos P1, ordem
+  sugerida por uso diário decrescente, nenhum bloqueia o outro
+- Achado do `cto-obra` (coluna ~560px, não full-width) formalizado como
+  critério de aceite pela primeira vez
+- `/entrar` e `/obras/nova` fora em definitivo; `/conta` fora desta rodada
+- Gate 0 fechado no mesmo dia pelo `designer`: `design/mocks/detalhe-no-
+  shell-v1.md`/`.html` (coluna final 640px, não 560px)
+
 ### `49-2026-09-21-contai-040-entregue.md` — 45 linhas
 **CONTAI-040 entregue — 2026-09-21 — shell de navegação desktop + dashboard**
 
