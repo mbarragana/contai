@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>contai — Mock captura-no-desktop-v1</title>
+<style>
+  :root{
+    --paper:#faf9f6; --ink:#23221d; --mut:#716c61; --line:#e6e3da; --soft:#f1efe9;
+    --red:#b91c1c; --red-bg:#fbecec; --amb:#92600a; --amb-bg:#fdf3df; --grn:#15803d; --grn-bg:#e9f5ed;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{background:var(--soft); color:var(--ink); font:14.5px/1.5 var(--sans)}
+  .mono{font-family:var(--mono); font-variant-numeric:tabular-nums}
+
+  .evalbar{background:#000; color:#e8e5dc; font-size:12px; padding:8px 20px; text-align:center}
+  .evalbar strong{color:#fff}
+  .evalbar a{color:#9fd1ff}
+  .toolbar{display:flex; gap:8px; justify-content:center; align-items:center; flex-wrap:wrap;
+    padding:9px 16px; background:#111; border-top:1px solid #333}
+  .toolbar button{font:inherit; font-size:12px; padding:6px 12px; border-radius:999px; border:1px solid #444;
+    background:#1c1b17; color:#cfc9ba; cursor:pointer}
+  .toolbar button.on{background:#fff; color:#111; border-color:#fff; font-weight:700}
+  .toolbar span{color:#8b8578; font-size:11px; margin-left:6px}
+
+  /* ── moldura de dispositivo (só ferramenta de demo, não é UI real) ─── */
+  .stage{padding:26px 16px 60px; display:flex; justify-content:center}
+  .device{width:100%; max-width:1180px; background:var(--paper); border:1px solid var(--line); border-radius:14px;
+    overflow:hidden; box-shadow:0 1px 3px rgba(35,34,29,.06); transition:max-width .15s}
+  .device.w-media{max-width:860px}
+  .device.w-piso{max-width:375px}
+
+  /* ── casca de captura: SEM sidebar, focada ──────────────────────── */
+  .captura-header{display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:14px 22px; border-bottom:1px solid var(--line)}
+  .captura-header .crumb{font-size:12.5px; color:var(--mut); cursor:pointer; text-decoration:none}
+  .captura-header .crumb:hover{color:var(--ink); text-decoration:underline}
+  .captura-header .obra{font-size:12px; color:var(--mut); text-align:right}
+  .captura-header .obra strong{color:var(--ink); font-weight:600}
+  .device.w-piso .captura-header .obra{display:none}
+
+  .stepper{display:flex; gap:0; padding:12px 22px 16px; border-bottom:1px solid var(--line); background:#fff}
+  .step{flex:1; display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--mut); position:relative}
+  .step b{display:flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:999px;
+    border:1px solid var(--line); font-size:10.5px; flex:none; background:#fff}
+  .step.done b{background:var(--grn); border-color:var(--grn); color:#fff}
+  .step.active b{background:var(--ink); border-color:var(--ink); color:#fff}
+  .step.active{color:var(--ink); font-weight:700}
+  .step:not(:last-child)::after{content:""; flex:1; height:1px; background:var(--line); margin:0 6px}
+  .device.w-piso .step span{display:none}
+
+  .captura-body{padding:24px 22px 90px}
+  .view{display:none}
+  .view.active{display:block}
+
+  /* ── Tela A: hub, 3 opções lado a lado ──────────────────────────── */
+  .hub-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:16px; max-width:920px; margin:0 auto}
+  .device.w-media .hub-grid, .device.w-piso .hub-grid{grid-template-columns:1fr}
+  .hub-card{border:1px solid var(--line); border-radius:12px; padding:20px 18px; background:#fff; cursor:pointer;
+    text-align:left; transition:border-color .1s}
+  .hub-card:hover{border-color:var(--ink)}
+  .hub-card .ico{font-size:26px}
+  .hub-card h3{font-size:15px; margin:10px 0 6px}
+  .hub-card p{font-size:12.5px; color:var(--mut); margin:0; line-height:1.5}
+
+  /* ── Tela B: formulário — grade form + rail ─────────────────────── */
+  .captura-grid{display:grid; grid-template-columns:minmax(0,560px) 340px; column-gap:32px; align-items:start;
+    grid-template-areas:"form rail"; max-width:940px; margin:0 auto}
+  .device.w-media .captura-grid{grid-template-columns:minmax(0,1fr); grid-template-areas:"rail" "form"; max-width:560px}
+  .device.w-piso .captura-grid{grid-template-columns:1fr; grid-template-areas:"rail" "form"}
+  .col-form{grid-area:form; min-width:0}
+  .col-rail{grid-area:rail; min-width:0; position:sticky; top:24px}
+  .device.w-media .col-rail, .device.w-piso .col-rail{position:static}
+
+  .card{background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:14px}
+  .card.border-red{border-left:4px solid var(--red)}
+  .card.border-amb{border-left:4px solid var(--amb)}
+  .card.border-grn{border-left:4px solid var(--grn)}
+  .card-title{font-weight:700; font-size:13px; margin-bottom:8px}
+  .dica{font-size:12px; color:var(--mut); margin-top:8px; line-height:1.5}
+  .banner{border-radius:10px; padding:11px 15px; font-size:12.5px; margin-top:10px; line-height:1.5}
+  .banner.red{background:var(--red-bg); color:var(--red)}
+  .banner.amb{background:var(--amb-bg); color:var(--amb)}
+  .banner.grn{background:var(--grn-bg); color:var(--grn)}
+  .chip{display:inline-block; font-size:11px; font-weight:700; border-radius:999px; padding:3px 10px; margin-bottom:6px}
+  .chip.red{color:var(--red); background:var(--red-bg)}
+  .chip.amb{color:var(--amb); background:var(--amb-bg)}
+
+  .campo{margin-top:12px}
+  .campo label{display:block; font-size:12.5px; font-weight:600; margin-bottom:5px}
+  .campo input[type=text],.campo input[type=date]{width:100%; font:inherit; font-size:13px; padding:8px 10px;
+    border-radius:8px; border:1px solid var(--line); background:#fff; color:var(--ink)}
+  .campo .ajuda{font-size:11.5px; color:var(--mut); margin-top:4px}
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+  .device.w-piso .row2{grid-template-columns:1fr}
+  .pills{display:flex; flex-wrap:wrap; gap:8px; margin-top:5px}
+  .pill{flex:1 1 auto; min-width:100px; text-align:center; padding:9px 10px; border-radius:8px; border:1px solid var(--line);
+    font-size:13px; font-weight:600; cursor:pointer; background:#fff}
+  .pill.marcado{background:var(--ink); color:var(--paper); border-color:var(--ink)}
+  .pill.destaque-red.marcado{background:var(--red); border-color:var(--red)}
+
+  /* ── anexo: dropzone grande + preview, no rail ──────────────────── */
+  .dropzone-lg{border:2px dashed var(--line); border-radius:12px; padding:34px 14px; text-align:center;
+    color:var(--mut); font-size:12.5px; cursor:pointer}
+  .dropzone-lg:hover{border-color:var(--ink); color:var(--ink)}
+  .dropzone-lg .ico{font-size:28px; display:block; margin-bottom:8px}
+  .preview{display:flex; gap:12px; align-items:center; border:1px solid var(--line); border-radius:10px; padding:10px}
+  .preview .thumb{width:52px; height:52px; border-radius:8px; background:var(--soft); display:flex; align-items:center;
+    justify-content:center; font-size:20px; flex:none}
+  .preview .info{min-width:0}
+  .preview .nome{font-size:12.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .preview .meta{font-size:11px; color:var(--mut); margin-top:2px}
+  .preview a.trocar{font-size:11.5px; color:var(--mut); text-decoration:underline; cursor:pointer}
+
+  .resumo-linha{display:flex; justify-content:space-between; gap:10px; font-size:12.5px; padding:6px 0;
+    border-bottom:1px dashed var(--line)}
+  .resumo-linha:last-child{border-bottom:none}
+  .resumo-linha .rot{color:var(--mut)}
+  .resumo-linha .val{font-weight:600; text-align:right}
+  .resumo-linha .val.vazio{color:var(--mut); font-weight:400; font-style:italic}
+
+  button.botao-link, a.botao-link{display:block; width:100%; text-align:center; padding:9px 14px; border-radius:9px;
+    font-size:13px; font-weight:600; text-decoration:none; border:1px solid var(--line); color:var(--ink);
+    background:#fff; margin-top:8px; cursor:pointer; font-family:inherit}
+  .botao-link.primary{background:var(--ink); color:var(--paper); border-color:var(--ink)}
+  .botao-link.ghost{border:none; background:transparent}
+
+  .rodape-form{position:sticky; bottom:0; grid-column:form; max-width:560px; background:var(--paper);
+    border-top:1px solid var(--line); padding:14px 0 4px; margin-top:4px; box-shadow:0 -8px 16px -8px rgba(35,34,29,.08)}
+  .device.w-media .rodape-form, .device.w-piso .rodape-form{max-width:none}
+
+  /* ── Tela C: confirmação, fidelidade menor ──────────────────────── */
+  .confirmado{max-width:520px; margin:0 auto; text-align:left}
+</style>
+</head>
+<body>
+
+<div class="evalbar">
+  <strong>Mock — captura-no-desktop-v1</strong> · Tratamento desktop das telas de captura
+  (<code>app/(captura)/adicionar/*</code>), decisão do Mateus em 2026-09-22.
+  Ver <a href="captura-no-desktop-v1.md">captura-no-desktop-v1.md</a>.
+</div>
+<div class="toolbar">
+  <span>Tela:</span>
+  <button data-view="hub" class="on">1 · Hub</button>
+  <button data-view="documento">2 · Formulário do documento</button>
+  <button data-view="confirmado">3 · Confirmado</button>
+  <span>Largura:</span>
+  <button data-w="ampla" class="on">Desktop largo</button>
+  <button data-w="media">Desktop médio</button>
+  <button data-w="piso">Piso 375px</button>
+</div>
+
+<div class="stage">
+  <div class="device w-ampla" id="device">
+
+    <header class="captura-header">
+      <a class="crumb" id="cancelar-link">‹ Cancelar</a>
+      <div class="obra">Registrando em <strong>Cachoeira do Bom Jesus</strong> · CNO 12.345.67890/26</div>
+    </header>
+
+    <div class="stepper" id="stepper">
+      <div class="step" data-s="1"><b>1</b><span>Escolher tipo</span></div>
+      <div class="step" data-s="2"><b>2</b><span>Preencher e anexar</span></div>
+      <div class="step" data-s="3"><b>3</b><span>Confirmado</span></div>
+    </div>
+
+    <div class="captura-body">
+
+      <!-- ══════════ TELA A — hub (Passo 1 de 3) ══════════ -->
+      <div class="view active" id="view-hub">
+        <div class="hub-grid">
+          <div class="hub-card" data-goto="documento">
+            <span class="ico">📄</span>
+            <h3>Documento — PDF, XML ou foto</h3>
+            <p>Nota ou boleto que chegou no WhatsApp/e-mail. O arquivo fica no acervo; você preenche os campos
+              (extração automática: fase 2).</p>
+          </div>
+          <div class="hub-card">
+            <span class="ico">💸</span>
+            <h3>Pagamento</h3>
+            <p>O dinheiro que saiu da conta — PIX com comprovante. A data do pagamento é o que define o ano do
+              custo (regime de caixa).</p>
+          </div>
+          <div class="hub-card">
+            <span class="ico">💳</span>
+            <h3>Compra no cartão</h3>
+            <p>Nasce sempre agendamento — o custo só entra quando a fatura for paga, uma compra de cada vez
+              (CONTAI-022).</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════ TELA B — formulário do documento (Passo 2 de 3) ══════════ -->
+      <div class="view" id="view-documento">
+        <div class="captura-grid">
+
+          <div class="col-rail">
+            <div class="card">
+              <div class="card-title">Arquivo</div>
+              <div id="anexo-vazio">
+                <div class="dropzone-lg"><span class="ico">⬆️</span>Arraste o PDF, XML ou foto aqui<br>ou clique
+                  para escolher</div>
+                <div class="dica">É ele que faz a nota valer no acervo. Não tem à mão? Dá para registrar e anexar
+                  depois.</div>
+              </div>
+              <div id="anexo-preenchido" style="display:none">
+                <div class="preview">
+                  <div class="thumb">📄</div>
+                  <div class="info">
+                    <div class="nome">nf-servico-1234.pdf</div>
+                    <div class="meta">312 KB</div>
+                  </div>
+                </div>
+                <button type="button" class="botao-link ghost" style="margin-top:6px">🪄 Extrair dados da nota
+                  (beta)</button>
+                <div class="banner grn">Dados extraídos automaticamente do PDF — confira cada campo antes de
+                  salvar.</div>
+                <a class="trocar" style="display:block;margin-top:6px">Trocar arquivo</a>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-title">Resumo até agora</div>
+              <div class="resumo-linha"><span class="rot">Tipo</span><span class="val">NF serviço</span></div>
+              <div class="resumo-linha"><span class="rot">Emitente</span><span class="val" id="r-emitente">Construtora
+                Silva Ltda.</span></div>
+              <div class="resumo-linha"><span class="rot">Valor</span><span class="val mono">R$ 18.400,00</span></div>
+              <div class="resumo-linha"><span class="rot">Nota no seu CPF?</span><span class="val vazio"
+                id="r-cpf">ainda não respondido</span></div>
+              <div class="resumo-linha"><span class="rot">CNO impresso</span><span class="val vazio"
+                id="r-cno">ainda não respondido</span></div>
+              <div class="dica">Atualiza sozinho conforme você preenche — nada aqui se afirma sozinho.</div>
+            </div>
+          </div>
+
+          <div class="col-form">
+            <div class="card">
+              <div class="card-title">Identificação</div>
+              <div class="campo"><label>Tipo</label>
+                <div class="pills">
+                  <div class="pill">NF material</div>
+                  <div class="pill marcado">NF serviço</div>
+                  <div class="pill">Boleto</div>
+                </div>
+              </div>
+              <div class="row2">
+                <div class="campo"><label>Número da nota</label><input type="text" value="1234"></div>
+                <div class="campo"><label>Série (quando houver)</label><input type="text" value="1"></div>
+              </div>
+              <div class="campo"><label>Data de emissão</label><input type="date" value="2026-03-12">
+                <div class="ajuda">Identifica a nota. Não é ela que decide o ano do custo — quem decide é o
+                  pagamento.</div>
+              </div>
+              <div class="row2">
+                <div class="campo"><label>Emitente</label><input type="text" value="Construtora Silva Ltda."></div>
+                <div class="campo"><label>CNPJ / CPF do emitente</label><input type="text" value="12.345.678/0001-90"></div>
+              </div>
+              <div class="row2">
+                <div class="campo"><label>Valor</label><input type="text" value="18.400,00"></div>
+                <div class="campo"><label>Classificação</label>
+                  <div class="pills"><div class="pill">Material</div><div class="pill marcado">Mão de obra</div></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-title">Perguntas fiscais</div>
+              <div class="campo"><label>A nota está no seu CPF?</label>
+                <div class="pills"><div class="pill marcado">Sim</div><div class="pill">Não</div></div>
+              </div>
+
+              <div class="campo"><label>Esta nota destaca alguma retenção?</label>
+                <div class="pills">
+                  <div class="pill">Nenhuma</div>
+                  <div class="pill marcado">Destacada</div>
+                </div>
+                <div class="dica">Você detalha isso depois, sentado — aqui só marcamos que a nota tem retenção.</div>
+              </div>
+
+              <div class="campo"><label>Qual CNO está impresso nesta nota?</label>
+                <div class="pills">
+                  <div class="pill marcado">É o CNO desta obra</div>
+                  <div class="pill">É o CNO de outra obra</div>
+                  <div class="pill">A nota não traz CNO</div>
+                </div>
+                <div class="dica">Cachoeira do Bom Jesus · <span class="mono">CNO 12.345.67890/26</span>. Três
+                  toques, zero digitação — o CNO não se digita aqui.</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+                <input type="checkbox" checked style="width:18px;height:18px">
+                <span style="font-size:13.5px;font-weight:600">Já paguei esta nota</span>
+              </label>
+              <div class="dica">Marque os pagamentos já registrados que correspondem a esta nota. Nada vem marcado
+                — o vínculo é você que afirma.</div>
+              <label style="display:flex;gap:10px;margin-top:10px;padding:10px 12px;border:1px solid var(--ink);
+                border-radius:10px;background:var(--soft);cursor:pointer">
+                <input type="checkbox" checked style="width:18px;height:18px;margin-top:2px">
+                <span style="flex:1">
+                  <span style="display:flex;justify-content:space-between;font-weight:600;font-size:13.5px">
+                    <span>Construtora Silva Ltda.</span><span class="mono">R$ 18.400,00</span></span>
+                  <span style="display:block;font-size:12px;color:var(--mut);margin-top:2px">PIX · pago em
+                    14/03/2026</span>
+                </span>
+              </label>
+            </div>
+
+            <div class="dica">Olhe na nota antes de responder — "não" no CPF leva à quarentena; "destacada" na
+              retenção abre o detalhamento linha a linha, que você preenche depois. Sem responder, não salva.</div>
+
+            <div class="rodape-form">
+              <button type="button" class="botao-link primary">Salvar registro</button>
+              <button type="button" class="botao-link ghost">Voltar</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ══════════ TELA C — confirmado (Passo 3 de 3), fidelidade menor ══════════ -->
+      <div class="view" id="view-confirmado">
+        <div class="confirmado">
+          <div class="card border-grn">
+            <span class="chip" style="color:var(--grn);background:var(--grn-bg)">Registrado</span>
+            <div class="card-title" style="margin-top:6px">Documento salvo em Cachoeira do Bom Jesus</div>
+            <div class="dica">1 pagamento ligado — nada pendente no vínculo.</div>
+          </div>
+          <div class="card border-amb">
+            <span class="chip amb">A nota não traz CNO — pendência (exemplo)</span>
+            <div class="banner amb">Esta nota não abate a aferição desta obra. Sem a aferição fechada não há
+              regularização, e sem regularização a construção não é averbada na matrícula.</div>
+            <div class="dica">A nota continua sendo documentação hábil para o custo de aquisição no IRPF — o que
+              ela não faz é reduzir a base de INSS de uma obra que ela não referencia. Ação: <strong>pedir nota com
+              o CNO ao prestador</strong> — enquanto ainda houver parcela a liberar.</div>
+          </div>
+          <button type="button" class="botao-link primary" style="max-width:520px">Registrar outro documento</button>
+          <button type="button" class="botao-link ghost" style="max-width:520px">Voltar ao painel</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  var stepOf = { hub: 1, documento: 2, confirmado: 3 };
+  function irPara(view) {
+    document.querySelectorAll(".view").forEach(function (el) { el.classList.toggle("active", el.id === "view-" + view); });
+    document.querySelectorAll(".toolbar [data-view]").forEach(function (el) { el.classList.toggle("on", el.dataset.view === view); });
+    document.querySelectorAll(".step").forEach(function (el) {
+      var n = Number(el.dataset.s), atual = stepOf[view];
+      el.classList.toggle("active", n === atual);
+      el.classList.toggle("done", n < atual);
+    });
+  }
+  document.querySelectorAll(".toolbar [data-view]").forEach(function (el) {
+    el.addEventListener("click", function () { irPara(el.dataset.view); });
+  });
+  document.querySelectorAll(".hub-card[data-goto]").forEach(function (el) {
+    el.addEventListener("click", function () { irPara(el.dataset.goto); });
+  });
+  document.getElementById("cancelar-link").addEventListener("click", function () { irPara("hub"); });
+
+  var device = document.getElementById("device");
+  document.querySelectorAll(".toolbar [data-w]").forEach(function (el) {
+    el.addEventListener("click", function () {
+      document.querySelectorAll(".toolbar [data-w]").forEach(function (b) { b.classList.remove("on"); });
+      el.classList.add("on");
+      device.className = "device w-" + el.dataset.w;
+    });
+  });
+
+  document.querySelectorAll(".pill").forEach(function (el) {
+    el.addEventListener("click", function () {
+      Array.prototype.forEach.call(el.parentElement.children, function (p) { p.classList.remove("marcado"); });
+      el.classList.add("marcado");
+    });
+  });
+
+  var vazio = document.getElementById("anexo-vazio"), cheio = document.getElementById("anexo-preenchido");
+  vazio.addEventListener("click", function () { vazio.style.display = "none"; cheio.style.display = "block"; });
+
+  irPara("hub");
+</script>
+</body>
+</html>

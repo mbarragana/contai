@@ -108,6 +108,8 @@ que segurar).
 | Mock aprovado + 5 decisões + reconciliação técnica, 2026-09-21 | `docs/backlog/46-2026-09-21-cinco-decisoes-desktop-shell-contai-040-042.md` — `design/mocks/desktop-shell-v1.html`/`.md` aprovado ("100% better"), substitui o `CONTAI-039`. As 5 perguntas do spec fechadas pelo `po`; vira **`CONTAI-040`** (shell+dashboard), **`CONTAI-041`** (Despesas), **`CONTAI-042`** (Pendências unificadas). **Adendo do mesmo dia**: achado do `cto-obra` (18 famílias de pendência, não 7) inverte a ordem para **`042` → `040` → `041`** e fecha a arquitetura mobile×desktop (route groups `(gestao)`/`(captura)`) |
 | Gate 1 do `CONTAI-040`, 4 decisões do `po`, 2026-09-21 | `docs/backlog/48-2026-09-21-gate1-decisoes-contai-040.md` — seletor de ano fica texto (não controle) por esta rodada, **ticket futuro não numerado** "seletor de ano sincronizado dashboard + /pendencias" (P1); painel de pendências usa cards completos, mock a corrigir; `/despesas` stub + painel "Notas hábeis sem pagamento" mantido, com ressalva de proveniência (comentário de código não é decisão registrada); texto "na fila de pendências" confirmado sem CRC |
 | Quatro tickets novos, 2026-09-21 | `docs/backlog/50-2026-09-21-migracao-detalhe-para-shell.md` — dívida nomeada pelo próprio `app/(captura)/layout.tsx` desde o `CONTAI-040` vira **`CONTAI-043`** (Documento), **`CONTAI-044`** (Pagamento+Fatura), **`CONTAI-045`** (Compromisso+Pendências), **`CONTAI-046`** (Obras+Terreno) — todos P1, ordem sugerida 043→044→045→046, nenhum se bloqueia formalmente. Achado do `cto-obra` (coluna ~560px, não full-width, do Gate 2 do `039`) formalizado pela primeira vez como critério de aceite. **Nenhum tem Gate 0 fechado** — bloqueados pelo spec "detalhe dentro do shell" que o `designer` está desenhando em paralelo. `/entrar` e `/obras/nova` ficam fora em definitivo; `/conta` fica fora desta rodada, candidata a ticket próprio futuro |
+| Pergunta aberta respondida + dois tickets novos, 2026-09-22 | `docs/backlog/58-2026-09-22-captura-tela-larga-contai-047-048.md` — o Mateus respondeu a pergunta 2 do `45-…`: a permissão de tela larga vale **também** para captura (`/adicionar/*`), não só gestão (`CLAUDE.md`, bloco "RESPONDIDA em 2026-09-22"). Consulta técnica ao `cto-obra` **rejeita** mover essas rotas para `(gestao)` (traria chrome de gestão para o canteiro, duplicaria "obra ativa") e recomenda casca larga própria dentro de `(captura)` — vira **`CONTAI-047`** (P1, reflow de layout, zero mudança de campo/validação). Achado à parte, promovido a ticket próprio não bloqueante: **`CONTAI-048`** (anexo visível ao lado do formulário em `/adicionar/documento`, feature nova, sem mock ainda). Nenhum dos dois tem Gate 0 fechado |
+| Gate 0 fechado + 5 decisões, 2026-09-22 | `docs/backlog/59-2026-09-22-decisao-po-mock-captura-desktop.md` — o `designer` publicou `design/mocks/captura-no-desktop-v1.md`/`.html` em paralelo ao `047`/`048`; o `po` reconciliou os dois. O rail do mock (miniatura 52×52 + resumo somente-leitura) é reflow, não a feature do `048` (render legível do documento) — entra no `047` (critério 1a), `048` continua sem Gate 0. Takeover de tela cheia confirmado com o `cto-obra`: navegação normal entre route groups irmãos, zero código novo. Largura do grupo sobe de 720px (sugestão original) para **~900px**, por causa do rail. **D68** nova (inconsistência pré-existente "Passo 2 de 3"/"Passo 3 de 3"). Rail não se estende a `pagamento`/`compra-cartao` por ora. **`CONTAI-047` sai de "bloqueado por Gate 0" e entra pronto para `/develop`** |
 | Ticket ainda por criar | `15-…-adjudicacao-fiscal-contai-027.md` → *"Ticket novo a criar — correção de valor de desembolso do terreno"*; e **`CONTAI-022`** (D26, cartão de crédito, **P0 fiscal**) e **`CONTAI-031`** (E2E da condição 6, P1, que **bloqueia a fatia 5 do `CONTAI-028`**) e **`CONTAI-032`** (D44, default de `data` e `meio`, **P0**, dependente do `CONTAI-025`) — nenhum dos três existe como arquivo. ➕ **`CONTAI-033`** (D49/D52, *nota grava sem o arquivo*, **P0**, com as **três guardas** do parecer como critério). ➕ ticket pequeno (S, P1) do critério 8 do `29-…-reconciliacao-contai-009.md` — `/documento/[id]` lista os pagamentos vinculados, porta que falta para o pagamento CONCILIADO |
 
 ✅ **7ª revisão aplicada em 2026-08-23**, direto em `docs/tickets/README.md`. O
@@ -190,6 +192,7 @@ no bloco de decisões pendentes acima.
 | **D59 — o banner "Nenhuma pendência" da home só olha `resumo.pendencias`, ignorando todo agregado "fora de pendencias"** (`terrenoPagoSemComprovante` e os outros cinco); corrigido só para `documentosSemArquivo` | `33-2026-09-20-tres-bugs-achados-no-teste-manual-do-contai-033.md` → auditoria dos outros cinco, decidir se vira um helper único |
 | **D65 — RESPONDIDA no Gate 2 do `CONTAI-034` (21/09)**: `cValor` pré-preenchido com o saldo previsto em `/compromisso/[id]/confirmar`, mesma forma da D44; corrigida dentro do próprio ticket por decisão do `contador`, não em ticket separado | `40-2026-09-21-contai-034-entregue.md` — fechada, sem ticket futuro |
 | **D66 — `unidades_autonomas` nasce `"1"` contra o `SEM DEFAULT` do `CONTAI-003`**, achada pelo mapa do `CONTAI-034` e não corrigida (doutrina "prova, não conserta" do próprio ticket); passo 4 do assistente de `/obras/nova`, fora da rota que a suíte visita | `40-2026-09-21-contai-034-entregue.md` → falta ticket de conserto |
+| **D68 — "Passo 2 de 3" e "Passo 3 de 3" convivem na mesma página de `documento/page.tsx`** (o hub fixa "Passo 1 de 3", o rótulo interno muda duas vezes no scroll de uma única tela); pré-existente, achada ao fechar o Gate 0 do `CONTAI-047`, não introduzida por ele | `59-2026-09-22-decisao-po-mock-captura-desktop.md` → sem ticket, sem prioridade hoje |
 
 O status de cada uma está na própria entrada — este índice aponta, não duplica.
 
@@ -688,6 +691,42 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
   pelo topo
 - Guarda geométrica nova (mede quem rola, não usa `click()`), provada
   não-vacuosa. `cto-obra` APPROVE. Sem regra fiscal tocada
+
+### `58-2026-09-22-captura-tela-larga-contai-047-048.md` — linhas ver arquivo
+**Captura ganha tela larga — 2026-09-22 — resposta à pergunta 2 do `45-…`**
+
+- O Mateus respondeu: a permissão de tela larga vale também para
+  `/adicionar/*` (captura), não só para as telas de gestão — viu
+  `/adicionar/documento` esticada sem aproveitar a largura, no uso real dele,
+  majoritariamente desktop
+- Consulta técnica ao `cto-obra` **rejeita mover `/adicionar/*` para
+  `(gestao)`**: traria chrome de gestão para dentro do canteiro, duplicaria
+  "obra ativa" (`useGestao` × `useObraDoRegistro`), reabre o Pre-mortem 3 do
+  `CONTAI-040`. Recomenda casca larga própria em `(captura)` (~720px, campos
+  escalares em grid, bloco de pergunta fiscal em coluna única)
+- Dois tickets, nenhum bloqueia o outro: **`CONTAI-047`** (casca larga,
+  reflow puro, P1) e **`CONTAI-048`** (achado à parte do `cto-obra`: anexo
+  visível ao lado do formulário durante a extração — feature nova, não
+  bloqueante, sem mock ainda)
+- Nenhuma migration. `e2e/shell-desktop.spec.ts` precisa de asserts de
+  largura atualizados (assert de ausência de `[data-shell]` não muda)
+
+### `59-2026-09-22-decisao-po-mock-captura-desktop.md` — 60 linhas
+**Decisão do `po` sobre o Gate 0 de captura desktop — 2026-09-22 — reconciliação entre `CONTAI-047`/`048` e o mock do `designer`**
+
+- O `po` escreveu `047`/`048` sem ver o Gate 0; o `designer` publicou
+  `design/mocks/captura-no-desktop-v1.md`/`.html` em paralelo. Cinco pontos
+  de divergência fechados no mesmo dia
+- O rail do mock (miniatura 52×52 + resumo somente-leitura) é reflow, não a
+  feature do `048` (render legível do documento) — entra no `047`
+  (critério 1a); `048` continua sem Gate 0, fronteira escrita nos dois
+  tickets
+- Takeover de tela cheia confirmado com o `cto-obra`: navegação normal entre
+  `(gestao)`/`(captura)`, layouts irmãos, zero código novo
+- Largura do grupo sobe de 720px (sugestão original, sem rail) para ~900px
+  (com rail). **D68** nova (inconsistência pré-existente "Passo 2 de 3"/
+  "Passo 3 de 3"). Rail não se estende a `pagamento`/`compra-cartao`
+- `CONTAI-047` sai de "bloqueado por Gate 0" e entra pronto para `/develop`
 
 ### `56-2026-09-22-fix-overflow-faixa-mobile-ci.md` — 30 linhas
 **Fix: overflow da faixa mobile escondia "+ Novo registro" — 2026-09-22**

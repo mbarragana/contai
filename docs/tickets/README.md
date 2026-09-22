@@ -1,6 +1,43 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 15 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-09-22**: **`047` e `048` criados** — o Mateus respondeu a pergunta 2
+de `docs/backlog/45-2026-09-21-cenario-desktop-first-contai-039.md`: a
+permissão de tela larga vale também para as telas de captura (`/adicionar/*`
+— hoje intocadas, mesmo depois de toda a rodada `040`/`043`-`046`), não só
+para gestão. `po` consultou o `cto-obra` antes de escopar: **rejeitada** a
+ideia de mover essas rotas para `(gestao)` (traria chrome de gestão para
+dentro do canteiro e duplicaria "obra ativa"); recomendada casca larga
+própria dentro de `(captura)` (~720px, campos escalares em grid, bloco de
+pergunta fiscal em coluna única — mesma lição do Gate 2 do `039`). Vira
+**`CONTAI-047`** (P1, reflow de layout puro, zero mudança de campo/
+validação/texto fiscal — mesma disciplina dos `043`-`046`; bloqueado por
+Gate 0 do `designer`, com contingência de fatiar se `documento/page.tsx`
+ficar grande demais). Achado à parte do `cto-obra`, promovido a ticket
+próprio: **`CONTAI-048`** (anexo do documento visível ao lado do formulário
+em tela larga — feature nova, não casca; P1 mas **não bloqueante**, sem mock
+ainda, fica fora da fila ativa até o `designer` desenhar). Nenhuma migration.
+Decisão completa: `docs/backlog/58-2026-09-22-captura-tela-larga-
+contai-047-048.md`.
+
+**2026-09-22**: **Gate 0 do `047` fechado** — o `designer` publicou
+`design/mocks/captura-no-desktop-v1.md`/`.html` em paralelo, e o `po`
+reconciliou os dois documentos. O rail do mock (miniatura 52×52 do anexo +
+botão de extração reposicionado + resumo somente-leitura do já digitado)
+entra no escopo do `047` (critério 1a) por ser reflow, não feature — o
+`CONTAI-048` (render legível do documento, para conferir CNPJ/valor/data)
+continua **sem Gate 0**, fronteira escrita nos dois tickets. Takeover de
+tela cheia ao clicar "+ Novo registro" confirmado com o `cto-obra`:
+navegação normal entre `(gestao)`/`(captura)` (layouts irmãos do Next),
+zero código novo — a exclusão de "modo captura" no `ShellDeGestao`
+permanece. Breakpoint do grupo sobe de 720px (sugestão original, sem rail)
+para **~900px** (com rail, número do mock). Nova dívida nomeada **D68**
+(inconsistência pré-existente "Passo 2 de 3"/"Passo 3 de 3" em
+`documento/page.tsx`, sem ticket). **`CONTAI-047` está pronto para
+`/develop`** — nenhum ticket na fila ativa está mais bloqueado por Gate 0.
+Decisão completa: `docs/backlog/59-2026-09-22-decisao-po-mock-captura-
+desktop.md`.
 
 **2026-09-21**: **`043`, `044`, `045`, `046` criados** — o `po` fatiou por
 família a dívida que o próprio `app/(captura)/layout.tsx` nomeia desde a
@@ -297,14 +334,18 @@ ticket; retomar quando o Mateus puder aprovar o ícone e testar no aparelho.
 
 ### Fila de implementação — nesta ordem
 
-**Vazia em 2026-09-22** — `041` foi o último item da rodada "desktop
-shell" (aberta em 21/09 pela rejeição do `CONTAI-039`, ordem reconciliada
-`042`→`040`→`043`→`044`→`045`→`046`→`041`), entregue no mesmo dia. Nada
-aguardando `/develop`.
+`041` foi o último item da rodada "desktop shell" (aberta em 21/09 pela
+rejeição do `CONTAI-039`, ordem reconciliada
+`042`→`040`→`043`→`044`→`045`→`046`→`041`), entregue no mesmo dia. Em
+2026-09-22, o `CONTAI-047` entrou bloqueado por Gate 0; no mesmo dia o
+Gate 0 fechou (`design/mocks/captura-no-desktop-v1.md`, reconciliado pelo
+`po` — `docs/backlog/59-2026-09-22-decisao-po-mock-captura-desktop.md`) e o
+ticket passa a **pronto para `/develop`**. `CONTAI-048` **não entra aqui**:
+é não-bloqueante e fica em "Depois" até ganhar mock próprio.
 
 | # | ID | O que é | P |
 |---|---|---|---|
-| — | — | *(nenhum item)* | — |
+| 1 | 047 | 🟢 Captura (`/adicionar/*`) ganha casca de tela larga — Gate 0 fechado | P1 |
 
 ### Parado, aguardando o Mateus (fora da fila ativa)
 
@@ -332,6 +373,7 @@ aguardando `/develop`.
 | **028** | Quebrar `lib/data.ts` — fatias 2-7 | P2 | **corte proposto** |
 | **015** | Captcha no login | P2 | **corte re-recomendado** |
 | **026** | Terreno recebido (herança, doação, permuta) | P2 | **corte proposto** |
+| **048** | Anexo visível ao lado do formulário em `/adicionar/documento` (tela larga) | P1 | não-bloqueante; sem `/design` ainda |
 
 ### O que segura a fila hoje
 
@@ -341,8 +383,8 @@ aguardando `/develop`.
 | **Saiu da fila, superado** | `009` — entregue via `CONTAI-018` sem citação cruzada; resto vivo virou o `037` |
 | **Saiu da fila, entregue** | `032`, `022` — commitados em 2026-09-19 (`13953f2`); `033`, `007`, `008`, `005`, `031`, `035` — entregues em 2026-09-20; `038`, `006`, `034`, `037`, `039`, `042`, `040`, `043`, `044`, `045` — entregues em 2026-09-21; `046`, `041` — entregues em 2026-09-22 (`041` ainda sem push); ver "Em produção" |
 | **Parado, aguardando o Mateus** | `014` — só o critério 4 entregue; ícone/aparelho físico não são delegáveis |
-| **Pronto para `/develop`** | **nenhum — fila ativa vazia** |
-| **Falta mock (`/design`)** | nenhum |
+| **Pronto para `/develop`** | **`047`** — Gate 0 fechado em 2026-09-22 (contingência de fatiar continua de pé se `documento/page.tsx` ficar grande no Gate 1) |
+| **Falta mock (`/design`)** | `048` (anexo ao lado do formulário, render legível do documento — não-bloqueante) |
 
 ⚠️ **Esta tabela é resumo, não fonte.** Ela repete o que está abaixo — se
 divergir, **vale o de baixo**, e o resumo é que está errado.

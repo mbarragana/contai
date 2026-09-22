@@ -112,10 +112,19 @@ Regras fiscais vêm do agente `contador` — nunca de memória, nunca inventadas
   ⚠️ **Pergunta aberta — até onde vai "pode quebrar"?** Não está claro se
   (a) o celular continua funcional mas deixa de ser prioridade quando conflitar
   com desktop, ou (b) telas de gestão podem parar de funcionar no celular sem
-  isso contar como regressão; nem se a permissão vale só para telas de
-  **gestão** ou também para a de **captura**. Até resposta explícita, tratar
-  como (a) e como valendo só para gestão. Detalhe e contexto completo em
+  isso contar como regressão. Até resposta explícita, tratar como (a). Detalhe
+  e contexto completo em
   `docs/backlog/45-2026-09-21-cenario-desktop-first-contai-039.md`.
+
+  ✅ **RESPONDIDA em 2026-09-22 — a permissão vale também para captura.**
+  O Mateus viu `/adicionar/documento` intocada (430px) depois de toda a
+  rodada de shell e confirmou: **as telas de captura (`/adicionar/*`) também
+  devem ganhar tratamento desktop**, não só as de gestão. O "Teste do
+  Canteiro" deixa de ser a régua universal que barra melhoria de desktop
+  nessas telas — mas o fluxo de captura em si (existência, ≤3 interações,
+  anexo obrigatório) não desaparece, só ganha uma segunda forma quando usado
+  de tela larga. Escopo e desenho: trabalho novo do `designer`/`po`, ainda
+  não feito nesta data.
 
 ## Fato da obra não se pergunta: se consulta
 
