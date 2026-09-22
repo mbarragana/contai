@@ -672,6 +672,21 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
   do browser); não duplica nada, não bloqueou o ticket. Caminho futuro: teto
   via `AbortSignal` no `.upload`, mesmo texto de resultado incerto do critério 6
 
+### `53-2026-09-21-contai-045-entregue.md` — 30 linhas
+**CONTAI-045 entregue — 2026-09-21 — compromisso e pendência migram para o shell**
+
+- `compromisso`/`[id]` (+ `cancelar`, `confirmar`, `data`) e
+  `pendencias/[id]` migram para `(gestao)`, coluna 640px
+- `contador` conferiu com os próprios olhos que a D65 (`cValor` sem
+  default, CONTAI-034) sobrevive à migração — trava resolve por URL, não
+  por pasta
+- 3 decisões do `cto-obra` aceitas sem mudar código: banner âmbar sem
+  obra (correção, não regressão), `/compromisso` mantém 640px (pilha de
+  cards, não view de fila), duplicação `TresRespostas` pré-existente vira
+  dívida nova
+- 887 unitários + 256/257 E2E + validação manual. Gate 4 (`po`) PASS. Sem
+  migration. Último ticket antes do `046`
+
 ### `52-2026-09-21-contai-044-entregue.md` — 30 linhas
 **CONTAI-044 entregue — 2026-09-21 — pagamento e fatura migram para o shell**
 
