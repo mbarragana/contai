@@ -672,6 +672,20 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
   do browser); não duplica nada, não bloqueou o ticket. Caminho futuro: teto
   via `AbortSignal` no `.upload`, mesmo texto de resultado incerto do critério 6
 
+### `56-2026-09-22-fix-overflow-faixa-mobile-ci.md` — 30 linhas
+**Fix: overflow da faixa mobile escondia "+ Novo registro" — 2026-09-22**
+
+- CI vermelho desde o `CONTAI-040` (5 runs), passava local no Mac: fonte de
+  fallback do Linux + badge de 2 dígitos estourava a faixa de 375px,
+  empurrando "+ Novo registro" para fora da área visível
+- Causa: o link vivia no MESMO contêiner `overflow-x-auto` dos 4 links de
+  navegação, só posicionado à direita — corrigido separando em contêineres
+  irmãos, "+ Novo registro" sempre fora do rolável
+- Guarda permanente (decisão do `cto-obra`): teste em 320px com badge
+  inflado, provado não-vacuoso (falha contra o código antigo, passa
+  depois) — trava a classe de regressão, não só o sintoma
+- 274/274 E2E, sem regra fiscal tocada (layout puro)
+
 ### `55-2026-09-22-contai-041-entregue.md` — 40 linhas
 **CONTAI-041 entregue — 2026-09-22 — tabela de despesas fecha a rodada "desktop shell"**
 

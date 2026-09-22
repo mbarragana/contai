@@ -152,28 +152,38 @@ function MolduraDeGestao({ children }: { children: React.ReactNode }) {
       <nav
         data-shell="faixa"
         aria-label="Navegação principal"
-        className="flex flex-none items-center gap-1 overflow-x-auto border-b border-side-line bg-side-bg px-2 py-1.5 lg:hidden"
+        className="flex flex-none items-center gap-1 border-b border-side-line bg-side-bg px-2 py-1.5 lg:hidden"
       >
-        {VIEWS_DE_GESTAO.map((v) => {
-          const ativa = ehViewAtiva(pathname, v.href);
-          return (
-            <Link
-              key={v.href}
-              href={v.href}
-              aria-current={ativa ? "page" : undefined}
-              className={`flex min-h-[44px] flex-none items-center gap-1.5 rounded-lg px-2.5 text-[13px] whitespace-nowrap ${
-                ativa ? "bg-side-active text-white" : "text-side-text"
-              }`}
-            >
-              {v.rotulo}
-              {v.href === "/pendencias" ? <Badge abertas={abertas} /> : null}
-            </Link>
-          );
-        })}
-        {/* A porta do canteiro, em UM toque e em qualquer largura. */}
+        {/* ⚠️ Só as VIEWS rolam. O `overflow-x-auto` vive aqui dentro, e não
+            na faixa inteira, porque quando os dois dividiam o mesmo contêiner
+            rolável o "+ Novo registro" (empurrado por `ml-auto`) nascia fora
+            da área visível — `scrollLeft: 0` — assim que o conteúdo passava
+            de 375px. Bastava o badge de pendências com 2 dígitos ou uma fonte
+            de fallback mais larga (Linux/CI) para a porta do canteiro exigir
+            rolagem horizontal para existir. */}
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+          {VIEWS_DE_GESTAO.map((v) => {
+            const ativa = ehViewAtiva(pathname, v.href);
+            return (
+              <Link
+                key={v.href}
+                href={v.href}
+                aria-current={ativa ? "page" : undefined}
+                className={`flex min-h-[44px] flex-none items-center gap-1.5 rounded-lg px-2.5 text-[13px] whitespace-nowrap ${
+                  ativa ? "bg-side-active text-white" : "text-side-text"
+                }`}
+              >
+                {v.rotulo}
+                {v.href === "/pendencias" ? <Badge abertas={abertas} /> : null}
+              </Link>
+            );
+          })}
+        </div>
+        {/* A porta do canteiro, em UM toque e em qualquer largura: irmão do
+            rolável, nunca filho dele. */}
         <Link
           href="/adicionar"
-          className="ml-auto flex min-h-[44px] flex-none items-center rounded-lg bg-paper px-3 text-[13px] font-semibold whitespace-nowrap text-ink"
+          className="flex min-h-[44px] flex-none items-center rounded-lg bg-paper px-3 text-[13px] font-semibold whitespace-nowrap text-ink"
         >
           + Novo registro
         </Link>

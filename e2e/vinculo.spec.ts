@@ -949,6 +949,100 @@ test.describe("acesso a /adicionar (critério 12)", () => {
   });
 
   /**
+   * ⚠️ **O teste acima já nasceu vermelho no CI — 5 runs — e verde no Mac.**
+   * A faixa era UM só contêiner `overflow-x-auto` com os 4 links MAIS o "+
+   * Novo registro" empurrado por `ml-auto`. Quando o conteúdo estourava a
+   * largura (badge de pendências com 2 dígitos somado à fonte de fallback do
+   * Linux, um pouco mais larga que a do Mac), o alvo nascia fora da área
+   * visível — `scrollLeft: 0` — e só aparecia rolando a faixa na horizontal.
+   * Medido: x = 714 num viewport de 320px, `viewport ratio 0`.
+   *
+   * Este teste é a guarda permanente, e ele mede a ESTRUTURA, não a sorte da
+   * fonte: **320px é o proxy determinístico** de "375px com fonte mais larga".
+   * Inflar fonte por CSS ou encher a fila de 100 pendências reproduziria o
+   * mesmo estouro de forma menos estável e mais cara.
+   *
+   * O vetor de regressão que ele fecha é um refactor plausível de quem não
+   * viveu o incidente: reunir os dois contêineres, ou deixar o badge crescer
+   * para 3 dígitos. Por isso a asserção que importa é a (c) — a faixa em si
+   * nunca pode ser rolável; quem rola é só o `div` dos 4 links.
+   */
+  test("320px com badge de 2 dígitos: o alvo não nasce fora da área visível", async ({
+    page,
+    db,
+  }) => {
+    const deposito = await criarFavorecido(db, {
+      nome: "Depósito Cachoeira ME",
+      documento: CNPJ_DEPOSITO_DIGITOS,
+      tipo: "pj",
+    });
+    // ⚠️ O badge NÃO é a contagem de linhas: as pendências de pagamento
+    // chegam agrupadas (`PendenciasUnificadas`), então 5 pagamentos + 5
+    // documentos dariam **7**, um dígito só, e o cenário não se reproduziria.
+    // 5 pagamentos + 8 documentos é o mínimo medido que fecha em **10**.
+    for (let i = 1; i <= 5; i++) {
+      await criarPagamento(db, {
+        favorecido_id: deposito,
+        valor: 620 + i,
+        data_pagamento: `${ANO}-08-0${i}`,
+        meio: "pix",
+        status: "aguardando_nf",
+        comprovante_path: `${USER_ID_SEED}/comprovante/pix-${i}.png`,
+      });
+    }
+    for (let i = 1; i <= 8; i++) {
+      await criarDocumento(db, {
+        favorecido_id: deposito,
+        tipo: "nf_material",
+        classificacao: "material",
+        valor: 100 + i,
+        destinatario_cpf_ok: false,
+        status: "quarentena",
+        motivo_quarentena: "Documento não está no CPF do dono da obra.",
+      });
+    }
+
+    await page.setViewportSize({ width: 320, height: 568 });
+    await page.goto("/pendencias");
+
+    const faixa = page.locator('[data-shell="faixa"]');
+    // Pré-condição do cenário, e também a espera que importa: o badge só
+    // ocupa largura depois de apurado, e medir antes disso mediria uma faixa
+    // mais estreita do que a que o Mateus vê.
+    //
+    // Se for ESTA linha que ficar vermelha um dia, o que mudou foi o
+    // AGRUPAMENTO das pendências, não a faixa: aumente o fixture até o badge
+    // voltar a ter 2 dígitos, em vez de mexer no shell.
+    await expect(faixa.getByText(/^\d{2}$/)).toBeVisible();
+
+    // (a) Sem rolagem nenhuma antes: o ponto aqui é a faixa não estourar na
+    // horizontal já no load — diferente do teste acima, que rola o `main`.
+    const alvo = page.getByRole("link", { name: "+ Novo registro" });
+    await expect(alvo).toBeInViewport();
+
+    // (b) Visível de verdade, não "visível pela metade": a borda direita do
+    // alvo cabe dentro do viewport.
+    const caixa = await alvo.boundingBox();
+    expect(caixa).not.toBeNull();
+    expect(caixa!.x + caixa!.width).toBeLessThanOrEqual(320);
+
+    // (c) A faixa INTEIRA nunca é rolável. É esta asserção que fica vermelha
+    // no dia em que alguém devolver o "+ Novo registro" para dentro da área
+    // que rola.
+    const faixaRola = await faixa.evaluate((el) => el.scrollWidth > el.clientWidth);
+    expect(faixaRola).toBe(false);
+
+    // (d) Quem rola é só o `div` dos 4 links — e o alvo não depende disso:
+    // com o scroll intocado no zero, ele já está onde deveria.
+    const rolavel = faixa.locator("> div");
+    expect(await rolavel.evaluate((el) => el.scrollLeft)).toBe(0);
+
+    // (e) E abre.
+    await alvo.click();
+    await expect(page.getByRole("heading", { name: "Adicionar" })).toBeVisible();
+  });
+
+  /**
    * ⚠️ **CONTAI-043 — o alvo mudou de nome aqui também, e pelo mesmo motivo
    * do dashboard.** `/documento/[id]` saiu de `(captura)` e entrou no shell de
    * gestão: a `BarraAdicionar` do rodapé não existe mais nesta tela, e a porta
