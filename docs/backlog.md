@@ -672,6 +672,20 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
   do browser); não duplica nada, não bloqueou o ticket. Caminho futuro: teto
   via `AbortSignal` no `.upload`, mesmo texto de resultado incerto do critério 6
 
+### `52-2026-09-21-contai-044-entregue.md` — 30 linhas
+**CONTAI-044 entregue — 2026-09-21 — pagamento e fatura migram para o shell**
+
+- `pagamento/[id]` (+ `ligar`, `obra`) e `fatura/[id]` (+ `alocar`,
+  `confirmar`, `parcial`) migram para `(gestao)`, mesma casca do `043`
+- Telas de leitura perderam o rodapé fixo — ações foram para dentro do
+  card, mesmo padrão de `/documento/[id]`
+- `fatura/[id]/alocar`: resolvido sem exceção de largura — é lista
+  label+checkbox, não tabela densa, cabe nos 640px padrão
+- Implementado em Sonnet (Opus com 4 falhas de API seguidas nesta rodada);
+  `cto-obra` confirmou que isso não muda o contrato de revisão
+- 883 unitários + 252/253 E2E + validação manual. Gate 4 (`po`) PASS. Sem
+  migration. Terceiro dos 4 tickets — próximo é o `045`
+
 ### `51-2026-09-21-contai-043-entregue.md` — 35 linhas
 **CONTAI-043 entregue — 2026-09-21 — `/documento/[id]` migra para o shell**
 
