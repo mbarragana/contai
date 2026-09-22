@@ -164,6 +164,41 @@ describe("qual item fica marcado", () => {
       }
     }
   });
+
+  /**
+   * **CONTAI-045** — a agenda e o agendamento acendem **Visão geral**, que é
+   * onde o bloco de agendados vive (spec `detalhe-no-shell-v1`, decisão 1). A
+   * lista `/compromisso` entra junto com o detalhe: ela é o destino do "ver
+   * todos (N)" do dashboard, não uma view de primeira classe.
+   */
+  it("a agenda e o agendamento marcam Visão geral", () => {
+    for (const rota of [
+      "/compromisso",
+      "/compromisso/abc-123",
+      "/compromisso/abc-123/confirmar",
+      "/compromisso/abc-123/cancelar",
+      "/compromisso/abc-123/data",
+    ]) {
+      expect(ehViewAtiva(rota, "/")).toBe(true);
+      for (const v of VIEWS_DE_GESTAO) {
+        if (v.href === "/") continue;
+        expect(ehViewAtiva(rota, v.href), `${rota} × ${v.href}`).toBe(false);
+      }
+    }
+  });
+
+  /**
+   * **CONTAI-045** — `/pendencias/[id]` já casava por prefixo desde o `040`.
+   * O caso fica escrito porque a tela mudou de pasta neste ticket, e mudar de
+   * pasta não podia mudar o item aceso: a fila é o caminho de volta dela.
+   */
+  it("o detalhe de pendência continua marcando Pendências, e só", () => {
+    expect(ehViewAtiva("/pendencias/abc-123", "/pendencias")).toBe(true);
+    for (const v of VIEWS_DE_GESTAO) {
+      if (v.href === "/pendencias") continue;
+      expect(ehViewAtiva("/pendencias/abc-123", v.href)).toBe(false);
+    }
+  });
 });
 
 /**
@@ -229,6 +264,38 @@ describe("o breadcrumb das telas de detalhe", () => {
         rotulo: "Fatura",
       });
     }
+  });
+
+  /**
+   * **CONTAI-045** — aqui a lista-mãe deixa de ser sempre `/despesas`, e é o
+   * ponto onde os dois riscos do Pre-mortem do ticket se travam:
+   * - `/pendencias/[id]` volta para **`/pendencias`** (a fila unificada do
+   *   `CONTAI-042`), nunca para a home antiga, que não existe desde o `040`;
+   * - `/compromisso/[id]` volta para a **agenda**, que é rota de verdade, e a
+   *   agenda volta para a **Visão geral**, de onde se chega nela.
+   */
+  it("do agendamento volta para a agenda, e a agenda para a Visão geral", () => {
+    expect(migalhaDaRota("/compromisso")).toEqual({
+      href: "/",
+      rotulo: "Visão geral",
+    });
+    expect(migalhaDaRota("/compromisso/abc-123")).toEqual({
+      href: "/compromisso",
+      rotulo: "Agendados",
+    });
+    for (const sub of ["cancelar", "confirmar", "data"]) {
+      expect(migalhaDaRota(`/compromisso/abc-123/${sub}`)).toEqual({
+        href: "/compromisso/abc-123",
+        rotulo: "Agendamento",
+      });
+    }
+  });
+
+  it("da pendência volta para a fila de pendências, nunca para a home", () => {
+    expect(migalhaDaRota("/pendencias/abc-123")).toEqual({
+      href: "/pendencias",
+      rotulo: "Pendências",
+    });
   });
 
   it("nas views de primeira classe não existe — elas são o topo", () => {

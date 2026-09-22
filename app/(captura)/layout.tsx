@@ -3,16 +3,17 @@
  *
  * Este grupo de rotas é o que o `CONTAI-040` deixou **intocado** (critério 7):
  * `/adicionar/*` (captura, Teste do Canteiro aplicável como sempre) e as telas
- * de DETALHE que o próprio ticket põe Fora de Escopo — `/compromisso/*`,
- * `/obras/[id]/*`, `/pendencias/[id]`, `/conta`, `/entrar`. Nenhuma delas mudou
- * de uma linha: mudou a pasta, e é a pasta que decide a casca.
+ * de DETALHE que o próprio ticket põe Fora de Escopo — `/obras/[id]/*`,
+ * `/conta`, `/entrar`. Nenhuma delas mudou de uma linha: mudou a pasta, e é a
+ * pasta que decide a casca.
  *
  * ⚠️ O nome do grupo é o do ticket, e ele hospeda hoje mais do que captura pura
  * — as telas de detalhe estão SAINDO daqui, uma família por ticket.
  * `/documento/[id]` migrou no `CONTAI-043`; `/pagamento/[id]` e `/fatura/[id]`
- * (+ subrotas) migraram no `CONTAI-044`, ambas para `app/(gestao)/`, seguindo
- * `design/mocks/detalhe-no-shell-v1.md`. As demais são o `045` (compromisso +
- * pendências) e o `046` (obras + terreno).
+ * (+ subrotas) migraram no `CONTAI-044`; `/compromisso/*` (lista + detalhe +
+ * cancelar/confirmar/data) e `/pendencias/[id]` migraram no `CONTAI-045` —
+ * todas para `app/(gestao)/`, seguindo `design/mocks/detalhe-no-shell-v1.md`. A
+ * família que falta é a do `046` (obras + terreno).
  *
  * ⚠️ Quem migrar a próxima família NÃO estica a tela por 1244px: a coluna de
  * detalhe dentro do shell tem 640px (`ColunaDeDetalhe`). Largura cheia foi

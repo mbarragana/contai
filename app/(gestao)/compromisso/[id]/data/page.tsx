@@ -18,18 +18,20 @@ import { useEffect, useState } from "react";
 
 import { CampoTexto } from "@/app/_components/campos";
 import {
-  AppBar,
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+  RodapeDeAcao,
+} from "@/app/_components/detalhe";
+import {
   Banner,
   Botao,
   BotaoLink,
   BotaoSalvar,
   Card,
   Carregando,
-  Corpo,
   Dica,
   EstadoErro,
   Linha,
-  Rodape,
 } from "@/app/_components/ui";
 import {
   carregarCompromisso,
@@ -105,8 +107,11 @@ export default function MudarData() {
 
   return (
     <>
-      <AppBar titulo="Mudou a data" sub={compromisso?.favorecidoNome ?? undefined} />
-      <Corpo>
+      <CabecalhoDaTela
+        titulo="Mudou a data"
+        sub={compromisso?.favorecidoNome ?? undefined}
+      />
+      <ColunaDeDetalhe>
         {erroCarregar ? <EstadoErro erro={erroCarregar} /> : null}
         {!compromisso && !erroCarregar ? (
           <Carregando rotulo="Carregando o agendamento" />
@@ -194,8 +199,9 @@ export default function MudarData() {
             </Banner>
           </>
         ) : null}
-      </Corpo>
-      <Rodape>
+      </ColunaDeDetalhe>
+
+      <RodapeDeAcao>
         <BotaoSalvar
           ocupado={salvando}
           variante="primary"
@@ -205,7 +211,7 @@ export default function MudarData() {
           {salvando ? "Salvando…" : "Salvar a nova data"}
         </BotaoSalvar>
         <BotaoLink href={`/compromisso/${id}`}>Voltar sem salvar</BotaoLink>
-      </Rodape>
+      </RodapeDeAcao>
     </>
   );
 }

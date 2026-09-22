@@ -18,17 +18,19 @@ import { useEffect, useState } from "react";
 
 import { CampoTexto } from "@/app/_components/campos";
 import {
-  AppBar,
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+  RodapeDeAcao,
+} from "@/app/_components/detalhe";
+import {
   Banner,
   BotaoLink,
   BotaoSalvar,
   Card,
   Carregando,
-  Corpo,
   Dica,
   EstadoErro,
   Linha,
-  Rodape,
 } from "@/app/_components/ui";
 import {
   cancelarCompromisso,
@@ -85,8 +87,11 @@ export default function CancelarAgendamento() {
 
   return (
     <>
-      <AppBar titulo="Não vai ser pago" sub={compromisso?.favorecidoNome ?? undefined} />
-      <Corpo>
+      <CabecalhoDaTela
+        titulo="Não vai ser pago"
+        sub={compromisso?.favorecidoNome ?? undefined}
+      />
+      <ColunaDeDetalhe>
         {erroCarregar ? <EstadoErro erro={erroCarregar} /> : null}
         {!compromisso && !erroCarregar ? (
           <Carregando rotulo="Carregando o agendamento" />
@@ -158,8 +163,9 @@ export default function CancelarAgendamento() {
             </Card>
           </>
         ) : null}
-      </Corpo>
-      <Rodape>
+      </ColunaDeDetalhe>
+
+      <RodapeDeAcao>
         <BotaoSalvar
           ocupado={salvando}
           variante="primary"
@@ -173,7 +179,7 @@ export default function CancelarAgendamento() {
           {salvando ? "Salvando…" : "Marcar que não vai ser pago"}
         </BotaoSalvar>
         <BotaoLink href={`/compromisso/${id}`}>Voltar sem salvar</BotaoLink>
-      </Rodape>
+      </RodapeDeAcao>
     </>
   );
 }

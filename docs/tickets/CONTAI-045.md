@@ -29,6 +29,13 @@ para uma ação de dois cliques.
 
 ## Escopo e Critérios de Aceite
 
+**✅ Entregue em 2026-09-21, 6/6 critérios.** `compromisso`/`compromisso/[id]`
+(+ `cancelar`, `confirmar`, `data`) e `pendencias/[id]` migraram para o
+shell, coluna 640px. D65 (`cValor` sem default) confirmada intacta pelo
+`contador` com os próprios olhos. Gate 2 (`cto-obra`+`contador`) APPROVE
+sem retrabalho. 887 unitários + 256/257 E2E (1 falha pré-existente) +
+validação manual. Gate 4 (`po`) PASS. Sem migration.
+
 1. Mover para `app/(gestao)/`: `compromisso` (lista) e `compromisso/[id]`
    (+ `cancelar`, `confirmar`, `data`); `pendencias/[id]`. Comportamento
    idêntico, casca nova.

@@ -26,6 +26,15 @@
  *
  * ⚠️ **Nenhum caminho de código grava a data prevista** — ela aparece só como
  * referência read-only, cinza e com `~`.
+ *
+ * ⚠️ **CONTAI-045 — a migração para o shell é DE CASCA, e só.** Esta é a tela
+ * que o `CONTAI-034` consertou por default fiscal indevido (`cValor` nascia com
+ * o saldo previsto — **D65**), e o critério 3 do ticket de migração é explícito:
+ * nenhum default volta em campo fiscal. `cData`, `cValor`, `cEncargos` e
+ * `cSaldoData` continuam nascendo vazios, com o mesmo `data-campo` que a trava
+ * de `e2e/campos-fiscais.spec.ts` lê — a mudança de pasta não move a âncora.
+ * É formulário com UMA ação de página, logo ele **tem** `RodapeDeAcao`
+ * (decisão 4 do `detalhe-no-shell-v1`).
  */
 
 import { useParams, useRouter } from "next/navigation";
@@ -33,19 +42,21 @@ import { useEffect, useMemo, useState } from "react";
 
 import { CampoArquivo, CampoTexto } from "@/app/_components/campos";
 import {
-  AppBar,
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+  RodapeDeAcao,
+} from "@/app/_components/detalhe";
+import {
   Banner,
   Botao,
   BotaoLink,
   BotaoSalvar,
   Card,
   Carregando,
-  Corpo,
   Dica,
   EstadoErro,
   Linha,
   Passo,
-  Rodape,
 } from "@/app/_components/ui";
 import {
   carregarCompromisso,
@@ -293,19 +304,14 @@ export default function ConfirmarPagamento() {
 
   if (!compromisso) {
     return (
-      <>
-        <AppBar titulo="Registrar o pagamento" />
-        <Corpo>
+      <ColunaDeDetalhe>
+          <CabecalhoDaTela titulo="Registrar o pagamento" />
           {erroCarregar ? (
             <EstadoErro erro={erroCarregar} />
           ) : (
             <Carregando rotulo="Carregando o agendamento" />
           )}
-        </Corpo>
-        <Rodape>
-          <BotaoLink href="/">Voltar ao início</BotaoLink>
-        </Rodape>
-      </>
+      </ColunaDeDetalhe>
     );
   }
 
@@ -313,11 +319,11 @@ export default function ConfirmarPagamento() {
 
   return (
     <>
-      <AppBar
+      <CabecalhoDaTela
         titulo="Registrar o pagamento"
         sub={`${compromisso.favorecidoNome ?? "favorecido"} · ${preposicaoDeTempo(compromisso, hoje)}`}
       />
-      <Corpo>
+      <ColunaDeDetalhe>
         {erro ? (
           <Banner cor="red" role="alert">
             {erro}
@@ -528,8 +534,9 @@ export default function ConfirmarPagamento() {
             existindo, ligado a ele.
           </Dica>
         </Card>
-      </Corpo>
-      <Rodape>
+      </ColunaDeDetalhe>
+
+      <RodapeDeAcao>
         <BotaoSalvar ocupado={salvando} variante="primary" onClick={salvar} disabled={salvando || !podeSalvar}>
           {salvando
             ? "Salvando…"
@@ -547,7 +554,7 @@ export default function ConfirmarPagamento() {
         <BotaoLink href={`/compromisso/${compromisso.id}`}>
           Voltar sem salvar
         </BotaoLink>
-      </Rodape>
+      </RodapeDeAcao>
     </>
   );
 }

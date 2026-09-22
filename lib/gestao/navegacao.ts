@@ -93,11 +93,19 @@ export const OPCOES_DE_REGISTRO: readonly OpcaoDeRegistro[] = [
  * juntas no mesmo prefixo `/despesas` porque um PIX/boleto direto e uma
  * compra no cartão são a mesma despesa da meta 1, só com origem diferente
  * (`resumo.despesas[].href` já aponta para as duas desde o `CONTAI-041`).
+ *
+ * ⚠️ **CONTAI-045** acrescenta `/compromisso` → **Visão geral** (spec de
+ * design, decisão 1: é lá que a Agenda vive hoje). O prefixo vem **sem barra
+ * final** de propósito: a lista `/compromisso` é rota de verdade — o destino do
+ * "ver todos (N)" — e ela pertence à mesma view que o detalhe dela.
+ * `/pendencias/[id]` não precisa de linha nenhuma: a rota já começa pelo href
+ * da view, e o casamento por prefixo resolve.
  */
 const VIEW_DA_ROTA_DE_DETALHE: readonly (readonly [string, string])[] = [
   ["/documento/", "/despesas"],
   ["/pagamento/", "/despesas"],
   ["/fatura/", "/despesas"],
+  ["/compromisso", "/"],
 ] as const;
 
 /** A view a que a rota pertence — ela mesma, ou a dona do detalhe aberto. */
@@ -149,20 +157,53 @@ export interface MigalhaDeRota {
  * `/pagamento/[id]/ligar` e `/fatura/[id]/alocar` voltam para o PAGAMENTO e a
  * FATURA de origem, nunca para `/despesas` direto — mesma regra "um nível
  * abaixo" do documento, com o rótulo do tipo certo.
+ *
+ * ⚠️ **CONTAI-045** acrescenta `compromisso` e `pendencias`, e com eles a
+ * lista-mãe deixa de ser sempre `/despesas`:
+ * - `/compromisso/[id]` volta para a AGENDA (`/compromisso`), que é rota de
+ *   verdade, e a agenda volta para a **Visão geral**, de onde se chega nela;
+ * - `/pendencias/[id]` volta para `/pendencias` — **nunca** para a home antiga,
+ *   que deixou de existir no `CONTAI-040` (Pre-mortem 2 do ticket).
  */
-const ROTULO_DO_DETALHE: Readonly<Record<string, string>> = {
-  documento: "Documento",
-  pagamento: "Pagamento",
-  fatura: "Fatura",
+interface RaizDeDetalhe {
+  /** O rótulo do próprio registro — é o que a SUBROTA mostra no crumb. */
+  rotulo: string;
+  /** A lista-mãe do detalhe: para onde `/<raiz>/<id>` volta. */
+  mae: MigalhaDeRota;
+  /**
+   * Para onde a própria raiz volta, quando ela é rota de verdade e não é view
+   * de primeira classe. Só `/compromisso` hoje: `/pendencias` é view (o topo da
+   * navegação não tem para onde voltar) e `/documento`, `/pagamento` e
+   * `/fatura` não existem sem id.
+   */
+  daRaiz?: MigalhaDeRota;
+}
+
+const DESPESAS: MigalhaDeRota = { href: "/despesas", rotulo: "Despesas" };
+
+const RAIZES_DE_DETALHE: Readonly<Record<string, RaizDeDetalhe>> = {
+  documento: { rotulo: "Documento", mae: DESPESAS },
+  pagamento: { rotulo: "Pagamento", mae: DESPESAS },
+  fatura: { rotulo: "Fatura", mae: DESPESAS },
+  compromisso: {
+    rotulo: "Agendamento",
+    mae: { href: "/compromisso", rotulo: "Agendados" },
+    daRaiz: { href: "/", rotulo: "Visão geral" },
+  },
+  pendencias: {
+    rotulo: "Pendência",
+    mae: { href: "/pendencias", rotulo: "Pendências" },
+  },
 };
 
 export function migalhaDaRota(pathname: string): MigalhaDeRota | null {
   const partes = pathname.split("/").filter((p) => p !== "");
   const raiz = partes[0];
-  const rotulo = raiz === undefined ? undefined : ROTULO_DO_DETALHE[raiz];
-  if (!rotulo || partes.length < 2) return null;
-  if (partes.length === 2) return { href: "/despesas", rotulo: "Despesas" };
-  return { href: `/${raiz}/${partes[1]}`, rotulo };
+  const entrada = raiz === undefined ? undefined : RAIZES_DE_DETALHE[raiz];
+  if (!entrada) return null;
+  if (partes.length === 1) return entrada.daRaiz ?? null;
+  if (partes.length === 2) return entrada.mae;
+  return { href: `/${raiz}/${partes[1]}`, rotulo: entrada.rotulo };
 }
 
 /** O título da barra superior. Sem view casada, a marca. */

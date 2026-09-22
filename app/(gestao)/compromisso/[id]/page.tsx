@@ -7,26 +7,29 @@
  * critério 22), nunca no cartão da home: cancelar é ato deliberado com motivo
  * obrigatório, e um alvo de cancelamento a um toque na home é o caminho para
  * apagar por engano o que o parecer §3 manda preservar.
+ *
+ * ⚠️ **CONTAI-045**: a tela migrou para o shell de gestão. É tela de LEITURA com
+ * várias ações — logo, **sem rodapé fixo** (decisão 4 do `detalhe-no-shell-v1`):
+ * as três respostas ficam no fim do card a que pertencem, que é o que a doutrina
+ * "consequência nunca atrás de clique" já pede. O "Voltar ao início" virou o
+ * breadcrumb "‹ Agendados" do topbar — muda de lugar, não se duplica.
  */
 
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { CabecalhoDoAgendamento } from "@/app/_components/agendado";
+import { CabecalhoDaTela, ColunaDeDetalhe } from "@/app/_components/detalhe";
 import {
-  AppBar,
-  BarraAdicionar,
   Banner,
   Botao,
   BotaoLink,
   Card,
   Carregando,
-  Corpo,
   Dica,
   EstadoErro,
   Linha,
   Passo,
-  Rodape,
 } from "@/app/_components/ui";
 import {
   buscarFaturaDoCompromisso,
@@ -57,7 +60,7 @@ type Estado =
       obraNome: string;
       /**
        * CONTAI-022 — só para `origem === "cartao"`. `null` enquanto a busca
-       * não volta (o botão espera; ver a guarda no Rodapé).
+       * não volta (o botão espera; ver a guarda no card de situação).
        */
       faturaId: string | null;
     };
@@ -116,17 +119,14 @@ export default function DetalheAgendamento() {
   if (estado.fase !== "pronto") {
     return (
       <>
-        <AppBar titulo="Agendamento" />
-        <Corpo>
+        <CabecalhoDaTela titulo="Agendamento" />
+        <ColunaDeDetalhe>
           {estado.fase === "carregando" ? (
             <Carregando rotulo="Carregando o agendamento" />
           ) : (
             <EstadoErro erro={estado.erro} onTentarDeNovo={tentarDeNovo} />
           )}
-        </Corpo>
-        <BarraAdicionar
-          voltar={<BotaoLink href="/">Voltar ao início</BotaoLink>}
-        />
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -137,11 +137,11 @@ export default function DetalheAgendamento() {
 
   return (
     <>
-      <AppBar
+      <CabecalhoDaTela
         titulo="Agendamento"
         sub={`${c.favorecidoNome ?? "favorecido não informado"} · ${estado.obraNome}`}
       />
-      <Corpo>
+      <ColunaDeDetalhe>
         {/* As quatro marcas, pelo mesmo componente da home — nada de cartão
             paralelo que perca uma delas (critério 8). */}
         <CabecalhoDoAgendamento compromisso={c} hoje={hoje} />
@@ -186,6 +186,47 @@ export default function DetalheAgendamento() {
           <Linha rotulo="Ainda falta pagar">
             <span className="mono text-mut">~ {formatarBRL(saldo)}</span>
           </Linha>
+
+          {/* ⚠️ **As três respostas, no fim do card do FATO que elas respondem**
+              (CONTAI-045, decisão 4 do `detalhe-no-shell-v1`): esta é tela de
+              leitura com várias ações, e no shell ela não ganha rodapé fixo. Os
+              rótulos, a ordem e a guarda do cartão são os mesmos do rodapé de
+              430px — o que mudou foi o lugar. */}
+          {aberto ? (
+            <div
+              data-acoes="agendamento"
+              className="mt-3 flex flex-col gap-2 border-t border-line pt-3"
+            >
+              {/* ⚠️ CONTAI-022 — achado do `cto-obra`: compra no cartão NUNCA
+                  vai para o pagamento avulso. Sem esta guarda, a compra seria
+                  quitada com a data da COMPRA (o erro que este ticket existe
+                  para consertar) e o teto de alocação da fatura contaria um
+                  pagamento que não saiu dela. */}
+              {c.origem === "cartao" ? (
+                estado.faturaId ? (
+                  <BotaoLink href={`/fatura/${estado.faturaId}`} variante="primary">
+                    Ver a fatura
+                  </BotaoLink>
+                ) : (
+                  <Botao variante="primary" disabled>
+                    Carregando a fatura…
+                  </Botao>
+                )
+              ) : (
+                <BotaoLink href={`/compromisso/${c.id}/confirmar`} variante="primary">
+                  Registrar o pagamento
+                </BotaoLink>
+              )}
+              {/* "Mudou a data" de compra no cartão re-aloca a fatura — mesma
+                  tela, RPC diferente (ver
+                  `app/(gestao)/compromisso/[id]/data/page.tsx`). */}
+              <BotaoLink href={`/compromisso/${c.id}/data`}>Mudou a data</BotaoLink>
+              {/* ⚠️ SÓ AQUI (critério 22 do CONTAI-019). */}
+              <BotaoLink href={`/compromisso/${c.id}/cancelar`}>
+                Marcar que não vai ser pago
+              </BotaoLink>
+            </div>
+          ) : null}
         </Card>
 
         <Card>
@@ -221,8 +262,8 @@ export default function DetalheAgendamento() {
                 </div>
                 {p.encargosCentavos > 0 ? (
                   <Dica>
-                    {formatarBRL(p.encargosCentavos)} de juros e multa
-                    registrados e <strong>fora do custo</strong>.
+                    {formatarBRL(p.encargosCentavos)} de juros e multa registrados
+                    e <strong>fora do custo</strong>.
                   </Dica>
                 ) : null}
                 <div className="mt-2">
@@ -252,41 +293,7 @@ export default function DetalheAgendamento() {
             </Dica>
           </Card>
         ) : null}
-      </Corpo>
-      <Rodape>
-        {aberto ? (
-          <>
-            {/* ⚠️ CONTAI-022 — achado do `cto-obra`: compra no cartão NUNCA
-                vai para o pagamento avulso. Sem esta guarda, a compra seria
-                quitada com a data da COMPRA (o erro que este ticket existe
-                para consertar) e o teto de alocação da fatura contaria um
-                pagamento que não saiu dela. */}
-            {c.origem === "cartao" ? (
-              estado.faturaId ? (
-                <BotaoLink href={`/fatura/${estado.faturaId}`} variante="primary">
-                  Ver a fatura
-                </BotaoLink>
-              ) : (
-                <Botao variante="primary" disabled>
-                  Carregando a fatura…
-                </Botao>
-              )
-            ) : (
-              <BotaoLink href={`/compromisso/${c.id}/confirmar`} variante="primary">
-                Registrar o pagamento
-              </BotaoLink>
-            )}
-            {/* "Mudou a data" de compra no cartão re-aloca a fatura — mesma
-                tela, RPC diferente (ver `app/compromisso/[id]/data/page.tsx`). */}
-            <BotaoLink href={`/compromisso/${c.id}/data`}>Mudou a data</BotaoLink>
-            {/* ⚠️ SÓ AQUI (critério 22 do CONTAI-019). */}
-            <BotaoLink href={`/compromisso/${c.id}/cancelar`}>
-              Marcar que não vai ser pago
-            </BotaoLink>
-          </>
-        ) : null}
-        <BotaoLink href="/">Voltar ao início</BotaoLink>
-      </Rodape>
+      </ColunaDeDetalhe>
     </>
   );
 }

@@ -5,9 +5,13 @@ import { useCallback, useEffect, useState } from "react";
 
 import { CampoTexto } from "@/app/_components/campos";
 import { ROTULO_MOTIVO_NO_RASTRO } from "@/app/_components/corrigir";
+import {
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+  RodapeDeAcao,
+} from "@/app/_components/detalhe";
 import { useSessao } from "@/app/_components/sessao";
 import {
-  AppBar,
   Banner,
   Botao,
   BotaoLink,
@@ -16,12 +20,10 @@ import {
   Carregando,
   Chip,
   Consequencia,
-  Corpo,
   Dica,
   EstadoErro,
   Linha,
   Passo,
-  Rodape,
 } from "@/app/_components/ui";
 import {
   baixarPendencia,
@@ -88,6 +90,13 @@ type Estado =
  * corrigido pelo `po` em 19/08): os três desfechos do critério 21 são todos
  * sobre DAA, e nenhum descreve "resolvi o CNPJ errado". Quem recusa a lista
  * errada é o banco (check + FK composto da migration 0009).
+ *
+ * ⚠️ **CONTAI-045 — a tela migrou para o shell de gestão**, e com ela a saída:
+ * o "Voltar às pendências" do rodapé de 430px virou o breadcrumb "‹ Pendências"
+ * do topbar (`migalhaDaRota`), que aponta para `/pendencias` — a fila unificada
+ * do `CONTAI-042`, **nunca** para a home antiga, que deixou de existir no
+ * `CONTAI-040` (critério 4 e Pre-mortem 2 do ticket). Ele muda de lugar, não se
+ * duplica: por isso não sobrou nenhum "Voltar" no rodapé.
  */
 export default function DetalheDaPendencia() {
   const { id } = useParams<{ id: string }>();
@@ -177,17 +186,14 @@ export default function DetalheDaPendencia() {
   if (estado.fase !== "pronto") {
     return (
       <>
-        <AppBar titulo="Pendência" />
-        <Corpo>
+        <CabecalhoDaTela titulo="Pendência" />
+        <ColunaDeDetalhe>
           {estado.fase === "erro" ? (
             <EstadoErro erro={estado.erro} onTentarDeNovo={tentarDeNovo} />
           ) : (
             <Carregando rotulo="Carregando a pendência" />
           )}
-        </Corpo>
-        <Rodape>
-          <BotaoLink href="/pendencias">Voltar às pendências</BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -206,11 +212,11 @@ export default function DetalheDaPendencia() {
       });
     return (
       <>
-        <AppBar
+        <CabecalhoDaTela
           titulo="CNPJ errado — tratar"
           sub={`marcado em ${formatarDataBR(p.abertaEm.slice(0, 10))}`}
         />
-        <Corpo>
+        <ColunaDeDetalhe>
           {erroGravar ? (
             <Banner cor="red" role="alert">
               <strong>Não deu para baixar.</strong> {erroGravar} A pendência
@@ -294,41 +300,41 @@ export default function DetalheDaPendencia() {
               ) : null}
             </Card>
           ) : null}
-        </Corpo>
-        <Rodape>
-          {p.desfecho ? (
-            <BotaoLink href="/pendencias" variante="primary">
-              Voltar às pendências
-            </BotaoLink>
-          ) : tratando ? (
-            <>
-              <BotaoSalvar
-                ocupado={gravando}
-                variante="primary"
-                onClick={baixar}
-                disabled={gravando || !desfecho || data === ""}
-              >
-                {gravando
-                  ? "Gravando…"
-                  : !desfecho
-                    ? "Escolha o desfecho para continuar"
-                    : data === ""
-                      ? "Informe a data para continuar"
-                      : "Marcar como tratada"}
-              </BotaoSalvar>
-              <Botao variante="ghost" onClick={() => setTratando(false)}>
-                Cancelar
-              </Botao>
-            </>
-          ) : (
-            <>
+        </ColunaDeDetalhe>
+
+        {/* ⚠️ **CONTAI-045** — o rodapé existe só enquanto há UMA ação de
+            página (decisão 4 do spec). Baixada, a pendência vira leitura: o
+            rodapé some, e a saída é o breadcrumb "‹ Pendências" do topbar — o
+            "Voltar às pendências" mudou de lugar, não se duplicou. */}
+        {p.desfecho ? null : (
+          <RodapeDeAcao>
+            {tratando ? (
+              <>
+                <BotaoSalvar
+                  ocupado={gravando}
+                  variante="primary"
+                  onClick={baixar}
+                  disabled={gravando || !desfecho || data === ""}
+                >
+                  {gravando
+                    ? "Gravando…"
+                    : !desfecho
+                      ? "Escolha o desfecho para continuar"
+                      : data === ""
+                        ? "Informe a data para continuar"
+                        : "Marcar como tratada"}
+                </BotaoSalvar>
+                <Botao variante="ghost" onClick={() => setTratando(false)}>
+                  Cancelar
+                </Botao>
+              </>
+            ) : (
               <Botao variante="primary" onClick={() => setTratando(true)}>
                 Marcar como tratada
               </Botao>
-              <BotaoLink href="/pendencias">Voltar às pendências</BotaoLink>
-            </>
-          )}
-        </Rodape>
+            )}
+          </RodapeDeAcao>
+        )}
       </>
     );
   }
@@ -338,17 +344,12 @@ export default function DetalheDaPendencia() {
   if (!p) {
     return (
       <>
-        <AppBar titulo="Pendência" />
-        <Corpo>
+        <CabecalhoDaTela titulo="Pendência" />
+        <ColunaDeDetalhe>
           <Banner cor="amb" role="status">
             Esta pendência não existe nesta conta.
           </Banner>
-        </Corpo>
-        <Rodape>
-          <BotaoLink href="/pendencias" variante="primary">
-            Voltar às pendências
-          </BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -360,13 +361,13 @@ export default function DetalheDaPendencia() {
 
   return (
     <>
-      <AppBar
+      <CabecalhoDaTela
         titulo={
           p.desfecho ? `Pendência de ${p.ano} · baixada` : "Correção mexeu em ano anterior"
         }
         sub={`${p.ano} · aberta em ${formatarDataBR(p.abertaEm.slice(0, 10))} · ${p.quantidadeDeAtos} ${p.quantidadeDeAtos === 1 ? "correção acumulada" : "correções acumuladas"}`}
       />
-      <Corpo>
+      <ColunaDeDetalhe>
         {erroGravar ? (
           <Banner cor="red" role="alert">
             <strong>Não deu para baixar.</strong> {erroGravar} A pendência
@@ -562,42 +563,39 @@ export default function DetalheDaPendencia() {
             </Card>
           </>
         )}
-      </Corpo>
+      </ColunaDeDetalhe>
 
-      <Rodape>
-        {p.desfecho ? (
-          <BotaoLink href="/pendencias" variante="primary">
-            Voltar às pendências
-          </BotaoLink>
-        ) : tratando ? (
-          <>
-            <BotaoSalvar
-              ocupado={gravando}
-              variante="primary"
-              onClick={baixar}
-              disabled={gravando || !desfecho || faltaData}
-            >
-              {gravando
-                ? "Gravando…"
-                : !desfecho
-                  ? "Escolha o desfecho para continuar"
-                  : faltaData
-                    ? "Informe a data para continuar"
-                    : "Marcar como tratada"}
-            </BotaoSalvar>
-            <Botao variante="ghost" onClick={() => setTratando(false)}>
-              Cancelar
-            </Botao>
-          </>
-        ) : (
-          <>
+      {/* Mesma regra do ramo de CNPJ errado: baixada, a tela é leitura e o
+          rodapé não existe. */}
+      {p.desfecho ? null : (
+        <RodapeDeAcao>
+          {tratando ? (
+            <>
+              <BotaoSalvar
+                ocupado={gravando}
+                variante="primary"
+                onClick={baixar}
+                disabled={gravando || !desfecho || faltaData}
+              >
+                {gravando
+                  ? "Gravando…"
+                  : !desfecho
+                    ? "Escolha o desfecho para continuar"
+                    : faltaData
+                      ? "Informe a data para continuar"
+                      : "Marcar como tratada"}
+              </BotaoSalvar>
+              <Botao variante="ghost" onClick={() => setTratando(false)}>
+                Cancelar
+              </Botao>
+            </>
+          ) : (
             <Botao variante="primary" onClick={() => setTratando(true)}>
               Marcar como tratada
             </Botao>
-            <BotaoLink href="/pendencias">Voltar às pendências</BotaoLink>
-          </>
-        )}
-      </Rodape>
+          )}
+        </RodapeDeAcao>
+      )}
     </>
   );
 }

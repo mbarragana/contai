@@ -1,9 +1,11 @@
 import { USER_ID_SEED } from "./ambiente";
 import {
   criarCompraCartao,
+  criarCompromisso,
   criarDocumento,
   criarFavorecido,
   criarPagamento,
+  pendencias,
 } from "./banco";
 import { expect, test } from "./fixtures";
 
@@ -599,5 +601,222 @@ test.describe("detalhe de pagamento e de fatura no shell de gestão", () => {
     const rodape = page.locator('[data-rodape="acao"]');
     await expect(rodape).toBeVisible();
     expect(Math.round((await rodape.boundingBox())!.width)).toBe(640);
+  });
+});
+
+/**
+ * **CONTAI-045 — compromisso e pendência entram no shell.** Mesmo spec
+ * (`detalhe-no-shell-v1.md`), mesma casca dos irmãos `043`/`044`. O que muda
+ * aqui, e é só isso que este bloco trava:
+ *
+ * (a) a view acesa não é `Despesas`: `/compromisso/*` acende **Visão geral** (é
+ *     onde a Agenda vive — decisão 1 do spec), e `/pendencias/[id]` acende
+ *     **Pendências**;
+ * (b) o breadcrumb ganha um terceiro degrau real: a agenda volta para a Visão
+ *     geral, o agendamento volta para a agenda, e as três respostas voltam para
+ *     o agendamento — sempre ROTA, nunca histórico;
+ * (c) **`/pendencias/[id]` volta para `/pendencias`**, e não para a home antiga,
+ *     que não existe desde o `CONTAI-040` (critério 4 e Pre-mortem 2);
+ * (d) `confirmar` é formulário com uma ação de página: rodapé sticky na coluna —
+ *     e os campos fiscais continuam **nascendo vazios** depois da mudança de
+ *     rota (critério 3; a D65 é desta tela).
+ */
+test.describe("compromisso e pendência no shell de gestão", () => {
+  const CNPJ = "11222333000181";
+
+  async function umAgendamentoVencido(db: Parameters<typeof criarFavorecido>[0]) {
+    const favorecidoId = await criarFavorecido(db, {
+      nome: "AJE Construções",
+      documento: CNPJ,
+      tipo: "pj",
+    });
+    return criarCompromisso(db, {
+      favorecido_id: favorecidoId,
+      valor_previsto: 5000,
+      data_prevista: `${ANO}-01-10`,
+      origem: "boleto",
+    });
+  }
+
+  test("a agenda abre no shell, com Visão geral acesa e crumb para ela", async ({
+    page,
+    db,
+  }) => {
+    await umAgendamentoVencido(db);
+
+    await page.goto("/compromisso");
+    await expect(page.getByRole("heading", { name: "Agendados" })).toBeVisible();
+
+    const sidebar = page.locator('[data-shell="sidebar"]');
+    await expect(sidebar).toBeVisible();
+    const nav = sidebar.getByRole("navigation", { name: "Navegação principal" });
+    await expect(nav.getByRole("link", { name: "Visão geral" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    // Um item aceso, não dois.
+    await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
+
+    const coluna = page.locator('[data-coluna="detalhe"]');
+    expect(Math.round((await coluna.boundingBox())!.width)).toBe(640);
+
+    const crumb = page.locator('[data-crumb="voltar"]');
+    await expect(crumb).toHaveText("‹ Visão geral");
+    await expect(crumb).toHaveAttribute("href", "/");
+    // O "Voltar ao início" fixo do rodapé de 430px não sobreviveu: ele mudou
+    // de lugar, não se duplicou.
+    await expect(page.getByRole("link", { name: "Voltar ao início" })).toHaveCount(
+      0,
+    );
+    // Lista, não formulário: nenhuma ação de página, nenhum rodapé.
+    await expect(page.locator('[data-rodape="acao"]')).toHaveCount(0);
+  });
+
+  test("o agendamento é leitura: as três respostas no card, sem rodapé fixo", async ({
+    page,
+    db,
+  }) => {
+    const id = await umAgendamentoVencido(db);
+
+    await page.goto(`/compromisso/${id}`);
+    await expect(
+      page.getByRole("heading", { name: "Agendamento" }),
+    ).toBeVisible();
+
+    const crumb = page.locator('[data-crumb="voltar"]');
+    await expect(crumb).toHaveText("‹ Agendados");
+    await expect(crumb).toHaveAttribute("href", "/compromisso");
+
+    expect(
+      Math.round((await page.locator('[data-coluna="detalhe"]').boundingBox())!.width),
+    ).toBe(640);
+
+    // Decisão 4 do spec: leitura com várias ações não ganha rodapé — cada uma
+    // fica no fim do card a que pertence, e nenhuma delas se perdeu.
+    //
+    // ⚠️ Escopado em `[data-acoes="agendamento"]` porque o cartão do vencido já
+    // traz as TRÊS RESPOSTAS de um toque (`TresRespostas`, critérios 18 e 49) —
+    // a convivência das duas camadas é de antes deste ticket, e a migração de
+    // casca não podia apagar nenhuma das duas.
+    await expect(page.locator('[data-rodape="acao"]')).toHaveCount(0);
+    const acoes = page.locator('[data-acoes="agendamento"]');
+    await expect(acoes.getByRole("link", { name: "Registrar o pagamento" })).toBeVisible();
+    await expect(acoes.getByRole("link", { name: "Mudou a data" })).toBeVisible();
+    // ⚠️ Critério 22 do CONTAI-019: cancelar mora SÓ no detalhe, e continua aqui.
+    await expect(
+      acoes.getByRole("link", { name: "Marcar que não vai ser pago" }),
+    ).toBeVisible();
+    // E as três respostas do cartão do vencido continuam onde estavam.
+    await expect(
+      page.getByRole("group", { name: "Respostas do agendamento vencido" }),
+    ).toBeVisible();
+    await expect(page.getByRole("link", { name: "Voltar ao início" })).toHaveCount(
+      0,
+    );
+
+    await crumb.click();
+    await expect(page.getByRole("heading", { name: "Agendados" })).toBeVisible();
+  });
+
+  /**
+   * ⚠️ **A tela da D65.** O `CONTAI-034` tirou daqui o `cValor` pré-preenchido
+   * com o saldo previsto; o critério 3 deste ticket diz que a migração de casca
+   * não pode reintroduzir default nenhum. A trava formal continua sendo
+   * `campos-fiscais.spec.ts` (que enumera a rota pelo filesystem e não vê route
+   * group); esta asserção existe porque o ticket pede a conferência **na casca
+   * nova**, com o shell montado em volta.
+   */
+  test("confirmar: rodapé sticky na coluna, e data e valor continuam nascendo vazios", async ({
+    page,
+    db,
+  }) => {
+    const id = await umAgendamentoVencido(db);
+
+    await page.goto(`/compromisso/${id}/confirmar`);
+    await expect(
+      page.getByRole("heading", { name: "Registrar o pagamento", exact: true }),
+    ).toBeVisible();
+
+    const crumb = page.locator('[data-crumb="voltar"]');
+    await expect(crumb).toHaveText("‹ Agendamento");
+    await expect(crumb).toHaveAttribute("href", `/compromisso/${id}`);
+
+    // Nenhum default em campo fiscal — nem na data, nem no valor.
+    await expect(page.getByLabel("Data em que o dinheiro saiu")).toHaveValue("");
+    await expect(page.getByLabel("Valor efetivamente pago")).toHaveValue("");
+    await expect(
+      page.getByRole("button", { name: "Informe a data em que o dinheiro saiu" }),
+    ).toBeDisabled();
+    // O previsto continua read-only, cinza e com `~`: referência, nunca campo.
+    await expect(page.locator("[data-marca='valor-previsto']")).toContainText("~");
+
+    const rodape = page.locator('[data-rodape="acao"]');
+    await expect(rodape).toBeVisible();
+    const caixaRodape = (await rodape.boundingBox())!;
+    const caixaColuna = (await page
+      .locator('[data-coluna="detalhe"]')
+      .boundingBox())!;
+    expect(Math.round(caixaRodape.width)).toBe(640);
+    expect(Math.round(caixaRodape.x)).toBe(Math.round(caixaColuna.x));
+  });
+
+  /**
+   * Critério 4 e Pre-mortem 2: o link de volta aponta para a fila unificada
+   * (`/pendencias`), dentro do shell — nunca para a home antiga.
+   */
+  test("a pendência volta para /pendencias, com Pendências acesa", async ({
+    page,
+    db,
+  }) => {
+    const favorecidoId = await criarFavorecido(db, {
+      nome: "AJE Construções",
+      documento: CNPJ,
+      tipo: "pj",
+    });
+    const documentoId = await criarDocumento(db, {
+      favorecido_id: favorecidoId,
+      tipo: "nf_material",
+      classificacao: "material",
+      valor: 9400,
+      destinatario_cpf_ok: true,
+    });
+    // O caminho que CRIA a pendência persistente, sem inventar linha no banco.
+    await page.goto(`/documento/${documentoId}/cnpj-errado`);
+    await page
+      .getByRole("button", {
+        name: "Marcar: o CNPJ deste registro está errado — tratar",
+      })
+      .click();
+    await expect(page.getByRole("status")).toContainText("Marcado.");
+    const pendenciaId = (await pendencias(db))[0].id;
+
+    await page.goto(`/pendencias/${pendenciaId}`);
+    await expect(
+      page.getByRole("heading", { name: "CNPJ errado — tratar" }),
+    ).toBeVisible();
+
+    const sidebar = page.locator('[data-shell="sidebar"]');
+    const nav = sidebar.getByRole("navigation", { name: "Navegação principal" });
+    await expect(nav.getByRole("link", { name: "Pendências" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
+
+    expect(
+      Math.round((await page.locator('[data-coluna="detalhe"]').boundingBox())!.width),
+    ).toBe(640);
+
+    const crumb = page.locator('[data-crumb="voltar"]');
+    await expect(crumb).toHaveText("‹ Pendências");
+    await expect(crumb).toHaveAttribute("href", "/pendencias");
+    // O "Voltar às pendências" do rodapé de 430px mudou de lugar, não se
+    // duplicou.
+    await expect(
+      page.getByRole("link", { name: "Voltar às pendências" }),
+    ).toHaveCount(0);
+
+    await crumb.click();
+    await expect(page).toHaveURL("/pendencias");
   });
 });

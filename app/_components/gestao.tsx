@@ -49,6 +49,7 @@ import {
 import { calcularResumo, type ResumoObra } from "@/lib/fiscal/resumo";
 import { hojeIso } from "@/lib/hoje";
 import { lerObraPreferida, observarObraPreferida } from "@/lib/obra-ativa";
+import type { Compromisso } from "@/lib/types";
 
 export type EstadoDaGestao =
   | { fase: "carregando" }
@@ -66,8 +67,22 @@ export type EstadoDaGestao =
       /**
        * ⚠️ Campo SEPARADO do painel, e pela mesma razão de sempre: compromisso
        * não entra em `calcularResumo` por caminho nenhum (CONTAI-019, crit. 3).
+       *
+       * Aqui ele vem com o corte de 3 abertos que é da **home** (critério 43 do
+       * CONTAI-019).
        */
       agenda: AgendaHome;
+      /**
+       * Os compromissos da obra aberta, **sem corte nenhum** — é deles que
+       * `/compromisso` monta a agenda inteira (o destino do "ver todos (N)",
+       * onde o corte da home deixa de valer).
+       *
+       * ⚠️ **CONTAI-045, critério 5**: a lista lê daqui em vez de repetir
+       * `carregarObras` + `escolherObraAtiva` + `carregarCompromissos` por conta
+       * própria. Segunda leitura da obra ativa é a porta do Pre-mortem 3 do
+       * `CONTAI-040` — sidebar e conteúdo apontando para obras diferentes.
+       */
+      compromissos: Compromisso[];
       /**
        * As dezoito famílias, já ordenadas e contadas (`CONTAI-042`). É daqui
        * que sai o badge da sidebar — sem contagem provisória e sem uma segunda
@@ -124,6 +139,7 @@ export function ProvedorDeGestao({ children }: { children: ReactNode }) {
           painel,
           resumo,
           agenda: montarAgendaDaHome(compromissos, hojeIso()),
+          compromissos,
           unificadas: unificarPendencias({
             resumo,
             obra: painel?.obra ?? null,
