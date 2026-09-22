@@ -25,6 +25,15 @@ tela por tela.
 
 ## Escopo e Critérios de Aceite
 
+**✅ Entregue em 2026-09-22, 11/11 critérios.** `lib/fiscal/despesas.ts`
+(`linhasDeDespesa`) projeta `Documento`/`Pagamento` em linhas, com 8 testes
+dedicados garantindo zero duplicação de centavo. Gate 2 com 1 rework:
+documento sem valor lançado virava "R$ 0,00" (afirmação de zero onde não
+há dado) — corrigido para "—", mesmo traço do detalhe. 925 unitários +
+273 E2E + validação manual extensa. Gate 4 (`po`) PASS. Sem migration.
+**Fecha a rodada "desktop shell" inteira (CONTAI-042 → 040 → 043→044→045→046
+→ 041).**
+
 ### Decisões de escopo já fechadas (as 5 perguntas do `desktop-shell-v1.md`)
 Registradas em `docs/backlog/46-2026-09-21-cinco-decisoes-desktop-shell-
 contai-040-042.md`:

@@ -516,7 +516,13 @@ export interface EntradaResumo {
 
 const SEM_FAVORECIDO = "Favorecido não informado";
 
-const NOME_TIPO_CURTO: Record<Documento["tipo"], string> = {
+/**
+ * ⚠️ **Exportado no CONTAI-041**: a tabela de `/despesas` nomeia o mesmo tipo
+ * de documento na coluna `Documento`. Uma definição, dois consumidores — o
+ * mapa já vivia copiado em seis telas de detalhe, e a sétima cópia seria a
+ * chance de a lista e o detalhe chamarem a mesma nota por nomes diferentes.
+ */
+export const NOME_TIPO_CURTO: Record<Documento["tipo"], string> = {
   nf_material: "NF de material",
   nf_servico: "NF de serviço",
   boleto: "Boleto",

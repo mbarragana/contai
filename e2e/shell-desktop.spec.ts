@@ -302,6 +302,109 @@ test.describe("shell de gestão no desktop", () => {
 });
 
 /**
+ * **CONTAI-041 — a tabela de Despesas na largura de gestão.**
+ *
+ * ⚠️ **Só o que a largura pode provar.** Filtros, ordenação, montagem das
+ * linhas e texto fiscal já são provados no projeto `mobile`, no piso de 375px
+ * (`despesas.spec.ts`), e em `lib/fiscal/despesas.test.ts`. O que só aqui se
+ * prova é que ela é uma TABELA DE VERDADE — colunas lado a lado, cabeçalho
+ * ordenável visível — e que a consequência fiscal cabe inteira na célula, que é
+ * a liberdade nova do spec de design: *"numa tela larga uma linha de tabela
+ * pode ser alta o suficiente para caber a Consequência inteira"*.
+ */
+test.describe("a tabela de Despesas no shell de gestão", () => {
+  test("colunas de verdade, cabeçalho ordenável e consequência inteira na célula", async ({
+    page,
+    db,
+  }) => {
+    const favorecidoId = await criarFavorecido(db, {
+      nome: "João Pedreiro",
+      documento: "52998224725",
+      tipo: "pf",
+    });
+    await criarPagamento(db, {
+      favorecido_id: favorecidoId,
+      valor: 3200,
+      data_pagamento: `${ANO}-02-14`,
+      meio: "pix",
+      status: "aguardando_nf",
+      comprovante_path: `${USER_ID_SEED}/comprovante/pix.png`,
+    });
+
+    await page.goto("/despesas");
+    const tabela = page.locator('[data-tabela="despesas"]');
+    await expect(tabela).toBeVisible();
+
+    // Despesas acesa, e só ela.
+    const nav = page
+      .locator('[data-shell="sidebar"]')
+      .getByRole("navigation", { name: "Navegação principal" });
+    await expect(nav.getByRole("link", { name: "Despesas" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
+
+    // ── tabela de VERDADE: as sete colunas numa linha só ─────────────────
+    const celulas = await tabela
+      .locator("tbody tr")
+      .first()
+      .locator("td")
+      .evaluateAll((els) =>
+        els.map((el) => {
+          const r = el.getBoundingClientRect();
+          return { x: Math.round(r.x), y: Math.round(r.y) };
+        }),
+      );
+    expect(celulas).toHaveLength(7);
+    // Mesma linha, x crescente — empilhado seria a pilha de 375px esticada.
+    expect(new Set(celulas.map((c) => c.y)).size).toBe(1);
+    for (let i = 1; i < celulas.length; i++) {
+      expect(celulas[i].x).toBeGreaterThan(celulas[i - 1].x);
+    }
+
+    // O cabeçalho da tabela existe de verdade nesta largura, com as sete
+    // colunas nomeadas e as duas ordenáveis anunciando a ordem.
+    await expect(tabela.locator("thead th")).toHaveCount(7);
+    await expect(tabela.locator("thead th").first()).toHaveAttribute(
+      "aria-sort",
+      "descending",
+    );
+    await tabela.locator("[data-ordenar='valor']").click();
+    await expect(tabela.locator("thead th").nth(4)).toHaveAttribute(
+      "aria-sort",
+      "descending",
+    );
+
+    // ── a consequência INTEIRA dentro da célula, sem truncar e sem clique ─
+    const consequencia = page.getByText(
+      "Custo não se sustenta no IR até o recibo chegar",
+      { exact: false },
+    );
+    await expect(consequencia).toBeVisible();
+    // A linha cresceu em altura para caber o texto: é essa a liberdade nova.
+    const alturaDaLinha = (await tabela.locator("tbody tr").boundingBox())!.height;
+    expect(alturaDaLinha).toBeGreaterThan(60);
+
+    const cortados = await page.evaluate(() => {
+      const fora: string[] = [];
+      for (const el of document.querySelectorAll("main p, main td")) {
+        if (el.scrollWidth > el.clientWidth + 1) {
+          fora.push((el.textContent ?? "").slice(0, 80));
+        }
+      }
+      return fora;
+    });
+    expect(cortados).toEqual([]);
+    const vazamento = await page.evaluate(() => {
+      const main = document.querySelector("main")!;
+      return main.scrollWidth - main.clientWidth;
+    });
+    expect(vazamento).toBeLessThanOrEqual(1);
+  });
+});
+
+/**
  * **CONTAI-043 — as telas de detalhe do documento dentro do shell.**
  *
  * Fonte do desenho: `design/mocks/detalhe-no-shell-v1.md`. O que este bloco
