@@ -1,6 +1,20 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 11 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 15 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-09-21**: **`043`, `044`, `045`, `046` criados** — o `po` fatiou por
+família a dívida que o próprio `app/(captura)/layout.tsx` nomeia desde a
+entrega do `040` ("as telas de detalhe entram no shell numa rodada
+futura"): `043` Documento, `044` Pagamento+Fatura, `045` Compromisso+
+Pendências, `046` Obras+Terreno — todos **P1**, todos bloqueados por **Gate
+0** (spec "detalhe dentro do shell", em desenho paralelo pelo `designer`;
+ainda não publicado em `design/mocks/`). Ordem sugerida **`043` → `044` →
+`045` → `046`**, sem bloqueio formal entre eles. Formaliza pela primeira vez
+em ticket o achado do `cto-obra` (Gate 2 do `039`): telas de detalhe usam
+coluna ~560px, não full-width. `/entrar` e `/obras/nova` ficam fora em
+definitivo; `/conta` fica fora desta rodada. Decisão completa:
+`docs/backlog/50-2026-09-21-migracao-detalhe-para-shell.md`. **Nenhum dos
+quatro entra na "Fila de implementação" ainda** — falta o Gate 0.
 
 **2026-09-21**: **`040`, `041`, `042` entram na fila** — o Mateus rejeitou o
 layout do `CONTAI-039` ("ficou horrível... quero uma experiência de
