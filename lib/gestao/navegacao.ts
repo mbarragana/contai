@@ -87,13 +87,17 @@ export const OPCOES_DE_REGISTRO: readonly OpcaoDeRegistro[] = [
  * fora da navegação no meio da revisão que o shell existe para dar.
  *
  * Atribuição fixada no spec de design (`detalhe-no-shell-v1.md`, decisão 1):
- * `/documento`, `/pagamento` e `/fatura` → **Despesas**. As duas últimas
- * entram com o `CONTAI-044`; este ticket migra só a primeira, e item de menu
- * ativo para rota que ainda mora em `(captura)` seria sidebar mentindo sobre
- * onde a tela está.
+ * `/documento`, `/pagamento` e `/fatura` → **Despesas**.
+ *
+ * ⚠️ **CONTAI-044** acrescenta `/pagamento` e `/fatura` — as duas entram
+ * juntas no mesmo prefixo `/despesas` porque um PIX/boleto direto e uma
+ * compra no cartão são a mesma despesa da meta 1, só com origem diferente
+ * (`resumo.despesas[].href` já aponta para as duas desde o `CONTAI-041`).
  */
 const VIEW_DA_ROTA_DE_DETALHE: readonly (readonly [string, string])[] = [
   ["/documento/", "/despesas"],
+  ["/pagamento/", "/despesas"],
+  ["/fatura/", "/despesas"],
 ] as const;
 
 /** A view a que a rota pertence — ela mesma, ou a dona do detalhe aberto. */
@@ -135,16 +139,30 @@ export interface MigalhaDeRota {
  * abrem o detalhe de fora.
  *
  * Duas camadas, e a segunda é a aplicação da mesma regra um nível abaixo:
- * - `/documento/[id]` → a lista-mãe, **Despesas**;
- * - `/documento/[id]/<qualquer coisa>` → o documento de onde a correção saiu.
- *   A mãe de `corrigir/valor` é o documento, que é rota de verdade — não é o
- *   histórico disfarçado.
+ * - `/documento/[id]` (ou `/pagamento/[id]`, `/fatura/[id]`) → a lista-mãe,
+ *   **Despesas**;
+ * - `/documento/[id]/<qualquer coisa>` → o documento de onde a correção saiu
+ *   (idem pagamento/fatura). A mãe de `corrigir/valor` é o documento, que é
+ *   rota de verdade — não é o histórico disfarçado.
+ *
+ * ⚠️ **CONTAI-044** generaliza a raiz única (`documento`) para uma tabela:
+ * `/pagamento/[id]/ligar` e `/fatura/[id]/alocar` voltam para o PAGAMENTO e a
+ * FATURA de origem, nunca para `/despesas` direto — mesma regra "um nível
+ * abaixo" do documento, com o rótulo do tipo certo.
  */
+const ROTULO_DO_DETALHE: Readonly<Record<string, string>> = {
+  documento: "Documento",
+  pagamento: "Pagamento",
+  fatura: "Fatura",
+};
+
 export function migalhaDaRota(pathname: string): MigalhaDeRota | null {
   const partes = pathname.split("/").filter((p) => p !== "");
-  if (partes[0] !== "documento" || partes.length < 2) return null;
+  const raiz = partes[0];
+  const rotulo = raiz === undefined ? undefined : ROTULO_DO_DETALHE[raiz];
+  if (!rotulo || partes.length < 2) return null;
   if (partes.length === 2) return { href: "/despesas", rotulo: "Despesas" };
-  return { href: `/documento/${partes[1]}`, rotulo: "Documento" };
+  return { href: `/${raiz}/${partes[1]}`, rotulo };
 }
 
 /** O título da barra superior. Sem view casada, a marca. */

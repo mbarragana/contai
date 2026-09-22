@@ -3,20 +3,22 @@
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import {
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+  RodapeDeAcao,
+} from "@/app/_components/detalhe";
 import { useSessao } from "@/app/_components/sessao";
 import {
-  AppBar,
   Banner,
   BotaoLink,
   BotaoSalvar,
   Card,
   Carregando,
-  Corpo,
   Dica,
   ErroDeGravacao,
   EstadoErro,
   Passo,
-  Rodape,
 } from "@/app/_components/ui";
 import {
   carregarPagamento,
@@ -232,8 +234,8 @@ export default function LigarDocumentos() {
   if (!pronto) {
     return (
       <>
-        <AppBar titulo="Ligar este pagamento a uma nota" />
-        <Corpo>
+        <CabecalhoDaTela titulo="Ligar este pagamento a uma nota" />
+        <ColunaDeDetalhe>
           {erroCarregar ? (
             <>
               <Banner cor="red" role="alert">
@@ -249,10 +251,7 @@ export default function LigarDocumentos() {
               <Carregando rotulo="Carregando os candidatos" />
             </>
           )}
-        </Corpo>
-        <Rodape>
-          <BotaoLink href={`/pagamento/${id}`}>Voltar ao pagamento</BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -261,11 +260,11 @@ export default function LigarDocumentos() {
 
   return (
     <>
-      <AppBar
+      <CabecalhoDaTela
         titulo="Ligar este pagamento a uma nota"
         sub={`${formatarBRL(p.valorCentavos)} · ${p.favorecidoNome ?? "sem favorecido"} · ${pronto.painel.obra.nome}`}
       />
-      <Corpo>
+      <ColunaDeDetalhe>
         {erroSalvar ? (
           <ErroDeGravacao
             mensagem={erroSalvar}
@@ -391,9 +390,9 @@ export default function LigarDocumentos() {
         {pronto.ocultosPorCobertura > 0 ? (
           <Dica>{CANDIDATO_OCULTO_DOCUMENTO}</Dica>
         ) : null}
-      </Corpo>
+      </ColunaDeDetalhe>
 
-      <Rodape>
+      <RodapeDeAcao>
         {/* Mesmo rodapé do mock do outro seletor, e agora com a MESMA
             grandeza dele: "Custo confirmado se ligar agora" nomeia o custo de
             aquisição do imóvel — um único total acumulado —, então o número é
@@ -432,7 +431,7 @@ export default function LigarDocumentos() {
               : `Ligar ${marcadosDeVerdade.length} ${marcadosDeVerdade.length === 1 ? "documento" : "documentos"}`}
         </BotaoSalvar>
         <BotaoLink href={`/pagamento/${p.id}`}>Cancelar</BotaoLink>
-      </Rodape>
+      </RodapeDeAcao>
     </>
   );
 }

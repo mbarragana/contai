@@ -12,23 +12,34 @@
  * s7v (nada elegível) é estado ALCANÇÁVEL, confirmado pelo `cto-obra`:
  * caminho normal do rotativo quando a última alocação já cobriu o que
  * sobrava. Nunca decidido por teto=0 — só pela ausência de compra `aberto`.
+ *
+ * ⚠️ **CONTAI-044, critério 2 — largura da coluna.** O ticket levantava esta
+ * tela como candidata a exceção nomeada (mais larga que os 640px padrão) por
+ * causa da "tabela de desembolsos/linhas de alocação". Não há tabela: a lista
+ * de compras abaixo é `label` + checkbox + valor, a MESMA forma de
+ * `documento/[id]/ligar` e `pagamento/[id]/ligar` — já migradas para 640px no
+ * `CONTAI-043` sem perda de legibilidade. Decisão: **640px padrão, sem
+ * exceção**, por não haver densidade além da já validada nos dois seletores
+ * irmãos.
  */
 
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
 import {
-  AppBar,
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+  RodapeDeAcao,
+} from "@/app/_components/detalhe";
+import {
   Banner,
   BotaoLink,
   BotaoSalvar,
   Card,
   Carregando,
   Chip,
-  Corpo,
   Dica,
   EstadoErro,
-  Rodape,
 } from "@/app/_components/ui";
 import {
   alocarPagamentoDeFatura,
@@ -90,17 +101,14 @@ function AlocarPagamento() {
   if (estado.fase === "carregando" || estado.fase === "erro") {
     return (
       <>
-        <AppBar titulo="Alocar o pagamento" />
-        <Corpo>
+        <CabecalhoDaTela titulo="Alocar o pagamento" />
+        <ColunaDeDetalhe>
           {estado.fase === "carregando" ? (
             <Carregando rotulo="Carregando a fatura" />
           ) : (
             <EstadoErro erro={estado.erro} />
           )}
-        </Corpo>
-        <Rodape>
-          <BotaoLink href="/">Voltar ao início</BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -108,8 +116,8 @@ function AlocarPagamento() {
   if (estado.fase === "salvo") {
     return (
       <>
-        <AppBar titulo="Alocação confirmada" sub="fatura, rotativo" />
-        <Corpo>
+        <CabecalhoDaTela titulo="Alocação confirmada" sub="fatura, rotativo" />
+        <ColunaDeDetalhe>
           <Banner cor="grn" role="status">
             <strong>Salvo.</strong> {estado.pagas.length}{" "}
             {estado.pagas.length === 1 ? "compra virou" : "compras viraram"}{" "}
@@ -161,13 +169,7 @@ function AlocarPagamento() {
               revisão humana, sem chute do app.
             </Dica>
           ) : null}
-        </Corpo>
-        <Rodape>
-          <BotaoLink href="/adicionar/compra-cartao" variante="primary">
-            Registrar outra compra
-          </BotaoLink>
-          <BotaoLink href="/">Voltar ao início</BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -181,17 +183,14 @@ function AlocarPagamento() {
     // a fatura, onde os desembolsos aparecem listados.
     return (
       <>
-        <AppBar titulo="Alocar o pagamento" />
-        <Corpo>
+        <CabecalhoDaTela titulo="Alocar o pagamento" />
+        <ColunaDeDetalhe>
           <Banner cor="amb" role="status">
             Abra esta tela a partir de &quot;Registrar pagamento
             parcial&quot; — ela precisa saber qual valor pago você está
             alocando.
           </Banner>
-        </Corpo>
-        <Rodape>
-          <BotaoLink href={`/fatura/${fatura.id}`}>Voltar à fatura</BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -203,20 +202,17 @@ function AlocarPagamento() {
   if (nadaElegivelParaAlocacao(fatura, compromissos)) {
     return (
       <>
-        <AppBar
+        <CabecalhoDaTela
           titulo="Alocar o pagamento"
           sub={desembolso ? `${formatarBRL(desembolso.valorCentavos)} pagos em ${formatarDataBR(desembolso.dataPagamento)}` : undefined}
         />
-        <Corpo>
+        <ColunaDeDetalhe>
           <Banner cor="amb" role="status">
             Nada para alocar aqui — todas as compras desta fatura já têm
             pagamento vinculado. O valor fica registrado, sem compra
             associada.
           </Banner>
-        </Corpo>
-        <Rodape>
-          <BotaoLink href={`/fatura/${fatura.id}`}>Voltar</BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -266,11 +262,11 @@ function AlocarPagamento() {
 
   return (
     <>
-      <AppBar
+      <CabecalhoDaTela
         titulo="Alocar o pagamento"
         sub={desembolso ? `${formatarBRL(desembolso.valorCentavos)} pagos em ${formatarDataBR(desembolso.dataPagamento)}` : undefined}
       />
-      <Corpo>
+      <ColunaDeDetalhe>
         {erro ? (
           <Banner cor="red" role="alert">
             {erro}
@@ -331,8 +327,8 @@ function AlocarPagamento() {
             fiscal até você decidir.
           </Dica>
         ) : null}
-      </Corpo>
-      <Rodape>
+      </ColunaDeDetalhe>
+      <RodapeDeAcao>
         <BotaoSalvar
           ocupado={estado.fase === "salvando"}
           variante="primary"
@@ -342,7 +338,7 @@ function AlocarPagamento() {
           {estado.fase === "salvando" ? "Salvando…" : "Confirmar alocação"}
         </BotaoSalvar>
         <BotaoLink href={`/fatura/${fatura.id}`}>Voltar — decidir depois</BotaoLink>
-      </Rodape>
+      </RodapeDeAcao>
     </>
   );
 }

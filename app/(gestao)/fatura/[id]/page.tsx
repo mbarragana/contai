@@ -14,15 +14,16 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import {
-  AppBar,
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+} from "@/app/_components/detalhe";
+import {
   Banner,
   BotaoLink,
   Card,
   Carregando,
-  Corpo,
   Dica,
   EstadoErro,
-  Rodape,
 } from "@/app/_components/ui";
 import {
   carregarCompromissos,
@@ -69,17 +70,14 @@ export default function DetalheFatura() {
   if (estado.fase !== "pronto") {
     return (
       <>
-        <AppBar titulo="Fatura" />
-        <Corpo>
+        <CabecalhoDaTela titulo="Fatura" />
+        <ColunaDeDetalhe>
           {estado.fase === "carregando" ? (
             <Carregando rotulo="Carregando as compras desta fatura" />
           ) : (
             <EstadoErro erro={estado.erro} />
           )}
-        </Corpo>
-        <Rodape>
-          <BotaoLink href="/">Voltar ao início</BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -93,13 +91,13 @@ export default function DetalheFatura() {
 
   return (
     <>
-      <AppBar
+      <CabecalhoDaTela
         titulo={`Fatura · vence ${formatarDataBR(fatura.dataVencimento)}`}
         sub={`${compromissos.length} ${compromissos.length === 1 ? "compra" : "compras"} · ${
           abertas.length > 0 ? "ainda aberta" : "sem compras em aberto"
         }`}
       />
-      <Corpo>
+      <ColunaDeDetalhe>
         <Banner cor="amb" role="status">
           A fatura <strong>não é documento hábil</strong> e não tem
           favorecido próprio — o custo se atribui por compra, cada uma com
@@ -159,21 +157,33 @@ export default function DetalheFatura() {
             aqui.
           </Dica>
         ) : null}
-      </Corpo>
-      <Rodape>
-        {abertas.length > 0 ? (
-          <>
-            <BotaoLink href={`/fatura/${fatura.id}/confirmar`} variante="primary">
-              Confirmar fatura paga (integral)
+
+        {/* Decisão 4 do spec de design: leitura com ações por card, sem
+            rodapé fixo — a ação certa ao lado do fato certo, mesmo padrão de
+            `blocoPagamentos`/`blocoCorrigir` em `/documento/[id]`. O "Voltar
+            ao início" da `Rodape` de 430px não sobrevive: quem navega agora é
+            a sidebar e o breadcrumb do topbar. */}
+        <Card>
+          <div className="flex flex-col gap-2">
+            {abertas.length > 0 ? (
+              <>
+                <BotaoLink
+                  href={`/fatura/${fatura.id}/confirmar`}
+                  variante="primary"
+                >
+                  Confirmar fatura paga (integral)
+                </BotaoLink>
+                <BotaoLink href={`/fatura/${fatura.id}/parcial`}>
+                  Registrar pagamento parcial (rotativo)
+                </BotaoLink>
+              </>
+            ) : null}
+            <BotaoLink href="/adicionar/compra-cartao">
+              Registrar outra compra
             </BotaoLink>
-            <BotaoLink href={`/fatura/${fatura.id}/parcial`}>
-              Registrar pagamento parcial (rotativo)
-            </BotaoLink>
-          </>
-        ) : null}
-        <BotaoLink href="/adicionar/compra-cartao">Registrar outra compra</BotaoLink>
-        <BotaoLink href="/">Voltar ao início</BotaoLink>
-      </Rodape>
+          </div>
+        </Card>
+      </ColunaDeDetalhe>
     </>
   );
 }

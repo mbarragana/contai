@@ -19,16 +19,18 @@ import { useEffect, useState } from "react";
 
 import { CampoArquivo, CampoTexto } from "@/app/_components/campos";
 import {
-  AppBar,
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+  RodapeDeAcao,
+} from "@/app/_components/detalhe";
+import {
   Banner,
   BotaoLink,
   BotaoSalvar,
   Card,
   Carregando,
-  Corpo,
   Dica,
   EstadoErro,
-  Rodape,
 } from "@/app/_components/ui";
 import {
   carregarCompromissos,
@@ -83,17 +85,14 @@ export default function ConfirmarFaturaIntegral() {
   if (estado.fase === "carregando" || estado.fase === "erro") {
     return (
       <>
-        <AppBar titulo="Fatura paga · integral" />
-        <Corpo>
+        <CabecalhoDaTela titulo="Fatura paga · integral" />
+        <ColunaDeDetalhe>
           {estado.fase === "carregando" ? (
             <Carregando rotulo="Carregando a fatura" />
           ) : (
             <EstadoErro erro={estado.erro} />
           )}
-        </Corpo>
-        <Rodape>
-          <BotaoLink href="/">Voltar ao início</BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -101,11 +100,11 @@ export default function ConfirmarFaturaIntegral() {
   if (estado.fase === "salvo") {
     return (
       <>
-        <AppBar
+        <CabecalhoDaTela
           titulo={`${estado.abertas.length} ${estado.abertas.length === 1 ? "pagamento gerado" : "pagamentos gerados"}`}
           sub={`fatura paga em ${formatarDataBR(estado.dataPagamento)}`}
         />
-        <Corpo>
+        <ColunaDeDetalhe>
           <Banner cor="grn" role="status">
             <strong>Salvo.</strong> As {estado.abertas.length}{" "}
             {estado.abertas.length === 1 ? "compra virou" : "compras viraram"}{" "}
@@ -133,13 +132,7 @@ export default function ConfirmarFaturaIntegral() {
             ficam fora do custo — a mesma separação principal × encargos de
             sempre.
           </Dica>
-        </Corpo>
-        <Rodape>
-          <BotaoLink href="/adicionar/compra-cartao" variante="primary">
-            Registrar outra compra
-          </BotaoLink>
-          <BotaoLink href="/">Voltar ao início</BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -172,11 +165,11 @@ export default function ConfirmarFaturaIntegral() {
 
   return (
     <>
-      <AppBar
+      <CabecalhoDaTela
         titulo="Fatura paga · integral"
         sub={`${abertas.length} ${abertas.length === 1 ? "compra" : "compras"} · um comprovante para todas`}
       />
-      <Corpo>
+      <ColunaDeDetalhe>
         {erro ? (
           <Banner cor="red" role="alert">
             {erro}
@@ -226,8 +219,8 @@ export default function ConfirmarFaturaIntegral() {
             × serviço.
           </Dica>
         </Card>
-      </Corpo>
-      <Rodape>
+      </ColunaDeDetalhe>
+      <RodapeDeAcao>
         <BotaoSalvar
           ocupado={estado.fase === "salvando"}
           variante="primary"
@@ -239,7 +232,7 @@ export default function ConfirmarFaturaIntegral() {
             : `Confirmar pagamento — ${abertas.length} ${abertas.length === 1 ? "pagamento" : "pagamentos"}`}
         </BotaoSalvar>
         <BotaoLink href={`/fatura/${fatura.id}`}>Voltar sem salvar</BotaoLink>
-      </Rodape>
+      </RodapeDeAcao>
     </>
   );
 }

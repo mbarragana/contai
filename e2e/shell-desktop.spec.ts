@@ -1,5 +1,10 @@
 import { USER_ID_SEED } from "./ambiente";
-import { criarDocumento, criarFavorecido, criarPagamento } from "./banco";
+import {
+  criarCompraCartao,
+  criarDocumento,
+  criarFavorecido,
+  criarPagamento,
+} from "./banco";
 import { expect, test } from "./fixtures";
 
 /**
@@ -452,5 +457,147 @@ test.describe("detalhe de documento no shell de gestão", () => {
       el.scrollTop = 0;
     });
     await expect(rodape).toBeInViewport();
+  });
+});
+
+/**
+ * **CONTAI-044 — pagamento e fatura seguem `/documento/[id]` para dentro do
+ * shell.** Mesmo spec (`detalhe-no-shell-v1.md`), mesma casca — o que este
+ * bloco prova é só o que muda com a raiz da rota: `Despesas` acende para as
+ * duas, a coluna continua 640px (critério 2, decisão registrada no código de
+ * `fatura/[id]/alocar`: sem tabela densa, sem exceção), e o breadcrumb das
+ * subrotas volta para o PAGAMENTO/FATURA de origem, nunca para `/despesas`
+ * direto — a mesma regra "um nível abaixo" do `CONTAI-043`.
+ */
+test.describe("detalhe de pagamento e de fatura no shell de gestão", () => {
+  const CNPJ_LOJA = "11222333000181";
+
+  test("pagamento: shell com Despesas aceso, coluna 640px, sem rodapé fixo", async ({
+    page,
+    db,
+  }) => {
+    const favorecidoId = await criarFavorecido(db, {
+      nome: "Depósito Cachoeira ME",
+      documento: CNPJ_LOJA,
+      tipo: "pj",
+    });
+    const pagamentoId = await criarPagamento(db, {
+      favorecido_id: favorecidoId,
+      valor: 950,
+      data_pagamento: "2026-08-12",
+      meio: "pix",
+      status: "aguardando_nf",
+      comprovante_path: `${USER_ID_SEED}/comprovante/pix.png`,
+    });
+
+    await page.goto(`/pagamento/${pagamentoId}`);
+    await expect(page.getByRole("heading", { name: "Pagamento" })).toBeVisible();
+
+    // ── Despesas acesa, e só ela ──────────────────────────────────────────
+    const sidebar = page.locator('[data-shell="sidebar"]');
+    const nav = sidebar.getByRole("navigation", { name: "Navegação principal" });
+    await expect(nav.getByRole("link", { name: "Despesas" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
+
+    // ── 640px, não a largura cheia ────────────────────────────────────────
+    const coluna = page.locator('[data-coluna="detalhe"]');
+    expect(Math.round((await coluna.boundingBox())!.width)).toBe(640);
+
+    // ── breadcrumb para a lista-mãe ───────────────────────────────────────
+    const crumb = page.locator('[data-crumb="voltar"]');
+    await expect(crumb).toHaveText("‹ Despesas");
+    await expect(crumb).toHaveAttribute("href", "/despesas");
+
+    // ── leitura com ações por card: sem rodapé sticky ────────────────────
+    await expect(page.locator('[data-rodape="acao"]')).toHaveCount(0);
+    await expect(
+      page.getByRole("link", { name: "Ligar a uma nota" }),
+    ).toBeVisible();
+  });
+
+  test("pagamento/[id]/ligar: breadcrumb volta ao pagamento, rodapé sticky na coluna", async ({
+    page,
+    db,
+  }) => {
+    const favorecidoId = await criarFavorecido(db, {
+      nome: "Depósito Cachoeira ME",
+      documento: CNPJ_LOJA,
+      tipo: "pj",
+    });
+    const pagamentoId = await criarPagamento(db, {
+      favorecido_id: favorecidoId,
+      valor: 950,
+      data_pagamento: "2026-08-12",
+      meio: "pix",
+      status: "aguardando_nf",
+      comprovante_path: `${USER_ID_SEED}/comprovante/pix.png`,
+    });
+
+    await page.goto(`/pagamento/${pagamentoId}/ligar`);
+    await expect(
+      page.getByRole("heading", { name: "Ligar este pagamento a uma nota" }),
+    ).toBeVisible();
+
+    const crumb = page.locator('[data-crumb="voltar"]');
+    await expect(crumb).toHaveText("‹ Pagamento");
+    await expect(crumb).toHaveAttribute("href", `/pagamento/${pagamentoId}`);
+
+    const rodape = page.locator('[data-rodape="acao"]');
+    await expect(rodape).toBeVisible();
+    expect(Math.round((await rodape.boundingBox())!.width)).toBe(640);
+  });
+
+  test("fatura: shell com Despesas aceso, e o formulário de confirmação tem rodapé sticky na coluna", async ({
+    page,
+    db,
+  }) => {
+    const favorecidoId = await criarFavorecido(db, {
+      nome: "Leroy Merlin",
+      documento: CNPJ_LOJA,
+      tipo: "pj",
+    });
+    const { faturaId } = await criarCompraCartao(db, {
+      favorecidoId,
+      valor: 950,
+      dataCompra: "2026-08-14",
+      dataVencimento: "2026-09-10",
+    });
+
+    await page.goto(`/fatura/${faturaId}`);
+    await expect(
+      page.getByRole("heading", { name: /Fatura · vence/ }),
+    ).toBeVisible();
+
+    const sidebar = page.locator('[data-shell="sidebar"]');
+    const nav = sidebar.getByRole("navigation", { name: "Navegação principal" });
+    await expect(nav.getByRole("link", { name: "Despesas" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+
+    const coluna = page.locator('[data-coluna="detalhe"]');
+    expect(Math.round((await coluna.boundingBox())!.width)).toBe(640);
+
+    let crumb = page.locator('[data-crumb="voltar"]');
+    await expect(crumb).toHaveText("‹ Despesas");
+    await expect(crumb).toHaveAttribute("href", "/despesas");
+
+    // A subrota de confirmação volta para a FATURA, não para `/despesas`
+    // direto — e é lá que mora o rodapé de ação (uma ação central de página).
+    await page.goto(`/fatura/${faturaId}/confirmar`);
+    await expect(
+      page.getByRole("heading", { name: "Fatura paga · integral" }),
+    ).toBeVisible();
+
+    crumb = page.locator('[data-crumb="voltar"]');
+    await expect(crumb).toHaveText("‹ Fatura");
+    await expect(crumb).toHaveAttribute("href", `/fatura/${faturaId}`);
+
+    const rodape = page.locator('[data-rodape="acao"]');
+    await expect(rodape).toBeVisible();
+    expect(Math.round((await rodape.boundingBox())!.width)).toBe(640);
   });
 });

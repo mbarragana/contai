@@ -148,6 +148,22 @@ describe("qual item fica marcado", () => {
       expect(ehViewAtiva("/documento/abc-123", v.href)).toBe(false);
     }
   });
+
+  /**
+   * **CONTAI-044** — o mesmo vale para pagamento e fatura: nenhuma das duas
+   * rotas começa por `/despesas`, e as duas são despesa (PIX/boleto direto e
+   * compra no cartão).
+   */
+  it("o detalhe de pagamento e de fatura também marcam Despesas", () => {
+    for (const raiz of ["pagamento", "fatura"]) {
+      expect(ehViewAtiva(`/${raiz}/abc-123`, "/despesas")).toBe(true);
+      expect(ehViewAtiva(`/${raiz}/abc-123/ligar`, "/despesas")).toBe(true);
+      for (const v of VIEWS_DE_GESTAO) {
+        if (v.href === "/despesas") continue;
+        expect(ehViewAtiva(`/${raiz}/abc-123`, v.href)).toBe(false);
+      }
+    }
+  });
 });
 
 /**
@@ -181,6 +197,36 @@ describe("o breadcrumb das telas de detalhe", () => {
       expect(migalhaDaRota(`/documento/abc-123/${sub}`)).toEqual({
         href: "/documento/abc-123",
         rotulo: "Documento",
+      });
+    }
+  });
+
+  /**
+   * **CONTAI-044** — o pagamento e a fatura entram como raiz, ao lado do
+   * documento (`ROTULO_DO_DETALHE`). O detalhe aponta para Despesas; as
+   * subrotas ("um nível abaixo") apontam de volta para o próprio pagamento ou
+   * a própria fatura — nunca para `/despesas` direto.
+   */
+  it("do pagamento e da fatura seguem a mesma regra do documento", () => {
+    expect(migalhaDaRota("/pagamento/abc-123")).toEqual({
+      href: "/despesas",
+      rotulo: "Despesas",
+    });
+    for (const sub of ["ligar", "obra"]) {
+      expect(migalhaDaRota(`/pagamento/abc-123/${sub}`)).toEqual({
+        href: "/pagamento/abc-123",
+        rotulo: "Pagamento",
+      });
+    }
+
+    expect(migalhaDaRota("/fatura/xyz-789")).toEqual({
+      href: "/despesas",
+      rotulo: "Despesas",
+    });
+    for (const sub of ["alocar", "confirmar", "parcial"]) {
+      expect(migalhaDaRota(`/fatura/xyz-789/${sub}`)).toEqual({
+        href: "/fatura/xyz-789",
+        rotulo: "Fatura",
       });
     }
   });

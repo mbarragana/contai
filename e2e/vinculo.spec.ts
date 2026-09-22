@@ -969,6 +969,11 @@ test.describe("acesso a /adicionar (critério 12)", () => {
     await expect(page.getByRole("heading", { name: "Adicionar" })).toBeVisible();
   });
 
+  /**
+   * ⚠️ **CONTAI-044 — mesma migração, mesmo motivo.** `/pagamento/[id]` saiu
+   * de `(captura)` e entrou no shell de gestão: o alvo também virou "+ Novo
+   * registro".
+   */
   test("/adicionar é alcançável a partir de /pagamento/[id]", async ({
     page,
     db,
@@ -976,7 +981,7 @@ test.describe("acesso a /adicionar (critério 12)", () => {
     const { pagamentoId } = await cenarioWk(db);
     await page.goto(`/pagamento/${pagamentoId}`);
 
-    const alvo = page.getByRole("link", { name: "+ Adicionar" });
+    const alvo = page.getByRole("link", { name: "+ Novo registro" });
     await expect(alvo).toBeInViewport();
     await alvo.click();
     await expect(page.getByRole("heading", { name: "Adicionar" })).toBeVisible();

@@ -3,9 +3,13 @@
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import {
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+  RodapeDeAcao,
+} from "@/app/_components/detalhe";
 import { useSessao } from "@/app/_components/sessao";
 import {
-  AppBar,
   Banner,
   BotaoLink,
   BotaoSalvar,
@@ -13,13 +17,11 @@ import {
   Carregando,
   Chip,
   Consequencia,
-  Corpo,
   Dica,
   ErroDeGravacao,
   EstadoErro,
   Linha,
   Passo,
-  Rodape,
 } from "@/app/_components/ui";
 import {
   carregarPagamento,
@@ -302,17 +304,14 @@ export default function CorrigirObraDoPagamento() {
   if (estado.fase === "carregando" || estado.fase === "erro") {
     return (
       <>
-        <AppBar titulo="Corrigir a obra deste pagamento" />
-        <Corpo>
+        <CabecalhoDaTela titulo="Corrigir a obra deste pagamento" />
+        <ColunaDeDetalhe>
           {estado.fase === "erro" ? (
             <EstadoErro erro={estado.erro} onTentarDeNovo={tentarDeNovo} />
           ) : (
             <Carregando rotulo="Carregando o pagamento e as obras" />
           )}
-        </Corpo>
-        <Rodape>
-          <BotaoLink href={`/pagamento/${id}`}>Voltar ao pagamento</BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -321,8 +320,8 @@ export default function CorrigirObraDoPagamento() {
   if (estado.fase === "movido") {
     return (
       <>
-        <AppBar titulo="Obra corrigida ✓" sub={estado.destino.nome} />
-        <Corpo>
+        <CabecalhoDaTela titulo="Obra corrigida ✓" sub={estado.destino.nome} />
+        <ColunaDeDetalhe>
           <Banner cor="grn" role="status">
             Este pagamento agora está em <strong>{estado.destino.nome}</strong>.
             A correção ficou registrada, com a data, no histórico.
@@ -376,16 +375,7 @@ export default function CorrigirObraDoPagamento() {
               </div>
             </Card>
           ) : null}
-        </Corpo>
-        <Rodape>
-          <BotaoLink
-            href={`/pagamento/${estado.pagamento.id}`}
-            variante="primary"
-          >
-            Voltar ao pagamento
-          </BotaoLink>
-          <BotaoLink href="/">Voltar ao início</BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -415,13 +405,13 @@ export default function CorrigirObraDoPagamento() {
 
   return (
     <>
-      <AppBar
+      <CabecalhoDaTela
         titulo="Corrigir a obra deste pagamento"
         sub={`${pag.favorecidoNome ?? "favorecido não informado"} · ${formatarBRL(
           pag.valorCentavos,
         )} · ${formatarDataBR(pag.dataPagamento)}`}
       />
-      <Corpo>
+      <ColunaDeDetalhe>
         {erroGravar ? (
           <ErroDeGravacao
             mensagem={erroGravar}
@@ -689,9 +679,9 @@ export default function CorrigirObraDoPagamento() {
             </Dica>
           </>
         )}
-      </Corpo>
+      </ColunaDeDetalhe>
 
-      <Rodape>
+      <RodapeDeAcao>
         <BotaoSalvar
           ocupado={gravando}
           variante="primary"
@@ -701,7 +691,7 @@ export default function CorrigirObraDoPagamento() {
           {gravando ? "Gravando…" : rotuloBotao}
         </BotaoSalvar>
         <BotaoLink href={`/pagamento/${pag.id}`}>Cancelar</BotaoLink>
-      </Rodape>
+      </RodapeDeAcao>
     </>
   );
 }

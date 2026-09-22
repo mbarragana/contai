@@ -5,23 +5,24 @@ import { useCallback, useEffect, useState } from "react";
 
 import { ListaDeAnexos } from "@/app/_components/anexo";
 import {
-  AppBar,
   AvisoDeGravacao,
   Banner,
-  BarraAdicionar,
   Botao,
   BotaoLink,
   Card,
   Carregando,
   Chip,
   Consequencia,
-  Corpo,
   Dica,
   ErroDeGravacao,
   EstadoErro,
   Linha,
   Passo,
 } from "@/app/_components/ui";
+import {
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+} from "@/app/_components/detalhe";
 import { SugestaoQuitacao } from "@/app/_components/quitacao";
 import {
   carregarPagamento,
@@ -193,17 +194,14 @@ export default function DetalhePagamento() {
   if (estado.fase !== "pronto") {
     return (
       <>
-        <AppBar titulo="Pagamento" />
-        <Corpo>
+        <CabecalhoDaTela titulo="Pagamento" />
+        <ColunaDeDetalhe>
           {estado.fase === "carregando" ? (
             <Carregando rotulo="Carregando o pagamento" />
           ) : (
             <EstadoErro erro={estado.erro} onTentarDeNovo={tentarDeNovo} />
           )}
-        </Corpo>
-        <BarraAdicionar
-          voltar={<BotaoLink href="/">Voltar ao início</BotaoLink>}
-        />
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -225,11 +223,11 @@ export default function DetalhePagamento() {
 
   return (
     <>
-      <AppBar
+      <CabecalhoDaTela
         titulo="Pagamento"
         sub={`${p.favorecidoNome ?? "favorecido não informado"} · ${estado.painel.obra.nome}`}
       />
-      <Corpo>
+      <ColunaDeDetalhe>
         <Card>
           <Linha rotulo="Valor">
             <span className="mono">{formatarBRL(p.valorCentavos)}</span>
@@ -451,14 +449,7 @@ export default function DetalhePagamento() {
             </BotaoLink>
           </div>
         </Card>
-      </Corpo>
-      <BarraAdicionar
-        voltar={
-          <BotaoLink href="/" variante="primary">
-            Voltar ao início
-          </BotaoLink>
-        }
-      />
+      </ColunaDeDetalhe>
     </>
   );
 }

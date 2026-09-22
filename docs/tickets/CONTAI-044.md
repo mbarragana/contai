@@ -24,6 +24,15 @@ conciliação.
 
 ## Escopo e Critérios de Aceite
 
+**✅ Entregue em 2026-09-21, 5/5 critérios.** `pagamento/[id]` e `fatura/[id]`
+(+ subrotas) migraram para o shell, coluna 640px (mesma do `043`).
+`fatura/[id]/alocar` resolvido sem exceção de largura (lista label+checkbox,
+não tabela). Gate 2 (`cto-obra` + `contador`) APPROVE sem retrabalho. 883
+unitários + 252/253 E2E (1 falha pré-existente, `discriminacao.spec.ts:215`)
++ validação manual. Gate 4 (`po`) PASS. Sem migration. Implementado em
+Sonnet (instabilidade momentânea do Opus) — sem efeito no contrato de
+revisão, confirmado pelo `cto-obra`.
+
 1. Mover para `app/(gestao)/`: `pagamento/[id]` (+ `ligar`, `obra`) e
    `fatura/[id]` (+ `alocar`, `confirmar`, `parcial`). Comportamento
    idêntico, casca nova — mesma técnica do `CONTAI-040`.

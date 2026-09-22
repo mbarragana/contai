@@ -13,15 +13,17 @@ import { useEffect, useState } from "react";
 
 import { CampoTexto } from "@/app/_components/campos";
 import {
-  AppBar,
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+  RodapeDeAcao,
+} from "@/app/_components/detalhe";
+import {
   Banner,
   BotaoLink,
   BotaoSalvar,
   Card,
   Carregando,
-  Corpo,
   EstadoErro,
-  Rodape,
 } from "@/app/_components/ui";
 import {
   carregarCompromissos,
@@ -75,17 +77,14 @@ export default function RegistrarValorPagoParcial() {
   if (estado.fase === "carregando" || estado.fase === "erro") {
     return (
       <>
-        <AppBar titulo="Fatura paga · parcial" />
-        <Corpo>
+        <CabecalhoDaTela titulo="Fatura paga · parcial" />
+        <ColunaDeDetalhe>
           {estado.fase === "carregando" ? (
             <Carregando rotulo="Carregando a fatura" />
           ) : (
             <EstadoErro erro={estado.erro} />
           )}
-        </Corpo>
-        <Rodape>
-          <BotaoLink href="/">Voltar ao início</BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -119,11 +118,11 @@ export default function RegistrarValorPagoParcial() {
 
   return (
     <>
-      <AppBar
+      <CabecalhoDaTela
         titulo="Fatura paga · parcial"
         sub={`vence ${formatarDataBR(fatura.dataVencimento)} · rotativo`}
       />
-      <Corpo>
+      <ColunaDeDetalhe>
         {erro ? (
           <Banner cor="red" role="alert">
             {erro}
@@ -175,8 +174,8 @@ export default function RegistrarValorPagoParcial() {
             }
           />
         </Card>
-      </Corpo>
-      <Rodape>
+      </ColunaDeDetalhe>
+      <RodapeDeAcao>
         <BotaoSalvar
           ocupado={estado.fase === "salvando"}
           variante="primary"
@@ -190,7 +189,7 @@ export default function RegistrarValorPagoParcial() {
               : "Informe a data e o valor pago"}
         </BotaoSalvar>
         <BotaoLink href={`/fatura/${fatura.id}`}>Voltar sem salvar</BotaoLink>
-      </Rodape>
+      </RodapeDeAcao>
     </>
   );
 }
