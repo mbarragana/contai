@@ -1,4 +1,6 @@
-import { USER_ID_SEED } from "./ambiente";
+import type { Page } from "@playwright/test";
+
+import { OBRA_ID_SEED, USER_ID_SEED } from "./ambiente";
 import {
   criarCompraCartao,
   criarCompromisso,
@@ -8,6 +10,20 @@ import {
   pendencias,
 } from "./banco";
 import { expect, test } from "./fixtures";
+/**
+ * ⚠️ **CONTAI-046 — o texto fiscal se confere contra a CONSTANTE.** As telas de
+ * obra e terreno leem estas mesmas frases de `lib/fiscal/*`; digitá-las de novo
+ * aqui seria só uma segunda chance de errar, e um teste que passa com o texto
+ * errado dos dois lados.
+ */
+import {
+  COBRANCA_SEM_CNO_INSTRUCAO,
+  COBRANCA_SEM_CNO_LIMITE,
+} from "../lib/fiscal/obra";
+import {
+  INSUMO_PARA_REVISAO_CRC,
+  TERRENO_ZERO_NAO_E_NADA_PAGO,
+} from "../lib/fiscal/terreno";
 
 /**
  * **CONTAI-040 — o shell de gestão em 1280×800, cenário de GESTÃO**: em casa,
@@ -818,5 +834,282 @@ test.describe("compromisso e pendência no shell de gestão", () => {
 
     await crumb.click();
     await expect(page).toHaveURL("/pendencias");
+  });
+});
+
+/**
+ * **CONTAI-046 — obra, terreno, discriminação anual e notas sem CNO no shell.**
+ *
+ * A quarta e última família da dívida do `CONTAI-040`, e a de maior superfície.
+ * O seam é o mais direto de todos: os dois links secundários da sidebar
+ * (`Dados da obra` e `Terreno`) apontam para cá desde o dia 1 do shell, e até
+ * aqui todo clique neles saía do shell.
+ *
+ * ⚠️ **As duas telas com mais texto fiscal por área do produto estão aqui**
+ * (`discriminacao/[ano]` e `notas-sem-cno`). A prova de que nenhuma palavra
+ * mudou é a comparação com a CONSTANTE — o mesmo `lib/fiscal/*` que a tela lê —,
+ * não uma cópia digitada no teste, que seria só uma segunda chance de errar.
+ */
+test.describe("obra e terreno no shell de gestão", () => {
+  const OBRA = `/obras/${OBRA_ID_SEED}`;
+
+  /** Um item da sidebar aceso, e só um: sidebar que acende dois mente. */
+  async function apenasObrasAcesa(page: Page) {
+    const sidebar = page.locator('[data-shell="sidebar"]');
+    await expect(sidebar).toBeVisible();
+    const nav = sidebar.getByRole("navigation", { name: "Navegação principal" });
+    await expect(nav.getByRole("link", { name: "Obras" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
+  }
+
+  test("o cadastro da obra abre no shell, com rodapé sticky na coluna de 640px", async ({
+    page,
+  }) => {
+    await page.goto(OBRA);
+    await expect(
+      page.getByRole("heading", { name: "Dados da obra" }),
+    ).toBeVisible();
+    await apenasObrasAcesa(page);
+
+    // O subtítulo é o da OBRA aberta nesta tela, não o "obra · ano" da view.
+    await expect(page.getByRole("banner")).toContainText("Casa Cachoeira");
+
+    const coluna = page.locator('[data-coluna="detalhe"]');
+    const caixaColuna = (await coluna.boundingBox())!;
+    expect(Math.round(caixaColuna.width)).toBe(640);
+    expect((await page.locator("main").boundingBox())!.width).toBeGreaterThan(700);
+
+    const crumb = page.locator('[data-crumb="voltar"]');
+    await expect(crumb).toHaveText("‹ Obras");
+    await expect(crumb).toHaveAttribute("href", "/obras");
+    // O "Voltar" do rodapé de 430px mudou de lugar, não se duplicou.
+    await expect(page.getByRole("link", { name: "Voltar", exact: true })).toHaveCount(
+      0,
+    );
+
+    // Formulário com UMA ação de página: o rodapé fica, escopado à coluna.
+    const rodape = page.locator('[data-rodape="acao"]');
+    await expect(rodape).toBeVisible();
+    const caixaRodape = (await rodape.boundingBox())!;
+    expect(Math.round(caixaRodape.width)).toBe(640);
+    expect(Math.round(caixaRodape.x)).toBe(Math.round(caixaColuna.x));
+    await expect(
+      rodape.getByRole("button", { name: "Salvar alterações" }),
+    ).toBeVisible();
+
+    await crumb.click();
+    await expect(page).toHaveURL("/obras");
+  });
+
+  test("o painel do terreno é leitura: sem rodapé fixo, e nenhuma ação perdida", async ({
+    page,
+  }) => {
+    await page.goto(`${OBRA}/terreno`);
+    await expect(
+      page.getByRole("heading", { name: "Terreno — custo por ano" }),
+    ).toBeVisible();
+    await apenasObrasAcesa(page);
+
+    const crumb = page.locator('[data-crumb="voltar"]');
+    await expect(crumb).toHaveText("‹ Dados da obra");
+    await expect(crumb).toHaveAttribute("href", OBRA);
+
+    expect(
+      Math.round((await page.locator('[data-coluna="detalhe"]').boundingBox())!.width),
+    ).toBe(640);
+
+    // Decisão 4 do spec: leitura com ações espalhadas em cards não tem rodapé.
+    await expect(page.locator('[data-rodape="acao"]')).toHaveCount(0);
+    // ⚠️ **As duas ações REAIS do rodapé antigo continuam alcançáveis.** Sumir
+    // com elas seria regressão de alcance, não de casca: os botões por ano só
+    // aparecem no estado `falta_lancar`, e sem esta porta um financiamento
+    // inteiro em "aguardando informe" ficaria sem caminho.
+    await expect(
+      page.getByRole("link", { name: "Registrar desembolso do terreno" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Cadastrar contrato de financiamento" }),
+    ).toBeVisible();
+    // O que NÃO volta é navegação pura: ela virou o crumb e a sidebar.
+    await expect(
+      page.getByRole("link", { name: "Voltar ao início" }),
+    ).toHaveCount(0);
+
+    // Texto fiscal da tela, conferido contra a CONSTANTE que a tela lê.
+    await expect(page.getByText(TERRENO_ZERO_NAO_E_NADA_PAGO)).toBeVisible();
+    await expect(page.getByText(INSUMO_PARA_REVISAO_CRC)).toBeVisible();
+  });
+
+  test("desembolsos do terreno: crumb volta ao painel, rodapé sticky na coluna", async ({
+    page,
+  }) => {
+    await page.goto(`${OBRA}/terreno/desembolsos`);
+    await expect(
+      page.getByRole("heading", { name: "O que saiu do seu bolso" }),
+    ).toBeVisible();
+    await apenasObrasAcesa(page);
+
+    // ⚠️ Um degrau, não dois: a mãe desta tela é o PAINEL DO TERRENO, que é
+    // rota de verdade — não o cadastro da obra.
+    const crumb = page.locator('[data-crumb="voltar"]');
+    await expect(crumb).toHaveText("‹ Terreno");
+    await expect(crumb).toHaveAttribute("href", `${OBRA}/terreno`);
+
+    const caixaColuna = (await page
+      .locator('[data-coluna="detalhe"]')
+      .boundingBox())!;
+    const rodape = page.locator('[data-rodape="acao"]');
+    await expect(rodape).toBeVisible();
+    const caixaRodape = (await rodape.boundingBox())!;
+    expect(Math.round(caixaRodape.width)).toBe(640);
+    expect(Math.round(caixaRodape.x)).toBe(Math.round(caixaColuna.x));
+    // O rótulo que NOMEIA A CONSEQUÊNCIA continua sendo o do botão de gravar.
+    await expect(rodape.locator("[data-gravar]")).toBeVisible();
+
+    await crumb.click();
+    await expect(page).toHaveURL(`${OBRA}/terreno`);
+  });
+
+  /**
+   * ⚠️ **Critério 2 do ticket, resolvido SEM exceção de largura.** O bloco
+   * copiável é prosa em `<pre>` com `whitespace-pre-wrap break-words`: ele
+   * quebra, então em 640px não trunca nem pede scroll horizontal — que é a
+   * regra de legibilidade fiscal que o critério exige. Este teste é o que
+   * trava a decisão: se alguém tirar a quebra, ele fica vermelho.
+   */
+  test("a discriminação anual cabe em 640px — nada truncado, nada rolando na horizontal", async ({
+    page,
+  }) => {
+    await page.goto(`${OBRA}/discriminacao/${ANO}`);
+    await expect(
+      page.getByRole("heading", { name: `Discriminação de ${ANO}` }),
+    ).toBeVisible();
+    await apenasObrasAcesa(page);
+
+    const crumb = page.locator('[data-crumb="voltar"]');
+    await expect(crumb).toHaveText("‹ Dados da obra");
+    await expect(crumb).toHaveAttribute("href", OBRA);
+    // Saída de leitura: nenhuma ação de página, nenhum rodapé.
+    await expect(page.locator('[data-rodape="acao"]')).toHaveCount(0);
+
+    const bloco = page.locator("[data-bloco='copiavel']");
+    await expect(bloco).toBeVisible();
+    expect(
+      Math.round((await page.locator('[data-coluna="detalhe"]').boundingBox())!.width),
+    ).toBe(640);
+
+    // O texto que vai COLADO na ficha Bens e Direitos não pode rolar nem ser
+    // cortado: é nele que se confere palavra por palavra antes de declarar.
+    const folga = await bloco.evaluate(
+      (el) => el.scrollWidth - el.clientWidth,
+    );
+    expect(folga).toBeLessThanOrEqual(1);
+
+    const cortados = await page.evaluate(() => {
+      const fora: string[] = [];
+      for (const el of document.querySelectorAll("main p, main pre, main li")) {
+        if (el.scrollWidth > el.clientWidth + 1) {
+          fora.push((el.textContent ?? "").slice(0, 80));
+        }
+      }
+      return fora;
+    });
+    expect(cortados).toEqual([]);
+    const vazamento = await page.evaluate(() => {
+      const main = document.querySelector("main")!;
+      return main.scrollWidth - main.clientWidth;
+    });
+    expect(vazamento).toBeLessThanOrEqual(1);
+  });
+
+  /**
+   * **Critério 4** — a porta única (`podeGerarRelatorioAnual`, CONTAI-036)
+   * continua sendo quem decide, na casca nova. Nota registrada sem arquivo no
+   * acervo veta a saída: se a migração tivesse aberto um segundo caminho até o
+   * texto, o bloco sairia assim mesmo.
+   */
+  test("a porta única continua vetando a discriminação dentro do shell", async ({
+    page,
+    db,
+  }) => {
+    const favorecidoId = await criarFavorecido(db, {
+      nome: "AJE Construções",
+      documento: CNPJ_AJE_DIGITOS,
+      tipo: "pj",
+    });
+    await criarDocumento(db, {
+      favorecido_id: favorecidoId,
+      tipo: "nf_servico",
+      classificacao: "mao_obra",
+      valor: 18400,
+      destinatario_cpf_ok: true,
+      arquivo_path: null,
+    });
+
+    await page.goto(`${OBRA}/discriminacao/${ANO}`);
+    await expect(page.locator("[data-veto='sem-arquivo']")).toContainText(
+      `A discriminação de ${ANO} não vai ser gerada ainda.`,
+    );
+    await expect(page.locator("[data-bloco='copiavel']")).toHaveCount(0);
+  });
+
+  /**
+   * **Critério 5 e Pre-mortem 2** — `discriminacao/[ano]` recebe o ano por
+   * PARÂMETRO DE ROTA, e o `CONTAI-042` §5 fixou que "o ano é um só" dentro do
+   * shell. Os dois convivem porque o `ano` do shell é função de `hojeIso()`,
+   * calculada uma vez no `ProvedorDeGestao` e sem setter nenhum: navegar para
+   * outro ano não tem como escrever nele.
+   */
+  test("abrir a discriminação de outro ano não mexe no ano do shell", async ({
+    page,
+  }) => {
+    await page.goto(`${OBRA}/discriminacao/${ANO - 1}`);
+    await expect(
+      page.getByRole("heading", { name: `Discriminação de ${ANO - 1}` }),
+    ).toBeVisible();
+    // A sidebar continua dizendo o ano corrente enquanto a tela mostra o outro.
+    await expect(page.locator('[data-shell="obra-aberta"]')).toContainText(
+      `ano ${ANO}`,
+    );
+
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Visão geral" })).toBeVisible();
+    await expect(page.getByRole("banner")).toContainText(`Casa Cachoeira · ${ANO}`);
+  });
+
+  test("notas sem CNO: leitura no shell, com o texto de cobrança inteiro", async ({
+    page,
+  }) => {
+    await page.goto(`${OBRA}/notas-sem-cno`);
+    await expect(
+      page.getByRole("heading", { name: "Notas sem CNO" }),
+    ).toBeVisible();
+    await apenasObrasAcesa(page);
+
+    const crumb = page.locator('[data-crumb="voltar"]');
+    await expect(crumb).toHaveText("‹ Dados da obra");
+    await expect(crumb).toHaveAttribute("href", OBRA);
+    await expect(page.locator('[data-rodape="acao"]')).toHaveCount(0);
+
+    // As duas frases de consequência, conferidas contra a constante.
+    await expect(page.getByText(COBRANCA_SEM_CNO_INSTRUCAO)).toBeVisible();
+    await expect(page.getByText(COBRANCA_SEM_CNO_LIMITE)).toBeVisible();
+  });
+
+  /**
+   * **Pre-mortem 3** — `/obras/nova` está sob o mesmo prefixo das rotas que
+   * migraram e NÃO migra: é captura pontual (uma vez por obra), não gestão
+   * recorrente. A exclusão é deliberada, e este teste é o que a torna visível
+   * para quem vier depois.
+   */
+  test("/obras/nova continua fora do shell, nos 430px de sempre", async ({
+    page,
+  }) => {
+    await page.goto("/obras/nova");
+    await expect(page.locator('[data-shell="sidebar"]')).toHaveCount(0);
+    await expect(page.locator('[data-shell="faixa"]')).toHaveCount(0);
   });
 });

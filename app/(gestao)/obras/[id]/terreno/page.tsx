@@ -7,19 +7,20 @@ import { ListaDeAnexos, papeisDoDesembolso } from "@/app/_components/anexo";
 import { CardPagoSemComprovante } from "@/app/_components/pago-sem-comprovante";
 import { PendenciaDeDatas } from "@/app/_components/datas-do-desembolso";
 import {
-  AppBar,
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+} from "@/app/_components/detalhe";
+import {
   Banner,
   BotaoLink,
   Card,
   Carregando,
   Chip,
   Consequencia,
-  Corpo,
   Dica,
   EstadoErro,
   Linha,
   Passo,
-  Rodape,
 } from "@/app/_components/ui";
 import {
   carregarDesembolsosTerreno,
@@ -128,17 +129,14 @@ export default function PainelDoTerreno() {
   if (fase.nome !== "pronto") {
     return (
       <>
-        <AppBar titulo="Terreno" />
-        <Corpo>
+        <CabecalhoDaTela titulo="Terreno" />
+        <ColunaDeDetalhe>
           {fase.nome === "erro" ? (
             <EstadoErro erro={fase.erro} onTentarDeNovo={tentarDeNovo} />
           ) : (
             <Carregando rotulo="Carregando o terreno" />
           )}
-        </Corpo>
-        <Rodape>
-          <BotaoLink href={`/obras/${id}`}>Dados da obra</BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -187,8 +185,8 @@ export default function PainelDoTerreno() {
 
   return (
     <>
-      <AppBar titulo="Terreno — custo por ano" sub={obra.nome} />
-      <Corpo>
+      <CabecalhoDaTela titulo="Terreno — custo por ano" sub={obra.nome} />
+      <ColunaDeDetalhe>
         <Card>
           <Linha rotulo="Como o terreno foi adquirido">
             {obra.naturezaAquisicaoTerreno ? (
@@ -571,27 +569,42 @@ export default function PainelDoTerreno() {
           recolhido em fevereiro do ano seguinte é custo do ano seguinte, não do
           ano da escritura.
         </Banner>
-      </Corpo>
 
-      <Rodape>
-        <BotaoLink
-          href={`/obras/${obra.id}/terreno/desembolsos`}
-          variante="primary"
-        >
-          Registrar desembolso do terreno
-        </BotaoLink>
-        {financiamento ? (
-          <BotaoLink href={`/obras/${obra.id}/terreno/informe/${anoCorrente - 1}`}>
-            Registrar informe anual
+        {/* ── CONTAI-046 · o rodapé de 430px desmontado, e não apagado ─────
+            Esta tela é de LEITURA com várias ações espalhadas em cards (spec
+            de design, decisão 4): ela **não** ganha rodapé sticky. As duas
+            ações REAIS que moravam no rodapé descem para cá, com o mesmo
+            rótulo e o mesmo destino — sumir com elas seria regressão de
+            alcance, não de casca: os botões por ano só aparecem em
+            `falta_lancar`, e sem este aqui um financiamento inteiro em
+            "aguardando informe" ficaria sem porta para registrar.
+
+            O que NÃO desce são os dois links de pura navegação ("Dados da
+            obra" e "Voltar ao início"): dentro do shell eles já são o
+            breadcrumb "‹ Dados da obra" e a sidebar — muda de lugar, não se
+            duplica. */}
+        <Card>
+          <BotaoLink
+            href={`/obras/${obra.id}/terreno/desembolsos`}
+            variante="primary"
+          >
+            Registrar desembolso do terreno
           </BotaoLink>
-        ) : (
-          <BotaoLink href={`/obras/${obra.id}/terreno/financiamento`}>
-            Cadastrar contrato de financiamento
-          </BotaoLink>
-        )}
-        <BotaoLink href={`/obras/${obra.id}`}>Dados da obra</BotaoLink>
-        <BotaoLink href="/">Voltar ao início</BotaoLink>
-      </Rodape>
+          <div className="mt-2">
+            {financiamento ? (
+              <BotaoLink
+                href={`/obras/${obra.id}/terreno/informe/${anoCorrente - 1}`}
+              >
+                Registrar informe anual
+              </BotaoLink>
+            ) : (
+              <BotaoLink href={`/obras/${obra.id}/terreno/financiamento`}>
+                Cadastrar contrato de financiamento
+              </BotaoLink>
+            )}
+          </div>
+        </Card>
+      </ColunaDeDetalhe>
     </>
   );
 }

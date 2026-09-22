@@ -5,18 +5,20 @@ import { useCallback, useEffect, useState } from "react";
 
 import { CampoTexto } from "@/app/_components/campos";
 import {
-  AppBar,
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+  RodapeDeAcao,
+} from "@/app/_components/detalhe";
+import {
   Banner,
   BotaoLink,
   BotaoSalvar,
   Card,
   Carregando,
   Consequencia,
-  Corpo,
   Dica,
   EstadoErro,
   Linha,
-  Rodape,
 } from "@/app/_components/ui";
 import {
   carregarFinanciamento,
@@ -159,8 +161,8 @@ export default function ContratoDoFinanciamento() {
   if (fase.nome === "carregando" || fase.nome === "erro" || !obra) {
     return (
       <>
-        <AppBar titulo="Contrato do financiamento" />
-        <Corpo>
+        <CabecalhoDaTela titulo="Contrato do financiamento" />
+        <ColunaDeDetalhe>
           {fase.nome === "erro" ? (
             <EstadoErro
               erro={fase.erro}
@@ -172,10 +174,7 @@ export default function ContratoDoFinanciamento() {
           ) : (
             <Carregando rotulo="Carregando o contrato" />
           )}
-        </Corpo>
-        <Rodape>
-          <BotaoLink href={`/obras/${id}/terreno`}>Voltar ao terreno</BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -187,8 +186,8 @@ export default function ContratoDoFinanciamento() {
   if (existente) {
     return (
       <>
-        <AppBar titulo="Contrato do financiamento" sub={obra.nome} />
-        <Corpo>
+        <CabecalhoDaTela titulo="Contrato do financiamento" sub={obra.nome} />
+        <ColunaDeDetalhe>
           <Card>
             <Linha rotulo="Instituição credora">{existente.instituicao}</Linha>
             {existente.numeroContrato ? (
@@ -215,20 +214,22 @@ export default function ContratoDoFinanciamento() {
             O contrato é cadastrado uma vez na vida. O que se repete é o{" "}
             <strong>informe anual</strong>, uma vez por ano, em jan/fev.
           </Dica>
-        </Corpo>
-        <Rodape>
-          <BotaoLink href={`/obras/${id}/terreno`} variante="primary">
-            Voltar ao terreno
-          </BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
+        {/* Contrato já cadastrado: a tela vira LEITURA, e leitura sem ação de
+            página não tem rodapé (spec de design, decisão 4). O único botão que
+            havia aqui era navegação de volta — hoje é o breadcrumb
+            "‹ Terreno". */}
       </>
     );
   }
 
   return (
     <>
-      <AppBar titulo="Contrato do financiamento" sub={`${obra.nome} · 1x na vida`} />
-      <Corpo>
+      <CabecalhoDaTela
+        titulo="Contrato do financiamento"
+        sub={`${obra.nome} · 1x na vida`}
+      />
+      <ColunaDeDetalhe>
         {erroSalvar ? (
           <Banner cor="red" role="alert">
             {erroSalvar}
@@ -287,9 +288,13 @@ export default function ContratoDoFinanciamento() {
             podem cair em outro ano.
           </Dica>
         </Card>
-      </Corpo>
+      </ColunaDeDetalhe>
 
-      <Rodape>
+      {/* Formulário com UMA ação de página → rodapé sticky na coluna. O
+          "Voltar ao terreno" fica: ao lado do Salvar ele é DESISTIR do
+          formulário, que é parte do formulário — não a navegação do shell, que
+          virou o breadcrumb. */}
+      <RodapeDeAcao>
         <BotaoSalvar
           ocupado={fase.nome === "salvando"}
           variante="primary"
@@ -299,7 +304,7 @@ export default function ContratoDoFinanciamento() {
           {fase.nome === "salvando" ? "Salvando…" : "Cadastrar contrato"}
         </BotaoSalvar>
         <BotaoLink href={`/obras/${id}/terreno`}>Voltar ao terreno</BotaoLink>
-      </Rodape>
+      </RodapeDeAcao>
     </>
   );
 }

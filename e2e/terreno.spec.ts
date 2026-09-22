@@ -912,12 +912,18 @@ test.describe("o saldo devedor é exigido, e nada o confere além da pergunta", 
     // Tudo certo, MENOS o saldo devedor. A trava da soma fecha.
     await preencherRubricas(page, { saldo: "" });
 
-    // Scoped em `main`: o mesmo texto também aparece na dica do rodapé, que
-    // explica por que o botão está desligado. Aqui a asserção é sobre o ERRO
-    // colado no campo.
+    // Scoped na COLUNA de detalhe: o mesmo texto também aparece na dica do
+    // rodapé, que explica por que o botão está desligado. Aqui a asserção é
+    // sobre o ERRO colado no campo.
+    //
+    // ⚠️ **CONTAI-046 — era `getByRole("main")` e deixou de bastar.** Nos 430px
+    // o `Rodape` ficava FORA do `<main>`; dentro do shell, `ColunaDeDetalhe` e
+    // `RodapeDeAcao` são irmãos DENTRO do `<main>`, e o escopo antigo passou a
+    // casar os dois. O que a asserção quer continua sendo o mesmo — mudou o
+    // contêiner que separa campo de rodapé, não o comportamento da tela.
     await expect(
       page
-        .getByRole("main")
+        .locator('[data-coluna="detalhe"]')
         .getByText("Informe o saldo devedor em 31/12 — ele está no extrato", {
           exact: false,
         }),

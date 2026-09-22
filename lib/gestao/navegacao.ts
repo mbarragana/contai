@@ -177,6 +177,21 @@ interface RaizDeDetalhe {
    * `/fatura` não existem sem id.
    */
   daRaiz?: MigalhaDeRota;
+  /**
+   * ⚠️ **CONTAI-046 — o TERCEIRO nível, e só `/obras/[id]/terreno` tem um.**
+   *
+   * A regra "um nível abaixo volta para o registro" resolve `/obras/[id]/
+   * terreno`, `/obras/[id]/discriminacao/[ano]` e `/obras/[id]/notas-sem-cno`:
+   * a mãe das três é a obra. Mas `/obras/[id]/terreno/desembolsos` e
+   * `/obras/[id]/terreno/informe/[anoBase]` têm uma mãe MAIS PRÓXIMA — o painel
+   * do terreno, que é rota de verdade e é de onde se chega nelas. Mandá-las
+   * para o cadastro da obra faria o crumb pular um degrau real, que é o mesmo
+   * defeito de mandar `/documento/[id]/corrigir/valor` direto para `/despesas`.
+   *
+   * Um campo, e não uma tabela de rotas: o produto tem exatamente um seguimento
+   * assim, e generalizar antes da segunda ocorrência é inventar hierarquia.
+   */
+  neta?: { segmento: string; rotulo: string };
 }
 
 const DESPESAS: MigalhaDeRota = { href: "/despesas", rotulo: "Despesas" };
@@ -194,6 +209,21 @@ const RAIZES_DE_DETALHE: Readonly<Record<string, RaizDeDetalhe>> = {
     rotulo: "Pendência",
     mae: { href: "/pendencias", rotulo: "Pendências" },
   },
+  /**
+   * ⚠️ **CONTAI-046** — `/obras` é a única raiz que também é **view de primeira
+   * classe** (está em `VIEWS_DE_GESTAO`). Por isso não tem `daRaiz`: `/obras`
+   * sozinha é topo de navegação e não volta para lugar nenhum, exatamente como
+   * `/pendencias`.
+   *
+   * O rótulo do registro é "Dados da obra" — o nome que a própria tela usa e o
+   * mesmo do link secundário da sidebar. "Obra" seria um quinto nome para a
+   * mesma coisa, e nome novo para coisa velha é como nasce a D46.
+   */
+  obras: {
+    rotulo: "Dados da obra",
+    mae: { href: "/obras", rotulo: "Obras" },
+    neta: { segmento: "terreno", rotulo: "Terreno" },
+  },
 };
 
 export function migalhaDaRota(pathname: string): MigalhaDeRota | null {
@@ -203,6 +233,12 @@ export function migalhaDaRota(pathname: string): MigalhaDeRota | null {
   if (!entrada) return null;
   if (partes.length === 1) return entrada.daRaiz ?? null;
   if (partes.length === 2) return entrada.mae;
+  if (entrada.neta && partes[2] === entrada.neta.segmento && partes.length > 3) {
+    return {
+      href: `/${raiz}/${partes[1]}/${entrada.neta.segmento}`,
+      rotulo: entrada.neta.rotulo,
+    };
+  }
   return { href: `/${raiz}/${partes[1]}`, rotulo: entrada.rotulo };
 }
 

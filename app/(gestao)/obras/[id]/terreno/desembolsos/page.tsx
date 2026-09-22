@@ -17,21 +17,22 @@ import {
   type RespostaDeDatas,
 } from "@/app/_components/datas-do-desembolso";
 import {
-  AppBar,
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+  RodapeDeAcao,
+} from "@/app/_components/detalhe";
+import {
   Banner,
   Botao,
-  BotaoLink,
   BotaoSalvar,
   Card,
   Carregando,
   Chip,
   Consequencia,
-  Corpo,
   Dica,
   EstadoErro,
   Linha,
   Passo,
-  Rodape,
 } from "@/app/_components/ui";
 import {
   carregarDesembolsosTerreno,
@@ -533,8 +534,8 @@ export default function DesembolsosDoTerreno() {
   if (fase.nome === "carregando" || fase.nome === "erro" || !obra) {
     return (
       <>
-        <AppBar titulo="Desembolsos do terreno" />
-        <Corpo>
+        <CabecalhoDaTela titulo="Desembolsos do terreno" />
+        <ColunaDeDetalhe>
           {fase.nome === "erro" ? (
             <EstadoErro
               erro={fase.erro}
@@ -546,10 +547,7 @@ export default function DesembolsosDoTerreno() {
           ) : (
             <Carregando rotulo="Carregando os desembolsos" />
           )}
-        </Corpo>
-        <Rodape>
-          <BotaoLink href={`/obras/${id}/terreno`}>Voltar ao terreno</BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -638,8 +636,11 @@ export default function DesembolsosDoTerreno() {
 
   return (
     <>
-      <AppBar titulo="O que saiu do seu bolso" sub={`${obra.nome} · terreno`} />
-      <Corpo>
+      <CabecalhoDaTela
+        titulo="O que saiu do seu bolso"
+        sub={`${obra.nome} · terreno`}
+      />
+      <ColunaDeDetalhe>
         {erroSalvar ? (
           <Banner cor="red" role="alert">
             {erroSalvar}
@@ -913,9 +914,15 @@ export default function DesembolsosDoTerreno() {
             dois casos sem lastro de desembolso.
           </Dica>
         </Card>
-      </Corpo>
+      </ColunaDeDetalhe>
 
-      <Rodape>
+      {/* ⚠️ É esta a tela que o spec de design nomeia como o caso do rodapé
+          sticky (decisão 4): formulário com UMA ação de página, que cresce com
+          as pendências acima dele — o botão precisa continuar alcançável sem
+          rolar até o fim. As ações de COMPLETAR um desembolso já existente
+          continuam sendo ações de CARD, inline, exatamente como antes: não
+          confundir as duas camadas é parte da decisão. */}
+      <RodapeDeAcao>
         {/* ⚠️ **O rótulo NOMEIA A CONSEQUÊNCIA** (Gate Fiscal §4), nunca diz
             "gravar mesmo assim". São quatro, um por combinação de data ×
             comprovante, e os três de pendência foram adjudicados pelo
@@ -938,7 +945,7 @@ export default function DesembolsosDoTerreno() {
         >
           Voltar ao terreno
         </Botao>
-      </Rodape>
+      </RodapeDeAcao>
     </>
   );
 }

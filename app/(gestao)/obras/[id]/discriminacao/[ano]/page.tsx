@@ -4,18 +4,19 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import {
-  AppBar,
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+} from "@/app/_components/detalhe";
+import {
   Banner,
   BotaoLink,
   Card,
   Carregando,
   Chip,
   Consequencia,
-  Corpo,
   Dica,
   EstadoErro,
   Linha,
-  Rodape,
 } from "@/app/_components/ui";
 import { classificarErro, type ErroDeTela } from "@/lib/data";
 import {
@@ -44,6 +45,25 @@ import {
  * porta única (`podeGerarRelatorioAnual`) é consultada e o texto é gerado com
  * a marca que ela devolve. Não existe caminho daqui até o texto que não passe
  * por ali.
+ *
+ * ⚠️ **CONTAI-046 — por que esta tela NÃO é exceção de largura** (critério 2 do
+ * ticket, pergunta que o Gate 0 deixou aberta). A régua é a mesma do
+ * `fatura/[id]/alocar` no `CONTAI-044`: a exceção se justifica pela FORMA do
+ * conteúdo, nunca por conforto de layout. O bloco copiável é **prosa**, não
+ * tabela, e o `<pre>` já é `whitespace-pre-wrap break-words` — ele **quebra**,
+ * então nem trunca nem pede scroll horizontal em 640px (regra de legibilidade
+ * fiscal do critério 2, atendida sem alargar nada). E alargar teria custo: o
+ * achado do Gate 2 do `CONTAI-039` é que texto esticado por 1244px é MENOS
+ * legível, e linha longa demais é justamente onde o olho pula uma linha na
+ * conferência que esta tela existe para permitir. O que o texto precisa é de
+ * quebra fiel e de fonte mono — as duas já estão aqui.
+ *
+ * ⚠️ **O `ano` vem do PARÂMETRO DE ROTA, e isso não fere o `CONTAI-042` §5.** O
+ * `ano` do shell (`useGestao()`) é função pura de `hojeIso()`, calculada uma vez
+ * no `ProvedorDeGestao` e **sem setter** — nenhuma tela escreve nele. Abrir a
+ * discriminação de um ano anterior não pode, por construção, corromper o ano que
+ * o dashboard e `/pendencias` leem depois de voltar: são duas leituras
+ * independentes, e só uma delas existe.
  *
  * ⚠️ **Três coisas ficam FORA do bloco copiável, e a separação é fiscal**
  * (decisão de design 5 do mock, Gate Fiscal §3): o que está **dentro** do
@@ -92,11 +112,11 @@ export default function DiscriminacaoDoAno() {
 
   return (
     <>
-      <AppBar
+      <CabecalhoDaTela
         titulo={ano === null ? "Discriminação" : `Discriminação de ${ano}`}
         sub="Bens e Direitos · antes de declarar"
       />
-      <Corpo>
+      <ColunaDeDetalhe>
         {ano === null ? (
           <Banner cor="red" role="alert">
             <strong>Este endereço não diz de que ano é a discriminação.</strong>{" "}
@@ -291,10 +311,7 @@ export default function DiscriminacaoDoAno() {
             <Dica>{INSUMO_PARA_REVISAO_CRC}</Dica>
           </div>
         )}
-      </Corpo>
-      <Rodape>
-        <BotaoLink href={`/obras/${obraId}`}>Voltar para a obra</BotaoLink>
-      </Rodape>
+      </ColunaDeDetalhe>
     </>
   );
 }

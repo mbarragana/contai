@@ -22,6 +22,15 @@ financiamento ano a ano.
 
 ## Escopo e Critérios de Aceite
 
+**✅ Entregue em 2026-09-22, 6/6 critérios.** `obras/[id]`, `terreno/*`,
+`discriminacao/[ano]` e `notas-sem-cno` migraram para o shell, coluna 640px
+(inclusive discriminação, sem exceção — o texto é `<pre>` que não trunca).
+Gate 2 com 1 rework: corrigido de vez o teste flaky de fuso horário de
+`discriminacao.spec.ts` (dívida desde 2026-09-20). Suíte fecha **265/265
+E2E, sem nenhuma falha conhecida** pela primeira vez na sessão. Gate 4
+(`po`) PASS. Sem migration. **Fecha os quatro tickets da dívida do
+CONTAI-040 (043→044→045→046).**
+
 1. Mover para `app/(gestao)/`: `obras/[id]` (cadastro/detalhe da obra),
    `obras/[id]/terreno` (+ `desembolsos`, `financiamento`,
    `informe/[anoBase]`), `obras/[id]/discriminacao/[ano]`,

@@ -115,12 +115,39 @@ describe("qual item fica marcado", () => {
   });
 
   it("as demais casam a própria árvore, inclusive as filhas fora do shell", () => {
-    // `/pendencias/[id]` e `/obras/[id]` moram em `(captura)`: voltar de uma
-    // delas com o menu apagado faria a tela parecer fora da navegação.
+    // ⚠️ Depois do `CONTAI-046` a única filha que ainda mora em `(captura)` é
+    // `/obras/nova` — e ela continua casando, porque o casamento é por rota, e
+    // não por pasta. As outras estão todas dentro do shell.
     expect(ehViewAtiva("/pendencias/abc-123", "/pendencias")).toBe(true);
     expect(ehViewAtiva("/obras/nova", "/obras")).toBe(true);
     expect(ehViewAtiva("/obras/abc/terreno", "/obras")).toBe(true);
     expect(ehViewAtiva("/despesas", "/despesas")).toBe(true);
+  });
+
+  /**
+   * **CONTAI-046** — a família inteira de obra e terreno acende **Obras**, e
+   * só ela. São as rotas com mais texto fiscal por área de tela do produto;
+   * abrir a discriminação anual com a sidebar apagada seria a revisão da
+   * declaração acontecendo fora da navegação.
+   */
+  it("obra, terreno, discriminação e notas sem CNO marcam Obras — e só Obras", () => {
+    const rotas = [
+      "/obras/abc-123",
+      "/obras/abc-123/terreno",
+      "/obras/abc-123/terreno/desembolsos",
+      "/obras/abc-123/terreno/financiamento",
+      "/obras/abc-123/terreno/informe/2025",
+      "/obras/abc-123/discriminacao/2025",
+      "/obras/abc-123/notas-sem-cno",
+    ];
+    for (const rota of rotas) {
+      expect(ehViewAtiva(rota, "/obras")).toBe(true);
+      for (const v of VIEWS_DE_GESTAO) {
+        if (v.href === "/obras") continue;
+        expect(ehViewAtiva(rota, v.href)).toBe(false);
+      }
+      expect(tituloDaView(rota)).toBe("Obras");
+    }
   });
 
   it("uma rota fora do grupo não marca item nenhum", () => {
@@ -296,6 +323,45 @@ describe("o breadcrumb das telas de detalhe", () => {
       href: "/pendencias",
       rotulo: "Pendências",
     });
+  });
+
+  /**
+   * **CONTAI-046** — três degraus, e o do meio é o que uma regra ingênua
+   * perderia: `/obras/[id]/terreno/desembolsos` volta para o PAINEL DO
+   * TERRENO, não para o cadastro da obra. Pular um degrau real aqui é o mesmo
+   * defeito de mandar `/documento/[id]/corrigir/valor` direto para `/despesas`.
+   */
+  it("da obra volta para a lista de obras; das filhas dela, para a obra", () => {
+    expect(migalhaDaRota("/obras/abc-123")).toEqual({
+      href: "/obras",
+      rotulo: "Obras",
+    });
+    for (const filha of ["terreno", "notas-sem-cno"]) {
+      expect(migalhaDaRota(`/obras/abc-123/${filha}`)).toEqual({
+        href: "/obras/abc-123",
+        rotulo: "Dados da obra",
+      });
+    }
+    // O ano é parâmetro de rota, e o crumb não o carrega: a mãe da
+    // discriminação é a obra, em qualquer ano.
+    expect(migalhaDaRota("/obras/abc-123/discriminacao/2025")).toEqual({
+      href: "/obras/abc-123",
+      rotulo: "Dados da obra",
+    });
+  });
+
+  it("das telas de terreno volta para o painel do terreno, não para a obra", () => {
+    for (const sub of [
+      "desembolsos",
+      "financiamento",
+      "informe/2025",
+      "informe/2026",
+    ]) {
+      expect(migalhaDaRota(`/obras/abc-123/terreno/${sub}`)).toEqual({
+        href: "/obras/abc-123/terreno",
+        rotulo: "Terreno",
+      });
+    }
   });
 
   it("nas views de primeira classe não existe — elas são o topo", () => {

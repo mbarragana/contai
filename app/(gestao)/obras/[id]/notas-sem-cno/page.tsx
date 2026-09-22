@@ -4,16 +4,16 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import {
-  AppBar,
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+} from "@/app/_components/detalhe";
+import {
   Banner,
-  BotaoLink,
   Card,
   Carregando,
-  Corpo,
   Dica,
   EstadoErro,
   Linha,
-  Rodape,
 } from "@/app/_components/ui";
 import {
   carregarPainel,
@@ -87,25 +87,23 @@ export default function NotasSemCno() {
     setTentativa((t) => t + 1);
   }, []);
 
-  const rodape = (
-    <Rodape>
-      <BotaoLink href={`/obras/${id}`}>Voltar aos dados da obra</BotaoLink>
-    </Rodape>
-  );
-
   // ── Carregando / erro ──────────────────────────────────────────────────
+  //
+  // ⚠️ O "Voltar aos dados da obra" que era rodapé fixo nos 430px **não
+  // reaparece aqui**: dentro do shell ele é o breadcrumb "‹ Dados da obra"
+  // (spec de design, decisão 3). Esta tela é LEITURA — lista de cobrança, sem
+  // ação de página nenhuma —, então ela não tem rodapé.
   if (estado.fase !== "pronto") {
     return (
       <>
-        <AppBar titulo="Notas sem CNO" />
-        <Corpo>
+        <CabecalhoDaTela titulo="Notas sem CNO" />
+        <ColunaDeDetalhe>
           {estado.fase === "erro" ? (
             <EstadoErro erro={estado.erro} onTentarDeNovo={tentarDeNovo} />
           ) : (
             <Carregando rotulo="Carregando as notas desta obra" />
           )}
-        </Corpo>
-        {rodape}
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -116,11 +114,11 @@ export default function NotasSemCno() {
 
   return (
     <>
-      <AppBar
+      <CabecalhoDaTela
         titulo="Notas sem CNO"
         sub={`${obra.nome} · para cobrar da empreiteira`}
       />
-      <Corpo>
+      <ColunaDeDetalhe>
         <Banner cor="amb" role="status">
           {COBRANCA_SEM_CNO_INSTRUCAO}
         </Banner>
@@ -166,8 +164,7 @@ export default function NotasSemCno() {
         )}
 
         <Dica>{COBRANCA_SEM_CNO_LIMITE}</Dica>
-      </Corpo>
-      {rodape}
+      </ColunaDeDetalhe>
     </>
   );
 }

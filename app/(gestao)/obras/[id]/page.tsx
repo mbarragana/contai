@@ -3,18 +3,28 @@
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import {
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+  RodapeDeAcao,
+} from "@/app/_components/detalhe";
 import { AvisoEquiparacao, PendenciaCno } from "@/app/_components/obra";
 import {
-  AppBar,
   Banner,
   BotaoLink,
   BotaoSalvar,
   Carregando,
-  Corpo,
   Dica,
   EstadoErro,
-  Rodape,
 } from "@/app/_components/ui";
+/**
+ * ⚠️ **O `_campos` continua em `(captura)` de propósito.** Quem também o
+ * consome é `/obras/nova`, que o `CONTAI-046` deixa FORA da migração (Fora de
+ * Escopo + Pre-mortem 3): assistente usado uma vez por obra, não gestão
+ * recorrente. Mover o módulo agora tocaria aquele arquivo por um motivo que não
+ * é dele. `_campos` não é rota (o prefixo `_` já garante isso) — é um módulo
+ * compartilhado que mora sob um grupo, e o grupo não muda o caminho de import.
+ */
 import {
   CamposCno,
   CamposIdentidade,
@@ -125,17 +135,14 @@ export default function DadosDaObra() {
   if (fase.nome === "carregando" || fase.nome === "erro" || !estado || !obra) {
     return (
       <>
-        <AppBar titulo="Dados da obra" />
-        <Corpo>
+        <CabecalhoDaTela titulo="Dados da obra" />
+        <ColunaDeDetalhe>
           {fase.nome === "erro" ? (
             <EstadoErro erro={fase.erro} onTentarDeNovo={tentarDeNovo} />
           ) : (
             <Carregando rotulo="Carregando a obra" />
           )}
-        </Corpo>
-        <Rodape>
-          <BotaoLink href="/obras">Ver minhas obras</BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -144,8 +151,8 @@ export default function DadosDaObra() {
 
   return (
     <>
-      <AppBar titulo="Dados da obra" sub={obra.nome} />
-      <Corpo>
+      <CabecalhoDaTela titulo="Dados da obra" sub={obra.nome} />
+      <ColunaDeDetalhe>
         {salvo ? (
           <Banner cor="grn" role="status">
             Alterações salvas em <strong>{obra.nome}</strong>.
@@ -193,8 +200,12 @@ export default function DadosDaObra() {
           Corrigir a data de início muda o prazo do CNO e o período que a
           aferição enxerga — informe sempre a data real.
         </Dica>
-      </Corpo>
-      <Rodape>
+      </ColunaDeDetalhe>
+      {/* Formulário com UMA ação de página (spec de design, decisão 4): o
+          rodapé sticky fica, e o "Voltar" que ele trazia some — dentro do
+          shell ele virou o breadcrumb "‹ Obras", que muda de lugar e não se
+          duplica. */}
+      <RodapeDeAcao>
         <BotaoSalvar
           ocupado={fase.nome === "salvando"}
           variante="primary"
@@ -203,8 +214,7 @@ export default function DadosDaObra() {
         >
           {fase.nome === "salvando" ? "Salvando…" : "Salvar alterações"}
         </BotaoSalvar>
-        <BotaoLink href="/">Voltar</BotaoLink>
-      </Rodape>
+      </RodapeDeAcao>
     </>
   );
 }

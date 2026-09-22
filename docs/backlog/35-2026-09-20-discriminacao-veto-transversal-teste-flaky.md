@@ -39,6 +39,21 @@ Trocar o cálculo de "ontem" no teste para fuso local, espelhando `hojeIso()`,
 em vez de `toISOString()`. É uma linha no teste, não requer parecer do
 `contador` nem ticket de produto — é dívida de qualidade de teste.
 
+## ✅ Corrigido no CONTAI-046, 2026-09-22
+
+Aplicada no Gate 2, por decisão do `cto-obra` de não empurrar para ticket
+separado: o diff do 046 já tocava a rota, e adiar de novo repetiria o
+esquecimento de 20/09. `e2e/discriminacao.spec.ts` ganhou os helpers `hoje()` e
+`maisDias()` — os mesmos de `compromisso.spec.ts` e `terreno.spec.ts` —, e
+`ontem` passou a ser `maisDias(-1)`: a aritmética roda em UTC sobre uma data que
+já nasceu LOCAL, então não há segundo fuso no caminho. `lib/hoje.ts` e a regra
+fiscal não foram tocados — o defeito nunca esteve lá.
+
+Conferido **dentro da janela do bug**, e não só "passou hoje": com
+`TZ=Pacific/Midway` (UTC−11, em que a data UTC já virou e a local não), o
+cálculo antigo devolve `ontem === hoje` (logo, não vencido) e o novo devolve o
+dia anterior de verdade. O spec inteiro roda verde nesse fuso.
+
 ## Não vira D-número de bug fiscal
 
 Como não há defeito na regra fiscal nem no produto, isto NÃO é uma dívida

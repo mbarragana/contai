@@ -34,6 +34,36 @@ import { expect, test } from "./fixtures";
 const ANO = new Date().getFullYear();
 const ROTA = `/obras/${OBRA_ID_SEED}/discriminacao/${ANO}`;
 
+/** ISO de hoje no fuso do aparelho — o mesmo `hojeIso()` que o app usa. */
+function hoje(): string {
+  const agora = new Date();
+  const local = new Date(agora.getTime() - agora.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
+/**
+ * ⚠️ **Dia relativo a HOJE LOCAL, nunca a `Date.now()` em UTC** — corrigido no
+ * `CONTAI-046` (2026-09-22), diagnóstico em
+ * `docs/backlog/35-2026-09-20-discriminacao-veto-transversal-teste-flaky.md`.
+ *
+ * O cálculo anterior era `new Date(Date.now() - 86_400_000).toISOString()`, e
+ * `toISOString()` é sempre UTC. `hojeIso()` — que o app usa, e contra quem
+ * `ehVencidoSemResposta` compara — é LOCAL de propósito (UTC−3): regime de
+ * caixa não pode trocar de dia perto da meia-noite. Entre ~21h e 23h59 locais o
+ * relógio UTC já virou, "ontem em UTC" é HOJE local, e o compromisso que o teste
+ * cria **nunca esteve vencido** — a saída saía por estar correta, e o vermelho
+ * acusava o veto fiscal por um defeito que era do helper. Duas vezes já se
+ * diagnosticou "bug em produção" em cima disso.
+ *
+ * Mesmo padrão do `maisDias` de `compromisso.spec.ts`: a aritmética roda em UTC
+ * sobre uma data que já nasceu local, então não há segundo fuso no caminho.
+ */
+function maisDias(dias: number): string {
+  const d = new Date(`${hoje()}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+
 /** Formata como o app formata — `Intl` pt-BR usa NBSP depois do "R$". */
 function brl(centavos: number): string {
   return new Intl.NumberFormat("pt-BR", {
@@ -220,7 +250,7 @@ test.describe("CONTAI-036 · discriminação de Bens e Direitos", () => {
     // migrou para o bloco do terreno: sem a resposta, ninguém sabe a que ano o
     // desembolso pertence — as duas hipóteses estão vivas ao mesmo tempo.
     await desembolsoComComprovante(db, 100_000);
-    const ontem = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+    const ontem = maisDias(-1);
     const empreiteiro = await criarFavorecido(db, {
       tipo: "pj",
       nome: "AJE Construções LTDA",

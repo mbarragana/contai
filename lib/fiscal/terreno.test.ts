@@ -553,8 +553,8 @@ describe("a marca do FCVS", () => {
 describe("critério 19 — insumo para revisão do CRC, nunca veredito", () => {
   /** As três superfícies que mostram número de custo do financiamento. */
   const SUPERFICIES = [
-    "app/(captura)/obras/[id]/terreno/page.tsx",
-    "app/(captura)/obras/[id]/terreno/informe/[anoBase]/page.tsx",
+    "app/(gestao)/obras/[id]/terreno/page.tsx",
+    "app/(gestao)/obras/[id]/terreno/informe/[anoBase]/page.tsx",
   ];
 
   it("a frase existe e nomeia o CRC, os juros e quem assume a posição", () => {
@@ -580,7 +580,7 @@ describe("critério 19 — insumo para revisão do CRC, nunca veredito", () => {
     // O informe tem duas: a conferência (passo 3) e a tela de gravado. Perder
     // uma das duas é perder a ressalva justamente onde o número vira definitivo.
     const informe = readFileSync(
-      "app/(captura)/obras/[id]/terreno/informe/[anoBase]/page.tsx",
+      "app/(gestao)/obras/[id]/terreno/informe/[anoBase]/page.tsx",
       "utf-8",
     );
     const usos = informe.split("INSUMO_PARA_REVISAO_CRC").length - 1;

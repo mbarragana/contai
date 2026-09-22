@@ -6,7 +6,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ListaDeAnexos } from "@/app/_components/anexo";
 import { CampoArquivo, CampoTexto } from "@/app/_components/campos";
 import {
-  AppBar,
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+  RodapeDeAcao,
+} from "@/app/_components/detalhe";
+import {
   Banner,
   Botao,
   BotaoLink,
@@ -15,12 +19,10 @@ import {
   Carregando,
   Chip,
   Consequencia,
-  Corpo,
   Dica,
   EstadoErro,
   Linha,
   Passo,
-  Rodape,
 } from "@/app/_components/ui";
 import {
   carregarFinanciamento,
@@ -299,8 +301,8 @@ export default function InformeAnual() {
   if (fase.nome === "carregando" || fase.nome === "erro" || !obra) {
     return (
       <>
-        <AppBar titulo={`Informe anual de ${anoBase}`} />
-        <Corpo>
+        <CabecalhoDaTela titulo={`Informe anual de ${anoBase}`} />
+        <ColunaDeDetalhe>
           {fase.nome === "erro" ? (
             <EstadoErro
               erro={fase.erro}
@@ -312,10 +314,7 @@ export default function InformeAnual() {
           ) : (
             <Carregando rotulo="Carregando o informe" />
           )}
-        </Corpo>
-        <Rodape>
-          <BotaoLink href={`/obras/${id}/terreno`}>Voltar ao terreno</BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -334,22 +333,27 @@ export default function InformeAnual() {
     );
     return (
       <>
-        <AppBar titulo={`Informe anual de ${anoBase}`} sub={obra.nome} />
-        <Corpo>
+        <CabecalhoDaTela
+          titulo={`Informe anual de ${anoBase}`}
+          sub={obra.nome}
+        />
+        <ColunaDeDetalhe>
           <Banner cor={gravidade} role={papelDaGravidade(gravidade)}>
             O contrato do financiamento ainda não foi cadastrado, e o informe
             pertence a ele. Cadastre o contrato primeiro — é uma vez na vida.
           </Banner>
-        </Corpo>
-        <Rodape>
-          <BotaoLink
-            href={`/obras/${id}/terreno/financiamento`}
-            variante="primary"
-          >
-            Cadastrar o contrato
-          </BotaoLink>
-          <BotaoLink href={`/obras/${id}/terreno`}>Voltar ao terreno</BotaoLink>
-        </Rodape>
+          {/* A tela não tem formulário nenhum aqui: não é ação de página, é a
+              saída do beco. Fica no fim do card a que pertence, como manda a
+              decisão 4 do spec. O "Voltar ao terreno" virou o breadcrumb. */}
+          <Card>
+            <BotaoLink
+              href={`/obras/${id}/terreno/financiamento`}
+              variante="primary"
+            >
+              Cadastrar o contrato
+            </BotaoLink>
+          </Card>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -380,8 +384,11 @@ export default function InformeAnual() {
   ) {
     return (
       <>
-        <AppBar titulo={`Informe anual de ${anoBase}`} sub={obra.nome} />
-        <Corpo>
+        <CabecalhoDaTela
+          titulo={`Informe anual de ${anoBase}`}
+          sub={obra.nome}
+        />
+        <ColunaDeDetalhe>
           <Banner cor="red" role="alert">
             {!Number.isInteger(anoBase)
               ? "Ano-base inválido no endereço."
@@ -391,15 +398,14 @@ export default function InformeAnual() {
             O app não grava custo de aquisição em ano-base fora da vida do
             contrato. Os anos válidos vão de {anoDoContrato} a {anoCorrente}.
           </Banner>
-        </Corpo>
-        <Rodape>
-          <BotaoLink
-            href={`/obras/${id}/terreno`}
-            variante="primary"
-          >
-            Ver o terreno ano a ano
-          </BotaoLink>
-        </Rodape>
+          {/* Endereço inválido: a única saída é a lista dos anos válidos, e
+              ela fica junto do texto que diz quais são. */}
+          <Card>
+            <BotaoLink href={`/obras/${id}/terreno`} variante="primary">
+              Ver o terreno ano a ano
+            </BotaoLink>
+          </Card>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -409,8 +415,11 @@ export default function InformeAnual() {
   if (jaExiste && fase.nome !== "gravado") {
     return (
       <>
-        <AppBar titulo={`Informe anual de ${anoBase}`} sub={obra.nome} />
-        <Corpo>
+        <CabecalhoDaTela
+          titulo={`Informe anual de ${anoBase}`}
+          sub={obra.nome}
+        />
+        <ColunaDeDetalhe>
           <Banner cor="red" role="alert">
             {UM_INFORME_POR_ANO}
           </Banner>
@@ -425,12 +434,9 @@ export default function InformeAnual() {
               />
             </Card>
           ) : null}
-        </Corpo>
-        <Rodape>
-          <BotaoLink href={`/obras/${id}/terreno`} variante="primary">
-            Voltar ao terreno
-          </BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
+        {/* Leitura pura (a trava da dupla contagem): sem ação de página, sem
+            rodapé. A volta é o breadcrumb "‹ Terreno". */}
       </>
     );
   }
@@ -439,8 +445,8 @@ export default function InformeAnual() {
   if (fase.nome === "gravado") {
     return (
       <>
-        <AppBar titulo={`${anoBase} fechado`} sub={obra.nome} />
-        <Corpo>
+        <CabecalhoDaTela titulo={`${anoBase} fechado`} sub={obra.nome} />
+        <ColunaDeDetalhe>
           <Banner cor="grn" role="status">
             Informe de {anoBase} gravado. O custo de aquisição de {anoBase} passa
             a existir no sistema com o documento que o sustenta.
@@ -481,12 +487,10 @@ export default function InformeAnual() {
               itens={[{ path: fase.arquivoPath }]}
             />
           </Card>
-        </Corpo>
-        <Rodape>
-          <BotaoLink href={`/obras/${id}/terreno`} variante="primary">
-            Voltar ao painel do terreno
-          </BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
+        {/* Confirmação depois de gravar: leitura, sem ação de página. O
+            "Voltar ao painel do terreno" era navegação — hoje é o breadcrumb
+            "‹ Terreno". */}
       </>
     );
   }
@@ -495,11 +499,11 @@ export default function InformeAnual() {
   if (passo === 1) {
     return (
       <>
-        <AppBar
+        <CabecalhoDaTela
           titulo={`Informe anual de ${anoBase} — passo 1 de 3`}
           sub={`${financiamento.instituicao} · o extrato antes dos números`}
         />
-        <Corpo>
+        <ColunaDeDetalhe>
           <Banner cor="amb" role="status">
             <strong>O documento vem primeiro de propósito.</strong> Você vai
             transcrever números dele no próximo passo — tê-lo aberto ao lado é o
@@ -534,8 +538,15 @@ export default function InformeAnual() {
             O extrato fica no acervo pelo prazo de guarda do imóvel — e o prazo
             deste contrato é longo: obra não vendida = prazo indefinido.
           </Dica>
-        </Corpo>
-        <Rodape>
+        </ColunaDeDetalhe>
+        {/* ⚠️ **O "Voltar ao terreno" FICA** (Gate 2 do CONTAI-046). O critério
+            é um só em toda a família, e é o mesmo já escrito em
+            `terreno/financiamento`: ao lado do botão que avança, voltar é
+            DESISTIR do formulário — parte do formulário, não navegação do
+            shell. O que virou breadcrumb é a navegação das telas de LEITURA.
+            Tirá-lo só daqui deixaria dois formulários irmãos com regras
+            diferentes, que é como uma exceção vira precedente. */}
+        <RodapeDeAcao>
           <Botao
             variante="primary"
             onClick={() => setPasso(2)}
@@ -547,7 +558,7 @@ export default function InformeAnual() {
             <Dica>Anexe o extrato para continuar.</Dica>
           ) : null}
           <BotaoLink href={`/obras/${id}/terreno`}>Voltar ao terreno</BotaoLink>
-        </Rodape>
+        </RodapeDeAcao>
       </>
     );
   }
@@ -556,11 +567,11 @@ export default function InformeAnual() {
   if (passo === 2) {
     return (
       <>
-        <AppBar
+        <CabecalhoDaTela
           titulo={`Informe anual de ${anoBase} — passo 2 de 3`}
           sub="Copie cada linha do extrato · a tela confere a soma sozinha"
         />
-        <Corpo>
+        <ColunaDeDetalhe>
           <Banner cor="amb" role="status">
             <strong>Um lançamento por ano, não doze.</strong> Copie as linhas
             exatamente como estão no extrato, <strong>inclusive as zeradas</strong>{" "}
@@ -673,8 +684,8 @@ export default function InformeAnual() {
             </div>
             <Dica>amortização + juros/correção</Dica>
           </Card>
-        </Corpo>
-        <Rodape>
+        </ColunaDeDetalhe>
+        <RodapeDeAcao>
           <Botao
             variante="primary"
             onClick={() => setPasso(3)}
@@ -696,7 +707,7 @@ export default function InformeAnual() {
           <Botao variante="ghost" onClick={() => setPasso(1)}>
             Voltar ao anexo
           </Botao>
-        </Rodape>
+        </RodapeDeAcao>
       </>
     );
   }
@@ -704,11 +715,11 @@ export default function InformeAnual() {
   // ── Passo 3 de 3 — conferência antes de gravar ─────────────────────────
   return (
     <>
-      <AppBar
+      <CabecalhoDaTela
         titulo={`Informe anual de ${anoBase} — passo 3 de 3`}
         sub="Confira antes de gravar"
       />
-      <Corpo>
+      <ColunaDeDetalhe>
         {erroSalvar ? (
           <Banner cor="red" role="alert">
             {erroSalvar}
@@ -787,8 +798,8 @@ export default function InformeAnual() {
             {anoBase + 1} · ano-base {anoBase}
           </Dica>
         </Card>
-      </Corpo>
-      <Rodape>
+      </ColunaDeDetalhe>
+      <RodapeDeAcao>
         <BotaoSalvar
           ocupado={fase.nome === "salvando"}
           variante="primary"
@@ -808,7 +819,7 @@ export default function InformeAnual() {
         >
           Cancelar
         </Botao>
-      </Rodape>
+      </RodapeDeAcao>
     </>
   );
 }
