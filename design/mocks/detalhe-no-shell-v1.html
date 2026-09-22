@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>contai — Mock detalhe-no-shell-v1</title>
+<style>
+  :root{
+    --paper:#faf9f6; --ink:#23221d; --mut:#716c61; --line:#e6e3da; --soft:#f1efe9;
+    --red:#b91c1c; --red-bg:#fbecec; --amb:#92600a; --amb-bg:#fdf3df; --grn:#15803d; --grn-bg:#e9f5ed;
+    --side-bg:#1c1b17; --side-line:#33312a; --side-text:#cfc9ba; --side-mut:#8b8578; --side-active:#2c2a24;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{background:var(--paper); color:var(--ink); font:14.5px/1.5 var(--sans)}
+  .mono{font-family:var(--mono); font-variant-numeric:tabular-nums}
+
+  .evalbar{background:#000; color:#e8e5dc; font-size:12px; padding:8px 20px; text-align:center}
+  .evalbar strong{color:#fff}
+  .evalbar a{color:#9fd1ff}
+
+  .app{display:flex; height:calc(100vh - 34px)}
+
+  /* ── sidebar (idêntica ao desktop-shell-v1) ──────────────────────── */
+  .sidebar{width:264px; flex:none; background:var(--side-bg); color:var(--side-text);
+    display:flex; flex-direction:column; border-right:1px solid var(--side-line)}
+  .brand{padding:20px 22px 16px; font-weight:700; font-size:17px; letter-spacing:-.01em; color:#fff}
+  .obra-switcher{margin:0 14px 14px; padding:12px 12px; border:1px solid var(--side-line); border-radius:10px;
+    background:var(--side-active)}
+  .obra-switcher .rot{font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--side-mut)}
+  .obra-switcher .nome{font-weight:600; color:#fff; margin-top:2px; font-size:13.5px}
+  .obra-switcher .sub{font-size:11.5px; color:var(--side-mut); margin-top:2px}
+  nav.primary{padding:4px 10px; display:flex; flex-direction:column; gap:2px}
+  .nav-item{display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding:9px 12px; border-radius:8px; color:var(--side-text); text-decoration:none; font-size:13.5px;
+    cursor:pointer; border:1px solid transparent}
+  .nav-item:hover{background:var(--side-active)}
+  .nav-item.active{background:var(--side-active); color:#fff; border-color:var(--side-line)}
+  .nav-item .badge{background:var(--red); color:#fff; font-size:10.5px; font-weight:700; border-radius:999px;
+    padding:1px 7px; min-width:18px; text-align:center}
+  .sidebar-sep{height:1px; background:var(--side-line); margin:14px 16px}
+  .nav-secondary{padding:0 10px; display:flex; flex-direction:column; gap:2px}
+  .nav-secondary a{color:var(--side-mut); text-decoration:none; font-size:12.5px; padding:7px 12px; border-radius:8px; cursor:pointer}
+  .nav-secondary a:hover{background:var(--side-active); color:var(--side-text)}
+  .nav-secondary a.active{background:var(--side-active); color:#fff}
+  .sidebar-footer{margin-top:auto; padding:14px 22px 18px; font-size:11px; color:var(--side-mut)}
+
+  /* ── conteúdo principal ────────────────────────────────────────── */
+  .main{flex:1; display:flex; flex-direction:column; min-width:0}
+  .topbar{flex:none; padding:16px 36px; border-bottom:1px solid var(--line); background:var(--paper)}
+  .crumb{font-size:12px; color:var(--mut); margin-bottom:5px; cursor:pointer; display:inline-block}
+  .crumb:hover{color:var(--ink); text-decoration:underline}
+  .topbar h1{font-size:19px; margin:0; letter-spacing:-.01em}
+  .topbar .sub{font-size:12px; color:var(--mut); margin-top:2px}
+
+  .content{flex:1; overflow-y:auto; padding:28px 36px 60px; position:relative}
+  .view{display:none}
+  .view.active{display:block}
+  .detalhe{max-width:640px}
+
+  .card{background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:14px}
+  .card.border-red{border-left:4px solid var(--red)}
+  .card.border-amb{border-left:4px solid var(--amb)}
+  .card.border-grn{border-left:4px solid var(--grn)}
+  .card-title{font-weight:700; font-size:14px}
+  .linha{display:flex; justify-content:space-between; align-items:baseline; gap:14px; padding:7px 0; border-bottom:1px solid var(--line); font-size:13px}
+  .linha:last-child{border-bottom:none}
+  .linha .rot{color:var(--mut); flex:none}
+  .dica{font-size:12px; color:var(--mut); margin-top:8px; line-height:1.5}
+  .banner{border-radius:10px; padding:11px 15px; font-size:12.5px; margin-bottom:14px; line-height:1.5}
+  .banner.red{background:var(--red-bg); color:var(--red)}
+  .banner.amb{background:var(--amb-bg); color:var(--amb)}
+  .banner.grn{background:var(--grn-bg); color:var(--grn)}
+  .chip{display:inline-block; font-size:11px; font-weight:700; border-radius:999px; padding:3px 10px; margin-bottom:6px}
+  .chip.red{color:var(--red); background:var(--red-bg)}
+  .chip.amb{color:var(--amb); background:var(--amb-bg)}
+  .chip.grn{color:var(--grn); background:var(--grn-bg)}
+  .cons{font-size:12.5px; border-radius:8px; padding:9px 11px; margin-top:6px; line-height:1.5}
+  .cons.red{background:var(--red-bg); color:var(--red)}
+  .cons.amb{background:var(--amb-bg); color:var(--amb)}
+  .num{font-family:var(--mono); font-size:22px; font-weight:700; margin-top:2px}
+  .num.grn{color:var(--grn)}
+  .passo{font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--mut); margin:22px 0 10px}
+  .passo:first-child{margin-top:0}
+
+  a.botao-link, button.botao-link{display:block; width:100%; text-align:center; padding:9px 14px; border-radius:9px;
+    font-size:13px; font-weight:600; text-decoration:none; border:1px solid var(--line); color:var(--ink);
+    background:#fff; margin-top:8px; cursor:pointer}
+  a.botao-link.primary, button.botao-link.primary{background:var(--ink); color:var(--paper); border-color:var(--ink)}
+  a.botao-link.ghost, button.botao-link.ghost{border:none; background:transparent; width:auto; display:inline-block; padding:9px 0; margin-top:6px}
+
+  .campo{margin-top:10px}
+  .campo label{display:block; font-size:12.5px; font-weight:600; margin-bottom:5px}
+  .campo input[type=text], .campo input[type=date]{width:100%; font:inherit; font-size:13px; padding:8px 10px;
+    border-radius:8px; border:1px solid var(--line); background:#fff; color:var(--ink)}
+  .campo .ajuda{font-size:11.5px; color:var(--mut); margin-top:4px}
+  .pills{display:flex; flex-wrap:wrap; gap:8px; margin-top:5px}
+  .pill{flex:1 1 auto; min-width:110px; text-align:center; padding:9px 10px; border-radius:8px; border:1px solid var(--line);
+    font-size:13px; font-weight:600; cursor:pointer; background:#fff}
+  .pill.marcado{background:var(--ink); color:var(--paper); border-color:var(--ink)}
+  .dropzone{border:1px dashed var(--line); border-radius:8px; padding:10px; font-size:12.5px; color:var(--mut); margin-top:6px; text-align:center}
+  .anexo-item{display:flex; justify-content:space-between; align-items:center; font-size:12.5px; padding:6px 0; border-bottom:1px solid var(--line)}
+  .anexo-item:last-child{border-bottom:none}
+  .anexo-item a{color:var(--ink); font-weight:600; text-decoration:none}
+
+  /* ── rodapé de ação: STICKY, escopado à coluna de 640px ──────────── */
+  .rodape-form{position:sticky; bottom:0; max-width:640px; background:var(--paper); border-top:1px solid var(--line);
+    padding-top:14px; margin-top:6px; box-shadow:0 -8px 16px -8px rgba(35,34,29,.08)}
+  .rodape-form .nota-rodape{font-size:11px; color:var(--mut); margin-top:7px; text-align:center}
+
+  footer.nota{margin-top:30px; padding-top:14px; border-top:1px solid var(--line); font-size:11.5px; color:var(--mut); max-width:640px}
+  .placeholder{max-width:640px; padding:40px 0; color:var(--mut); font-size:13px}
+</style>
+</head>
+<body>
+
+<div class="evalbar">
+  <strong>Mock — detalhe-no-shell-v1</strong> · Telas de detalhe/formulário dentro do shell desktop (CONTAI-040).
+  Sidebar → <strong>Despesas</strong> abre uma tela de LEITURA (/documento/[id]); a secundária
+  <strong>Terreno</strong> abre uma tela de FORMULÁRIO denso (/obras/[id]/terreno/desembolsos).
+  Ver <a href="detalhe-no-shell-v1.md">detalhe-no-shell-v1.md</a>.
+</div>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">contai</div>
+    <div class="obra-switcher">
+      <div class="rot">Obra aberta</div>
+      <div class="nome">Cachoeira do Bom Jesus</div>
+      <div class="sub">CNO 12.345.67890/26 · ano 2026</div>
+    </div>
+    <nav class="primary">
+      <a class="nav-item" data-view="placeholder">Visão geral</a>
+      <a class="nav-item" data-view="documento">Despesas</a>
+      <a class="nav-item" data-view="placeholder">Pendências <span class="badge">9</span></a>
+      <a class="nav-item" data-view="placeholder">Obras</a>
+    </nav>
+    <div class="sidebar-sep"></div>
+    <div class="nav-secondary">
+      <a data-view="placeholder">Dados da obra — matrícula e CNO</a>
+      <a data-view="terreno">Terreno — desembolsos e informes</a>
+      <a data-view="placeholder">Sua conta</a>
+      <a data-view="placeholder">Sair</a>
+    </div>
+    <div class="sidebar-footer">mateus@contai.local</div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="crumb" id="crumb-link">‹ voltar</div>
+      <h1 id="page-title">—</h1>
+      <div class="sub" id="page-sub"></div>
+    </header>
+
+    <div class="content">
+
+      <!-- ══════════════ PLACEHOLDER (fora do escopo deste mock) ══════════════ -->
+      <div class="view active" id="view-placeholder">
+        <div class="placeholder">Esta view já existe em <code>desktop-shell-v1.html</code> — fora do escopo deste
+          mock, que cobre só o padrão de detalhe/formulário dentro do shell.</div>
+      </div>
+
+      <!-- ══════════════ LEITURA: /documento/[id] ══════════════ -->
+      <div class="view" id="view-documento">
+        <div class="detalhe">
+
+          <div class="card">
+            <div class="linha"><span class="rot">Valor</span><span class="mono">R$ 18.400,00</span></div>
+            <div class="linha"><span class="rot">Destinatário</span><span style="color:var(--grn);font-weight:600">Seu CPF ✓</span></div>
+            <div class="linha"><span class="rot">Classificação</span><span>Mão de obra</span></div>
+          </div>
+
+          <div class="card">
+            <div class="linha"><span class="rot">Nº / série</span><span class="mono">1234 / 1</span></div>
+            <div class="linha"><span class="rot">Emissão</span><span class="mono">12/03/2026</span></div>
+            <div class="linha"><span class="rot">CNO na nota</span><span class="mono">12.345.67890/26</span></div>
+            <div class="linha"><span class="rot">Retenção</span><span style="font-weight:600">destacada na nota</span></div>
+            <div class="linha"><span class="rot">Abate no INSS (SERO)</span><span style="font-weight:700;color:var(--red)">não</span></div>
+            <div class="dica">A emissão identifica a nota e a janela do CNO. O ano do custo é o do pagamento.</div>
+            <div class="dica">Nenhuma retenção desta nota abate o INSS (SERO) — só a declaração vinculada ao CNO
+              abate, e isso é separado deste registro.</div>
+          </div>
+
+          <div class="card border-red">
+            <div class="card-title">Retenção desta nota</div>
+            <div class="linha"><span class="rot">ISS · 5%</span><span class="mono">R$ 920,00</span></div>
+            <div class="linha"><span class="rot">Quem recolhe</span><span style="font-weight:600">ainda não sei</span></div>
+            <div class="cons red"><strong>Retenção sem recolhedor.</strong> Retenção descontada do pagamento sem
+              confirmação de quem recolhe — se ninguém recolher, não é economia, é passivo não identificado.</div>
+            <a class="botao-link primary" href="#">Responder quem recolhe</a>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Papéis deste documento</div>
+            <div class="anexo-item"><span>Nota original — nf-servico-1234.pdf</span><a href="#">Abrir</a></div>
+          </div>
+
+          <div class="card border-grn">
+            <span class="chip grn">Custo comprovado</span>
+            <div class="num grn">R$ 18.400,00</div>
+            <div class="dica">entra no custo de aquisição pela <strong>data do pagamento</strong> — regime de caixa</div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Pagamentos desta nota</div>
+            <div class="linha"><span>14/03/2026 · Construtora Silva Ltda.</span><span class="mono">R$ 18.400,00</span></div>
+            <a class="botao-link" href="#">Ver o pagamento</a>
+            <a class="botao-link" href="#">Desligar este pagamento</a>
+          </div>
+
+          <div class="card">
+            <div class="linha"><span class="rot">Obra</span><span>Cachoeira do Bom Jesus</span></div>
+            <a class="botao-link" href="#">Corrigir a obra deste registro</a>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Corrigir este registro</div>
+            <div class="dica">Cada correção é uma ação separada, porque cada uma muda uma coisa diferente na sua
+              declaração. Todas ficam registradas.</div>
+            <a class="botao-link" href="#">Corrigir o valor — hoje: R$ 18.400,00</a>
+            <a class="botao-link" href="#">Corrigir a classificação — hoje: mão de obra</a>
+            <a class="botao-link" href="#">Corrigir o nome do emitente — vale para todos os registros dele</a>
+            <a class="botao-link" href="#">O CNPJ/CPF do emitente está errado — e agora?</a>
+            <a class="botao-link" href="#">Está errado outro dado, que não está nesta lista</a>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Histórico de correções</div>
+            <div class="dica">Nenhuma correção registrada ainda.</div>
+          </div>
+
+          <!-- sem rodapé sticky: leitura não tem UMA ação de página — cada ação
+               é escopada ao card onde vive. -->
+        </div>
+      </div>
+
+      <!-- ══════════════ FORMULÁRIO: /obras/[id]/terreno/desembolsos ══════════════ -->
+      <div class="view" id="view-terreno">
+        <div class="detalhe">
+
+          <div class="banner amb"><strong>É a data de cada um que decide em que ano ele entra</strong> — não a data
+            da compra. Eles quase nunca acontecem todos no mesmo ano.</div>
+
+          <div class="passo">Valores sem data — falta completar</div>
+          <div class="card border-red">
+            <span class="chip red">Pago — falta a data e o comprovante</span>
+            <div class="linha"><span class="rot">Entrada</span><span class="mono">R$ 15.000,00</span></div>
+            <div class="cons red">Pago — falta a data e falta o comprovante. As duas faltas são independentes e
+              nenhuma delas apaga o registro. Sem a data, este valor não tem ano-calendário e não entra em ano
+              nenhum. Sem o comprovante, ele não entra no custo confirmado nem no ano em que a data o puser.
+              Comece pela data: ela está no extrato, no mesmo lugar em que o comprovante está — as duas costumam
+              voltar da mesma busca.</div>
+            <div class="dica">Nenhum papel anexado ainda.</div>
+            <!-- ⚠️ Ação de COMPLEMENTO: escopada a este card, nunca no rodapé
+                 sticky da página — o rodapé é só da ação "Registrar um desembolso". -->
+            <div class="campo">
+              <label>Data em que saiu da conta</label>
+              <input type="date">
+              <div class="ajuda">A data que vale é a do débito no extrato — não a do contrato, não a da escritura,
+                não a do vencimento.</div>
+            </div>
+            <div class="dropzone">+ Anexar papel</div>
+            <a class="botao-link primary" href="#">Informar a data</a>
+            <a class="botao-link ghost" href="#">Cancelar</a>
+          </div>
+
+          <div class="passo">Papéis de um desembolso já registrado</div>
+          <div class="card border-red">
+            <div class="linha"><span class="rot">ITBI</span><span class="mono">R$ 3.200,00</span></div>
+            <div class="linha"><span class="rot">Pago em</span><span class="mono">02/04/2026</span></div>
+            <div class="anexo-item"><span>Papéis deste desembolso</span></div>
+            <div class="anexo-item"><span>guia-itbi.pdf</span><a href="#">Abrir</a></div>
+            <span class="chip red">Pago sem comprovante</span>
+            <div class="cons red"><strong>Pago sem comprovante.</strong> O valor e a data ficam registrados — o
+              custo existe, ainda não está demonstrável. Enquanto faltar o papel, este desembolso não entra no
+              custo confirmado. Recupere o comprovante enquanto o banco ainda o mostra: ele é o documento do
+              acervo que expira primeiro.</div>
+            <a class="botao-link primary" href="#">Anexar o comprovante</a>
+          </div>
+
+          <div class="passo">Registrar um desembolso</div>
+          <div class="card">
+            <div class="campo">
+              <label>O que é este desembolso?</label>
+              <div class="pills">
+                <div class="pill marcado">Entrada</div>
+                <div class="pill">Parcela ao vendedor</div>
+                <div class="pill">ITBI</div>
+                <div class="pill">Escritura</div>
+                <div class="pill">Registro em cartório</div>
+              </div>
+            </div>
+            <div class="campo"><label>Valor</label><input type="text" value="R$ 4.500,00"></div>
+            <div class="campo">
+              <label>Este valor já foi pago?</label>
+              <div class="pills">
+                <div class="pill marcado">Já paguei</div>
+                <div class="pill">Ainda não paguei</div>
+              </div>
+            </div>
+            <div class="campo">
+              <label>Data em que saiu da conta</label>
+              <input type="date" value="2026-09-18">
+              <div class="ajuda">A data que vale é a do débito no extrato — não a do contrato, não a da escritura,
+                não a do vencimento.</div>
+            </div>
+            <div class="campo">
+              <label>Papéis deste desembolso</label>
+              <div class="ajuda">Pode ser mais de um. Não são obrigatórios para gravar — é o comprovante que
+                decide se este valor entra no custo confirmado.</div>
+              <div class="dropzone">+ Anexar papel</div>
+            </div>
+            <div class="cons red"><strong>Pago sem comprovante.</strong> O valor e a data ficam registrados — o
+              custo existe, ainda não está demonstrável. Enquanto faltar o papel, este desembolso não entra no
+              custo confirmado. Recupere o comprovante enquanto o banco ainda o mostra: ele é o documento do
+              acervo que expira primeiro.</div>
+            <div class="dica">O app nunca inventa a data: nem a de hoje, nem a do cadastro. Data ausente continua
+              ausente e visível.</div>
+          </div>
+
+          <!-- ⚠️ ÚNICO rodapé sticky da página: existe UMA ação de nível de
+               página (gravar o desembolso novo). As duas ações acima são de
+               CARD, não de página, e por isso continuam inline. -->
+          <div class="rodape-form">
+            <button class="botao-link primary" type="button">Gravar — e abrir a pendência do comprovante</button>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  var titulos = {
+    placeholder: ["—", ""],
+    documento: ["NF de serviço", "Construtora Silva Ltda."],
+    terreno: ["O que saiu do seu bolso", "Cachoeira do Bom Jesus · terreno"]
+  };
+  var crumbs = { placeholder: "‹ voltar", documento: "‹ Despesas", terreno: "‹ Terreno" };
+  var crumbAlvo = { documento: "placeholder", terreno: "placeholder", placeholder: "placeholder" };
+
+  function irPara(view) {
+    document.querySelectorAll(".nav-item, .nav-secondary a").forEach(function (el) {
+      el.classList.toggle("active", el.dataset.view === view);
+    });
+    document.querySelectorAll(".view").forEach(function (el) {
+      el.classList.toggle("active", el.id === "view-" + view);
+    });
+    document.getElementById("page-title").textContent = titulos[view][0];
+    document.getElementById("page-sub").textContent = titulos[view][1];
+    document.getElementById("crumb-link").textContent = crumbs[view];
+    document.querySelector(".content").scrollTop = 0;
+  }
+  document.querySelectorAll(".nav-item, .nav-secondary a").forEach(function (el) {
+    el.addEventListener("click", function () { irPara(el.dataset.view); });
+  });
+  document.getElementById("crumb-link").addEventListener("click", function () {
+    var atual = document.querySelector(".view.active").id.replace("view-", "");
+    irPara(crumbAlvo[atual] || "placeholder");
+  });
+  document.querySelectorAll(".pill").forEach(function (el) {
+    el.addEventListener("click", function () {
+      Array.prototype.forEach.call(el.parentElement.children, function (p) { p.classList.remove("marcado"); });
+      el.classList.add("marcado");
+    });
+  });
+  irPara("documento");
+</script>
+</body>
+</html>
