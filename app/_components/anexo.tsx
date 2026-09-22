@@ -98,7 +98,10 @@ export function ItemDeAnexo({ path, papel }: ItemDeAcervo) {
         comErro ? "border-red bg-red-bg" : "border-line bg-white"
       }`}
     >
-      <div className="flex items-start gap-2.5">
+      {/* `items-center` e não `items-start`: o ícone (54px) é mais alto que o
+          nome do arquivo + chip, e alinhar tudo pelo topo deixava o "Abrir"
+          flutuando acima da linha do texto. */}
+      <div className="flex items-center gap-2.5">
         <div
           aria-hidden
           className="flex h-[54px] w-11 flex-none items-center justify-center rounded-md border border-line bg-soft text-[10px] font-bold tracking-wide text-mut"

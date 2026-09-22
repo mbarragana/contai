@@ -190,7 +190,20 @@ function MolduraDeGestao({ children }: { children: React.ReactNode }) {
       </nav>
 
       {/* ── CONTEÚDO ───────────────────────────────────────────────────── */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      {/* ⚠️ `min-h-0` não é enfeite: sem ele o `overflow-y-auto` do `main`
+          abaixo NÃO ROLA na faixa estreita, e a última ação da tela fica
+          inalcançável. O motivo é o `min-height: auto` que todo item de flex
+          ganha por padrão — ele proíbe o item de encolher abaixo do próprio
+          conteúdo, então este `flex-1` crescia para os ~1600px do formulário
+          em vez de parar nos 703px do `h-dvh`, e o `main` herdava altura de
+          sobra (`scrollHeight === clientHeight`: nada para rolar). Em `lg` o
+          bug não aparecia porque aí a coluna é item no eixo TRANSVERSAL da
+          linha e o `stretch` já a limita — por isso passou nos CONTAI-043 a
+          046, todos revisados em tela larga. Medido em 565×703 com dois
+          desembolsos: o rodapé "Voltar ao terreno" ficava 200px abaixo do fim
+          do scroll. `main` não precisa do mesmo porque `overflow-y-auto` já
+          zera o mínimo automático dele. */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <header className="flex flex-none items-center justify-between gap-4 border-b border-line px-[18px] py-3 lg:px-9 lg:py-[18px]">
           <div className="min-w-0">
             {/* O "‹ Despesas" do mock: a saída da tela de detalhe, sempre para

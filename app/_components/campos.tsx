@@ -131,9 +131,17 @@ export function Escolha<T extends string>({
         {opcoes.map((o) => {
           const marcado = valor === o.valor;
           return (
+            // ⚠️ `relative` existe por causa do `sr-only` do rádio abaixo:
+            // `sr-only` é `position: absolute`, e sem um ancestral posicionado
+            // o bloco contêiner dele vira o bloco contêiner INICIAL — o rádio
+            // escapa do `overflow-hidden` do shell e estica o documento até a
+            // posição estática dele. Resultado medido em 565×703: a página
+            // ganhava ~600px de rolagem fantasma e o Mateus via um vazio
+            // enorme em branco depois do último card. Com `relative` o rádio é
+            // recortado onde nasce e some da altura do documento.
             <label
               key={o.valor}
-              className={`flex min-h-[44px] flex-1 cursor-pointer items-center justify-center rounded-lg border px-3 text-center text-[13.5px] font-semibold ${
+              className={`relative flex min-h-[44px] flex-1 cursor-pointer items-center justify-center rounded-lg border px-3 text-center text-[13.5px] font-semibold ${
                 marcado
                   ? "border-ink bg-ink text-paper"
                   : erro

@@ -672,6 +672,23 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
   do browser); não duplica nada, não bloqueou o ticket. Caminho futuro: teto
   via `AbortSignal` no `.upload`, mesmo texto de resultado incerto do critério 6
 
+### `57-2026-09-22-fix-scroll-travado-shell-mobile.md` — 40 linhas
+**Fix: scroll do shell travava antes do fim em telas estreitas — 2026-09-22**
+
+- Relato do Mateus com print (`/obras/[id]/terreno/desembolsos`); mais
+  grave que parecia: o formulário "Registrar um desembolso" ficava
+  inacessível em qualquer tela migrada nos `043`-`046` com conteúdo longo
+- Causa 1: coluna do shell sem `min-h-0` crescia além do `h-dvh`, e o
+  `<main overflow-y-auto>` ficava sem nada pra rolar — a PÁGINA tentava
+  rolar em vez dele. Só aparecia abaixo de `lg` (em `lg` o `stretch` já
+  limitava), por isso atravessou os 4 tickets sem ninguém notar
+- Causa 2: rádio `sr-only` de `Escolha` (`campos.tsx`) sem ancestral
+  posicionado escapava do `overflow-hidden` e esticava o documento inteiro
+- Bônus: cards de anexo alinhados pelo centro (`items-center`), não mais
+  pelo topo
+- Guarda geométrica nova (mede quem rola, não usa `click()`), provada
+  não-vacuosa. `cto-obra` APPROVE. Sem regra fiscal tocada
+
 ### `56-2026-09-22-fix-overflow-faixa-mobile-ci.md` — 30 linhas
 **Fix: overflow da faixa mobile escondia "+ Novo registro" — 2026-09-22**
 
