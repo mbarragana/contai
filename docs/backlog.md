@@ -672,6 +672,22 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
   do browser); não duplica nada, não bloqueou o ticket. Caminho futuro: teto
   via `AbortSignal` no `.upload`, mesmo texto de resultado incerto do critério 6
 
+### `55-2026-09-22-contai-041-entregue.md` — 40 linhas
+**CONTAI-041 entregue — 2026-09-22 — tabela de despesas fecha a rodada "desktop shell"**
+
+- `lib/fiscal/despesas.ts` (`linhasDeDespesa`) decompõe `alocacao` de volta
+  em 1 linha por pagamento/documento — `ResumoObra.despesas` agrega por
+  componente, não por pagamento, então precisava de projeção nova
+- Garantia central provada, não só afirmada: 8 cenários de teste (1:1,
+  N:1, 1:N, parcial, agregado) confirmam zero duplicação de centavo;
+  `contador` conferiu a lógica com os próprios olhos, APPROVE de primeira
+- Gate 2 do `cto-obra` achou bug real: documento sem valor virava "R$
+  0,00" (afirmação de zero sem dado) — corrigido para "—"
+- Chip neutro do terceiro estado fica fora do componente `Chip`; anotação
+  "Nota sem arquivo" (CONTAI-033) entra mesmo fora da letra do critério
+- 925 unitários + 273 E2E + validação manual extensa. Gate 4 (`po`) PASS.
+  Sem migration. **Fecha a rodada inteira (042→040→043→044→045→046→041)**
+
 ### `54-2026-09-22-contai-046-entregue.md` — 35 linhas
 **CONTAI-046 entregue — 2026-09-22 — obra e terreno migram para o shell (fecha 043-046)**
 
