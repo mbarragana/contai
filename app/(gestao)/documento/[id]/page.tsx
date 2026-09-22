@@ -9,19 +9,20 @@ import {
   SEM_PAPEL_NO_ACERVO,
 } from "@/app/_components/anexo";
 import {
-  AppBar,
   Banner,
-  BarraAdicionar,
   BotaoLink,
   Card,
   Carregando,
   Chip,
   Consequencia,
-  Corpo,
   Dica,
   EstadoErro,
   Linha,
 } from "@/app/_components/ui";
+import {
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+} from "@/app/_components/detalhe";
 import { HistoricoDeCorrecoes } from "@/app/_components/corrigir";
 import { BlocoRetencao } from "@/app/_components/retencao";
 import { useSessao } from "@/app/_components/sessao";
@@ -324,17 +325,14 @@ function DetalheDocumento() {
   if (estado.fase !== "pronto") {
     return (
       <>
-        <AppBar titulo="Documento" />
-        <Corpo>
+        <CabecalhoDaTela titulo="Documento" />
+        <ColunaDeDetalhe>
           {estado.fase === "carregando" ? (
             <Carregando rotulo="Carregando o documento" />
           ) : (
             <EstadoErro erro={estado.erro} onTentarDeNovo={tentarDeNovo} />
           )}
-        </Corpo>
-        <BarraAdicionar
-          voltar={<BotaoLink href="/">Voltar ao início</BotaoLink>}
-        />
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -625,8 +623,8 @@ function DetalheDocumento() {
   if (d.status === "quarentena") {
     return (
       <>
-        <AppBar titulo="Quarentena" sub={sub} />
-        <Corpo>
+        <CabecalhoDaTela titulo="Quarentena" sub={sub} />
+        <ColunaDeDetalhe>
           <Banner cor="red" role="alert">
             <strong>Este documento não está no seu CPF.</strong>{" "}
             {d.motivoQuarentena}
@@ -656,14 +654,7 @@ function DetalheDocumento() {
           {blocoObra}
           {blocoCorrigir}
           {blocoHistorico}
-        </Corpo>
-        <BarraAdicionar
-          voltar={
-            <BotaoLink href="/" variante="primary">
-              Voltar ao início
-            </BotaoLink>
-          }
-        />
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -681,8 +672,11 @@ function DetalheDocumento() {
 
   return (
     <>
-      <AppBar titulo={NOME_TIPO[d.tipo]} sub={d.favorecidoNome ?? undefined} />
-      <Corpo>
+      <CabecalhoDaTela
+        titulo={NOME_TIPO[d.tipo]}
+        sub={d.favorecidoNome ?? undefined}
+      />
+      <ColunaDeDetalhe>
         <Card>
           <Linha rotulo="Valor">
             <span className="mono">{valor}</span>
@@ -714,14 +708,7 @@ function DetalheDocumento() {
         {blocoObra}
         {blocoCorrigir}
         {blocoHistorico}
-      </Corpo>
-      <BarraAdicionar
-        voltar={
-          <BotaoLink href="/" variante="primary">
-            Voltar ao início
-          </BotaoLink>
-        }
-      />
+      </ColunaDeDetalhe>
     </>
   );
 }

@@ -3,15 +3,16 @@
 import { useParams } from "next/navigation";
 
 import {
-  AppBar,
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+} from "@/app/_components/detalhe";
+import {
   BotaoLink,
   Card,
   Consequencia,
-  Corpo,
   Dica,
   Linha,
   Passo,
-  Rodape,
 } from "@/app/_components/ui";
 
 /**
@@ -33,15 +34,17 @@ import {
  */
 export default function OutroDado() {
   const { id } = useParams<{ id: string }>();
-  const documentoHref = `/documento/${id}`;
 
   return (
     <>
-      <AppBar
+      <CabecalhoDaTela
         titulo="Está errado outro dado"
         sub="o que não se corrige aqui — cada um com o seu motivo"
       />
-      <Corpo>
+      {/* Tela de LEITURA: as saídas são as quatro correções que existem, cada
+          uma no fim da lista a que pertencem. O "Voltar ao documento" fixo do
+          rodapé de 430px virou o breadcrumb do topbar (CONTAI-043). */}
+      <ColunaDeDetalhe>
         <Passo>Não tem campo, e não vai ter</Passo>
         <Card>
           <Linha rotulo="Situação do documento">
@@ -121,13 +124,7 @@ export default function OutroDado() {
             Corrigir a obra deste registro
           </BotaoLink>
         </div>
-      </Corpo>
-
-      <Rodape>
-        <BotaoLink href={documentoHref} variante="primary">
-          Voltar ao documento
-        </BotaoLink>
-      </Rodape>
+      </ColunaDeDetalhe>
     </>
   );
 }

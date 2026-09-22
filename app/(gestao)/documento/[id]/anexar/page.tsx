@@ -4,21 +4,23 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { CampoArquivo, Escolha } from "@/app/_components/campos";
+import {
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+  RodapeDeAcao,
+} from "@/app/_components/detalhe";
 import { useSessao } from "@/app/_components/sessao";
 import {
-  AppBar,
   Banner,
   BotaoLink,
   BotaoSalvar,
   Card,
   Carregando,
-  Corpo,
   Dica,
   ErroDeGravacao,
   EstadoErro,
   Linha,
   Passo,
-  Rodape,
 } from "@/app/_components/ui";
 import {
   anexarArquivoDocumento,
@@ -116,17 +118,14 @@ export default function AnexarArquivoDoDocumento() {
   if (!documento) {
     return (
       <>
-        <AppBar titulo="Anexar o arquivo" />
-        <Corpo>
+        <CabecalhoDaTela titulo="Anexar o arquivo" />
+        <ColunaDeDetalhe>
           {erroCarregar ? (
             <EstadoErro erro={erroCarregar} onTentarDeNovo={tentarDeNovo} />
           ) : (
             <Carregando rotulo="Carregando o documento" />
           )}
-        </Corpo>
-        <Rodape>
-          <BotaoLink href={documentoHref}>Voltar ao documento</BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -149,20 +148,15 @@ export default function AnexarArquivoDoDocumento() {
   if (!faltaOArquivo(d)) {
     return (
       <>
-        <AppBar titulo="Anexar o arquivo" sub={sub} />
-        <Corpo>
+        <CabecalhoDaTela titulo="Anexar o arquivo" sub={sub} />
+        <ColunaDeDetalhe>
           <Banner cor="amb" role="status">
             <strong>Este documento já tem arquivo.</strong> O papel original não
             se substitui — se chegou um documento novo (carta de correção ou
             nota substitutiva), ele entra como anexo adicional pelas correções
             do documento.
           </Banner>
-        </Corpo>
-        <Rodape>
-          <BotaoLink href={documentoHref} variante="primary">
-            Voltar ao documento
-          </BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -200,8 +194,8 @@ export default function AnexarArquivoDoDocumento() {
 
   return (
     <>
-      <AppBar titulo="Anexar o arquivo" sub={sub} />
-      <Corpo>
+      <CabecalhoDaTela titulo="Anexar o arquivo" sub={sub} />
+      <ColunaDeDetalhe>
         {erroGravar ? (
           <ErroDeGravacao
             mensagem={erroGravar}
@@ -290,9 +284,9 @@ export default function AnexarArquivoDoDocumento() {
             </Dica>
           </>
         )}
-      </Corpo>
+      </ColunaDeDetalhe>
 
-      <Rodape>
+      <RodapeDeAcao>
         <BotaoSalvar ocupado={gravando} variante="primary" onClick={gravar} disabled={!podeGravar}>
           {gravando
             ? "Anexando…"
@@ -303,7 +297,7 @@ export default function AnexarArquivoDoDocumento() {
                 : "Confirmar o arquivo e as respostas"}
         </BotaoSalvar>
         <BotaoLink href={documentoHref}>Voltar sem gravar</BotaoLink>
-      </Rodape>
+      </RodapeDeAcao>
     </>
   );
 }

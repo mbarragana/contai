@@ -34,6 +34,13 @@ sem recarregar um app diferente — para não perder o fio da revisão.
 
 ## Escopo e Critérios de Aceite
 
+**✅ Entregue em 2026-09-21, 5/5 critérios.** As 10 rotas de `/documento/[id]`
+migraram para dentro do shell (`ColunaDeDetalhe` 640px, `RodapeDeAcao` sticky
+só em formulários, breadcrumb via `migalhaDaRota`). Gate 2 (`cto-obra` +
+`contador`, ambos APPROVE sem retrabalho). 881 unitários + 249/250 E2E (1
+falha pré-existente e não-relacionada, `discriminacao.spec.ts:215`) +
+validação manual no browser. Gate 4 (`po`) PASS. Sem migration.
+
 1. Mover `app/(captura)/documento/[id]/*` para `app/(gestao)/documento/[id]/*`
    (mesma técnica de route group do `CONTAI-040`): `page.tsx`, `anexar`,
    `cnpj-errado`, `corrigir/classificacao`, `corrigir/emitente`,

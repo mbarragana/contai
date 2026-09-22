@@ -16,22 +16,24 @@ import {
   type MotivoEscolhido,
   type RespostaPasso1,
 } from "@/app/_components/corrigir";
+import {
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+  RodapeDeAcao,
+} from "@/app/_components/detalhe";
 import { useSessao } from "@/app/_components/sessao";
 import {
-  AppBar,
   Banner,
   BotaoLink,
   BotaoSalvar,
   Card,
   Carregando,
   Consequencia,
-  Corpo,
   Dica,
   ErroDeGravacao,
   EstadoErro,
   Linha,
   Passo,
-  Rodape,
 } from "@/app/_components/ui";
 import {
   carregarDocumento,
@@ -160,17 +162,14 @@ export default function CorrigirClassificacao() {
   if (!carregado) {
     return (
       <>
-        <AppBar titulo="Corrigir a classificação" />
-        <Corpo>
+        <CabecalhoDaTela titulo="Corrigir a classificação" />
+        <ColunaDeDetalhe>
           {erroCarregar ? (
             <EstadoErro erro={erroCarregar} onTentarDeNovo={tentarDeNovo} />
           ) : (
             <Carregando rotulo="Carregando o documento" />
           )}
-        </Corpo>
-        <Rodape>
-          <BotaoLink href={documentoHref}>Voltar ao documento</BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -181,8 +180,8 @@ export default function CorrigirClassificacao() {
   if (fase.nome === "gravado") {
     return (
       <>
-        <AppBar titulo="Classificação corrigida ✓" sub={sub} />
-        <Corpo>
+        <CabecalhoDaTela titulo="Classificação corrigida ✓" sub={sub} />
+        <ColunaDeDetalhe>
           <Banner cor="grn" role="status">
             <strong>Corrigido.</strong> Esta nota agora conta como{" "}
             <strong>{ROTULO[fase.classificacao].toLowerCase()}</strong>.{" "}
@@ -192,12 +191,7 @@ export default function CorrigirClassificacao() {
             O que mudou foi a composição do texto que vai na descrição do
             imóvel: quanto foi material e quanto foi mão de obra.
           </Dica>
-        </Corpo>
-        <Rodape>
-          <BotaoLink href={documentoHref} variante="primary">
-            Voltar ao documento
-          </BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -219,11 +213,11 @@ export default function CorrigirClassificacao() {
   if (fase.nome === "passo1" || fase.nome === "erro_do_papel") {
     return (
       <>
-        <AppBar
+        <CabecalhoDaTela
           titulo="Corrigir a classificação"
           sub={fase.nome === "passo1" ? `${sub} · passo 1 de 3` : sub}
         />
-        <Corpo>
+        <ColunaDeDetalhe>
           <Card>
             <Linha rotulo="Classificação hoje">
               {d.classificacao ? ROTULO[d.classificacao] : "—"}
@@ -247,7 +241,7 @@ export default function CorrigirClassificacao() {
               onVoltarAoPasso1={() => setFase({ nome: "passo1" })}
             />
           )}
-        </Corpo>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -258,8 +252,11 @@ export default function CorrigirClassificacao() {
 
   return (
     <>
-      <AppBar titulo="Corrigir a classificação" sub={`${sub} · passos 2 e 3 de 3`} />
-      <Corpo>
+      <CabecalhoDaTela
+        titulo="Corrigir a classificação"
+        sub={`${sub} · passos 2 e 3 de 3`}
+      />
+      <ColunaDeDetalhe>
         {erroGravar ? (
           <ErroDeGravacao
             mensagem={erroGravar}
@@ -380,9 +377,9 @@ export default function CorrigirClassificacao() {
         )}
 
         <Dica>{RODAPE_MARCENARIA}</Dica>
-      </Corpo>
+      </ColunaDeDetalhe>
 
-      <Rodape>
+      <RodapeDeAcao>
         <BotaoSalvar ocupado={gravando} variante="primary" onClick={gravar} disabled={!podeGravar}>
           {gravando
             ? "Gravando…"
@@ -395,7 +392,7 @@ export default function CorrigirClassificacao() {
                   : "Gravar a correção"}
         </BotaoSalvar>
         <BotaoLink href={documentoHref}>Cancelar</BotaoLink>
-      </Rodape>
+      </RodapeDeAcao>
     </>
   );
 }

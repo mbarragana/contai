@@ -3,9 +3,13 @@
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import {
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+  RodapeDeAcao,
+} from "@/app/_components/detalhe";
 import { useSessao } from "@/app/_components/sessao";
 import {
-  AppBar,
   Banner,
   BotaoLink,
   BotaoSalvar,
@@ -13,13 +17,11 @@ import {
   Carregando,
   Chip,
   Consequencia,
-  Corpo,
   Dica,
   ErroDeGravacao,
   EstadoErro,
   Linha,
   Passo,
-  Rodape,
 } from "@/app/_components/ui";
 import {
   carregarDocumento,
@@ -291,17 +293,14 @@ export default function CorrigirObraDoDocumento() {
   if (estado.fase === "carregando" || estado.fase === "erro") {
     return (
       <>
-        <AppBar titulo="Corrigir a obra deste registro" />
-        <Corpo>
+        <CabecalhoDaTela titulo="Corrigir a obra deste registro" />
+        <ColunaDeDetalhe>
           {estado.fase === "erro" ? (
             <EstadoErro erro={estado.erro} onTentarDeNovo={tentarDeNovo} />
           ) : (
             <Carregando rotulo="Carregando o documento e as obras" />
           )}
-        </Corpo>
-        <Rodape>
-          <BotaoLink href={`/documento/${id}`}>Voltar ao documento</BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -310,8 +309,8 @@ export default function CorrigirObraDoDocumento() {
   if (estado.fase === "movido") {
     return (
       <>
-        <AppBar titulo="Obra corrigida ✓" sub={estado.destino.nome} />
-        <Corpo>
+        <CabecalhoDaTela titulo="Obra corrigida ✓" sub={estado.destino.nome} />
+        <ColunaDeDetalhe>
           <Banner cor="grn" role="status">
             Este registro agora está em <strong>{estado.destino.nome}</strong>.
             A correção ficou registrada, com a data, no histórico do documento.
@@ -363,13 +362,7 @@ export default function CorrigirObraDoDocumento() {
               </div>
             </Card>
           ) : null}
-        </Corpo>
-        <Rodape>
-          <BotaoLink href={`/documento/${estado.documento.id}`} variante="primary">
-            Voltar ao documento
-          </BotaoLink>
-          <BotaoLink href="/">Voltar ao início</BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -400,13 +393,13 @@ export default function CorrigirObraDoDocumento() {
 
   return (
     <>
-      <AppBar
+      <CabecalhoDaTela
         titulo="Corrigir a obra deste registro"
         sub={`${NOME_TIPO[doc.tipo]}${doc.favorecidoNome ? ` · ${doc.favorecidoNome}` : ""}${
           doc.valorCentavos !== null ? ` · ${formatarBRL(doc.valorCentavos)}` : ""
         }`}
       />
-      <Corpo>
+      <ColunaDeDetalhe>
         {erroGravar ? (
           <ErroDeGravacao
             mensagem={erroGravar}
@@ -685,9 +678,9 @@ export default function CorrigirObraDoDocumento() {
             </Dica>
           </>
         )}
-      </Corpo>
+      </ColunaDeDetalhe>
 
-      <Rodape>
+      <RodapeDeAcao>
         <BotaoSalvar
           ocupado={gravando}
           variante="primary"
@@ -697,7 +690,7 @@ export default function CorrigirObraDoDocumento() {
           {gravando ? "Gravando…" : rotuloBotao}
         </BotaoSalvar>
         <BotaoLink href={`/documento/${doc.id}`}>Cancelar</BotaoLink>
-      </Rodape>
+      </RodapeDeAcao>
     </>
   );
 }

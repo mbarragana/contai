@@ -6,6 +6,7 @@ import {
   OPCOES_DE_REGISTRO,
   VIEWS_DE_GESTAO,
   ehViewAtiva,
+  migalhaDaRota,
   subtituloDaView,
   tituloDaView,
 } from "./navegacao";
@@ -128,6 +129,69 @@ describe("qual item fica marcado", () => {
       expect(ehViewAtiva("/adicionar/pagamento", v.href)).toBe(false);
     }
     expect(tituloDaView("/adicionar/pagamento")).toBe("contai");
+  });
+
+  /**
+   * **CONTAI-043** — a rota de detalhe não começa por `/despesas`, e mesmo
+   * assim é uma despesa. Sem esta atribuição, abrir um documento a partir do
+   * dashboard apagaria a sidebar inteira: a tela pareceria fora da navegação
+   * no meio da revisão que o shell existe para dar.
+   */
+  it("o detalhe de documento marca Despesas — a lista-mãe dele", () => {
+    expect(ehViewAtiva("/documento/abc-123", "/despesas")).toBe(true);
+    expect(ehViewAtiva("/documento/abc-123/corrigir/valor", "/despesas")).toBe(
+      true,
+    );
+    // E só Despesas: item de menu que acende junto é sidebar mentindo.
+    for (const v of VIEWS_DE_GESTAO) {
+      if (v.href === "/despesas") continue;
+      expect(ehViewAtiva("/documento/abc-123", v.href)).toBe(false);
+    }
+  });
+});
+
+/**
+ * **O breadcrumb do topbar — CONTAI-043, decisão 3 do `detalhe-no-shell-v1`.**
+ *
+ * A regra que estes casos travam é uma só: o destino é sempre uma ROTA, nunca
+ * "a tela anterior". Link direto e refresh são o caso normal aqui (a pendência
+ * do dashboard, o lembrete da agenda e a linha de `/despesas` abrem o detalhe
+ * de fora), e voltar por histórico quebra justamente aí.
+ */
+describe("o breadcrumb das telas de detalhe", () => {
+  it("do documento aponta para a lista-mãe, Despesas", () => {
+    expect(migalhaDaRota("/documento/abc-123")).toEqual({
+      href: "/despesas",
+      rotulo: "Despesas",
+    });
+  });
+
+  it("de uma subrota de correção aponta para o próprio documento", () => {
+    for (const sub of [
+      "anexar",
+      "cnpj-errado",
+      "corrigir/classificacao",
+      "corrigir/emitente",
+      "corrigir/valor",
+      "desligar",
+      "ligar",
+      "obra",
+      "outro-dado",
+    ]) {
+      expect(migalhaDaRota(`/documento/abc-123/${sub}`)).toEqual({
+        href: "/documento/abc-123",
+        rotulo: "Documento",
+      });
+    }
+  });
+
+  it("nas views de primeira classe não existe — elas são o topo", () => {
+    expect(migalhaDaRota("/")).toBeNull();
+    expect(migalhaDaRota("/despesas")).toBeNull();
+    expect(migalhaDaRota("/pendencias")).toBeNull();
+    expect(migalhaDaRota("/obras")).toBeNull();
+    // Nem em rota fora do shell: `/adicionar` tem casca própria, sem topbar.
+    expect(migalhaDaRota("/adicionar/documento")).toBeNull();
   });
 
   it("o título da barra é o mesmo rótulo do menu — um nome só por view", () => {

@@ -3,20 +3,22 @@
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 
+import {
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+  RodapeDeAcao,
+} from "@/app/_components/detalhe";
 import { useSessao } from "@/app/_components/sessao";
 import {
-  AppBar,
   Banner,
   BotaoLink,
   BotaoSalvar,
   Card,
   Carregando,
   Consequencia,
-  Corpo,
   Dica,
   EstadoErro,
   Linha,
-  Rodape,
 } from "@/app/_components/ui";
 import {
   apagarVinculo,
@@ -158,17 +160,14 @@ function DesligarPagamento() {
   if (!pronto) {
     return (
       <>
-        <AppBar titulo="Desligar pagamento" />
-        <Corpo>
+        <CabecalhoDaTela titulo="Desligar pagamento" />
+        <ColunaDeDetalhe>
           {erroCarregar ? (
             <EstadoErro erro={erroCarregar} onTentarDeNovo={tentarDeNovo} />
           ) : (
             <Carregando rotulo="Carregando o vínculo" />
           )}
-        </Corpo>
-        <Rodape>
-          <BotaoLink href={`/documento/${id}`}>Voltar ao documento</BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -177,11 +176,11 @@ function DesligarPagamento() {
 
   return (
     <>
-      <AppBar
+      <CabecalhoDaTela
         titulo="Desligar pagamento"
         sub={`${p.favorecidoNome ?? "favorecido não informado"} · ${formatarBRL(p.valorCentavos)} · ${formatarDataBR(p.dataPagamento)}`}
       />
-      <Corpo>
+      <ColunaDeDetalhe>
         {erroSalvar ? (
           <Banner cor="red" role="alert">
             <strong>Não deu para desligar.</strong> {erroSalvar} O vínculo
@@ -226,16 +225,16 @@ function DesligarPagamento() {
           Vínculo errado <strong>infla o custo de aquisição</strong>, que vai
           para a declaração — por isso desligar existe aqui, e não em SQL.
         </Consequencia>
-      </Corpo>
+      </ColunaDeDetalhe>
 
-      <Rodape>
+      <RodapeDeAcao>
         <BotaoSalvar ocupado={salvando} variante="primary" onClick={desligar} disabled={salvando}>
           {salvando
             ? "Desligando…"
             : `Desligar — o custo cai para ${formatarBRL(pronto.custoDepoisCentavos)}`}
         </BotaoSalvar>
         <BotaoLink href={`/documento/${id}`}>Cancelar</BotaoLink>
-      </Rodape>
+      </RodapeDeAcao>
     </>
   );
 }

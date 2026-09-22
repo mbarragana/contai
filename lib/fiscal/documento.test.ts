@@ -377,7 +377,7 @@ describe("R1: nenhuma ordem entre data de emissão e data de pagamento", () => {
         .map((f) => `lib/fiscal/${f}`),
       "lib/data.ts",
       "app/(captura)/adicionar/documento/page.tsx",
-      "app/(captura)/documento/[id]/page.tsx",
+      "app/(gestao)/documento/[id]/page.tsx",
       "supabase/migrations/0012_documento_numero_emissao.sql",
     ];
     expect(arquivos.length).toBeGreaterThan(5); // o teste vale alguma coisa

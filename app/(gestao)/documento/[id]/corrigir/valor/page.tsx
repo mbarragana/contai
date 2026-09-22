@@ -17,9 +17,13 @@ import {
   type MotivoEscolhido,
   type RespostaPasso1,
 } from "@/app/_components/corrigir";
+import {
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+  RodapeDeAcao,
+} from "@/app/_components/detalhe";
 import { useSessao } from "@/app/_components/sessao";
 import {
-  AppBar,
   Banner,
   BotaoLink,
   BotaoSalvar,
@@ -27,13 +31,11 @@ import {
   Carregando,
   Chip,
   Consequencia,
-  Corpo,
   Dica,
   ErroDeGravacao,
   EstadoErro,
   Linha,
   Passo,
-  Rodape,
 } from "@/app/_components/ui";
 import {
   carregarDocumento,
@@ -174,17 +176,14 @@ export default function CorrigirValor() {
   if (!carregado) {
     return (
       <>
-        <AppBar titulo="Corrigir o valor" />
-        <Corpo>
+        <CabecalhoDaTela titulo="Corrigir o valor" />
+        <ColunaDeDetalhe>
           {erroCarregar ? (
             <EstadoErro erro={erroCarregar} onTentarDeNovo={tentarDeNovo} />
           ) : (
             <Carregando rotulo="Carregando o documento" />
           )}
-        </Corpo>
-        <Rodape>
-          <BotaoLink href={documentoHref}>Voltar ao documento</BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -198,8 +197,8 @@ export default function CorrigirValor() {
   if (fase.nome === "gravado") {
     return (
       <>
-        <AppBar titulo="Valor corrigido ✓" sub={sub} />
-        <Corpo>
+        <CabecalhoDaTela titulo="Valor corrigido ✓" sub={sub} />
+        <ColunaDeDetalhe>
           <Banner cor="grn" role="status">
             <strong>Corrigido.</strong> O valor desta nota agora é{" "}
             <strong>{formatarBRL(fase.valorCentavos)}</strong>, e a correção
@@ -231,12 +230,7 @@ export default function CorrigirValor() {
               </div>
             </Card>
           ) : null}
-        </Corpo>
-        <Rodape>
-          <BotaoLink href={documentoHref} variante="primary">
-            Voltar ao documento
-          </BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -245,11 +239,11 @@ export default function CorrigirValor() {
   if (fase.nome === "passo1" || fase.nome === "erro_do_papel") {
     return (
       <>
-        <AppBar
+        <CabecalhoDaTela
           titulo="Corrigir o valor"
           sub={fase.nome === "passo1" ? `${sub} · passo 1 de 3` : sub}
         />
-        <Corpo>
+        <ColunaDeDetalhe>
           <Card>
             <Linha rotulo="Valor gravado hoje">
               <span className="mono">{valorHoje}</span>
@@ -281,7 +275,7 @@ export default function CorrigirValor() {
               onVoltarAoPasso1={() => setFase({ nome: "passo1" })}
             />
           )}
-        </Corpo>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -307,8 +301,11 @@ export default function CorrigirValor() {
 
   return (
     <>
-      <AppBar titulo="Corrigir o valor" sub={`${sub} · passos 2 e 3 de 3`} />
-      <Corpo>
+      <CabecalhoDaTela
+        titulo="Corrigir o valor"
+        sub={`${sub} · passos 2 e 3 de 3`}
+      />
+      <ColunaDeDetalhe>
         {erroGravar ? (
           <ErroDeGravacao
             mensagem={erroGravar}
@@ -491,14 +488,14 @@ export default function CorrigirValor() {
           por você. A correção e o registro dela vão juntos, numa operação só:
           ou as duas coisas acontecem, ou nenhuma acontece.
         </Dica>
-      </Corpo>
+      </ColunaDeDetalhe>
 
-      <Rodape>
+      <RodapeDeAcao>
         <BotaoSalvar ocupado={gravando} variante="primary" onClick={gravar} disabled={!podeGravar}>
           {rotuloBotao}
         </BotaoSalvar>
         <BotaoLink href={documentoHref}>Cancelar</BotaoLink>
-      </Rodape>
+      </RodapeDeAcao>
     </>
   );
 }

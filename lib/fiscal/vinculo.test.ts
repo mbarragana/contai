@@ -931,7 +931,7 @@ describe("notaCoberta — o fechamento de 2026-08-18 §4.1", () => {
   it("nenhum consumidor reescreve o predicado à mão", () => {
     for (const arquivo of [
       "lib/fiscal/resumo.ts",
-      "app/(captura)/documento/[id]/page.tsx",
+      "app/(gestao)/documento/[id]/page.tsx",
       "app/_components/retencao.tsx",
     ]) {
       const fonte = readFileSync(arquivo, "utf-8");

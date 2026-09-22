@@ -78,6 +78,33 @@ export const OPCOES_DE_REGISTRO: readonly OpcaoDeRegistro[] = [
 ] as const;
 
 /**
+ * **CONTAI-043 — as rotas de DETALHE que pertencem a uma view sem morar sob o
+ * href dela.**
+ *
+ * `/documento/[id]` é uma despesa aberta a partir de Despesas, do dashboard ou
+ * da fila de pendências, mas a rota não começa por `/despesas`. Sem esta
+ * tabela, abrir um documento apagaria a sidebar inteira — a tela pareceria
+ * fora da navegação no meio da revisão que o shell existe para dar.
+ *
+ * Atribuição fixada no spec de design (`detalhe-no-shell-v1.md`, decisão 1):
+ * `/documento`, `/pagamento` e `/fatura` → **Despesas**. As duas últimas
+ * entram com o `CONTAI-044`; este ticket migra só a primeira, e item de menu
+ * ativo para rota que ainda mora em `(captura)` seria sidebar mentindo sobre
+ * onde a tela está.
+ */
+const VIEW_DA_ROTA_DE_DETALHE: readonly (readonly [string, string])[] = [
+  ["/documento/", "/despesas"],
+] as const;
+
+/** A view a que a rota pertence — ela mesma, ou a dona do detalhe aberto. */
+function viewDaRota(pathname: string): string {
+  for (const [prefixo, view] of VIEW_DA_ROTA_DE_DETALHE) {
+    if (pathname.startsWith(prefixo)) return view;
+  }
+  return pathname;
+}
+
+/**
  * `/` casa EXATO; as demais casam por prefixo.
  *
  * Prefixo e não igualdade porque `/obras/nova` e `/pendencias/[id]` são filhas
@@ -86,7 +113,38 @@ export const OPCOES_DE_REGISTRO: readonly OpcaoDeRegistro[] = [
  * porque, por prefixo, ela casaria com tudo.
  */
 export function ehViewAtiva(pathname: string, href: string): boolean {
-  return href === "/" ? pathname === "/" : pathname.startsWith(href);
+  const view = viewDaRota(pathname);
+  return href === "/" ? view === "/" : view.startsWith(href);
+}
+
+export interface MigalhaDeRota {
+  href: string;
+  rotulo: string;
+}
+
+/**
+ * **O breadcrumb do topbar — CONTAI-043, decisão 3 do spec de design.**
+ *
+ * Dentro do shell, o botão fixo "Voltar ao início"/"Voltar ao documento" do
+ * rodapé de 430px **muda de lugar, não se duplica**: vira uma linha pequena
+ * acima do H1.
+ *
+ * ⚠️ **Sempre uma ROTA CANÔNICA, nunca "histórico do navegador".** Voltar por
+ * histórico quebra em link direto e em refresh — e link direto é o caso normal
+ * aqui: a pendência do dashboard, o lembrete da agenda e o item de `/despesas`
+ * abrem o detalhe de fora.
+ *
+ * Duas camadas, e a segunda é a aplicação da mesma regra um nível abaixo:
+ * - `/documento/[id]` → a lista-mãe, **Despesas**;
+ * - `/documento/[id]/<qualquer coisa>` → o documento de onde a correção saiu.
+ *   A mãe de `corrigir/valor` é o documento, que é rota de verdade — não é o
+ *   histórico disfarçado.
+ */
+export function migalhaDaRota(pathname: string): MigalhaDeRota | null {
+  const partes = pathname.split("/").filter((p) => p !== "");
+  if (partes[0] !== "documento" || partes.length < 2) return null;
+  if (partes.length === 2) return { href: "/despesas", rotulo: "Despesas" };
+  return { href: `/documento/${partes[1]}`, rotulo: "Documento" };
 }
 
 /** O título da barra superior. Sem view casada, a marca. */

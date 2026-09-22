@@ -948,6 +948,14 @@ test.describe("acesso a /adicionar (critério 12)", () => {
     await expect(page.getByRole("heading", { name: "Adicionar" })).toBeVisible();
   });
 
+  /**
+   * ⚠️ **CONTAI-043 — o alvo mudou de nome aqui também, e pelo mesmo motivo
+   * do dashboard.** `/documento/[id]` saiu de `(captura)` e entrou no shell de
+   * gestão: a `BarraAdicionar` do rodapé não existe mais nesta tela, e a porta
+   * de `/adicionar` é o "+ Novo registro" da faixa estreita — que fica FORA da
+   * área que rola. O que o teste mede continua sendo o mesmo: no piso de
+   * 375px, a entrada do canteiro está visível e abre.
+   */
   test("/adicionar é alcançável a partir de /documento/[id]", async ({
     page,
     db,
@@ -955,7 +963,7 @@ test.describe("acesso a /adicionar (critério 12)", () => {
     const { documentoId } = await cenarioWk(db);
     await page.goto(`/documento/${documentoId}`);
 
-    const alvo = page.getByRole("link", { name: "+ Adicionar" });
+    const alvo = page.getByRole("link", { name: "+ Novo registro" });
     await expect(alvo).toBeInViewport();
     await alvo.click();
     await expect(page.getByRole("heading", { name: "Adicionar" })).toBeVisible();

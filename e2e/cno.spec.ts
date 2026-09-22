@@ -348,8 +348,17 @@ test.describe("o CNO impresso na nota (critérios 1, 2, 3 e 6)", () => {
 
     // E aparece no detalhe do documento — dado que entra e não se confere é
     // dado que não entrou.
+    //
+    // ⚠️ CONTAI-043: a asserção é escopada ao `main`. O detalhe entrou no shell
+    // de gestão, e a sidebar dele também escreve o CNO — o da OBRA ABERTA, que
+    // é outro fato. O que este teste confere é o número impresso NA NOTA, que
+    // mora na coluna de conteúdo; procurar na página inteira acharia os dois e
+    // passaria a valer pelo motivo errado no dia em que a nota trouxesse um CNO
+    // diferente do da obra.
     await page.goto(`/documento/${gravados[0].id}`);
-    await expect(page.getByText(OBRA_SEED.cno)).toBeVisible();
+    await expect(
+      page.locator("main").getByText(OBRA_SEED.cno, { exact: true }),
+    ).toBeVisible();
   });
 });
 

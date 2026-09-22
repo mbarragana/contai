@@ -277,3 +277,180 @@ test.describe("shell de gestão no desktop", () => {
     ).toBeVisible();
   });
 });
+
+/**
+ * **CONTAI-043 — as telas de detalhe do documento dentro do shell.**
+ *
+ * Fonte do desenho: `design/mocks/detalhe-no-shell-v1.md`. O que este bloco
+ * trava é o que só a largura de gestão pode provar, e nada além disso — o
+ * comportamento de cada correção continua sendo provado no piso de 375px, em
+ * `correcao.spec.ts`, `vinculo.spec.ts` e `acervo.spec.ts`.
+ *
+ * (a) o detalhe abre DENTRO do shell, com a sidebar inteira e `Despesas` como
+ *     item ativo — o clique da fila de pendências não sai mais do contexto;
+ * (b) a coluna tem 640px e não a largura cheia: esticar detalhe/formulário por
+ *     1244px foi medido no Gate 2 do `CONTAI-039` como menos legível, e texto
+ *     fiscal perdendo legibilidade é regressão (critério 2);
+ * (c) o breadcrumb substitui o "Voltar" fixo do rodapé e aponta para ROTA — a
+ *     lista-mãe no detalhe, o documento nas subrotas;
+ * (d) rodapé sticky SÓ onde há uma ação de página: o formulário tem, a leitura
+ *     com ações por card não tem (decisão 4 do spec);
+ * (e) **nenhuma consequência fiscal foi truncada, escondida ou reescrita** —
+ *     critério 3 e o Gate Fiscal do ticket.
+ */
+test.describe("detalhe de documento no shell de gestão", () => {
+  const CNPJ_AJE = "11222333000181";
+
+  /** Uma NF de serviço sem pagamento ligado: é o ramo com mais texto fiscal. */
+  async function umaNotaDeServico(db: Parameters<typeof criarFavorecido>[0]) {
+    const aje = await criarFavorecido(db, {
+      nome: "AJE Construções",
+      documento: CNPJ_AJE,
+      tipo: "pj",
+    });
+    return criarDocumento(db, {
+      favorecido_id: aje,
+      tipo: "nf_servico",
+      classificacao: "mao_obra",
+      valor: 18400,
+      numero: "1234",
+      serie: "1",
+      data_emissao: `${ANO}-03-12`,
+      retencao_na_nota: "nenhuma",
+      nota_traz_cno: false,
+      destinatario_cpf_ok: true,
+      status: "registrado",
+    });
+  }
+
+  test("abre no shell, em coluna de 640px, sem rodapé fixo e sem perder texto fiscal", async ({
+    page,
+    db,
+  }) => {
+    const documentoId = await umaNotaDeServico(db);
+    await page.goto(`/documento/${documentoId}`);
+    await expect(
+      page.getByRole("heading", { name: "NF de serviço" }),
+    ).toBeVisible();
+
+    // ── (a) dentro do shell, com Despesas aceso ──────────────────────────
+    const sidebar = page.locator('[data-shell="sidebar"]');
+    await expect(sidebar).toBeVisible();
+    const nav = sidebar.getByRole("navigation", { name: "Navegação principal" });
+    await expect(nav.getByRole("link", { name: "Despesas" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    // Um item aceso, não dois: sidebar que acende duas views mente sobre onde
+    // a tela está.
+    await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
+    // O subtítulo é o do DOCUMENTO, não o "obra · ano" da view: o documento
+    // pode ser de outra obra que não a aberta (Pre-mortem 1).
+    await expect(page.getByRole("banner")).toContainText("AJE Construções");
+
+    // ── (b) 640px, alinhada à esquerda ───────────────────────────────────
+    const coluna = page.locator('[data-coluna="detalhe"]');
+    expect(Math.round((await coluna.boundingBox())!.width)).toBe(640);
+    const larguraDoMain = (await page.locator("main").boundingBox())!.width;
+    expect(larguraDoMain).toBeGreaterThan(700);
+
+    // ── (c) o breadcrumb aponta para a lista-mãe ─────────────────────────
+    const crumb = page.locator('[data-crumb="voltar"]');
+    await expect(crumb).toHaveText("‹ Despesas");
+    await expect(crumb).toHaveAttribute("href", "/despesas");
+    // E o "Voltar ao início" fixo do rodapé de 430px não sobreviveu à
+    // migração: ele mudou de lugar, não se duplicou.
+    await expect(page.getByRole("link", { name: "Voltar ao início" })).toHaveCount(0);
+
+    // ── (d) leitura com ações por card: nenhum rodapé sticky ─────────────
+    await expect(page.locator('[data-rodape="acao"]')).toHaveCount(0);
+    // As ações continuam onde o fato está — no fim do card a que pertencem.
+    await expect(
+      page.getByRole("link", { name: "Ligar a um pagamento" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Corrigir a obra deste registro" }),
+    ).toBeVisible();
+
+    // ── (e) a consequência fiscal, aberta e inteira ──────────────────────
+    // Sem pagamento ligado: o texto âmbar de `PagamentosDesteDocumento`, que
+    // diz que o custo EXISTE e mesmo assim não entra no confirmado.
+    await expect(page.getByText("Sem pagamento ligado")).toBeVisible();
+    await expect(
+      page.getByText("não entram no", { exact: false }).first(),
+    ).toBeVisible();
+    // O invariante do SERO, visível sem um clique (parecer de 2026-09-18 §2).
+    await expect(page.getByText("Abate no INSS (SERO)")).toBeVisible();
+    await expect(
+      page.getByText(
+        "Nenhuma retenção desta nota abate o INSS (SERO)",
+        { exact: false },
+      ),
+    ).toBeVisible();
+
+    // Nada truncado na coluna estreita, e nada vazando na horizontal.
+    const cortados = await page.evaluate(() => {
+      const fora: string[] = [];
+      for (const el of document.querySelectorAll("main p, main li")) {
+        if (el.scrollWidth > el.clientWidth + 1) {
+          fora.push((el.textContent ?? "").slice(0, 80));
+        }
+      }
+      return fora;
+    });
+    expect(cortados).toEqual([]);
+    const vazamento = await page.evaluate(() => {
+      const main = document.querySelector("main")!;
+      return main.scrollWidth - main.clientWidth;
+    });
+    expect(vazamento).toBeLessThanOrEqual(1);
+  });
+
+  test("a subrota de correção volta para o documento e tem rodapé sticky na coluna", async ({
+    page,
+    db,
+  }) => {
+    const documentoId = await umaNotaDeServico(db);
+    await page.goto(`/documento/${documentoId}/corrigir/valor`);
+    await expect(
+      page.getByRole("heading", { name: "Corrigir o valor" }),
+    ).toBeVisible();
+
+    // A sidebar continua inteira: correção é parte da revisão, não um app à
+    // parte.
+    await expect(page.locator('[data-shell="sidebar"]')).toBeVisible();
+
+    // ── (c) crumb de subrota: o documento, que é rota de verdade ─────────
+    const crumb = page.locator('[data-crumb="voltar"]');
+    await expect(crumb).toHaveText("‹ Documento");
+    await expect(crumb).toHaveAttribute("href", `/documento/${documentoId}`);
+    await crumb.click();
+    await expect(
+      page.getByRole("heading", { name: "NF de serviço" }),
+    ).toBeVisible();
+
+    // ── (d) o formulário TEM rodapé de ação, escopado à coluna ───────────
+    // Passo 1 → passos 2 e 3: é lá que o "Gravar" existe.
+    await page.goto(`/documento/${documentoId}/corrigir/valor`);
+    await page
+      .getByRole("button", { name: /Só aqui no app — eu digitei errado/ })
+      .click();
+    await page.getByRole("button", { name: "Continuar" }).click();
+
+    const rodape = page.locator('[data-rodape="acao"]');
+    await expect(rodape).toBeVisible();
+    const caixaRodape = (await rodape.boundingBox())!;
+    const caixaColuna = (await page
+      .locator('[data-coluna="detalhe"]')
+      .boundingBox())!;
+    // Largura da COLUNA, não da janela e nunca por baixo da sidebar.
+    expect(Math.round(caixaRodape.width)).toBe(640);
+    expect(Math.round(caixaRodape.x)).toBe(Math.round(caixaColuna.x));
+
+    // Sticky de verdade: rolar até o topo não leva o botão embora.
+    await page.locator("main").evaluate((el) => {
+      el.scrollTop = 0;
+    });
+    await expect(rodape).toBeInViewport();
+  });
+});

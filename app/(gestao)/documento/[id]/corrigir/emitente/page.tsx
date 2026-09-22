@@ -16,22 +16,24 @@ import {
   type MotivoEscolhido,
   type RespostaPasso1,
 } from "@/app/_components/corrigir";
+import {
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+  RodapeDeAcao,
+} from "@/app/_components/detalhe";
 import { useSessao } from "@/app/_components/sessao";
 import {
-  AppBar,
   Banner,
   BotaoLink,
   BotaoSalvar,
   Card,
   Carregando,
   Consequencia,
-  Corpo,
   Dica,
   ErroDeGravacao,
   EstadoErro,
   Linha,
   Passo,
-  Rodape,
 } from "@/app/_components/ui";
 import {
   carregarAlcanceDoFavorecido,
@@ -169,17 +171,14 @@ function CorrigirEmitente() {
   if (!documento || !alcance) {
     return (
       <>
-        <AppBar titulo="Corrigir o nome do emitente" />
-        <Corpo>
+        <CabecalhoDaTela titulo="Corrigir o nome do emitente" />
+        <ColunaDeDetalhe>
           {erroCarregar ? (
             <EstadoErro erro={erroCarregar} onTentarDeNovo={tentarDeNovo} />
           ) : (
             <Carregando rotulo="Carregando o emitente" />
           )}
-        </Corpo>
-        <Rodape>
-          <BotaoLink href={documentoHref}>Voltar ao documento</BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -195,8 +194,8 @@ function CorrigirEmitente() {
   if (fase.nome === "gravado") {
     return (
       <>
-        <AppBar titulo="Nome corrigido ✓" sub={fase.nome_novo} />
-        <Corpo>
+        <CabecalhoDaTela titulo="Nome corrigido ✓" sub={fase.nome_novo} />
+        <ColunaDeDetalhe>
           <Banner cor="grn" role="status">
             <strong>Corrigido.</strong> O emitente agora se chama{" "}
             <strong>{fase.nome_novo}</strong> — em todos os registros dele.
@@ -211,14 +210,21 @@ function CorrigirEmitente() {
               Efetuados.
             </Dica>
           </Card>
-        </Corpo>
-        <Rodape>
-          <BotaoLink href={voltaHref} variante="primary">
-            {voltarPara === "pagamento"
-              ? "Voltar ao pagamento — com o nome novo"
-              : "Voltar ao documento"}
-          </BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
+        {/* ⚠️ CONTAI-043 — a ÚNICA saída que o breadcrumb não cobre, e por isso
+            a única que continua num rodapé. O `?voltar=pagamento` vem do
+            registro de pagamento em `(captura)`: a correção do nome foi um
+            desvio no meio daquele formulário, e mandar o Mateus de volta para o
+            documento perderia o registro que ele estava preenchendo. Quando não
+            há desvio, a volta ao documento é o "‹ Documento" do topbar — muda
+            de lugar, não se duplica. */}
+        {voltarPara === "pagamento" ? (
+          <RodapeDeAcao>
+            <BotaoLink href={voltaHref} variante="primary">
+              Voltar ao pagamento — com o nome novo
+            </BotaoLink>
+          </RodapeDeAcao>
+        ) : null}
       </>
     );
   }
@@ -227,19 +233,14 @@ function CorrigirEmitente() {
   if (!documento.favorecidoId) {
     return (
       <>
-        <AppBar titulo="Corrigir o nome do emitente" sub={sub} />
-        <Corpo>
+        <CabecalhoDaTela titulo="Corrigir o nome do emitente" sub={sub} />
+        <ColunaDeDetalhe>
           <Banner cor="amb" role="status">
             <strong>Esta nota está sem emitente identificado.</strong> Não há
             nome a corrigir: o nome pertence ao favorecido, e este registro não
             aponta para nenhum.
           </Banner>
-        </Corpo>
-        <Rodape>
-          <BotaoLink href={documentoHref} variante="primary">
-            Voltar ao documento
-          </BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -262,11 +263,11 @@ function CorrigirEmitente() {
   if (fase.nome === "passo1" || fase.nome === "erro_do_papel") {
     return (
       <>
-        <AppBar
+        <CabecalhoDaTela
           titulo="Corrigir o nome do emitente"
           sub={fase.nome === "passo1" ? `${sub} · passo 1 de 3` : sub}
         />
-        <Corpo>
+        <ColunaDeDetalhe>
           <Card>
             <Linha rotulo="Nome gravado hoje">{sub}</Linha>
             <Linha rotulo="CNPJ / CPF">
@@ -291,7 +292,7 @@ function CorrigirEmitente() {
               onVoltarAoPasso1={() => setFase({ nome: "passo1" })}
             />
           )}
-        </Corpo>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -310,8 +311,11 @@ function CorrigirEmitente() {
 
   return (
     <>
-      <AppBar titulo="Corrigir o nome do emitente" sub={`${sub} · passos 2 e 3 de 3`} />
-      <Corpo>
+      <CabecalhoDaTela
+        titulo="Corrigir o nome do emitente"
+        sub={`${sub} · passos 2 e 3 de 3`}
+      />
+      <ColunaDeDetalhe>
         {erroGravar ? (
           <ErroDeGravacao
             mensagem={erroGravar}
@@ -445,9 +449,9 @@ function CorrigirEmitente() {
             </Dica>
           </>
         ) : null}
-      </Corpo>
+      </ColunaDeDetalhe>
 
-      <Rodape>
+      <RodapeDeAcao>
         <BotaoSalvar ocupado={gravando} variante="primary" onClick={gravar} disabled={!podeGravar}>
           {gravando
             ? "Gravando…"
@@ -462,7 +466,7 @@ function CorrigirEmitente() {
                     : "Gravar a correção"}
         </BotaoSalvar>
         <BotaoLink href={voltaHref}>Cancelar</BotaoLink>
-      </Rodape>
+      </RodapeDeAcao>
     </>
   );
 }

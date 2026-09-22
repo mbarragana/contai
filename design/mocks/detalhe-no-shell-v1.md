@@ -13,9 +13,9 @@ para largura total piora a legibilidade. Este documento fixa o padrão de
 coluna estreita dentro do shell que o `cto-obra` recomendou sem desenhar.
 
 ## Campos
-SEM CAMPOS NOVOS — este spec é só layout/composição. Nenhum dado, regra fiscal
-ou texto novo é introduzido; todo texto de consequência é cópia literal de
-`lib/fiscal/*` (ver rodapé "Textos").
+- SEM CAMPOS — este spec é só layout/composição. Nenhum dado, regra fiscal ou
+  texto novo é introduzido; todo texto de consequência é cópia literal de
+  `lib/fiscal/*` (ver "O que NÃO muda").
 
 ## Cenário
 Gestão, em casa, sentado — mesma doutrina do `desktop-shell-v1`. Estas telas

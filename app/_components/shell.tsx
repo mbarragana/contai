@@ -29,17 +29,35 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import {
+  ProvedorDeCabecalho,
+  useCabecalhoDaTela,
+} from "@/app/_components/detalhe";
 import { useGestao } from "@/app/_components/gestao";
 import { useSessao } from "@/app/_components/sessao";
 import {
   OPCOES_DE_REGISTRO,
   VIEWS_DE_GESTAO,
   ehViewAtiva,
+  migalhaDaRota,
   subtituloDaView,
   tituloDaView,
 } from "@/lib/gestao/navegacao";
 
+/**
+ * O provedor de cabeçalho fica FORA da moldura pela mesma razão que o
+ * `ProvedorDeGestao` fica fora do shell: quem consome o título é o topbar, que
+ * é irmão do conteúdo — não descendente dele (CONTAI-043).
+ */
 export function ShellDeGestao({ children }: { children: React.ReactNode }) {
+  return (
+    <ProvedorDeCabecalho>
+      <MolduraDeGestao>{children}</MolduraDeGestao>
+    </ProvedorDeCabecalho>
+  );
+}
+
+function MolduraDeGestao({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { estado } = useGestao();
   const { email, sairDaConta } = useSessao();
@@ -49,12 +67,24 @@ export function ShellDeGestao({ children }: { children: React.ReactNode }) {
   const abertas = pronto?.unificadas.abertas ?? null;
   const ano = pronto?.ano ?? null;
 
-  const titulo = tituloDaView(pathname);
-  const subtitulo = subtituloDaView(pathname, {
-    nomeDaObra: obra?.nome ?? null,
-    ano,
-    abertas,
-  });
+  /**
+   * ⚠️ **A tela de detalhe vence a rota, e as duas partes vêm juntas.** Quando
+   * uma tela publica o próprio cabeçalho (`CabecalhoDaTela`), o subtítulo é o
+   * dela — nunca o `nome da obra · ano` da view. Misturar os dois poria o nome
+   * da obra ABERTA embaixo do título de um documento que pode ser de OUTRA
+   * obra (Pre-mortem 1 do CONTAI-043): a tela de detalhe lê a obra do próprio
+   * documento, e o shell não a reescreve.
+   */
+  const daTela = useCabecalhoDaTela();
+  const titulo = daTela?.titulo ?? tituloDaView(pathname);
+  const subtitulo = daTela
+    ? (daTela.sub ?? null)
+    : subtituloDaView(pathname, {
+        nomeDaObra: obra?.nome ?? null,
+        ano,
+        abertas,
+      });
+  const migalha = migalhaDaRota(pathname);
 
   return (
     <div className="flex h-dvh w-full flex-col overflow-hidden lg:flex-row">
@@ -153,6 +183,18 @@ export function ShellDeGestao({ children }: { children: React.ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex flex-none items-center justify-between gap-4 border-b border-line px-[18px] py-3 lg:px-9 lg:py-[18px]">
           <div className="min-w-0">
+            {/* O "‹ Despesas" do mock: a saída da tela de detalhe, sempre para
+                uma rota real. Some nas views de primeira classe, que já são o
+                topo da navegação. */}
+            {migalha ? (
+              <Link
+                data-crumb="voltar"
+                href={migalha.href}
+                className="mb-[5px] inline-block text-[12px] text-mut hover:text-ink hover:underline"
+              >
+                ‹ {migalha.rotulo}
+              </Link>
+            ) : null}
             <h1 className="text-[16px] tracking-tight lg:text-[19px]">
               {titulo}
             </h1>

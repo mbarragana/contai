@@ -3,21 +3,23 @@
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import {
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+  RodapeDeAcao,
+} from "@/app/_components/detalhe";
 import { useSessao } from "@/app/_components/sessao";
 import {
-  AppBar,
   Banner,
   BotaoLink,
   BotaoSalvar,
   Card,
   Carregando,
   Consequencia,
-  Corpo,
   Dica,
   ErroDeGravacao,
   EstadoErro,
   Passo,
-  Rodape,
 } from "@/app/_components/ui";
 import {
   carregarDocumento,
@@ -231,8 +233,8 @@ export default function LigarPagamentos() {
   if (!pronto) {
     return (
       <>
-        <AppBar titulo="Ligar pagamentos a esta nota" />
-        <Corpo>
+        <CabecalhoDaTela titulo="Ligar pagamentos a esta nota" />
+        <ColunaDeDetalhe>
           {erroCarregar ? (
             <>
               {/* Mock s3e: o erro diz que NADA foi ligado. */}
@@ -248,10 +250,7 @@ export default function LigarPagamentos() {
               <Carregando rotulo="Carregando os candidatos" />
             </>
           )}
-        </Corpo>
-        <Rodape>
-          <BotaoLink href={`/documento/${id}`}>Voltar ao documento</BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -261,11 +260,11 @@ export default function LigarPagamentos() {
 
   return (
     <>
-      <AppBar
+      <CabecalhoDaTela
         titulo="Ligar pagamentos a esta nota"
         sub={`${formatarBRL(d.valorCentavos ?? 0)} · ${d.favorecidoNome ?? "sem favorecido"} · ${pronto.painel.obra.nome}`}
       />
-      <Corpo>
+      <ColunaDeDetalhe>
         {erroSalvar ? (
           <ErroDeGravacao
             mensagem={erroSalvar}
@@ -401,9 +400,9 @@ export default function LigarPagamentos() {
         <BotaoLink href={`/adicionar/pagamento?documento=${d.id}`}>
           Registrar o pagamento agora
         </BotaoLink>
-      </Corpo>
+      </ColunaDeDetalhe>
 
-      <Rodape>
+      <RodapeDeAcao>
         {/* Critério 15: o efeito no custo dito ANTES do toque. O rótulo é o do
             mock aprovado (rodapé fixo do seletor, s2/s3c); o NÚMERO passou a
             ser o acréscimo REAL sobre o grafo inteiro — antes ele era o valor
@@ -442,7 +441,7 @@ export default function LigarPagamentos() {
               : `Ligar ${marcadosDeVerdade.length} ${marcadosDeVerdade.length === 1 ? "pagamento" : "pagamentos"} — ${formatarBRL(somaMarcados)}`}
         </BotaoSalvar>
         <BotaoLink href={`/documento/${d.id}`}>Cancelar</BotaoLink>
-      </Rodape>
+      </RodapeDeAcao>
     </>
   );
 }

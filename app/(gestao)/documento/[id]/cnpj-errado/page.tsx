@@ -3,9 +3,12 @@
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import {
+  CabecalhoDaTela,
+  ColunaDeDetalhe,
+} from "@/app/_components/detalhe";
 import { useSessao } from "@/app/_components/sessao";
 import {
-  AppBar,
   Banner,
   BotaoLink,
   BotaoSalvar,
@@ -13,13 +16,11 @@ import {
   Carregando,
   Chip,
   Consequencia,
-  Corpo,
   Dica,
   ErroDeGravacao,
   EstadoErro,
   Linha,
   Passo,
-  Rodape,
 } from "@/app/_components/ui";
 import {
   carregarDocumento,
@@ -147,22 +148,17 @@ export default function CnpjErrado() {
     }
   }
 
-  const documentoHref = `/documento/${id}`;
-
   if (!documento) {
     return (
       <>
-        <AppBar titulo="O CNPJ/CPF do emitente está errado" />
-        <Corpo>
+        <CabecalhoDaTela titulo="O CNPJ/CPF do emitente está errado" />
+        <ColunaDeDetalhe>
           {erroCarregar ? (
             <EstadoErro erro={erroCarregar} onTentarDeNovo={tentarDeNovo} />
           ) : (
             <Carregando rotulo="Carregando o documento" />
           )}
-        </Corpo>
-        <Rodape>
-          <BotaoLink href={documentoHref}>Voltar ao documento</BotaoLink>
-        </Rodape>
+        </ColunaDeDetalhe>
       </>
     );
   }
@@ -184,11 +180,16 @@ export default function CnpjErrado() {
 
   return (
     <>
-      <AppBar
+      <CabecalhoDaTela
         titulo="O CNPJ/CPF do emitente está errado"
         sub={documento.favorecidoNome ?? "emitente não identificado"}
       />
-      <Corpo>
+      {/* ⚠️ CONTAI-043: sem rodapé de ação. A única ação desta tela ("Marcar:
+          o CNPJ deste registro está errado") é de CARD — ela mora no fim do
+          card "O que você pode fazer agora", ao lado do fato que a justifica,
+          e o spec de design proíbe promovê-la a rodapé de página. A saída é o
+          breadcrumb do topbar. */}
+      <ColunaDeDetalhe>
         {erroMarcar ? (
           <ErroDeGravacao
             mensagem={erroMarcar}
@@ -333,13 +334,7 @@ export default function CnpjErrado() {
             pendência aberta, com a data.
           </Dica>
         </Card>
-      </Corpo>
-
-      <Rodape>
-        <BotaoLink href={documentoHref} variante="primary">
-          Voltar ao documento
-        </BotaoLink>
-      </Rodape>
+      </ColunaDeDetalhe>
     </>
   );
 }
