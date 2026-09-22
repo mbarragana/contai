@@ -672,6 +672,22 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
   do browser); não duplica nada, não bloqueou o ticket. Caminho futuro: teto
   via `AbortSignal` no `.upload`, mesmo texto de resultado incerto do critério 6
 
+### `54-2026-09-22-contai-046-entregue.md` — 35 linhas
+**CONTAI-046 entregue — 2026-09-22 — obra e terreno migram para o shell (fecha 043-046)**
+
+- `obras/[id]`, `terreno/*`, `discriminacao/[ano]`, `notas-sem-cno` migram
+  para `(gestao)`, coluna 640px (discriminação sem exceção — `<pre>` não
+  trunca). `podeGerarRelatorioAnual` continua porta única
+- Achado que fecha uma dívida de 2 dias: o flaky de `discriminacao.spec.ts`
+  (desde 2026-09-20, sempre descartado como "pré-existente") era bug de
+  FUSO no teste (UTC vs. local), não regra fiscal — corrigido de vez,
+  provado com `TZ=Pacific/Midway`
+- **Suíte fecha 265/265 E2E, sem nenhuma falha conhecida**, pela primeira
+  vez nesta sessão
+- 890 unitários + validação manual extensa. Gate 4 (`po`) PASS. Sem
+  migration. **Fecha os 4 tickets da migração (043-046)** — resta só o
+  `CONTAI-041` (despesas) na rodada "desktop shell"
+
 ### `53-2026-09-21-contai-045-entregue.md` — 30 linhas
 **CONTAI-045 entregue — 2026-09-21 — compromisso e pendência migram para o shell**
 
