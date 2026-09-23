@@ -2,11 +2,14 @@ import type { Locator, Page } from "@playwright/test";
 
 import { OBRA_ID_SEED, USER_ID_SEED } from "./ambiente";
 import {
+  apagarTodasAsObras,
   criarCompraCartao,
   criarCompromisso,
   criarDocumento,
   criarFavorecido,
+  criarObra,
   criarPagamento,
+  obras,
   pendencias,
 } from "./banco";
 import { expect, test } from "./fixtures";
@@ -1480,5 +1483,150 @@ test.describe("login em tela larga", () => {
 
     const coluna = page.locator("main").locator("xpath=ancestor::div[1]");
     expect(Math.round((await coluna.boundingBox())!.width)).toBe(430);
+  });
+});
+
+/**
+ * ══ CONTAI-051 — `/obras` entra no padrão de reflow do shell ════════════════
+ *
+ * A lacuna que a rodada de migração deixou: esta tela nunca entrou nos tickets
+ * `040`, `043`-`046` ou `047`. Ela devolvia um Fragment cru, `ListaDeEscolha`
+ * esticava os cards pela largura toda do shell e os dois botões de ação ficavam
+ * presos em `max-w-[430px]` — lista esticada ao lado de botão apertado, a mesma
+ * inconsistência que reprovou o Conceito 1 do `CONTAI-039`.
+ *
+ * O que este bloco trava, e nada além disso (reflow puro, zero comportamento):
+ *
+ * (a) **a casca é de LISTA, não de DETALHE** (critério 1): nenhuma
+ *     `ColunaDeDetalhe`, nenhum `RodapeDeAcao` — `/obras` é da família de
+ *     `/despesas`/`/pendencias`, e o título vem da rota por `tituloDaView`;
+ * (b) **um teto só, 640px, para lista E ações** (critérios 2 e 3): card de obra
+ *     e "+ Nova obra" na mesma largura e no mesmo eixo x. `430` aparecendo em
+ *     qualquer um dos dois reprova aqui;
+ * (c) o mesmo vale no **estado vazio**, o primeiro acesso;
+ * (d) o teto é DECISÃO e não falta de espaço: o `main` continua bem mais largo.
+ */
+test.describe("a escolha de obra no shell de gestão", () => {
+  /** O número do critério 2 — a mesma medida de `ColunaDeDetalhe`, reaproveitada
+   *  como largura de leitura confortável, não como componente de detalhe. */
+  const COLUNA_DE_ESCOLHA_PX = 640;
+
+  test("lista e ações param na mesma coluna de 640px, sem casca de detalhe", async ({
+    page,
+    db,
+  }) => {
+    await criarObra(db, {
+      nome: "Casa do Morro",
+      municipio: "Florianópolis",
+      cno: null,
+    });
+
+    await page.goto("/obras");
+    await expect(page.getByText(/O app não escolhe por você/)).toBeVisible();
+
+    // Obras acesa, e só ela.
+    const nav = page
+      .locator('[data-shell="sidebar"]')
+      .getByRole("navigation", { name: "Navegação principal" });
+    await expect(nav.getByRole("link", { name: "Obras" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
+
+    // ── (a) família lista/escolha: nada da casca de detalhe ──────────────
+    await expect(page.locator('[data-coluna="detalhe"]')).toHaveCount(0);
+    await expect(page.locator('[data-rodape="acao"]')).toHaveCount(0);
+    // O título é da ROTA (topbar do shell), não um segundo cabeçalho na página.
+    await expect(page.getByRole("banner")).toContainText("Obras");
+    await expect(page.locator("main h1")).toHaveCount(0);
+
+    // ── (b) um teto só, e ele vale para a lista e para a ação ────────────
+    const coluna = page.locator('[data-coluna="escolha"]');
+    const caixaColuna = (await coluna.boundingBox())!;
+    expect(Math.round(caixaColuna.width)).toBe(COLUNA_DE_ESCOLHA_PX);
+
+    const cards = coluna.getByRole("button");
+    await expect(cards).toHaveCount(2);
+    const caixasDosCards = await cards.evaluateAll((els) =>
+      els.map((el) => {
+        const r = el.getBoundingClientRect();
+        return { x: Math.round(r.x), w: Math.round(r.width) };
+      }),
+    );
+    for (const c of caixasDosCards) {
+      // Esticado pelo shell seria ~1244; preso no resquício, 430.
+      expect(c.w).toBe(COLUNA_DE_ESCOLHA_PX);
+      expect(c.x).toBe(Math.round(caixaColuna.x));
+    }
+
+    const novaObra = coluna.getByRole("link", { name: "+ Nova obra" });
+    const caixaDaAcao = (await novaObra.boundingBox())!;
+    expect(Math.round(caixaDaAcao.width)).toBe(COLUNA_DE_ESCOLHA_PX);
+    expect(Math.round(caixaDaAcao.x)).toBe(Math.round(caixaColuna.x));
+
+    // ── (d) o teto é decisão, não falta de espaço ────────────────────────
+    expect((await page.locator("main").boundingBox())!.width).toBeGreaterThan(700);
+
+    // Nada truncado, nada vazando.
+    const cortados = await page.evaluate(() => {
+      const fora: string[] = [];
+      for (const el of document.querySelectorAll("main p")) {
+        if (el.scrollWidth > el.clientWidth + 1) {
+          fora.push((el.textContent ?? "").slice(0, 80));
+        }
+      }
+      return fora;
+    });
+    expect(cortados).toEqual([]);
+    const vazamento = await page.evaluate(() => {
+      const main = document.querySelector("main")!;
+      return main.scrollWidth - main.clientWidth;
+    });
+    expect(vazamento).toBeLessThanOrEqual(1);
+
+    // Reflow puro: a escolha explícita continua sendo o que abre a obra.
+    await cards.filter({ hasText: "Casa do Morro" }).click();
+    await expect(page.locator('[data-shell="obra-aberta"]')).toContainText(
+      "Casa do Morro",
+    );
+  });
+
+  /**
+   * (c) O estado vazio — primeiro acesso. Era o `max-w-[430px]` da linha ~95:
+   * um botão estreito, sozinho, no meio de um `main` sem teto nenhum.
+   */
+  test("no primeiro acesso o botão de cadastro tem a largura da coluna, não 430px", async ({
+    page,
+    db,
+  }) => {
+    apagarTodasAsObras();
+    expect(await obras(db)).toHaveLength(0);
+
+    await page.goto("/obras");
+    await expect(page.getByText("Nenhuma obra cadastrada")).toBeVisible();
+    // Estado vazio, não estado de erro (critério 12 do CONTAI-003).
+    await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+
+    const coluna = page.locator('[data-coluna="escolha"]');
+    const caixaColuna = (await coluna.boundingBox())!;
+    expect(Math.round(caixaColuna.width)).toBe(COLUNA_DE_ESCOLHA_PX);
+
+    const botao = coluna.getByRole("link", {
+      name: "Cadastrar a primeira obra",
+    });
+    const caixaDoBotao = (await botao.boundingBox())!;
+    expect(Math.round(caixaDoBotao.width)).toBe(COLUNA_DE_ESCOLHA_PX);
+    expect(Math.round(caixaDoBotao.x)).toBe(Math.round(caixaColuna.x));
+
+    // Critério 4 — o texto do estado vazio continua idêntico, palavra por
+    // palavra: o reflow não reescreve nada.
+    await expect(coluna).toContainText(
+      "O contai guarda documento e pagamento por obra, porque cada obra é uma matrícula na sua declaração e um CNO na aferição do INSS. Comece cadastrando a primeira.",
+    );
+
+    // E a porta continua levando ao assistente, que segue fora do shell.
+    await botao.click();
+    await expect(page.getByRole("heading", { name: "Nova obra" })).toBeVisible();
   });
 });

@@ -41,7 +41,10 @@ dois `max-w-[430px]` isolados deixam de existir no arquivo.
 
 ## Escopo e Critérios de Aceite
 
-1. **`/obras` segue a família "lista/escolha de nível superior da sidebar"
+✅ **Entregue em 2026-09-23, 6/6 critérios (Gate 4 PASS).** Detalhe:
+`docs/backlog/66-2026-09-23-contai-051-entregue.md`.
+
+1. [x] **`/obras` segue a família "lista/escolha de nível superior da sidebar"
    (`/despesas`, `/pendencias`), não a família "detalhe de um registro"
    (`/obras/[id]`, `/documento/[id]`).** `ColunaDeDetalhe`/`CabecalhoDaTela`
    (`app/_components/detalhe.tsx`, do spec `detalhe-no-shell-v1.md`) são
@@ -51,7 +54,7 @@ dois `max-w-[430px]` isolados deixam de existir no arquivo.
    título já vem da rota via `tituloDaView` (nenhuma tela desta família
    chama `CabecalhoDaTela`). Não aplicar esses dois componentes a esta
    página.
-2. **Dar um teto de largura sensato à `ListaDeEscolha`** — não precisa ser
+2. [x] **Dar um teto de largura sensato à `ListaDeEscolha`** — não precisa ser
    full-width (a lista de botões simples, sem coluna alguma de dado extra,
    fica esparsa e ilegível esticada por 900px+, o mesmo defeito medido no
    Gate 2 do `039`), nem 430px. Ponto de partida para o Gate 1 (a decidir
@@ -60,21 +63,21 @@ dois `max-w-[430px]` isolados deixam de existir no arquivo.
    `max-w-[640px]` — a mesma **medida** que `ColunaDeDetalhe` já usa como
    "coluna de leitura confortável" (reaproveitar o número, não o
    componente semântico de detalhe).
-3. **Remover os dois `max-w-[430px]` soltos** — "Cadastrar a primeira obra"
+3. [x] **Remover os dois `max-w-[430px]` soltos** — "Cadastrar a primeira obra"
    (estado vazio, linha ~95 de `obras/page.tsx`) e "+ Nova obra" (estado
    populado, linha ~144) — e trazê-los para dentro do mesmo envoltório do
    critério 2, para pararem de ficar estranhamente estreitos ao lado da
    lista.
-4. **Zero mudança de lógica, campo, texto fiscal ou comportamento.** O
+4. [x] **Zero mudança de lógica, campo, texto fiscal ou comportamento.** O
    `Banner` ("Escolha a obra..."), a `Dica` (sem valor em dinheiro,
    critério 14 do `CONTAI-003`), o texto do estado vazio e do estado de
    primeiro acesso continuam **idênticos**. Prova de aceite: comparação
    byte a byte, mesma disciplina do critério 3 do `CONTAI-046`.
-5. **`375px` deixa de ser piso obrigatório** para a decisão de largura desta
+5. [x] **`375px` deixa de ser piso obrigatório** para a decisão de largura desta
    tela (mesma permissão já dada aos `043`-`047`) — mas continua não
    podendo quebrar objetivamente no celular; só deixa de travar a decisão
    de desktop.
-6. Nenhuma mudança em `ListaDeEscolha` além do que o teto de largura do
+6. [x] Nenhuma mudança em `ListaDeEscolha` além do que o teto de largura do
    envoltório já resolve — não adicionar `max-width` interno ao componente
    em si, porque ele também é usado dentro de `TelaTrocarObra`
    (`app/_components/obra.tsx`, escape de captura em `(captura)`, dentro da

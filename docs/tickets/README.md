@@ -1,10 +1,27 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
 
 *(2026-09-23: `CONTAI-011` fatiado em três — `011` continua contando como 1
 item, e `049`/`050` somam os 2 novos. `CONTAI-051` soma o 19º no mesmo dia;
-`048` saiu da fila no fim do dia, entregue, voltando a 18.)*
+`048` saiu da fila no fim do dia, entregue, voltando a 18; `051` saiu da fila
+logo depois, entregue, voltando a 17 — **fila de implementação vazia**.)*
+
+**2026-09-23, mais tarde ainda**: **`051` saiu da fila** — implementado
+(`lead-engineer`), revisado pelo Gate 2 técnico (`cto-obra`, 1 rodada de
+REQUEST CHANGES por um erro factual no docblock — dizia que 640px era "a
+largura do destino do clique", mas o clique vai para `/`, full-width, não
+para `/obras/[id]`; corrigido só o comentário, reconfirmado **APPROVE**),
+Gate Fiscal não se aplica (reflow puro), testado (940 unitários + 296 E2E
+verdes, incluindo os 3 testes novos: desktop populado, desktop vazio, piso
+375px, mais validação manual no navegador confirmando 640px em 1440px e
+zero scroll horizontal em ~490px) e validado pelo `po` (Gate 4 PASS, 6/6
+critérios). `ColunaDeEscolha` local em `obras/page.tsx` envolve os 4
+estados em `max-w-[640px]` (mesma medida de `ColunaDeDetalhe`, reaproveitada
+como número); os dois `max-w-[430px]` soltos saíram. `ListaDeEscolha`
+(`app/_components/obra.tsx`) intocada. Sem migration. **Fecha a fila de
+implementação — nenhum item restante nela.** Detalhe:
+`docs/backlog/66-2026-09-23-contai-051-entregue.md`.
 
 **2026-09-23, fim do dia**: **`048` saiu da fila** — implementado
 (`lead-engineer`, com um ajuste de limpeza depois: removeu ramo morto,
@@ -441,9 +458,13 @@ e um corte de mock a fazer. `CONTAI-048` não muda.
 **2026-09-23, fim do dia**: `048` **saiu da fila** — entregue, ver nota no
 topo deste arquivo. `051` fica sozinho na fila ativa.
 
+**2026-09-23, mais tarde ainda**: `051` **saiu da fila** — entregue, ver nota
+no topo deste arquivo. **Fila de implementação vazia** — nenhum ticket
+pronto para `/develop` aguardando início.
+
 | Ordem | # | Ticket | P | Pronto para `/develop` |
 |---|---|---|---|---|
-| 1 | 051 | `/obras` migra para o padrão de reflow do shell | P1 | sim |
+| — | — | *(vazia)* | — | — |
 
 ### 🛑 Em espera — decisão do Mateus, 2026-09-23
 
@@ -503,9 +524,9 @@ não deve ser iniciado até esta nota ser removida por decisão do Mateus.
 |---|---|
 | **Espera o Mateus** | apenas a **Q14** (13 dias, trava o `016`) — nenhum mock pendente na fila ativa |
 | **Saiu da fila, superado** | `009` — entregue via `CONTAI-018` sem citação cruzada; resto vivo virou o `037` |
-| **Saiu da fila, entregue** | `032`, `022` — commitados em 2026-09-19 (`13953f2`); `033`, `007`, `008`, `005`, `031`, `035` — entregues em 2026-09-20; `038`, `006`, `034`, `037`, `039`, `042`, `040`, `043`, `044`, `045` — entregues em 2026-09-21; `046`, `041` — entregues em 2026-09-22 (`041` ainda sem push); `047`, `048` — entregues em 2026-09-23 (`048` com dívida nomeada **D69**, validação em iPhone real ainda pendente); ver "Em produção" |
+| **Saiu da fila, entregue** | `032`, `022` — commitados em 2026-09-19 (`13953f2`); `033`, `007`, `008`, `005`, `031`, `035` — entregues em 2026-09-20; `038`, `006`, `034`, `037`, `039`, `042`, `040`, `043`, `044`, `045` — entregues em 2026-09-21; `046`, `041` — entregues em 2026-09-22 (`041` ainda sem push); `047`, `048`, `051` — entregues em 2026-09-23 (`048` com dívida nomeada **D69**, validação em iPhone real ainda pendente); ver "Em produção" |
 | **Parado, aguardando o Mateus** | `014` — só o critério 4 entregue; ícone/aparelho físico não são delegáveis |
-| **Pronto para `/develop`** | `051` (`/obras` no padrão de reflow do shell, Gate 0 fechado por reaproveitamento) |
+| **Pronto para `/develop`** | nenhum — **fila de implementação vazia** desde a entrega do `051` |
 | **Falta mock (`/design`)** | nenhum na fila ativa |
 
 ⚠️ **Esta tabela é resumo, não fonte.** Ela repete o que está abaixo — se

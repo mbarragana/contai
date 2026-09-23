@@ -573,3 +573,79 @@ test.describe("correção da obra de um registro", () => {
     await expect(page.getByText("4.850,00")).toHaveCount(0);
   });
 });
+
+// ── CONTAI-051 — o teto de 640px não quebra o piso de 375px ──────────────
+
+/**
+ * **CONTAI-051 — a `ColunaDeEscolha` no piso.**
+ *
+ * O reflow de `/obras` é decisão de tela larga (critério 5 do ticket: 375px
+ * deixa de TRAVAR a decisão de desktop), mas "deixa de travar" não é "pode
+ * quebrar" — a pergunta aberta do `CLAUDE.md` manda tratar o celular como (a),
+ * funcional. `max-w-[640px]` num `main` de 339px úteis não reduz nada: a coluna
+ * tem de ser a largura útil inteira, e o botão de ação com ela.
+ *
+ * É o teste que fica vermelho se alguém trocar o `max-w` por `w-[640px]` ou
+ * pendurar um `min-w` na coluna.
+ */
+test.describe("a coluna de escolha de obra no piso de 375px", () => {
+  test("a coluna e as ações ocupam a largura útil, sem rolagem horizontal", async ({
+    page,
+    db,
+  }) => {
+    await criarCasaDoMorro(db);
+
+    await page.goto("/obras");
+    await expect(page.getByText(/O app não escolhe por você/)).toBeVisible();
+
+    const coluna = page.locator('[data-coluna="escolha"]');
+    // A largura ÚTIL do `main`: a caixa menos as duas goteiras de 18px.
+    const utilDoMain = await page.locator("main").evaluate((el) => {
+      const estilo = getComputedStyle(el);
+      return (
+        el.getBoundingClientRect().width -
+        Number.parseFloat(estilo.paddingLeft) -
+        Number.parseFloat(estilo.paddingRight)
+      );
+    });
+    const caixaColuna = (await coluna.boundingBox())!;
+    expect(Math.round(caixaColuna.width)).toBe(Math.round(utilDoMain));
+
+    // Cards e ação na MESMA largura da coluna — nada estreitado no piso, que
+    // era o defeito do `max-w-[430px]` visto do outro lado.
+    const cards = coluna.getByRole("button");
+    await expect(cards).toHaveCount(2);
+    for (const largura of await cards.evaluateAll((els) =>
+      els.map((el) => Math.round(el.getBoundingClientRect().width)),
+    )) {
+      expect(largura).toBe(Math.round(caixaColuna.width));
+    }
+    const novaObra = coluna.getByRole("link", { name: "+ Nova obra" });
+    expect(Math.round((await novaObra.boundingBox())!.width)).toBe(
+      Math.round(caixaColuna.width),
+    );
+
+    // Nada vazando na horizontal, e nada truncado.
+    const vazamento = await page.evaluate(() => {
+      const main = document.querySelector("main")!;
+      return main.scrollWidth - main.clientWidth;
+    });
+    expect(vazamento).toBeLessThanOrEqual(1);
+    const cortados = await page.evaluate(() => {
+      const fora: string[] = [];
+      for (const el of document.querySelectorAll("main p")) {
+        if (el.scrollWidth > el.clientWidth + 1) {
+          fora.push((el.textContent ?? "").slice(0, 80));
+        }
+      }
+      return fora;
+    });
+    expect(cortados).toEqual([]);
+
+    // E a escolha continua funcionando: reflow puro, comportamento intacto.
+    await cards.filter({ hasText: "Casa do Morro" }).click();
+    await expect(
+      page.getByText(/Custo confirmado em \d{4} · Casa do Morro/),
+    ).toBeVisible();
+  });
+});
