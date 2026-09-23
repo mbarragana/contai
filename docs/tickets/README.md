@@ -1,9 +1,25 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 19 tickets (mais 1 parado, aguardando o Mateus)
 
 *(2026-09-23: `CONTAI-011` fatiado em três — `011` continua contando como 1
-item, e `049`/`050` somam os 2 novos.)*
+item, e `049`/`050` somam os 2 novos. `CONTAI-051` soma o 19º no mesmo dia.)*
+
+**2026-09-23**: **`051` criado** — o coordenador auditou quais rotas já
+foram adaptadas para o shell desktop e achou uma lacuna: `app/(gestao)/
+obras/page.tsx` (a tela "Trocar obra") nunca entrou em nenhum dos tickets
+`040`/`043`-`046`/`047`. Sem `ColunaDeDetalhe`/`CabecalhoDaTela`, sem teto
+de largura na `ListaDeEscolha`, e dois `max-w-[430px]` soltos nos botões de
+ação — a mesma inconsistência (lista esticada + botão apertado) que
+motivou a rejeição do Conceito 1 do `CONTAI-039`. **`CONTAI-051`** (P1,
+reflow de layout puro, zero mudança de campo/lógica/texto fiscal — mesma
+disciplina dos `043`-`046`). **Gate 0 fechado por reaproveitamento**: não é
+detalhe de um registro (é lista de nível superior, irmã de `/despesas` e
+`/pendencias`), então `ColunaDeDetalhe`/`CabecalhoDaTela` não se aplicam;
+a única variável de desenho (largura do envoltório da lista, sugestão de
+partida 640px) fica para o `cto-obra` fechar no próprio Gate 1, sem
+precisar de novo mock do `designer`. **Pronto para `/develop`**, sem
+dependência. Detalhe: `docs/tickets/CONTAI-051.md`.
 
 **2026-09-23**: **`047` saiu da fila** — implementado (`lead-engineer`),
 revisado pelo Gate 2 (`cto-obra` APPROVE e `contador` APROVADO, os dois
@@ -401,6 +417,7 @@ e um corte de mock a fazer. `CONTAI-048` não muda.
 | Ordem | # | Ticket | P | Pronto para `/develop` |
 |---|---|---|---|---|
 | 1 | 048 | Anexo ampliado ao lado do formulário | P1 | sim |
+| 2 | 051 | `/obras` migra para o padrão de reflow do shell | P1 | sim |
 
 ### 🛑 Em espera — decisão do Mateus, 2026-09-23
 
@@ -462,8 +479,8 @@ não deve ser iniciado até esta nota ser removida por decisão do Mateus.
 | **Saiu da fila, superado** | `009` — entregue via `CONTAI-018` sem citação cruzada; resto vivo virou o `037` |
 | **Saiu da fila, entregue** | `032`, `022` — commitados em 2026-09-19 (`13953f2`); `033`, `007`, `008`, `005`, `031`, `035` — entregues em 2026-09-20; `038`, `006`, `034`, `037`, `039`, `042`, `040`, `043`, `044`, `045` — entregues em 2026-09-21; `046`, `041` — entregues em 2026-09-22 (`041` ainda sem push); `047` — entregue em 2026-09-23; ver "Em produção" |
 | **Parado, aguardando o Mateus** | `014` — só o critério 4 entregue; ícone/aparelho físico não são delegáveis |
-| **Pronto para `/develop`** | nenhum — fila de implementação vazia |
-| **Falta mock (`/design`)** | `048` (anexo ao lado do formulário, render legível do documento — não-bloqueante) |
+| **Pronto para `/develop`** | `048` (anexo ao lado do formulário, Gate 0 fechado), `051` (`/obras` no padrão de reflow do shell, Gate 0 fechado por reaproveitamento) |
+| **Falta mock (`/design`)** | nenhum na fila ativa |
 
 ⚠️ **Esta tabela é resumo, não fonte.** Ela repete o que está abaixo — se
 divergir, **vale o de baixo**, e o resumo é que está errado.
