@@ -363,7 +363,24 @@ ticket passou a **pronto para `/develop`**, entregue em 2026-09-23 (ver
 acima). **Fila de implementação vazia** — `CONTAI-048` continua fora dela:
 é não-bloqueante e fica em "Depois" até ganhar mock próprio.
 
-*(nenhum item na fila ativa hoje)*
+**2026-09-23**: `po` fechou as duas lacunas que travavam `CONTAI-011` e
+`CONTAI-048` (`docs/backlog/61-2026-09-23-po-fecha-lacunas-contai-011-048.md`).
+`CONTAI-011` (P0, export do acervo — serve a meta 3 diretamente): o `cto-obra`
+resolveu a arquitetura da pergunta P1 (tabela `export_execucao`, migration
+`0018`, leitura via `lib/data.ts`); "P2/P3" nunca existiram como conjunto
+formal — declarado no cabeçalho, não inventado. Pronto para `/develop`; só o
+OAuth do Google Drive (passo de dashboard do Mateus) fica fora do Gate 1 de
+código, bloqueando a 1ª execução real, não o desenvolvimento. `CONTAI-048`
+(P1, ver anexo ampliado ao lado do formulário): Gate 0 fechado
+(`design/mocks/CONTAI-048.md`/`.html`) — lightbox sob demanda, com correção
+do `cto-obra` para PDF em touch (abre em nova aba, não embute, para não
+degradar em silêncio no Safari iOS). Os dois saem de "Depois" e entram na
+fila, `011` primeiro por ser P0.
+
+| Ordem | # | Ticket | P | Pronto para `/develop` |
+|---|---|---|---|---|
+| 1 | 011 | Export do acervo (rotina + dossiê) | **P0** | sim |
+| 2 | 048 | Anexo ampliado ao lado do formulário | P1 | sim |
 
 ### Parado, aguardando o Mateus (fora da fila ativa)
 
@@ -383,7 +400,6 @@ acima). **Fila de implementação vazia** — `CONTAI-048` continua fora dela:
 
 | ID | O que é | P | |
 |---|---|---|---|
-| **011** | Export do acervo | **P0** | serve à meta 3 |
 | **016** | Tipo de empreitada na obra | **P0** | ramo `total` travado pela **Q14** |
 | **024** | Corrigir informe/contrato do financiamento, com rastro | P1 | |
 | **023** | Tirar "regime de caixa" das 4 telas restantes | P2 | |
@@ -391,7 +407,6 @@ acima). **Fila de implementação vazia** — `CONTAI-048` continua fora dela:
 | **028** | Quebrar `lib/data.ts` — fatias 2-7 | P2 | **corte proposto** |
 | **015** | Captcha no login | P2 | **corte re-recomendado** |
 | **026** | Terreno recebido (herança, doação, permuta) | P2 | **corte proposto** |
-| **048** | Anexo visível ao lado do formulário em `/adicionar/documento` (tela larga) | P1 | não-bloqueante; sem `/design` ainda |
 
 ### O que segura a fila hoje
 

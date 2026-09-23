@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>contai — Mock CONTAI-048</title>
+<style>
+  :root{
+    --paper:#faf9f6; --ink:#23221d; --mut:#716c61; --line:#e6e3da; --soft:#f1efe9;
+    --red:#b91c1c; --red-bg:#fbecec; --amb:#92600a; --amb-bg:#fdf3df; --grn:#15803d; --grn-bg:#e9f5ed;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{background:var(--soft); color:var(--ink); font:14.5px/1.5 var(--sans)}
+  .mono{font-family:var(--mono); font-variant-numeric:tabular-nums}
+
+  .evalbar{background:#000; color:#e8e5dc; font-size:12px; padding:8px 20px; text-align:center}
+  .evalbar strong{color:#fff}
+  .evalbar a{color:#9fd1ff}
+  .toolbar{display:flex; gap:8px; justify-content:center; align-items:center; flex-wrap:wrap;
+    padding:9px 16px; background:#111; border-top:1px solid #333}
+  .toolbar button{font:inherit; font-size:12px; padding:6px 12px; border-radius:999px; border:1px solid #444;
+    background:#1c1b17; color:#cfc9ba; cursor:pointer}
+  .toolbar button.on{background:#fff; color:#111; border-color:#fff; font-weight:700}
+  .toolbar span{color:#8b8578; font-size:11px; margin-left:6px}
+
+  .stage{padding:26px 16px 60px; display:flex; justify-content:center}
+  .device{width:100%; max-width:1180px; background:var(--paper); border:1px solid var(--line); border-radius:14px;
+    overflow:hidden; box-shadow:0 1px 3px rgba(35,34,29,.06); transition:max-width .15s}
+  .device.w-larga{max-width:940px}
+  .device.w-piso{max-width:375px}
+
+  .captura-header{display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:14px 22px; border-bottom:1px solid var(--line)}
+  .captura-header .crumb{font-size:12.5px; color:var(--mut)}
+  .captura-header .obra{font-size:12px; color:var(--mut); text-align:right}
+  .captura-header .obra strong{color:var(--ink); font-weight:600}
+  .device.w-piso .captura-header .obra{display:none}
+
+  .captura-body{padding:24px 22px 40px}
+
+  .captura-grid{display:grid; grid-template-columns:minmax(0,556px) 320px; column-gap:28px; align-items:start;
+    grid-template-areas:"form rail"; max-width:904px; margin:0 auto}
+  .device.w-piso .captura-grid{grid-template-columns:1fr; grid-template-areas:"rail" "form"}
+  .col-form{grid-area:form; min-width:0}
+  .col-rail{grid-area:rail; min-width:0}
+  .device.w-piso .col-rail{margin-bottom:14px}
+
+  .card{background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:14px}
+  .card-title{font-weight:700; font-size:13px; margin-bottom:8px}
+  .dica{font-size:12px; color:var(--mut); margin-top:8px; line-height:1.5}
+  .banner{border-radius:10px; padding:11px 15px; font-size:12.5px; margin-top:10px; line-height:1.5}
+  .banner.grn{background:var(--grn-bg); color:var(--grn)}
+  .campo-esqueleto{height:14px; background:var(--soft); border-radius:4px; margin-bottom:10px}
+  .campo-esqueleto.w60{width:60%}
+  .campo-esqueleto.w40{width:40%}
+
+  /* ── preview de imagem no rail (Estado B) ────────────────────────── */
+  .thumb-img{width:100%; height:120px; border-radius:10px; object-fit:cover; display:block; margin-bottom:10px;
+    background:var(--line)}
+  .thumb-icone{width:52px; height:52px; border-radius:8px; background:var(--soft); display:flex; align-items:center;
+    justify-content:center; font-size:20px; flex:none}
+  .linha-arquivo{display:flex; gap:12px; align-items:center; margin-bottom:4px}
+  .linha-arquivo .info{min-width:0}
+  .linha-arquivo .nome{font-size:12.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .linha-arquivo .meta{font-size:11px; color:var(--mut); margin-top:2px}
+  .trocar{font-size:11.5px; color:var(--mut); text-decoration:underline; cursor:pointer; background:none; border:none;
+    font-family:inherit; padding:0}
+
+  button.botao-link{display:block; width:100%; text-align:center; padding:9px 14px; border-radius:9px;
+    font-size:13px; font-weight:600; border:1px solid var(--line); color:var(--ink);
+    background:#fff; margin-top:8px; cursor:pointer; font-family:inherit}
+  button.botao-link.ver-doc{border-color:var(--ink); font-weight:700}
+
+  .campo-file-sucesso{font-size:12px; font-weight:600; color:var(--grn); display:flex; gap:6px; align-items:center;
+    flex-wrap:wrap}
+  .campo-file-sucesso .ver-link{color:var(--mut); font-weight:600; text-decoration:underline; cursor:pointer}
+  .campo-file-sucesso .ver-link::before{content:"· "; color:var(--line); text-decoration:none}
+
+  .view{display:none}
+  .view.active{display:block}
+
+  /* ── Lightbox ─────────────────────────────────────────────────────── */
+  .lightbox-overlay{position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center;
+    justify-content:center; padding:24px; z-index:50}
+  .lightbox-overlay.open{display:flex}
+  .lightbox{background:#fff; border-radius:14px; max-width:840px; width:100%; max-height:90vh; display:flex;
+    flex-direction:column; overflow:hidden}
+  .lightbox-head{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 16px;
+    border-bottom:1px solid var(--line); flex:none}
+  .lightbox-head .titulo{font-size:13px; font-weight:700}
+  .lightbox-head .sub{font-size:11.5px; color:var(--mut); font-weight:400}
+  .lightbox-head .acoes{display:flex; gap:8px; align-items:center}
+  .lightbox-head button{font:inherit; font-size:12px; padding:6px 11px; border-radius:8px; border:1px solid var(--line);
+    background:#fff; cursor:pointer}
+  .lightbox-head button.fechar{border:none; font-size:18px; padding:2px 8px; color:var(--mut)}
+  .lightbox-body{flex:1; min-height:0; overflow:auto; background:var(--soft); display:flex; align-items:center;
+    justify-content:center; position:relative}
+  .lightbox-body.ampliado{align-items:flex-start; justify-content:flex-start}
+  .lightbox-body img{max-width:100%; max-height:100%; display:block}
+  .lightbox-body.ampliado img{max-width:none; max-height:none; width:1400px}
+  .pdf-native{width:100%; height:100%; min-height:70vh; background:#fff; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; color:var(--mut); font-size:12.5px; gap:10px; padding:20px;
+    text-align:center}
+  .pdf-native .barra{width:100%; background:#3c3c3c; color:#ccc; font-size:11px; padding:6px 12px; text-align:left}
+  .pdf-native .pagina{background:#fff; border:1px solid var(--line); box-shadow:0 2px 10px rgba(0,0,0,.08);
+    width:360px; height:480px; margin:16px auto; display:flex; align-items:center; justify-content:center;
+    color:var(--mut); font-size:12px; flex-direction:column; gap:6px}
+  .device.w-piso .lightbox{max-width:none; width:100%; height:100%; max-height:none; border-radius:0}
+  .device.w-piso .lightbox-overlay{padding:0}
+
+  .nota-simulador{font-size:11px; color:var(--mut); text-align:center; padding:6px 22px 0}
+</style>
+</head>
+<body>
+
+<div class="evalbar">
+  <strong>Mock — CONTAI-048</strong> · Ver o anexo (PDF/foto) ao lado do formulário em
+  <code>/adicionar/documento</code>. Ver <a href="CONTAI-048.md">CONTAI-048.md</a>.
+</div>
+<div class="toolbar">
+  <span>Anexo:</span>
+  <button data-est="vazio" class="on">A · vazio</button>
+  <button data-est="imagem">B · imagem</button>
+  <button data-est="pdf">C · PDF</button>
+  <button data-est="xml">D · XML</button>
+  <span>Largura:</span>
+  <button data-w="larga" class="on">Larga (~900px)</button>
+  <button data-w="piso">Piso 375px</button>
+</div>
+<div class="nota-simulador">Este simulador usa cores de placeholder para o conteúdo do arquivo — no app real é o
+  documento verdadeiro (blob URL do arquivo anexado).</div>
+
+<div class="stage">
+  <div class="device w-larga" id="device">
+
+    <header class="captura-header">
+      <span class="crumb">‹ Cancelar</span>
+      <div class="obra">Registrando em <strong>Cachoeira do Bom Jesus</strong></div>
+    </header>
+
+    <div class="captura-body">
+      <div class="captura-grid">
+
+        <div class="col-rail">
+          <div class="card">
+            <div class="card-title">Arquivo</div>
+
+            <!-- Estado A — vazio -->
+            <div class="view active" id="rail-vazio">
+              <div style="border:2px dashed var(--line); border-radius:10px; padding:22px 10px; text-align:center;
+                color:var(--mut); font-size:12px">⬆️ Arraste o PDF, XML ou foto aqui<br>ou clique para escolher</div>
+              <div class="dica">É ele que faz a nota valer no acervo. Não tem à mão? Dá para registrar e anexar
+                depois.</div>
+            </div>
+
+            <!-- Estado B — imagem -->
+            <div class="view" id="rail-imagem">
+              <img class="thumb-img" alt="" style="background:linear-gradient(135deg,#e2ded0,#cfc9b8)">
+              <div class="linha-arquivo">
+                <div class="info">
+                  <div class="nome">foto-nota-empreiteira.jpg</div>
+                  <div class="meta">1,8 MB</div>
+                </div>
+                <button class="trocar">Trocar arquivo</button>
+              </div>
+              <button type="button" class="botao-link ver-doc" data-abrir-lightbox="imagem">🔍 Ver documento</button>
+            </div>
+
+            <!-- Estado C — pdf -->
+            <div class="view" id="rail-pdf">
+              <div class="linha-arquivo">
+                <div class="thumb-icone">📄</div>
+                <div class="info">
+                  <div class="nome">nf-servico-1234.pdf</div>
+                  <div class="meta">312 KB</div>
+                </div>
+                <button class="trocar">Trocar arquivo</button>
+              </div>
+              <button type="button" class="botao-link ver-doc" data-abrir-lightbox="pdf">🔍 Ver documento</button>
+              <button type="button" class="botao-link" style="margin-top:6px">🪄 Extrair dados da nota (beta)</button>
+              <div class="banner grn">Dados extraídos automaticamente do PDF — confira cada campo antes de
+                salvar.</div>
+            </div>
+
+            <!-- Estado D — xml -->
+            <div class="view" id="rail-xml">
+              <div class="linha-arquivo">
+                <div class="thumb-icone">🧾</div>
+                <div class="info">
+                  <div class="nome">nfe-33240112345.xml</div>
+                  <div class="meta">18 KB</div>
+                </div>
+                <button class="trocar">Trocar arquivo</button>
+              </div>
+              <div class="dica">XML não tem visualização — os dados vêm da extração determinística, não de
+                conferência visual.</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">Resumo até agora</div>
+            <div class="dica" style="margin-top:0">(inalterado pelo CONTAI-048 — ver o CONTAI-047.)</div>
+          </div>
+        </div>
+
+        <div class="col-form">
+          <div class="card">
+            <div class="card-title">Identificação</div>
+            <div class="campo-esqueleto w40"></div>
+            <div class="campo-esqueleto w60"></div>
+            <div class="campo-esqueleto"></div>
+            <div class="campo-esqueleto w60"></div>
+            <div class="dica" style="margin-top:0">Formulário inalterado — este mock foca só no card "Arquivo" ao
+              lado. Ver <code>captura-no-desktop-v1.html</code> para o formulário completo.</div>
+
+            <!-- Onde o link "Ver documento" aparece no PISO: dentro do campo de arquivo real -->
+            <div id="piso-campo-arquivo" style="display:none; margin-top:14px; padding-top:14px;
+              border-top:1px dashed var(--line)">
+              <div class="card-title" style="margin-bottom:6px">Arquivo (campo do formulário)</div>
+              <div class="campo-file-sucesso">
+                <span id="piso-nome-arquivo">—</span>
+                <span class="ver-link" id="piso-ver-link" data-abrir-lightbox="">Ver documento</span>
+              </div>
+              <div class="dica">No piso (celular), a miniatura grande do rail não aparece — só este link, sob
+                demanda.</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ Lightbox (Estado E) ══════════ -->
+<div class="lightbox-overlay" id="lightbox">
+  <div class="lightbox">
+    <div class="lightbox-head">
+      <div>
+        <div class="titulo" id="lb-titulo">Documento anexado</div>
+        <div class="sub" id="lb-nome">foto-nota-empreiteira.jpg</div>
+      </div>
+      <div class="acoes">
+        <button type="button" id="lb-toggle-zoom" style="display:none">Ajustar / Ampliar (100%)</button>
+        <button type="button" class="fechar" id="lb-fechar" aria-label="Fechar">✕</button>
+      </div>
+    </div>
+    <div class="lightbox-body" id="lb-body">
+      <!-- conteúdo trocado por JS conforme o tipo -->
+    </div>
+  </div>
+</div>
+
+<script>
+  var estados = ["vazio", "imagem", "pdf", "xml"];
+  var nomesArquivo = { imagem: "foto-nota-empreiteira.jpg", pdf: "nf-servico-1234.pdf", xml: "nfe-33240112345.xml" };
+  var estadoAtual = "vazio";
+
+  function mostrarEstado(est) {
+    estadoAtual = est;
+    estados.forEach(function (e) {
+      document.getElementById("rail-" + e).classList.toggle("active", e === est);
+    });
+    document.querySelectorAll(".toolbar [data-est]").forEach(function (b) {
+      b.classList.toggle("on", b.dataset.est === est);
+    });
+    var pisoCampo = document.getElementById("piso-campo-arquivo");
+    var noPiso = document.getElementById("device").classList.contains("w-piso");
+    if (est !== "vazio" && est !== "xml" && noPiso) {
+      pisoCampo.style.display = "block";
+      document.getElementById("piso-nome-arquivo").textContent = nomesArquivo[est] + " ✓ vai para o acervo";
+      document.getElementById("piso-ver-link").dataset.abrirLightbox = est;
+    } else {
+      pisoCampo.style.display = "none";
+    }
+  }
+
+  document.querySelectorAll(".toolbar [data-est]").forEach(function (b) {
+    b.addEventListener("click", function () { mostrarEstado(b.dataset.est); });
+  });
+
+  var device = document.getElementById("device");
+  document.querySelectorAll(".toolbar [data-w]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      document.querySelectorAll(".toolbar [data-w]").forEach(function (x) { x.classList.remove("on"); });
+      b.classList.add("on");
+      device.className = "device w-" + b.dataset.w;
+      mostrarEstado(estadoAtual);
+    });
+  });
+
+  document.querySelectorAll(".trocar").forEach(function (b) {
+    b.addEventListener("click", function () { mostrarEstado("vazio"); });
+  });
+
+  // ── Lightbox ──────────────────────────────────────────────────────
+  var overlay = document.getElementById("lightbox");
+  var body = document.getElementById("lb-body");
+  var toggleZoom = document.getElementById("lb-toggle-zoom");
+  var ampliado = false;
+
+  function abrirLightbox(tipo) {
+    document.getElementById("lb-nome").textContent = nomesArquivo[tipo] || "";
+    ampliado = false;
+    if (tipo === "imagem") {
+      body.className = "lightbox-body";
+      body.innerHTML = '<img alt="" style="background:linear-gradient(135deg,#e2ded0,#cfc9b8); width:640px; ' +
+        'height:820px">';
+      toggleZoom.style.display = "inline-block";
+      toggleZoom.textContent = "Ampliar (100%)";
+    } else if (tipo === "pdf") {
+      body.className = "lightbox-body";
+      body.innerHTML = '<div class="pdf-native">' +
+        '<div class="barra">nf-servico-1234.pdf — visualizador nativo do navegador (&lt;object&gt;): zoom, ' +
+        'paginação e busca já vêm prontos, sem código novo</div>' +
+        '<div class="pagina">📄<br>Página 1 de 2<br><span style="font-size:11px">(rolar dentro do visualizador ' +
+        'mostra a página 2)</span></div>' +
+        '</div>';
+      toggleZoom.style.display = "none";
+    }
+    overlay.classList.add("open");
+  }
+
+  document.querySelectorAll("[data-abrir-lightbox]").forEach(function (el) {
+    el.addEventListener("click", function () {
+      var tipo = el.dataset.abrirLightbox || estadoAtual;
+      if (tipo) abrirLightbox(tipo);
+    });
+  });
+
+  toggleZoom.addEventListener("click", function () {
+    ampliado = !ampliado;
+    body.classList.toggle("ampliado", ampliado);
+    toggleZoom.textContent = ampliado ? "Ajustar" : "Ampliar (100%)";
+  });
+
+  document.getElementById("lb-fechar").addEventListener("click", function () { overlay.classList.remove("open"); });
+  overlay.addEventListener("click", function (e) { if (e.target === overlay) overlay.classList.remove("open"); });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") overlay.classList.remove("open");
+  });
+
+  mostrarEstado("vazio");
+</script>
+</body>
+</html>

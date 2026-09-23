@@ -13,11 +13,34 @@
   (com um estado âmbar intermediário que o ticket não pedia), a triagem do
   critério 15 com os três destinos, e o dossiê por obra com acesso nomeado e
   revogável.
-  ⚠️ **A aprovação é do desenho e do fluxo. NÃO fecha as 3 perguntas
-  bloqueantes** (P1, P2 e P3, em "Perguntas Abertas"). Em particular, **P1 é
-  pré-requisito duro do Gate 1**: hoje não existe fonte de dados que o app
-  consiga ler para a linha de estado, e sem ela o critério 6(c) não existe —
-  o ticket volta a ser o cron que morre em silêncio do próprio pre-mortem.
+  ⚠️ **A aprovação é do desenho e do fluxo.** Esta linha citava "3 perguntas
+  bloqueantes (P1, P2 e P3, em 'Perguntas Abertas')".
+  🔍 **Investigação do `po`, 2026-09-23 — essa numeração nunca existiu como
+  conjunto.** A seção "Perguntas Abertas" só teve M1–M4 (perguntas ao
+  Mateus); o Gate Fiscal só teve F1–F4 (perguntas ao contador, as 4 já
+  fechadas — ver "Gate Fiscal" abaixo); `grep -rn` em `docs/backlog/` e
+  `docs/pareceres/` não acha "P1", "P2" nem "P3" nomeados em lugar nenhum.
+  O único item com identidade própria e rótulo de bloqueio é o da lista
+  "Dúvidas" do mock (`design/mocks/CONTAI-011.md`, final do arquivo):
+  *"De onde o app lê o estado do export?"*, marcada ali, textualmente, como
+  "bloqueante do Gate 2" — **é esse o P1** que o resto do cabeçalho já tratava
+  como pré-requisito duro (sem ele o critério 6(c) não existe, e o ticket
+  vira o cron que morre em silêncio do próprio pre-mortem).
+  ✅ **P1 RESOLVIDA em 2026-09-23 pelo `cto-obra`** — tabela `export_execucao`
+  no Postgres do próprio app; ver "Decisão 4" em "Viabilidade (CTO)".
+  ❌ **P2 e P3 não existem — declarado aqui, não inventado.** Ninguém os
+  nomeou, em ticket, backlog ou parecer. A frase "3 perguntas bloqueantes"
+  era imprecisão de quem escreveu o cabeçalho, corrigida nesta entrada. O
+  veredicto do Gate Fiscal (`docs/pareceres/2026-08-16-gate-fiscal-contai-011.md`)
+  já é categórico sobre o que bloqueia: **só R1–R5**, todos incorporados aos
+  critérios 3, 8, 12, 13 e 14; R6–R10 "entram como notas e podem ser
+  resolvidas no Gate 2 pelo `cto-obra`" — não há um segundo e um terceiro
+  bloqueio fiscal escondido. O resto das "Dúvidas" do mock (numeração de lei
+  do LEIA-ME, conflito critério 12 × R6, perguntas sobre `drive.file` e
+  reconexão do Drive, campos da categoria "documento da obra", "gerar assim
+  mesmo", busca de vínculo em outra obra) são reais, mas **nenhuma bloqueia
+  o Gate 1** — são notas de Gate 2 / implementação, listadas no "Veredicto"
+  no fim deste arquivo.
 - **Gate Fiscal**: `docs/pareceres/2026-08-16-gate-fiscal-contai-011.md` —
   APROVADO COM RESSALVAS (R1–R5 bloqueantes, já incorporadas abaixo).
 
@@ -260,14 +283,28 @@ torna o corte defensável.**
      arquivo → mesmo path → o segundo upload colide e a colisão se trata como
      sucesso; de brinde, deduplica anexo enviado duas vezes. **Ticket próprio**
      (S) — não entra neste, misturaria escrita do app com rotina de servidor.
-2. **CONTAI-004** (`numero`, `data_emissao`) e **CONTAI-007**
+2. ~~**CONTAI-004** (`numero`, `data_emissao`) e **CONTAI-007**
    (`cno_referenciado`) — R10 do contador: são **campos obrigatórios do índice**
-   e ainda não existem em `documento`. Enquanto não existirem, o índice sai
-   incompleto e o LEIA-ME tem que dizer isso.
-3. **CONTAI-002 (login)** — a escolha entre service role e sessão de usuário
+   e ainda não existem em `documento`.~~ ✅ **ENTREGUES — confirmado em
+   2026-09-23 pelo `cto-obra` no código**: migration `0012` (CONTAI-004,
+   `numero`, `serie`, `data_emissao`, `chave_acesso`) e migration `0015`
+   (CONTAI-007, `cno_referenciado` + `nota_traz_cno`, tri-estado). O índice
+   do critério 3 tem de onde ler. Atenção do Gate 1: `retencao_11` **não
+   existe mais** como campo — o índice exporta as **linhas de retenção** de
+   `documento_retencao` (CONTAI-038, migration `0017`), e a coluna do critério
+   3 "retenção de 11% (sim/não/a confirmar)" tem que ser reescrita nesses
+   termos (o `contador` decide o rótulo; ver CLAUDE.md, invariante central).
+3. ~~**CONTAI-002 (login)** — a escolha entre service role e sessão de usuário
    depende do modelo de auth existir. Resolvida pelo `cto-obra` (ver
-   Viabilidade), mas o ticket não vai ao Gate 1 antes do CONTAI-002 fechar.
-4. **CONTAI-003** — entregue. É o que torna o critério 4 possível.
+   Viabilidade), mas o ticket não vai ao Gate 1 antes do CONTAI-002 fechar.~~
+   ✅ **CAI — 2026-09-23.** O que esta dependência pedia era o **modelo de
+   auth existir**, e ele existe em produção de fato (`/entrar`, `proxy.ts`,
+   cookie `contai-auth` via `@supabase/ssr`, RLS por `auth.uid()`). O status
+   "⚠️ rebaixado" do 002 no `README.md` é sobre hash de gate e prova em
+   aparelho real (R2 → `CONTAI-014`), não sobre o modelo — e a Decisão 2
+   (service role) não depende de qual método de login o Mateus usa.
+4. **CONTAI-003** — entregue (G1 `5550d11`, G2 `e72bf35`, G3/G4 de papel,
+   desempatado em 18/08). É o que torna o critério 4 possível.
 5. **US-004 (relatórios)** — o critério 12 só fica completo quando ela existir.
 6. **`CONTAI-027`** — enquanto a tabela filha de anexos não existir, as duas
    restrições da seção *"Restrições vindas do `CONTAI-027`"* não têm o que
@@ -341,8 +378,89 @@ Sustenta o índice com uma query. `documento` já tem `obra_id`, `favorecido_id`
 `pagamento.data_pagamento`. Como o vínculo é N:M, **uma linha de índice por
 vínculo** (agregar esconderia o ano-calendário). `pagamento` já tem tudo.
 Tamanho e checksum vêm da metadata de `storage.objects` na hora do export —
-duplicar no schema seria dado que dessincroniza. **Não criar tabela de execuções
-de export**: o recibo commitado cumpre o papel com menos schema.
+duplicar no schema seria dado que dessincroniza. ~~**Não criar tabela de
+execuções de export**: o recibo commitado cumpre o papel com menos schema.~~
+⚠️ **REVISTO em 2026-09-23 pelo próprio `cto-obra`** — a frase estava errada
+e o mock (`#s6`) pegou: o recibo vive no Git, e o app na Vercel **não lê o
+Git**. Lê-lo exigiria a API do GitHub — o terceiro gratuito que o critério 6
+proíbe. A tabela existe: **Decisão 4**, abaixo. O recibo commitado
+**continua**, com outro papel (keepalive contra os 60 dias do GitHub).
+
+### Decisão 4 — `export_execucao`: o sinal positivo mora no Postgres do app (P1, 2026-09-23)
+
+**Onde.** Tabela `export_execucao` (singular, padrão do repo), migration
+`supabase/migrations/0018_export_execucao.sql`, no mesmo formato das `0013`
+e `0017`: cabeçalho com o porquê, tabela, índice, RLS, **revoke-antes-grant**,
+e a resposta por extenso à pergunta obrigatória do CLAUDE.md. Um **log
+append-only** — uma linha por execução, nunca UPDATE, nunca DELETE.
+
+Colunas: `id uuid pk` · `user_id uuid not null references auth.users` (**sem
+`default auth.uid()`**: o escritor é service role, onde `auth.uid()` é NULL —
+o `not null` é o que obriga o script a dizer de quem é o acervo) · `tipo text
+check in ('periodico','dossie')` · `obra_id uuid null references obra`, com
+`check ((tipo = 'dossie') = (obra_id is not null))` — o periódico cobre o
+acumulado do usuário, o dossiê é de UMA obra (critério 10) ·
+`iniciado_em`/`concluido_em timestamptz not null` · `resultado text check in
+('sucesso','falha')` · `arquivos int` · `bytes bigint` · `indice_sha256 text` ·
+`pacote_ref text` (pasta/nome do pacote no destino — é o que o critério 14
+usa para "pacote novo que referencia o anterior") · `script_sha text` (commit
+que rodou) · `erro text`. Checks de coerência: `sucesso` ⇒ `arquivos`,
+`bytes`, `indice_sha256`, `pacote_ref` not null **e** `erro` null; `falha` ⇒
+`erro` not null. Índice `(user_id, tipo, concluido_em desc)`.
+
+**Quem escreve.** `scripts/export-acervo.ts`, com a service role key do
+GitHub Secret (Decisão 2), **uma linha ao final** de cada execução — o passo
+`if: failure()` do workflow grava a linha de `falha` com a mensagem. O
+`user_id` vem de `obra.user_id` dos registros exportados; **mais de um
+`user_id` distinto = falha alta**, não "exporta o primeiro" (multiusuário está
+fora de escopo e fica fora fazendo barulho). Uma execução que morre antes de
+conseguir gravar **não deixa linha** — e isso é proposital: vira modo (c),
+detectado pela validade do último sucesso. Não se escreve linha "em
+andamento" no início: exigiria o app julgar "travada há quanto tempo?", que é
+uma segunda regra de validade para cobrir o mesmo caso.
+
+**Quem lê, e como isso respeita a restrição do critério 6.** O app, pela
+sessão do usuário, via PostgREST — `lib/data.ts` ganha `ultimoExport()`: a
+última linha `tipo = 'periodico'` com `resultado = 'sucesso'` **e** a última
+linha de qualquer resultado. É o **mesmo Postgres** do produto, não um
+terceiro a mais: a restrição proíbe a *detecção* depender de outro free
+tier, e se o Supabase cair o app inteiro some com ele — sinal mais alto que
+qualquer linha. Regra da linha de estado (critério 6c), em `lib/export/estado.ts`,
+pura, coberta por Vitest: sem linha nenhuma → **erro "nunca rodou"**; último
+sucesso há N dias, N ≤ 7 → ok; 7 < N ≤ 14 → o âmbar do mock; N > 14
+(2× semanal, Decisão 3) → **erro**; e se a linha mais recente é `falha` mais
+nova que o último sucesso → **erro com o texto de `erro`**, que é o modo (a)
+visível dentro do app **independente do canal da M3**. Consequência: **M3
+deixa de bloquear o Gate 1** — ela só decide o canal de push.
+As constantes `PERIODICIDADE_DIAS = 7` e `LIMITE_ERRO_DIAS = 14` vivem em
+`lib/export/politica.ts`, e um teste unitário lê `.github/workflows/export-acervo.yml`
+e falha se o `cron` deixar de ser semanal — o YAML não importa TypeScript, e
+sem esse teste as duas pontas divergem em silêncio.
+
+**RLS e grants (lição de 2026-08-17).** `enable row level security`; policy
+`dono_export_execucao for select using (user_id = auth.uid())` — **só SELECT**,
+sem policy de insert/update/delete para `authenticated`. Grants, no mesmo diff:
+`revoke all on table export_execucao from anon, authenticated, service_role;`
+`grant select on table export_execucao to authenticated;`
+`grant select, insert on table export_execucao to service_role;` — explícito
+mesmo que o remoto conceda por default, porque a pergunta obrigatória é
+exatamente *"isto depende de default que o remoto pode não ter?"*, e a
+resposta tem que ser "não" por construção. `e2e/privilegios.spec.ts` ganha
+`export_execucao: "SELECT"` no `ESPERADO`. ⚠️ **Ponto cego declarado**: esse
+mapa exclui `service_role` de propósito, então o grant do escritor **não é
+provado pelo E2E** — quem prova é a **primeira execução real contra o remoto**,
+que o critério 1 já exige, e ela falha alto (modo a) se o grant faltar.
+Também sem DELETE para o script: o histórico de execuções é o rastro que
+sustenta o critério 14 e a defesa de uma retificadora.
+
+**Ordem de release**: `0018` entra por `npx supabase db push` **antes** do
+merge do workflow (CLAUDE.md, ordem obrigatória). Aditiva e inofensiva sozinha.
+
+**O que fica de fora, de propósito**: view/função `ultimo_export()` (uma
+query simples não paga schema); linha "em andamento"; `exportado_em` por
+documento (Decisão 3: o rastreador é o destino); ler o recibo do Git pelo
+app (é o terceiro proibido). Complexidade do ticket **não muda** (M): a
+tabela e a regra pura são ~S, e o peso segue no destino.
 
 ### Complexidade: **M**
 
@@ -405,13 +523,63 @@ o acervo continua desprotegido. Por quê?"*
 
 - **M1 — RESPONDIDA (2026-08-16)**: destino = **Google Drive**, com as condições
   de OAuth acima.
-- **M2 — RESPONDIDA de fato pelo `cto-obra`**: **semanal**, não mensal.
-  Confirmar.
+- **M2 — CONFIRMADA pelo `po` em 2026-09-23**: **semanal**, não mensal. Ratifica
+  a recomendação do `cto-obra` (Decisão 3) — parâmetro técnico reversível
+  (`PERIODICIDADE_DIAS = 7` em `lib/export/politica.ts`, testado por
+  `e2e/privilegios...` não, pelo teste unitário do cron citado na Decisão 4),
+  não é decisão de arquitetura nem tem consequência fiscal: mudar depois é
+  trocar uma constante e o `cron` do workflow, sem redesenho. Não precisa
+  esperar o Mateus revisitar.
 - **M3** — Você quer ser avisado a cada export bem-sucedido, ou só quando
   falhar? Note que "só quando falhar" **não cobre** o modo (c) do critério 6 —
   por isso o sinal positivo dentro do app é obrigatório de qualquer forma.
+  **Desde 2026-09-23 NÃO bloqueia o Gate 1** (Decisão 4): os modos (a) e (c)
+  ficam visíveis dentro do app pela `export_execucao`; a M3 só decide o canal
+  de push, e o mock já a desenhou como preferência (`#s23`). Pode entrar
+  depois, sem migration.
+- **M2, nota de 2026-09-23**: a resposta vira número em
+  `lib/export/politica.ts` (7 dias / erro em 14). Se a resposta for outra, é
+  uma constante e um `cron` — não muda desenho.
 - **M4 — RESPONDIDA pelo `po`**: a reclassificação para a R1 foi **rejeitada**.
   A story vai para 2º item pós-R1, pareada com a US-010.
+
+## Veredicto (po, 2026-09-23)
+
+✅ **PRONTO PARA `/develop`.** Todos os itens que bloqueavam Gate 1 estão
+fechados:
+
+- **P1** (fonte de dados do estado do export) — resolvida, Decisão 4.
+- **P2/P3** — não existiam; ver correção no cabeçalho, acima.
+- **Gate Fiscal** — só R1–R5 bloqueavam, e os cinco já estão incorporados aos
+  critérios 3, 8, 12, 13 e 14.
+- **M1** (destino) — respondida. **M2** (cadência) — confirmada acima. **M3**
+  (canal de aviso) — deixou de bloquear (Decisão 4): só decide push, não
+  arquitetura.
+- **Dependências de código** — CONTAI-002 (auth), CONTAI-003, CONTAI-004 e
+  CONTAI-007 entregues; objeto órfão coberto pelo critério 15.
+
+**O que fica de fora do Gate 1 de código, sem bloquear o começo dele:**
+
+- **OAuth do Google Drive é ação de dashboard do Mateus** (publicar o app
+  OAuth fora de "testing", conceder o escopo `drive.file`, gerar o refresh
+  token e gravá-lo em GitHub Secret) — nenhuma linha disso é código. Bloqueia
+  a **primeira execução real** do workflow, não o desenvolvimento dele. As
+  duas perguntas do mock sobre o Drive ("reconectar existe?", "`drive.file`
+  alcança revogar permissão?") só têm resposta com o app OAuth criado — verificar
+  nessa hora, não antes.
+- **Notas de Gate 2 (`cto-obra`)**, já roteadas pelo próprio Gate Fiscal
+  (R6–R10) ou levantadas pelo mock: conflito entre o critério 12 (dossiê leva
+  Pagamentos Efetuados) e R6 (essa ficha é do declarante, soma as duas obras —
+  não deveria entrar no dossiê de uma obra só); campos obrigatórios da
+  categoria "documento da obra" (tipo e obra bastam, ou também número/órgão
+  emissor); se "gerar assim mesmo, com a falta declarada" (`#s21`) é saída
+  real ou o critério 5 (falhar alto) prevalece; se a busca de vínculo
+  (`#s12`) alcança registros de outra obra.
+- **Confirmação de numeração legal antes do texto ir para tela** (Lei
+  12.682/2012, Decreto 10.278/2020, Súmula 555/STJ, Súmula Vinculante 8/STF,
+  Decreto 3.048/99 art. 225 §5º, Lei 8.212/91 art. 32 §11) — já listado pelo
+  próprio parecer em "Pontos a confirmar antes de virar texto de tela"; vale
+  para o `LEIA-ME.txt` do critério 13, não para o código do Gate 1.
 
 ## Teste do Canteiro
 
