@@ -1,6 +1,10 @@
 import type { ReactNode } from "react";
 
 import {
+  COLUNA_DO_FORMULARIO,
+  PassosDaCaptura,
+} from "@/app/_components/captura";
+import {
   AppBar,
   Banner,
   BotaoLink,
@@ -60,7 +64,11 @@ export function Registrado({
   return (
     <>
       <AppBar titulo="Registrado ✓" sub={obraNome} />
-      <Corpo>
+      <PassosDaCaptura atual={3} />
+      {/* CONTAI-047: a confirmação é texto de consequência fiscal de ponta a
+          ponta — ela para na mesma coluna do formulário que a produziu, e não
+          se estica pelos 940px da casca larga. */}
+      <Corpo className={COLUNA_DO_FORMULARIO}>
         {aviso ? (
           <Banner cor="red" role="alert">
             {aviso}
@@ -97,7 +105,12 @@ export function Registrado({
           </div>
         </Card>
       </Corpo>
-      <Rodape>
+      {/* ⚠️ CONTAI-047, critério 8 — a saída do fluxo. `/` é a Visão geral, que
+          vive em `app/(gestao)/` e abre COM o shell (sidebar + topbar): quem
+          chegou aqui pelo "+ Novo registro" do dashboard volta para um lugar
+          reconhecível do produto, e não para uma tela sem chrome nenhum. Este
+          `href` não muda sem mover a home. */}
+      <Rodape className={COLUNA_DO_FORMULARIO}>
         <BotaoLink href="/" variante="primary">
           Voltar ao início
         </BotaoLink>

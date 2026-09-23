@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 
+import { COLUNA_DO_FORMULARIO } from "@/app/_components/captura";
 import {
   AppBar,
   Banner,
@@ -139,7 +140,9 @@ export function TelaTrocarObra({
   return (
     <>
       <AppBar titulo="Trocar obra" sub="Este registro vai para a obra escolhida" />
-      <Corpo>
+      {/* CONTAI-047: é um escape DENTRO do formulário de captura — para na
+          mesma coluna dele, e não nos 940px da casca larga. */}
+      <Corpo className={COLUNA_DO_FORMULARIO}>
         <ListaDeEscolha obras={obras} hoje={hoje} onEscolher={onEscolher} />
         <Dica>
           Escape sem sair do formulário: você volta para o mesmo registro, com a
@@ -147,7 +150,7 @@ export function TelaTrocarObra({
           preferência guardada no aparelho.
         </Dica>
       </Corpo>
-      <Rodape>
+      <Rodape className={COLUNA_DO_FORMULARIO}>
         <Botao variante="ghost" onClick={onCancelar}>
           Cancelar
         </Botao>

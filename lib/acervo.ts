@@ -60,6 +60,29 @@ export function extensaoDoArquivoNoAcervo(path: string): string {
 }
 
 /**
+ * O tamanho do arquivo **que ainda está na mão do navegador**, para a
+ * miniatura do rail de `/adicionar/documento` (CONTAI-047, critério 1a).
+ *
+ * ⚠️ Repare na diferença para a ressalva do `nomeDoArquivoNoAcervo` acima: lá
+ * a ausência de tamanho é deliberada porque o app só tem um `text` no banco.
+ * **Aqui** o arquivo é um `File` escolhido agora, e `File.size` é um fato que
+ * já está na memória — nenhuma chamada de rede, nada perguntado ao Storage.
+ * Este rótulo NÃO sobrevive à gravação, e é por isso que ele não aparece em
+ * nenhuma tela de acervo.
+ *
+ * Rótulo de tela, nunca número fiscal: não entra em cálculo, soma nem
+ * validação. Arredonda para cima a partir de 1 byte para que um anexo
+ * minúsculo não apareça como "0 KB" — o que leria como "não anexou".
+ */
+export function tamanhoLegivelDoAnexo(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return "—";
+  if (bytes < 1024) return `${Math.round(bytes)} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${Math.max(1, Math.round(kb))} KB`;
+  return `${(kb / 1024).toFixed(1).replace(".", ",")} MB`;
+}
+
+/**
  * O dono de um caminho do acervo é o PRIMEIRO segmento — é o que a policy
  * `acervo_dono_select` (0002_storage.sql) compara com `auth.uid()`:
  * `(storage.foldername(name))[1] = auth.uid()::text`.

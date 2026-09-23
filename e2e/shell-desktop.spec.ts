@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 import { OBRA_ID_SEED, USER_ID_SEED } from "./ambiente";
 import {
@@ -55,6 +55,40 @@ import {
  */
 
 const ANO = new Date().getFullYear();
+
+/**
+ * **CONTAI-047 — os números da casca de captura em tela larga.**
+ *
+ * `LARGURA_DA_CASCA_LARGA` é o `larga:max-w-[940px]` de `(captura)/layout.tsx`.
+ * Ficam nomeados aqui porque a diferença entre casca e coluna É o critério: a
+ * casca abre, a coluna do texto fiscal não.
+ *
+ * ⚠️ **`COLUNA_DO_FORMULARIO_CONTEUDO_PX` é CONTEÚDO, não caixa** — correção do
+ * Gate 2. `COLUNA_DO_FORMULARIO` (`larga:max-w-[592px]`) vai no `Corpo` e no
+ * `Rodape`, que carregam `px-[18px]` e são `border-box`: 592 − 36 = 556. A
+ * coluna esquerda da `GradeDaCaptura` é um div sem padding e mede 556 direto.
+ * O teste compara os dois pelo CONTEÚDO justamente porque foi aí que as duas
+ * larguras divergiram (556 × 520) sem ninguém ver.
+ */
+const LARGURA_DA_CASCA_LARGA = 940;
+const COLUNA_DO_FORMULARIO_CONTEUDO_PX = 556;
+/** A caixa do `Corpo`/`Rodape` com as duas goteiras de 18px. */
+const COLUNA_DO_FORMULARIO_CAIXA_PX = COLUNA_DO_FORMULARIO_CONTEUDO_PX + 36;
+
+/**
+ * A largura ÚTIL de um elemento: caixa de borda menos os paddings laterais. É o
+ * que permite comparar um `Corpo` (com goteira) com a coluna da grade (sem).
+ */
+async function larguraDoConteudo(alvo: Locator): Promise<number> {
+  return alvo.evaluate((el) => {
+    const estilo = getComputedStyle(el);
+    return (
+      el.getBoundingClientRect().width -
+      Number.parseFloat(estilo.paddingLeft) -
+      Number.parseFloat(estilo.paddingRight)
+    );
+  });
+}
 
 const CNPJ_AJE_DIGITOS = "11222333000181";
 const CNPJ_CASA_DIGITOS = "11444777000161";
@@ -240,13 +274,18 @@ test.describe("shell de gestão no desktop", () => {
   });
 
   /**
-   * **A separação é por ROTA, não por breakpoint** — critério 7 e Pre-mortem 4.
+   * **A separação é por ROTA, não por breakpoint** — critério 7 do CONTAI-040 e
+   * Pre-mortem 4.
    *
-   * Na mesma janela larga, uma tela de `(captura)` continua nos 430px de
-   * sempre, sem sidebar nenhuma. Se alguém reintroduzir largura condicional
-   * dentro de um componente compartilhado, é aqui que aparece.
+   * ⚠️ **O número mudou no CONTAI-047, a regra não.** A casca de captura passou
+   * de 430px para `LARGURA_DA_CASCA_LARGA` numa janela larga (Mateus,
+   * 2026-09-22: *"as telas de captura também devem ganhar tratamento
+   * desktop"*), mas o que este teste protege continua sendo o mesmo: captura
+   * **não tem sidebar nem faixa de gestão em largura nenhuma** — é só a coluna
+   * que cresce (critério 9 do 047). Se alguém trouxer o chrome de gestão para
+   * cá, é aqui que aparece.
    */
-  test("`/adicionar/*` fica fora do shell, nos 430px de sempre", async ({
+  test("`/adicionar/*` fica fora do shell, na casca larga da captura", async ({
     page,
   }) => {
     await page.goto("/adicionar/pagamento");
@@ -258,12 +297,25 @@ test.describe("shell de gestão no desktop", () => {
     await expect(page.locator('[data-shell="faixa"]')).toHaveCount(0);
 
     const casca = page.locator("main").locator("xpath=ancestor::div[1]");
-    expect(Math.round((await casca.boundingBox())!.width)).toBe(430);
+    expect(Math.round((await casca.boundingBox())!.width)).toBe(
+      LARGURA_DA_CASCA_LARGA,
+    );
 
-    // E o rodapé continua dentro da casca estreita — sem o espaçador de 400px
-    // que o CONTAI-039 pendurava na `BarraAdicionar` e que este ticket apagou.
-    const caixaDaCasca = (await casca.boundingBox())!;
+    // ⚠️ **NÃO é full-width, e a diferença entre as duas medidas é o ponto.**
+    // A casca abriu; a COLUNA do formulário parou, porque o Gate 2 do
+    // CONTAI-039 mediu que largura cheia lê pior que coluna limitada. Sem esta
+    // asserção "casca larga" viraria "campo de 900px" no primeiro refactor.
     const corpo = (await page.locator("main").boundingBox())!;
+    expect(Math.round(corpo.width)).toBe(COLUNA_DO_FORMULARIO_CAIXA_PX);
+    // E a linha de texto útil é a MESMA de `/adicionar/documento` — é esta
+    // igualdade que o Gate 2 cobrou (antes eram 520 aqui e 556 lá).
+    expect(Math.round(await larguraDoConteudo(page.locator("main")))).toBe(
+      COLUNA_DO_FORMULARIO_CONTEUDO_PX,
+    );
+
+    // E o rodapé continua dentro da casca — sem o espaçador de 400px que o
+    // CONTAI-039 pendurava na `BarraAdicionar` e que o CONTAI-040 apagou.
+    const caixaDaCasca = (await casca.boundingBox())!;
     expect(corpo.x).toBeGreaterThanOrEqual(caixaDaCasca.x);
     expect(corpo.x + corpo.width).toBeLessThanOrEqual(
       caixaDaCasca.x + caixaDaCasca.width,
@@ -1208,11 +1260,225 @@ test.describe("obra e terreno no shell de gestão", () => {
    * recorrente. A exclusão é deliberada, e este teste é o que a torna visível
    * para quem vier depois.
    */
-  test("/obras/nova continua fora do shell, nos 430px de sempre", async ({
+  test("/obras/nova continua fora do shell, na casca larga da captura", async ({
     page,
   }) => {
     await page.goto("/obras/nova");
     await expect(page.locator('[data-shell="sidebar"]')).toHaveCount(0);
     await expect(page.locator('[data-shell="faixa"]')).toHaveCount(0);
+
+    // CONTAI-047, critério 5 — CARONA: o assistente herda a casca larga do
+    // grupo e para na mesma coluna de formulário das telas de captura. Sem
+    // sidebar continua sendo o que importa; a largura é o que mudou.
+    await expect(page.getByRole("heading", { name: "Nova obra" })).toBeVisible();
+    const casca = page.locator("main").locator("xpath=ancestor::div[1]");
+    expect(Math.round((await casca.boundingBox())!.width)).toBe(
+      LARGURA_DA_CASCA_LARGA,
+    );
+    expect(Math.round((await page.locator("main").boundingBox())!.width)).toBe(
+      COLUNA_DO_FORMULARIO_CAIXA_PX,
+    );
+  });
+});
+
+/**
+ * ══ CONTAI-047 — a CAPTURA em tela larga ═══════════════════════════════════
+ *
+ * Fonte: `design/mocks/captura-no-desktop-v1.md`. O que este bloco trava, em
+ * ordem, é o que o ticket nomeia como caro de descobrir tarde:
+ *
+ * (a) a grade `formulário + rail` existe e o rail fica **à direita**, na mesma
+ *     linha — não empilhado, que seria o mobile esticado de novo;
+ * (b) **o rail é espelho, nunca pendência** (Decisão 4 do mock, Pre-mortem 0):
+ *     a consequência de quarentena nasce e fica no card da pergunta;
+ * (c) **bloco de pergunta fiscal não divide largura** (Pre-mortem 1): a
+ *     `Escolha` do CPF ocupa a coluna inteira do formulário;
+ * (d) o hub mostra as três portas lado a lado, não esticadas (critério 4);
+ * (e) a saída do fluxo leva a uma tela real do produto, COM o shell de gestão
+ *     (critério 8, Pre-mortem 3).
+ *
+ * `/entrar` tem teste próprio mais abaixo, porque precisa de sessão nenhuma.
+ */
+test.describe("captura em tela larga", () => {
+  const CNPJ_CASA = "11.444.777/0001-61";
+
+  test("grade formulário + rail, com o rail à direita e sem pendência dentro dele", async ({
+    page,
+  }) => {
+    await page.goto("/adicionar/documento");
+    await expect(
+      page.getByRole("heading", { name: "Registrar documento" }),
+    ).toBeVisible();
+
+    const rail = page.locator('[data-captura="rail"]');
+    const formulario = page.locator('[data-captura="formulario"]');
+    await expect(rail).toBeVisible();
+
+    // ── (a) lado a lado, rail à DIREITA ─────────────────────────────────
+    const caixaDoRail = (await rail.boundingBox())!;
+    const caixaDoForm = (await formulario.boundingBox())!;
+    expect(caixaDoRail.x).toBeGreaterThan(caixaDoForm.x);
+    // Mesma linha: a diferença de topo é folga de subpixel, não empilhamento.
+    expect(Math.abs(caixaDoRail.y - caixaDoForm.y)).toBeLessThanOrEqual(2);
+    expect(Math.round(caixaDoForm.width)).toBe(
+      COLUNA_DO_FORMULARIO_CONTEUDO_PX,
+    );
+
+    // O anexo mora no rail (critério 1a) — e continua sendo o MESMO campo, com
+    // o mesmo `data-campo`, não um segundo input.
+    await expect(rail.locator('[data-campo="arquivo"]')).toHaveCount(1);
+    await expect(page.locator('input[type="file"]')).toHaveCount(1);
+
+    // O resumo nasce inteiro em "ainda não respondido": nada é inferido.
+    const resumo = rail.getByText("Resumo até agora").locator("..");
+    await expect(resumo.getByText("ainda não respondido")).toHaveCount(4);
+
+    // ── (b) a consequência de quarentena NASCE E FICA no card da pergunta ─
+    await page
+      .getByRole("group", { name: "A nota está no seu CPF?" })
+      .getByText("Não", { exact: true })
+      .click();
+
+    const quarentena = page.getByText("Vai para", { exact: false });
+    await expect(quarentena.first()).toBeVisible();
+    await expect(formulario.getByRole("alert")).toContainText("quarentena");
+    // ⚠️ A asserção que importa: NENHUM alerta dentro do rail. O rail só
+    // espelha o que já foi respondido — pendência nasce inline (Decisão 4).
+    await expect(rail.getByRole("alert")).toHaveCount(0);
+    await expect(rail.getByText("quarentena")).toHaveCount(0);
+
+    // …e o espelho, esse sim, acompanha: a resposta aparece no resumo.
+    await expect(resumo.getByText("Não", { exact: true })).toBeVisible();
+    await expect(resumo.getByText("ainda não respondido")).toHaveCount(3);
+
+    // ── (c) a pergunta fiscal ocupa a coluna INTEIRA, nunca meia ─────────
+    const perguntaDoCpf = page.locator('fieldset[data-campo="nota_no_seu_cpf"]');
+    const caixaDaPergunta = (await perguntaDoCpf.boundingBox())!;
+    // O card tem padding lateral; o que se prova é que ela NÃO foi para uma
+    // grade de duas colunas — meia largura seria ~250px.
+    expect(caixaDaPergunta.width).toBeGreaterThan(
+      COLUNA_DO_FORMULARIO_CONTEUDO_PX * 0.8,
+    );
+  });
+
+  /**
+   * Critério 2 — escalares curtos lado a lado, e só eles. Número e série são o
+   * par de referência: se alguém desfizer a grade, os dois voltam a empilhar.
+   */
+  test("número e série dividem a linha; a data de emissão não", async ({
+    page,
+  }) => {
+    await page.goto("/adicionar/documento");
+    await page
+      .getByRole("group", { name: "Tipo" })
+      .getByText("NF material", { exact: true })
+      .click();
+
+    const numero = (await page.getByLabel("Número da nota").boundingBox())!;
+    const serie = (await page
+      .getByLabel("Série (quando houver)")
+      .boundingBox())!;
+    expect(serie.x).toBeGreaterThan(numero.x);
+    expect(Math.abs(serie.y - numero.y)).toBeLessThanOrEqual(2);
+
+    // A data de emissão carrega a frase que ensina a regra ("não é ela que
+    // decide o ano do custo") — fica em linha própria, largura inteira.
+    const emissao = (await page.getByLabel("Data de emissão").boundingBox())!;
+    expect(emissao.y).toBeGreaterThan(numero.y);
+    expect(emissao.width).toBeGreaterThan(COLUNA_DO_FORMULARIO_CONTEUDO_PX * 0.8);
+  });
+
+  /** Critério 4 — as três portas legíveis, não esticadas. */
+  test("o hub mostra as três portas lado a lado", async ({ page }) => {
+    await page.goto("/adicionar");
+    const portas = page.locator("main").getByRole("link");
+    await expect(portas).toHaveCount(3);
+
+    const caixas = await portas.evaluateAll((els) =>
+      els.map((el) => {
+        const r = el.getBoundingClientRect();
+        return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width) };
+      }),
+    );
+    expect(new Set(caixas.map((c) => c.y)).size).toBe(1);
+    expect(caixas[0].x).toBeLessThan(caixas[1].x);
+    expect(caixas[1].x).toBeLessThan(caixas[2].x);
+    // Esticado seria uma porta ocupando a casca inteira.
+    for (const c of caixas) expect(c.w).toBeLessThan(LARGURA_DA_CASCA_LARGA / 2);
+  });
+
+  /**
+   * **Critério 8 / Pre-mortem 3 — a saída do fluxo não deixa ninguém sem
+   * chrome.** Percorre o caminho inteiro na janela larga: dashboard → "+ Novo
+   * registro" → formulário (que faz takeover de tela cheia, sem sidebar) →
+   * "Salvar" → confirmação → "Voltar ao início", que devolve ao shell.
+   *
+   * É também a única prova de que o formulário em tela larga SALVA — o reflow
+   * mexeu na árvore de JSX, e layout que grava errado é pior que layout feio.
+   */
+  test("o fluxo fecha de volta no shell de gestão", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByText("Custo em risco no IR")).toBeVisible();
+
+    await page.getByRole("button", { name: "+ Novo registro" }).click();
+    await page
+      .getByRole("menuitem", { name: /Documento — PDF, XML ou foto/ })
+      .click();
+
+    // Takeover de tela cheia: o shell some ao entrar na captura.
+    await expect(
+      page.getByRole("heading", { name: "Registrar documento" }),
+    ).toBeVisible();
+    await expect(page.locator('[data-shell="sidebar"]')).toHaveCount(0);
+
+    await page.getByLabel("Arquivo").setInputFiles({
+      name: "nf-material.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.4 contai 047"),
+    });
+    await page
+      .getByRole("group", { name: "Tipo" })
+      .getByText("NF material", { exact: true })
+      .click();
+    await page.getByLabel("Número da nota").fill("2047");
+    await page.getByLabel("Data de emissão").fill(`${ANO}-03-12`);
+    await page.getByLabel("Emitente", { exact: true }).fill("Casa do Construtor");
+    await page.getByLabel("CNPJ / CPF do emitente").fill(CNPJ_CASA);
+    await page.getByLabel("Valor").fill("4.850,00");
+    await page
+      .getByRole("group", { name: "A nota está no seu CPF?" })
+      .getByText("Sim", { exact: true })
+      .click();
+
+    await page.getByRole("button", { name: "Salvar registro" }).click();
+
+    await expect(
+      page.getByRole("heading", { name: "Registrado ✓" }),
+    ).toBeVisible({ timeout: 20_000 });
+
+    // A saída do fluxo é um LINK para uma rota real, e ela abre com o shell.
+    const voltar = page.getByRole("link", { name: "Voltar ao início" });
+    await expect(voltar).toHaveAttribute("href", "/");
+    await voltar.click();
+    await expect(page.locator('[data-shell="sidebar"]')).toBeVisible();
+  });
+});
+
+/**
+ * **Critério 6 / Pre-mortem 4 — `/entrar` NÃO herda a largura nova.**
+ *
+ * Login esticado numa tela larga é regressão visual, não ganho: são três campos
+ * e um botão. O wrapper de 430px vive na própria rota, e é esta asserção que
+ * impede o breakpoint do grupo de vazar para ela numa próxima rodada.
+ */
+test.describe("login em tela larga", () => {
+  test.use({ sessao: false });
+
+  test("a tela de entrar se autolimita a 430px", async ({ page }) => {
+    await page.goto("/entrar");
+    await expect(page.getByLabel("Seu e-mail")).toBeVisible();
+
+    const coluna = page.locator("main").locator("xpath=ancestor::div[1]");
+    expect(Math.round((await coluna.boundingBox())!.width)).toBe(430);
   });
 });

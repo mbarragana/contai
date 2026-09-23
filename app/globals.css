@@ -26,6 +26,19 @@
   --color-side-mut: #8b8578;
   --color-side-active: #2c2a24;
 
+  /* Breakpoint da CAPTURA em tela larga — CONTAI-047
+     (design/mocks/captura-no-desktop-v1.html, `.captura-grid`).
+
+     880px é onde a grade `formulário + rail` do mock para de caber: 556 de
+     formulário + 28 de goteira + 320 de rail + as margens da casca. Abaixo
+     disso o rail sobe para cima do formulário e a tela volta a ser a coluna
+     única de sempre — o piso de 375px não muda uma linha (critério 10).
+
+     ⚠️ É um breakpoint SÓ do grupo `app/(captura)/`. Quem estiver mexendo em
+     `app/(gestao)/` quer `lg:` (1024px), que é onde a sidebar do CONTAI-040
+     aparece; os dois números são de coisas diferentes e não se misturam. */
+  --breakpoint-larga: 880px;
+
   --font-sans:
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;

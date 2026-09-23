@@ -47,6 +47,47 @@ abaixo já refletem o mock — não há mais "valor a decidir no Gate 0" pendent
 nesta lista; o que resta é o `cto-obra` confirmar que a implementação bate com
 o spec no Gate 1, mesma régua dos `043`-`046`.
 
+**✅ Entregue em 2026-09-23, 11/11 critérios.** `app/(captura)/layout.tsx`
+ganhou o segundo teto (`larga:max-w-[940px]`, breakpoint 880px);
+`documento/page.tsx` ganhou o rail (anexo/preview/extração + resumo
+somente-leitura, critérios 1/1a/1b); os três formulários ganharam
+`CamposCurtos` para escalares, com bloco de pergunta fiscal preservado em
+coluna única (critério 2); zero mudança de campo/validação/texto/passo
+(critério 3, confirmado byte a byte pelo `contador`); hub e `/obras/nova`
+herdam a casca (critérios 4 e 5); `/entrar` se autolimita a 430px (critério
+6); `/conta` herda sem tratamento dedicado (critério 7); toda saída de fluxo
+continua levando a rota de `(gestao)` com shell (critério 8); `e2e/shell-
+desktop.spec.ts` atualizado para os valores novos, mantendo a ausência de
+`[data-shell]` (critério 9); piso de 375px continua testado — anexo sobe,
+stepper e resumo somem (`e2e/viewport.spec.ts`, critério 10); disciplina
+fiscal inalterada em qualquer largura (critério 11). Gate 2 técnico
+(`cto-obra`) e fiscal (`contador`) ambos APPROVE, reconfirmados por escrito
+após o commit de acabamento. Gate 3 (validação manual no navegador) e Gate 4
+(este, `po`) PASS. 933 testes unitários + 284 E2E verdes (suíte rodada 2x),
+typecheck e lint limpos. Sem migration.
+
+Quatro divergências deliberadas do mock/critério literal, julgadas e
+aprovadas pelo `cto-obra` no Gate 2 — registradas aqui como **decisões**, não
+como pendência:
+
+1. Hub (`/adicionar/page.tsx`) ganhou `.hub-grid` novo em vez de "sem mudança
+   de código" (texto do critério 4) — leitura certa do critério, porque a
+   mesma frase exige os 3 cartões "legíveis (não esticados)" na largura nova,
+   e isso não sai de graça sem grade.
+2. Resumo do rail fica **oculto** (não "sempre visível", como o mock
+   desenhava na Decisão 5) abaixo de 880px — o critério 10 ("375px continua
+   sendo piso obrigatório testado") vence a fidelidade ao protótipo: leitura
+   nova acima do formulário é fricção no único momento em que o produto
+   promete pressa.
+3. O stepper decorativo (`PassosDaCaptura`) coexiste com o "Passo X de Y"
+   antigo em vez de substituí-lo, e não entra em `/obras/nova` — correto
+   dado que o critério 3 proíbe mudar texto/número de passo; a incoerência
+   pré-existente "Passo 2 de 3"/"Passo 3 de 3" vira **D68**, fora desta
+   rodada.
+4. `design/mocks/captura-no-desktop-v1.md` recebeu um ajuste de formatação
+   (`- SEM CAMPOS —`) para não quebrar um teste que já quebrava na `main`
+   antes deste ticket — não é mudança de conteúdo do spec.
+
 1. `app/(captura)/layout.tsx` ganha um segundo breakpoint largo além do piso
    de 430px. O número **muda em relação à sugestão original do `cto-obra`
    (720px)** porque o Gate 0 acrescentou o rail do critério 1a abaixo: a

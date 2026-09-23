@@ -1,6 +1,25 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 16 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-09-23**: **`047` saiu da fila** — implementado (`lead-engineer`),
+revisado pelo Gate 2 (`cto-obra` APPROVE e `contador` APROVADO, os dois
+reconfirmados por escrito depois de um commit de acabamento com 5
+pendências; `contador` comparou byte a byte `lib/fiscal/documento.ts` e as
+3 telas, nenhuma mudança de texto fiscal), testado (933 unitários + 284 E2E
+verdes, suíte rodada 2x, mais validação manual no navegador confirmando
+takeover de tela cheia, rail espelhando o formulário, colapso no piso de
+375px e saída limpa ao shell) e validado pelo `po` (Gate 4 PASS, 11/11
+critérios). `app/(captura)/layout.tsx` ganhou o segundo teto
+(`larga:max-w-[940px]`, 880px); `documento/page.tsx` ganhou o rail (anexo +
+extração + resumo somente-leitura); os três formulários ganharam
+`CamposCurtos` para escalares, com pergunta fiscal preservada em coluna
+única. Quatro divergências do mock/critério literal, julgadas no Gate 2 e
+registradas no ticket como decisões (não pendência): grid nova no hub,
+resumo do rail oculto (não visível) abaixo do piso, stepper decorativo
+coexistindo com o "Passo X de Y" antigo, e um ajuste de formatação no
+`.md` do spec. Sem migration. Detalhe:
+`docs/backlog/60-2026-09-23-contai-047-entregue.md`.
 
 **2026-09-22**: **`047` e `048` criados** — o Mateus respondeu a pergunta 2
 de `docs/backlog/45-2026-09-21-cenario-desktop-first-contai-039.md`: a
@@ -340,12 +359,11 @@ rejeição do `CONTAI-039`, ordem reconciliada
 2026-09-22, o `CONTAI-047` entrou bloqueado por Gate 0; no mesmo dia o
 Gate 0 fechou (`design/mocks/captura-no-desktop-v1.md`, reconciliado pelo
 `po` — `docs/backlog/59-2026-09-22-decisao-po-mock-captura-desktop.md`) e o
-ticket passa a **pronto para `/develop`**. `CONTAI-048` **não entra aqui**:
+ticket passou a **pronto para `/develop`**, entregue em 2026-09-23 (ver
+acima). **Fila de implementação vazia** — `CONTAI-048` continua fora dela:
 é não-bloqueante e fica em "Depois" até ganhar mock próprio.
 
-| # | ID | O que é | P |
-|---|---|---|---|
-| 1 | 047 | 🟢 Captura (`/adicionar/*`) ganha casca de tela larga — Gate 0 fechado | P1 |
+*(nenhum item na fila ativa hoje)*
 
 ### Parado, aguardando o Mateus (fora da fila ativa)
 
@@ -381,9 +399,9 @@ ticket passa a **pronto para `/develop`**. `CONTAI-048` **não entra aqui**:
 |---|---|
 | **Espera o Mateus** | apenas a **Q14** (13 dias, trava o `016`) — nenhum mock pendente na fila ativa |
 | **Saiu da fila, superado** | `009` — entregue via `CONTAI-018` sem citação cruzada; resto vivo virou o `037` |
-| **Saiu da fila, entregue** | `032`, `022` — commitados em 2026-09-19 (`13953f2`); `033`, `007`, `008`, `005`, `031`, `035` — entregues em 2026-09-20; `038`, `006`, `034`, `037`, `039`, `042`, `040`, `043`, `044`, `045` — entregues em 2026-09-21; `046`, `041` — entregues em 2026-09-22 (`041` ainda sem push); ver "Em produção" |
+| **Saiu da fila, entregue** | `032`, `022` — commitados em 2026-09-19 (`13953f2`); `033`, `007`, `008`, `005`, `031`, `035` — entregues em 2026-09-20; `038`, `006`, `034`, `037`, `039`, `042`, `040`, `043`, `044`, `045` — entregues em 2026-09-21; `046`, `041` — entregues em 2026-09-22 (`041` ainda sem push); `047` — entregue em 2026-09-23; ver "Em produção" |
 | **Parado, aguardando o Mateus** | `014` — só o critério 4 entregue; ícone/aparelho físico não são delegáveis |
-| **Pronto para `/develop`** | **`047`** — Gate 0 fechado em 2026-09-22 (contingência de fatiar continua de pé se `documento/page.tsx` ficar grande no Gate 1) |
+| **Pronto para `/develop`** | nenhum — fila de implementação vazia |
 | **Falta mock (`/design`)** | `048` (anexo ao lado do formulário, render legível do documento — não-bloqueante) |
 
 ⚠️ **Esta tabela é resumo, não fonte.** Ela repete o que está abaixo — se
@@ -513,6 +531,7 @@ futura — este bloco fica só como prova de que o furo de 21-23/08 foi fechado.
 | 034 | Campo fiscal não nasce preenchido, e o teste prova | ✅ `79237c3` | **Entregue em 2026-09-21, 12/12 critérios.** `data-campo="<id do mock>"` amarra `design/mocks/*.md` a todo controle fiscal; `lib/design/campos-do-spec.ts` parseia a seção `## Campos` fail-closed (linha fora da gramática = vermelho com arquivo:linha, nunca `skip`); `e2e/campos-fiscais.spec.ts` exige toda rota de `app/**/page.tsx` classificada e cruza spec×DOM no instante em que a tela nasce. Provado contra a D44 real: reintroduzir `useState(hojeIso)`/`useState("pix")` deixa a suíte vermelha nomeando `fData`/`meio`. Gate 2 achou bug fiscal ativo (não só cobertura): `cValor` em `/compromisso/[id]/confirmar` pré-preenchia com o saldo previsto — mesma forma da D44 — corrigido dentro do próprio ticket por decisão do `contador` (**D65**, RESPONDIDA). 839 unitários + 239 E2E + validação manual no browser. Gate 4 (`po`) PASS. Sem migration. Dívida nova, não corrigida: **D66** (`unidades_autonomas` nasce `"1"` contra o CONTAI-003, fora do alcance da suíte hoje) |
 | 006 | Estados de rede lenta/indisponível | ✅ `234db4d` | **Entregue em 2026-09-21, 9/9 critérios.** Política de rede única em `lib/rede.ts` (`db.retry:false`): leitura 3 tentativas/teto 5s com texto honesto desde a 1ª falha; gravação 1 tentativa/teto 10s, nunca repetida, distinguindo "não foi salvo" de "não deu para confirmar" (evita duplicar registro). `Carregando` virou máquina de 4 níveis (45 usos/38 arquivos); novo trio `BotaoSalvar`/`AvisoDeGravacao`/`ErroDeGravacao`. Gate 2 (`cto-obra`) APPROVE com 1 rodada de rework (aviso de "sem resposta" disparava também em escrita — falso; corrigido, 2 testes novos). Decisão do `cto-obra`: teto de leitura se prova por unitário com relógio injetado, não por rota que pendura em E2E — o 503 do PostgREST segue sendo a única falsificação de rede permitida. 817 unitários + 220/220 E2E + validação manual no browser (Postgres pausado/despausado, 4 estados, textos exatos confirmados). Gate 4 (`po`) PASS. Sem migration. Dívida nova: **D64** |
 | 014 | Manifest de PWA + prova no aparelho (critério 4 apenas) | ⚠️ **commitado (`e7dd434`)** | **PARADO em 2026-09-21** — critérios 1-3 (ícone/manifest) e 5-6 (teste no iPhone físico, lembretes D+7/D+21) exigem o Mateus pessoalmente, não delegável. Só o **critério 4** entregue: `maximumScale` sai do viewport, inputs sobem para 16px (evita auto-zoom do Safari no canteiro), com E2E travando a regressão. Gate 2 (`cto-obra`) APPROVE. 3/3 E2E novos + suíte completa verde. Ver nota no topo de `docs/tickets/CONTAI-014.md` para retomar |
+| 047 | Captura (`/adicionar/*`) ganha casca de tela larga | ⚠️ **não commitado ainda** | **Entregue em 2026-09-23, 11/11 critérios.** `app/(captura)/layout.tsx` ganha `larga:max-w-[940px]` (breakpoint 880px); `documento/page.tsx` ganha o rail (anexo/preview/extração + resumo somente-leitura, nada inferido); os três formulários ganham `CamposCurtos` para escalares curtos lado a lado, com bloco de pergunta fiscal preservado em coluna única. Gate 2 técnico (`cto-obra`) e fiscal (`contador`) APPROVE, os dois reconfirmados por escrito depois de um commit de acabamento com 5 pendências — `contador` comparou byte a byte `lib/fiscal/documento.ts` e as 3 telas. Quatro divergências do mock/critério literal, julgadas no Gate 2 e registradas no ticket como decisões: grid nova no hub, resumo do rail oculto (não visível) abaixo do piso de 880px, stepper decorativo coexistindo com o "Passo X de Y" antigo (a incoerência pré-existente vira **D68**, sem ticket), e um ajuste de formatação no `.md` do spec. 933 unitários + 284 E2E + validação manual extensa no browser. Gate 4 (`po`) PASS. Sem migration. Fica ⚠️ **não commitado**: o commit acontece só ao fechar o ticket, junto com esta atualização de índice. Detalhe: `docs/backlog/60-2026-09-23-contai-047-entregue.md` |
 
 ## Fila de implementação
 

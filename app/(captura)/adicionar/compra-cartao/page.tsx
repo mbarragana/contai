@@ -18,6 +18,11 @@
 import { useMemo, useState } from "react";
 
 import { CampoTexto, Escolha } from "@/app/_components/campos";
+import {
+  CamposCurtos,
+  COLUNA_DO_FORMULARIO,
+  PassosDaCaptura,
+} from "@/app/_components/captura";
 import { useSessao } from "@/app/_components/sessao";
 import { AfirmacaoObra, TelaTrocarObra } from "@/app/_components/obra";
 import { useObraDoRegistro } from "@/app/_components/usar-obra-do-registro";
@@ -163,7 +168,8 @@ export default function NovaCompraCartao() {
     return (
       <>
         <AppBar titulo="Agendado" sub={fase.favorecidoNome} />
-        <Corpo>
+        <PassosDaCaptura atual={3} />
+        <Corpo className={COLUNA_DO_FORMULARIO}>
           <Banner cor="amb" role="status">
             <strong>Agendado para {formatarDataBR(fase.dataVencimento)}.</strong>{" "}
             Nada entrou em custo.
@@ -191,7 +197,10 @@ export default function NovaCompraCartao() {
             de contador humano (CRC) antes da primeira declaração que a use.
           </Banner>
         </Corpo>
-        <Rodape>
+        {/* Critério 8: "Ver a fatura" e "Voltar ao início" são rotas de
+            `app/(gestao)/` — abrem com o shell, e o fluxo termina num lugar
+            reconhecível do produto. */}
+        <Rodape className={COLUNA_DO_FORMULARIO}>
           <BotaoLink href={`/fatura/${fase.faturaId}`} variante="primary">
             Ver a fatura
           </BotaoLink>
@@ -224,7 +233,10 @@ export default function NovaCompraCartao() {
         titulo="Nova compra no cartão"
         sub={`hoje é ${formatarDataBR(hojeIso())}`}
       />
-      <Corpo>
+      <PassosDaCaptura atual={2} />
+      {/* ⚠️ Sem rail, pela mesma decisão do `po` que valeu para o pagamento
+          (Fora de Escopo do CONTAI-047): fluxo curto e sem extração. */}
+      <Corpo className={COLUNA_DO_FORMULARIO}>
         {registro.fase === "carregando" ? (
           <Carregando rotulo="Carregando a obra" />
         ) : null}
@@ -276,22 +288,28 @@ export default function NovaCompraCartao() {
 
             {parcelado === "vista" ? (
               <Card className="flex flex-col gap-3.5">
-                <CampoTexto
-                  campo="favorecido"
-                  rotulo="Favorecido"
-                  valor={nome}
-                  onChange={setNome}
-                  placeholder="O lojista — nunca o banco ou a administradora"
-                  erro={erroDe("favorecidoNome")}
-                />
-                <CampoTexto
-                  campo="favorecidoDocumento"
-                  rotulo="CNPJ / CPF do favorecido"
-                  valor={documento}
-                  onChange={setDocumento}
-                  inputMode="numeric"
-                  placeholder="00.000.000/0000-00"
-                />
+                {/* CONTAI-047, critério 2 — escalares curtos em pares na tela
+                    larga. A `Escolha` "Parcelado?" e a `RECUSA_PARCELADO` que
+                    a acompanha ficam no card de cima, em coluna única: bloco de
+                    pergunta fiscal não divide largura (Pre-mortem 1). */}
+                <CamposCurtos>
+                  <CampoTexto
+                    campo="favorecido"
+                    rotulo="Favorecido"
+                    valor={nome}
+                    onChange={setNome}
+                    placeholder="O lojista — nunca o banco ou a administradora"
+                    erro={erroDe("favorecidoNome")}
+                  />
+                  <CampoTexto
+                    campo="favorecidoDocumento"
+                    rotulo="CNPJ / CPF do favorecido"
+                    valor={documento}
+                    onChange={setDocumento}
+                    inputMode="numeric"
+                    placeholder="00.000.000/0000-00"
+                  />
+                </CamposCurtos>
                 <CampoTexto
                   campo="fValor"
                   rotulo="Valor da compra"
@@ -301,31 +319,33 @@ export default function NovaCompraCartao() {
                   placeholder="0,00"
                   erro={erroDe("valorCentavos")}
                 />
-                <CampoTexto
-                  campo="fCompra"
-                  rotulo="Data da compra"
-                  tipo="date"
-                  valor={dataCompra}
-                  onChange={setDataCompra}
-                  ajuda="Fica registrada e não decide ano nenhum — serve para ligar a nota à fatura."
-                  erro={erroDe("dataCompra")}
-                />
-                <CampoTexto
-                  campo="fVenc"
-                  rotulo="Vencimento da fatura"
-                  tipo="date"
-                  valor={dataVencimento}
-                  onChange={setDataVencimento}
-                  ajuda="Esta é a data prevista do agendamento. Sem ela a compra nunca vence e nunca bloqueia relatório anual."
-                  erro={erroDe("dataVencimentoFatura")}
-                />
+                <CamposCurtos>
+                  <CampoTexto
+                    campo="fCompra"
+                    rotulo="Data da compra"
+                    tipo="date"
+                    valor={dataCompra}
+                    onChange={setDataCompra}
+                    ajuda="Fica registrada e não decide ano nenhum — serve para ligar a nota à fatura."
+                    erro={erroDe("dataCompra")}
+                  />
+                  <CampoTexto
+                    campo="fVenc"
+                    rotulo="Vencimento da fatura"
+                    tipo="date"
+                    valor={dataVencimento}
+                    onChange={setDataVencimento}
+                    ajuda="Esta é a data prevista do agendamento. Sem ela a compra nunca vence e nunca bloqueia relatório anual."
+                    erro={erroDe("dataVencimentoFatura")}
+                  />
+                </CamposCurtos>
               </Card>
             ) : null}
           </>
         ) : null}
       </Corpo>
       {registro.fase === "pronta" ? (
-        <Rodape>
+        <Rodape className={COLUNA_DO_FORMULARIO}>
           <Passo>Passo 2 de 2 ↓</Passo>
           <BotaoSalvar
             ocupado={fase.nome === "salvando"}
@@ -348,7 +368,7 @@ export default function NovaCompraCartao() {
           <BotaoLink href="/adicionar">Voltar</BotaoLink>
         </Rodape>
       ) : (
-        <Rodape>
+        <Rodape className={COLUNA_DO_FORMULARIO}>
           <BotaoLink href="/adicionar">Voltar</BotaoLink>
         </Rodape>
       )}

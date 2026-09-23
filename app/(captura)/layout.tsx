@@ -30,6 +30,29 @@
  *
  * ⚠️ Altura fixa: quem rola é o corpo da tela (`Corpo`), não a página — o
  * rodapé com a ação principal fica sempre ao alcance do polegar.
+ *
+ * ══ CONTAI-047 — a casca ganha um SEGUNDO teto, e só isso ═════════════════
+ *
+ * `larga:max-w-[940px]` (breakpoint `larga` = 880px, `app/globals.css`) é a
+ * resposta ao Mateus em 2026-09-22: *"as telas de captura também devem ganhar
+ * tratamento desktop"*. **Não é full-width** — o Gate 2 do `CONTAI-039` mediu
+ * que largura cheia lê PIOR que coluna limitada, e é a mesma razão pela qual
+ * `ColunaDeDetalhe` parou em 640px.
+ *
+ * ⚠️ O teto é da CASCA, não do conteúdo. Cada tela ainda diz onde a própria
+ * coluna para: `documento/page.tsx` monta a grade `formulário + rail`
+ * (`GradeDaCaptura`), as outras limitam o corpo e o rodapé em
+ * `COLUNA_DO_FORMULARIO` (556px). Sem isso um campo de texto nasceria com
+ * 900px de largura, que é o defeito que este ticket veio matar, não criar.
+ *
+ * ⚠️ `/entrar` se AUTOLIMITA a 430px (critério 6), com um wrapper próprio na
+ * página: tela de login esticada por efeito colateral do breakpoint do grupo é
+ * regressão visual, não ganho. Não mexa aqui para "consertar" o login.
+ *
+ * ⚠️ E continua **sem sidebar em qualquer largura** (critério 9): captura é
+ * terminar um registro com atenção, não navegar entre seções. O chrome de
+ * gestão não entra aqui — foi decisão do `cto-obra`, ver "Fora de Escopo" do
+ * ticket.
  */
 export default function CapturaLayout({
   children,
@@ -37,7 +60,7 @@ export default function CapturaLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="mx-auto flex h-dvh w-full max-w-[430px] flex-col overflow-hidden">
+    <div className="mx-auto flex h-dvh w-full max-w-[430px] flex-col overflow-hidden larga:max-w-[940px]">
       {children}
     </div>
   );

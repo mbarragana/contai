@@ -786,3 +786,100 @@ export function validarDocumento(
 
   return erros;
 }
+
+// ── CONTAI-047 — o resumo do rail (critério 1a) ────────────────────────────
+
+/**
+ * Os rótulos dos três tipos, em UM lugar só.
+ *
+ * Existem aqui, e não soltos na tela, porque a partir do CONTAI-047 quem os lê
+ * são DOIS lugares: os botões de escolha do formulário e o resumo do rail.
+ * Texto fiscal duplicado é texto fiscal que diverge — e o resumo tem de dizer
+ * exatamente o que o botão marcado diz, nunca uma tradução dele.
+ */
+export const ROTULO_DO_TIPO: Record<TipoDocumento, string> = {
+  nf_material: "NF material",
+  nf_servico: "NF serviço",
+  boleto: "Boleto",
+};
+
+/** Idem para as três respostas do CNO impresso (CONTAI-007, critério 1). */
+export const ROTULO_DO_CNO_NA_NOTA: Record<RespostaCnoNota, string> = {
+  desta_obra: "É o CNO desta obra",
+  outra_obra: "É o CNO de outra obra",
+  nao_traz: "A nota não traz CNO",
+};
+
+/** Idem para "a nota está no seu CPF?". */
+export const ROTULO_DA_RESPOSTA_CPF: Record<RespostaCpf, string> = {
+  sim: "Sim",
+  nao: "Não",
+};
+
+export interface LinhaAfirmada {
+  rotulo: string;
+  /** `null` = ainda não respondido. A tela diz isso, em itálico. */
+  valor: string | null;
+}
+
+/**
+ * **O resumo do rail: espelho do já AFIRMADO, e nada além disso.**
+ *
+ * Decisão 2 do `captura-no-desktop-v1.md` e critério 1a do CONTAI-047. É função
+ * pura e testada por um motivo específico: *"nada é inferido"* é uma afirmação
+ * que precisa de prova, não de boa vontade. Três invariantes, e as três têm
+ * teste:
+ *
+ * 1. **campo vazio volta `null`** — nunca "—", nunca zero, nunca o valor
+ *    proposto por `classificacaoProposta`, nunca a leitura do PDF. A tela
+ *    mostra *"ainda não respondido"*, que é o que o app sabe;
+ * 2. **nenhuma consequência fiscal entra aqui** (Pre-mortem 0 do ticket). O
+ *    rail não é lugar de quarentena, de gate de retenção nem de bloqueio de
+ *    CNO: pendência nasce inline, no card da pergunta que a gera. Este resumo
+ *    devolve rótulo e resposta, nunca efeito;
+ * 3. **a linha do CNO só existe quando a PERGUNTA existe** — `exigeCnoReferen-
+ *    ciado`. Mostrar "ainda não respondido" para uma pergunta que boleto e NF
+ *    de material nunca fazem seria inventar uma pendência que não há.
+ *
+ * `formatarValor` entra por parâmetro para o módulo continuar sem dependência
+ * de formatação de moeda — quem chama passa `formatarBRL`.
+ */
+export function resumoAfirmado(
+  entrada: EntradaDocumento,
+  formatarValor: (centavos: number) => string,
+): LinhaAfirmada[] {
+  const emitente = entrada.favorecidoNome.trim();
+  const linhas: LinhaAfirmada[] = [
+    {
+      rotulo: "Tipo",
+      valor: entrada.tipo === null ? null : ROTULO_DO_TIPO[entrada.tipo],
+    },
+    { rotulo: "Emitente", valor: emitente === "" ? null : emitente },
+    {
+      rotulo: "Valor",
+      valor:
+        entrada.valorCentavos === null
+          ? null
+          : formatarValor(entrada.valorCentavos),
+    },
+    {
+      rotulo: "Nota no seu CPF?",
+      valor:
+        entrada.notaNoCpf === null
+          ? null
+          : ROTULO_DA_RESPOSTA_CPF[entrada.notaNoCpf],
+    },
+  ];
+
+  if (exigeCnoReferenciado(entrada.tipo)) {
+    linhas.push({
+      rotulo: "CNO impresso",
+      valor:
+        entrada.cnoNaNota === null
+          ? null
+          : ROTULO_DO_CNO_NA_NOTA[entrada.cnoNaNota],
+    });
+  }
+
+  return linhas;
+}

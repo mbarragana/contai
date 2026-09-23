@@ -70,10 +70,23 @@ export function Corpo({
  * `env(safe-area-inset-bottom)` somado ao padding: em PWA standalone e em
  * aparelho com notch, o rodapé encostaria na barra de gestos do iOS e o alvo
  * ficaria embaixo dela.
+ *
+ * `className` é APÊNDICE, como no `Corpo` — e entrou no CONTAI-047 por um
+ * motivo só: as telas de captura precisam capar o rodapé em
+ * `COLUNA_DO_FORMULARIO` na tela larga. "Salvar registro" com 900px de largura
+ * embaixo de um campo de 556 é o mobile esticado com outro nome.
  */
-export function Rodape({ children }: { children: ReactNode }) {
+export function Rodape({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="flex flex-none flex-col gap-2 border-t border-line px-[18px] pt-3 pb-[calc(18px+env(safe-area-inset-bottom))]">
+    <div
+      className={`flex flex-none flex-col gap-2 border-t border-line px-[18px] pt-3 pb-[calc(18px+env(safe-area-inset-bottom))] ${className}`}
+    >
       {children}
     </div>
   );

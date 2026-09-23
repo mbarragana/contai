@@ -19,6 +19,8 @@ import {
   notaTrazCnoParaBanco,
   numeroParaBanco,
   pendenteDeCno,
+  resumoAfirmado,
+  CONSEQUENCIA_QUARENTENA,
 
   serieParaBanco,
   statusDocumento,
@@ -666,5 +668,126 @@ describe("CONTAI-007 · 'desta obra' numa obra sem CNO", () => {
         HOJE,
       ),
     ).toEqual([]);
+  });
+});
+
+/**
+ * CONTAI-047, critério 1a — o resumo do rail.
+ *
+ * O ticket diz duas coisas sobre este bloco, e as duas são testáveis: *"cada
+ * linha 'ainda não respondido' em itálico até existir resposta, nada
+ * inferido"* e *"o rail só espelha o que já foi confirmado; nunca é onde uma
+ * pendência aparece pela primeira vez"*. O itálico é da tela; o resto é daqui.
+ */
+describe("resumoAfirmado (rail da captura em tela larga)", () => {
+  const real = (centavos: number) => `R$ ${centavos}`;
+
+  const vazia: EntradaDocumento = {
+    tipo: null,
+    favorecidoNome: "",
+    favorecidoDocumento: "",
+    valorCentavos: null,
+    numero: "",
+    serie: "",
+    dataEmissao: "",
+    vencimento: null,
+    classificacao: null,
+    notaNoCpf: null,
+    retencaoNaNota: null,
+    cnoNaNota: null,
+    cnoDaObra: "12.345.67890/26",
+  };
+
+  it("formulário em branco não afirma nada: toda linha volta `null`", () => {
+    // Nem "—", nem zero, nem a classificação proposta pelo tipo. O app não
+    // sabe, e o que ele não sabe a tela pergunta — não completa.
+    const linhas = resumoAfirmado(vazia, real);
+    expect(linhas.map((l) => l.rotulo)).toEqual([
+      "Tipo",
+      "Emitente",
+      "Valor",
+      "Nota no seu CPF?",
+    ]);
+    expect(linhas.every((l) => l.valor === null)).toBe(true);
+  });
+
+  it("espelha a resposta com a MESMA palavra do botão marcado", () => {
+    const linhas = resumoAfirmado(
+      entradaValida({ tipo: "nf_material", notaNoCpf: "sim" }),
+      real,
+    );
+    const valor = (rotulo: string) =>
+      linhas.find((l) => l.rotulo === rotulo)?.valor;
+    expect(valor("Tipo")).toBe("NF material");
+    expect(valor("Emitente")).toBe("Casa do Construtor Ltda");
+    expect(valor("Valor")).toBe("R$ 485000");
+    expect(valor("Nota no seu CPF?")).toBe("Sim");
+  });
+
+  it("emitente só com espaços continua sendo 'ainda não respondido'", () => {
+    const linhas = resumoAfirmado(
+      entradaValida({ favorecidoNome: "   " }),
+      real,
+    );
+    expect(linhas.find((l) => l.rotulo === "Emitente")?.valor).toBeNull();
+  });
+
+  it("a linha do CNO só existe onde a PERGUNTA existe (NF de serviço)", () => {
+    // Em boleto e NF de material a pergunta não é feita — mostrar "ainda não
+    // respondido" ali inventaria uma pendência que não há.
+    for (const tipo of ["nf_material", "boleto"] as const) {
+      const rotulos = resumoAfirmado(entradaValida({ tipo }), real).map(
+        (l) => l.rotulo,
+      );
+      expect(rotulos).not.toContain("CNO impresso");
+    }
+
+    const servico = resumoAfirmado(
+      entradaValida({ tipo: "nf_servico", classificacao: "mao_obra" }),
+      real,
+    );
+    expect(servico.find((l) => l.rotulo === "CNO impresso")?.valor).toBeNull();
+
+    const respondido = resumoAfirmado(
+      entradaValida({
+        tipo: "nf_servico",
+        classificacao: "mao_obra",
+        cnoNaNota: "nao_traz",
+      }),
+      real,
+    );
+    expect(respondido.find((l) => l.rotulo === "CNO impresso")?.valor).toBe(
+      "A nota não traz CNO",
+    );
+  });
+
+  it("NENHUMA consequência fiscal vaza para o rail (Pre-mortem 0)", () => {
+    // Quarentena, "não traz CNO" e gate destacado são os três estados que
+    // produzem texto de consequência na tela. O resumo devolve a RESPOSTA, e
+    // nunca o efeito dela: pendência nasce inline, no card da pergunta.
+    const linhas = resumoAfirmado(
+      entradaValida({
+        tipo: "nf_servico",
+        classificacao: "mao_obra",
+        notaNoCpf: "nao",
+        retencaoNaNota: "destacada",
+        cnoNaNota: "nao_traz",
+      }),
+      real,
+    );
+    const texto = linhas.map((l) => `${l.rotulo}: ${l.valor}`).join(" | ");
+    expect(texto).not.toContain(CONSEQUENCIA_QUARENTENA);
+    expect(texto).not.toContain(CONSEQUENCIA_CNO_DA_NOTA);
+    expect(texto).not.toMatch(/quarentena/i);
+    expect(texto).not.toMatch(/aferi[çc]/i);
+    // E o gate de retenção não tem linha nenhuma aqui — as cinco linhas do
+    // critério 1a são Tipo, Emitente, Valor, CPF e CNO, e só.
+    expect(linhas.map((l) => l.rotulo)).toEqual([
+      "Tipo",
+      "Emitente",
+      "Valor",
+      "Nota no seu CPF?",
+      "CNO impresso",
+    ]);
   });
 });

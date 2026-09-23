@@ -4,6 +4,13 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { CampoArquivo, CampoTexto, Escolha } from "@/app/_components/campos";
+import {
+  CamposCurtos,
+  COLUNA_DO_FORMULARIO,
+  GradeDaCaptura,
+  LinhaDoResumo,
+  PassosDaCaptura,
+} from "@/app/_components/captura";
 import { useSessao } from "@/app/_components/sessao";
 import { AfirmacaoObra, TelaTrocarObra } from "@/app/_components/obra";
 import { Registrado } from "@/app/_components/registrado";
@@ -52,6 +59,10 @@ import {
   notaTrazCnoParaBanco,
   numeroParaBanco,
   pendenteDeCno,
+  resumoAfirmado,
+  ROTULO_DA_RESPOSTA_CPF,
+  ROTULO_DO_CNO_NA_NOTA,
+  ROTULO_DO_TIPO,
   SEM_ARQUIVO_DIALOGO_ANEXAR,
   SEM_ARQUIVO_DIALOGO_CONSEQUENCIA,
   SEM_ARQUIVO_DIALOGO_PORQUE,
@@ -89,6 +100,7 @@ import {
   VINCULO_QUARENTENA_NAO_GERA_CUSTO,
   type Candidato,
 } from "@/lib/fiscal/vinculo";
+import { tamanhoLegivelDoAnexo } from "@/lib/acervo";
 import { paraCentavos, type ExtracaoDocumento } from "@/lib/extracao/schema";
 import { hojeIso } from "@/lib/hoje";
 import { centavosParaInput, formatarBRL, parseValorInput } from "@/lib/money";
@@ -100,10 +112,15 @@ import type {
   TipoDocumento,
 } from "@/lib/types";
 
+/**
+ * ⚠️ Os rótulos vêm de `lib/fiscal/documento.ts` desde o CONTAI-047, e não
+ * estão mais escritos aqui: o resumo do rail mostra a MESMA palavra que o botão
+ * marcado — texto duplicado é texto que diverge no primeiro ajuste.
+ */
 const TIPOS = [
-  { valor: "nf_material", texto: "NF material" },
-  { valor: "nf_servico", texto: "NF serviço" },
-  { valor: "boleto", texto: "Boleto" },
+  { valor: "nf_material", texto: ROTULO_DO_TIPO.nf_material },
+  { valor: "nf_servico", texto: ROTULO_DO_TIPO.nf_servico },
+  { valor: "boleto", texto: ROTULO_DO_TIPO.boleto },
 ] as const satisfies readonly { valor: TipoDocumento; texto: string }[];
 
 const CLASSIFICACOES = [
@@ -112,8 +129,8 @@ const CLASSIFICACOES = [
 ] as const satisfies readonly { valor: Classificacao; texto: string }[];
 
 const RESPOSTAS_CPF = [
-  { valor: "sim", texto: "Sim" },
-  { valor: "nao", texto: "Não" },
+  { valor: "sim", texto: ROTULO_DA_RESPOSTA_CPF.sim },
+  { valor: "nao", texto: ROTULO_DA_RESPOSTA_CPF.nao },
 ] as const satisfies readonly { valor: RespostaCpf; texto: string }[];
 
 /**
@@ -122,9 +139,9 @@ const RESPOSTAS_CPF = [
  * cadastradas o app já tem; o que falta é o que está no papel.
  */
 const RESPOSTAS_CNO = [
-  { valor: "desta_obra", texto: "É o CNO desta obra" },
-  { valor: "outra_obra", texto: "É o CNO de outra obra" },
-  { valor: "nao_traz", texto: "A nota não traz CNO" },
+  { valor: "desta_obra", texto: ROTULO_DO_CNO_NA_NOTA.desta_obra },
+  { valor: "outra_obra", texto: ROTULO_DO_CNO_NA_NOTA.outra_obra },
+  { valor: "nao_traz", texto: ROTULO_DO_CNO_NA_NOTA.nao_traz },
 ] as const satisfies readonly { valor: RespostaCnoNota; texto: string }[];
 
 type Fase =
@@ -733,7 +750,10 @@ export default function RegistrarDocumento() {
           titulo="CNO impresso é de outra obra"
           sub={`${numero ? `NF de serviço ${numero} · ` : ""}${nome || "emitente não informado"} · ${obra.nome}`}
         />
-        <Corpo>
+        {/* ⚠️ A tela de BLOQUEIO não ganha largura nenhuma: é texto de
+            consequência fiscal, e esticar a linha dele é a regressão de
+            legibilidade que o critério 2 proíbe. Nenhuma palavra dela mudou. */}
+        <Corpo className={COLUNA_DO_FORMULARIO}>
           <Card className="border-red">
             <Chip cor="red">Bloqueado — não é aviso</Chip>
             <p className="mt-2.5 text-[13.5px]">{CONSEQUENCIA_CNO_DA_NOTA}</p>
@@ -743,7 +763,7 @@ export default function RegistrarDocumento() {
             vira pendência: <strong>não há conserto depois da emissão</strong>.
           </Dica>
         </Corpo>
-        <Rodape>
+        <Rodape className={COLUNA_DO_FORMULARIO}>
           {registro.obras.length > 1 ? (
             <Botao variante="primary" onClick={() => setTrocando(true)}>
               Registrar na outra obra
@@ -772,6 +792,9 @@ export default function RegistrarDocumento() {
             : "Passo 2 de 3 — anexe o arquivo"
         }
       />
+      {/* CONTAI-047 — decorativo e só em tela larga; o "Passo 2 de 3" acima e
+          o "Passo 3 de 3 ↓" do rodapé continuam exatamente onde estavam. */}
+      <PassosDaCaptura atual={2} />
 
       <Corpo>
         {registro.fase === "carregando" ? (
@@ -798,402 +821,522 @@ export default function RegistrarDocumento() {
               }
             />
 
-            <Card className="flex flex-col gap-3.5">
-              {/* ⚠️ A ajuda mudou com o CONTAI-033: o arquivo **não é mais
-                  obrigatório para gravar** (§A.3) — ele é o que faz a nota
-                  valer. Dizer "obrigatório" numa tela que grava sem ele seria
-                  a recusa antiga sobrevivendo como texto. Sem `erro`: a falta
-                  do arquivo não é erro de campo, é a pergunta do §A.7.1. */}
-              <CampoArquivo
-                campo="arquivo"
-                rotulo="Arquivo"
-                ajuda="PDF, XML ou foto — é ele que faz a nota valer no acervo. Não tem à mão? Dá para registrar e anexar depois."
-                accept=".pdf,.xml,image/*"
-                arquivo={arquivo}
-                onChange={setArquivo}
-              />
-              {arquivo && arquivo.type === "application/pdf" ? (
-                <div className="flex flex-col gap-2">
-                  <Botao
-                    variante="ghost"
-                    type="button"
-                    onClick={extrairDaNota}
-                    disabled={extraindo}
-                  >
-                    {extraindo ? "Lendo o PDF…" : "🪄 Extrair dados da nota (beta)"}
-                  </Botao>
-                  {erroExtracao ? (
-                    <Banner cor="amb" role="status">
-                      {erroExtracao} Preencha os campos abaixo à mão.
-                    </Banner>
-                  ) : null}
-                  {extracao ? (
-                    <Banner
-                      cor={extracao.confianca === "baixa" ? "amb" : "grn"}
-                      role="status"
+            {/* ══ CONTAI-047 — a grade `formulário + rail` ════════════════
+                Abaixo de 880px isto some e vira a coluna única de sempre, com
+                o anexo em cima, que é onde ele já está no celular hoje. */}
+            <GradeDaCaptura
+              rail={
+                <>
+                  {/* ⚠️ O ANEXO só MUDOU DE LUGAR (critério 1a). Mesmo
+                      componente, mesmo `accept`, mesma ajuda, mesma ausência
+                      de `erro` — a falta do arquivo continua sendo a PERGUNTA
+                      do §A.7.1 no "Salvar", nunca erro de campo. */}
+                  <Card className="flex flex-col gap-3">
+                    {/* ⚠️ A ajuda mudou com o CONTAI-033: o arquivo **não é
+                        mais obrigatório para gravar** (§A.3) — ele é o que faz
+                        a nota valer. Dizer "obrigatório" numa tela que grava
+                        sem ele seria a recusa antiga sobrevivendo como texto. */}
+                    <CampoArquivo
+                      campo="arquivo"
+                      rotulo="Arquivo"
+                      ajuda="PDF, XML ou foto — é ele que faz a nota valer no acervo. Não tem à mão? Dá para registrar e anexar depois."
+                      accept=".pdf,.xml,image/*"
+                      arquivo={arquivo}
+                      onChange={setArquivo}
+                    />
+
+                    {/* ⚠️ A miniatura é de 52×52 e NÃO dá para ler nada nela —
+                        e a impossibilidade é o escopo, não um descuido. Ver o
+                        documento grande o bastante para conferir CNPJ, valor e
+                        data contra o formulário é o **CONTAI-048**, feature
+                        nova, explicitamente fora deste ticket. Só em `larga`:
+                        no celular o próprio campo já diz o nome do arquivo, e
+                        repetir seria roubar linha do caminho curto. */}
+                    {arquivo ? (
+                      <div className="hidden items-center gap-3 rounded-[10px] border border-line px-2.5 py-2.5 larga:flex">
+                        <span
+                          aria-hidden="true"
+                          className="flex h-[52px] w-[52px] flex-none items-center justify-center rounded-lg bg-soft text-[20px]"
+                        >
+                          📄
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[12.5px] font-semibold">
+                            {arquivo.name}
+                          </span>
+                          <span className="mt-0.5 block text-[11px] text-mut">
+                            {tamanhoLegivelDoAnexo(arquivo.size)}
+                          </span>
+                        </span>
+                        {/* Abre o MESMO seletor do campo acima — não existe
+                            segundo input nem segundo estado de arquivo.
+                            ⚠️ Escopado por `data-campo` (Gate 2): um
+                            `input[type="file"]` global acertaria o primeiro
+                            file input que aparecesse na tela, e o dia em que
+                            existir um segundo (comprovante, foto da obra) o
+                            botão passa a trocar o arquivo errado — em silêncio,
+                            no anexo que sustenta a nota. */}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            document
+                              .querySelector<HTMLInputElement>(
+                                'input[data-campo="arquivo"]',
+                              )
+                              ?.click()
+                          }
+                          className="flex-none text-[11.5px] text-mut underline"
+                        >
+                          Trocar arquivo
+                        </button>
+                      </div>
+                    ) : null}
+
+                    {/* A extração continua condicionada ao PDF e continua só
+                        SUGERINDO campo vazio — nunca `notaNoCpf`, nunca o gate
+                        de retenção. O que mudou é que ela ficou colada ao
+                        arquivo que lê, em vez de enterrada no meio do
+                        formulário (Decisão 3 do mock). */}
+                    {arquivo && arquivo.type === "application/pdf" ? (
+                      <div className="flex flex-col gap-2">
+                        <Botao
+                          variante="ghost"
+                          type="button"
+                          onClick={extrairDaNota}
+                          disabled={extraindo}
+                        >
+                          {extraindo
+                            ? "Lendo o PDF…"
+                            : "🪄 Extrair dados da nota (beta)"}
+                        </Botao>
+                        {erroExtracao ? (
+                          <Banner cor="amb" role="status">
+                            {erroExtracao} Preencha os campos abaixo à mão.
+                          </Banner>
+                        ) : null}
+                        {extracao ? (
+                          <Banner
+                            cor={
+                              extracao.confianca === "baixa" ? "amb" : "grn"
+                            }
+                            role="status"
+                          >
+                            Dados extraídos automaticamente do PDF — confira
+                            cada campo antes de salvar.
+                            {extracao.confianca === "baixa"
+                              ? " O PDF não estava muito legível: confira com atenção redobrada."
+                              : null}
+                          </Banner>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </Card>
+
+                  {/* ⚠️ **ESPELHO, NUNCA PENDÊNCIA** (Decisão 4 do mock,
+                      Pre-mortem 0 do ticket). Aqui só aparece o que já foi
+                      afirmado; quarentena, gate de retenção e o bloqueio de
+                      CNO de outra obra continuam inline, no card da pergunta
+                      que os gera. Nenhum `Banner`/`Consequencia` entra neste
+                      card.
+
+                      Só em `larga`: no piso de 375px um resumo de cinco linhas
+                      acima do formulário é fricção no momento da captura, e o
+                      critério 10 manda o canteiro continuar como está. */}
+                  <Card className="hidden flex-col larga:flex">
+                    <div className="text-[13px] font-bold">Resumo até agora</div>
+                    <div className="mt-1.5">
+                      {resumoAfirmado(entrada, formatarBRL).map((linha) => (
+                        <LinhaDoResumo
+                          key={linha.rotulo}
+                          rotulo={linha.rotulo}
+                          valor={linha.valor}
+                        />
+                      ))}
+                    </div>
+                    <div className="mt-2">
+                      <Dica>
+                        Atualiza sozinho conforme você preenche — nada aqui se
+                        afirma sozinho.
+                      </Dica>
+                    </div>
+                  </Card>
+                </>
+              }
+            >
+              <Card className="flex flex-col gap-3.5">
+                <Escolha
+                  campo="tipo"
+                  rotulo="Tipo"
+                  opcoes={TIPOS}
+                  valor={tipo}
+                  onChange={escolherTipo}
+                  erro={erroDe("tipo")}
+                />
+                {/* Critério 2 (R5): os dois campos ficam NO MESMO PASSO do
+                    valor — nenhum passo novo (pre-mortem 1). E não aparecem em
+                    boleto: título de cobrança não compõe discriminação nenhuma. */}
+                {exigeIdentificacaoDaNota(tipo) ? (
+                  <>
+                    {/* CONTAI-047, critério 2 — escalares CURTOS lado a lado a
+                        partir de 880px. Número e série cabem numa linha e são os
+                        dois pedaços da mesma identificação. */}
+                    <CamposCurtos>
+                      <CampoTexto
+                        campo="numero"
+                        rotulo="Número da nota"
+                        valor={numero}
+                        onChange={setNumero}
+                        ajuda={AJUDA_NUMERO}
+                        placeholder="Como está impresso"
+                        erro={erroDe("numero")}
+                      />
+                      {/* R6: campo próprio, NUNCA concatenada no número. Opcional
+                          e sem erro possível — nem toda NFS-e tem série, e exigir
+                          aqui faria o Mateus inventar um valor para poder salvar. */}
+                      <CampoTexto
+                        campo="serie"
+                        rotulo="Série (quando houver)"
+                        valor={serie}
+                        onChange={setSerie}
+                        ajuda={AJUDA_SERIE}
+                      />
+                    </CamposCurtos>
+                    {/* Critério 8: o rótulo diz o que a data É e o que ela NÃO
+                        É. Sem esta frase o campo é lido como "a data que vale
+                        para o IR" — e quem decide o ano do custo é o pagamento.
+                        Fica em linha própria: `AJUDA_DATA_EMISSAO` é a frase que
+                        ensina a regra, e espremê-la em meia coluna é o erro que o
+                        Gate 2 do CONTAI-039 já pegou uma vez. */}
+                    <CampoTexto
+                      campo="data_emissao"
+                      rotulo="Data de emissão"
+                      tipo="date"
+                      valor={dataEmissao}
+                      onChange={setDataEmissao}
+                      ajuda={AJUDA_DATA_EMISSAO}
+                      erro={erroDe("dataEmissao")}
+                    />
+                  </>
+                ) : null}
+                <CamposCurtos>
+                  <CampoTexto
+                    campo="emitente"
+                    rotulo="Emitente"
+                    valor={nome}
+                    onChange={setNome}
+                    placeholder="Razão social de quem emitiu"
+                    erro={erroDe("favorecidoNome")}
+                  />
+                  <CampoTexto
+                    campo="cnpj"
+                    rotulo="CNPJ / CPF do emitente"
+                    valor={documento}
+                    onChange={setDocumento}
+                    inputMode="numeric"
+                    placeholder="00.000.000/0000-00"
+                    erro={erroDe("favorecidoDocumento")}
+                  />
+                </CamposCurtos>
+                {/* ⚠️ DIVERGÊNCIA DELIBERADA DO MOCK, e ela é de regra, não de
+                    gosto: o mock escreve "registrada em 15/03", e aqui sai
+                    "15/03/2026". A fonte é o ADENDO 3 §G.2 do parecer
+                    docs/pareceres/2026-08-18-compromisso-versus-pagamento.md,
+                    que se declara GERAL — "vale para todos, não só para este
+                    texto": data sem ano, num produto cujo invariante é regime de
+                    caixa, é defeito onde quer que apareça. `formatarDataBR` é
+                    hoje o único formato de data de toda tela fiscal do app;
+                    encurtar só neste banner criaria a única exceção do projeto. */}
+                {duplicata ? (
+                  <Banner cor="amb" role="status">
+                    Essa nota já foi registrada em{" "}
+                    {formatarDataBR(duplicata.registradoEm)}. Confira antes de
+                    salvar — a mesma nota registrada duas vezes conta o custo em
+                    dobro na declaração.{" "}
+                    <a
+                      className="font-semibold underline"
+                      href={`/documento/${duplicata.id}`}
                     >
-                      Dados extraídos automaticamente do PDF — confira cada
-                      campo antes de salvar.
-                      {extracao.confianca === "baixa"
-                        ? " O PDF não estava muito legível: confira com atenção redobrada."
-                        : null}
-                    </Banner>
-                  ) : null}
-                </div>
-              ) : null}
-              <Escolha
-                campo="tipo"
-                rotulo="Tipo"
-                opcoes={TIPOS}
-                valor={tipo}
-                onChange={escolherTipo}
-                erro={erroDe("tipo")}
-              />
-              {/* Critério 2 (R5): os dois campos ficam NO MESMO PASSO do
-                  valor — nenhum passo novo (pre-mortem 1). E não aparecem em
-                  boleto: título de cobrança não compõe discriminação nenhuma. */}
-              {exigeIdentificacaoDaNota(tipo) ? (
-                <>
+                      Ver registro existente
+                    </a>
+                  </Banner>
+                ) : null}
+                {/* Valor e vencimento: os dois são escalares curtos do critério
+                    2. Sem boleto o valor fica sozinho na primeira coluna — meia
+                    largura é o tamanho certo de um campo de 8 caracteres. */}
+                <CamposCurtos>
                   <CampoTexto
-                    campo="numero"
-                    rotulo="Número da nota"
-                    valor={numero}
-                    onChange={setNumero}
-                    ajuda={AJUDA_NUMERO}
-                    placeholder="Como está impresso"
-                    erro={erroDe("numero")}
+                    campo="valor"
+                    rotulo="Valor"
+                    valor={valor}
+                    onChange={setValor}
+                    inputMode="decimal"
+                    placeholder="0,00"
+                    erro={erroDe("valorCentavos")}
                   />
-                  {/* R6: campo próprio, NUNCA concatenada no número. Opcional
-                      e sem erro possível — nem toda NFS-e tem série, e exigir
-                      aqui faria o Mateus inventar um valor para poder salvar. */}
-                  <CampoTexto
-                    campo="serie"
-                    rotulo="Série (quando houver)"
-                    valor={serie}
-                    onChange={setSerie}
-                    ajuda={AJUDA_SERIE}
-                  />
-                  {/* Critério 8: o rótulo diz o que a data É e o que ela NÃO
-                      É. Sem esta frase o campo é lido como "a data que vale
-                      para o IR" — e quem decide o ano do custo é o pagamento. */}
-                  <CampoTexto
-                    campo="data_emissao"
-                    rotulo="Data de emissão"
-                    tipo="date"
-                    valor={dataEmissao}
-                    onChange={setDataEmissao}
-                    ajuda={AJUDA_DATA_EMISSAO}
-                    erro={erroDe("dataEmissao")}
-                  />
-                </>
-              ) : null}
-              <CampoTexto
-                campo="emitente"
-                rotulo="Emitente"
-                valor={nome}
-                onChange={setNome}
-                placeholder="Razão social de quem emitiu"
-                erro={erroDe("favorecidoNome")}
-              />
-              <CampoTexto
-                campo="cnpj"
-                rotulo="CNPJ / CPF do emitente"
-                valor={documento}
-                onChange={setDocumento}
-                inputMode="numeric"
-                placeholder="00.000.000/0000-00"
-                erro={erroDe("favorecidoDocumento")}
-              />
-              {/* ⚠️ DIVERGÊNCIA DELIBERADA DO MOCK, e ela é de regra, não de
-                  gosto: o mock escreve "registrada em 15/03", e aqui sai
-                  "15/03/2026". A fonte é o ADENDO 3 §G.2 do parecer
-                  docs/pareceres/2026-08-18-compromisso-versus-pagamento.md,
-                  que se declara GERAL — "vale para todos, não só para este
-                  texto": data sem ano, num produto cujo invariante é regime de
-                  caixa, é defeito onde quer que apareça. `formatarDataBR` é
-                  hoje o único formato de data de toda tela fiscal do app;
-                  encurtar só neste banner criaria a única exceção do projeto. */}
-              {duplicata ? (
-                <Banner cor="amb" role="status">
-                  Essa nota já foi registrada em{" "}
-                  {formatarDataBR(duplicata.registradoEm)}. Confira antes de
-                  salvar — a mesma nota registrada duas vezes conta o custo em
-                  dobro na declaração.{" "}
-                  <a
-                    className="font-semibold underline"
-                    href={`/documento/${duplicata.id}`}
-                  >
-                    Ver registro existente
-                  </a>
-                </Banner>
-              ) : null}
-              <CampoTexto
-                campo="valor"
-                rotulo="Valor"
-                valor={valor}
-                onChange={setValor}
-                inputMode="decimal"
-                placeholder="0,00"
-                erro={erroDe("valorCentavos")}
-              />
-              {tipo === "boleto" ? (
-                <CampoTexto
-                  campo="vencimento"
-                  rotulo="Vencimento"
-                  tipo="date"
-                  valor={vencimento}
-                  onChange={setVencimento}
-                  erro={erroDe("vencimento")}
-                />
-              ) : null}
-              <Escolha
-                campo="classificacao"
-                rotulo="Classificação"
-                opcoes={CLASSIFICACOES}
-                valor={classificacao}
-                onChange={setClassificacao}
-                erro={erroDe("classificacao")}
-              />
-            </Card>
-
-            <Card className="flex flex-col gap-3.5">
-              <Escolha
-                destaque
-                campo="nota_no_seu_cpf"
-                rotulo="A nota está no seu CPF?"
-                opcoes={RESPOSTAS_CPF}
-                valor={notaNoCpf}
-                onChange={setNotaNoCpf}
-                erro={erroDe("notaNoCpf")}
-              />
-              {notaNoCpf === "nao" ? (
-                <Banner cor="red" role="alert">
-                  Vai para <strong>quarentena</strong>: não entra no custo de
-                  aquisição. Peça a nota no seu CPF.
-                </Banner>
-              ) : null}
-
-              {/* ══ CONTAI-038, critério 1 — o GATE, e nada além dele ════
-                  Duas opções, nenhuma pré-marcada, no mesmo lugar do campo
-                  antigo (ordem: … CPF → retenção → CNO).
-
-                  ⚠️ **"Destacada" NÃO abre banner de consequência**, ao
-                  contrário do campo que ele substituiu: não há consequência
-                  fiscal aberta neste momento — só um dado a completar depois.
-                  O aviso antigo dizia "não abate na aferição do INSS" como se
-                  a retenção decidisse o abatimento, e é exatamente essa
-                  premissa que o §2 do parecer de 2026-09-18 derruba. */}
-              {exigeRetencao(tipo) ? (
-                <>
-                  <Escolha
-                    destaque
-                    campo="retencaoNaNota"
-                    rotulo={PERGUNTA_GATE}
-                    opcoes={OPCOES_GATE}
-                    valor={retencaoNaNota}
-                    onChange={setRetencaoNaNota}
-                    erro={erroDe("retencaoNaNota")}
-                  />
-                  {retencaoNaNota === "destacada" ? (
-                    <Dica>{DICA_GATE_DESTACADA}</Dica>
-                  ) : null}
-                </>
-              ) : null}
-
-              {/* ══ CONTAI-007, critério 1 — o CNO impresso na nota ═══════
-                  Última pergunta do passo, como no mock (ordem: … CPF →
-                  retenção → CNO). ESCOLHA, nunca digitação (pre-mortem 1).
-
-                  ⚠️ "É o CNO desta obra" SOME quando a obra não tem CNO, e o
-                  sumiço é regra: a nota não pode trazer impresso um número que
-                  não existe. Oferecer a opção ali seria oferecer uma afirmação
-                  falsa a um toque de distância — e o card vermelho logo abaixo
-                  já diz o que fazer. */}
-              {exigeCnoReferenciado(tipo) ? (
-                <>
-                  <Escolha
-                    destaque
-                    campo="cno_referenciado"
-                    rotulo="Qual CNO está impresso nesta nota?"
-                    opcoes={
-                      semCnoNaObra
-                        ? RESPOSTAS_CNO.filter((o) => o.valor !== "desta_obra")
-                        : RESPOSTAS_CNO
-                    }
-                    valor={cnoNaNota}
-                    onChange={setCnoNaNota}
-                    erro={erroDe("cnoNaNota")}
-                  />
-                  <Dica>
-                    {semCnoNaObra ? (
-                      <>
-                        Esta obra ainda não tem CNO, então nenhuma nota pode
-                        trazer o CNO dela impresso. Três toques, zero digitação
-                        — o CNO não se digita aqui.
-                      </>
-                    ) : (
-                      <>
-                        {obra.nome} · <span className="mono">CNO {obra.cno}</span>.
-                        Três toques, zero digitação — o CNO não se digita aqui.
-                      </>
-                    )}
-                  </Dica>
-                  {cnoNaNota === "nao_traz" ? (
-                    <Banner cor="amb" role="status">
-                      {CONSEQUENCIA_CNO_DA_NOTA} Salva assim mesmo, com
-                      pendência — {ACAO_NOTA_SEM_CNO}.
-                    </Banner>
-                  ) : null}
-                </>
-              ) : null}
-            </Card>
-
-            {avisaObraSemCno ? (
-              // Texto literal do parecer do contador (2026-08-09, seção 4). É
-              // ESTA tela que faz agir: a de cadastro se vê uma vez na vida.
-              // Não bloqueia (critério 15) — bloquear destruiria o custo de
-              // aquisição, que não depende do CNO, para proteger uma aferição
-              // que já está danificada.
-              <Card className="border-red">
-                <Chip cor="red">{NF_SERVICO_SEM_CNO_TITULO}</Chip>
-                <p className="mt-2.5 text-[13.5px]">
-                  {NF_SERVICO_SEM_CNO_EFEITO}
-                </p>
-                <Consequencia cor="amb">
-                  {NF_SERVICO_SEM_CNO_ALAVANCA}
-                </Consequencia>
-                {/* CONTAI-007, critério 8 — a entrada da tela 14, desenhada e
-                    aprovada em 2026-08-10 e só agora construtível (depende de
-                    `numero` e `data_emissao`, do CONTAI-004). É o único item
-                    do lote que RECUPERA valor em vez de só registrar perda —
-                    e vale enquanto houver parcela a liberar. */}
-                <div className="mt-3">
-                  <BotaoLink href={`/obras/${obra.id}/notas-sem-cno`}>
-                    Ver as notas desta obra emitidas sem CNO
-                  </BotaoLink>
-                </div>
-              </Card>
-            ) : null}
-
-            {/* Caminho A do critério 1: o vínculo no ATO do registro, que é o
-                caminho mais curto do parecer §5.4 — o caso dele é 1↔1, mesmo
-                valor. Nada aqui vem marcado. */}
-            <Card className="flex flex-col gap-2">
-              <label className="flex min-h-[44px] cursor-pointer items-center gap-3">
-                <input
-                  data-campo="jaPaguei"
-                  type="checkbox"
-                  checked={jaPaguei}
-                  onChange={(e) => {
-                    setJaPaguei(e.target.checked);
-                    if (!e.target.checked) setMarcados([]);
-                  }}
-                  className="h-5 w-5 flex-none"
-                />
-                <span className="text-[13.5px] font-semibold">
-                  Já paguei esta nota
-                </span>
-              </label>
-
-              {jaPaguei ? (
-                <>
-                  <Dica>
-                    Marque os pagamentos já registrados que correspondem a esta
-                    nota. Nada vem marcado — o vínculo é você que afirma.
-                  </Dica>
-
-                  {/* Critério 8: quarentena PODE ser ligada — é o que impede a
-                      mesma despesa de contar duas vezes —, e o texto do parecer
-                      é dito na hora, como nos dois seletores. */}
-                  {notaNoCpf === "nao" ? (
-                    <Banner cor="red" role="status">
-                      {VINCULO_QUARENTENA_NAO_GERA_CUSTO}
-                    </Banner>
-                  ) : null}
-
-                  {erroCandidatos ? (
-                    <Banner cor="red" role="alert">
-                      Não deu para carregar os pagamentos desta obra:{" "}
-                      {erroCandidatos} Você pode salvar a nota assim mesmo e
-                      ligar depois, pela tela dela.
-                    </Banner>
-                  ) : null}
-
-                  {painelDaObra === null && !erroCandidatos ? (
-                    <Carregando
-                      rotulo="Carregando os pagamentos"
-                      onTentarDeNovo={recarregarCandidatos}
+                  {tipo === "boleto" ? (
+                    <CampoTexto
+                      campo="vencimento"
+                      rotulo="Vencimento"
+                      tipo="date"
+                      valor={vencimento}
+                      onChange={setVencimento}
+                      erro={erroDe("vencimento")}
                     />
                   ) : null}
+                </CamposCurtos>
+                {/* ⚠️ `Escolha` FICA EM COLUNA ÚNICA — Pre-mortem 1 do ticket.
+                    Classificação decide material × mão de obra, que é o que
+                    alimenta a base de aferição: pergunta fiscal não divide
+                    largura com outro campo. */}
+                <Escolha
+                  campo="classificacao"
+                  rotulo="Classificação"
+                  opcoes={CLASSIFICACOES}
+                  valor={classificacao}
+                  onChange={setClassificacao}
+                  erro={erroDe("classificacao")}
+                />
+              </Card>
 
-                  {painelDaObra !== null && candidatos.length === 0 ? (
+              <Card className="flex flex-col gap-3.5">
+                <Escolha
+                  destaque
+                  campo="nota_no_seu_cpf"
+                  rotulo="A nota está no seu CPF?"
+                  opcoes={RESPOSTAS_CPF}
+                  valor={notaNoCpf}
+                  onChange={setNotaNoCpf}
+                  erro={erroDe("notaNoCpf")}
+                />
+                {notaNoCpf === "nao" ? (
+                  <Banner cor="red" role="alert">
+                    Vai para <strong>quarentena</strong>: não entra no custo de
+                    aquisição. Peça a nota no seu CPF.
+                  </Banner>
+                ) : null}
+
+                {/* ══ CONTAI-038, critério 1 — o GATE, e nada além dele ════
+                    Duas opções, nenhuma pré-marcada, no mesmo lugar do campo
+                    antigo (ordem: … CPF → retenção → CNO).
+
+                    ⚠️ **"Destacada" NÃO abre banner de consequência**, ao
+                    contrário do campo que ele substituiu: não há consequência
+                    fiscal aberta neste momento — só um dado a completar depois.
+                    O aviso antigo dizia "não abate na aferição do INSS" como se
+                    a retenção decidisse o abatimento, e é exatamente essa
+                    premissa que o §2 do parecer de 2026-09-18 derruba. */}
+                {exigeRetencao(tipo) ? (
+                  <>
+                    <Escolha
+                      destaque
+                      campo="retencaoNaNota"
+                      rotulo={PERGUNTA_GATE}
+                      opcoes={OPCOES_GATE}
+                      valor={retencaoNaNota}
+                      onChange={setRetencaoNaNota}
+                      erro={erroDe("retencaoNaNota")}
+                    />
+                    {retencaoNaNota === "destacada" ? (
+                      <Dica>{DICA_GATE_DESTACADA}</Dica>
+                    ) : null}
+                  </>
+                ) : null}
+
+                {/* ══ CONTAI-007, critério 1 — o CNO impresso na nota ═══════
+                    Última pergunta do passo, como no mock (ordem: … CPF →
+                    retenção → CNO). ESCOLHA, nunca digitação (pre-mortem 1).
+
+                    ⚠️ "É o CNO desta obra" SOME quando a obra não tem CNO, e o
+                    sumiço é regra: a nota não pode trazer impresso um número que
+                    não existe. Oferecer a opção ali seria oferecer uma afirmação
+                    falsa a um toque de distância — e o card vermelho logo abaixo
+                    já diz o que fazer. */}
+                {exigeCnoReferenciado(tipo) ? (
+                  <>
+                    <Escolha
+                      destaque
+                      campo="cno_referenciado"
+                      rotulo="Qual CNO está impresso nesta nota?"
+                      opcoes={
+                        semCnoNaObra
+                          ? RESPOSTAS_CNO.filter((o) => o.valor !== "desta_obra")
+                          : RESPOSTAS_CNO
+                      }
+                      valor={cnoNaNota}
+                      onChange={setCnoNaNota}
+                      erro={erroDe("cnoNaNota")}
+                    />
                     <Dica>
-                      Nenhum pagamento desta obra está sem nota. Se você já
-                      pagou, o pagamento ainda não foi registrado — dá para
-                      registrá-lo depois de salvar a nota.
+                      {semCnoNaObra ? (
+                        <>
+                          Esta obra ainda não tem CNO, então nenhuma nota pode
+                          trazer o CNO dela impresso. Três toques, zero digitação
+                          — o CNO não se digita aqui.
+                        </>
+                      ) : (
+                        <>
+                          {obra.nome} · <span className="mono">CNO {obra.cno}</span>.
+                          Três toques, zero digitação — o CNO não se digita aqui.
+                        </>
+                      )}
                     </Dica>
-                  ) : null}
+                    {cnoNaNota === "nao_traz" ? (
+                      <Banner cor="amb" role="status">
+                        {CONSEQUENCIA_CNO_DA_NOTA} Salva assim mesmo, com
+                        pendência — {ACAO_NOTA_SEM_CNO}.
+                      </Banner>
+                    ) : null}
+                  </>
+                ) : null}
+              </Card>
 
-                  {candidatos.map((c) => {
-                    const marcado = marcados.includes(c.item.id);
-                    return (
-                      <label
-                        key={c.item.id}
-                        className={`flex min-h-[44px] cursor-pointer gap-3 rounded-[10px] border px-3 py-2.5 ${
-                          marcado ? "border-ink bg-soft" : "border-line bg-white"
-                        }`}
-                      >
-                        <input
-                          data-campo="pagamentosCandidatos"
-                          type="checkbox"
-                          checked={marcado}
-                          onChange={() =>
-                            setMarcados((atual) =>
-                              atual.includes(c.item.id)
-                                ? atual.filter((x) => x !== c.item.id)
-                                : [...atual, c.item.id],
-                            )
-                          }
-                          className="mt-1 h-5 w-5 flex-none"
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-baseline justify-between gap-2">
-                            <span className="text-[14px] font-semibold break-words">
-                              {c.item.favorecidoNome ??
-                                "Favorecido não informado"}
-                            </span>
-                            <span className="mono flex-none text-[15px] font-bold">
-                              {formatarBRL(c.item.valorCentavos)}
-                            </span>
-                          </span>
-                          <span className="mt-0.5 block text-[12px] text-mut">
-                            {c.item.meio.toUpperCase()} · pago em{" "}
-                            {c.item.dataPagamento}
-                          </span>
-                          {c.sugestao ? (
-                            <span className="mt-1 block text-[11.5px] font-semibold text-mut">
-                              {c.sugestao}
-                            </span>
-                          ) : null}
-                        </span>
-                      </label>
-                    );
-                  })}
-                </>
+              {avisaObraSemCno ? (
+                // Texto literal do parecer do contador (2026-08-09, seção 4). É
+                // ESTA tela que faz agir: a de cadastro se vê uma vez na vida.
+                // Não bloqueia (critério 15) — bloquear destruiria o custo de
+                // aquisição, que não depende do CNO, para proteger uma aferição
+                // que já está danificada.
+                <Card className="border-red">
+                  <Chip cor="red">{NF_SERVICO_SEM_CNO_TITULO}</Chip>
+                  <p className="mt-2.5 text-[13.5px]">
+                    {NF_SERVICO_SEM_CNO_EFEITO}
+                  </p>
+                  <Consequencia cor="amb">
+                    {NF_SERVICO_SEM_CNO_ALAVANCA}
+                  </Consequencia>
+                  {/* CONTAI-007, critério 8 — a entrada da tela 14, desenhada e
+                      aprovada em 2026-08-10 e só agora construtível (depende de
+                      `numero` e `data_emissao`, do CONTAI-004). É o único item
+                      do lote que RECUPERA valor em vez de só registrar perda —
+                      e vale enquanto houver parcela a liberar. */}
+                  <div className="mt-3">
+                    <BotaoLink href={`/obras/${obra.id}/notas-sem-cno`}>
+                      Ver as notas desta obra emitidas sem CNO
+                    </BotaoLink>
+                  </div>
+                </Card>
               ) : null}
-            </Card>
 
-            <Dica>
-              Olhe na nota antes de responder — &quot;não&quot; no CPF leva à
-              quarentena; &quot;destacada&quot; na retenção abre o detalhamento
-              linha a linha, que você preenche depois. Sem responder, não salva.
-            </Dica>
+              {/* Caminho A do critério 1: o vínculo no ATO do registro, que é o
+                  caminho mais curto do parecer §5.4 — o caso dele é 1↔1, mesmo
+                  valor. Nada aqui vem marcado. */}
+              <Card className="flex flex-col gap-2">
+                <label className="flex min-h-[44px] cursor-pointer items-center gap-3">
+                  <input
+                    data-campo="jaPaguei"
+                    type="checkbox"
+                    checked={jaPaguei}
+                    onChange={(e) => {
+                      setJaPaguei(e.target.checked);
+                      if (!e.target.checked) setMarcados([]);
+                    }}
+                    className="h-5 w-5 flex-none"
+                  />
+                  <span className="text-[13.5px] font-semibold">
+                    Já paguei esta nota
+                  </span>
+                </label>
+
+                {jaPaguei ? (
+                  <>
+                    <Dica>
+                      Marque os pagamentos já registrados que correspondem a esta
+                      nota. Nada vem marcado — o vínculo é você que afirma.
+                    </Dica>
+
+                    {/* Critério 8: quarentena PODE ser ligada — é o que impede a
+                        mesma despesa de contar duas vezes —, e o texto do parecer
+                        é dito na hora, como nos dois seletores. */}
+                    {notaNoCpf === "nao" ? (
+                      <Banner cor="red" role="status">
+                        {VINCULO_QUARENTENA_NAO_GERA_CUSTO}
+                      </Banner>
+                    ) : null}
+
+                    {erroCandidatos ? (
+                      <Banner cor="red" role="alert">
+                        Não deu para carregar os pagamentos desta obra:{" "}
+                        {erroCandidatos} Você pode salvar a nota assim mesmo e
+                        ligar depois, pela tela dela.
+                      </Banner>
+                    ) : null}
+
+                    {painelDaObra === null && !erroCandidatos ? (
+                      <Carregando
+                        rotulo="Carregando os pagamentos"
+                        onTentarDeNovo={recarregarCandidatos}
+                      />
+                    ) : null}
+
+                    {painelDaObra !== null && candidatos.length === 0 ? (
+                      <Dica>
+                        Nenhum pagamento desta obra está sem nota. Se você já
+                        pagou, o pagamento ainda não foi registrado — dá para
+                        registrá-lo depois de salvar a nota.
+                      </Dica>
+                    ) : null}
+
+                    {candidatos.map((c) => {
+                      const marcado = marcados.includes(c.item.id);
+                      return (
+                        <label
+                          key={c.item.id}
+                          className={`flex min-h-[44px] cursor-pointer gap-3 rounded-[10px] border px-3 py-2.5 ${
+                            marcado ? "border-ink bg-soft" : "border-line bg-white"
+                          }`}
+                        >
+                          <input
+                            data-campo="pagamentosCandidatos"
+                            type="checkbox"
+                            checked={marcado}
+                            onChange={() =>
+                              setMarcados((atual) =>
+                                atual.includes(c.item.id)
+                                  ? atual.filter((x) => x !== c.item.id)
+                                  : [...atual, c.item.id],
+                              )
+                            }
+                            className="mt-1 h-5 w-5 flex-none"
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-baseline justify-between gap-2">
+                              <span className="text-[14px] font-semibold break-words">
+                                {c.item.favorecidoNome ??
+                                  "Favorecido não informado"}
+                              </span>
+                              <span className="mono flex-none text-[15px] font-bold">
+                                {formatarBRL(c.item.valorCentavos)}
+                              </span>
+                            </span>
+                            <span className="mt-0.5 block text-[12px] text-mut">
+                              {c.item.meio.toUpperCase()} · pago em{" "}
+                              {c.item.dataPagamento}
+                            </span>
+                            {c.sugestao ? (
+                              <span className="mt-1 block text-[11.5px] font-semibold text-mut">
+                                {c.sugestao}
+                              </span>
+                            ) : null}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </>
+                ) : null}
+              </Card>
+
+              <Dica>
+                Olhe na nota antes de responder — &quot;não&quot; no CPF leva à
+                quarentena; &quot;destacada&quot; na retenção abre o detalhamento
+                linha a linha, que você preenche depois. Sem responder, não salva.
+              </Dica>
+            </GradeDaCaptura>
           </>
         ) : null}
       </Corpo>
 
       {registro.fase === "pronta" ? (
-        <Rodape>
+        <Rodape className={COLUNA_DO_FORMULARIO}>
           <Passo>Passo 3 de 3 ↓</Passo>
           <BotaoSalvar
             ocupado={fase.nome === "salvando"}
@@ -1210,7 +1353,7 @@ export default function RegistrarDocumento() {
           <BotaoLink href="/adicionar">Voltar</BotaoLink>
         </Rodape>
       ) : (
-        <Rodape>
+        <Rodape className={COLUNA_DO_FORMULARIO}>
           <BotaoLink href="/adicionar">Voltar</BotaoLink>
         </Rodape>
       )}
@@ -1266,8 +1409,13 @@ export default function RegistrarDocumento() {
                   setMostrarDialogoSemArquivo(false);
                   // Devolve o foco ao campo do anexo. Nada foi salvo e nada
                   // foi perdido — o formulário nunca desmontou.
+                  // ⚠️ Mesmo seletor escopado do "Trocar arquivo" (Gate 2 do
+                  // CONTAI-047): o `input[type="file"]` genérico que morava
+                  // aqui é a mesma fragilidade, no mesmo campo.
                   document
-                    .querySelector<HTMLInputElement>('input[type="file"]')
+                    .querySelector<HTMLInputElement>(
+                      'input[data-campo="arquivo"]',
+                    )
                     ?.focus();
                 }}
               >

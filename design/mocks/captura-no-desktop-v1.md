@@ -8,9 +8,10 @@ assumia "não muda") também ganham tratamento desktop. Cobre a mais densa das
 três (`documento/page.tsx`) como representante.
 
 ## Campos
-SEM CAMPOS — layout/composição apenas. Texto de consequência é cópia literal
-de `documento/page.tsx` e das constantes que importa (`lib/fiscal/documento.ts`,
-`obra.ts`, `vinculo.ts`, `retencao.ts` — ver "Textos").
+- SEM CAMPOS — layout/composição apenas. Texto de consequência é cópia literal
+  de `documento/page.tsx` e das constantes que importa
+  (`lib/fiscal/documento.ts`, `obra.ts`, `vinculo.ts`, `retencao.ts` — ver
+  "Textos").
 
 ## Cenário
 Captura — sem presumir canteiro/uma mão: o gatilho é o Mateus registrando
@@ -66,6 +67,25 @@ hoje (anexo é o primeiro campo do card mobile). Nenhum campo, pergunta ou
 validação muda, só a moldura. "Salvar registro" continua fixo no rodapé,
 escopado à coluna do formulário (mesma convenção de `detalhe-no-shell-v1.md`,
 decisão 4).
+
+⚠️ **O que sobe no piso é SÓ O ANEXO — precisão fechada no Gate 2 do
+CONTAI-047 (2026-09-22), porque spec e código não podem discordar em
+silêncio.** Do que este documento põe no rail e na casca, abaixo de 880px:
+
+| Peça | < 880px (piso) | ≥ 880px (`larga`) |
+|---|---|---|
+| Anexo + extração (Decisão 3) | **sobe**, acima do formulário | rail, à direita |
+| Resumo "até agora" (Decisão 2) | **não existe** | rail, abaixo do anexo |
+| Stepper de 3 segmentos (Decisão 2) | **não existe** | topo da casca |
+
+A razão é o critério 10 do ticket, que é mais forte que a fidelidade ao
+protótipo: *"375px continua sendo piso obrigatório testado"*, e o canteiro
+**continua funcionando exatamente como hoje**. Resumo e stepper são leitura, e
+leitura nova acima do formulário é fricção no único momento em que o produto
+promete pressa. O anexo não é leitura: ele já era o primeiro campo da tela.
+
+Provado em `e2e/viewport.spec.ts` (projeto `mobile`, 375px) — ausência de
+`[data-stepper]` e de "Resumo até agora", e o anexo acima do formulário.
 
 ## O que NÃO muda
 Disciplina fiscal (anexo obrigatório no ato — diálogo §A.7.1 do CONTAI-033,

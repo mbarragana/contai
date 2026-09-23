@@ -9,6 +9,7 @@ import {
   PendenciaCno,
   rotuloSemCno,
 } from "@/app/_components/obra";
+import { COLUNA_DO_FORMULARIO } from "@/app/_components/captura";
 import {
   AppBar,
   Banner,
@@ -173,7 +174,7 @@ export default function NovaObra() {
     return (
       <>
         <AppBar titulo="Obra criada ✓" sub={obra.nome} />
-        <Corpo>
+        <Corpo className={COLUNA_DO_FORMULARIO}>
           <Banner cor="grn" role="status">
             <strong>{obra.nome}</strong> foi criada e está aberta agora.
           </Banner>
@@ -218,7 +219,7 @@ export default function NovaObra() {
             </Link>
           </Dica>
         </Corpo>
-        <Rodape>
+        <Rodape className={COLUNA_DO_FORMULARIO}>
           <BotaoLink href={`/obras/${obra.id}/terreno`} variante="primary">
             Registrar o custo do terreno
           </BotaoLink>
@@ -236,7 +237,14 @@ export default function NovaObra() {
   return (
     <>
       <AppBar titulo="Nova obra" sub={TITULO_DO_PASSO[passo]} />
-      <Corpo>
+      {/* ⚠️ CONTAI-047, critério 5 — CARONA, não tratamento próprio. O
+          assistente herda a casca larga do grupo e para na mesma coluna de
+          556px das telas de captura; o grid de campos escalares de
+          `_campos.tsx` NÃO entrou nesta rodada (o critério diz "não é
+          obrigatório"), e o stepper decorativo também não: este fluxo tem 4
+          passos de verdade, não 3, e reaproveitar o de captura mentiria.
+          O "Passo N de 4" continua exatamente onde está. */}
+      <Corpo className={COLUNA_DO_FORMULARIO}>
         {erroSalvar ? (
           <Banner cor="red" role="alert">
             {erroSalvar}
@@ -250,7 +258,7 @@ export default function NovaObra() {
         {passo === 3 ? <CamposTerreno {...props} /> : null}
         {passo === 4 ? <CamposPremissas {...props} /> : null}
       </Corpo>
-      <Rodape>
+      <Rodape className={COLUNA_DO_FORMULARIO}>
         <Passo>{TITULO_DO_PASSO[passo]} ↓</Passo>
         {passo < 4 ? (
           <Botao variante="primary" onClick={avancar}>

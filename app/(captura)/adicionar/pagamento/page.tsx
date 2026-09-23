@@ -10,6 +10,11 @@ import {
   ErroCampo,
   Rotulo,
 } from "@/app/_components/campos";
+import {
+  CamposCurtos,
+  COLUNA_DO_FORMULARIO,
+  PassosDaCaptura,
+} from "@/app/_components/captura";
 import { SugestaoQuitacao } from "@/app/_components/quitacao";
 import { AfirmacaoObra, TelaTrocarObra } from "@/app/_components/obra";
 import { Registrado } from "@/app/_components/registrado";
@@ -534,7 +539,8 @@ function RegistrarPagamento() {
     return (
       <>
         <AppBar titulo="Agendado ✓" sub={fase.obraNome} />
-        <Corpo>
+        <PassosDaCaptura atual={3} />
+        <Corpo className={COLUNA_DO_FORMULARIO}>
           <Banner cor="amb" role="status">
             <strong>Agendado.</strong> Nada saiu da conta — este valor{" "}
             <strong>não entra no custo de aquisição</strong> e não aparece em
@@ -558,7 +564,10 @@ function RegistrarPagamento() {
             pagamento — é a data de lá que decide o ano do custo.
           </Dica>
         </Corpo>
-        <Rodape>
+        {/* Critério 8: as duas saídas vão para rotas de `app/(gestao)/`, que
+            abrem com o shell — ninguém fica preso numa tela sem chrome depois
+            de ter chegado por um clique no dashboard. */}
+        <Rodape className={COLUNA_DO_FORMULARIO}>
           <BotaoLink href={`/compromisso/${fase.id}`}>
             Ver o agendamento
           </BotaoLink>
@@ -637,7 +646,9 @@ function RegistrarPagamento() {
           titulo="Sair para corrigir a nota?"
           sub="você já preencheu parte deste pagamento"
         />
-        <Corpo>
+        {/* Confirmação de saída: texto de consequência de ponta a ponta, em
+            coluna única — nada aqui se estica na tela larga. */}
+        <Corpo className={COLUNA_DO_FORMULARIO}>
           <Banner cor="amb" role="alert">
             O que você digitou <strong>não vai ser guardado</strong>. Valor, data
             e meio voltam em branco. E o arquivo que você já escolheu{" "}
@@ -670,7 +681,7 @@ function RegistrarPagamento() {
             </Dica>
           </Card>
         </Corpo>
-        <Rodape>
+        <Rodape className={COLUNA_DO_FORMULARIO}>
           <Botao variante="primary" onClick={() => setConfirmandoSaida(false)}>
             Continuar o pagamento
           </Botao>
@@ -711,8 +722,16 @@ function RegistrarPagamento() {
               : `hoje é ${formatarDataBR(hojeIso())}`
         }
       />
+      {/* CONTAI-047 — decorativo e só em tela larga; o rodapé continua dizendo
+          "Passo 3 de 3 ↓" (ou "Nada sai da conta hoje ↓", que é consequência
+          fiscal e não some em largura nenhuma). */}
+      <PassosDaCaptura atual={2} />
 
-      <Corpo>
+      {/* ⚠️ Sem rail: decisão do `po` em 2026-09-22 (Fora de Escopo do
+          ticket). Este fluxo é mais curto e não tem extração para conferir
+          campo a campo — o que ele ganha é a coluna larga e os escalares
+          curtos lado a lado, nada mais. */}
+      <Corpo className={COLUNA_DO_FORMULARIO}>
         {registro.fase === "carregando" ? (
           <Carregando rotulo="Carregando a obra" />
         ) : null}
@@ -841,7 +860,7 @@ function RegistrarPagamento() {
                   />
                 )
               ) : (
-                <>
+                <CamposCurtos>
                   <CampoTexto
                     campo="favorecido"
                     rotulo="Favorecido"
@@ -859,7 +878,7 @@ function RegistrarPagamento() {
                     placeholder="00.000.000/0000-00"
                     erro={erroDe("favorecidoDocumento")}
                   />
-                </>
+                </CamposCurtos>
               )}
               {/* MUDANÇA 1 DAS TRÊS: o aviso vem COLADO no campo de data, e
                   não num banner no topo — quem digitou a data está olhando
@@ -1013,7 +1032,7 @@ function RegistrarPagamento() {
       </Corpo>
 
       {registro.fase === "pronta" ? (
-        <Rodape>
+        <Rodape className={COLUNA_DO_FORMULARIO}>
           <Passo>{vaiAgendar ? "Nada sai da conta hoje ↓" : "Passo 3 de 3 ↓"}</Passo>
           {/* MUDANÇA 3 DAS TRÊS: o botão troca de VERBO e de PESO. "Salvar
               pagamento" (primary) vira "Agendar" (ghost) — o agendamento não
@@ -1044,7 +1063,7 @@ function RegistrarPagamento() {
           <BotaoLink href="/adicionar">Voltar</BotaoLink>
         </Rodape>
       ) : (
-        <Rodape>
+        <Rodape className={COLUNA_DO_FORMULARIO}>
           <BotaoLink href="/adicionar">Voltar</BotaoLink>
         </Rodape>
       )}

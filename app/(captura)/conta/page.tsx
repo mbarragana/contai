@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { COLUNA_DO_FORMULARIO } from "@/app/_components/captura";
 import { useSessao } from "@/app/_components/sessao";
 import {
   AppBar,
@@ -65,7 +66,12 @@ export default function Conta() {
     <>
       <AppBar titulo="Sua conta" sub={email ?? "sessão ativa"} />
 
-      <Corpo>
+      {/* ⚠️ CONTAI-047, critério 7 — `/conta` herda a casca larga SEM
+          tratamento dedicado (baixa frequência, fora do motivo do ticket). A
+          única coisa que ela recebe é o teto de coluna do grupo: sem ele o
+          texto de consequência de "Sair da conta" nasceria com 900px de linha,
+          que é regressão de legibilidade, não herança. */}
+      <Corpo className={COLUNA_DO_FORMULARIO}>
         {estado.fase === "carregando" ? (
           <Carregando rotulo="Carregando a conta" />
         ) : null}
@@ -118,7 +124,7 @@ export default function Conta() {
         ) : null}
       </Corpo>
 
-      <Rodape>
+      <Rodape className={COLUNA_DO_FORMULARIO}>
         <BotaoLink href="/">Voltar ao início</BotaoLink>
       </Rodape>
     </>

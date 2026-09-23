@@ -5,6 +5,7 @@ import {
   donoDoCaminhoNoAcervo,
   extensaoDoArquivoNoAcervo,
   nomeDoArquivoNoAcervo,
+  tamanhoLegivelDoAnexo,
 } from "@/lib/acervo";
 
 const DONO = "11111111-1111-4111-8111-111111111111";
@@ -163,5 +164,33 @@ describe("classificarFalhaDeAbertura", () => {
     expect(
       classificarFalhaDeAbertura("quebrou", `${OUTRO}/terreno/x.pdf`, DONO),
     ).toBe("falha");
+  });
+});
+
+/**
+ * CONTAI-047, critério 1a — o tamanho do anexo na miniatura do rail.
+ *
+ * Rótulo de tela, não número fiscal: o que ele não pode é MENTIR sobre haver
+ * arquivo. "0 KB" num anexo de 120 bytes lê como "não anexou", e a tela inteira
+ * existe para que o arquivo não se perca de vista.
+ */
+describe("tamanhoLegivelDoAnexo", () => {
+  it("bytes, KB e MB, na faixa de cada um", () => {
+    expect(tamanhoLegivelDoAnexo(0)).toBe("0 B");
+    expect(tamanhoLegivelDoAnexo(999)).toBe("999 B");
+    expect(tamanhoLegivelDoAnexo(1024)).toBe("1 KB");
+    expect(tamanhoLegivelDoAnexo(319_488)).toBe("312 KB");
+    expect(tamanhoLegivelDoAnexo(2_306_867)).toBe("2,2 MB");
+  });
+
+  it("arquivo minúsculo nunca vira '0 KB'", () => {
+    // Arredondar para baixo diria "não tem arquivo" sobre um arquivo que tem.
+    expect(tamanhoLegivelDoAnexo(1025)).toBe("1 KB");
+    expect(tamanhoLegivelDoAnexo(1100)).toBe("1 KB");
+  });
+
+  it("entrada impossível vira '—', nunca 'NaN B'", () => {
+    expect(tamanhoLegivelDoAnexo(Number.NaN)).toBe("—");
+    expect(tamanhoLegivelDoAnexo(-1)).toBe("—");
   });
 });
