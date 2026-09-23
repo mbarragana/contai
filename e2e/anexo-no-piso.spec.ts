@@ -22,6 +22,13 @@ import {
  * ⚠️ O que ele NÃO prova: o que o Safari do iPhone mostra dentro da aba nova. O
  * `webkit` do Playwright roda em Linux e não tem visualizador de PDF nenhum —
  * a validação manual continua listada no ticket, e o Gate 4 não fecha sem ela.
+ *
+ * ⚠️ **Achado do `cto-obra` em 2026-09-23, com trace do CI**: no Linux, sem
+ * visualizador, o WebKit converte a navegação do PDF em DOWNLOAD — a aba nasce
+ * e nunca commita, `nova.url()` fica `""`. No Mac/iOS (com viewer nativo) a
+ * navegação commita normalmente e a aba tem a URL. As duas saídas provam a
+ * mesma coisa: o blob saiu do documento sem `<object>` — por isso o teste
+ * abaixo aceita qualquer uma das duas.
  */
 
 const PNG_1X1 = Buffer.from(
@@ -70,11 +77,20 @@ test.describe("ver o anexo no piso de 375px", () => {
     expect(await abrir.getAttribute("rel")).toBe("noopener");
 
     // O toque ABRE OUTRA ABA — e não abre modal nenhum.
-    const nova = await Promise.all([
+    // O que o motor faz com o PDF é dele: Mac/iOS renderizam (aba com URL),
+    // o WebKit de Linux do CI não tem visualizador e converte em DOWNLOAD — a
+    // aba nasce e nunca commita, `url()` é "". Os dois provam o mesmo: o blob
+    // saiu do documento, sem `<object>`. O `download` é emitido na página de
+    // origem.
+    const download = page
+      .waitForEvent("download", { timeout: 5_000 })
+      .catch(() => null);
+    const [nova] = await Promise.all([
       page.context().waitForEvent("page"),
       abrir.click(),
-    ]).then(([p]) => p);
-    expect(nova.url()).toMatch(/^blob:/);
+    ]);
+    const destino = nova.url() || (await download)?.url() || "";
+    expect(destino).toMatch(/^blob:/);
     await nova.close();
 
     await expect(page.locator('[data-lightbox="anexo"]')).toHaveCount(0);
