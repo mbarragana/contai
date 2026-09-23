@@ -1,5 +1,14 @@
 # CONTAI-050 (011-C) — Dossiê sob demanda, por obra
 
+## 🛑 EM ESPERA — decisão do Mateus, 2026-09-23
+
+Junto com `CONTAI-011` e `CONTAI-049`: todo o trio de "Export do acervo"
+assume destino único (Drive do Mateus, credencial central) e não escala para
+multiusuário — ver o bloco completo em `docs/tickets/CONTAI-011.md`. Não
+iniciar `/develop` deste ticket até o Mateus resolver essa lacuna de
+requisito. **Retomar só quando o fluxo comum de despesas/apuração de custo
+estiver estável.**
+
 ## Tipo e Prioridade
 
 - **Tipo**: meta 3 (acervo probatório) — completa os critérios 4, 10 e 12

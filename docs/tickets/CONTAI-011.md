@@ -1,5 +1,38 @@
 # CONTAI-011 (011-A) — Export do acervo: rotina periódica + sinal no app
 
+## 🛑 EM ESPERA — decisão do Mateus, 2026-09-23
+
+Implementação do Gate 1 concluída (DONE, não commitada) mas **posta em espera
+antes do Gate 2** — não é falha técnica, é lacuna de requisito descoberta
+tarde demais para ser barata de corrigir agora.
+
+**A lacuna**: todo o desenho de "Export do acervo" (deste ticket e do
+`CONTAI-049`/`CONTAI-050`) assume um único destino fixo — o Google Drive do
+Mateus, com credencial guardada centralmente (GitHub Secrets/Vercel). Isso
+não escala se o contai deixar de ser ferramenta pessoal e virar produto
+multiusuário: cada usuário precisaria conectar o **próprio** Drive (fluxo de
+OAuth por usuário, token por usuário, sem credencial compartilhada) — desenho
+bem diferente do que foi especificado e implementado aqui. Palavras do
+Mateus: *"e se eu quiser tornar o app público e ter outros usuários, eles têm
+que ser capaz de colocar no drive deles o export."*
+
+**Condição de retorno, escrita para não depender de lembrança**: só retomar
+`011-A`/`049`/`050` — Gate 2 em diante, e qualquer novo `/design` que a
+correção de requisito exigir — **quando o fluxo comum de registrar despesas e
+apurar custo (captura, conciliação, discriminação anual) estiver estável e
+correto**. Guarda documental é a meta 3; o fluxo de despesas é as metas 1 e 2,
+e não faz sentido aprofundar infraestrutura de exportação multiusuário antes
+de o core do produto — single-tenant, hoje — estar redondo.
+
+**O que NÃO fazer enquanto isso está em espera**: não iniciar Gate 2, não
+fazer `db push` da migration `0018`, não commitar o trabalho do Gate 1 (fica
+na árvore de trabalho ou em stash/branch, decisão de quem retomar). Não
+apagar o trabalho feito — o desenho single-tenant pode sobreviver como está
+se o Mateus decidir não abrir o produto para terceiros; a dúvida é se vale a
+pena, não se está errado para o uso dele sozinho.
+
+---
+
 ⚠️ **FATIADO em 2026-09-23 — este arquivo é só o 011-A.** O `lead-engineer`
 tentou o Gate 1 do ticket original (que cobria rotina + triagem de órfão +
 dossiê sob demanda) e devolveu sem implementar nada: dois achados de fundo

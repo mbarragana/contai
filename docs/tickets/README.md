@@ -400,10 +400,33 @@ e um corte de mock a fazer. `CONTAI-048` não muda.
 
 | Ordem | # | Ticket | P | Pronto para `/develop` |
 |---|---|---|---|---|
-| 1 | 011 | Export do acervo — rotina periódica + sinal (011-A) | **P0** | sim |
-| 2 | 048 | Anexo ampliado ao lado do formulário | P1 | sim |
-| — | 049 | Triagem completa do objeto órfão (011-B) | P0 | não — falta mock + sequenciamento `cto-obra`/`CONTAI-027` |
-| — | 050 | Dossiê sob demanda, por obra (011-C) | P0 | não — falta decisão R6 + "gerar assim mesmo" + corte de mock |
+| 1 | 048 | Anexo ampliado ao lado do formulário | P1 | sim |
+
+### 🛑 Em espera — decisão do Mateus, 2026-09-23
+
+O trio "Export do acervo" (**`011`/011-A**, **`049`/011-B**, **`050`/011-C**)
+saiu da fila ativa. Gate 1 do `011-A` chegou a rodar até o fim (DONE, 1012
+unitários + 292 E2E verdes, **não commitado**) quando o Mateus identificou uma
+lacuna de requisito que nenhum agente tinha visto: todo o desenho assume um
+destino único (Drive do Mateus, credencial central) e não escala se o contai
+virar produto multiusuário — cada usuário precisaria conectar o **próprio**
+Drive. Detalhe completo em `docs/tickets/CONTAI-011.md` (bloco "🛑 EM ESPERA"
+no topo do arquivo, replicado nos outros dois).
+
+**Condição de retorno**: só reabrir Gate 2 em diante — e qualquer `/design`
+que a correção de requisito exigir — **quando o fluxo comum de registrar
+despesas e apurar custo estiver estável e correto**. Guarda documental (meta
+3) espera; o core do produto (metas 1 e 2) não.
+
+**O que fica intocado enquanto isso**: nada foi commitado, `npx supabase db
+push` da migration `0018` não deve rodar, e o Gate 2 (`cto-obra`/`contador`)
+não deve ser iniciado até esta nota ser removida por decisão do Mateus.
+
+| # | Ticket | P | Estado |
+|---|---|---|---|
+| 011 | Export do acervo — rotina periódica + sinal (011-A) | **P0** | Gate 1 DONE, não commitado, **em espera** |
+| 049 | Triagem completa do objeto órfão (011-B) | P0 | destravado, **em espera** antes mesmo do Gate 1 |
+| 050 | Dossiê sob demanda, por obra (011-C) | P0 | destravado, **em espera** antes mesmo do Gate 1 |
 
 ### Parado, aguardando o Mateus (fora da fila ativa)
 
