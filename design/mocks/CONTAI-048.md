@@ -63,9 +63,10 @@ nem passo novo no caminho de captura — mesma lógica que abriu o `CONTAI-047`
 para o celular. Sem XML: mesma regra de D.
 
 ## Campos
-Nenhum campo novo, nenhuma mudança de nome/tipo/validação. `notaNoCpf`,
-`retencao_na_nota`, `cnoNaNota` continuam perguntas ao usuário — o preview
-não lê nem sugere resposta a nenhuma (critério 4 do ticket).
+- SEM CAMPOS — nenhum campo novo, nenhuma mudança de nome/tipo/validação.
+  `notaNoCpf`, `retencao_na_nota` e `cnoNaNota` continuam perguntas ao
+  usuário; o preview não lê nem sugere resposta a nenhuma (critério 4 do
+  ticket).
 
 ## Textos com consequência fiscal
 Nenhum texto fiscal novo ou alterado. Gate fiscal do ticket é sanity check
