@@ -1,6 +1,9 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 16 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
+
+*(2026-09-23: `CONTAI-011` fatiado em três — `011` continua contando como 1
+item, e `049`/`050` somam os 2 novos.)*
 
 **2026-09-23**: **`047` saiu da fila** — implementado (`lead-engineer`),
 revisado pelo Gate 2 (`cto-obra` APPROVE e `contador` APROVADO, os dois
@@ -377,10 +380,30 @@ do `cto-obra` para PDF em touch (abre em nova aba, não embute, para não
 degradar em silêncio no Safari iOS). Os dois saem de "Depois" e entram na
 fila, `011` primeiro por ser P0.
 
+**2026-09-23, mais tarde**: `CONTAI-011` **fatiado em três** — o
+`lead-engineer` tentou o Gate 1 real e devolveu sem implementar nada, com
+dois achados de fundo que nenhuma rodada anterior tinha visto (detalhe em
+`docs/backlog/62-2026-09-23-fatiamento-contai-011.md`). **`CONTAI-011`
+(011-A)** fica só com a rotina periódica + sinal no app — escopo reduzido,
+reescrito no mesmo arquivo, **continua pronto para `/develop`**, sem tocar
+nenhum dos dois achados. **`CONTAI-049` (011-B)**, triagem completa do
+objeto órfão, nasce destravada pelo `contador` (achado fiscal: "vincular" um
+órfão vira duas rotas, dependendo se o documento-alvo já tem arquivo — a
+migration `0014` proíbe reescrever `arquivo_path`), mas ainda precisa de
+retoque de mock e de uma decisão de sequenciamento do `cto-obra` com o
+`CONTAI-027`. **`CONTAI-050` (011-C)**, dossiê sob demanda, nasce destravado
+pelo `cto-obra` (achado de arquitetura: o app não tinha credencial para
+gerar o dossiê — resolvido com fila de pedidos no Postgres +
+`workflow_dispatch` sem parâmetro nenhum, acordado por um PAT de escopo
+mínimo só na Vercel), mas ainda tem uma nota fiscal em aberto (conflito R6)
+e um corte de mock a fazer. `CONTAI-048` não muda.
+
 | Ordem | # | Ticket | P | Pronto para `/develop` |
 |---|---|---|---|---|
-| 1 | 011 | Export do acervo (rotina + dossiê) | **P0** | sim |
+| 1 | 011 | Export do acervo — rotina periódica + sinal (011-A) | **P0** | sim |
 | 2 | 048 | Anexo ampliado ao lado do formulário | P1 | sim |
+| — | 049 | Triagem completa do objeto órfão (011-B) | P0 | não — falta mock + sequenciamento `cto-obra`/`CONTAI-027` |
+| — | 050 | Dossiê sob demanda, por obra (011-C) | P0 | não — falta decisão R6 + "gerar assim mesmo" + corte de mock |
 
 ### Parado, aguardando o Mateus (fora da fila ativa)
 

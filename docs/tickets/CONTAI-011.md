@@ -1,8 +1,59 @@
-# CONTAI-011 — Export do acervo: rotina periódica + dossiê por obra
+# CONTAI-011 (011-A) — Export do acervo: rotina periódica + sinal no app
+
+⚠️ **FATIADO em 2026-09-23 — este arquivo é só o 011-A.** O `lead-engineer`
+tentou o Gate 1 do ticket original (que cobria rotina + triagem de órfão +
+dossiê sob demanda) e devolveu sem implementar nada: dois achados de fundo
+(um de arquitetura, um fiscal/produto) que ninguém tinha visto até então.
+O `po` fatiou em três, com autoridade de backlog (mesmo padrão dos
+`CONTAI-043`-`046`):
+
+- **`CONTAI-011` (011-A, este arquivo)** — rotina periódica + sinal no app.
+  Critérios 1, 2, 3, 5, 6, 8, 9, 11, 13, 14 + **detecção** de objeto órfão
+  (sem a triagem completa). **Zero decisão pendente. Pronto para `/develop`.**
+- **`CONTAI-049` (011-B)** — triagem completa do objeto órfão (critério 15
+  original, os três destinos). Estava bloqueada pelo achado fiscal/produto
+  (ver abaixo); **destravada em 2026-09-23** pelo `contador`.
+- **`CONTAI-050` (011-C)** — dossiê sob demanda, por obra (critérios 4, 10 e
+  12 originais). Estava bloqueada pelo achado de arquitetura (ver abaixo);
+  **destravada em 2026-09-23** pelo `cto-obra`.
+
+**Os dois achados, resumidos** (detalhe completo em
+`docs/backlog/62-2026-09-23-fatiamento-contai-011.md`):
+
+1. **Arquitetura (`cto-obra`)** — a Decisão 2 abaixo (service role key e
+   refresh token do Drive só em GitHub Secrets, nunca na Vercel) deixava sem
+   resposta "quem roda o dossiê sob demanda quando o Mateus clica o botão".
+   Resolvido: fila de pedidos no Postgres (`export_solicitacao`) + o app
+   "acorda" o workflow do GitHub via `workflow_dispatch` **sem nenhum
+   parâmetro**, com um PAT fine-grained, só-Actions, só-este-repo, guardado em
+   env server-only da Vercel. Essa credencial não lê dado fiscal nenhum e não
+   aceita input — por isso não repete o problema que a Decisão 2 evitava.
+   Detalhe em `docs/tickets/CONTAI-050.md`, "Viabilidade (CTO)".
+2. **Fiscal/produto (`contador`)** — a triagem de órfão previa "vincular" um
+   objeto a qualquer documento, mas a migration `0014` só permite isso quando
+   o documento-alvo **ainda não tem arquivo** (`anexar_arquivo_documento`
+   opera só `where arquivo_path is null`; o trigger
+   `documento_arquivo_path_imutavel` proíbe reescrever). O `contador`
+   confirmou que a restrição está **certa e não muda** — reescrever
+   apagaria o lastro dos dois checks fiscais já afirmados sobre aquele
+   arquivo. "Vincular" vira duas rotas: **(a)** documento sem arquivo — já
+   funciona, sem mudança de modelo; **(b)** documento já tem arquivo — via
+   `documento_anexo` como anexo adicional do mesmo desembolso, **nunca**
+   reabrindo os dois checks fiscais do arquivo original; se o papel novo
+   muda a resposta fiscal (ex.: nota substitutiva com CNPJ diferente), não é
+   "vincular", é correção (`corrigir_documento`). Detalhe e a decisão sobre
+   os campos do 3º destino (documento sem gasto) em
+   `docs/tickets/CONTAI-049.md`.
+
+O texto abaixo é o ticket original, **podado** para o escopo do 011-A: os
+critérios que saíram estão marcados `~~riscado~~` com o destino, não
+apagados — é a mesma convenção já usada aqui para o antigo critério 7
+(virou `CONTAI-012`).
 
 ## Tipo e Prioridade
 
-- **Tipo**: infraestrutura de dados + meta 3 (acervo que sobrevive até venda + 5 anos)
+- **Tipo**: infraestrutura de dados + meta 3 (acervo que sobrevive ao prazo de
+  decadência — CTN art. 173, I, **não** "venda + 5 anos"; ver `CLAUDE.md`)
 - **Prioridade**: **P0**
 - **Origem**: US-011 do `docs/backlog.md`
 - **Posição na fila**: **FORA da R1.** 2º item pós-R1, pareado com a US-010
@@ -83,11 +134,14 @@ atividade) foi **desmembrado** para o **CONTAI-012**. Ele é pré-requisito de
 ## User Story
 
 Como dono da obra, quero que os originais do acervo sejam copiados
-periodicamente para um storage que é meu, com índice legível sem o app, e quero
-poder gerar sob demanda o dossiê completo de **uma** obra, para que a
-comprovação do custo de aquisição sirva a mim na declaração e ao comprador e ao
-contador dele na venda — mesmo que a conta do Supabase, o app e o repositório
-não existam mais.
+periodicamente para um storage que é meu, com índice legível sem o app, para
+que a comprovação do custo de aquisição sobreviva mesmo que a conta do
+Supabase, o app e o repositório não existam mais.
+
+*(A segunda metade da história original — "e quero poder gerar sob demanda o
+dossiê completo de uma obra... ao comprador e ao contador dele na venda" —
+é o `CONTAI-050` (011-C). Fatiada porque tem executor e credencial próprios,
+não porque deixou de importar.)*
 
 ## Critérios de Aceite
 
@@ -113,10 +167,12 @@ não existam mais.
    - ⚠️ **Uma linha por arquivo com um campo "valor" é PROIBIDO.** O modelo é
      N pagamentos ↔ 1 documento (Q6); achatar induz quem ler a somar a coluna e
      chegar num custo que não é de ano nenhum.
-4. [ ] O export é **segmentável por obra**: produz-se o pacote de UMA obra sem o
-   acumulado das outras. Origem: backlog, Relato 003, ajustes de 2026-08-09 — na
-   venda pede-se o dossiê **daquele** imóvel, e o relógio de guarda é por obra
-   (contador, Q10).
+4. [ ] ~~O export é **segmentável por obra**...~~ **MOVIDO — `CONTAI-050`
+   (011-C).** A rotina periódica deste ticket exporta o acumulado de todas as
+   obras do usuário (é o que protege o acumulado durante a obra); segmentar
+   por UMA obra só importa para o dossiê sob demanda, que é o que a venda
+   pede. `where obra_id = X` já é de graça pela Decisão 0 abaixo — o 011-C
+   só precisa expor o parâmetro, não reconstruir a query.
 5. [ ] O índice cobre **100%** dos objetos exportados: nenhum arquivo no pacote
    sem linha no índice, nenhuma linha apontando para arquivo ausente.
    Divergência falha a execução, alto e visível.
@@ -146,46 +202,59 @@ não existam mais.
    fica versionado. O repositório **é público — confirmado em 2026-08-16**.
    Requisitos: segredo só no secret store do runner, escopo mínimo, e **caminho
    de revogação escrito no ticket**.
-10. [ ] **Export sob demanda, por obra (dossiê)**: o Mateus dispara e recebe o
-    pacote completo de uma obra — mesmos índice, integridade e segmentação dos
-    critérios 3, 4, 5 e 8. É esta saída, e não a rotina periódica, que atende a
-    venda e o horizonte de guarda longa, porque não depende de agendamento
-    nenhum continuar vivo.
+10. [ ] ~~Export sob demanda, por obra (dossiê)...~~ **MOVIDO — `CONTAI-050`
+    (011-C).** Era o item que dependia do achado de arquitetura (quem roda o
+    dossiê sem credencial na Vercel); resolvido pelo `cto-obra`, mas em
+    ticket próprio — tem executor (workflow acordado por fila de pedidos),
+    schema (`export_solicitacao`) e telas (`#s16`-`#s21`) que não pertencem
+    à rotina periódica.
 11. [ ] **O destino é privado.** O pacote é uma segunda cópia de todas as NFs,
     com CPF, CNPJ, valores e endereço. Nenhuma pasta ou link fica acessível a
     "qualquer pessoa com o link"; verifica-se abrindo numa janela anônima. Sem
     isso este ticket **cria** um risco maior do que o que elimina. *(R8 do
     contador: o índice carrega CPF de terceiros — prestadores —, não só do
     Mateus.)*
-12. [ ] **(R3 do contador)** Por ano-calendário, o pacote carrega a
-    **discriminação de Bens e Direitos como declarada** (por matrícula), a
-    **lista de Pagamentos Efetuados como declarada** (CPF por CPF) e o **recibo
-    de entrega da DAA**. Base: IN SRF 84/2001 art. 17 — comprovado **e**
-    discriminado. Enquanto a US-004 não existir, o critério é atendido por
-    espaço reservado + menção no LEIA-ME.
-13. [ ] **(R4 do contador)** Todo pacote contém `LEIA-ME.txt` em português
-    corrente com: (a) o aviso de cópia digital vs. papel — texto **copiado** do
-    parecer, versão longa; (b) o relógio de guarda e a proibição de expurgo
-    automático; (c) **a lista do que o pacote não contém** (escritura, matrícula,
-    ITBI, alvará, ART, habite-se, CND — F4).
+12. [ ] ~~Por ano-calendário, o pacote carrega a discriminação de Bens e
+    Direitos, a lista de Pagamentos Efetuados e o recibo da DAA...~~
+    **MOVIDO — `CONTAI-050` (011-C).** É conteúdo do dossiê, não da rotina
+    periódica — e carrega o conflito com R6 (dossiê do comprador não deveria
+    levar a ficha do declarante inteira, que soma as duas obras), que o
+    `cto-obra`/`contador` resolvem dentro do 011-C, não aqui.
+13. [ ] **(R4 do contador)** Todo pacote (periódico **e** dossiê) contém
+    `LEIA-ME.txt` em português corrente com: (a) o aviso de cópia digital vs.
+    papel — texto **copiado** do parecer, versão longa; (b) o relógio de
+    guarda e a proibição de expurgo automático; (c) **a lista do que o pacote
+    não contém** (escritura, matrícula, ITBI, alvará, ART, habite-se, CND —
+    F4). **Texto confirmado palavra por palavra pelo `contador` em
+    2026-09-23** (sem ajuste — o bloco do mock já estava certo desde a
+    correção de 2026-08-22 do parecer): ver `design/mocks/CONTAI-011.md`,
+    seção "Textos com consequência fiscal", blocos "LEIA-ME.txt" e "Por
+    quanto tempo guardar". Cópia literal, não parafraseada, no código.
 14. [ ] **(R5 do contador)** **Imutabilidade do pacote de ano fechado**:
     correção posterior de valor, data ou obra **não reescreve** pacote já
     exportado — gera pacote novo, datado, que referencia o anterior. A DAA pode
     ser retificada, e defender uma retificadora exige mostrar o que foi
     declarado antes e o que mudou.
-15. [ ] **Triagem de objeto sem vínculo** — ver "Dependências", decisão do
-    Mateus de 2026-08-16. Objeto no bucket sem linha no banco **não entra no
-    pacote principal** e **bloqueia o fechamento do export** até receber um dos
-    três destinos: **resolvido** (vinculado ao registro certo), **descartado**
-    (marcado como lixo de retry), ou **anotado como legítimo sem vínculo**
-    (documento descritivo da obra — alvará, ART, matrícula, habite-se). O
-    terceiro destino é uma categoria nova e é o que o F4 do contador já exigia.
+15. [ ] **Detecção** de objeto sem vínculo (versão **reduzida** — a triagem
+    completa dos três destinos é `CONTAI-049`/011-B). Objeto no bucket sem
+    linha no banco (`documento.arquivo_path` / `pagamento.comprovante_path`)
+    **não entra no pacote principal** e **fica listado, contado e visível**
+    como pendência (quantos, desde quando) — sem isso o critério 2
+    (contagem bate) e o critério 5 (índice cobre 100%) não são verificáveis
+    na presença de órfãos. Este ticket **não** resolve o destino de cada
+    objeto (isso bloqueia o *fechamento* do export só a partir do 011-B, que
+    entrega os três destinos); aqui a existência de órfãos é **visível, não
+    silenciosa**, o que já é a mudança de comportamento que falta hoje.
 
 ## Gate Fiscal (Contador) — FECHADO
 
 Parecer transcrito em `docs/pareceres/2026-08-16-gate-fiscal-contai-011.md`,
-2026-08-16. **APROVADO COM RESSALVAS**: R1–R5 bloqueantes, incorporadas aos
-critérios 3, 8, 12, 13 e 14. R6, R7, R9 e R10 são notas para o Gate 2.
+2026-08-16. **APROVADO COM RESSALVAS**: R1–R5 bloqueantes. Depois do
+fatiamento de 2026-09-23: R1, R2, R4 e R5 estão incorporadas aos critérios 3,
+8, 13 e 14 **deste ticket**; **R3 migrou com o critério 12 para o
+`CONTAI-050`/011-C** (é o dossiê que carrega Bens e Direitos + Pagamentos
+Efetuados + recibo da DAA, não a rotina periódica). R6, R7, R9 e R10 são
+notas para o Gate 2 dos tickets que carregam os critérios a que se referem.
 
 - **F1 — CORTADA.** Já respondida na Q10 do parecer de 2026-08-09 e registrada
   no backlog. Reabri por erro; o parecer novo confirma a Q10 e acrescenta quatro
@@ -209,6 +278,11 @@ critérios 3, 8, 12, 13 e 14. R6, R7, R9 e R10 são notas para o Gate 2.
 onde elas se cumprem.** Nenhuma delas estava anotada neste arquivo até hoje —
 o `CONTAI-027` dizia *"anotada lá"* e não estava. Ambas entram no **índice**
 (critério 3) e valem a partir do momento em que a tabela filha de anexos existir.
+**Ficam no 011-A** porque definem o formato do índice (`documentos.csv`/
+`vinculos.csv`) que o critério 3 exporta — e o `CONTAI-050` (011-C), pela nota
+do `cto-obra` de 2026-09-23, **reusa esse mesmo módulo de índice** para o
+dossiê em vez de duplicá-lo, então valem para os dois pacotes sem precisar
+repetir aqui.
 
 **(a) N anexos compõem UM desembolso** — Gate Fiscal §4 do `CONTAI-027`
 (2026-08-21):
@@ -253,29 +327,29 @@ torna o corte defensável.**
   banco). O índice do critério 3 exporta o subconjunto **fiscalmente relevante**
   do banco de propósito — é o que faz o pacote ser lido sem o app. Restaurar o
   **sistema** é outro assunto, com outra ferramenta.
+- **Export sob demanda / dossiê por obra** — `CONTAI-050` (011-C). Este
+  ticket entrega só a rotina periódica sobre o acumulado de todas as obras.
+- **Triagem completa do objeto órfão** (os três destinos) — `CONTAI-049`
+  (011-B). Este ticket só detecta e mostra a contagem.
 
 ## Dependências
 
-1. **Objeto órfão — BLOQUEANTE, por decisão do Mateus (2026-08-16).**
-   Confirmado no código: `subirParaAcervo` (`lib/data.ts:364`) gera
+1. **Objeto órfão — detecção é deste ticket, destino é do `CONTAI-049`
+   (011-B).** Confirmado no código: `subirParaAcervo` (`lib/data.ts:364`) gera
    `crypto.randomUUID()` a cada chamada e o upload precede o insert; retry após
    falha do insert cria segundo objeto; a migration 0002 não tem policy de
    delete. O lixo é real e permanente.
-   - **Os três revisores divergiram.** `cto-obra`: export dirigido pelo banco
-     deixa o órfão para trás por construção → não bloqueia. `po`: órfão vai para
-     área e seção próprias no índice → não bloqueia, e o export vira o único
-     detector de órfão do sistema. `contador`: órfão no pacote é documento sem
-     vínculo com pagamento nenhum — numa conferência levanta *"e este gasto, por
-     que não está declarado?"* → **bloqueia**.
-   - **Decisão do Mateus**: vale o contador — **é bloqueante até ser resolvido,
-     descartado, ou anotado como ok de manter sem vínculo** (documento
-     descritivo). Virou o critério 15.
-   - **O que a decisão revela e nenhum revisor viu**: nem todo objeto sem
-     vínculo é lixo. O F4 do contador lista justamente os documentos que a obra
-     precisa guardar e que **não têm favorecido nem pagamento** — alvará, ART,
-     matrícula, habite-se. Esses nascem sem vínculo por natureza. A triagem do
-     critério 15 é o que separa as duas populações, e o terceiro destino
-     ("legítimo sem vínculo") é o embrião da categoria que o F4 pede.
+   - **Os três revisores divergiram** (histórico, 2026-08-16). `cto-obra`:
+     export dirigido pelo banco deixa o órfão para trás por construção → não
+     bloqueia. `po`: órfão vai para área e seção próprias no índice → não
+     bloqueia, e o export vira o único detector de órfão do sistema.
+     `contador`: órfão no pacote é documento sem vínculo com pagamento
+     nenhum → **bloqueia o fechamento** até receber destino.
+   - **Decisão do Mateus (2026-08-16)**: vale o contador. **A parte que
+     bloqueia — dar destino ao órfão — é o `CONTAI-049` (011-B)**, não este
+     ticket. Este ticket entrega só a detecção (critério 15 reduzido): a
+     rotina roda mesmo com órfãos presentes (Decisão 0 já os deixa fora do
+     pacote por construção), mas os mostra, contados, em vez de silenciá-los.
    - **Correção da mitigação do backlog**: reutilizar o path no retry **resolve
      só metade** — cobre o retry dentro da mesma montagem do componente, não
      cobre o abandono (usuário fecha o app entre upload e insert). A solução
@@ -303,9 +377,14 @@ torna o corte defensável.**
    "⚠️ rebaixado" do 002 no `README.md` é sobre hash de gate e prova em
    aparelho real (R2 → `CONTAI-014`), não sobre o modelo — e a Decisão 2
    (service role) não depende de qual método de login o Mateus usa.
-4. **CONTAI-003** — entregue (G1 `5550d11`, G2 `e72bf35`, G3/G4 de papel,
-   desempatado em 18/08). É o que torna o critério 4 possível.
-5. **US-004 (relatórios)** — o critério 12 só fica completo quando ela existir.
+4. ~~**CONTAI-003** — entregue... É o que torna o critério 4 possível.~~
+   **Critério 4 mudou de ticket** (é `CONTAI-050`/011-C agora); a entrega do
+   `CONTAI-003` (G1 `5550d11`, G2 `e72bf35`) continua valendo como pré-requisito
+   de fato (`obra_id` em `documento`/`pagamento`), só que para o 011-C, não
+   para este.
+5. ~~**US-004 (relatórios)** — o critério 12...~~ **Critério 12 mudou de
+   ticket** (é `CONTAI-050`/011-C agora). US-004 continua pré-requisito, só
+   que do 011-C.
 6. **`CONTAI-027`** — enquanto a tabela filha de anexos não existir, as duas
    restrições da seção *"Restrições vindas do `CONTAI-027`"* não têm o que
    exportar. Elas **não bloqueiam** este ticket; **este ticket é que não pode
@@ -337,7 +416,15 @@ Padrão já provado nesta conta (`../surf-forecast/.github/workflows/daily-refre
   agendamento morre **precisamente quando começa o período longo de guarda**.
   Mitigação: o passo final commita um **recibo** (`docs/export/ultimo-export.md`
   — data, nº de arquivos, bytes, hash do índice). Mantém o repo ativo **e** dá o
-  rastro do critério 6. É também o argumento mais forte a favor do critério 10.
+  rastro do critério 6. É também o argumento mais forte a favor do dossiê sob
+  demanda (`CONTAI-050`/011-C).
+
+⚠️ **Adição barata para o 011-A, pedida pelo `cto-obra` em 2026-09-23**: o
+`export-acervo.yml` deste ticket ganha `on: workflow_dispatch:` **sem
+nenhum input**, ao lado do `schedule`. Custa uma linha de YAML e dá de graça
+o botão manual "Run workflow" na UI do GitHub (fallback do critério 6 se o
+cron falhar) — e é o gancho que o `CONTAI-050` (011-C) usa depois para
+"acordar" o job a partir do app, sem que este ticket precise saber disso.
 
 ### Decisão 2 — service role key, só em GitHub Secrets
 
@@ -500,13 +587,15 @@ o acervo continua desprotegido. Por quê?"*
    agendados em repo público após 60 dias sem commit, avisando por um e-mail que
    se perde. Este projeto é de um dev só, que para de commitar quando a obra
    acaba — **o agendamento morre precisamente quando começa o período longo de
-   guarda.** É o risco nº 1, e o argumento mais forte a favor do critério 10.
+   guarda.** É o risco nº 1, e o argumento mais forte a favor do dossiê sob
+   demanda (`CONTAI-050`/011-C, que não depende do schedule continuar vivo).
 2. **O export nunca rodou uma vez, porque a credencial do destino nunca foi
    configurada.** Falha na primeira execução, e a falha vira e-mail do GitHub
    Actions — canal que ninguém lê.
 3. **O pacote existe, tem 300 arquivos, e não serve na hora da venda.** O
    comprador pede o dossiê de uma obra; o pacote é o acumulado das duas, sem
-   amarrar documento a matrícula e a CNO. Mitigado por 3, 4 e 10.
+   amarrar documento a matrícula e a CNO. Mitigado pela segmentação e conteúdo
+   do dossiê — `CONTAI-050`/011-C, não deste ticket.
 4. **Vazou — não a credencial, o conteúdo.** Uma pasta do Drive com todas as
    NFs, CPFs e CNPJs, compartilhada uma vez por link e nunca revogada. É o dano
    maior e o mais provável, porque a pasta é usada por gente e não por máquina.
@@ -543,49 +632,48 @@ o acervo continua desprotegido. Por quê?"*
 - **M4 — RESPONDIDA pelo `po`**: a reclassificação para a R1 foi **rejeitada**.
   A story vai para 2º item pós-R1, pareada com a US-010.
 
-## Veredicto (po, 2026-09-23)
+## Veredicto (po, 2026-09-23) — reconfirmado após o fatiamento
 
-✅ **PRONTO PARA `/develop`.** Todos os itens que bloqueavam Gate 1 estão
-fechados:
+✅ **PRONTO PARA `/develop`, escopo 011-A.** Todos os itens que bloqueavam
+Gate 1 estão fechados, e os dois achados do `lead-engineer` (arquitetura e
+fiscal) **não tocam este ticket** — os dois só bloqueavam critérios que
+saíram daqui (10/12 → 011-C; 15 completo → 011-B):
 
 - **P1** (fonte de dados do estado do export) — resolvida, Decisão 4.
 - **P2/P3** — não existiam; ver correção no cabeçalho, acima.
-- **Gate Fiscal** — só R1–R5 bloqueavam, e os cinco já estão incorporados aos
-  critérios 3, 8, 12, 13 e 14.
+- **Gate Fiscal** — R1, R2, R4 e R5 incorporados aos critérios 3, 8, 13 e 14
+  (R3, do critério 12, migrou para o 011-C junto com o critério).
 - **M1** (destino) — respondida. **M2** (cadência) — confirmada acima. **M3**
   (canal de aviso) — deixou de bloquear (Decisão 4): só decide push, não
   arquitetura.
-- **Dependências de código** — CONTAI-002 (auth), CONTAI-003, CONTAI-004 e
-  CONTAI-007 entregues; objeto órfão coberto pelo critério 15.
+- **Dependências de código** — CONTAI-002 (auth), CONTAI-004 e CONTAI-007
+  entregues; CONTAI-003 e US-004 seguem como pré-requisito, mas do 011-C.
+  Objeto órfão: só a **detecção** é deste ticket (critério 15 reduzido).
 
 **O que fica de fora do Gate 1 de código, sem bloquear o começo dele:**
 
 - **OAuth do Google Drive é ação de dashboard do Mateus** (publicar o app
   OAuth fora de "testing", conceder o escopo `drive.file`, gerar o refresh
   token e gravá-lo em GitHub Secret) — nenhuma linha disso é código. Bloqueia
-  a **primeira execução real** do workflow, não o desenvolvimento dele. As
-  duas perguntas do mock sobre o Drive ("reconectar existe?", "`drive.file`
-  alcança revogar permissão?") só têm resposta com o app OAuth criado — verificar
-  nessa hora, não antes.
-- **Notas de Gate 2 (`cto-obra`)**, já roteadas pelo próprio Gate Fiscal
-  (R6–R10) ou levantadas pelo mock: conflito entre o critério 12 (dossiê leva
-  Pagamentos Efetuados) e R6 (essa ficha é do declarante, soma as duas obras —
-  não deveria entrar no dossiê de uma obra só); campos obrigatórios da
-  categoria "documento da obra" (tipo e obra bastam, ou também número/órgão
-  emissor); se "gerar assim mesmo, com a falta declarada" (`#s21`) é saída
-  real ou o critério 5 (falhar alto) prevalece; se a busca de vínculo
-  (`#s12`) alcança registros de outra obra.
+  a **primeira execução real** do workflow, não o desenvolvimento dele.
 - **Confirmação de numeração legal antes do texto ir para tela** (Lei
-  12.682/2012, Decreto 10.278/2020, Súmula 555/STJ, Súmula Vinculante 8/STF,
-  Decreto 3.048/99 art. 225 §5º, Lei 8.212/91 art. 32 §11) — já listado pelo
-  próprio parecer em "Pontos a confirmar antes de virar texto de tela"; vale
-  para o `LEIA-ME.txt` do critério 13, não para o código do Gate 1.
+  12.682/2012, Decreto 10.278/2020) — o `contador` já confirmou em 2026-09-23
+  que o texto do mock está correto **tal como está** (ver critério 13); a
+  numeração em si continua sujeita à ressalva do próprio parecer ("confirmar
+  vigência"), mas isso não muda o texto a colar agora.
+
+As três notas de Gate 2 que o parecer original levantava sobre o **dossiê**
+(conflito critério 12 × R6, campos de "documento da obra", "gerar assim
+mesmo", busca de vínculo em outra obra) foram **herdadas pelos tickets que
+carregam esses critérios** — `CONTAI-050` (a primeira) e `CONTAI-049` (as
+outras três) — e já vêm com decisão do `cto-obra`/`contador` nesta rodada.
 
 ## Teste do Canteiro
 
-Esta rotina não tem tela de captura e não roda no canteiro — mas duas coisas
-aqui acontecem no celular: conferir *"o último export rodou?"* e mandar o dossiê
-para alguém. O teste tem três partes, e o ticket só passa nas três:
+Esta rotina não tem tela de captura e não roda no canteiro — mas uma coisa
+aqui acontece no celular: conferir *"o último export rodou?"*. O teste tem
+duas partes, e o ticket só passa nas duas (a 3ª parte original, "Entregar o
+dossiê", virou teste do `CONTAI-050`/011-C):
 
 1. **Achar** — abrir o storage, sem abrir o contai, e localizar a nota de um
    pagamento específico usando só o índice. Se precisar do app para entender o
@@ -593,8 +681,6 @@ para alguém. O teste tem três partes, e o ticket só passa nas três:
 2. **Confiar** — escolher um favorecido, contar as notas dele no índice e bater
    com o que o app mostra. Achar um arquivo prova legibilidade; só a contagem
    prova que não faltam quarenta.
-3. **Entregar** — produzir o dossiê da obra A e conferir que ele não contém
-   **nada** da obra B, e que dá para mandar ao comprador como está.
 
 E um teste do critério 6, que é o que separa este ticket de um placebo:
 **quebrar o export de propósito** (revogar a credencial do destino) e cronometrar
