@@ -175,6 +175,7 @@ export function CampoArquivo({
   onChange,
   erro,
   accept,
+  acaoNoSucesso,
 }: ComCampo & {
   rotulo: string;
   ajuda: string;
@@ -182,6 +183,14 @@ export function CampoArquivo({
   onChange: (f: File | null) => void;
   erro?: string;
   accept: string;
+  /**
+   * ⚠️ **CONTAI-048, Estado F do mock — uma AÇÃO, nunca um campo.** Aparece ao
+   * lado da linha de sucesso ("nome.pdf ✓ vai para o acervo") e existe só para
+   * o "Ver documento" do piso, que é onde não há rail com miniatura. Nada aqui
+   * pergunta, afirma ou preenche: quem puser uma escolha fiscal neste slot
+   * está no arquivo errado.
+   */
+  acaoNoSucesso?: React.ReactNode;
 }) {
   const id = useId();
   return (
@@ -201,8 +210,9 @@ export function CampoArquivo({
         }`}
       />
       {arquivo ? (
-        <p className="text-[12px] font-semibold text-grn">
-          {arquivo.name} ✓ vai para o acervo
+        <p className="flex flex-wrap items-center gap-1.5 text-[12px] font-semibold text-grn">
+          <span>{arquivo.name} ✓ vai para o acervo</span>
+          {acaoNoSucesso}
         </p>
       ) : (
         <p className="text-[12px] text-mut">{ajuda}</p>

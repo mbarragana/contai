@@ -50,7 +50,7 @@ export default defineConfig({
       // Canteiro, uma mão livre: 375px é o PISO do produto, e é aqui que ele
       // é provado. Toda a suíte de comportamento mora neste projeto.
       use: { ...devices["iPhone SE"], viewport: { width: 375, height: 812 } },
-      testIgnore: /shell-desktop\.spec\.ts/,
+      testIgnore: /(shell-desktop|anexo-desktop)\.spec\.ts/,
     },
     {
       name: "desktop",
@@ -58,7 +58,12 @@ export default defineConfig({
       // não uma segunda cópia da suíte: comportamento se prova uma vez, no
       // piso de 375px, onde mora toda a suíte de `mobile`.
       use: { ...devices["Desktop Safari"], viewport: { width: 1280, height: 800 } },
-      testMatch: /shell-desktop\.spec\.ts/,
+      // ⚠️ Dois arquivos, e o segundo entrou com o CONTAI-048: o preview do
+      // anexo muda de PRIMITIVA por dispositivo de entrada (`<object>` no
+      // mouse, aba nova no dedo), então ele é dos poucos comportamentos que
+      // precisam ser provados nas DUAS larguras — o par mobile fica em
+      // `anexo-no-piso.spec.ts`, no projeto de cima.
+      testMatch: /(shell-desktop|anexo-desktop)\.spec\.ts/,
     },
   ],
   webServer: {

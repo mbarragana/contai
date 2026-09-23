@@ -55,6 +55,55 @@ do mock (PDF em tela estreita/touch) — ver "Escopo e Critérios de Aceite",
 critério 3, e "Dependências" abaixo.** Não reabre o resto do Gate 0.
 
 ## Escopo e Critérios de Aceite
+
+**✅ Entregue em 2026-09-23, 5/5 critérios.** `app/_components/anexo-preview.tsx`
+(novo) + `lib/preview-anexo.ts`/`.test.ts` implementam o Lightbox sob demanda
+descrito no Gate 0; `documento/page.tsx` e `campos.tsx` ganharam a integração.
+Critério 1 (preview lado a lado em telas largas via blob URL local, sem
+round-trip de rede) confirmado no Gate 2 técnico e na validação manual do
+Gate 3 (imagem: miniatura 120px + Lightbox com zoom; PDF: `<object>` com
+viewer nativo do Chrome). Critério 2 (preview nunca bloqueia salvar, falha
+degrada para o comportamento de hoje) confirmado pelo Gate 2 técnico e pela
+suíte verde — sem caso manual de falha forçada de renderização. Critério 3
+(fork por largura — `<object>` em tela larga, `<a href={blobUrl}
+target="_blank" rel="noopener">` em tela estreita) confirmado na validação
+manual: em 604px (abaixo do breakpoint de 880px) o controle de PDF nasce como
+link, confirmado via JS que nunca tenta `<object>` nessa largura; em desktop
+largo o `<object>` renderiza o PDF. Critério 4 (zero efeito em campo fiscal)
+confirmado pelo `contador` (sanity check, nenhum arquivo de `lib/fiscal/*`
+tocado). Critério 5/Estado F (piso herda o link "Ver documento" on-demand,
+sem novo campo/passo) confirmado no mesmo teste de 604px; imagem continua
+abrindo o Lightbox modal em qualquer largura. Gate 2 técnico (`cto-obra`) e
+fiscal (`contador`) ambos APPROVE, reconfirmados por escrito após um ajuste de
+limpeza sem mudança de comportamento (removeu ramo morto, apertou tipo de
+`url` no Lightbox de `string | null` para `string`, corrigiu timeout de 2
+testes E2E). Gate 3 (validação manual no navegador, Chrome desktop, com
+arquivos reais imagem/PDF) e Gate 4 (este, `po`) PASS. 940 unitários + 9/9 E2E
+novos verdes. Sem migration.
+
+⚠️ **Dívida nomeada D69 — validação em iPhone real (Safari) + macOS Safari não
+foi feita.** O critério 3 existe especificamente para corrigir um risco de
+degradação silenciosa em iOS/WebKit (achado do `cto-obra` em 2026-09-23:
+`<object>` trava na 1ª página de PDF sem aviso). A lógica de bifurcação por
+largura foi verificada (Chrome desktop + viewport estreito via resize, JS
+confirmando que `<object>` não é tentado abaixo do breakpoint), mas **nem o
+comportamento nativo do Safari iOS ao abrir o PDF em nova aba, nem o `<object>`
+em macOS Safari com uma NFS-e real de ≥2 páginas, foram confirmados em
+dispositivo real** — nem CI (Playwright/WebKit roda em Linux, sem viewer de
+PDF) nem esta validação manual (Chrome) provam isso, exatamente como o
+próprio ticket já previa em "Dependências" e no "Veredicto" do Gate 0. Fechado
+como DONE apesar da pendência porque: (a) o mecanismo do lado estreito é um
+`<a target="_blank">` para um blob — comportamento padrão e bem estabelecido
+do Safari iOS ao abrir PDF, não código de renderização próprio; (b) o caminho
+de maior risco técnico (evitar `<object>` embutido no touch) foi verificado
+via inspeção de código/JS, não é uma suposição; (c) todos os outros gates
+(dois revisores independentes + testes automatizados + teste funcional real
+no navegador) fecharam sem ressalva. **Fica registrado como confirmação
+manual pendente do Mateus** (iPhone físico + macOS Safari, com um PDF real de
+≥2 páginas, conferindo que chega na página 2/abre certo na aba nova e que
+CNPJ/valor ficam legíveis com zoom) — não bloqueia o fechamento do ticket, mas
+é dívida nomeada, não "tudo pronto".
+
 *Fechado em `/design` (ver "Gate 0" acima), com um ajuste pontual no
 critério 3 abaixo, decidido depois do Gate 0 por achado técnico do
 `cto-obra`.*

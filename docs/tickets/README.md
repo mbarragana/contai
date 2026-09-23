@@ -1,9 +1,33 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 19 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
 
 *(2026-09-23: `CONTAI-011` fatiado em três — `011` continua contando como 1
-item, e `049`/`050` somam os 2 novos. `CONTAI-051` soma o 19º no mesmo dia.)*
+item, e `049`/`050` somam os 2 novos. `CONTAI-051` soma o 19º no mesmo dia;
+`048` saiu da fila no fim do dia, entregue, voltando a 18.)*
+
+**2026-09-23, fim do dia**: **`048` saiu da fila** — implementado
+(`lead-engineer`, com um ajuste de limpeza depois: removeu ramo morto,
+apertou o tipo de `url` no Lightbox de `string | null` para `string`,
+corrigiu timeout de 2 testes E2E que flakeavam por compilação a fria),
+revisado pelo Gate 2 técnico (`cto-obra` APPROVE) e fiscal (`contador`
+APROVADO, sanity check: preview não interfere em `notaNoCpf`/`retencao_na_nota`
+/`cnoNaNota`, nenhum arquivo de `lib/fiscal/*` tocado), ambos reconfirmados por
+escrito depois do ajuste, testado (940 unitários + 9/9 E2E novos verdes + Gate
+3 com validação manual no navegador usando arquivos reais imagem/PDF) e
+validado pelo `po` (Gate 4 PASS, 5/5 critérios). `app/_components/anexo-
+preview.tsx` (Lightbox sob demanda) + `lib/preview-anexo.ts` implementam o
+mock: miniatura 120px inline para imagem, ícone para PDF/XML, botão "Ver
+documento" abrindo modal com zoom (imagem) ou `<object>` (PDF, telas largas);
+em tela estreita (<880px) o PDF vira link `<a target="_blank">` para o blob em
+vez de embutir, correção do `cto-obra` para não degradar em silêncio no Safari
+iOS. Sem migration. **Dívida nomeada D69**: validação manual em iPhone real
+(Safari) + macOS Safari, com PDF real de ≥2 páginas, continua pendente — nem
+CI (webkit do Playwright roda em Linux, sem viewer de PDF) nem o Gate 3 (Chrome
+desktop) provam o comportamento nativo do Safari iOS, que é exatamente o que o
+critério 3 deste ticket existe para corrigir. Fechado como DONE apesar disso
+(ver justificativa em `docs/tickets/CONTAI-048.md`, critério 3), não como
+"tudo pronto". Detalhe: `docs/backlog/65-2026-09-23-contai-048-entregue.md`.
 
 **2026-09-23**: **`051` criado** — o coordenador auditou quais rotas já
 foram adaptadas para o shell desktop e achou uma lacuna: `app/(gestao)/
@@ -414,10 +438,12 @@ gerar o dossiê — resolvido com fila de pedidos no Postgres +
 mínimo só na Vercel), mas ainda tem uma nota fiscal em aberto (conflito R6)
 e um corte de mock a fazer. `CONTAI-048` não muda.
 
+**2026-09-23, fim do dia**: `048` **saiu da fila** — entregue, ver nota no
+topo deste arquivo. `051` fica sozinho na fila ativa.
+
 | Ordem | # | Ticket | P | Pronto para `/develop` |
 |---|---|---|---|---|
-| 1 | 048 | Anexo ampliado ao lado do formulário | P1 | sim |
-| 2 | 051 | `/obras` migra para o padrão de reflow do shell | P1 | sim |
+| 1 | 051 | `/obras` migra para o padrão de reflow do shell | P1 | sim |
 
 ### 🛑 Em espera — decisão do Mateus, 2026-09-23
 
@@ -477,9 +503,9 @@ não deve ser iniciado até esta nota ser removida por decisão do Mateus.
 |---|---|
 | **Espera o Mateus** | apenas a **Q14** (13 dias, trava o `016`) — nenhum mock pendente na fila ativa |
 | **Saiu da fila, superado** | `009` — entregue via `CONTAI-018` sem citação cruzada; resto vivo virou o `037` |
-| **Saiu da fila, entregue** | `032`, `022` — commitados em 2026-09-19 (`13953f2`); `033`, `007`, `008`, `005`, `031`, `035` — entregues em 2026-09-20; `038`, `006`, `034`, `037`, `039`, `042`, `040`, `043`, `044`, `045` — entregues em 2026-09-21; `046`, `041` — entregues em 2026-09-22 (`041` ainda sem push); `047` — entregue em 2026-09-23; ver "Em produção" |
+| **Saiu da fila, entregue** | `032`, `022` — commitados em 2026-09-19 (`13953f2`); `033`, `007`, `008`, `005`, `031`, `035` — entregues em 2026-09-20; `038`, `006`, `034`, `037`, `039`, `042`, `040`, `043`, `044`, `045` — entregues em 2026-09-21; `046`, `041` — entregues em 2026-09-22 (`041` ainda sem push); `047`, `048` — entregues em 2026-09-23 (`048` com dívida nomeada **D69**, validação em iPhone real ainda pendente); ver "Em produção" |
 | **Parado, aguardando o Mateus** | `014` — só o critério 4 entregue; ícone/aparelho físico não são delegáveis |
-| **Pronto para `/develop`** | `048` (anexo ao lado do formulário, Gate 0 fechado), `051` (`/obras` no padrão de reflow do shell, Gate 0 fechado por reaproveitamento) |
+| **Pronto para `/develop`** | `051` (`/obras` no padrão de reflow do shell, Gate 0 fechado por reaproveitamento) |
 | **Falta mock (`/design`)** | nenhum na fila ativa |
 
 ⚠️ **Esta tabela é resumo, não fonte.** Ela repete o que está abaixo — se

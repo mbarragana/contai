@@ -3,6 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import {
+  ControleVerDocumento,
+  LightboxDoAnexo,
+  useModoDoPreview,
+  useUrlDoAnexo,
+} from "@/app/_components/anexo-preview";
 import { CampoArquivo, CampoTexto, Escolha } from "@/app/_components/campos";
 import {
   CamposCurtos,
@@ -101,6 +107,13 @@ import {
   type Candidato,
 } from "@/lib/fiscal/vinculo";
 import { tamanhoLegivelDoAnexo } from "@/lib/acervo";
+import {
+  ABRIR_PDF_EM_ABA,
+  ehXml,
+  VER_DOCUMENTO_LARGA,
+  VER_DOCUMENTO_PISO,
+  XML_SEM_PREVIEW,
+} from "@/lib/preview-anexo";
 import { paraCentavos, type ExtracaoDocumento } from "@/lib/extracao/schema";
 import { hojeIso } from "@/lib/hoje";
 import { centavosParaInput, formatarBRL, parseValorInput } from "@/lib/money";
@@ -188,6 +201,17 @@ export default function RegistrarDocumento() {
   const [erroSalvar, setErroSalvar] = useState<string | null>(null);
 
   const [arquivo, setArquivo] = useState<File | null>(null);
+  /**
+   * **CONTAI-048 — ver o papel anexado sem sair do formulário.**
+   *
+   * ⚠️ Três estados que NÃO tocam em nada fiscal: a URL local do arquivo, o
+   * modo de exibição (imagem / PDF embutido / PDF em aba nova) e o modal
+   * aberto ou fechado. Preview não preenche campo, não valida o digitado e não
+   * impede salvar (critérios 2 e 4 do ticket).
+   */
+  const urlDoAnexo = useUrlDoAnexo(arquivo);
+  const modoDoAnexo = useModoDoPreview(arquivo);
+  const [verDocumento, setVerDocumento] = useState(false);
   const [tipo, setTipo] = useState<TipoDocumento | null>(null);
   const [nome, setNome] = useState("");
   const [documento, setDocumento] = useState("");
@@ -842,53 +866,120 @@ export default function RegistrarDocumento() {
                       ajuda="PDF, XML ou foto — é ele que faz a nota valer no acervo. Não tem à mão? Dá para registrar e anexar depois."
                       accept=".pdf,.xml,image/*"
                       arquivo={arquivo}
-                      onChange={setArquivo}
+                      /* Trocou o arquivo com o Lightbox aberto? Fecha: o que
+                         estava à vista não é mais o anexo da vez. Aqui, e não
+                         num efeito — este é o ÚNICO caminho pelo qual o anexo
+                         muda. */
+                      onChange={(novo) => {
+                        setArquivo(novo);
+                        setVerDocumento(false);
+                      }}
+                      /* ⚠️ **CONTAI-048, Estado F — o acesso do PISO, e SÓ o
+                         do piso** (`larga:hidden`): em tela larga quem manda
+                         é o botão do rail, logo abaixo. Dois controles com a
+                         mesma função visíveis ao mesmo tempo seria um deles
+                         sobrando. Não é campo, não é passo: é um link ao lado
+                         de uma linha que já existia. */
+                      acaoNoSucesso={
+                        <ControleVerDocumento
+                          data-ver="piso"
+                          modo={modoDoAnexo}
+                          url={urlDoAnexo}
+                          rotulo={VER_DOCUMENTO_PISO}
+                          rotuloPdfEmNovaAba={ABRIR_PDF_EM_ABA}
+                          onAbrir={() => setVerDocumento(true)}
+                          className="font-semibold text-mut underline larga:hidden"
+                        />
+                      }
                     />
 
-                    {/* ⚠️ A miniatura é de 52×52 e NÃO dá para ler nada nela —
-                        e a impossibilidade é o escopo, não um descuido. Ver o
-                        documento grande o bastante para conferir CNPJ, valor e
-                        data contra o formulário é o **CONTAI-048**, feature
-                        nova, explicitamente fora deste ticket. Só em `larga`:
-                        no celular o próprio campo já diz o nome do arquivo, e
-                        repetir seria roubar linha do caminho curto. */}
+                    {/* ⚠️ **CONTAI-048 — a miniatura deixou de ser 52×52, e só
+                        para IMAGEM.** Ela confirma "é este o papel"; ler CNPJ,
+                        valor e data continua sendo trabalho do Lightbox, que
+                        abre sob demanda logo abaixo (Gate 0, Estados B e E).
+                        PDF segue com ícone: thumbnail de PDF no cliente exige
+                        lib nova e não paga esta feature.
+
+                        Só em `larga`: no celular o próprio campo já diz o nome
+                        do arquivo, e repetir seria roubar linha do caminho
+                        curto — lá o acesso é o link do Estado F, acima. */}
                     {arquivo ? (
-                      <div className="hidden items-center gap-3 rounded-[10px] border border-line px-2.5 py-2.5 larga:flex">
-                        <span
-                          aria-hidden="true"
-                          className="flex h-[52px] w-[52px] flex-none items-center justify-center rounded-lg bg-soft text-[20px]"
-                        >
-                          📄
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[12.5px] font-semibold">
-                            {arquivo.name}
+                      <div className="hidden flex-col gap-2.5 rounded-[10px] border border-line px-2.5 py-2.5 larga:flex">
+                        {modoDoAnexo === "imagem" && urlDoAnexo ? (
+                          // ⚠️ `key={urlDoAnexo}`: trocar só o `src` não faz o
+                          // navegador recarregar de forma confiável quando o
+                          // arquivo muda — a miniatura ficaria na foto antiga.
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            key={urlDoAnexo}
+                            src={urlDoAnexo}
+                            alt={`Pré-visualização de ${arquivo.name}`}
+                            data-miniatura="anexo"
+                            className="h-[120px] w-full rounded-[10px] bg-soft object-cover"
+                          />
+                        ) : null}
+                        <div className="flex items-center gap-3">
+                          {modoDoAnexo === "imagem" && urlDoAnexo ? null : (
+                            <span
+                              aria-hidden="true"
+                              className="flex h-[52px] w-[52px] flex-none items-center justify-center rounded-lg bg-soft text-[20px]"
+                            >
+                              {ehXml(arquivo) ? "🧾" : "📄"}
+                            </span>
+                          )}
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[12.5px] font-semibold">
+                              {arquivo.name}
+                            </span>
+                            <span className="mt-0.5 block text-[11px] text-mut">
+                              {tamanhoLegivelDoAnexo(arquivo.size)}
+                            </span>
                           </span>
-                          <span className="mt-0.5 block text-[11px] text-mut">
-                            {tamanhoLegivelDoAnexo(arquivo.size)}
-                          </span>
-                        </span>
-                        {/* Abre o MESMO seletor do campo acima — não existe
-                            segundo input nem segundo estado de arquivo.
-                            ⚠️ Escopado por `data-campo` (Gate 2): um
-                            `input[type="file"]` global acertaria o primeiro
-                            file input que aparecesse na tela, e o dia em que
-                            existir um segundo (comprovante, foto da obra) o
-                            botão passa a trocar o arquivo errado — em silêncio,
-                            no anexo que sustenta a nota. */}
-                        <button
-                          type="button"
-                          onClick={() =>
-                            document
-                              .querySelector<HTMLInputElement>(
-                                'input[data-campo="arquivo"]',
-                              )
-                              ?.click()
-                          }
-                          className="flex-none text-[11.5px] text-mut underline"
-                        >
-                          Trocar arquivo
-                        </button>
+                          {/* Abre o MESMO seletor do campo acima — não existe
+                              segundo input nem segundo estado de arquivo.
+                              ⚠️ Escopado por `data-campo` (Gate 2): um
+                              `input[type="file"]` global acertaria o primeiro
+                              file input que aparecesse na tela, e o dia em que
+                              existir um segundo (comprovante, foto da obra) o
+                              botão passa a trocar o arquivo errado — em
+                              silêncio, no anexo que sustenta a nota. */}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              document
+                                .querySelector<HTMLInputElement>(
+                                  'input[data-campo="arquivo"]',
+                                )
+                                ?.click()
+                            }
+                            className="flex-none text-[11.5px] text-mut underline"
+                          >
+                            Trocar arquivo
+                          </button>
+                        </div>
+
+                        {/* Estado D: XML não ganha botão, e a tela DIZ por quê
+                            em vez de deixar o buraco falando sozinho. */}
+                        {ehXml(arquivo) ? (
+                          <p className="text-[11.5px] text-mut">
+                            {XML_SEM_PREVIEW}
+                          </p>
+                        ) : null}
+
+                        {/* ⚠️ ACIMA do "🪄 Extrair dados da nota (beta)", e a
+                            ordem é do Gate 0 (Estado C): ver o papel antes de
+                            rodar IA sobre ele. Em PDF + dedo/tela estreita este
+                            controle já nasce `<a target="_blank">` — ver
+                            `CONSULTA_PDF_EM_NOVA_ABA`. */}
+                        <ControleVerDocumento
+                          data-ver="larga"
+                          modo={modoDoAnexo}
+                          url={urlDoAnexo}
+                          rotulo={VER_DOCUMENTO_LARGA}
+                          rotuloPdfEmNovaAba={ABRIR_PDF_EM_ABA}
+                          onAbrir={() => setVerDocumento(true)}
+                          className="flex min-h-[40px] w-full items-center justify-center rounded-[10px] border border-ink bg-white px-3 text-center text-[13px] font-bold"
+                        />
                       </div>
                     ) : null}
 
@@ -1357,6 +1448,19 @@ export default function RegistrarDocumento() {
           <BotaoLink href="/adicionar">Voltar</BotaoLink>
         </Rodape>
       )}
+
+      {/* ══ CONTAI-048 — o Lightbox (Estado E do Gate 0) ═══════════════════
+          Fora da grade, por cima de tudo: o formulário continua montado atrás
+          e nada do que já foi digitado se perde. Só abre por clique; fechado,
+          não ocupa espaço nem rede. */}
+      {verDocumento && arquivo && urlDoAnexo ? (
+        <LightboxDoAnexo
+          arquivo={arquivo}
+          url={urlDoAnexo}
+          modo={modoDoAnexo}
+          onFechar={() => setVerDocumento(false)}
+        />
+      ) : null}
 
       {/* ══ O diálogo do §A.7.1 — CONTAI-033 ═══════════════════════════════
           ⚠️ **Overlay nesta mesma tela, e o formulário continua montado
