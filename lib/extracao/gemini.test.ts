@@ -138,7 +138,7 @@ describe("extrairViaGemini", () => {
 
     const [, init] = fetchEspiao.mock.calls[0];
     const enviado = JSON.parse(init.body);
-    expect(enviado.generationConfig.thinkingConfig.thinkingLevel).toBe("minimal");
+    expect(enviado.generationConfig.thinkingConfig.thinkingLevel).toBe("low");
     expect(enviado.generationConfig.maxOutputTokens).toBeGreaterThanOrEqual(8192);
   });
 

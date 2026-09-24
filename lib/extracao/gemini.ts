@@ -107,10 +107,19 @@ export async function extrairViaGemini(
             // produção do "erro frequente no parse da nota": `maxOutputTokens`
             // é o teto TOTAL (thinking + saída), e o raciocínio do modelo
             // gastava os 2048 antes de escrever o JSON — MAX_TOKENS sem texto.
-            // Ler nota fiscal é leitura, não raciocínio: pedimos o nível mais
+            // Ler nota fiscal é leitura, não raciocínio: pedimos um nível
             // barato e deixamos o teto só como trava contra loop (o JSON real
             // tem ~200 tokens).
-            thinkingConfig: { thinkingLevel: "minimal" },
+            // ⚠️ 2026-09-24: "minimal" quebrou em produção com 400 ("Thinking
+            // level MINIMAL is not supported for this model") — verificado
+            // contra a API real (não só doc): `gemini-3.5-flash` aceita os 4
+            // níveis, mas `gemini-flash-latest` (o fallback deste código, e o
+            // que a Vercel provavelmente resolve — a mensagem de rate limit
+            // do 429 revelou que o alias aponta para `gemini-3.8-flash`)
+            // **rejeita "minimal"**. "low" foi testado e funciona nos dois
+            // modelos, com o PDF real de uma nota. Não trocar para "minimal"
+            // de novo sem testar contra a API de verdade em ambos os modelos.
+            thinkingConfig: { thinkingLevel: "low" },
             maxOutputTokens: 8192,
           },
         }),
