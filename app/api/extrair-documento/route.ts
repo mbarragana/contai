@@ -60,9 +60,16 @@ export async function POST(request: Request) {
     const extraido = await extrairDocumento(base64, arquivo.type);
     return NextResponse.json(extraido);
   } catch (erro) {
+    // Log da Vercel é a única telemetria de produção que temos aqui: sem isto,
+    // "erro frequente no parse da nota" chega sem causa nenhuma.
     if (erro instanceof ExtracaoIndisponivelError) {
+      console.error("[extrair-documento] extração indisponível:", erro.message);
       return NextResponse.json({ erro: erro.message }, { status: 502 });
     }
+    console.error(
+      "[extrair-documento] falha inesperada:",
+      erro instanceof Error ? erro.message : String(erro),
+    );
     return NextResponse.json(
       { erro: "Falha inesperada na extração." },
       { status: 500 },

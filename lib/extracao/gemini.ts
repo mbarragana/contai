@@ -103,8 +103,15 @@ export async function extrairViaGemini(
             responseMimeType: "application/json",
             responseSchema: RESPONSE_SCHEMA,
             // Mesmo cuidado do garmin-import: thinking consome o teto antes
-            // do JSON de saída, e sem folga o JSON sai cortado.
-            maxOutputTokens: 2048,
+            // do JSON de saída, e sem folga o JSON sai cortado. Foi o bug de
+            // produção do "erro frequente no parse da nota": `maxOutputTokens`
+            // é o teto TOTAL (thinking + saída), e o raciocínio do modelo
+            // gastava os 2048 antes de escrever o JSON — MAX_TOKENS sem texto.
+            // Ler nota fiscal é leitura, não raciocínio: pedimos o nível mais
+            // barato e deixamos o teto só como trava contra loop (o JSON real
+            // tem ~200 tokens).
+            thinkingConfig: { thinkingLevel: "minimal" },
+            maxOutputTokens: 8192,
           },
         }),
       },
@@ -122,6 +129,21 @@ export async function extrairViaGemini(
   }
 
   const json = await resposta.json();
+
+  // Corte por teto de token sai como 200 OK com `finishReason: MAX_TOKENS` e
+  // sem texto (ou com JSON truncado). O erro genérico "não devolveu texto"
+  // escondia a causa; as contagens de token entram na mensagem porque log da
+  // Vercel é a única telemetria que temos em produção.
+  const finishReason: unknown = json?.candidates?.[0]?.finishReason;
+  if (typeof finishReason === "string" && finishReason !== "STOP") {
+    const uso = json?.usageMetadata ?? {};
+    throw new ExtracaoIndisponivelError(
+      `Gemini interrompeu a resposta (finishReason: ${finishReason}; ` +
+        `thoughtsTokenCount: ${uso.thoughtsTokenCount ?? "?"}; ` +
+        `candidatesTokenCount: ${uso.candidatesTokenCount ?? "?"}).`,
+    );
+  }
+
   const texto: unknown = json?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (typeof texto !== "string") {
     throw new ExtracaoIndisponivelError(

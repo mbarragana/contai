@@ -7,7 +7,12 @@ function respostaGemini(objeto: Record<string, unknown>) {
     ok: true,
     status: 200,
     json: async () => ({
-      candidates: [{ content: { parts: [{ text: JSON.stringify(objeto) }] } }],
+      candidates: [
+        {
+          finishReason: "STOP",
+          content: { parts: [{ text: JSON.stringify(objeto) }] },
+        },
+      ],
     }),
     text: async () => "",
   };
@@ -123,6 +128,40 @@ describe("extrairViaGemini", () => {
     await expect(extrairViaGemini("base64", "application/pdf")).rejects.toThrow(
       ExtracaoIndisponivelError,
     );
+  });
+
+  it("pede o nível mínimo de thinking e deixa teto de saída com folga", async () => {
+    const fetchEspiao = vi.fn().mockResolvedValue(respostaGemini(CAMPOS_NULOS));
+    vi.stubGlobal("fetch", fetchEspiao);
+
+    await extrairViaGemini("base64", "application/pdf");
+
+    const [, init] = fetchEspiao.mock.calls[0];
+    const enviado = JSON.parse(init.body);
+    expect(enviado.generationConfig.thinkingConfig.thinkingLevel).toBe("minimal");
+    expect(enviado.generationConfig.maxOutputTokens).toBeGreaterThanOrEqual(8192);
+  });
+
+  it("resposta cortada por teto de token cita MAX_TOKENS e as contagens no erro", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          candidates: [{ finishReason: "MAX_TOKENS" }],
+          usageMetadata: { thoughtsTokenCount: 2048, candidatesTokenCount: 0 },
+        }),
+        text: async () => "",
+      }),
+    );
+
+    const erro = await extrairViaGemini("base64", "application/pdf").catch(
+      (e) => e,
+    );
+    expect(erro).toBeInstanceOf(ExtracaoIndisponivelError);
+    expect(erro.message).toContain("MAX_TOKENS");
+    expect(erro.message).toContain("2048");
   });
 
   it("falha de rede (fetch rejeita) vira ExtracaoIndisponivelError", async () => {
