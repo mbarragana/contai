@@ -211,7 +211,8 @@ export function CampoArquivo({
       />
       {arquivo ? (
         <p className="flex flex-wrap items-center gap-1.5 text-[12px] font-semibold text-grn">
-          <span>{arquivo.name} ✓ vai para o acervo</span>
+          <span className="min-w-0 break-all">{arquivo.name}</span>
+          <span className="whitespace-nowrap">{" ✓ vai para o acervo"}</span>
           {acaoNoSucesso}
         </p>
       ) : (
