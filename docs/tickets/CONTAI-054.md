@@ -19,11 +19,11 @@ quando a nota tiver um padrão estruturado reconhecível, para eu só confirmar
 em vez de digitar os dois campos do zero.
 
 ## Critérios de Aceite
-1. [ ] Nova rota `POST /api/sugerir-retencao` recebe o PDF + o valor atual de
+1. [x] Nova rota `POST /api/sugerir-retencao` recebe o PDF + o valor atual de
    `retencaoNaNota`. Se `retencaoNaNota !== "destacada"`, devolve sem
    nenhuma sugestão — a rota nunca decide o gate. Teste unitário: PDF com
    campo rotulado e gate ainda `null`/`"nenhuma"` não gera sugestão nenhuma.
-2. [ ] Parser determinístico (`lib/extracao/retencao-texto.ts`, sobre o texto
+2. [x] Parser determinístico (`lib/extracao/retencao-texto.ts`, sobre o texto
    já extraído pelo `unpdf` — **sem chamar Gemini nem Groq**) procura três
    valores rotulados no texto: um rótulo casando com "total", outro com
    "líquido", e um terceiro (> 0) que é a retenção candidata. **Busca
@@ -40,16 +40,16 @@ em vez de digitar os dois campos do zero.
    `|total − candidato − líquido| ≤ 1` centavo (tolerância de
    arredondamento). Mais de um trio que bate → nenhuma sugestão (ambiguidade
    nunca vira "melhor palpite").
-3. [ ] A sugestão devolvida é só `{ rotuloLiteral, valorCentavos }` — nunca
+3. [x] A sugestão devolvida é só `{ rotuloLiteral, valorCentavos }` — nunca
    `composicao`, `tributo`, `e_desconto_efetivo` ou `quem_recolhe`, sem
    exceção por padrão de nota. `grep` no diff confirma zero atribuição
    automática a esses quatro campos.
-4. [ ] Nenhum rótulo específico de emissor/município (ex. "ISSRF") é
+4. [x] Nenhum rótulo específico de emissor/município (ex. "ISSRF") é
    hardcoded como whitelist — o padrão reconhecido é estrutural
    (rótulo+valor+aritmética), não uma lista de nomes conhecidos por nota.
-5. [ ] Fonte só texto embutido do PDF (pipeline `unpdf` do `CONTAI-052`);
+5. [x] Fonte só texto embutido do PDF (pipeline `unpdf` do `CONTAI-052`);
    scan/foto nunca aciona esta rota.
-6. [ ] `ExtracaoDocumentoSchema` (`lib/extracao/schema.ts`) **não** ganha
+6. [x] `ExtracaoDocumentoSchema` (`lib/extracao/schema.ts`) **não** ganha
    campo novo — a sugestão vive num tipo próprio (`SugestaoLinhaRetencao`),
    sem `confianca`: não há promoção de confiança por aritmética bater (seção
    Gate Fiscal abaixo), e o valor sugerido é sempre apresentado para
@@ -144,3 +144,22 @@ extração retroativa em documentos legados de `/documento/[id]`, fora de
 escopo). Sem UI própria — este ticket é só lib + rota; a superfície visível
 é o `CONTAI-055`. **Veredito: APROVADO**, sem Gate 0 de design (nenhuma
 mudança visível ao usuário neste ticket isoladamente).
+
+✅ **Entregue em 2026-09-25.** 6/6 critérios PASS — Gate 4 (`po`). O Gate 1
+inicial usava fixtures reconstruídas, não medidas: o coordenador rodou
+`unpdf` de verdade contra as duas notas reais do ticket e achou que rótulo
+e valor saem em **linhas separadas adjacentes**, não na mesma linha como a
+implementação original assumia — a feature nunca dispararia nas notas reais
+que a motivaram. Corrigido numa segunda rodada (`extrairLinhasRotuladas`
+cobre os dois padrões), com duas decisões técnicas novas aprovadas nos
+Gates 2 técnico e fiscal: filtro de vocabulário "total"/"líquido" no rótulo
+da candidata removido (uma retenção real se chama "Total das Retenções"),
+e combinações com líquido ≤ 0 descartadas (evita ambiguidade espúria com
+campos zerados da reforma tributária). 1069 testes unitários + 300 E2E
+verdes, sem migration, `ExtracaoDocumentoSchema` intocado.
+
+**Recomendação não bloqueante para o `CONTAI-055`** (dos dois revisores do
+Gate 2): o parser pode sugerir uma linha de desconto (não só retenção) se a
+aritmética fechar por coincidência — o `rotuloLiteral` sugerido precisa
+aparecer em destaque visual na tela de confirmação, porque ele é a única
+defesa contra aceitar sem olhar.

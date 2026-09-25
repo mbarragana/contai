@@ -1,6 +1,6 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 20 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 19 tickets (mais 1 parado, aguardando o Mateus)
 
 *(2026-09-23: `CONTAI-011` fatiado em três — `011` continua contando como 1
 item, e `049`/`050` somam os 2 novos. `CONTAI-051` soma o 19º no mesmo dia;
@@ -15,7 +15,26 @@ Gate 0, `055` bloqueado pelos outros dois. 2026-09-25, mais tarde ainda:
 `CONTAI-056` criado — **P0, bug fiscal**, achado por auditoria de código
 (não relato) — volta a 21, **2 itens prontos na fila** (`056` primeiro, por
 ser P0; `054` depois). 2026-09-25, ainda mais tarde: **`056` entregue**
-(Gate 4, 8/8 PASS) — volta a 20, **1 item pronto na fila** (`054`).)*
+(Gate 4, 8/8 PASS) — volta a 20, **1 item pronto na fila** (`054`).
+2026-09-25, ainda mais tarde: **`054` entregue** (Gate 4, 6/6 PASS) — volta
+a 19; `053` continua bloqueado por Gate 0, `055` agora só bloqueado por
+`053`.)*
+
+**2026-09-25, ainda mais tarde**: **`054` entregue** — Gate 4 (`po`), 6/6
+critérios PASS. O Gate 1 inicial usou fixtures reconstruídas em vez de
+medidas: o coordenador rodou `unpdf` de verdade contra as duas notas reais
+do ticket e achou que rótulo e valor saem em linhas SEPARADAS adjacentes,
+não na mesma linha como a implementação original assumia — a feature nunca
+dispararia nas notas reais que a motivaram. Corrigido numa segunda rodada
+(`lib/extracao/retencao-texto.ts` passou a cobrir os dois padrões), com duas
+decisões técnicas novas aprovadas nos Gates 2 técnico e fiscal: filtro de
+vocabulário "total"/"líquido" no rótulo da candidata removido (uma retenção
+real se chama "Total das Retenções"), e combinações com líquido ≤ 0
+descartadas (evita ambiguidade espúria com campos zerados da reforma
+tributária). Recomendação não bloqueante herdada pelo `CONTAI-055`: o
+`rotuloLiteral` sugerido precisa de destaque visual na confirmação. 1069
+testes unitários + 300 E2E verdes, sem migration. Detalhe:
+`docs/tickets/CONTAI-054.md`.
 
 **2026-09-25, ainda mais tarde**: **`056` entregue** — Gate 4 (`po`), 8/8
 critérios PASS. `alocarCusto` (`lib/fiscal/vinculo.ts`) passou a somar linha
@@ -571,11 +590,14 @@ sobre capturá-la).
 **2026-09-25, ainda mais tarde**: **`056` sai da fila** — entregue (ver nota
 no topo). `054` volta a ser o único item pronto.
 
+**2026-09-25, ainda mais tarde**: **`054` sai da fila** — entregue (ver nota
+no topo). `053` continua bloqueado por Gate 0; `055` agora só bloqueado por
+`053` (a lib/rota que ele consome já existe).
+
 | Ordem | # | Ticket | P | Pronto para `/develop` |
 |---|---|---|---|---|
-| 1 | 054 | Parser determinístico sugere rótulo/valor da linha de retenção | P1 | ✅ sim |
 | — | 053 | Repeater de retenção também na captura, tela larga | P1 | ⛔ bloqueado por Gate 0 (`/design`) |
-| — | 055 | Sugestão de retenção pré-preenche o repeater da captura | P1 | ⛔ bloqueado por `053` + `054` |
+| — | 055 | Sugestão de retenção pré-preenche o repeater da captura | P1 | ⛔ bloqueado por `053` |
 
 ### 🛑 Em espera — decisão do Mateus, 2026-09-23
 

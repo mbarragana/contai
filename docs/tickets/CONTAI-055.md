@@ -36,6 +36,11 @@ automática (`CONTAI-054`), para eu só confirmar em vez de digitar.
    bloqueia o registro — a captura segue com o formulário vazio, mesma
    disciplina de "sugestão que falha não impede o Salvar" já aplicada à
    extração de documento hoje.
+5. [ ] O `rotuloLiteral` sugerido aparece em destaque visual na tela de
+   confirmação (não só o valor pré-preenchido, discreto) — recomendação dos
+   dois revisores do Gate 2 do `CONTAI-054`: o parser pode sugerir uma linha
+   de desconto (não só retenção) se a aritmética fechar por coincidência, e
+   o rótulo visível é a única defesa contra aceitar sem olhar.
 
 ## Out of Scope
 - Qualquer coisa em `/documento/[id]` — documentos legados não ganham
