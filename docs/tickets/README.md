@@ -1,11 +1,27 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
 
 *(2026-09-23: `CONTAI-011` fatiado em três — `011` continua contando como 1
 item, e `049`/`050` somam os 2 novos. `CONTAI-051` soma o 19º no mesmo dia;
 `048` saiu da fila no fim do dia, entregue, voltando a 18; `051` saiu da fila
-logo depois, entregue, voltando a 17 — **fila de implementação vazia**.)*
+logo depois, entregue, voltando a 17 — **fila de implementação vazia**.
+2026-09-24: `CONTAI-052` criado, já pronto para `/develop` — volta a 18, com
+**1 item na fila de implementação**.)*
+
+**2026-09-24**: **`052` criado** — extração de texto embutido do PDF
+localmente (sem API) antes de qualquer IA de visão; quando suficiente, manda
+o texto para a **Groq** (cota separada da do Gemini, tira essa fatia de
+documentos do caminho que está no limite de 5 req/min); quando insuficiente
+(scan/foto), cai no caminho de hoje (Gemini + retry, `4f8a1c6`). Motivado
+pelo incidente do dia (`docs/backlog/67-2026-09-24-incidente-extracao-
+gemini.md`). Decisões técnicas fechadas pelo `cto-obra` antes do Gate 1
+(biblioteca `unpdf`, estágio ortogonal em `provider.ts`, heurística de 3
+testes + verificação campo-contra-fonte, retry/timeout reaproveitado —
+fecha a **dívida D70**), sanity check do `contador` **APROVADO** sem parecer
+formal, sem `/design` (zero mudança de UX), sem migration. **P1**, pronto
+para `/develop`. Detalhe:
+`docs/backlog/68-2026-09-24-decisoes-tecnicas-contai-052.md`.
 
 **2026-09-23, mais tarde ainda**: **`051` saiu da fila** — implementado
 (`lead-engineer`), revisado pelo Gate 2 técnico (`cto-obra`, 1 rodada de
@@ -462,9 +478,13 @@ topo deste arquivo. `051` fica sozinho na fila ativa.
 no topo deste arquivo. **Fila de implementação vazia** — nenhum ticket
 pronto para `/develop` aguardando início.
 
+**2026-09-24**: **`052` entra na fila** — criado já pronto para `/develop`
+(decisões técnicas do `cto-obra` fechadas, sanity check fiscal APROVADO, sem
+`/design`). Ver nota no topo deste arquivo.
+
 | Ordem | # | Ticket | P | Pronto para `/develop` |
 |---|---|---|---|---|
-| — | — | *(vazia)* | — | — |
+| 1 | 052 | Extração de texto local do PDF + Groq como provedor de texto | P1 | ✅ sim |
 
 ### 🛑 Em espera — decisão do Mateus, 2026-09-23
 
@@ -526,7 +546,7 @@ não deve ser iniciado até esta nota ser removida por decisão do Mateus.
 | **Saiu da fila, superado** | `009` — entregue via `CONTAI-018` sem citação cruzada; resto vivo virou o `037` |
 | **Saiu da fila, entregue** | `032`, `022` — commitados em 2026-09-19 (`13953f2`); `033`, `007`, `008`, `005`, `031`, `035` — entregues em 2026-09-20; `038`, `006`, `034`, `037`, `039`, `042`, `040`, `043`, `044`, `045` — entregues em 2026-09-21; `046`, `041` — entregues em 2026-09-22 (`041` ainda sem push); `047`, `048`, `051` — entregues em 2026-09-23 (`048` com dívida nomeada **D69**, validação em iPhone real ainda pendente); ver "Em produção" |
 | **Parado, aguardando o Mateus** | `014` — só o critério 4 entregue; ícone/aparelho físico não são delegáveis |
-| **Pronto para `/develop`** | nenhum — **fila de implementação vazia** desde a entrega do `051` |
+| **Pronto para `/develop`** | `052` — criado em 2026-09-24 já pronto (ver topo do arquivo) |
 | **Falta mock (`/design`)** | nenhum na fila ativa |
 
 ⚠️ **Esta tabela é resumo, não fonte.** Ela repete o que está abaixo — se
