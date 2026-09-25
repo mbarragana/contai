@@ -26,8 +26,18 @@ em vez de digitar os dois campos do zero.
 2. [ ] Parser determinístico (`lib/extracao/retencao-texto.ts`, sobre o texto
    já extraído pelo `unpdf` — **sem chamar Gemini nem Groq**) procura três
    valores rotulados no texto: um rótulo casando com "total", outro com
-   "líquido", e um terceiro (> 0) que é a retenção candidata. Só sugere
-   quando `|total − candidato − líquido| ≤ 1` centavo (tolerância de
+   "líquido", e um terceiro (> 0) que é a retenção candidata. **Busca
+   combinatória, não "primeiro que achar"**: pode haver MAIS DE UM rótulo
+   batendo com "total" e MAIS DE UM com "líquido" na mesma nota (confirmado
+   num segundo exemplo real, layout DANFSe v2.0/NFS-e Nacional, que tem
+   "VALOR TOTAL DA NFS-e" e também "Valor Total Apurado" do IBS/CBS; "VALOR
+   LÍQUIDO DA NFS-e" e também "VALOR LÍQUIDO DA NFS-e + IBS/CBS", este
+   último zerado por ser campo da reforma tributária ainda não vigente). O
+   parser testa TODAS as combinações (total_i, líquido_j) e só aceita se
+   **exatamente uma** combinação tiver uma terceira linha rotulada com o
+   valor da diferença — duas ou mais combinações batendo é ambiguidade e
+   vira `null`, igual a nenhuma bater. Só sugere quando
+   `|total − candidato − líquido| ≤ 1` centavo (tolerância de
    arredondamento). Mais de um trio que bate → nenhuma sugestão (ambiguidade
    nunca vira "melhor palpite").
 3. [ ] A sugestão devolvida é só `{ rotuloLiteral, valorCentavos }` — nunca
@@ -102,11 +112,19 @@ em vez de digitar os dois campos do zero.
 - **Complexidade: S** (lib) + **S** (rota/integração), com teste real (não
   mockado) usando o texto de uma NFS-e real anonimizada como fixture — mesmo
   padrão de `lib/extracao/texto-pdf-real.test.ts`.
-- **Dívida nova, D75**: parser calibrado com **um único** layout real
-  observado (NFS-e municipal, padrão SC, campo "ISSRF"). Risco: `unpdf` em
-  layout tabular pode separar a linha de rótulos da linha de valores, e a
-  adjacência que o regex assume quebra em outro formato — cada novo layout
-  real vira um caso de teste, nunca uma regra genérica antecipada.
+- **Dívida nova, D75, revisada com um segundo exemplo real (2026-09-25)**:
+  confirmado com duas notas reais de municípios/prestadores diferentes (uma
+  em layout municipal antigo, outra no padrão nacional "DANFSe v2.0") que
+  "total" e "líquido" aparecem como substring do rótulo nas duas, com a
+  aritmética batendo — reduz o risco de ser coincidência de uma nota só,
+  mas continua sendo **dois** exemplos, os dois de Santa Catarina. O segundo
+  exemplo também revelou um risco novo (endereçado no critério 2): a mesma
+  nota pode ter MAIS DE UM rótulo batendo com "total" e com "líquido" (campos
+  de IBS/CBS da reforma tributária) — resolvido por busca combinatória +
+  aritmética, não por "primeiro que achar". Risco residual: `unpdf` em
+  layout tabular pode separar rótulo de valor, e formato de outro estado/
+  regime pode não usar essas palavras — cada novo layout real vira um caso
+  de teste, nunca uma regra genérica antecipada.
 - **Dívida nova, D76**: o PDF é reenviado para esta rota (sem cache de
   texto por hash) — aceitável no volume da obra, cache fica para se virar
   incômodo de verdade.
