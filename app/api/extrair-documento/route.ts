@@ -63,7 +63,12 @@ export async function POST(request: Request) {
     // Log da Vercel é a única telemetria de produção que temos aqui: sem isto,
     // "erro frequente no parse da nota" chega sem causa nenhuma.
     if (erro instanceof ExtracaoIndisponivelError) {
-      console.error("[extrair-documento] extração indisponível:", erro.message);
+      // `tentativas` separa blip (1 chamada, 503 que sumiu no retry) de
+      // indisponibilidade real (3 chamadas, mesmo erro) no log da Vercel.
+      console.error(
+        `[extrair-documento] extração indisponível (tentativas: ${erro.tentativas}):`,
+        erro.message,
+      );
       return NextResponse.json({ erro: erro.message }, { status: 502 });
     }
     console.error(
