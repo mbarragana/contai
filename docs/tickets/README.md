@@ -1,6 +1,6 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 20 tickets (mais 1 parado, aguardando o Mateus)
 
 *(2026-09-23: `CONTAI-011` fatiado em três — `011` continua contando como 1
 item, e `049`/`050` somam os 2 novos. `CONTAI-051` soma o 19º no mesmo dia;
@@ -8,7 +8,29 @@ item, e `049`/`050` somam os 2 novos. `CONTAI-051` soma o 19º no mesmo dia;
 logo depois, entregue, voltando a 17 — **fila de implementação vazia**.
 2026-09-24: `CONTAI-052` criado, já pronto para `/develop` — volta a 18, com
 **1 item na fila de implementação**. 2026-09-25: `CONTAI-052` entregue
-(Gate 4, 9/9 PASS) — volta a 17, **fila de implementação vazia de novo**.)*
+(Gate 4, 9/9 PASS) — volta a 17, **fila de implementação vazia de novo**.
+2026-09-25, mais tarde: `CONTAI-053`/`054`/`055` criados a partir do relato
+71 — volta a 20, **1 item pronto na fila** (`054`), `053` bloqueado por
+Gate 0, `055` bloqueado pelos outros dois.)*
+
+**2026-09-25, mais tarde**: **`053`/`054`/`055` criados** — relato do Mateus
+durante uma dúvida fiscal sobre retenção destacada em NF de serviço PJ
+(`docs/backlog/71-2026-09-25-retencao-na-captura-e-extracao-deterministica.md`).
+`CONTAI-053` (P1): repeater de linha de retenção passa a aparecer também na
+captura (`/adicionar/documento`, tela larga ≥880px), reusando o formulário
+já validado da gestão em vez de reimplementar — achado do `cto-obra` no Gate
+de viabilidade (o `BlocoRetencao` inteiro exige documento já persistido,
+incompatível com a captura). **Bloqueado por Gate 0** (`/design`, nível 2).
+`CONTAI-054` (P1): parser determinístico (sem IA) lê rótulo+valor da
+retenção quando a nota tem campo estruturado e a aritmética
+Total−Retenção=Líquido bate — nasceria como parte do 054 original, mas o
+`cto-obra` fatiou porque a lib/rota é isolável e sem UI própria. **Pronto
+para `/develop`**, sem bloqueio. `CONTAI-055` (P1): liga os dois — a
+sugestão do `054` pré-preenche o repeater do `053`. **Bloqueado pelos dois**.
+Gate Fiscal fechado nas três (`contador`): extração nunca decide o gate
+`retencao_na_nota`, e os quatro campos de classificação fiscal
+(`composicao`/`tributo`/`e_desconto_efetivo`/`quem_recolhe`) nunca vêm de
+extração nenhuma, em nenhum ticket.
 
 **2026-09-25**: **`052` entregue** — Gate 4 (`po`), 9/9 critérios PASS.
 Estágio ortogonal de texto local (`unpdf`) → Groq (texto) → Gemini (visão,
@@ -500,9 +522,15 @@ pronto para `/develop` aguardando início.
 (decisões técnicas do `cto-obra` fechadas, sanity check fiscal APROVADO, sem
 `/design`). Ver nota no topo deste arquivo.
 
+**2026-09-25**: **`052` sai da fila** — entregue (ver nota no topo). **`054`
+entra pronto**; **`053`** aguarda `/design` (Gate 0, nível 2); **`055`**
+fica fora da fila até os dois anteriores fecharem.
+
 | Ordem | # | Ticket | P | Pronto para `/develop` |
 |---|---|---|---|---|
-| 1 | 052 | Extração de texto local do PDF + Groq como provedor de texto | P1 | ✅ sim |
+| 1 | 054 | Parser determinístico sugere rótulo/valor da linha de retenção | P1 | ✅ sim |
+| — | 053 | Repeater de retenção também na captura, tela larga | P1 | ⛔ bloqueado por Gate 0 (`/design`) |
+| — | 055 | Sugestão de retenção pré-preenche o repeater da captura | P1 | ⛔ bloqueado por `053` + `054` |
 
 ### 🛑 Em espera — decisão do Mateus, 2026-09-23
 
