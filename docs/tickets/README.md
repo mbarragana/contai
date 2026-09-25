@@ -1,6 +1,6 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 20 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 21 tickets (mais 1 parado, aguardando o Mateus)
 
 *(2026-09-23: `CONTAI-011` fatiado em três — `011` continua contando como 1
 item, e `049`/`050` somam os 2 novos. `CONTAI-051` soma o 19º no mesmo dia;
@@ -11,7 +11,27 @@ logo depois, entregue, voltando a 17 — **fila de implementação vazia**.
 (Gate 4, 9/9 PASS) — volta a 17, **fila de implementação vazia de novo**.
 2026-09-25, mais tarde: `CONTAI-053`/`054`/`055` criados a partir do relato
 71 — volta a 20, **1 item pronto na fila** (`054`), `053` bloqueado por
-Gate 0, `055` bloqueado pelos outros dois.)*
+Gate 0, `055` bloqueado pelos outros dois. 2026-09-25, mais tarde ainda:
+`CONTAI-056` criado — **P0, bug fiscal**, achado por auditoria de código
+(não relato) — volta a 21, **2 itens prontos na fila** (`056` primeiro, por
+ser P0; `054` depois).)*
+
+**2026-09-25, mais tarde ainda**: **`056` criado** — bug **P0** fiscal.
+`lib/fiscal/vinculo.ts` (`alocarCusto`) nunca soma uma linha de
+`documento_retencao` confirmada (`e_desconto_efetivo=true`) como custo, então
+uma nota com retenção legitimamente quitada mostra "Excedente — nota ainda
+não paga" **para sempre**, mesmo com `quem_recolhe` resolvido e sem pendência
+alguma aberta — subestimando o custo de aquisição na ficha Bens e Direitos, o
+que infla o ganho de capital tributável na venda futura. Achado quando o
+Mateus notou uma contradição entre o que o `contador` disse na sessão e o que
+a tela de um documento real dele mostrava. Duas rodadas de Gate Fiscal
+(ADENDO 2 + ADENDO 3 em
+`docs/pareceres/2026-09-18-retencao-variavel-servico-pj.md`): a linha soma
+como perna de pagamento só quando `quem_recolhe ∈ {"empresa", "nao_sei"}`
+(nunca `"eu"`, que já usa uma guia real, mecanismo intocado); data-efeito é a
+do pagamento vinculado mais antigo do documento, sem migration. `cto-obra`
+confirmou que a aferição SERO (`afericao.ts`) não importa `vinculo.ts` e não
+deve passar a importar. **Pronto para `/develop`**, sem Gate 0.
 
 **2026-09-25, mais tarde**: **`053`/`054`/`055` criados** — relato do Mateus
 durante uma dúvida fiscal sobre retenção destacada em NF de serviço PJ
@@ -526,9 +546,15 @@ pronto para `/develop` aguardando início.
 entra pronto**; **`053`** aguarda `/design` (Gate 0, nível 2); **`055`**
 fica fora da fila até os dois anteriores fecharem.
 
+**2026-09-25, mais tarde ainda**: **`056` entra pronto, na frente** — é P0
+(bug fiscal), fura a fila de P1 por prioridade. Não depende de `053`/`054`/`055`
+nem é dependido por eles (é sobre o cálculo já usar a linha capturada, não
+sobre capturá-la).
+
 | Ordem | # | Ticket | P | Pronto para `/develop` |
 |---|---|---|---|---|
-| 1 | 054 | Parser determinístico sugere rótulo/valor da linha de retenção | P1 | ✅ sim |
+| 1 | 056 | Retenção confirmada não conta como custo comprovado (bug fiscal) | **P0** | ✅ sim |
+| 2 | 054 | Parser determinístico sugere rótulo/valor da linha de retenção | P1 | ✅ sim |
 | — | 053 | Repeater de retenção também na captura, tela larga | P1 | ⛔ bloqueado por Gate 0 (`/design`) |
 | — | 055 | Sugestão de retenção pré-preenche o repeater da captura | P1 | ⛔ bloqueado por `053` + `054` |
 

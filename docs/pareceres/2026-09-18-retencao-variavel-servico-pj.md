@@ -414,3 +414,316 @@ produto nem vira validação automática — vira, de novo, a pergunta obrigató
   A.2.
 
 **O contai redige, dateia e organiza. Não assina.**
+
+---
+
+# ADENDO 2 — 2026-09-25 · o A.2 nunca foi implementado em `alocarCusto`; achado por auditoria de código, não por relato
+
+- **Provocação**: o Mateus flagrou contradição entre o que o `contador` disse
+  nesta sessão ("para um exemplo de nota de R$10 com R$0,50 de retenção
+  destacada, o custo de aquisição do ano é R$10,00, o bruto — não R$9,50") e o
+  comportamento real de `lib/fiscal/vinculo.ts`, confirmado por leitura de
+  código (não suposição): numa nota real dele (NFS-e municipal, Simples
+  Nacional, ISSRF), a tela mostra **"Custo comprovado"** (o valor pago,
+  descontada a retenção) e **"Excedente da nota — nota ainda não paga"** (o
+  valor da retenção em si), com o texto
+  `VINCULO_...`/`excedenteNotaCentavos` explicando que "sem desembolso não há
+  dispêndio" e que o pedaço "passa a contar quando o pagamento existir e for
+  ligado aqui" — tratando a fatia retida como se nunca tivesse sido paga.
+- **Fato de código, verificado por leitura integral de `lib/fiscal/vinculo.ts`
+  nesta data**: a palavra `retencao` não aparece nesse arquivo. `alocarCusto` e
+  `valorElegivelDoPagamento` só enxergam `Pagamento` (registros de
+  PIX/transferência/etc.) vinculados via `documentoIds`; `documento_retencao`
+  (CONTAI-038) não entra em nenhuma soma de custo. `Σ pagamentos elegíveis`
+  fecha contra `valor_bruto_nota` sem a linha de retenção nunca poder
+  contribuir, mesmo com `e_desconto_efetivo = true`.
+
+## Veredito: **(A)** — o código está fiscalmente errado, o parecer (A.2) já estava certo
+
+[Certain] O **A.2** desta mesma resposta já normatizava exatamente o mecanismo
+que falta:
+
+> "`e_desconto_efetivo=true` → esse valor precisa aparecer como **perna de
+> pagamento** vinculada ao mesmo documento (mesmo mecanismo do fechamento
+> `Σ pagamentos == valor_bruto_nota`)."
+
+Isto é uma instrução direta para o cálculo que hoje vive em
+`alocarCusto`/`Componente.somaPagamentosCentavos`: uma linha de
+`documento_retencao` com `e_desconto_efetivo = true` **deveria** somar aí, do
+mesmo jeito que um `Pagamento` vinculado soma. O código nunca implementou essa
+parte do A.2 — só a metade que vira pendência de "quem recolhe" (CONTAI-038,
+citado no `CLAUDE.md` como dívida D57, mas D57 ali é descrita só do lado da
+**aferição** do SERO; este adendo identifica que a mesma lacuna também
+existe do lado do **custo de aquisição**, que é conta separada e mais grave em
+termos de R$, porque afeta ganho de capital tributável na venda).
+
+**Isto não é mudança de regra — é confirmação de que a regra já escrita não
+foi seguida pela implementação.** O comentário do `contador` nesta sessão sobre
+"R$10,00, o bruto" estava certo no **valor final esperado**, mas incompleto ao
+não repetir explicitamente o mecanismo do A.2 (retenção vira perna de
+pagamento) — o que, lido isolado do parecer, pode ter parecido a alguém que
+bastava o documento existir. Não basta: precisa da linha de retenção **e** da
+confirmação `e_desconto_efetivo = true` **e** dessa linha entrar na soma de
+`alocarCusto` como perna de pagamento. O parecer já exigia os três; o código
+só tem os dois primeiros.
+
+### Resposta a cada pergunta
+
+**1. Retenção conta como desembolso para regime de caixa (IN SRF 84/2001,
+art. 17)?** [Certain] **Sim, quando `e_desconto_efetivo = true`.** Natureza
+jurídica: quitação por retenção é uma forma de extinção de obrigação
+funcionalmente idêntica a "transferir o valor cheio ao prestador e o prestador
+imediatamente repassar a fatia ao Fisco/à própria contabilidade dele" — o
+efeito patrimonial sobre o Mateus é o mesmo (o preço total do serviço foi
+satisfeito), e o critério de "documentação hábil e idônea" do art. 17 não
+exige que a moeda tenha fisicamente passado pela mão do prestador, exige que o
+dispêndio esteja comprovado. `e_desconto_efetivo = true` **é** a comprovação:
+é a confirmação (do Mateus, olhando a nota) de que aquele valor **de fato**
+reduziu o quanto ele transferiu e que o prestador não vai cobrá-lo de volta —
+ou seja, que o preço total foi quitado, só que por um canal diferente do PIX.
+Isso vale **independentemente de quem tem o dever legal de reter** (o §0 do
+corpo já havia derrubado que o Mateus, PF, tenha dever de retenção do art. 31
+— irrelevante aqui: o que conta não é "quem era obrigado a reter", é "a
+obrigação de pagar aquela fatia do preço foi extinta ou não").
+
+**2. A partir de que momento conta?** [Certain, conforme o A.2 já escrito]
+**A partir de `e_desconto_efetivo = true`, isoladamente — nunca espera
+`quem_recolhe`.** São dois trilhos ortogonais, e o código de hoje os
+confundiu ao não implementar nenhum dos dois corretamente:
+  - **Trilho custo de aquisição**: `e_desconto_efetivo = true` → linha conta
+    como perna de pagamento → pode fechar `Σ pagamentos == valor_bruto_nota`
+    → custo comprovado = bruto, **mesmo com `quem_recolhe` ainda não
+    respondido**.
+  - **Trilho compliance/passivo em aberto**: `quem_recolhe` sem resposta →
+    pendência nomeada e **separada** ("alguém pode estar devendo ao Fisco e
+    ninguém sabe quem" — A.2, A.4), que não trava, não bloqueia, e **não deve
+    aparecer como "nota ainda não paga"**, porque isso é uma frase sobre
+    dinheiro sem destino, e aqui o dinheiro **tem** destino conhecido (ficou
+    com o prestador, ou foi recolhido pela contabilidade dele) — só não se
+    sabe ainda se o recolhimento de fato aconteceu.
+
+**Critério técnico para `alocarCusto`** (normativo, decisão de como
+implementar é do `cto-obra`): `documento_retencao.e_desconto_efetivo = true`
+deve somar em `somaPagamentosCentavos` do componente conexo do documento,
+tratada como perna de pagamento, **independente do valor de `quem_recolhe`**.
+
+**3. O caso "quem_recolhe resolvido, sem pendência nenhuma aberta" mostrando
+"excedente, nota ainda não paga" para sempre — é intenção ou lacuna?**
+[Certain] **É lacuna, não intenção — e é fiscalmente errada e produto ruim ao
+mesmo tempo, como o Mateus suspeitou.** Fiscalmente errada porque subestima o
+custo de aquisição no ano do pagamento, o que **infla o ganho de capital
+tributável na venda futura** (cada real de custo não reconhecido é, lá na
+frente, até 22,5% de imposto a mais sobre aquele real, na faixa mais alta do
+art. 40 progressivo). De produto porque alarma permanentemente um estado que
+já está resolvido e documentado, sem meio de sair do alarme — o oposto do que
+o app deveria fazer com um caso encerrado.
+
+## Impacto observado
+
+Na nota real citada pelo Mateus (valor da retenção omitido aqui de propósito
+— este arquivo é versionado em repositório público): o valor integral da
+retenção destacada fica ausente da soma que alimenta a ficha Bens e Direitos,
+só por essa nota. Sem
+levantamento de quantas notas do acervo têm retenção confirmada
+(`e_desconto_efetivo = true`) e ficam no mesmo estado, o efeito agregado é
+desconhecido — mas o mecanismo que causa o problema **não é específico dessa
+nota**, é estrutural em `alocarCusto`, então provavelmente afeta toda nota com
+retenção confirmada no acervo. [Likely quanto à extensão; Certain quanto ao
+mecanismo]
+
+## Recomendação normativa para o gate fiscal do ticket (arquitetura é do `cto-obra`)
+
+1. `documento_retencao` com `e_desconto_efetivo = true` soma em
+   `Componente.somaPagamentosCentavos` (ou equivalente) em `alocarCusto`,
+   como perna de pagamento, tão logo confirmada — sem esperar `quem_recolhe`.
+2. `DocumentoAlocado.excedenteNotaCentavos` (e o texto de tela que o
+   acompanha) precisam distinguir dois motivos de excedente que hoje colapsam
+   no mesmo número e no mesmo texto: (a) falta pagamento genuíno — nenhum
+   destino conhecido para aquela fatia — vs (b) fatia já explicada por
+   retenção confirmada. **Só (a) deveria dizer "nota ainda não paga."**
+3. A pendência "quem recolhe" continua existindo, é ortogonal, e não deve
+   usar o mesmo texto/cor de "nota não paga" — ela é sobre um risco de
+   recolhimento em aberto, não sobre custo de aquisição não comprovado.
+4. Tratar como **P0**: efeito é quantificável, real, e na direção que
+   interessa ao Fisco contra o Mateus (subestimar custo → pagar mais imposto
+   no futuro) — a mesma direção de erro que os pareceres anteriores
+   classificam como a "menos perigosa" para o Fisco cobrar do Mateus depois,
+   mas que já é dinheiro saindo do bolso dele sem necessidade.
+
+## O que este adendo NÃO muda
+
+- §0, §1, §2 do corpo — aferição do SERO inalterada: retenção, de qualquer
+  natureza ou percentual, nunca abate a base do CNO. Isso é assunto
+  completamente separado do que este adendo corrige.
+- §6/A.2 — natureza do percentual (art. 31 / CPP informativo / ISS /
+  combinado / não identificado) continua irrelevante para o **valor** do
+  custo de aquisição: é sempre o bruto da nota. Este adendo não muda o
+  valor-alvo, só confirma que faltava (e continua faltando, no código) o
+  mecanismo para chegar nele.
+- A recusa em estimar ou presumir percentual (§4) e em decompor retenção
+  combinada (A.1).
+
+**O contai redige, dateia e organiza. Não assina.**
+
+---
+
+# ADENDO 3 — 2026-09-25 · `quem_recolhe = "eu"` é exceção real, não caso geral; e a retenção não tem data própria
+
+- **Provocação**: o `cto-obra`, desenhando o fix da recomendação 1 do ADENDO 2
+  ("linha de retenção soma como perna de pagamento, independente de
+  `quem_recolhe`"), achou colisão mecânica com `linhaSemRecolhedor`
+  (`lib/fiscal/retencao.ts:341`) e o E2E de `quem_recolhe = "eu"`
+  (`e2e/retencao.spec.ts:356`, fixture sintética: nota de R$18.000, PIX de
+  R$17.460 ao prestador + GUIA de R$540 paga à parte pelo Mateus). Aplicar a
+  recomendação 1 ao pé da letra faz o sistema contar R$540 antes de a guia
+  existir (falso "coberto") e R$1.080 depois dela existir (contagem em
+  dobro). Devolveu duas perguntas técnicas, ambas dentro da minha competência
+  (regime de caixa e comprovação de dispêndio), não de arquitetura.
+
+## Resposta desconfortável primeiro
+
+**A recomendação 1 do ADENDO 2 estava certa em espírito e errada por excesso
+de generalidade — eu devia ter escrito a exceção junto, não deixado o
+`cto-obra` achar por auditoria de novo.** [Certain] `quem_recolhe = "eu"` não é
+"mais um valor do enum" que a regra geral atravessa: é o único dos três
+estados em que **o dinheiro retido ainda está no bolso do Mateus**, não em
+trânsito para o Fisco. Tratá-lo igual aos outros dois é o mesmo erro estrutural
+que o ADENDO 2 apontou no código (confundir "existe retenção destacada" com
+"existe desembolso") — só que desta vez na minha própria recomendação, não na
+implementação.
+
+## Pergunta 1 — confirmado, com o critério exato do `cto-obra`
+
+[Certain] **Sim: a linha de retenção soma como perna de pagamento em
+`alocarCusto` se e somente se `e_desconto_efetivo = true` E
+`quem_recolhe ∈ {"empresa", "nao_sei"}`. Quando `quem_recolhe = "eu"`, a linha
+NUNCA soma — a perna de pagamento continua sendo exclusivamente a GUIA que o
+Mateus paga de verdade, mecanismo já implementado e coberto pelo E2E, sem
+tocar em `linhaSemRecolhedor`.**
+
+**Por que a distinção é fiscalmente real, não conveniência de código** — o
+teste do regime de caixa (IN SRF 84/2001, art. 17) é sempre o mesmo:
+*a fatia de R$540 já saiu, de forma definitiva e comprovável, da esfera
+econômica do Mateus, sem que ele ainda precise fazer nada mais para
+extingui-la?*
+
+- **`"empresa"` e `"nao_sei"`**: **sim.** O Mateus já transferiu só o líquido
+  (R$17.460) e não tem, daqui para frente, nenhum pagamento adicional a fazer
+  para quitar o preço da nota — o que resta é saber se **outra pessoa**
+  (a prestadora, ou "ainda não se sabe quem") recolheu para o Fisco, o que é
+  **risco de compliance de terceiro**, não obrigação pendente do Mateus. Isso é
+  exatamente o que o A.2 já chamava de "quitação por retenção... independente
+  de quem tem o dever legal de reter" — a obrigação do Mateus **acabou** no
+  momento em que `e_desconto_efetivo = true` foi confirmado, porque ele não vai
+  desembolsar mais nada por essa nota. A pendência "quem recolhe" que fica
+  aberta enquanto `"nao_sei"` não é uma dúvida sobre **quanto o Mateus pagou**
+  — é dúvida sobre **o que aconteceu depois que o dinheiro saiu da mão dele**,
+  o que a jurisprudência de custo de aquisição não exige resolver (o
+  comprovante que a IN 84/2001 pede é do dispêndio DELE, não da baixa fiscal de
+  terceiro).
+- **`"eu"`**: **não.** Aqui a obrigação de completar o preço **não acabou** —
+  ela só migrou de "pagar ao prestador" para "pagar ao Fisco", e essa segunda
+  perna **ainda não aconteceu** no momento em que a linha é gravada. Regime de
+  caixa não permite reconhecer um dispêndio pela **intenção futura** de pagá-lo
+  — só pelo pagamento em si. Enquanto a guia não existir, o Mateus **está
+  literalmente com os R$540 no bolso**: economicamente idêntico a ele ainda
+  não ter pago aquela fatia do preço. Contar a linha como perna aqui seria
+  reconhecer custo por um valor que, até prova em contrário (a guia), **ele
+  ainda tem, não gastou**.
+
+**Efeito nos dois cenários de quebra do `cto-obra`, resolvidos**:
+- Antes da guia: com o critério acima, a linha (`quem_recolhe = "eu"`) não
+  soma nada. `Σ = 17.460` (só o PIX) → excedente de R$540, nota corretamente
+  "ainda não paga" para os R$540 que faltam. Nenhum falso "coberto".
+- Depois da guia: a linha continua não somando (exclusão é permanente para
+  `"eu"`, não "até a guia aparecer"). `Σ = 17.460 (PIX) + 540 (guia) = 18.000`
+  — bate com o bruto, sem sobra e sem dado contraditório. A guia, sendo um
+  `Pagamento` de verdade com sua própria data, já resolve sozinha tudo que a
+  linha faria — somar as duas seria contar o mesmo real duas vezes, com dois
+  nomes diferentes.
+
+**Não é "outro critério" — é o critério do `cto-obra`, ratificado por inteiro**,
+inclusive na forma: guardar a exceção dentro de `linhaSemRecolhedor`/da soma de
+`alocarCusto` como um `if (quem_recolhe === "eu") não soma`, e não como uma
+condição temporal ("soma até a guia aparecer, depois some duas fontes") — a
+exclusão de `"eu"` é **de estado**, não de tempo.
+
+**Nota de acompanhamento, não bloqueante**: se uma linha nascer `"nao_sei"`
+(contando para o custo) e depois for **editada** para `"eu"` (o Mateus descobre
+que é ele quem tem de recolher), o custo do documento **cai** retroativamente
+até que uma guia real seja registrada e vinculada. Isso é correto do ponto de
+vista fiscal (o dispêndio nunca existiu enquanto não havia guia — o sistema só
+estava com uma suposição otimista), mas é uma consequência de produto que o
+`cto-obra` precisa desenhar (ex.: se o ano já foi declarado, a mudança deveria
+gerar um alerta explícito de "custo declarado precisa de revisão", não um
+recálculo silencioso). Normativo: **decidir a UX é do `cto-obra`; a regra
+fiscal é a que está acima e não muda com o timing da edição.**
+
+## Pergunta 2 — ratificada: data do pagamento vinculado mais antigo, sem coluna nova
+
+[Certain] **Concordo com a proposta do `cto-obra`: a retenção NÃO precisa de
+data própria — ela usa a data do pagamento vinculado mais antigo do mesmo
+`documento`, e migration nova não é necessária.**
+
+**Por que isso é a regra certa, não só a mais barata** — a retenção (nos casos
+que contam, `"empresa"`/`"nao_sei"`, pela Pergunta 1) não é um pagamento com
+existência própria: **nenhuma transferência aconteceu naquele valor exato, em
+nenhuma data**. Ela é uma **ficção de quitação** amarrada à nota, e uma ficção
+de quitação não tem data de nascimento independente da nota — ela só passa a
+ser **defensável como dispêndio comprovado** quando existe, no mundo real, ao
+menos um desembolso contra aquele documento. Antes disso, a pergunta "em que
+ano isso conta?" não tem resposta que não seja inventada, porque **nenhum real
+saiu da conta do Mateus ainda para nenhum documento sem pagamento vinculado**
+— retenção incluída. É a mesma lógica de caixa da Pergunta 1, aplicada ao
+eixo do tempo em vez do eixo do "quanto": **sem desembolso, não há dispêndio;
+sem dispêndio, não há data; sem data, a linha não entra em soma de ano
+nenhum** — fica "pendente de data" exatamente como hoje já fica "pendente de
+paga" uma nota sem nenhum pagamento vinculado.
+
+**Por que NÃO dar data própria à retenção (rejeito a alternativa "data da
+nota", mesmo que custasse só uma coluna)**: a data da nota é a do **fato
+gerador do serviço**, não a de um **pagamento** — usá-la fixaria a retenção no
+regime de **competência**, que é exatamente o regime que a IN 84/2001 art. 17
+e todo o restante deste parecer (§0 do corpo, "regime de caixa: entra no ano o
+que foi efetivamente pago") já rejeitaram para toda e qualquer linha de custo
+do produto. Abrir uma exceção de competência só para a retenção quebraria a
+única regra de data que o sistema tem, para o único tipo de linha que menos
+precisa dela (porque ela é sempre acessória de pagamentos que já têm data
+própria).
+
+**Detalhe normativo que falta na proposta do `cto-obra`, para fechar sem
+ambiguidade**: "o pagamento vinculado mais antigo" tem de ser **do mesmo
+`documento_id`**, não do "componente" agregado nem de qualquer pagamento do
+prestador em geral — dois documentos diferentes do mesmo favorecido não podem
+emprestar data um do outro. E **"mais antigo" é o critério certo, não "mais
+recente" nem "o que fechou a nota"**: a retenção (para `"empresa"`/`"nao_sei"`)
+já é reconhecida como dispêndio a partir do primeiro real que sair da conta do
+Mateus contra aquela nota (Pergunta 1 não exige que a nota esteja 100% coberta
+para a linha contar) — então o primeiro pagamento vinculado já é o marco de
+"a partir daqui existe desembolso comprovável", e é esse marco, não um
+posterior, que justifica reconhecer a linha.
+
+**O que fazer se o documento não tiver NENHUM pagamento vinculado ainda**:
+a linha de retenção — mesmo `e_desconto_efetivo = true` e
+`quem_recolhe = "empresa"` (pendência fiscal já fechada, E2E confirma) — **não
+entra em nenhum ano**, fica de fora de `alocarCusto` até que exista ao menos
+um pagamento vinculado ao documento. Isso não é uma lacuna nova: é o mesmo
+estado que já existe hoje para uma nota sem nenhum pagamento registrado —
+"custo comprovado" para ela já é zero, com ou sem retenção.
+
+## O que este adendo NÃO muda
+
+- O valor-alvo do custo de aquisição continua sendo o **bruto da nota**, para
+  os casos em que a linha conta (§6, A.2, A.5) — este adendo só corrige o
+  **quando** e o **quando não** aplicar a soma, não o valor.
+- A aferição do SERO permanece inteiramente alheia a isto — nenhuma linha de
+  retenção, contada ou não em `alocarCusto`, jamais abate a base do CNO (§2,
+  reafirmado em todos os adendos anteriores).
+- O mecanismo de `"eu"` (`linhaSemRecolhedor` + guia como `Pagamento`
+  separado) **não muda uma linha de código** — este adendo confirma que ele
+  já estava certo e que a mudança pedida pela recomendação 1 do ADENDO 2 é
+  em outro lugar do código (a soma de `alocarCusto`), nunca nele.
+- Nenhuma migration nova. A Pergunta 2 rejeita coluna de data em
+  `documento_retencao`.
+
+**O contai redige, dateia e organiza. Não assina.**
