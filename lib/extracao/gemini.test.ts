@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ExtracaoIndisponivelError, extrairViaGemini } from "@/lib/extracao/gemini";
+import { ExtracaoIndisponivelError } from "@/lib/extracao/erros";
+import { extrairViaGemini } from "@/lib/extracao/gemini";
 
 function respostaGemini(objeto: Record<string, unknown>) {
   return {
@@ -160,6 +161,31 @@ describe("extrairViaGemini", () => {
     const enviado = JSON.parse(init.body);
     expect(enviado.generationConfig.thinkingConfig.thinkingLevel).toBe("low");
     expect(enviado.generationConfig.maxOutputTokens).toBeGreaterThanOrEqual(8192);
+  });
+
+  it("cada tentativa carrega um AbortSignal com timeout — fecha a D70", async () => {
+    const fetchEspiao = vi.fn().mockResolvedValue(respostaGemini(CAMPOS_NULOS));
+    vi.stubGlobal("fetch", fetchEspiao);
+
+    await extrairViaGemini("base64", "application/pdf");
+
+    const [, init] = fetchEspiao.mock.calls[0];
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+    expect(init.signal.aborted).toBe(false);
+  });
+
+  it("usa as mesmas regras fiscais da fonte única, com o critério de confiança de VISÃO", async () => {
+    const fetchEspiao = vi.fn().mockResolvedValue(respostaGemini(CAMPOS_NULOS));
+    vi.stubGlobal("fetch", fetchEspiao);
+
+    await extrairViaGemini("base64", "application/pdf");
+
+    const enviado = JSON.parse(fetchEspiao.mock.calls[0][1].body);
+    const prompt = enviado.contents[0].parts[1].text;
+    expect(prompt).toContain("quem EMITIU o documento");
+    expect(prompt).toContain("Não leia nem tente classificar retenções");
+    expect(prompt).toContain("PDF está com texto cortado");
+    expect(prompt).not.toContain("AMBIGUIDADE");
   });
 
   it("resposta cortada por teto de token cita MAX_TOKENS e as contagens no erro", async () => {

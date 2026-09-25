@@ -35,9 +35,20 @@ export const ExtracaoDocumentoSchema = z.object({
   valorReais: z.number().nullable(),
   classificacao: z.enum(["material", "mao_obra"]).nullable(),
   /**
-   * Leitura honesta de confiança do próprio modelo — não é validação fiscal,
-   * é "quão legível estava o PDF". `baixa` é o sinal para o Mateus olhar
-   * campo a campo antes de confiar.
+   * Leitura honesta de confiança do próprio modelo — não é validação fiscal.
+   * `baixa` é o sinal para o Mateus olhar campo a campo antes de confiar.
+   *
+   * ⚠️ **O critério muda por modalidade** (CONTAI-052, decisão técnica 5), e o
+   * enum é o mesmo de propósito: a UI trata os dois iguais porque, para quem
+   * confirma o formulário, "olhe com atenção" é a mesma instrução.
+   * - **visão** (Gemini, arquivo original): julga LEGIBILIDADE — PDF cortado,
+   *   borrado ou torto derruba para `baixa`.
+   * - **texto** (Groq, texto embutido extraído localmente): julga
+   *   AMBIGUIDADE — o texto já veio decodificado, então o que sobra é "havia
+   *   dois CNPJ/dois valores candidatos?". Neste caminho a `confianca` também
+   *   é rebaixada pelo código, não só pelo modelo: `conferirContraFonte` em
+   *   `texto-pdf.ts` força `baixa` quando um campo não aparece no texto-fonte.
+   *   Ela só REBAIXA, nunca sobe.
    */
   confianca: z.enum(["alta", "media", "baixa"]).nullable(),
 });

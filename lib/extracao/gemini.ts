@@ -1,40 +1,30 @@
 /**
- * Extração de documento via Gemini (US-008, Fase 2). Padrão trazido do
- * ../garmin-import (abstração de provider por env var) — mas o CHAMADO em si
- * é novo: o garmin-import só usa Gemini para chat de texto, nenhum PDF.
+ * Provedor de VISÃO da extração (US-008, Fase 2). Recebe o arquivo original em
+ * base64 — é o caminho para PDF sem camada de texto (scan, foto convertida) e
+ * o fallback de tudo que o estágio de texto (CONTAI-052) não resolve.
+ *
+ * Padrão trazido do ../garmin-import (abstração de provider por env var) — mas
+ * o CHAMADO em si é novo: o garmin-import só usa Gemini para chat de texto,
+ * nenhum PDF.
  *
  * Decisão de 2026-09-19: troca o Claude API do CLAUDE.md original (custo —
  * é o que o Mateus já tem de graça). Documentada em CLAUDE.md.
+ *
+ * O que saiu daqui no CONTAI-052, sem mudança de comportamento: o texto do
+ * prompt (→ `prompt.ts`, fonte única com a Groq), o laço de retry (→
+ * `retry.ts`, reaproveitado pelos dois) e `ExtracaoIndisponivelError` (→
+ * `erros.ts`, módulo neutro).
  */
 
+import { ExtracaoIndisponivelError } from "@/lib/extracao/erros";
+import { CONFIANCA_VISAO, montarPrompt } from "@/lib/extracao/prompt";
+import { postComRetry } from "@/lib/extracao/retry";
 import {
   ExtracaoDocumentoSchema,
   type ExtracaoDocumento,
 } from "@/lib/extracao/schema";
 
-const PROMPT = `Você lê notas fiscais e boletos de uma obra de construção civil
-no Brasil e devolve SOMENTE os dados que estão impressos no documento.
-
-Regras, sem exceção:
-- Nunca invente ou estime um valor. Campo que você não consegue ler com
-  certeza vira \`null\` — nunca um palpite.
-- "favorecidoNome" e "favorecidoDocumento" são de quem EMITIU o documento
-  (o prestador/fornecedor), nunca do tomador.
-- "valorReais" é o valor BRUTO do documento (o total da nota/boleto), em
-  reais, com ponto decimal (ex.: 1234.56) — nunca já descontado de retenção.
-- "dataEmissao" e "vencimento" saem em AAAA-MM-DD. Nota sem vencimento
-  impresso (não é boleto) → \`vencimento: null\`.
-- "tipo": "nf_servico" se a nota descreve prestação de serviço/mão de obra;
-  "nf_material" se descreve venda de material/produto; "boleto" se o
-  documento é um boleto de cobrança (não é NF).
-- "classificacao": "mao_obra" para serviço, "material" para material — só
-  quando o tipo já não deixar isso óbvio, senão \`null\`.
-- "confianca": "baixa" se o PDF está com texto cortado, ilegível ou você tem
-  qualquer dúvida sobre um campo; "alta" só quando todos os campos lidos são
-  nítidos e inequívocos.
-
-Não leia nem tente classificar retenções (INSS, ISS, CPP, etc.) — isso fica
-fora do seu escopo, mesmo que a nota mostre uma linha de retenção.`;
+const PROMPT = montarPrompt(CONFIANCA_VISAO);
 
 const RESPONSE_SCHEMA = {
   type: "OBJECT",
@@ -64,73 +54,13 @@ const RESPONSE_SCHEMA = {
   ],
 } as const;
 
-export class ExtracaoIndisponivelError extends Error {
-  /**
-   * Quantas chamadas ao Gemini foram feitas até desistir. Existe para a rota
-   * logar isso na Vercel — 1 tentativa e 3 tentativas com o mesmo 503 contam
-   * histórias diferentes (blip vs. indisponibilidade de verdade).
-   */
-  readonly tentativas: number;
-
-  constructor(mensagem: string, tentativas = 1) {
-    super(mensagem);
-    this.tentativas = tentativas;
-  }
-}
-
 /**
- * Retry para o que pode mudar de resultado na próxima tentativa:
- * - qualquer 5xx — 503 UNAVAILABLE ("model is currently experiencing high
- *   demand") é o que já mordeu em produção, mas 500/502/504 são da mesma
- *   família: falha do lado deles, não do nosso pedido
- * - 429 RESOURCE_EXHAUSTED — rate limit (a conta é tier gratuito, 5 req/min)
- *
- * O 4xx restante é erro de configuração/request (foi o caso do
- * `thinkingLevel: "minimal"` em 2026-09-24): repetir devolve o mesmo 400 e só
- * queima tempo do Mateus na tela. A fronteira é exatamente essa — 429 e 5xx
- * repetem, o resto do 4xx falha na hora.
- *
- * Erro de rede (fetch rejeitando: timeout, DNS, socket) também repete: é o
- * transitório mais comum de todos, e nesse caso não há resposta para ler
- * `Retry-After`, então vale só o backoff fixo.
+ * 20s por tentativa (CONTAI-052, fecha a D70). O dobro do teto da Groq porque
+ * aqui sobe o PDF inteiro em base64 e o modelo roda visão — uma nota grande
+ * legitimamente passa de 10s. Acima de 20s é pendurado, e repetir vale mais
+ * que esperar.
  */
-function repetivel(status: number): boolean {
-  return status === 429 || status >= 500;
-}
-
-/**
- * 3 tentativas no total (a original + 2), esperando 1s e depois 3s. O teto de
- * ~4s de espera extra é deliberado: o 503 de 2026-09-24 ainda estava lá 20
- * minutos depois, então "esperar a indisponibilidade passar" não é objetivo
- * alcançável — o alvo é só o blip de segundos. Espera maior travaria a tela
- * de captura sem aumentar a chance de sucesso.
- */
-const TENTATIVAS_MAXIMAS = 3;
-const ESPERAS_MS = [1_000, 3_000];
-/** `Retry-After` acima disto é ignorado: vira espera longa, não blip. */
-const RETRY_AFTER_MAXIMO_MS = 5_000;
-
-function esperar(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/** `Retry-After` em segundos; `null` se ausente, inválido ou não-numérico. */
-function retryAfterMs(resposta: Response): number | null {
-  const bruto = resposta.headers.get("retry-after");
-  if (!bruto) return null;
-  const segundos = Number(bruto.trim());
-  if (!Number.isFinite(segundos) || segundos <= 0) return null;
-  return segundos * 1_000;
-}
-
-/** Sem `resposta` (falha de rede) só existe o backoff fixo. */
-function esperaAposFalha(tentativa: number, resposta?: Response): number {
-  const padrao = ESPERAS_MS[tentativa - 1] ?? ESPERAS_MS[ESPERAS_MS.length - 1];
-  const sugerido = resposta ? retryAfterMs(resposta) : null;
-  return sugerido !== null && sugerido <= RETRY_AFTER_MAXIMO_MS
-    ? sugerido
-    : padrao;
-}
+const TIMEOUT_MS = 20_000;
 
 /**
  * `pdfBase64` sem o prefixo `data:...;base64,` — só o conteúdo. Lança
@@ -185,56 +115,18 @@ export async function extrairViaGemini(
     },
   });
 
-  let ultimaFalha = "";
-  let tentativasFeitas = 0;
+  const { resposta, tentativas } = await postComRetry({
+    nome: "Gemini",
+    url,
+    init: {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body,
+    },
+    timeoutMs: TIMEOUT_MS,
+  });
 
-  // Log da Vercel é a única telemetria de produção: sem isto, um retry
-  // bem-sucedido some e "o Gemini está instável" fica sem evidência.
-  const avisarRepeticao = (tentativa: number, motivo: string, espera: number) =>
-    console.warn(
-      `[gemini] tentativa ${tentativa}/${TENTATIVAS_MAXIMAS} falhou ` +
-        `(${motivo}); repetindo em ${espera}ms.`,
-    );
-
-  for (let tentativa = 1; tentativa <= TENTATIVAS_MAXIMAS; tentativa++) {
-    tentativasFeitas = tentativa;
-    const ultima = tentativa === TENTATIVAS_MAXIMAS;
-
-    let resposta: Response;
-    try {
-      resposta = await fetch(url, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body,
-      });
-    } catch (erro) {
-      const motivo = erro instanceof Error ? erro.message : String(erro);
-      ultimaFalha = `Gemini indisponível: ${motivo}`;
-      if (ultima) break;
-      const espera = esperaAposFalha(tentativa);
-      avisarRepeticao(tentativa, motivo, espera);
-      await esperar(espera);
-      continue;
-    }
-
-    if (resposta.ok) {
-      return interpretarResposta(await resposta.json(), tentativa);
-    }
-
-    ultimaFalha = `Gemini devolveu ${resposta.status}: ${await resposta.text()}`;
-    if (!repetivel(resposta.status) || ultima) break;
-
-    const espera = esperaAposFalha(tentativa, resposta);
-    avisarRepeticao(tentativa, String(resposta.status), espera);
-    await esperar(espera);
-  }
-
-  throw new ExtracaoIndisponivelError(
-    tentativasFeitas > 1
-      ? `Gemini indisponível após ${tentativasFeitas} tentativas: ${ultimaFalha}`
-      : ultimaFalha,
-    tentativasFeitas,
-  );
+  return interpretarResposta(await resposta.json(), tentativas);
 }
 
 /**

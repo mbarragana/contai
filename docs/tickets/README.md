@@ -1,13 +1,31 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
 
 *(2026-09-23: `CONTAI-011` fatiado em três — `011` continua contando como 1
 item, e `049`/`050` somam os 2 novos. `CONTAI-051` soma o 19º no mesmo dia;
 `048` saiu da fila no fim do dia, entregue, voltando a 18; `051` saiu da fila
 logo depois, entregue, voltando a 17 — **fila de implementação vazia**.
 2026-09-24: `CONTAI-052` criado, já pronto para `/develop` — volta a 18, com
-**1 item na fila de implementação**.)*
+**1 item na fila de implementação**. 2026-09-25: `CONTAI-052` entregue
+(Gate 4, 9/9 PASS) — volta a 17, **fila de implementação vazia de novo**.)*
+
+**2026-09-25**: **`052` entregue** — Gate 4 (`po`), 9/9 critérios PASS.
+Estágio ortogonal de texto local (`unpdf`) → Groq (texto) → Gemini (visão,
+caminho de hoje) em `lib/extracao/provider.ts`; retry/timeout extraído para
+`lib/extracao/retry.ts`, fecha a **D70** (`AbortSignal.timeout()` por
+tentativa + `maxDuration=60`). Gate 2 técnico (`cto-obra`) testou com `unpdf`
+**real** e achou um bug bloqueante (`Buffer` rejeitado pelo PDF.js interno —
+todo documento cairia em silêncio no Gemini) mais dois não pedidos
+(`Number("")` virando um R$ 0,00 fiscal inventado; separador de milhar
+pt-BR quebrando 1000x) — os três corrigidos antes de produção, reconfirmado
+**APPROVE**. 90/90 testes em `lib/extracao`, suíte completa 1020 unitários +
+296 E2E verdes, `npm run build` verde com `unpdf` em `dependencies`. Duas
+dívidas nomeadas, não bloqueantes: **D71** (caminho Groq nunca testado
+contra API real — falta a `GROQ_API_KEY` na Vercel) e **D72** (heurística de
+"texto suficiente" calibrada só com fixtures sintéticas, sem scan real da
+obra). **Fila de implementação volta a vazia.** Detalhe:
+`docs/backlog/69-2026-09-25-contai-052-entregue.md`.
 
 **2026-09-24**: **`052` criado** — extração de texto embutido do PDF
 localmente (sem API) antes de qualquer IA de visão; quando suficiente, manda

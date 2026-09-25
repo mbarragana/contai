@@ -141,33 +141,33 @@ possivelmente `next.config.ts`.
 
 ## Escopo e Critérios de Aceite
 
-1. Documento anexado em `/adicionar/documento` cujo PDF tem camada de texto
+1. [x] Documento anexado em `/adicionar/documento` cujo PDF tem camada de texto
    suficiente (heurística do critério 4 acima) tem o texto extraído
    **localmente, sem nenhuma chamada de API**, antes de qualquer IA ser
    acionada.
-2. Se o texto for julgado suficiente **e** `GROQ_API_KEY` estiver configurada,
+2. [x] Se o texto for julgado suficiente **e** `GROQ_API_KEY` estiver configurada,
    a extração roda via Groq (texto), devolvendo a mesma estrutura
    `ExtracaoDocumento` de hoje — nenhum campo novo, nenhum campo removido.
-3. Se o texto for insuficiente (scan/foto sem camada de texto), **ou** a
+3. [x] Se o texto for insuficiente (scan/foto sem camada de texto), **ou** a
    chamada à Groq falhar (`ExtracaoIndisponivelError` esgotando retry, ou
    resultado vazio/inválido no schema), o pipeline cai automaticamente no
    caminho de hoje — Gemini com o arquivo original, preservando o retry já
    implementado (commit `4f8a1c6`). Usuário não vê diferença nenhuma na tela
    entre os dois caminhos além do resultado preenchido.
-4. Verificação campo-contra-fonte no caminho texto: `favorecidoDocumento` e
+4. [x] Verificação campo-contra-fonte no caminho texto: `favorecidoDocumento` e
    `valorReais` só ficam preenchidos se aparecerem literalmente no texto
    extraído; caso contrário, o campo volta a `null` e `confianca` é
    rebaixada para `"baixa"` — nunca o inverso.
-5. **Zero mudança de UX**: mesmo botão "Extrair dados da nota", mesmos campos
+5. [x] **Zero mudança de UX**: mesmo botão "Extrair dados da nota", mesmos campos
    no formulário, mesmo comportamento de "extração só sugere". Nenhuma
    mudança em `notaNoCpf`, `retencao_na_nota`/`retencao11` ou `cnoNaNota` —
    esses continuam pergunta ao usuário, nunca inferência de texto/imagem.
-6. `GROQ_API_KEY` ausente em produção não bloqueia nada: o estágio de texto
+6. [x] `GROQ_API_KEY` ausente em produção não bloqueia nada: o estágio de texto
    fica desligado (log de aviso), extração cai direto no Gemini, igual ao
    comportamento pré-ticket.
-7. `AbortSignal.timeout()` por tentativa nos dois provedores (Groq 10s,
+7. [x] `AbortSignal.timeout()` por tentativa nos dois provedores (Groq 10s,
    Gemini 20s) e `maxDuration = 60` na rota — fecha a **dívida D70**.
-8. Cobertura de teste unitário (Vitest, sem rede real): heurística de texto
+8. [x] Cobertura de teste unitário (Vitest, sem rede real): heurística de texto
    suficiente com as 3 fixtures descritas (texto legível, imagem pura,
    `(cid:N)` sem `ToUnicode`); roteador texto→Groq→Gemini com os dois
    provedores mockados, cobrindo os 3 desvios (texto insuficiente, Groq
@@ -175,9 +175,25 @@ possivelmente `next.config.ts`.
    rebaixando `confianca`; retry/timeout reaproveitado (dos 20 testes
    existentes do Gemini, adaptado para os dois provedores). `npm run build`
    verde com `unpdf` no bundle serverless.
-9. `.env.example` documenta as três env novas (`GROQ_API_KEY`, `GROQ_MODEL`,
+9. [x] `.env.example` documenta as três env novas (`GROQ_API_KEY`, `GROQ_MODEL`,
    `EXTRACAO_TEXTO`) ao lado do bloco do Gemini, com a mesma ressalva de
    nunca prefixar com `NEXT_PUBLIC_`.
+
+✅ **Entregue em 2026-09-25.** 9/9 critérios PASS — Gate 4 (`po`). Bugs
+bloqueantes achados no Gate 2 técnico (`Buffer` rejeitado pelo PDF.js interno
+do `unpdf`, `Number("")` virando `R$ 0,00` fiscal inventado, separador de
+milhar quebrando 1000x) corrigidos ANTES de chegar em produção — vitória do
+processo, não ressalva. Duas dívidas nomeadas, não bloqueantes: **D71**
+(caminho Groq nunca exercitado contra a API real — `GROQ_API_KEY` ainda não
+existe) e **D72** (heurística de "texto suficiente" calibrada só com fixtures
+sintéticas, sem PDF de scan real da obra). Detalhe completo:
+`docs/backlog/69-2026-09-25-contai-052-entregue.md`.
+
+**Orientação operacional (depois que a `GROQ_API_KEY` existir na Vercel)**:
+conferir no log de produção que aparece `origem: "texto+groq"` pelo menos uma
+vez — é a única forma de perceber se um bug de configuração/runtime como o do
+`Buffer` se repetir no caminho Groq, que nenhum teste automatizado nem o Gate 3
+manual conseguiu exercitar contra a API real.
 
 ## Fora de Escopo
 - **Groq como fallback de visão** (para foto/scan sem texto): o único modelo
