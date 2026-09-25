@@ -122,7 +122,10 @@ aceitar JPEG/HEIC direto é mudança de rota, fora deste ticket.
 7. **Env/migration**: **sem migration** (extração é stateless). Novas env
    servidor-only: `GROQ_API_KEY` (própria do contai — console.groq.com/keys,
    **não** reaproveita a do `../garmin-import`), `GROQ_MODEL` (default
-   `llama-3.3-70b-versatile`), `EXTRACAO_TEXTO` (`groq` default | `off`).
+   `openai/gpt-oss-120b` desde 2026-09-25 — o default original,
+   `llama-3.3-70b-versatile`, foi descontinuado pela Groq, ver
+   `docs/backlog/70-2026-09-25-incidente-groq-modelo-descontinuado.md`),
+   `EXTRACAO_TEXTO` (`groq` default | `off`).
    `GROQ_API_KEY` ausente = estágio de texto desligado com `console.warn`,
    cai direto no Gemini — não bloqueia deploy antes da chave existir na
    Vercel. `unpdf` entra em `dependencies` (roda em produção). CI do job
@@ -189,11 +192,13 @@ existe) e **D72** (heurística de "texto suficiente" calibrada só com fixtures
 sintéticas, sem PDF de scan real da obra). Detalhe completo:
 `docs/backlog/69-2026-09-25-contai-052-entregue.md`.
 
-**Orientação operacional (depois que a `GROQ_API_KEY` existir na Vercel)**:
-conferir no log de produção que aparece `origem: "texto+groq"` pelo menos uma
-vez — é a única forma de perceber se um bug de configuração/runtime como o do
-`Buffer` se repetir no caminho Groq, que nenhum teste automatizado nem o Gate 3
-manual conseguiu exercitar contra a API real.
+**D71 RESOLVIDA em 2026-09-25** — depois da `GROQ_API_KEY` configurada na
+Vercel, a primeira exercitação real caiu exatamente no tipo de bug que a
+dívida previa: `llama-3.3-70b-versatile` tinha sido descontinuado pela Groq,
+404 em toda chamada, extração caindo sempre no Gemini (que por sua vez estava
+sob 503 na hora). Corrigido (default `openai/gpt-oss-120b` +
+`reasoning_effort: "low"`, verificado por chamada real). Detalhe completo:
+`docs/backlog/70-2026-09-25-incidente-groq-modelo-descontinuado.md`.
 
 ## Fora de Escopo
 - **Groq como fallback de visão** (para foto/scan sem texto): o único modelo

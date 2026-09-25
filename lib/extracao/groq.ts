@@ -59,13 +59,21 @@ export async function extrairViaGroq(texto: string): Promise<ExtracaoDocumento> 
   if (!key) {
     throw new ExtracaoIndisponivelError("GROQ_API_KEY não configurada.");
   }
-  const model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+  const model = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
 
   const body = JSON.stringify({
     model,
     // Leitura de campo impresso não tem nada a ganhar com variação.
     temperature: 0,
     response_format: { type: "json_object" },
+    // `gpt-oss` é modelo de raciocínio (motivo do default ter mudado — ver
+    // comentário abaixo): sem isto ele gasta uma fatia do teto de
+    // `max_completion_tokens` "pensando" antes de escrever o JSON, a mesma
+    // classe de risco do MAX_TOKENS do Gemini (rodada 1 do incidente de
+    // 2026-09-24). Medido em 2026-09-25 com um texto de nota real: "low"
+    // reduziu `reasoning_tokens` de 437 para 111 no gpt-oss-20b, e para 95 no
+    // gpt-oss-120b, sem truncar (`finish_reason` continuou "stop").
+    reasoning_effort: "low",
     messages: [
       { role: "system", content: PROMPT_TEXTO },
       {
