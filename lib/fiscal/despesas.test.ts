@@ -36,7 +36,13 @@ import {
   CONSEQUENCIA_QUARENTENA,
 } from "@/lib/fiscal/documento";
 import { CONSEQUENCIA_CNO_DA_NOTA } from "@/lib/fiscal/obra";
-import { CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR } from "@/lib/fiscal/retencao";
+import {
+  CHIP_QUITADO_POR_RETENCAO,
+  CHIP_RETENCAO_SOBRECOBERTA,
+  CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR,
+  RETENCAO_EXPLICA_A_SOBRA,
+  RETENCAO_SOBRECOBERTA,
+} from "@/lib/fiscal/retencao";
 import {
   rotulosPagoSemComprovante,
   rotulosPagoSemNota,
@@ -184,8 +190,18 @@ function somaDeValores(linhas: readonly LinhaDeDespesa[]): number {
   return linhas.reduce((s, l) => s + (l.valorCentavos ?? 0), 0);
 }
 
+/**
+ * ⚠️ **As DUAS parcelas** (CONTAI-056): `comprovadoCentavos` (o que o valor
+ * DESTA linha comprova) + `comprovadoPorRetencaoCentavos` (a perna de retenção
+ * ancorada nela, que não é dinheiro que mudou de conta e por isso não entra no
+ * valor da linha). Somar só a primeira faria o invariante mentir em silêncio na
+ * primeira nota com retenção confirmada.
+ */
 function somaDeComprovados(linhas: readonly LinhaDeDespesa[]): number {
-  return linhas.reduce((s, l) => s + l.comprovadoCentavos, 0);
+  return linhas.reduce(
+    (s, l) => s + l.comprovadoCentavos + l.comprovadoPorRetencaoCentavos,
+    0,
+  );
 }
 
 function linhaDe(linhas: readonly LinhaDeDespesa[], id: string): LinhaDeDespesa {
@@ -391,6 +407,50 @@ describe("critério 4 — nenhum centavo contado duas vezes", () => {
     );
     expect(somaDeComprovados(linhas)).toBe(dosComponentes);
     expect(somaDeComprovados(linhas)).toBe(resumo.custoConfirmadoAnoCentavos);
+  });
+
+  /**
+   * **O MESMO invariante com perna de retenção no meio** (CONTAI-056). É o
+   * cenário que quebraria em silêncio: a retenção entra no custo comprovado do
+   * componente sem ser `Pagamento` nem `Documento`, então se ela não achasse
+   * linha, o total da tabela ficaria abaixo do card do dashboard — o
+   * encolhimento silencioso que este módulo existe para impedir.
+   */
+  it("Σ comprovado fecha mesmo com perna de retenção (CONTAI-056)", () => {
+    const { linhas, resumo } = projetar(
+      [
+        doc({
+          id: "d1",
+          tipo: "nf_servico",
+          classificacao: "mao_obra",
+          valorCentavos: 1_100_000,
+          retencaoNaNota: "destacada",
+          retencoes: [linhaRetencao({ quemRecolhe: "empresa" })],
+          notaTrazCno: true,
+          cnoReferenciado: OBRA.cno,
+        }),
+      ],
+      [pag({ id: "p1", valorCentavos: 1_046_000, documentoIds: ["d1"] })],
+    );
+
+    // Σ linhas continua sendo Σ pagamentos: a retenção NÃO vira linha de valor.
+    expect(linhas).toHaveLength(1);
+    expect(somaDeValores(linhas)).toBe(1_046_000);
+    // Σ comprovado fecha no BRUTO da nota, que é o custo do componente.
+    expect(somaDeComprovados(linhas)).toBe(1_100_000);
+    expect(somaDeComprovados(linhas)).toBe(resumo.custoConfirmadoAnoCentavos);
+    expect(
+      resumo.alocacao.componentes.reduce(
+        (s, c) => s + c.custoComprovadoCentavos,
+        0,
+      ),
+    ).toBe(1_100_000);
+    // E o painel "Despesas recentes" do dashboard não discorda do card.
+    expect(resumo.despesas[0].noAnoCentavos).toBe(1_100_000);
+    // A pendência "pago sem nota" não nasce: nada foi pago além da nota.
+    expect(resumo.pendencias.some((p) => p.tipo === "pago_sem_nota")).toBe(
+      false,
+    );
   });
 
   /**
@@ -640,19 +700,28 @@ describe("as situações da coluna `Situação`", () => {
         notaTrazCno: false,
       }),
     ];
+    // ⚠️ O LÍQUIDO, e a mudança é do CONTAI-056: um PIX pelo BRUTO ao lado de
+    // uma linha de retenção "efetivamente descontada" é dado contraditório (o
+    // valor foi descontado *e* transferido?), e desde este ticket ele acende o
+    // chip do critério 8. Este teste é sobre as ANOTAÇÕES, então o fixture
+    // passou a ser o caso real: transfere-se o líquido.
     const pagamentos = [
-      pag({ id: "p1", valorCentavos: 1_100_000, documentoIds: ["d1"] }),
+      pag({ id: "p1", valorCentavos: 1_046_000, documentoIds: ["d1"] }),
     ];
     const { linhas } = projetar(documentos, pagamentos);
 
     // UMA linha: a do pagamento. As duas pendências são do documento, e o
     // documento já mora dentro dela.
     expect(linhas).toHaveLength(1);
-    expect(somaDeValores(linhas)).toBe(1_100_000);
+    expect(somaDeValores(linhas)).toBe(1_046_000);
 
     const linha = linhas[0];
+    // ⚠️ **Os dois trilhos do ADENDO 2, na mesma linha e sem se misturar**: a
+    // fatia retida é CUSTO COMPROVADO (verde, quitada por retenção) e "quem
+    // recolhe" continua ABERTO (vermelho). Um não fecha nem abre o outro.
     expect(chips(linha)).toEqual([
       CHIP_CUSTO_COMPROVADO,
+      CHIP_QUITADO_POR_RETENCAO,
       "Retenção sem recolhedor",
       "Nota sem CNO",
     ]);
@@ -660,16 +729,71 @@ describe("as situações da coluna `Situação`", () => {
     expect(linha.comprovada).toBe(true);
     expect(linha.temPendencia).toBe(true);
 
-    const retencao = linha.situacoes[1];
+    // A parcela de retenção fica FORA de `comprovadoCentavos` (que continua
+    // sendo "quanto DESTE valor de linha"), e as duas juntas fecham o bruto.
+    expect(linha.comprovadoCentavos).toBe(1_046_000);
+    expect(linha.comprovadoPorRetencaoCentavos).toBe(54_000);
+
+    const quitada = linha.situacoes.find(
+      (s) => s.chip === CHIP_QUITADO_POR_RETENCAO,
+    )!;
+    expect(quitada.cor).toBe("grn");
+    expect(quitada.consequencia).toBe(RETENCAO_EXPLICA_A_SOBRA);
+    expect(quitada.valorCentavos).toBe(54_000);
+
+    const retencao = linha.situacoes.find(
+      (s) => s.chip === "Retenção sem recolhedor",
+    )!;
     expect(retencao.consequencia).toBe(CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR);
     expect(retencao.cor).toBe("red");
     // ⚠️ Anotação de documento não carrega valor: a NF pode aparecer em N
     // linhas, e repetir o valor dela seria o double-count por outra porta.
     expect(retencao.valorCentavos).toBeNull();
 
-    const cno = linha.situacoes[2];
+    const cno = linha.situacoes.find((s) => s.chip === "Nota sem CNO")!;
     expect(cno.consequencia).toBe(CONSEQUENCIA_CNO_DA_NOTA);
     expect(cno.cor).toBe("amb");
+  });
+
+  /**
+   * **CONTAI-056, critério 8 — o caso sobrecoberto não estoura em silêncio.**
+   * PIX pelo BRUTO + linha de retenção confirmada: a soma das pernas passa do
+   * valor da nota, e o que não cabe sobra na PERNA DE RETENÇÃO (nunca no
+   * dinheiro real, que não pode virar "pago sem nota" por causa de uma ficção
+   * de quitação). A tabela nomeia a contradição.
+   */
+  it("pagamento pelo bruto + retenção confirmada: chip de dado contraditório", () => {
+    const { linhas } = projetar(
+      [
+        doc({
+          id: "d1",
+          tipo: "nf_servico",
+          classificacao: "mao_obra",
+          valorCentavos: 1_100_000,
+          retencaoNaNota: "destacada",
+          retencoes: [linhaRetencao({ quemRecolhe: "empresa" })],
+          notaTrazCno: true,
+          cnoReferenciado: OBRA.cno,
+        }),
+      ],
+      [pag({ id: "p1", valorCentavos: 1_100_000, documentoIds: ["d1"] })],
+    );
+
+    const linha = linhaDe(linhas, "pagamento:p1");
+    // O dinheiro real absorveu o custo inteiro; a perna de retenção sobrou.
+    expect(linha.comprovadoCentavos).toBe(1_100_000);
+    expect(linha.comprovadoPorRetencaoCentavos).toBe(0);
+    expect(chips(linha)).toEqual([
+      CHIP_CUSTO_COMPROVADO,
+      CHIP_RETENCAO_SOBRECOBERTA,
+    ]);
+    const contradicao = linha.situacoes.find(
+      (s) => s.chip === CHIP_RETENCAO_SOBRECOBERTA,
+    )!;
+    expect(contradicao.cor).toBe("red");
+    expect(contradicao.consequencia).toBe(RETENCAO_SOBRECOBERTA);
+    expect(contradicao.valorCentavos).toBe(54_000);
+    expect(linha.temPendencia).toBe(true);
   });
 
   it("nota hábil sem pagamento: linha própria, chip NEUTRO, nem risco nem custo", () => {

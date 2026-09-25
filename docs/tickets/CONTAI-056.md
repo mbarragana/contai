@@ -27,38 +27,38 @@ comprovado assim que confirmada, para que a ficha de Bens e Direitos não
 subestime meu custo de aquisição.
 
 ## Critérios de Aceite
-1. [ ] Dado um documento com uma linha `documento_retencao` de
+1. [x] Dado um documento com uma linha `documento_retencao` de
    `e_desconto_efetivo = true` **e** `quem_recolhe ∈ {"empresa", "nao_sei"}**,
    e pelo menos um `Pagamento` vinculado a esse documento (qualquer data),
    quando a tela de conciliação é aberta, então essa linha soma como perna de
    pagamento em `alocarCusto`, com data-efeito igual à data do pagamento
    vinculado **mais antigo** desse mesmo documento. Regra: ADENDO 2 (item 1) +
    ADENDO 3 (Pergunta 1 e 2) do parecer acima.
-2. [ ] Dado um documento com `quem_recolhe = "eu"`, a linha de retenção
+2. [x] Dado um documento com `quem_recolhe = "eu"`, a linha de retenção
    **nunca** soma como perna de pagamento — o mecanismo continua sendo
    exclusivamente a GUIA (`Pagamento` real que o Mateus paga), já implementado
    em `linhaSemRecolhedor` (`lib/fiscal/retencao.ts:341`) e coberto por
    `e2e/retencao.spec.ts:356`, que **não muda uma linha**. ADENDO 3, Pergunta 1.
-3. [ ] Sem nenhum `Pagamento` vinculado ao documento ainda, a linha de
+3. [x] Sem nenhum `Pagamento` vinculado ao documento ainda, a linha de
    retenção não entra em nenhum ano-calendário — mesmo estado que já vale
    hoje para nota sem pagamento nenhum. ADENDO 3, Pergunta 2.
-4. [ ] Dado esse mesmo documento (critério 1) com sobra explicada pela
+4. [x] Dado esse mesmo documento (critério 1) com sobra explicada pela
    retenção, o texto de tela deixa de dizer "Excedente da nota — nota ainda
    não paga" para essa fatia — ganha texto/cor próprios indicando que foi
    explicada por retenção confirmada. ADENDO 2, item 2.
-5. [ ] Dado um documento com sobra sem nenhum pagamento vinculado **e** sem
+5. [x] Dado um documento com sobra sem nenhum pagamento vinculado **e** sem
    retenção que se qualifique pelos critérios 1-2, o texto "nota ainda não
    paga" continua aparecendo, só para essa fatia genuinamente sem destino.
    ADENDO 2, item 2.
-6. [ ] A pendência de "quem recolhe" (`retencao_sem_recolhedor`) continua
+6. [x] A pendência de "quem recolhe" (`retencao_sem_recolhedor`) continua
    visível e nomeada quando `quem_recolhe` está sem resposta, **sem** usar o
    texto/cor de "nota não paga" — é risco de recolhimento em aberto, não
    custo não comprovado. ADENDO 2, item 3. `linhaSemRecolhedor` não muda.
-7. [ ] Dado um documento com retenção qualificada (critério 1), `quem_recolhe`
+7. [x] Dado um documento com retenção qualificada (critério 1), `quem_recolhe`
    resolvido e nenhum outro pagamento pendente, a ficha de discriminação anual
    (`lib/fiscal/discriminacao.ts`) mostra esse documento como custo comprovado
    completo (bruto da nota) no ano correto — não mais como alarme permanente.
-8. [ ] Caso sobrecoberto (pagamentos + retenção qualificada somando mais que o
+8. [x] Caso sobrecoberto (pagamentos + retenção qualificada somando mais que o
    bruto da nota, dado contraditório): vira pendência visível, nunca silêncio
    nem estouro numérico.
 
@@ -189,3 +189,15 @@ atual, sem correção, produz uma discriminação anual que subestima custo de
 aquisição, na direção que custa dinheiro real ao Mateus no futuro.
 **Veredito: APROVADO**, sem Gate 0 de design (textos de tela citam o parecer,
 não inventam fluxo novo — variação de texto/cor num bloco existente).
+
+✅ **Entregue em 2026-09-25.** 8/8 critérios PASS — Gate 4 (`po`). Gate 2
+técnico (`cto-obra`) aprovou com uma pendência de borda não bloqueante
+(**D77**, duas notas com retenção + pagamento compartilhado podem
+sobrestimar custo — documentada em `docs/backlog.md`, fixada por teste).
+Gate 2 fiscal (`contador`) pediu uma correção pontual (texto do bloco verde
+parafraseado, não copiado do parecer) — corrigida pelo mesmo `lead-engineer`
+antes do fechamento. Verificação manual real no Gate 3 (não só automatizada):
+nota de R$1.000,00 com retenção de R$50,00 confirmada — a tela passou a
+mostrar "Custo comprovado: R$1.000,00" (o bruto) em vez do alarme permanente
+"nota ainda não paga". `afericao.ts` (SERO) e `linhaSemRecolhedor`
+confirmados intocados. 1040 testes unitários + 300 E2E verdes, sem migration.

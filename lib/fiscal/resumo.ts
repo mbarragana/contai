@@ -94,6 +94,7 @@ import {
   documentosHabeisSemPagamento,
   ehDocumentoHabil,
   notaCoberta,
+  retencoesDoComponente,
   valorBloqueadoPorComprovante,
   type Alocacao,
 } from "./vinculo";
@@ -934,13 +935,23 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
       // `ehDocumentoHabil` e não o predicado escrito à mão: duas definições de
       // "documento hábil" descolam em silêncio no dia em que a regra mudar.
       const habeis = c.documentos.filter(ehDocumentoHabil);
-      const noAno = c.pagamentos.reduce(
-        (s, p) =>
-          anoCalendario(p.dataPagamento) === ano
-            ? s + (alocacao.porPagamento.get(p.id)?.comprovadoCentavos ?? 0)
-            : s,
-        0,
-      );
+      // ⚠️ **As duas pernas** (CONTAI-056): sem a de retenção, o
+      // `noAnoCentavos` do painel "Despesas recentes" ficaria menor que o
+      // `custoConfirmadoAnoCentavos` do card ao lado — dois números do mesmo
+      // fato, na mesma tela, discordando.
+      const noAno =
+        c.pagamentos.reduce(
+          (s, p) =>
+            anoCalendario(p.dataPagamento) === ano
+              ? s + (alocacao.porPagamento.get(p.id)?.comprovadoCentavos ?? 0)
+              : s,
+          0,
+        ) +
+        retencoesDoComponente(alocacao, c).reduce(
+          (s, r) =>
+            anoCalendario(r.dataEfeito) === ano ? s + r.comprovadoCentavos : s,
+          0,
+        );
       const doc = habeis[0] ?? c.documentos[0];
       const nomes = [...new Set(habeis.map((d) => d.favorecidoNome ?? SEM_FAVORECIDO))];
       return {

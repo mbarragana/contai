@@ -551,3 +551,76 @@ describe("⚠️ condição única do Gate Fiscal — posse não se acopla ao to
     expect(/matrícula está em|em dois nomes|cônjuge/i.test(r.blocoCopiavel)).toBe(false);
   });
 });
+
+// ══ CONTAI-056 · critério 7 — o bruto da nota chega ao texto do ano ══════
+
+/**
+ * O defeito do ADENDO 2 chegava até AQUI: a frase *"Dispêndios pagos no
+ * ano-calendário"* saía com o líquido transferido, não com o bruto da nota, e
+ * era esse texto que ia para a ficha Bens e Direitos. Custo subestimado na
+ * declaração = ganho de capital inflado na venda futura.
+ */
+describe("CONTAI-056 — retenção confirmada entra no texto do ano pelo bruto", () => {
+  function nfDeServico(quemRecolhe: "empresa" | "eu"): Documento {
+    return doc({
+      id: "d-servico",
+      tipo: "nf_servico",
+      classificacao: "mao_obra",
+      valorCentavos: 1_800_000,
+      retencaoNaNota: "destacada",
+      retencoes: [
+        {
+          id: "ret-1",
+          documentoId: "d-servico",
+          rotuloLiteral: "Total das Retenções (ISSQN / Federais)",
+          valorCentavos: 54_000,
+          composicao: "combinado_nao_aberto",
+          tributo: null,
+          eDescontoEfetivo: true,
+          quemRecolhe,
+          createdAt: "2026-03-21T10:00:00Z",
+        },
+      ],
+    });
+  }
+
+  /** O líquido: R$ 18.000 de nota menos R$ 540 retidos. */
+  const LIQUIDO = pag({
+    id: "p-liquido",
+    valorCentavos: 1_746_000,
+    dataPagamento: "2026-03-25",
+    documentoIds: ["d-servico"],
+  });
+
+  it('com "A empresa", o ano fecha em R$ 18.000 — o bruto', () => {
+    const alocacao = alocarCusto({
+      documentos: [nfDeServico("empresa")],
+      pagamentos: [LIQUIDO],
+    });
+    const ficha = gerarBensEDireitos(liberado(2026), dados({ alocacao }));
+
+    expect(ficha.totalConfirmadoAnoCentavos).toBe(1_800_000);
+    expect(ficha.acumuladoCentavos).toBe(1_800_000);
+    expect(ficha.blocoCopiavel).toContain(
+      `Dispêndios pagos no ano-calendário de 2026: ${formatarBRL(1_800_000)}`,
+    );
+    // A cláusula da composição continua fechando: X + Y ≡ total (§3 do parecer
+    // de 24/08). Se a perna de retenção não entrasse em `composicaoDoAno`, o
+    // total da frase e a soma da cláusula divergiriam em R$ 540.
+    expect(ficha.blocoCopiavel).toContain(
+      `sendo ${formatarBRL(0)} em materiais e ` +
+        `${formatarBRL(1_800_000)} em mão de obra e serviços`,
+    );
+  });
+
+  it('com "Eu", o ano fica no líquido até a guia existir (ADENDO 3)', () => {
+    const alocacao = alocarCusto({
+      documentos: [nfDeServico("eu")],
+      pagamentos: [LIQUIDO],
+    });
+    const ficha = gerarBensEDireitos(liberado(2026), dados({ alocacao }));
+    // Os R$ 540 ainda estão no bolso dele: reconhecer custo aqui seria
+    // reconhecer dispêndio pela INTENÇÃO futura de pagá-lo.
+    expect(ficha.totalConfirmadoAnoCentavos).toBe(1_746_000);
+  });
+});

@@ -96,6 +96,7 @@ function resumo(over: Partial<ResumoObra> = {}): ResumoObra {
       componentes: [],
       porPagamento: new Map(),
       porDocumento: new Map(),
+      porRetencao: new Map(),
       vinculosOrfaos: [],
     },
     ...over,

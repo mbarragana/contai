@@ -22,7 +22,7 @@ import {
   valorBloqueadoPorComprovante,
   valorElegivelDoPagamento,
 } from "@/lib/fiscal/vinculo";
-import type { Documento, Pagamento } from "@/lib/types";
+import type { Documento, LinhaRetencao, Pagamento } from "@/lib/types";
 
 const OBRA = "obra-1";
 
@@ -94,7 +94,7 @@ describe("custo comprovado = min(Σ pagamentos, Σ documentos hábeis)", () => {
     });
     expect(a.porDocumento.get("d1")).toMatchObject({
       cobertoCentavos: 300_000,
-      excedenteNotaCentavos: 0,
+      faltaPagamentoCentavos: 0,
     });
   });
 
@@ -118,7 +118,7 @@ describe("custo comprovado = min(Σ pagamentos, Σ documentos hábeis)", () => {
     expect(a.componentes[0].custoComprovadoCentavos).toBe(50_000);
     expect(a.porDocumento.get("d1")).toMatchObject({
       cobertoCentavos: 50_000,
-      excedenteNotaCentavos: 250_000,
+      faltaPagamentoCentavos: 250_000,
     });
     expect(a.porPagamento.get("p1")?.semNotaCentavos).toBe(0);
   });
@@ -176,8 +176,8 @@ describe("custo comprovado = min(Σ pagamentos, Σ documentos hábeis)", () => {
     expect(a.porPagamento.get("p1")?.semNotaCentavos).toBe(0);
     // R$ 100.000 de nota continuam sem desembolso — não viram custo.
     const restante =
-      (a.porDocumento.get("d1")?.excedenteNotaCentavos ?? 0) +
-      (a.porDocumento.get("d2")?.excedenteNotaCentavos ?? 0);
+      (a.porDocumento.get("d1")?.faltaPagamentoCentavos ?? 0) +
+      (a.porDocumento.get("d2")?.faltaPagamentoCentavos ?? 0);
     expect(restante).toBe(100_000);
   });
 
@@ -567,7 +567,7 @@ describe("simulação do vínculo sobre o painel real (critério 15)", () => {
     });
     // E a nota NÃO fica "coberta por inteiro" por engano: o saldo dela é zero
     // porque o conjunto já a cobre, e o excedente está do lado do pagamento.
-    expect(depois.porDocumento.get("d1")!.excedenteNotaCentavos).toBe(0);
+    expect(depois.porDocumento.get("d1")!.faltaPagamentoCentavos).toBe(0);
   });
 
   it("nota em quarentena: simular o vínculo não move o custo confirmado", () => {
@@ -1039,7 +1039,7 @@ describe("valor MENOR que o previsto (critérios 28 e 29, adendo §D)", () => {
     expect(a.componentes[0].custoComprovadoCentavos).toBe(950_000);
     expect(a.porPagamento.get("p1")?.semNotaCentavos, "sem resíduo").toBe(0);
     // A sobra da NOTA não é custo (regime de caixa) e não é pendência fiscal.
-    expect(a.porDocumento.get("d1")?.excedenteNotaCentavos).toBe(50_000);
+    expect(a.porDocumento.get("d1")?.faltaPagamentoCentavos).toBe(50_000);
   });
 
   it("29 — 'falta pagar o resto': o saldo não é custo de ano NENHUM", () => {
@@ -1371,13 +1371,19 @@ describe("⚠️ o grafo de alocarCusto não tem nó de compromisso (§2, item 7
     // `vinculosOrfaos` entrou no CONTAI-008 (critério 12) e é a rede do vínculo
     // que cruza duas obras — não é nó de custo, não soma nada, e continua sem
     // existir nó de compromisso nenhum aqui.
+    // `porRetencao` entrou no CONTAI-056 e **não é nó do grafo**: é a perna de
+    // quitação de uma nota que já está no grafo, indexada por linha de
+    // `documento_retencao`. Compromisso continua não existindo aqui.
     expect(Object.keys(a).sort()).toEqual([
       "componentes",
       "porDocumento",
       "porPagamento",
+      "porRetencao",
       "vinculosOrfaos",
     ]);
-    // O componente só conhece pagamento e documento — não há terceira lista.
+    // O componente conhece pagamento e documento — as duas listas de NÓS. A
+    // retenção entra como SOMA (`somaRetencoesConfirmadasCentavos`), nunca como
+    // terceira lista de nós, e compromisso não entra de forma nenhuma.
     expect(Object.keys(a.componentes[0]).sort()).toEqual([
       "custoComprovadoCentavos",
       "documentos",
@@ -1385,6 +1391,7 @@ describe("⚠️ o grafo de alocarCusto não tem nó de compromisso (§2, item 7
       "pagamentos",
       "somaDocumentosHabeisCentavos",
       "somaPagamentosCentavos",
+      "somaRetencoesConfirmadasCentavos",
     ]);
   });
 });
@@ -1436,5 +1443,456 @@ describe("vínculo cruzando obras: reportado, nunca engolido (CONTAI-008, crité
       pagamentos: [pag({ id: "p1", documentoIds: ["d1"] }), pag({ id: "p2" })],
     });
     expect(a.vinculosOrfaos).toEqual([]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+/**
+ * **CONTAI-056 — a perna de retenção, e ela é P0.**
+ *
+ * Fonte: `docs/pareceres/2026-09-18-retencao-variavel-servico-pj.md`, ADENDO 2
+ * e ADENDO 3 (2026-09-25). O defeito que estes testes travam é o achado literal
+ * do ADENDO 2: *"a palavra `retencao` não aparece nesse arquivo"* — nota de
+ * R$ 10,00 com R$ 0,50 retidos e R$ 9,50 transferidos ficava com R$ 9,50 de
+ * custo comprovado **para sempre**, e os R$ 0,50 alarmando "nota ainda não
+ * paga". Custo subestimado é ganho de capital inflado na venda: dinheiro real
+ * saindo do bolso do Mateus.
+ */
+describe("CONTAI-056 · a linha de retenção como perna de pagamento", () => {
+  /** A nota de serviço do caso real: bruto, com o gate "destacada". */
+  function nf(retencoes: LinhaRetencao[], over: Partial<Documento> = {}) {
+    return doc({
+      id: "d1",
+      tipo: "nf_servico",
+      valorCentavos: 1_000,
+      retencaoNaNota: "destacada",
+      retencoes,
+      ...over,
+    });
+  }
+
+  function ret(over: Partial<LinhaRetencao> = {}): LinhaRetencao {
+    return {
+      id: "ret-1",
+      documentoId: "d1",
+      rotuloLiteral: "Total das Retenções (ISSQN / Federais)",
+      valorCentavos: 50,
+      composicao: "combinado_nao_aberto",
+      tributo: null,
+      eDescontoEfetivo: true,
+      quemRecolhe: "nao_sei",
+      createdAt: "2026-03-21T10:00:00Z",
+      ...over,
+    };
+  }
+
+  /**
+   * **O caso do ADENDO 2, com os números do parecer**: bruto R$ 10,00, retido
+   * R$ 0,50, transferido R$ 9,50 → custo R$ 10,00, e **nada** de "nota ainda
+   * não paga". O `explicadoPorRetencaoCentavos` decompõe o coberto; não soma
+   * com ele.
+   */
+  it("bruto 10,00 / retido 0,50 qualificado / pago 9,50 → custo 10,00", () => {
+    const a = alocar(
+      [nf([ret({ quemRecolhe: "empresa" })])],
+      [pag({ id: "p1", valorCentavos: 950, documentoIds: ["d1"] })],
+    );
+
+    expect(a.componentes[0]).toMatchObject({
+      // O campo continua significando "Σ ELEGÍVEIS dos pagamentos" — a
+      // retenção tem soma própria, e o mínimo é sobre as duas.
+      somaPagamentosCentavos: 950,
+      somaRetencoesConfirmadasCentavos: 50,
+      somaDocumentosHabeisCentavos: 1_000,
+      custoComprovadoCentavos: 1_000,
+    });
+    expect(a.porDocumento.get("d1")).toMatchObject({
+      cobertoCentavos: 1_000,
+      faltaPagamentoCentavos: 0,
+      explicadoPorRetencaoCentavos: 50,
+      retencaoSobrecobertaCentavos: 0,
+    });
+    expect(a.porRetencao.get("ret-1")).toMatchObject({
+      documentoId: "d1",
+      pagamentoAncoraId: "p1",
+      dataEfeito: "2026-08-12",
+      valorCentavos: 50,
+      comprovadoCentavos: 50,
+      naoAbsorvidoCentavos: 0,
+    });
+    // ⚠️ O pagamento real não é tocado: nada de `Pagamento` sintético, nada de
+    // dinheiro que não saiu aparecendo em "pago sem nota".
+    expect(a.porPagamento.get("p1")).toMatchObject({
+      elegivelCentavos: 950,
+      comprovadoCentavos: 950,
+      semNotaCentavos: 0,
+    });
+    expect(custoComprovadoDoAno(a, 2026)).toBe(1_000);
+    // E a nota deixa de alarmar: é isso que fecha o critério 7 na discriminação.
+    expect(saldoDescobertoDaNota(nf([ret()]), a)).toBeNull();
+    expect(notaCoberta(nf([ret()]), a)).toBe(true);
+  });
+
+  it('"nao_sei" conta igual a "empresa" — o custo não espera quem recolhe', () => {
+    const a = alocar(
+      [nf([ret({ quemRecolhe: "nao_sei" })])],
+      [pag({ id: "p1", valorCentavos: 950, documentoIds: ["d1"] })],
+    );
+    expect(a.componentes[0].custoComprovadoCentavos).toBe(1_000);
+    expect(a.porDocumento.get("d1")?.faltaPagamentoCentavos).toBe(0);
+  });
+
+  /**
+   * **ADENDO 3, Pergunta 1** — a exceção é DE ESTADO, não de tempo: com
+   * `"eu"` a perna nunca soma, nem antes nem depois de a guia existir. A perna
+   * dele é a guia, um `Pagamento` de verdade.
+   */
+  it('`quem_recolhe = "eu"` NUNCA soma — a perna dele é a guia', () => {
+    const antesDaGuia = alocar(
+      [nf([ret({ quemRecolhe: "eu" })])],
+      [pag({ id: "p1", valorCentavos: 950, documentoIds: ["d1"] })],
+    );
+    expect(antesDaGuia.porRetencao.size).toBe(0);
+    expect(antesDaGuia.componentes[0].somaRetencoesConfirmadasCentavos).toBe(0);
+    expect(antesDaGuia.componentes[0].custoComprovadoCentavos).toBe(950);
+    // Falta GENUÍNA: ele ainda tem os 0,50 no bolso. A pendência da guia
+    // continua de pé — `linhaSemRecolhedor` não mudou uma linha.
+    expect(antesDaGuia.porDocumento.get("d1")).toMatchObject({
+      faltaPagamentoCentavos: 50,
+      explicadoPorRetencaoCentavos: 0,
+    });
+    expect(notaCoberta(nf([ret({ quemRecolhe: "eu" })]), antesDaGuia)).toBe(
+      false,
+    );
+
+    // Depois da guia: a guia sozinha fecha a nota, sem contagem em dobro.
+    const comGuia = alocar(
+      [nf([ret({ quemRecolhe: "eu" })])],
+      [
+        pag({ id: "p1", valorCentavos: 950, documentoIds: ["d1"] }),
+        pag({
+          id: "p2",
+          valorCentavos: 50,
+          dataPagamento: "2026-09-10",
+          documentoIds: ["d1"],
+        }),
+      ],
+    );
+    expect(comGuia.porRetencao.size).toBe(0);
+    expect(comGuia.componentes[0].custoComprovadoCentavos).toBe(1_000);
+    expect(custoComprovadoDoAno(comGuia, 2026)).toBe(1_000);
+  });
+
+  it("linha informativa (desconto não efetivo) não é perna de nada", () => {
+    const a = alocar(
+      [
+        nf([
+          ret({
+            rotuloLiteral: "INSS (composição do Simples)",
+            eDescontoEfetivo: false,
+            quemRecolhe: null,
+          }),
+        ]),
+      ],
+      [pag({ id: "p1", valorCentavos: 950, documentoIds: ["d1"] })],
+    );
+    expect(a.porRetencao.size).toBe(0);
+    expect(a.componentes[0].custoComprovadoCentavos).toBe(950);
+    expect(a.porDocumento.get("d1")?.faltaPagamentoCentavos).toBe(50);
+  });
+
+  /**
+   * **ADENDO 3, Pergunta 2, o parágrafo final** — *"sem desembolso, não há
+   * dispêndio; sem dispêndio, não há data; sem data, a linha não entra em soma
+   * de ano nenhum"*. Vale até com a pendência fiscal já fechada
+   * (`"empresa"`): é o mesmo estado que já valia para nota sem pagamento.
+   */
+  it("sem NENHUM pagamento vinculado, a linha não entra em ano nenhum", () => {
+    const a = alocar([nf([ret({ quemRecolhe: "empresa" })])], []);
+    expect(a.porRetencao.size).toBe(0);
+    expect(custoComprovadoAteOAno(a, 2026)).toBe(0);
+    expect(custoComprovadoAteOAno(a, 2030)).toBe(0);
+    expect(a.porDocumento.get("d1")).toMatchObject({
+      cobertoCentavos: 0,
+      faltaPagamentoCentavos: 1_000,
+      explicadoPorRetencaoCentavos: 0,
+    });
+  });
+
+  /**
+   * A Guarda 1 do CONTAI-033 aplicada à perna nova: nota sem arquivo (ou em
+   * quarentena) contribui ZERO para o teto, e a perna dela não pode empurrar o
+   * PISO. Direção do erro que isso evitaria: custo comprovado sem lastro.
+   */
+  it("nota NÃO HÁBIL não gera perna de retenção", () => {
+    for (const over of [
+      { arquivoPath: null },
+      { status: "quarentena" as const, motivoQuarentena: "CPF de terceiro" },
+    ]) {
+      const a = alocar(
+        [nf([ret({ quemRecolhe: "empresa" })], over)],
+        [pag({ id: "p1", valorCentavos: 950, documentoIds: ["d1"] })],
+      );
+      expect(a.porRetencao.size, JSON.stringify(over)).toBe(0);
+      expect(a.componentes[0].custoComprovadoCentavos).toBe(0);
+    }
+  });
+
+  /**
+   * **Critério 8 — sobrecoberto vira DADO CONTRADITÓRIO visível, nunca estouro
+   * silencioso.** E o dinheiro real ganha a disputa: um PIX de R$ 10,00 não
+   * pode virar "pago sem nota" de R$ 0,50 por causa de uma ficção de quitação.
+   */
+  it("pagamentos + retenção > bruto: a SOBRA fica na perna de retenção", () => {
+    const a = alocar(
+      [nf([ret({ quemRecolhe: "empresa" })])],
+      [pag({ id: "p1", valorCentavos: 1_000, documentoIds: ["d1"] })],
+    );
+    expect(a.componentes[0].custoComprovadoCentavos).toBe(1_000);
+    expect(a.porPagamento.get("p1")).toMatchObject({
+      comprovadoCentavos: 1_000,
+      semNotaCentavos: 0,
+    });
+    expect(a.porRetencao.get("ret-1")).toMatchObject({
+      comprovadoCentavos: 0,
+      naoAbsorvidoCentavos: 50,
+    });
+    expect(a.porDocumento.get("d1")).toMatchObject({
+      cobertoCentavos: 1_000,
+      faltaPagamentoCentavos: 0,
+      explicadoPorRetencaoCentavos: 0,
+      retencaoSobrecobertaCentavos: 50,
+    });
+    // Nada de custo além do bruto da nota: o teto do mínimo segue de pé.
+    expect(custoComprovadoDoAno(a, 2026)).toBe(1_000);
+  });
+
+  /**
+   * **Regime de caixa, com o componente cruzando ano.** A perna entra no ano do
+   * pagamento MAIS ANTIGO da nota (ADENDO 3: *"o primeiro pagamento vinculado
+   * já é o marco de 'a partir daqui existe desembolso comprovável'"*), não no
+   * do último nem no da nota.
+   */
+  it("data-efeito = pagamento mais antigo, e o ano dela é o dele", () => {
+    const a = alocar(
+      [nf([ret({ quemRecolhe: "empresa", valorCentavos: 5_000 })], {
+        valorCentavos: 100_000,
+      })],
+      [
+        pag({
+          id: "p1",
+          valorCentavos: 40_000,
+          dataPagamento: "2025-11-10",
+          documentoIds: ["d1"],
+        }),
+        pag({
+          id: "p2",
+          valorCentavos: 55_000,
+          dataPagamento: "2026-02-10",
+          documentoIds: ["d1"],
+        }),
+      ],
+    );
+    expect(a.porRetencao.get("ret-1")).toMatchObject({
+      pagamentoAncoraId: "p1",
+      dataEfeito: "2025-11-10",
+      comprovadoCentavos: 5_000,
+    });
+    // 40.000 (PIX) + 5.000 (retenção) em 2025; 55.000 em 2026.
+    expect(custoComprovadoDoAno(a, 2025)).toBe(45_000);
+    expect(custoComprovadoDoAno(a, 2026)).toBe(55_000);
+    expect(custoComprovadoAteOAno(a, 2026)).toBe(100_000);
+  });
+
+  /**
+   * **ADENDO 3, Pergunta 2, "detalhe normativo"** — literal: *"'o pagamento
+   * vinculado mais antigo' tem de ser do mesmo `documento_id`, não do
+   * 'componente' agregado (…): dois documentos diferentes do mesmo favorecido
+   * não podem emprestar data um do outro"*.
+   */
+  it("a data vem do pagamento DESTA nota, nunca do mais antigo do componente", () => {
+    const a = alocar(
+      [
+        nf([ret({ quemRecolhe: "empresa", valorCentavos: 5_000 })], {
+          valorCentavos: 100_000,
+        }),
+        doc({ id: "d2", valorCentavos: 100_000 }),
+      ],
+      [
+        // Mais antigo do COMPONENTE, mas ligado só a d2.
+        pag({
+          id: "p-velho",
+          valorCentavos: 50_000,
+          dataPagamento: "2025-01-10",
+          documentoIds: ["d2"],
+        }),
+        // O que liga os dois documentos — e o único de d1.
+        pag({
+          id: "p-novo",
+          valorCentavos: 145_000,
+          dataPagamento: "2026-05-10",
+          documentoIds: ["d1", "d2"],
+        }),
+      ],
+    );
+    expect(a.componentes).toHaveLength(1);
+    expect(a.porRetencao.get("ret-1")).toMatchObject({
+      pagamentoAncoraId: "p-novo",
+      dataEfeito: "2026-05-10",
+    });
+    // 2025 fica com o PIX velho SÓ. Se a data fosse emprestada do componente,
+    // 2025 teria 55.000 e um ano já declarado mudaria por um fato de outra nota.
+    expect(custoComprovadoDoAno(a, 2025)).toBe(50_000);
+    expect(custoComprovadoDoAno(a, 2026)).toBe(150_000);
+  });
+
+  it("duas linhas qualificadas na mesma nota somam as duas", () => {
+    const a = alocar(
+      [
+        nf(
+          [
+            ret({ id: "ret-1", valorCentavos: 30, quemRecolhe: "empresa" }),
+            ret({ id: "ret-2", valorCentavos: 20, quemRecolhe: "nao_sei" }),
+          ],
+        ),
+      ],
+      [pag({ id: "p1", valorCentavos: 950, documentoIds: ["d1"] })],
+    );
+    expect(a.componentes[0].somaRetencoesConfirmadasCentavos).toBe(50);
+    expect(a.porDocumento.get("d1")).toMatchObject({
+      cobertoCentavos: 1_000,
+      explicadoPorRetencaoCentavos: 50,
+      faltaPagamentoCentavos: 0,
+    });
+  });
+
+  /**
+   * A perna cobre A PRÓPRIA nota dela. Sem a passada dedicada de
+   * `alocarCusto`, a ordem estável por id daria o "explicado por retenção" ao
+   * documento errado do mesmo componente — os dois motivos dos critérios 4 e 5
+   * voltariam a se misturar, num lugar mais difícil de ver.
+   */
+  it("o 'explicado por retenção' fica na nota da linha, não na vizinha", () => {
+    const a = alocar(
+      [
+        // `d-a` vem ANTES por id, e é a que NÃO tem retenção.
+        doc({ id: "d-a", valorCentavos: 1_000 }),
+        nf([ret({ documentoId: "d-b", quemRecolhe: "empresa" })], {
+          id: "d-b",
+        }),
+      ],
+      [
+        pag({
+          id: "p1",
+          valorCentavos: 1_950,
+          documentoIds: ["d-a", "d-b"],
+        }),
+      ],
+    );
+    expect(a.componentes[0].custoComprovadoCentavos).toBe(2_000);
+    expect(a.porDocumento.get("d-a")?.explicadoPorRetencaoCentavos).toBe(0);
+    expect(a.porDocumento.get("d-b")?.explicadoPorRetencaoCentavos).toBe(50);
+  });
+
+  /**
+   * **LIMITAÇÃO CONHECIDA — D77, e este teste FIXA o comportamento em vez de
+   * aprová-lo.** Achado numérico do `cto-obra` no Gate 2 do CONTAI-056
+   * (2026-09-25), com estes números exatos.
+   *
+   * O `min` de cobertura é por COMPONENTE CONEXO. Ali um pagamento é fungível
+   * entre as notas do grupo — mas a perna de retenção **não é**: ela é quitação
+   * de UMA nota. Com um PIX compartilhado ligando duas notas, a retenção da nota
+   * A (já paga pelo BRUTO, logo dado contraditório) acaba cobrindo o buraco de
+   * R$ 500 da nota B, e a sobrecobertura de A **não acende**.
+   *
+   * ⚠️ **O número que sai é R$ 20.000; o defensável é R$ 19.500** — a direção
+   * que SUPERESTIMA custo, a única que o §4 do parecer de 17/08 classifica como
+   * geradora de passivo tributário. É por isso que a dívida é nomeada, não só
+   * comentada.
+   *
+   * ⚠️ **Não assuma que isto vai ser corrigido.** A correção real exige valor
+   * por VÍNCULO (`pagamento_documento` com valor) em vez de cobertura por
+   * componente — mudança de modelo de dados, declarada fora do escopo do
+   * CONTAI-056 pelo `cto-obra`. Enquanto D77 estiver aberta, mudar as asserções
+   * abaixo é mudar o comportamento: quem as mudar, mude a dívida junto
+   * (`docs/backlog.md`, D77).
+   */
+  it("limitação conhecida D77: a retenção de uma nota cobre a vizinha do mesmo componente", () => {
+    const a = alocar(
+      [
+        // Nota A: paga pelo BRUTO **e** com retenção confirmada — contradição.
+        nf([ret({ documentoId: "d-a", quemRecolhe: "empresa", valorCentavos: 50_000 })], {
+          id: "d-a",
+          valorCentavos: 1_000_000,
+        }),
+        doc({ id: "d-b", valorCentavos: 1_000_000 }),
+      ],
+      [
+        // O PIX compartilhado: paga A por inteiro e liga as duas notas.
+        pag({
+          id: "p1",
+          valorCentavos: 1_000_000,
+          documentoIds: ["d-a", "d-b"],
+        }),
+        pag({ id: "p2", valorCentavos: 950_000, documentoIds: ["d-b"] }),
+      ],
+    );
+
+    expect(a.componentes).toHaveLength(1);
+    expect(a.componentes[0]).toMatchObject({
+      somaPagamentosCentavos: 1_950_000,
+      somaRetencoesConfirmadasCentavos: 50_000,
+      somaDocumentosHabeisCentavos: 2_000_000,
+      // ⚠️ AQUI está a dívida: R$ 20.000. O defensável é R$ 19.500 — os R$ 500
+      // de retenção de A não podiam quitar os R$ 500 que faltavam em B.
+      custoComprovadoCentavos: 2_000_000,
+    });
+    // E a contradição de A fica MUDA: o critério 8 não acende neste arranjo.
+    expect(a.porRetencao.get("ret-1")).toMatchObject({
+      comprovadoCentavos: 50_000,
+      naoAbsorvidoCentavos: 0,
+    });
+    expect(a.porDocumento.get("d-a")?.retencaoSobrecobertaCentavos).toBe(0);
+    expect(a.porDocumento.get("d-b")?.faltaPagamentoCentavos).toBe(0);
+
+    // O que a passada dedicada do lado do documento JÁ garante, e não é pouco:
+    // o "explicado por retenção" fica na nota da linha, nunca na vizinha. É a
+    // metade do problema que dá para resolver sem mudar o modelo de dados.
+    expect(a.porDocumento.get("d-a")?.explicadoPorRetencaoCentavos).toBe(50_000);
+    expect(a.porDocumento.get("d-b")?.explicadoPorRetencaoCentavos).toBe(0);
+
+    // ⚠️ **E o contraste que delimita a dívida**: com UMA nota por componente
+    // (o caso real do Francisco, e a esmagadora maioria), o critério 8 acende
+    // como deve. D77 é só o arranjo multi-nota com pagamento compartilhado.
+    const umaNotaSo = alocar(
+      [nf([ret({ quemRecolhe: "empresa" })])],
+      [pag({ id: "p1", valorCentavos: 1_000, documentoIds: ["d1"] })],
+    );
+    expect(
+      umaNotaSo.porDocumento.get("d1")?.retencaoSobrecobertaCentavos,
+    ).toBe(50);
+  });
+
+  /**
+   * **TESTE-TRAVA do pre-mortem 2 do ticket** — *"se o componente/soma de custo
+   * for reaproveitado pelo cálculo da aferição SERO, a retenção passaria a
+   * abater a base do INSS, e o parecer é explícito que isso nunca muda"*. A
+   * guarda de import mora em `afericao.test.ts`; aqui fica o elo de valor: a
+   * perna de retenção nunca é um `Pagamento`, então nada que varra pagamentos a
+   * enxerga.
+   */
+  it("a perna de retenção NUNCA é um `Pagamento` (Pagamentos Efetuados intocada)", () => {
+    const a = alocar(
+      [nf([ret({ quemRecolhe: "empresa" })])],
+      [pag({ id: "p1", valorCentavos: 950, documentoIds: ["d1"] })],
+    );
+    expect([...a.porPagamento.keys()]).toEqual(["p1"]);
+    expect(a.componentes[0].pagamentos.map((p) => p.id)).toEqual(["p1"]);
+    // Nenhum "pago sem nota" nasce da retenção.
+    const semNota = [...a.porPagamento.values()].reduce(
+      (s, x) => s + x.semNotaCentavos,
+      0,
+    );
+    expect(semNota).toBe(0);
   });
 });

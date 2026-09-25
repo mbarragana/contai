@@ -524,3 +524,148 @@ test("nota legada (gate null) pergunta ali mesmo, sem backfill", async ({
   await expect(card).toHaveCount(0);
   expect((await documentos(db))[0].retencao_na_nota).toBe("nenhuma");
 });
+
+// ══ 6 · CONTAI-056 · a retenção confirmada É custo comprovado ════════════
+
+/**
+ * **O bug P0 do ADENDO 2, contra o Postgres local.**
+ *
+ * Fonte: `docs/pareceres/2026-09-18-retencao-variavel-servico-pj.md`, ADENDO 2
+ * e ADENDO 3 (2026-09-25). Até o CONTAI-056, a nota real do Francisco ficava
+ * **permanentemente** com "Custo comprovado" = o líquido e "Excedente da nota —
+ * nota ainda não paga" = o valor retido, como se essa fatia nunca tivesse sido
+ * quitada. Custo subestimado na ficha Bens e Direitos = ganho de capital
+ * inflado na venda futura.
+ *
+ * ⚠️ **Não-mockado por decisão do ticket**, e a razão é histórica: este arquivo
+ * existe porque `numeric(14,2)` voltando do PostgREST como *number* passou por
+ * um E2E verde em cima de um formato inventado. O valor da linha de retenção
+ * atravessa o mesmo caminho (`documento_retencao.valor`), e é o cálculo de
+ * custo que o lê agora.
+ */
+test.describe("retenção confirmada conta como custo (CONTAI-056)", () => {
+  /** A nota do Francisco, com o líquido transferido e a retenção resolvida. */
+  async function notaQuitadaComRetencao(
+    db: Db,
+    quemRecolhe: "empresa" | "eu" | "nao_sei",
+  ) {
+    const id = await notaComRetencaoDestacada(db, { valor: 18000 });
+    await criarLinhaDeRetencao(db, linhaDoFrancisco(id, { quem_recolhe: quemRecolhe }));
+    const liquido = await criarPagamento(db, {
+      favorecido_id: (await documentos(db))[0].favorecido_id,
+      valor: 17460,
+      data_pagamento: "2026-03-25",
+      meio: "pix",
+      comprovante_path: "u/pix.png",
+    });
+    await criarVinculo(db, liquido, id);
+    return id;
+  }
+
+  test('"A empresa": custo comprovado = o BRUTO, e zero "nota ainda não paga"', async ({
+    page,
+    db,
+  }) => {
+    const id = await notaQuitadaComRetencao(db, "empresa");
+
+    await page.goto(`/documento/${id}`);
+    const card = page.getByText("Custo comprovado", { exact: true }).locator("..");
+    // O BRUTO da nota, não o líquido transferido. Era R$ 17.460,00 antes.
+    await expect(card.getByText("R$ 18.000,00")).toBeVisible();
+
+    // ⚠️ **Critério 4** — o texto/cor próprios, e o alarme que sai de cena.
+    // Escopado no card: "R$ 540,00" também aparece no card da LINHA de
+    // retenção, e as duas ocorrências são de propósito (o valor da linha e a
+    // fatia que ela quitou).
+    await expect(card.getByText("Quitado por retenção")).toBeVisible();
+    await expect(card.getByText("R$ 540,00")).toBeVisible();
+    await expect(page.getByText("nota ainda não paga")).toHaveCount(0);
+    // E não é a contradição do critério 8: nada sobrecoberto aqui.
+    await expect(page.locator('[data-retencao="sobrecoberta"]')).toHaveCount(0);
+
+    // A pendência de "quem recolhe" fechou com "A empresa", e nenhuma outra
+    // nasceu no lugar dela — em especial NÃO "pago sem nota": o dinheiro que
+    // saiu está inteiramente coberto pela nota.
+    await page.goto("/pendencias");
+    await expect(page.getByText("Retenção sem recolhedor")).toHaveCount(0);
+    await expect(page.getByText("Pago sem nota")).toHaveCount(0);
+  });
+
+  /**
+   * **ADENDO 2, Pergunta 2 / ADENDO 3, Pergunta 1** — os dois trilhos são
+   * ORTOGONAIS: com `"nao_sei"` o custo é o bruto **e** a pendência de quem
+   * recolhe continua aberta. Uma não fecha nem abre a outra.
+   */
+  test('"Ainda não sei": o custo já é o bruto, e a pendência segue aberta', async ({
+    page,
+    db,
+  }) => {
+    const id = await notaQuitadaComRetencao(db, "nao_sei");
+
+    await page.goto(`/documento/${id}`);
+    const card = page.getByText("Custo comprovado", { exact: true }).locator("..");
+    await expect(card.getByText("R$ 18.000,00")).toBeVisible();
+    await expect(card.getByText("Quitado por retenção")).toBeVisible();
+    await expect(page.getByText("nota ainda não paga")).toHaveCount(0);
+    await expect(
+      page.locator('[data-pendencia="retencao-sem-recolhedor"]'),
+    ).toBeVisible();
+
+    await page.goto("/pendencias");
+    await expect(page.getByText("Retenção sem recolhedor")).toBeVisible();
+    await expect(page.getByText("Pago sem nota")).toHaveCount(0);
+  });
+
+  /**
+   * **O contraponto que trava a regressão do ADENDO 3**: com `"Eu"` a linha
+   * NUNCA soma, e a nota continua dizendo o que sempre disse — faltam os R$ 540
+   * da guia, que ele ainda tem no bolso. É o mesmo caso do teste de
+   * `linhaSemRecolhedor` acima, visto pelo lado do CUSTO.
+   */
+  test('"Eu": a linha não soma, e a nota continua com falta de R$ 540,00', async ({
+    page,
+    db,
+  }) => {
+    const id = await notaQuitadaComRetencao(db, "eu");
+
+    await page.goto(`/documento/${id}`);
+    const card = page.getByText("Custo comprovado", { exact: true }).locator("..");
+    await expect(card.getByText("R$ 17.460,00")).toBeVisible();
+    await expect(page.getByText("nota ainda não paga")).toBeVisible();
+    await expect(card.getByText("Quitado por retenção")).toHaveCount(0);
+  });
+
+  /**
+   * **Critério 8** — PIX pelo BRUTO ao lado de uma retenção confirmada é dado
+   * contraditório: o app nomeia, e o dinheiro real não vira "pago sem nota"
+   * por causa de uma ficção de quitação.
+   */
+  test("pagamento pelo bruto + retenção confirmada: contradição NOMEADA", async ({
+    page,
+    db,
+  }) => {
+    const id = await notaComRetencaoDestacada(db, { valor: 18000 });
+    await criarLinhaDeRetencao(
+      db,
+      linhaDoFrancisco(id, { quem_recolhe: "empresa" }),
+    );
+    const bruto = await criarPagamento(db, {
+      favorecido_id: (await documentos(db))[0].favorecido_id,
+      valor: 18000,
+      data_pagamento: "2026-03-25",
+      meio: "pix",
+      comprovante_path: "u/pix.png",
+    });
+    await criarVinculo(db, bruto, id);
+
+    await page.goto(`/documento/${id}`);
+    await expect(page.locator('[data-retencao="sobrecoberta"]')).toBeVisible();
+    await expect(page.getByText("Retenção além do valor da nota")).toBeVisible();
+    // O teto do mínimo segue de pé: nunca mais que o bruto da nota.
+    const card = page.getByText("Custo comprovado", { exact: true }).locator("..");
+    await expect(card.getByText("R$ 18.000,00")).toBeVisible();
+
+    await page.goto("/pendencias");
+    await expect(page.getByText("Pago sem nota")).toHaveCount(0);
+  });
+});

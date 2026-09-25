@@ -1,6 +1,6 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 21 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 20 tickets (mais 1 parado, aguardando o Mateus)
 
 *(2026-09-23: `CONTAI-011` fatiado em três — `011` continua contando como 1
 item, e `049`/`050` somam os 2 novos. `CONTAI-051` soma o 19º no mesmo dia;
@@ -14,7 +14,24 @@ logo depois, entregue, voltando a 17 — **fila de implementação vazia**.
 Gate 0, `055` bloqueado pelos outros dois. 2026-09-25, mais tarde ainda:
 `CONTAI-056` criado — **P0, bug fiscal**, achado por auditoria de código
 (não relato) — volta a 21, **2 itens prontos na fila** (`056` primeiro, por
-ser P0; `054` depois).)*
+ser P0; `054` depois). 2026-09-25, ainda mais tarde: **`056` entregue**
+(Gate 4, 8/8 PASS) — volta a 20, **1 item pronto na fila** (`054`).)*
+
+**2026-09-25, ainda mais tarde**: **`056` entregue** — Gate 4 (`po`), 8/8
+critérios PASS. `alocarCusto` (`lib/fiscal/vinculo.ts`) passou a somar linha
+de `documento_retencao` confirmada (`e_desconto_efetivo=true` +
+`quem_recolhe ∈ {"empresa","nao_sei"}`) como perna de pagamento, com
+data-efeito do pagamento vinculado mais antigo do mesmo documento — sem
+migration. Gate 2 técnico (`cto-obra`) aprovou com uma pendência de borda não
+bloqueante (**D77**, duas notas com retenção + pagamento compartilhado podem
+sobrestimar custo — fixada por teste, fora de escopo). Gate 2 fiscal
+(`contador`) pediu correção pontual de texto (bloco verde estava parafraseado
+em vez de copiado do parecer) — corrigida antes do fechamento. Verificação
+manual real no Gate 3: registrei uma nota de R$1.000,00 com retenção de
+R$50,00 no stack local e confirmei visualmente a tela mudando de "Excedente —
+nota ainda não paga" para "Custo comprovado: R$1.000,00" (o bruto). `afericao.ts`
+(SERO) confirmado intocado. 1040 testes unitários + 300 E2E verdes. Detalhe:
+`docs/tickets/CONTAI-056.md`.
 
 **2026-09-25, mais tarde ainda**: **`056` criado** — bug **P0** fiscal.
 `lib/fiscal/vinculo.ts` (`alocarCusto`) nunca soma uma linha de
@@ -551,10 +568,12 @@ fica fora da fila até os dois anteriores fecharem.
 nem é dependido por eles (é sobre o cálculo já usar a linha capturada, não
 sobre capturá-la).
 
+**2026-09-25, ainda mais tarde**: **`056` sai da fila** — entregue (ver nota
+no topo). `054` volta a ser o único item pronto.
+
 | Ordem | # | Ticket | P | Pronto para `/develop` |
 |---|---|---|---|---|
-| 1 | 056 | Retenção confirmada não conta como custo comprovado (bug fiscal) | **P0** | ✅ sim |
-| 2 | 054 | Parser determinístico sugere rótulo/valor da linha de retenção | P1 | ✅ sim |
+| 1 | 054 | Parser determinístico sugere rótulo/valor da linha de retenção | P1 | ✅ sim |
 | — | 053 | Repeater de retenção também na captura, tela larga | P1 | ⛔ bloqueado por Gate 0 (`/design`) |
 | — | 055 | Sugestão de retenção pré-preenche o repeater da captura | P1 | ⛔ bloqueado por `053` + `054` |
 

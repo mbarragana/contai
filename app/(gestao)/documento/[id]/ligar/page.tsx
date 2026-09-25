@@ -190,9 +190,12 @@ export default function LigarPagamentos() {
        * outro ano — e data futura não existe (a validação do registro recusa).
        */
       acrescimo: acumuladoDepois - acumuladoAntes,
+      // ⚠️ A FALTA GENUÍNA (CONTAI-056): a fatia já quitada por retenção
+      // confirmada não é "falta pagar" — ela não volta a aparecer aqui como
+      // saldo a cobrir depois de ligar.
       faltaDepois: habil
-        ? (depois.porDocumento.get(pronto.documento.id)?.excedenteNotaCentavos ??
-          valor)
+        ? (depois.porDocumento.get(pronto.documento.id)
+            ?.faltaPagamentoCentavos ?? valor)
         : Math.max(0, valor - pagosDepois),
       // Quanto DESTES pagamentos continua sem nota depois de ligar — pela
       // alocação real, não pela subtração ingênua.

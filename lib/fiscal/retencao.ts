@@ -28,9 +28,19 @@
  * produto (dívida D57). `lib/fiscal/afericao.ts` e `lib/fiscal/risco.ts` não
  * importam este arquivo, e há teste afirmando isso.
  *
- * ⚠️ **Nenhuma função deste módulo muda o custo de aquisição** (critério 12):
- * ele continua sendo o valor BRUTO da nota, no regime de caixa da data do
+ * ⚠️ **O valor-alvo do custo de aquisição não muda aqui** (critério 12): ele
+ * continua sendo o valor BRUTO da nota, no regime de caixa da data do
  * pagamento, qualquer que seja a composição das linhas (§6, ADENDO A.2 e A.5).
+ *
+ * ⚠️ **Mudou no CONTAI-056 a frase que ficava aqui** — ela dizia *"nenhuma
+ * função deste módulo muda o custo de aquisição"*, e era justamente essa
+ * leitura que deixou o A.2 sem implementação por um ano de acervo: o A.2 sempre
+ * exigiu que a linha `e_desconto_efetivo = true` entrasse em `alocarCusto`
+ * **como perna de pagamento**, e `alocarCusto` nunca soube da palavra
+ * `retencao` (ADENDO 2, 2026-09-25 — achado por auditoria de código). Quem
+ * decide QUANDO a linha conta é `retencaoContaComoPerna`, aqui embaixo; quem
+ * soma continua sendo `lib/fiscal/vinculo.ts`, e o valor-alvo (o bruto)
+ * continua o mesmo.
  */
 
 import type {
@@ -347,6 +357,85 @@ export function linhaSemRecolhedor(
   if (linha.quemRecolhe === "eu") return !notaCoberta;
   return true;
 }
+
+/**
+ * **CONTAI-056 — a linha conta como PERNA DE PAGAMENTO em `alocarCusto`?**
+ *
+ * Fonte: ADENDO 3 do parecer (2026-09-25), Pergunta 1, `[Certain]`, literal:
+ *
+ * > "a linha de retenção soma como perna de pagamento em `alocarCusto` **se e
+ * > somente se** `e_desconto_efetivo = true` E
+ * > `quem_recolhe ∈ {"empresa", "nao_sei"}`. Quando `quem_recolhe = "eu"`, a
+ * > linha NUNCA soma."
+ *
+ * O teste do regime de caixa (IN SRF 84/2001, art. 17) é o mesmo nos três
+ * estados — *a fatia já saiu, de forma definitiva e comprovável, da esfera
+ * econômica dele, sem que ele ainda precise fazer nada mais para extingui-la?*
+ * — e ele responde diferente:
+ *
+ * - **`"empresa"` / `"nao_sei"` → sim.** Ele transferiu o líquido e **não tem,
+ *   daqui para frente, nenhum pagamento adicional a fazer** para quitar o preço
+ *   da nota. O que resta é risco de compliance de TERCEIRO, não obrigação dele.
+ * - **`"eu"` → não.** A obrigação não acabou, só migrou de "pagar ao prestador"
+ *   para "pagar ao Fisco", e essa segunda perna (a GUIA) ainda não aconteceu:
+ *   enquanto ela não existir, o dinheiro **está no bolso dele**. O mecanismo
+ *   aqui continua sendo exclusivamente a guia como `Pagamento` de verdade — ver
+ *   `linhaSemRecolhedor` logo acima, que o ADENDO 3 ratificou sem tocar numa
+ *   linha.
+ *
+ * ⚠️ **A exclusão de `"eu"` é DE ESTADO, não de tempo** (ADENDO 3, literal):
+ * não é "soma até a guia aparecer" — é "nunca soma", porque somar as duas
+ * fontes depois da guia contaria o mesmo real duas vezes com dois nomes.
+ *
+ * ⚠️ `quemRecolhe === null` também **não** soma: o conjunto normativo é
+ * `{"empresa", "nao_sei"}` e nada mais. `null` com `eDescontoEfetivo = true` é
+ * estado que os CHECKs da 0017 e `validarLinhaRetencao` não deixam nascer; se
+ * aparecer, é dado incompleto, e dado incompleto não vira custo.
+ */
+export function retencaoContaComoPerna(
+  linha: Pick<LinhaRetencao, "eDescontoEfetivo" | "quemRecolhe">,
+): boolean {
+  if (!linha.eDescontoEfetivo) return false;
+  return linha.quemRecolhe === "empresa" || linha.quemRecolhe === "nao_sei";
+}
+
+/**
+ * ⚠️ **CITAÇÃO do ADENDO 2 (Pergunta 1) e do ADENDO 3 (Pergunta 1)** — a frase
+ * que o critério 4 do CONTAI-056 pede no lugar de *"nota ainda não paga"*.
+ * Montada com as sentenças do parecer, adaptadas só na pessoa ("o Mateus" →
+ * "você"). **Nunca reescrever**: é ela que diz por que esta fatia é custo
+ * comprovado sem nunca ter passado por um PIX.
+ */
+export const RETENCAO_EXPLICA_A_SOBRA =
+  "Esta fatia da nota foi quitada por RETENÇÃO, não por transferência: você já " +
+  "transferiu só o líquido e não tem, daqui para frente, nenhum pagamento " +
+  "adicional a fazer para quitar o preço da nota. O que resta é saber se outra " +
+  "pessoa recolheu ao Fisco — risco de compliance de terceiro, não uma " +
+  "obrigação pendente sua.";
+
+/** Rótulo do bloco do critério 4 — produto, não consequência fiscal. */
+export const CHIP_QUITADO_POR_RETENCAO = "Quitado por retenção";
+
+/**
+ * **Critério 8 — o caso sobrecoberto, e ele é DEFEITO DE DADO, não regra
+ * fiscal.** Mesma doutrina de `VINCULO_CRUZANDO_OBRAS_NAO_DEVERIA_EXISTIR`: o
+ * app não engole a contradição nem estoura o número em silêncio — ele nomeia o
+ * que não fecha e diz onde olhar. Nenhum parecer normatiza este caso porque ele
+ * não é um fato fiscal possível: é dado errado em um dos dois lados.
+ *
+ * ⚠️ **A detecção não é completa, e a lacuna tem nome: D77** (Gate 2 do
+ * CONTAI-056). Com duas notas no mesmo componente de vínculo (PIX
+ * compartilhado), a retenção de uma pode cobrir o buraco da outra e esta
+ * mensagem **não aparece**. Ver `docs/backlog.md` (D77) e o caso fixado em
+ * `vinculo.test.ts`. A ausência do aviso não é prova de que não há contradição.
+ */
+export const RETENCAO_SOBRECOBERTA =
+  "Dado contraditório: os pagamentos ligados a esta nota, somados à retenção " +
+  "confirmada, passam do valor bruto dela. A parte que passa NÃO entrou no " +
+  "custo — confira se o pagamento foi registrado pelo líquido ou pelo bruto, e " +
+  "se o valor desta linha de retenção está como está impresso na nota.";
+
+export const CHIP_RETENCAO_SOBRECOBERTA = "Retenção além do valor da nota";
 
 /**
  * Como a perna de pagamento desta linha se chama — e a regra é dura (ADENDO

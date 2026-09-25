@@ -33,6 +33,7 @@ import {
   alocarCusto,
   custoComprovadoDoAno,
   ehDocumentoHabil,
+  retencoesDoComponente,
   type Alocacao,
   type EntradaAlocacao,
 } from "./vinculo";
@@ -565,13 +566,15 @@ export function anosAfetados(
   const afetados: AnoAfetado[] = [];
 
   for (const c of comparacoes) {
-    const anos = new Set<number>();
-    for (const a of c.antes.porPagamento.values()) {
-      anos.add(anoCalendario(a.pagamento.dataPagamento));
-    }
-    for (const a of c.depois.porPagamento.values()) {
-      anos.add(anoCalendario(a.pagamento.dataPagamento));
-    }
+    // ⚠️ As pernas de RETENÇÃO também nomeiam ano (CONTAI-056): a `dataEfeito`
+    // delas é a do pagamento âncora, mas o pagamento âncora pode ter saído do
+    // componente na comparação — e um ano candidato que ficasse de fora daqui
+    // seria delta de custo sem pendência, que é o alarme silencioso do §5.3
+    // com o sinal invertido.
+    const anos = new Set([
+      ...anosDaAlocacao(c.antes),
+      ...anosDaAlocacao(c.depois),
+    ]);
 
     for (const ano of [...anos].sort((x, y) => x - y)) {
       const antes = custoComprovadoDoAno(c.antes, ano);
@@ -719,12 +722,22 @@ export function semNotaDoAno(alocacao: Alocacao, ano: number): number {
   return total;
 }
 
-/** Os anos que aparecem numa alocação, crescentes. Serve à tabela da tela. */
+/**
+ * Os anos que aparecem numa alocação, crescentes. Serve à tabela da tela.
+ *
+ * As duas pernas de custo (CONTAI-056): `dataPagamento` dos pagamentos e
+ * `dataEfeito` das retenções qualificadas. Um ano que só existe por perna de
+ * retenção é ano de custo como qualquer outro, e omiti-lo faria a tabela do
+ * "antes → depois" esconder a linha onde o número mudou.
+ */
 export function anosDaAlocacao(...alocacoes: readonly Alocacao[]): number[] {
   const anos = new Set<number>();
   for (const alocacao of alocacoes) {
     for (const a of alocacao.porPagamento.values()) {
       anos.add(anoCalendario(a.pagamento.dataPagamento));
+    }
+    for (const r of alocacao.porRetencao.values()) {
+      anos.add(anoCalendario(r.dataEfeito));
     }
   }
   return [...anos].sort((x, y) => x - y);
@@ -862,6 +875,15 @@ function componentesDoAno(
     for (const p of c.pagamentos) {
       if (anoCalendario(p.dataPagamento) !== ano) continue;
       total += alocacao.porPagamento.get(p.id)?.comprovadoCentavos ?? 0;
+    }
+    // ⚠️ A segunda perna (CONTAI-056). Sem ela, `composicaoDoAno` reparte um
+    // total MENOR que `custoComprovadoDoAno` e a cláusula "sendo R$ X em
+    // materiais e R$ Y em mão de obra" deixa de fechar com o total da frase
+    // anterior da discriminação — exatamente o `X + Y ≠ total` que o §3 do
+    // parecer de 24/08 torna inegociável.
+    for (const r of retencoesDoComponente(alocacao, c)) {
+      if (anoCalendario(r.dataEfeito) !== ano) continue;
+      total += r.comprovadoCentavos;
     }
     // Componente que não contribui com centavo nenhum aqui é ignorado —
     // inclusive para a suspensão do §4.1: "alarme sem consequência ensina a

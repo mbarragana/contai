@@ -51,7 +51,13 @@ import {
   PENDENCIA_IDENTIFICACAO_TITULO,
 } from "@/lib/fiscal/documento";
 import { formatarDataBR } from "@/lib/fiscal/obra";
-import { RETENCAO_NAO_ABATE_SERO } from "@/lib/fiscal/retencao";
+import {
+  CHIP_QUITADO_POR_RETENCAO,
+  CHIP_RETENCAO_SOBRECOBERTA,
+  RETENCAO_EXPLICA_A_SOBRA,
+  RETENCAO_NAO_ABATE_SERO,
+  RETENCAO_SOBRECOBERTA,
+} from "@/lib/fiscal/retencao";
 import {
   alocarCusto,
   notaCoberta,
@@ -200,11 +206,26 @@ function PagamentosDesteDocumento({
         ) : (
           <Consequencia cor="red">{motivoNaoGeraCusto}</Consequencia>
         )}
-        {alocado && alocado.excedenteNotaCentavos > 0 ? (
+        {/* CONTAI-056, critérios 4 e 5 — DOIS blocos, dois motivos, dois
+            textos. Antes era um só: a fatia já quitada por retenção
+            confirmada dividia número e frase com a fatia genuinamente sem
+            destino, e a nota do Francisco ficava para sempre dizendo "nota
+            ainda não paga" sobre um valor que ele não deve a ninguém. */}
+        {alocado && alocado.explicadoPorRetencaoCentavos > 0 ? (
+          <>
+            <Linha rotulo={CHIP_QUITADO_POR_RETENCAO}>
+              <span className="mono font-semibold text-grn">
+                {formatarBRL(alocado.explicadoPorRetencaoCentavos)}
+              </span>
+            </Linha>
+            <Consequencia cor="grn">{RETENCAO_EXPLICA_A_SOBRA}</Consequencia>
+          </>
+        ) : null}
+        {alocado && alocado.faltaPagamentoCentavos > 0 ? (
           <>
             <Linha rotulo="Excedente da nota">
               <span className="mono font-semibold text-amb">
-                {formatarBRL(alocado.excedenteNotaCentavos)} — nota ainda não
+                {formatarBRL(alocado.faltaPagamentoCentavos)} — nota ainda não
                 paga
               </span>
             </Linha>
@@ -214,6 +235,16 @@ function PagamentosDesteDocumento({
               quando o pagamento existir e for ligado aqui.
             </Consequencia>
           </>
+        ) : null}
+        {alocado && alocado.retencaoSobrecobertaCentavos > 0 ? (
+          <div data-retencao="sobrecoberta">
+            <Linha rotulo={CHIP_RETENCAO_SOBRECOBERTA}>
+              <span className="mono font-semibold text-red">
+                {formatarBRL(alocado.retencaoSobrecobertaCentavos)}
+              </span>
+            </Linha>
+            <Consequencia cor="red">{RETENCAO_SOBRECOBERTA}</Consequencia>
+          </div>
         ) : null}
         {excedentePagamento > 0 ? (
           <>

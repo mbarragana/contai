@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import { posicaoDeAfericao, type PosicaoDeAfericao } from "@/lib/fiscal/afericao";
@@ -234,5 +236,47 @@ describe("posição da aferição — a base por CNO", () => {
         valorCentavos: 1_800_000,
       },
     ]);
+  });
+});
+
+// ══ A guarda de FONTE — CONTAI-056, pre-mortem 2 ═════════════════════════
+
+/**
+ * **TESTE-TRAVA, no padrão de `retencao.test.ts`**: a aferição do SERO é
+ * inteiramente alheia à retenção, e o CONTAI-056 acabou de ensinar
+ * `lib/fiscal/vinculo.ts` a somar linha de retenção como perna de pagamento.
+ * O risco nomeado no pre-mortem 2 do ticket: *"se o componente/soma de custo
+ * for reaproveitado pelo cálculo da aferição SERO, a retenção passaria a abater
+ * a base do INSS — o parecer é explícito que isso nunca muda"*.
+ *
+ * Fonte, §2 do parecer de 2026-09-18, reafirmada em todos os adendos: *"a base
+ * não é reduzida pelo valor da nota, nem pelo valor retido, nem pelo percentual
+ * de retenção"* — o que abate é a declaração que a prestadora vincula ao CNO,
+ * evento fora deste produto (dívida D57).
+ *
+ * ⚠️ Comentário honesto não é rede. O dia em que alguém precisar de
+ * `Alocacao` aqui, este teste fica vermelho com o nome do arquivo, e a conversa
+ * acontece antes do merge — não depois, numa base de INSS menor do que devia.
+ */
+describe("a aferição não conhece custo nem retenção (pre-mortem 2 do CONTAI-056)", () => {
+  const fonte = readFileSync("lib/fiscal/afericao.ts", "utf-8");
+
+  it("`afericao.ts` não importa `./vinculo`", () => {
+    expect(/from ["']\.\/vinculo["']/.test(fonte)).toBe(false);
+  });
+
+  it("`afericao.ts` não importa `./retencao`", () => {
+    expect(/from ["']\.\/retencao["']/.test(fonte)).toBe(false);
+  });
+
+  /**
+   * E não lê a linha por outro caminho: `documento.retencoes` não aparece, nem
+   * `Alocacao`/`custoComprovado` — as três portas por onde o valor retido
+   * poderia chegar à base sem um import novo.
+   */
+  it("`afericao.ts` não lê `retencoes` nem nada da alocação de custo", () => {
+    expect(/\.retencoes\b/.test(fonte)).toBe(false);
+    expect(/\bAlocacao\b/.test(fonte)).toBe(false);
+    expect(/custoComprovado/.test(fonte)).toBe(false);
   });
 });

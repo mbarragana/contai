@@ -23,10 +23,52 @@
  * é R$ 3.000. Somando par a par daria R$ 15.000 — a mesma nota contada cinco
  * vezes, custo inflado indo para a declaração, que o parecer §4 classifica
  * como a única direção de erro que produz passivo tributário.
+ *
+ * ## CONTAI-056 — a PERNA DE RETENÇÃO existe, e ela é a segunda fonte de custo
+ *
+ * Fonte: `docs/pareceres/2026-09-18-retencao-variavel-servico-pj.md`, ADENDO 2
+ * e ADENDO 3 (2026-09-25). Até 2026-09-25 **a palavra `retencao` não aparecia
+ * neste arquivo** — e isso era um bug fiscal P0, não uma escolha: o A.2 daquele
+ * parecer sempre normatizou que a linha `e_desconto_efetivo = true` "precisa
+ * aparecer como **perna de pagamento** vinculada ao mesmo documento (mesmo
+ * mecanismo do fechamento `Σ pagamentos == valor_bruto_nota`)". Sem ela, uma
+ * nota de R$ 10,00 com R$ 0,50 retidos e R$ 9,50 transferidos ficava para
+ * sempre com R$ 9,50 de custo comprovado e R$ 0,50 de *"nota ainda não paga"*,
+ * subestimando o custo de aquisição — que é imposto a mais sobre o ganho de
+ * capital, lá na frente.
+ *
+ * Três regras, e nenhuma delas é escolha de implementação:
+ *
+ * 1. **QUANDO conta** — `retencaoContaComoPerna` (`./retencao`): só
+ *    `e_desconto_efetivo = true` E `quem_recolhe ∈ {"empresa", "nao_sei"}`.
+ *    `"eu"` **nunca** soma: a perna dele é a GUIA, um `Pagamento` de verdade.
+ * 2. **EM QUE ANO conta** — na data do **pagamento vinculado mais antigo do
+ *    MESMO documento** (ADENDO 3, Pergunta 2). Sem pagamento vinculado, a
+ *    linha não entra em ano nenhum: *"sem desembolso, não há dispêndio; sem
+ *    dispêndio, não há data; sem data, a linha não entra em soma de ano
+ *    nenhum"*. Não existe coluna de data em `documento_retencao`, e o parecer
+ *    **rejeita** criá-la — data da nota é competência, e competência é o regime
+ *    que este produto inteiro recusa.
+ * 3. **NUNCA vira `Pagamento` sintético.** A perna mora em
+ *    `Alocacao.porRetencao`, jamais em `porPagamento` — é isso que mantém a
+ *    ficha **Pagamentos Efetuados** intocada por construção, e é isso que
+ *    impede a retenção de aparecer em "pago sem nota".
+ *
+ * ⚠️ E o que NÃO mudou: **a aferição do SERO continua inteiramente alheia a
+ * isto.** Nenhuma perna de retenção, contada ou não aqui, abate a base do CNO
+ * (§2 do corpo, reafirmado em todos os adendos). `lib/fiscal/afericao.ts` não
+ * importa este arquivo, e há guarda de import em `afericao.test.ts` travando
+ * isso.
  */
 
-import type { Documento, Pagamento, ResolucaoDiferenca } from "@/lib/types";
+import type {
+  Documento,
+  LinhaRetencao,
+  Pagamento,
+  ResolucaoDiferenca,
+} from "@/lib/types";
 import { anoCalendario } from "./pagamento";
+import { retencaoContaComoPerna } from "./retencao";
 
 /**
  * Documento hábil — mesma regra que já vigorava em `resumo.ts`:
@@ -325,16 +367,72 @@ export interface PagamentoAlocado {
   semNotaCentavos: number;
 }
 
+/**
+ * **A perna de retenção alocada — CONTAI-056.** Uma por linha de
+ * `documento_retencao` que passou por `retencaoContaComoPerna` E cujo documento
+ * tem ao menos um pagamento vinculado.
+ *
+ * ⚠️ **Não é um `Pagamento`, e não pode virar um.** Nenhuma transferência
+ * aconteceu neste valor, em nenhuma data — o ADENDO 3 a chama de *"ficção de
+ * quitação amarrada à nota"*. Ela mora em mapa próprio para que a ficha
+ * Pagamentos Efetuados, "pago sem nota" e `semNotaDoAno` sigam vendo só
+ * dinheiro que de fato mudou de conta.
+ */
+export interface RetencaoAlocada {
+  linha: LinhaRetencao;
+  /** A nota de onde a linha saiu. **Sempre a dela**, nunca a do componente. */
+  documentoId: string;
+  /**
+   * O pagamento vinculado MAIS ANTIGO deste mesmo documento — quem empresta a
+   * data. Guardado, e não recalculado adiante: "qual é o pagamento âncora" não
+   * pode ter duas implementações (mesma lição de `notaCoberta`).
+   */
+  pagamentoAncoraId: string;
+  /** ISO. A data-efeito: `dataPagamento` da âncora (ADENDO 3, Pergunta 2). */
+  dataEfeito: string;
+  /** O valor da linha inteiro, antes da repartição do componente. */
+  valorCentavos: number;
+  /** Quanto desta perna entrou no custo comprovado do componente. */
+  comprovadoCentavos: number;
+  /**
+   * **Critério 8 — o que a perna NÃO conseguiu absorver.** Só é > 0 quando
+   * pagamentos + retenção passam do bruto da nota, o que é DADO CONTRADITÓRIO
+   * (pagamento registrado pelo bruto, ou valor de linha errado). Existe como
+   * campo, e não como `continue` mudo, porque estouro silencioso é justamente o
+   * que o critério proíbe.
+   */
+  naoAbsorvidoCentavos: number;
+}
+
 export interface DocumentoAlocado {
   documento: Documento;
   habil: boolean;
-  /** Parte da nota já coberta por pagamento. */
+  /**
+   * Parte da nota já coberta — por pagamento **ou por perna de retenção
+   * qualificada** (CONTAI-056). É este número que a tela chama de "Custo
+   * comprovado".
+   */
   cobertoCentavos: number;
   /**
-   * "Nota ainda não paga" (mock s8). NÃO vira custo: regime de caixa, sem
-   * desembolso não há dispêndio.
+   * **"Nota ainda não paga"** (mock s8) — a fatia GENUINAMENTE sem destino.
+   * NÃO vira custo: regime de caixa, sem desembolso não há dispêndio.
+   *
+   * ⚠️ **Era `excedenteNotaCentavos`, e o rename é do CONTAI-056, critério 3
+   * do Gate Fiscal**: aquele campo colapsava dois motivos num número e num
+   * texto — (a) falta pagamento de verdade e (b) a fatia já foi explicada por
+   * retenção confirmada. Só (a) pode dizer "nota ainda não paga"; (b) mora em
+   * `explicadoPorRetencaoCentavos`. O rename é deliberado (não existe alias):
+   * é o typecheck que varre os leitores, não a convenção.
    */
-  excedenteNotaCentavos: number;
+  faltaPagamentoCentavos: number;
+  /**
+   * **Critério 4** — quanto do `cobertoCentavos` desta nota veio de perna de
+   * retenção, e não de transferência. Já está DENTRO do coberto: não soma com
+   * ele, decompõe-o. Zero na esmagadora maioria das notas.
+   */
+  explicadoPorRetencaoCentavos: number;
+  /** Critério 8, por documento — ver `RetencaoAlocada.naoAbsorvidoCentavos`. */
+  retencaoSobrecobertaCentavos: number;
   /** Pagamentos ligados a este documento, cronológicos. */
   pagamentos: Pagamento[];
 }
@@ -344,11 +442,26 @@ export interface Componente {
   id: string;
   pagamentos: Pagamento[];
   documentos: Documento[];
-  /** Σ dos valores ELEGÍVEIS (§F.3), nunca dos valores cheios. */
+  /**
+   * Σ dos valores ELEGÍVEIS dos PAGAMENTOS (§F.3), nunca dos valores cheios.
+   *
+   * ⚠️ **A retenção NÃO entra aqui** — ela tem campo próprio, logo abaixo. O
+   * campo continua significando exatamente o que o nome diz, e o piso do
+   * mínimo é a soma dos dois (ver `custoComprovadoCentavos`). Dobrar o sentido
+   * deste número seria a primeira coisa a divergir na próxima leitura.
+   */
   somaPagamentosCentavos: number;
+  /**
+   * **CONTAI-056** — Σ das pernas de retenção qualificadas deste componente
+   * (`retencaoContaComoPerna` + documento com pagamento vinculado).
+   */
+  somaRetencoesConfirmadasCentavos: number;
   /** Só documentos HÁBEIS somam aqui. */
   somaDocumentosHabeisCentavos: number;
-  /** min(Σ pagamentos, Σ documentos hábeis) — parecer §3. */
+  /**
+   * `min(Σ pagamentos elegíveis + Σ retenções confirmadas, Σ documentos
+   * hábeis)` — parecer §3, com a segunda perna do ADENDO 2/3.
+   */
   custoComprovadoCentavos: number;
 }
 
@@ -404,6 +517,15 @@ export interface Alocacao {
   componentes: Componente[];
   porPagamento: Map<string, PagamentoAlocado>;
   porDocumento: Map<string, DocumentoAlocado>;
+  /**
+   * **CONTAI-056** — as pernas de retenção, por `id` da linha de
+   * `documento_retencao`. Vazio em toda obra sem retenção confirmada.
+   *
+   * ⚠️ Mapa SEPARADO de `porPagamento`, e a separação é a regra: perna de
+   * retenção não é `Pagamento`, não entra na ficha Pagamentos Efetuados e não
+   * aparece em "pago sem nota".
+   */
+  porRetencao: Map<string, RetencaoAlocada>;
   /**
    * Vazio em toda obra saudável. Ver `VinculoOrfao` e o critério 12 do
    * CONTAI-008: *"nenhum vínculo cruzando obras pode ser descartado sem que
@@ -530,6 +652,7 @@ export function alocarCusto(entrada: EntradaAlocacao): Alocacao {
   const componentes: Componente[] = [];
   const porPagamento = new Map<string, PagamentoAlocado>();
   const porDocumento = new Map<string, DocumentoAlocado>();
+  const porRetencao = new Map<string, RetencaoAlocada>();
 
   for (const [id, { pagamentos: pags, documentos: docs }] of grupos) {
     const ordenados = [...pags].sort(cronologico);
@@ -541,78 +664,276 @@ export function alocarCusto(entrada: EntradaAlocacao): Alocacao {
     );
     const habeis = docs.filter(ehDocumentoHabil);
     const somaHabeis = habeis.reduce((s, d) => s + valorDocumento(d), 0);
-    const custoComprovado = Math.min(somaPagamentos, somaHabeis);
+
+    const pernasDeRetencao = pernasDeRetencaoDoGrupo(habeis, ordenados);
+    const somaRetencoes = pernasDeRetencao.reduce(
+      (s, r) => s + r.valorCentavos,
+      0,
+    );
+    // ⚠️ **D77 mora nesta linha** (Gate 2 do CONTAI-056): o teto é do
+    // COMPONENTE, e com mais de uma nota hábil no grupo ele deixa a perna de
+    // retenção de uma cobrir o buraco da outra — a perna não é fungível entre
+    // notas, mas este `min` não sabe disso. Ver `pernasEmOrdem` para o caso
+    // numérico e `docs/backlog.md` (D77) para por que a correção é mudança de
+    // modelo de dados, e não um ajuste aqui.
+    const custoComprovado = Math.min(
+      somaPagamentos + somaRetencoes,
+      somaHabeis,
+    );
 
     componentes.push({
       id,
       pagamentos: ordenados,
       documentos: docs,
       somaPagamentosCentavos: somaPagamentos,
+      somaRetencoesConfirmadasCentavos: somaRetencoes,
       somaDocumentosHabeisCentavos: somaHabeis,
       custoComprovadoCentavos: custoComprovado,
     });
 
-    // Reparte o custo comprovado entre os pagamentos, do mais antigo para o
-    // mais novo. É o que faz o custo cair no ano certo quando o componente
-    // cruza anos-calendário (regime de caixa).
+    // Reparte o custo comprovado entre as PERNAS do componente, da mais antiga
+    // para a mais nova. É o que faz o custo cair no ano certo quando o
+    // componente cruza anos-calendário (regime de caixa).
     //
-    // A repartição também é pelo ELEGÍVEL: um pagamento com encargo absorve
-    // até o principal dele, nunca até o valor cheio.
+    // A repartição do pagamento é pelo ELEGÍVEL: um pagamento com encargo
+    // absorve até o principal dele, nunca até o valor cheio.
     let aDistribuir = custoComprovado;
-    for (const p of ordenados) {
-      const elegivel = valorElegivelDoPagamento(p);
-      const comprovado = Math.min(elegivel, aDistribuir);
-      aDistribuir -= comprovado;
-      porPagamento.set(p.id, {
-        pagamento: p,
-        elegivelCentavos: elegivel,
-        comprovadoCentavos: comprovado,
-        semNotaCentavos: elegivel - comprovado,
+    /** documentoId → quanto de perna de RETENÇÃO daquela nota foi absorvido. */
+    const absorvidoPorRetencao = new Map<string, number>();
+    /** documentoId → quanto de perna de retenção SOBROU (critério 8). */
+    const sobrecobertaPorNota = new Map<string, number>();
+    for (const perna of pernasEmOrdem(ordenados, pernasDeRetencao)) {
+      const absorvido = Math.min(perna.valorCentavos, aDistribuir);
+      aDistribuir -= absorvido;
+      if (perna.tipo === "pagamento") {
+        porPagamento.set(perna.pagamento.id, {
+          pagamento: perna.pagamento,
+          elegivelCentavos: perna.valorCentavos,
+          comprovadoCentavos: absorvido,
+          semNotaCentavos: perna.valorCentavos - absorvido,
+        });
+        continue;
+      }
+      const sobra = perna.valorCentavos - absorvido;
+      porRetencao.set(perna.linha.id, {
+        linha: perna.linha,
+        documentoId: perna.documentoId,
+        pagamentoAncoraId: perna.pagamentoAncoraId,
+        dataEfeito: perna.dataEfeito,
+        valorCentavos: perna.valorCentavos,
+        comprovadoCentavos: absorvido,
+        naoAbsorvidoCentavos: sobra,
       });
+      somar(absorvidoPorRetencao, perna.documentoId, absorvido);
+      somar(sobrecobertaPorNota, perna.documentoId, sobra);
     }
 
-    // Do lado do documento a repartição não tem efeito fiscal nenhum: nada do
-    // que sobra na nota vira custo (regime de caixa). Ordem estável por id só
-    // para a tela não dançar entre dois carregamentos.
+    // Do lado do documento a repartição do que veio de PAGAMENTO não tem efeito
+    // fiscal nenhum: nada do que sobra na nota vira custo (regime de caixa).
+    // Ordem estável por id só para a tela não dançar entre dois carregamentos.
+    //
+    // ⚠️ **A perna de retenção é a exceção: ela NÃO é fungível como um PIX.**
+    // Ela é quitação DAQUELA nota, e atribuí-la a outra do mesmo componente
+    // faria `explicadoPorRetencaoCentavos` apontar para o documento errado — os
+    // dois motivos que os critérios 4 e 5 existem para separar voltariam a se
+    // misturar, só num lugar mais difícil de ver. Por isso a cobertura sai em
+    // duas passadas: primeiro cada nota recebe a retenção dela, depois o resto
+    // se distribui.
     const habeisOrdenados = [...habeis].sort((a, b) => (a.id < b.id ? -1 : 1));
     let cobertura = custoComprovado;
+    const daRetencao = new Map<string, number>();
     for (const d of habeisOrdenados) {
-      const coberto = Math.min(valorDocumento(d), cobertura);
-      cobertura -= coberto;
+      const propria = Math.min(
+        absorvidoPorRetencao.get(d.id) ?? 0,
+        valorDocumento(d),
+        cobertura,
+      );
+      cobertura -= propria;
+      daRetencao.set(d.id, propria);
+    }
+    for (const d of habeisOrdenados) {
+      const porRetencaoDaNota = daRetencao.get(d.id) ?? 0;
+      const resto = Math.min(
+        valorDocumento(d) - porRetencaoDaNota,
+        cobertura,
+      );
+      cobertura -= resto;
+      const coberto = porRetencaoDaNota + resto;
       porDocumento.set(d.id, {
         documento: d,
         habil: true,
         cobertoCentavos: coberto,
-        excedenteNotaCentavos: valorDocumento(d) - coberto,
+        faltaPagamentoCentavos: valorDocumento(d) - coberto,
+        explicadoPorRetencaoCentavos: porRetencaoDaNota,
+        retencaoSobrecobertaCentavos: sobrecobertaPorNota.get(d.id) ?? 0,
         pagamentos: ordenados.filter((p) => p.documentoIds.includes(d.id)),
       });
     }
     for (const d of docs) {
       if (porDocumento.has(d.id)) continue;
-      // Não hábil: contribui 0, e não tem "excedente" a mostrar — o valor
-      // inteiro dele está fora do custo por outro motivo (quarentena/boleto).
+      // Não hábil: contribui 0, e não tem "falta pagar" a mostrar — o valor
+      // inteiro dele está fora do custo por outro motivo (quarentena/boleto/
+      // sem arquivo). Perna de retenção de nota não hábil também não existe:
+      // ver `pernasDeRetencaoDoGrupo`.
       porDocumento.set(d.id, {
         documento: d,
         habil: false,
         cobertoCentavos: 0,
-        excedenteNotaCentavos: 0,
+        faltaPagamentoCentavos: 0,
+        explicadoPorRetencaoCentavos: 0,
+        retencaoSobrecobertaCentavos: 0,
         pagamentos: ordenados.filter((p) => p.documentoIds.includes(d.id)),
       });
     }
   }
 
-  return { componentes, porPagamento, porDocumento, vinculosOrfaos };
+  return { componentes, porPagamento, porDocumento, porRetencao, vinculosOrfaos };
+}
+
+function somar(mapa: Map<string, number>, chave: string, valor: number): void {
+  mapa.set(chave, (mapa.get(chave) ?? 0) + valor);
+}
+
+/** Uma perna de retenção antes de a repartição do componente tocá-la. */
+interface PernaDeRetencao {
+  linha: LinhaRetencao;
+  documentoId: string;
+  pagamentoAncoraId: string;
+  dataEfeito: string;
+  valorCentavos: number;
+}
+
+/**
+ * **As pernas de retenção de um componente — CONTAI-056, regras 1 e 2.**
+ *
+ * Três portões, e cada um vem de uma frase do parecer:
+ *
+ * 1. **Só nota HÁBIL.** Não está escrito no ADENDO, e sim no §A.3 da Guarda 1:
+ *    o custo é `min(Σ pagamentos, Σ documentos hábeis)`, e nota em quarentena /
+ *    sem arquivo / boleto contribui ZERO para o teto. Deixar a perna de uma
+ *    nota não hábil empurrar o PISO levantaria custo que o teto daquela nota
+ *    não sustenta — e num componente com mais de uma nota, a perna de uma
+ *    quitaria o valor da outra. Direção do erro: superestimar custo, a única
+ *    que o §4 classifica como geradora de passivo tributário.
+ * 2. **Só linha qualificada** — `retencaoContaComoPerna` (ADENDO 3, Pergunta 1).
+ * 3. **Só nota com pagamento vinculado**, e a data é a do MAIS ANTIGO **deste
+ *    documento** (ADENDO 3, Pergunta 2, "detalhe normativo"): *"dois documentos
+ *    diferentes do mesmo favorecido não podem emprestar data um do outro"*, e
+ *    *"'mais antigo' é o critério certo, não 'mais recente' nem 'o que fechou a
+ *    nota'"* — a linha é reconhecida a partir do primeiro real que saiu da
+ *    conta dele contra aquela nota.
+ */
+function pernasDeRetencaoDoGrupo(
+  habeis: readonly Documento[],
+  ordenados: readonly Pagamento[],
+): PernaDeRetencao[] {
+  const pernas: PernaDeRetencao[] = [];
+  for (const d of habeis) {
+    if (d.retencoes.length === 0) continue;
+    // `ordenados` já está em ordem cronológica (com desempate estável por id),
+    // então o primeiro que cita este documento É a âncora. Nenhuma segunda
+    // ordenação, nenhum segundo critério de "mais antigo".
+    const ancora = ordenados.find((p) => p.documentoIds.includes(d.id));
+    if (ancora === undefined) continue;
+    for (const linha of d.retencoes) {
+      if (!retencaoContaComoPerna(linha)) continue;
+      pernas.push({
+        linha,
+        documentoId: d.id,
+        pagamentoAncoraId: ancora.id,
+        dataEfeito: ancora.dataPagamento,
+        valorCentavos: linha.valorCentavos,
+      });
+    }
+  }
+  return pernas;
+}
+
+type Perna =
+  | { tipo: "pagamento"; pagamento: Pagamento; data: string; valorCentavos: number }
+  | ({ tipo: "retencao"; data: string } & PernaDeRetencao);
+
+/**
+ * Pagamentos e pernas de retenção numa só fila cronológica.
+ *
+ * ⚠️ **No EMPATE DE DATA o pagamento real vem primeiro**, e isso não é
+ * desempate cosmético. A data da perna de retenção é emprestada do pagamento
+ * âncora, então empate é o caso NORMAL, não a exceção. Pondo o dinheiro que de
+ * fato saiu na frente, o caso sobrecoberto (pagamentos + retenção > bruto da
+ * nota, critério 8) sobra na PERNA DE RETENÇÃO — que é dado contraditório,
+ * nomeado em `naoAbsorvidoCentavos`. Na ordem inversa, a ficção de quitação
+ * absorveria custo e empurraria dinheiro real para "pago sem nota": uma
+ * pendência falsa contra o Mateus, produzida por um número que o app inventou.
+ *
+ * ⚠️ **LIMITAÇÃO CONHECIDA — D77, e ela é do lado perigoso** (Gate 2 do
+ * `CONTAI-056`, `cto-obra`, 2026-09-25). Esta fila vive DENTRO de um componente
+ * conexo, e o `Math.min` que ela alimenta é do componente inteiro. Lá, um
+ * pagamento É fungível entre as notas do grupo — mas a **perna de retenção não
+ * é**: ela é quitação de UMA nota. Consequência: com duas notas no mesmo
+ * componente (PIX compartilhado), a retenção de A pode absorver o buraco de B e
+ * a sobrecobertura de A **não acende**. O caso numérico, fixado por teste em
+ * `vinculo.test.ts` ("limitação conhecida D77"): A de R$ 10.000 paga pelo BRUTO
+ * + retenção de R$ 500, B de R$ 10.000 paga R$ 9.500, PIX compartilhado →
+ * custo R$ 20.000 e `retencaoSobrecobertaCentavos = 0`, quando o defensável é
+ * R$ 19.500 com a contradição de A acesa. **Superestima custo**, que é a direção
+ * do §4. A passada dedicada do lado do documento (em `alocarCusto`) resolve a
+ * ATRIBUIÇÃO do "explicado por retenção" à nota certa, mas não o TETO: corrigir
+ * o teto exige valor por VÍNCULO, não por componente — mudança de modelo de
+ * dados, declarada fora do escopo do `CONTAI-056`. Ver `docs/backlog.md`, D77.
+ */
+function pernasEmOrdem(
+  ordenados: readonly Pagamento[],
+  retencoes: readonly PernaDeRetencao[],
+): Perna[] {
+  if (retencoes.length === 0) {
+    return ordenados.map((p) => ({
+      tipo: "pagamento",
+      pagamento: p,
+      data: p.dataPagamento,
+      valorCentavos: valorElegivelDoPagamento(p),
+    }));
+  }
+  const pernas: Perna[] = [
+    ...ordenados.map(
+      (p): Perna => ({
+        tipo: "pagamento",
+        pagamento: p,
+        data: p.dataPagamento,
+        valorCentavos: valorElegivelDoPagamento(p),
+      }),
+    ),
+    ...retencoes.map((r): Perna => ({ tipo: "retencao", data: r.dataEfeito, ...r })),
+  ];
+  const chave = (p: Perna) =>
+    p.tipo === "pagamento" ? p.pagamento.id : p.linha.id;
+  return pernas.sort((a, b) => {
+    if (a.data !== b.data) return a.data < b.data ? -1 : 1;
+    if (a.tipo !== b.tipo) return a.tipo === "pagamento" ? -1 : 1;
+    const ia = chave(a);
+    const ib = chave(b);
+    return ia < ib ? -1 : ia > ib ? 1 : 0;
+  });
 }
 
 // ── Leituras derivadas ───────────────────────────────────────────────────
 
-/** Custo comprovado do ano-calendário — regime de caixa, pela data do pagamento. */
+/**
+ * Custo comprovado do ano-calendário — regime de caixa, pela data do pagamento.
+ *
+ * ⚠️ **As DUAS pernas entram** (CONTAI-056): pagamentos pela `dataPagamento`,
+ * pernas de retenção pela `dataEfeito` (a data do pagamento vinculado mais
+ * antigo da nota delas). Somar só a primeira era o bug P0 do ADENDO 2 — o
+ * número que alimenta a ficha Bens e Direitos saía menor que o custo real.
+ */
 export function custoComprovadoDoAno(alocacao: Alocacao, ano: number): number {
   let total = 0;
   for (const a of alocacao.porPagamento.values()) {
     if (anoCalendario(a.pagamento.dataPagamento) === ano) {
       total += a.comprovadoCentavos;
     }
+  }
+  for (const r of alocacao.porRetencao.values()) {
+    if (anoCalendario(r.dataEfeito) === ano) total += r.comprovadoCentavos;
   }
   return total;
 }
@@ -625,7 +946,26 @@ export function custoComprovadoAteOAno(alocacao: Alocacao, ano: number): number 
       total += a.comprovadoCentavos;
     }
   }
+  for (const r of alocacao.porRetencao.values()) {
+    if (anoCalendario(r.dataEfeito) <= ano) total += r.comprovadoCentavos;
+  }
   return total;
+}
+
+/**
+ * As pernas de retenção de UM componente. Existe para que `revisao.ts` e
+ * `resumo.ts` não escrevam cada um o seu "quais retenções são deste cluster" —
+ * `porRetencao` é indexado por linha, não por componente, e reconstruir o elo
+ * duas vezes é como os dois números do mesmo fato começam a divergir.
+ */
+export function retencoesDoComponente(
+  alocacao: Alocacao,
+  componente: Componente,
+): RetencaoAlocada[] {
+  const doComponente = new Set(componente.documentos.map((d) => d.id));
+  return [...alocacao.porRetencao.values()].filter((r) =>
+    doComponente.has(r.documentoId),
+  );
 }
 
 /**
@@ -664,6 +1004,14 @@ export function documentosHabeisSemPagamento(
  *   valor CHEIO mesmo depois de paga — era por aí que a segunda parcela viria
  *   com o total de novo e o custo entraria em dobro;
  * - a nota já está coberta por inteiro (não falta nada a pagar).
+ *
+ * ⚠️ **Lê só a falta GENUÍNA** (`faltaPagamentoCentavos`), nunca a fatia
+ * explicada por retenção — CONTAI-056, critério 3 do Gate Fiscal. É por aqui
+ * que o efeito atravessa: a nota cujo bruto fecha com líquido + retenção
+ * qualificada devolve `null` (nada a pagar), e é isso que faz `notaCoberta`
+ * parar de alarmar um caso já encerrado. Com `quem_recolhe = "eu"` a perna não
+ * soma, a falta continua de pé, e a pendência da GUIA segue aberta — o
+ * mecanismo do ADENDO 3 que não muda uma linha.
  */
 export function saldoDescobertoDaNota(
   documento: Documento,
@@ -672,7 +1020,9 @@ export function saldoDescobertoDaNota(
   if (documento.valorCentavos === null) return null;
   const alocado = alocacao.porDocumento.get(documento.id);
   if (!alocado || !alocado.habil) return null;
-  return alocado.excedenteNotaCentavos > 0 ? alocado.excedenteNotaCentavos : null;
+  return alocado.faltaPagamentoCentavos > 0
+    ? alocado.faltaPagamentoCentavos
+    : null;
 }
 
 /**
@@ -756,11 +1106,17 @@ function temSaldoSemNota(pagamento: Pagamento, alocacao: Alocacao): boolean {
   return baseDocumentavel(pagamento) - comprovado > 0;
 }
 
-/** Sobra parte desta nota sem pagamento? Documento não hábil sempre sobra. */
+/**
+ * Sobra parte desta nota sem pagamento? Documento não hábil sempre sobra.
+ *
+ * Pela FALTA GENUÍNA (CONTAI-056): a nota cujo bruto já fechou com líquido +
+ * retenção qualificada sai do seletor de candidatos, como qualquer nota paga por
+ * inteiro — e continua achável pelo contador de ocultos (`CANDIDATO_OCULTO_*`).
+ */
 function temSaldoDescoberto(documento: Documento, alocacao: Alocacao): boolean {
   const alocado = alocacao.porDocumento.get(documento.id);
   if (!alocado || !alocado.habil) return true;
-  return alocado.excedenteNotaCentavos > 0;
+  return alocado.faltaPagamentoCentavos > 0;
 }
 
 /**

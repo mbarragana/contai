@@ -1307,6 +1307,9 @@ describe("os oito lugares (parecer §2, itens 1 a 8)", () => {
       "componentes",
       "porDocumento",
       "porPagamento",
+      // CONTAI-056: a perna de retenção, em mapa PRÓPRIO — nunca em
+      // `porPagamento`, que é o que mantém Pagamentos Efetuados intocada.
+      "porRetencao",
       "vinculosOrfaos",
     ]);
   });

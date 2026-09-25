@@ -29,8 +29,19 @@
  *
  * Disso sai o invariante que o Gate Fiscal pede (revisão ESTRUTURAL, sem regra
  * nova): `Σ linhas = Σ pagamentos da obra + Σ documentos sem pagamento ligado`,
- * e `Σ comprovado das linhas = Σ custo comprovado dos componentes` — os mesmos
- * números que os cards do dashboard já mostram. Há teste para cada um.
+ * e `Σ (comprovado + comprovadoPorRetencao) das linhas = Σ custo comprovado dos
+ * componentes` — os mesmos números que os cards do dashboard já mostram. Há
+ * teste para cada um.
+ *
+ * ⚠️ **A segunda metade do invariante ganhou uma parcela no CONTAI-056.** A
+ * perna de retenção qualificada entra no custo comprovado do componente
+ * (`lib/fiscal/vinculo.ts`) sem ser um `Pagamento` e sem ser um `Documento`:
+ * ela não tem linha própria — teria de ter valor de linha, e esse valor não é
+ * dinheiro que mudou de conta, então somá-lo em `Σ linhas` inventaria despesa.
+ * Ela entra como **parcela dentro da linha do pagamento âncora** (o mais antigo
+ * da nota, o que empresta a data à retenção), em campo separado de
+ * `comprovadoCentavos` — que continua significando *"quanto DESTE valor de
+ * linha está comprovado"* e continua ≤ o valor da linha.
  *
  * ⚠️ **Nenhuma CONDIÇÃO de pendência é reimplementada aqui.** Quem decide que
  * existe "pago sem nota", "quarentena" ou "retenção sem recolhedor" continua
@@ -61,6 +72,12 @@ import {
   BOLETO_FORA_DO_TOTAL,
 } from "./documento";
 import { rotulosPagoSemNota } from "./pagamento";
+import {
+  CHIP_QUITADO_POR_RETENCAO,
+  CHIP_RETENCAO_SOBRECOBERTA,
+  RETENCAO_EXPLICA_A_SOBRA,
+  RETENCAO_SOBRECOBERTA,
+} from "./retencao";
 import {
   NOME_TIPO_CURTO,
   type Pendencia,
@@ -215,6 +232,15 @@ export interface LinhaDeDespesa {
   valorCentavos: number | null;
   /** Quanto deste valor está comprovado — de `alocacao`, nunca recalculado. */
   comprovadoCentavos: number;
+  /**
+   * **CONTAI-056** — o custo comprovado que veio de PERNA DE RETENÇÃO ancorada
+   * neste pagamento, não do valor dele. Fica em campo próprio, e não somado em
+   * `comprovadoCentavos`, por duas razões: `comprovadoCentavos` seria maior que
+   * `valorCentavos` (a tela imprimiria "comprovado R$ 10,00" numa linha de
+   * R$ 9,50, que lê como bug), e o invariante do módulo precisa poder nomear as
+   * duas parcelas separadamente. Zero em toda linha sem retenção confirmada.
+   */
+  comprovadoPorRetencaoCentavos: number;
   situacoes: SituacaoDaLinha[];
   /** Filtro "Só comprovadas". Convive com `temPendencia` (linha mista). */
   comprovada: boolean;
@@ -346,6 +372,8 @@ export function linhasDeDespesa(
       meio: p.meio,
       valorCentavos: p.valorCentavos,
       comprovadoCentavos: comprovado,
+      // Preenchida no bloco 3b, depois de as linhas existirem.
+      comprovadoPorRetencaoCentavos: 0,
       situacoes: [],
       comprovada: comprovado > 0,
       temPendencia: false,
@@ -382,8 +410,11 @@ export function linhasDeDespesa(
       // ⚠️ `?? 0` aqui seria "R$ 0,00" em tela — ver `valorCentavos`.
       valorCentavos: d.valorCentavos,
       // Documento sozinho no componente nunca comprova nada: sem desembolso
-      // não há dispêndio (regime de caixa).
+      // não há dispêndio (regime de caixa). A perna de retenção também não
+      // socorre esta linha: sem pagamento vinculado ela não entra em ano
+      // nenhum (CONTAI-056, ADENDO 3 Pergunta 2).
       comprovadoCentavos: 0,
+      comprovadoPorRetencaoCentavos: 0,
       situacoes: [],
       comprovada: false,
       temPendencia: false,
@@ -407,6 +438,52 @@ export function linhasDeDespesa(
       nota: null,
       valorCentavos: linha.comprovadoCentavos,
     });
+  }
+
+  // ── 3b · A perna de RETENÇÃO, na linha do pagamento âncora (CONTAI-056) ─
+  //
+  // ⚠️ **Nenhuma condição é decidida aqui.** Quem qualificou a linha foi
+  // `retencaoContaComoPerna` e quem a repartiu foi `alocarCusto`; este bloco só
+  // encontra a linha da tabela onde a parcela pertence — a do pagamento que
+  // emprestou a data à retenção — e copia os textos das constantes de
+  // `retencao.ts`. O valor vem de `alocacao.porRetencao`, a MESMA decomposição
+  // que formou o custo comprovado do componente.
+  //
+  // Sem este bloco, a retenção entraria no total do dashboard e não apareceria
+  // em linha nenhuma da tabela: o encolhimento silencioso que o módulo existe
+  // para impedir, na direção inversa.
+  for (const r of alocacao.porRetencao.values()) {
+    const linha = linhaDoPagamento.get(r.pagamentoAncoraId);
+    if (linha === undefined) continue;
+    if (r.comprovadoCentavos > 0) {
+      linha.comprovadoPorRetencaoCentavos += r.comprovadoCentavos;
+      linha.comprovada = true;
+      linha.situacoes.push({
+        id: `${linha.id}:retencao:${r.linha.id}`,
+        pendenciaId: null,
+        chip: CHIP_QUITADO_POR_RETENCAO,
+        // VERDE: é custo que se sustenta, não pendência. O critério 4 do
+        // CONTAI-056 pede texto e cor PRÓPRIOS justamente para esta fatia
+        // deixar de ser lida como "nota ainda não paga".
+        cor: "grn",
+        consequencia: RETENCAO_EXPLICA_A_SOBRA,
+        nota: null,
+        valorCentavos: r.comprovadoCentavos,
+      });
+    }
+    if (r.naoAbsorvidoCentavos > 0) {
+      // Critério 8 — dado contraditório, nomeado. Nunca estouro silencioso.
+      linha.situacoes.push({
+        id: `${linha.id}:retencao-sobrecoberta:${r.linha.id}`,
+        pendenciaId: null,
+        chip: CHIP_RETENCAO_SOBRECOBERTA,
+        cor: "red",
+        consequencia: RETENCAO_SOBRECOBERTA,
+        nota: null,
+        valorCentavos: r.naoAbsorvidoCentavos,
+      });
+      linha.temPendencia = true;
+    }
   }
 
   // ── 4 · As pendências, como ANOTAÇÃO dentro da linha do registro ───────
