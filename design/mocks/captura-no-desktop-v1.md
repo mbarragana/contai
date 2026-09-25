@@ -96,9 +96,20 @@ extração (Gemini) continua só sugerindo campo vazio, nunca `notaNoCpf` nem o
 gate de retenção.
 
 ## Textos (nenhum reescrito)
+
+⚠️ **Correção de 2026-09-25 (`CONTAI-053`)**: a linha abaixo listava
+`DICA_GATE_DESTACADA` como texto único em qualquer largura. Deixou de ser
+verdade — "você detalha isso depois, sentado" fica falso quando o
+detalhamento passa a existir na própria tela larga. A partir do
+`CONTAI-053`, a frase abaixo vale só **abaixo de 880px**; a variante ≥880px e
+o resto do delta (onde o repeater entra na grade, seus estados, a dica final
+da página) estão em `design/mocks/CONTAI-053.md`. Decisão 4 acima ("consequência
+nunca sai do campo que a gera") continua valendo sem mudança — é a régua que o
+`CONTAI-053` segue para manter o repeater inline, nunca no rail.
+
 | Texto | Fonte |
 |---|---|
-| "Você detalha isso depois, sentado..." | `DICA_GATE_DESTACADA`, `lib/fiscal/retencao.ts` |
+| "Você detalha isso depois, sentado..." (< 880px) | `DICA_GATE_DESTACADA`, `lib/fiscal/retencao.ts` — variante ≥880px em `CONTAI-053.md` |
 | "Esta nota não abate a aferição desta obra..." | `CONSEQUENCIA_CNO_DA_NOTA`, `lib/fiscal/obra.ts` |
 | "A nota continua sendo documentação hábil..." | `CNO_NAO_ALCANCA_O_CUSTO`, `lib/fiscal/obra.ts` |
 | "pedir nota com o CNO ao prestador" | `ACAO_NOTA_SEM_CNO`, `lib/fiscal/obra.ts` |

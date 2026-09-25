@@ -22,7 +22,7 @@ formulário, sem precisar abrir `/documento/[id]` depois, para fechar o
 registro de uma vez só enquanto tenho a nota na mão.
 
 ## Critérios de Aceite
-1. [ ] Proposta de design nível 2 (spec + ASCII do bloco — reuso de
+1. [x] Proposta de design nível 2 (spec + ASCII do bloco — reuso de
    componente já validado, não fluxo novo) descrita em
    `design/mocks/CONTAI-053.md`, cobrindo: onde o repeater entra na grade de
    `design/mocks/captura-no-desktop-v1.md`, os 4 estados do bloco antes do
