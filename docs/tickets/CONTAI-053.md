@@ -30,7 +30,7 @@ registro de uma vez só enquanto tenho a nota na mão.
    página (hoje dizem "você preenche depois", o que fica falso quando o
    repeater já está visível ali), e o texto da mensagem de resultado parcial
    do critério 3.
-2. [ ] Em tela larga (≥880px), ao responder o gate `retencao_na_nota =
+2. [x] Em tela larga (≥880px), ao responder o gate `retencao_na_nota =
    "destacada"` em `/adicionar/documento`, o **formulário de linha**
    (`FormularioDeLinha`, extraído de `app/_components/retencao.tsx` — mesma
    validação e mesmos textos de `lib/fiscal/retencao.ts` usados na gestão)
@@ -38,29 +38,29 @@ registro de uma vez só enquanto tenho a nota na mão.
    embutido** (ele exige `documento.id` já persistido, incompatível com o
    momento da captura) — é o mesmo formulário, reusado, sem reimplementação
    paralela de validação/textos.
-3. [ ] As linhas preenchidas na captura são gravadas em `documento_retencao`
+3. [x] As linhas preenchidas na captura são gravadas em `documento_retencao`
    só **depois** que o documento é criado (mesmo padrão não-transacional já
    usado para vínculos, `criarVinculos`). Se a gravação de alguma linha
    falhar, o documento salva normalmente e a confirmação diz quantas linhas
    entraram e quantas não — nunca esconde a falha.
-4. [ ] Documento salvo em tela larga com todas as linhas completas (inclusive
+4. [x] Documento salvo em tela larga com todas as linhas completas (inclusive
    `quem_recolhe` respondido): ao abrir `/documento/[id]` depois, as linhas
    aparecem gravadas, idênticas às que resultariam de digitação na tela de
    gestão, sem pendência `retencao_sem_recolhedor` aberta.
-5. [ ] Documento salvo com repeater incompleto ou vazio: salva normalmente; a
+5. [x] Documento salvo com repeater incompleto ou vazio: salva normalmente; a
    pendência correspondente fica visível em `/documento/[id]`; nunca é lido
    como "sem retenção" (mesma disciplina dos critérios 2 e 5 do `CONTAI-038`).
-6. [ ] Em tela estreita (<880px), o formulário de retenção **não** aparece em
+6. [x] Em tela estreita (<880px), o formulário de retenção **não** aparece em
    `/adicionar/documento` — comportamento idêntico ao de hoje (gate na
    captura, repeater só na gestão). E2E cobre a ausência como regressão.
-7. [ ] Nenhuma linha nasce com `composicao`, `tributo`, `e_desconto_efetivo`
+7. [x] Nenhuma linha nasce com `composicao`, `tributo`, `e_desconto_efetivo`
    ou `quem_recolhe` pré-marcados/pré-selecionados, em nenhuma largura —
    mesma proibição de default em campo fiscal de
    `docs/pareceres/2026-09-18-retencao-variavel-servico-pj.md` (§0, §2) e do
    critério 3 do `CONTAI-038`.
-8. [ ] Gate `retencao_na_nota = "nenhuma"` (ou ainda não respondido): nenhum
+8. [x] Gate `retencao_na_nota = "nenhuma"` (ou ainda não respondido): nenhum
    campo de retenção aparece na captura, em qualquer largura de tela.
-9. [ ] Nenhuma extração automática (fora de escopo deste ticket — ver
+9. [x] Nenhuma extração automática (fora de escopo deste ticket — ver
    `CONTAI-054`/`CONTAI-055`) preenche `composicao`, `tributo`,
    `e_desconto_efetivo` ou `quem_recolhe` — critério preventivo, para não
    nascer lacuna quando a sugestão chegar.
@@ -175,3 +175,17 @@ valendo sem alteração, retenção continua "depois, sentado". Serve à meta 1
 cidadã de primeira classe desde a captura) sem afrouxar a disciplina fiscal.
 **Veredito: APROVADO**, com o Gate 0 (design nível 2) pendente antes do
 Gate 1.
+
+✅ **Entregue em 2026-09-25.** 9/9 critérios PASS — Gate 4 (`po`). Gate 2
+técnico (`cto-obra`) pediu **REQUEST CHANGES** num ponto real: quando o
+documento vai para quarentena (ex.: nota fora do CPF) e a gravação da linha
+de retenção falha ao mesmo tempo, a navegação pulava a tela de confirmação
+e o card de resultado parcial nunca aparecia — corrigido segurando a
+navegação na mesma cláusula de `vinculoFalhou`, com E2E novo provando as
+duas coisas juntas na confirmação. Gate 2 fiscal (`contador`) aprovou
+direto. Ajuste de texto pós-Gate-2 (não lógico): a concordância verbal de
+`contagemDaRetencaoParcial` ("0 de 1 linha de retenção entraram") lia mal
+com `total=1`/`entraram=0` — verbo movido para o início da frase
+("Entraram 0 de 1 linha..."), registrado como correção transparente, suíte
+completa reconfirmada depois. 1080 testes unitários + 307 E2E verdes, sem
+migration.

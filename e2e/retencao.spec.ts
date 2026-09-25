@@ -164,6 +164,64 @@ test.describe("captura: o gate de duas opções (critérios 1 e 2)", () => {
     // Critério 2: o documento grava com ZERO linhas, e isso é legítimo.
     expect(await linhasDeRetencao(db)).toHaveLength(0);
   });
+
+  /**
+   * **CONTAI-053, critério 6 — REGRESSÃO, e é a razão de este teste existir.**
+   *
+   * O ticket acrescentou o repeater à captura **só a partir de 880px**. Abaixo
+   * disso nada muda: gate, dica antiga, e as linhas no detalhe. O pre-mortem 1
+   * do ticket é o inverso do erro de 2026-08-17/18 — alguém encolhendo o Teste do
+   * Canteiro "para manter consistência".
+   *
+   * ⚠️ **`toBeHidden()`, nunca `toHaveCount(0)`**: o bloco MONTA no DOM e quem o
+   * esconde é o CSS (spec, §1). Exigir ausência do DOM empurraria a implementação
+   * para um unmount por `window.innerWidth`, que é corrida de hidratação — e que
+   * passaria a esconder o bloco por um motivo que nenhum teste vigia.
+   */
+  test("em 375px o repeater NÃO aparece — escondido por CSS, não desmontado", async ({
+    page,
+  }) => {
+    await page.goto("/adicionar/documento");
+    await preencherDocumentoBasico(page, {
+      tipo: "NF serviço",
+      emitente: "Francisco Empreitadas",
+      documento: CNPJ_EMITENTE,
+      valor: "18.000,00",
+      numero: "1042",
+      dataEmissao: "2026-03-20",
+      noCpf: "Sim",
+    });
+    await responderCnoDaNota(page, "É o CNO desta obra");
+    await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
+
+    const bloco = page.locator('[data-captura="retencao"]');
+    await expect(bloco).toHaveCount(1);
+    await expect(bloco).toBeHidden();
+    // Nenhum campo de linha alcançável no piso — nem o formulário, nem os
+    // quatro campos de classificação fiscal (critérios 6 e 7).
+    await expect(bloco.locator('[data-retencao="formulario"]')).toBeHidden();
+    await expect(
+      page.getByRole("group", { name: "O que esta linha representa?" }),
+    ).toBeHidden();
+
+    // ⚠️ A dica do piso continua **byte a byte** a de sempre, e a variante de
+    // tela larga não vaza para cá.
+    await expect(
+      page.getByText(
+        "Você detalha isso depois, sentado — aqui só marcamos que a nota tem retenção.",
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        "As linhas de retenção aparecem logo abaixo — preencha agora, com a nota na mão, ou deixe em branco e complete depois, na tela desta nota.",
+      ),
+    ).toBeHidden();
+    await expect(
+      page.getByText(
+        /"destacada" na retenção abre o detalhamento linha a linha, que você preenche depois/,
+      ),
+    ).toBeVisible();
+  });
 });
 
 // ══ 2 · Resolução — o repeater (critérios 3, 4 e 5) ══════════════════════

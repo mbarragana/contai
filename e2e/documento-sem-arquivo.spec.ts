@@ -175,7 +175,15 @@ test.describe("salvar sem o arquivo (critérios 2 e 7)", () => {
     await expect(dialogo).not.toBeVisible();
 
     // Decisão de design 1 do mock: o formulário nunca desmontou.
-    await expect(page.getByLabel("Valor")).toHaveValue("4.200,00");
+    //
+    // ⚠️ **Escopado por `data-campo` desde o CONTAI-053**: com o gate em
+    // "destacada" existe um SEGUNDO campo "Valor" na tela (o da linha de
+    // retenção, montado e escondido por CSS abaixo de 880px), e
+    // `getByLabel("Valor")` passou a resolver para três controles. O campo que
+    // este teste confere é o VALOR DA NOTA, e é ele que o `data-campo` nomeia.
+    await expect(page.locator('input[data-campo="valor"]')).toHaveValue(
+      "4.200,00",
+    );
     await expect(page.getByLabel("Número da nota")).toHaveValue("1042");
     await expect(page.getByLabel("Emitente", { exact: true })).toHaveValue(
       "Elétrica Nunes Serviços",

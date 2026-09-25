@@ -20,6 +20,7 @@ import {
 import { useSessao } from "@/app/_components/sessao";
 import { AfirmacaoObra, TelaTrocarObra } from "@/app/_components/obra";
 import { Registrado } from "@/app/_components/registrado";
+import { BlocoRetencaoDaCaptura } from "@/app/_components/retencao";
 import { useObraDoRegistro } from "@/app/_components/usar-obra-do-registro";
 import {
   AppBar,
@@ -42,6 +43,7 @@ import {
   carregarPainel,
   classificarErro,
   criarDocumento,
+  criarLinhasRetencao,
   criarVinculos,
   garantirFavorecido,
   mensagemDeErro,
@@ -84,9 +86,14 @@ import {
   type RespostaCpf,
 } from "@/lib/fiscal/documento";
 import {
+  acaoDaRetencaoParcial,
+  CHIP_RETENCAO_PARCIALMENTE_GRAVADA,
+  contagemDaRetencaoParcial,
   DICA_GATE_DESTACADA,
+  DICA_GATE_DESTACADA_LARGA,
   OPCOES_GATE,
   PERGUNTA_GATE,
+  type EntradaLinhaRetencao,
 } from "@/lib/fiscal/retencao";
 import { soDigitos, tipoPorDocumento } from "@/lib/fiscal/identificacao";
 import {
@@ -187,6 +194,17 @@ type Fase =
        * efeito no ato, enquanto ainda se lembra de qual nota é.
        */
       semCno: boolean;
+      /**
+       * CONTAI-053, critério 3 — quantas linhas de retenção foram TENTADAS e
+       * quantas ENTRARAM. Documento e linhas gravam em dois statements (sem
+       * transação pelo PostgREST), então "entrou tudo" não pode ser suposto.
+       *
+       * ⚠️ Os dois números juntos, e não um booleano `retencaoFalhou`: a
+       * mensagem do spec diz **quantas** entraram e quantas não — o pre-mortem 4
+       * do ticket é exatamente o "1 de 3 ficou fora em silêncio".
+       */
+      retencoesTentadas: number;
+      retencoesEntraram: number;
     };
 
 export default function RegistrarDocumento() {
@@ -228,13 +246,40 @@ export default function RegistrarDocumento() {
   const [classificacao, setClassificacao] = useState<Classificacao | null>(null);
   const [notaNoCpf, setNotaNoCpf] = useState<RespostaCpf | null>(null);
   /**
-   * **CONTAI-038, critério 1 — o GATE, e só o gate.** Duas opções, nada
-   * pré-marcado. O repeater de linhas NÃO vive aqui: esta tela é captura
-   * (canteiro, uma mão), e cinco perguntas por linha × N linhas estouram o
-   * limite do momento. As linhas se preenchem no detalhe, sentado.
+   * **CONTAI-038, critério 1 — o GATE.** Duas opções, nada pré-marcado.
+   *
+   * ⚠️ **MUDOU NO CONTAI-053**: até aqui o comentário dizia que o repeater de
+   * linhas "NÃO vive aqui". Abaixo de 880px continua sendo verdade — gate e nada
+   * mais, as linhas no detalhe, sentado. **A partir de 880px** o formulário de
+   * linha aparece nesta tela (`BlocoRetencaoDaCaptura`), porque a Dor de Origem é
+   * ter que voltar depois para completar o que já se leu na hora, e porque o
+   * cenário de gestão do Mateus é justamente a tela larga.
    */
   const [retencaoNaNota, setRetencaoNaNota] =
     useState<RespostaRetencaoNaNota | null>(null);
+  /**
+   * **CONTAI-053 — as linhas de retenção antes de o documento existir.**
+   *
+   * ⚠️ **Em memória, e nada mais:** nenhuma linha toca o banco antes do "Salvar
+   * registro" — quem afirma o registro continua sendo aquele botão. Criar o
+   * documento mais cedo para poder gravar linha por linha é o documento órfão do
+   * pre-mortem 3 do ticket.
+   */
+  const [linhasPendentes, setLinhasPendentes] = useState<EntradaLinhaRetencao[]>(
+    [],
+  );
+
+  /**
+   * ⚠️ **Sair de "destacada" APAGA as linhas acumuladas**, pela mesma razão do
+   * `setCnoNaNota(null)` ao trocar de obra: uma linha guardada numa nota que o
+   * gate diz não ter retenção é afirmação órfã — e ela gravaria no banco contra
+   * um `retencao_na_nota` que a contradiz. Voltar para "destacada" devolve o
+   * bloco ao estado vazio; nunca há linha fantasma (spec, §2).
+   */
+  function responderGateDeRetencao(resposta: RespostaRetencaoNaNota) {
+    setRetencaoNaNota(resposta);
+    if (resposta !== "destacada") setLinhasPendentes([]);
+  }
   /**
    * CONTAI-007 — a pergunta do CNO. Nasce `null`, como todo campo fiscal deste
    * formulário: **a extração nunca a preenche** (é pergunta sobre o papel na
@@ -307,7 +352,12 @@ export default function RegistrarDocumento() {
   function escolherTipo(novo: TipoDocumento) {
     setTipo(novo);
     setClassificacao(classificacaoProposta(novo));
-    if (!exigeRetencao(novo)) setRetencaoNaNota(null);
+    // Tipo que não pergunta retenção não pode carregar gate NEM linha: as duas
+    // coisas só existem em NF de serviço (CONTAI-053).
+    if (!exigeRetencao(novo)) {
+      setRetencaoNaNota(null);
+      setLinhasPendentes([]);
+    }
     // Sair de NF de serviço apaga a resposta do CNO: ela só existe ali, e uma
     // resposta guardada em tipo que não a pergunta é afirmação órfã.
     if (!exigeCnoReferenciado(novo)) setCnoNaNota(null);
@@ -583,6 +633,39 @@ export default function RegistrarDocumento() {
         motivo_quarentena: motivoQuarentena(notaNoCpf),
       });
 
+      // ══ CONTAI-053, critério 3 — as linhas de retenção da captura ════════
+      //
+      // Só agora, e nunca antes: o `documento_id` é obrigatório e o documento
+      // acabou de nascer. Mesmo padrão não-transacional do vínculo logo abaixo.
+      //
+      // ⚠️ A falha aqui NÃO é erro de tela e NÃO desfaz nada: o documento já
+      // está no banco, e é documentação hábil normalmente. Ela é RELATADA na
+      // confirmação, com os números — nunca engolida (pre-mortem 4).
+      //
+      // A lista já está zerada se o gate ou o tipo mudaram; a condição repetida
+      // aqui é a mesma do `retencao_na_nota` acima, para que nenhuma linha
+      // atravesse um caminho em que o gate gravado não a sustenta.
+      const linhasParaGravar =
+        exigeRetencao(tipo) && retencaoNaNota === "destacada"
+          ? linhasPendentes
+          : [];
+      let retencoesEntraram = 0;
+      if (linhasParaGravar.length > 0) {
+        try {
+          retencoesEntraram = await criarLinhasRetencao(id, linhasParaGravar);
+        } catch {
+          retencoesEntraram = 0;
+        }
+      }
+      /**
+       * ⚠️ **Alguma linha ficou fora** — e o caso NÃO é só falha de rede: o
+       * `criarLinhasRetencao` também descarta linha incompleta antes do insert
+       * (segundo anel do Gate Fiscal), então "1 de 3" é alcançável de verdade, e
+       * não apenas "0 de N" pela atomicidade do array. É esta variável, e não um
+       * `catch`, que decide se a confirmação tem algo a relatar.
+       */
+      const retencaoIncompleta = retencoesEntraram < linhasParaGravar.length;
+
       // Caminho A: o vínculo vem depois do documento e em outra chamada — não
       // há transação entre tabelas no PostgREST. Falhando, o documento fica
       // salvo e a tela DIZ que ele ficou sem vínculo (critério 1).
@@ -629,7 +712,16 @@ export default function RegistrarDocumento() {
       // sustenta custo, o pagamento marcado continua "pago sem nota", e a
       // despesa segue contada duas vezes — que é a dor de origem do ticket.
       // Falhando, a confirmação fica AQUI e diz as duas coisas.
-      if (status === "quarentena" && !vinculoFalhou) {
+      //
+      // ⚠️ **Linha de retenção que ficou fora SEGURA a navegação também**
+      // (bloqueante do Gate 2 do CONTAI-053), pela mesma razão do vínculo: o
+      // critério 3 diz que **a confirmação** informa quantas linhas entraram e
+      // quantas não, e o `router.push` pulava justamente a tela que carrega esse
+      // card. Contar com `/documento/[id]` para denunciar a lacuna só funcionaria
+      // no caso "0 de N" (o chip `CHIP_RETENCAO_SEM_LINHA`); com "1 de 3" a tela
+      // de destino mostra a linha que entrou e **cala** as duas que não — que é
+      // exatamente o silêncio do pre-mortem 4.
+      if (status === "quarentena" && !vinculoFalhou && !retencaoIncompleta) {
         router.push(`/documento/${id}`);
         return;
       }
@@ -643,6 +735,8 @@ export default function RegistrarDocumento() {
         quarentena: status === "quarentena",
         semArquivo: arquivoPath === null,
         semCno: pendenteDeCno(tipo, cnoNaNota),
+        retencoesTentadas: linhasParaGravar.length,
+        retencoesEntraram,
       });
     } catch (erro) {
       setFase({ nome: "formulario" });
@@ -681,6 +775,18 @@ export default function RegistrarDocumento() {
                 </>
               ) : null}
             </>
+          ) : fase.quarentena ? (
+            /* ⚠️ **Ramo novo no Gate 2 do CONTAI-053, e ele era INALCANÇÁVEL
+               antes**: quarentena com vínculo intacto sempre navegava para
+               `/documento/[id]`. Agora ela pode parar aqui, quando uma linha de
+               retenção ficou fora — e uma confirmação que diz só "Salvo ✓" para
+               uma nota em quarentena seria o sucesso mentiroso que o
+               `arquivoNoAcervo` já corrigiu uma vez nesta mesma tela. O texto do
+               ramo de cima não muda em byte nenhum. */
+            <>
+              Esta nota está em <strong>quarentena</strong>:{" "}
+              {CONSEQUENCIA_QUARENTENA}
+            </>
           ) : undefined
         }
         arquivoNoAcervo={!fase.semArquivo}
@@ -689,15 +795,48 @@ export default function RegistrarDocumento() {
            é o MESMO do bloqueio, porque a consequência fiscal é a mesma; o que
            muda é haver conserto (pedir a nota certa) ou não. */
         extra={
-          fase.semCno ? (
-            <Card className="border-amb">
-              <Chip cor="amb">A nota não traz CNO</Chip>
-              <Consequencia cor="amb">{CONSEQUENCIA_CNO_DA_NOTA}</Consequencia>
-              <Dica>
-                {CNO_NAO_ALCANCA_O_CUSTO} Ação: <strong>{ACAO_NOTA_SEM_CNO}</strong>{" "}
-                — enquanto ainda houver parcela a liberar.
-              </Dica>
-            </Card>
+          fase.semCno || fase.retencoesEntraram < fase.retencoesTentadas ? (
+            <>
+              {fase.semCno ? (
+                <Card className="border-amb">
+                  <Chip cor="amb">A nota não traz CNO</Chip>
+                  <Consequencia cor="amb">{CONSEQUENCIA_CNO_DA_NOTA}</Consequencia>
+                  <Dica>
+                    {CNO_NAO_ALCANCA_O_CUSTO} Ação:{" "}
+                    <strong>{ACAO_NOTA_SEM_CNO}</strong> — enquanto ainda houver
+                    parcela a liberar.
+                  </Dica>
+                </Card>
+              ) : null}
+              {/* ══ CONTAI-053, critério 3 — resultado parcial das linhas ════
+                  ⚠️ **`extra`, não `aviso`** (spec, §4): a nota foi salva e é
+                  documentação hábil normalmente — o que ficou pendente é só a
+                  informação de retenção, mesma severidade visual da pendência de
+                  CNO logo acima. O vermelho do `aviso` é do vínculo, que é outra
+                  coisa: lá o pagamento fica sem nota.
+                  Silencioso no sucesso total, igual ao vínculo. */}
+              {fase.retencoesEntraram < fase.retencoesTentadas ? (
+                <Card className="border-amb" data-retencao="parcial">
+                  <Chip cor="amb">{CHIP_RETENCAO_PARCIALMENTE_GRAVADA}</Chip>
+                  <p className="mt-2.5 text-[13.5px]">
+                    {contagemDaRetencaoParcial(
+                      fase.retencoesEntraram,
+                      fase.retencoesTentadas,
+                    )}
+                  </p>
+                  <Consequencia cor="amb">
+                    {acaoDaRetencaoParcial(
+                      fase.retencoesTentadas - fase.retencoesEntraram,
+                    )}
+                  </Consequencia>
+                  <div className="mt-3">
+                    <BotaoLink href={`/documento/${fase.id}`}>
+                      Abrir esta nota
+                    </BotaoLink>
+                  </div>
+                </Card>
+              ) : null}
+            </>
           ) : undefined
         }
         proximoPasso={
@@ -1224,11 +1363,42 @@ export default function RegistrarDocumento() {
                       rotulo={PERGUNTA_GATE}
                       opcoes={OPCOES_GATE}
                       valor={retencaoNaNota}
-                      onChange={setRetencaoNaNota}
+                      onChange={responderGateDeRetencao}
                       erro={erroDe("retencaoNaNota")}
                     />
                     {retencaoNaNota === "destacada" ? (
-                      <Dica>{DICA_GATE_DESTACADA}</Dica>
+                      <>
+                        {/* ⚠️ **Duas dicas no DOM, uma por largura** — spec do
+                            CONTAI-053, §3. A de baixo de 880px é **byte a byte**
+                            a de sempre (critério 6); a de 880px para cima existe
+                            porque "você detalha isso depois" fica FALSO ao lado
+                            do formulário que detalha agora. Quem escolhe é o
+                            CSS, nunca `window.innerWidth`. */}
+                        <div className="larga:hidden">
+                          <Dica>{DICA_GATE_DESTACADA}</Dica>
+                        </div>
+                        <div className="hidden larga:block">
+                          <Dica>{DICA_GATE_DESTACADA_LARGA}</Dica>
+                        </div>
+                        {/* ══ CONTAI-053 — o repeater, ENTRE a resposta
+                            "Destacada" e a pergunta do CNO (spec, §1). Dentro
+                            deste card de propósito: é aqui que uma pendência
+                            fiscal nova pode nascer, e consequência não sai do
+                            campo que a gera (Decisão 4 da casca larga).
+                            Sempre montado com o gate em "destacada"; escondido
+                            por CSS abaixo de 880px. */}
+                        <BlocoRetencaoDaCaptura
+                          linhas={linhasPendentes}
+                          onAdicionar={(linha) =>
+                            setLinhasPendentes((atual) => [...atual, linha])
+                          }
+                          onRemover={(indice) =>
+                            setLinhasPendentes((atual) =>
+                              atual.filter((_, i) => i !== indice),
+                            )
+                          }
+                        />
+                      </>
                     ) : null}
                   </>
                 ) : null}
@@ -1416,11 +1586,26 @@ export default function RegistrarDocumento() {
                 ) : null}
               </Card>
 
-              <Dica>
-                Olhe na nota antes de responder — &quot;não&quot; no CPF leva à
-                quarentena; &quot;destacada&quot; na retenção abre o detalhamento
-                linha a linha, que você preenche depois. Sem responder, não salva.
-              </Dica>
+              {/* ⚠️ **As duas variantes, e só a cláusula da retenção muda**
+                  (spec do CONTAI-053, §3, textos c e d). A de baixo de 880px fica
+                  **byte a byte** como sempre foi — critério 6, regressão: ela
+                  continua dizendo "que você preenche depois" porque lá, no piso,
+                  é exatamente o que acontece. */}
+              <div className="larga:hidden">
+                <Dica>
+                  Olhe na nota antes de responder — &quot;não&quot; no CPF leva à
+                  quarentena; &quot;destacada&quot; na retenção abre o detalhamento
+                  linha a linha, que você preenche depois. Sem responder, não salva.
+                </Dica>
+              </div>
+              <div className="hidden larga:block">
+                <Dica>
+                  Olhe na nota antes de responder — &quot;não&quot; no CPF leva à
+                  quarentena; &quot;destacada&quot; na retenção abre o detalhamento
+                  linha a linha, logo abaixo, nesta mesma tela. Sem responder, não
+                  salva.
+                </Dica>
+              </div>
             </GradeDaCaptura>
           </>
         ) : null}

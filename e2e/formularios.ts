@@ -82,7 +82,13 @@ export async function preencherDocumentoBasico(
   }
   await page.getByLabel("Emitente", { exact: true }).fill(dados.emitente);
   await page.getByLabel("CNPJ / CPF do emitente").fill(dados.documento);
-  await page.getByLabel("Valor").fill(dados.valor);
+  // ⚠️ **Por `data-campo`, e não por rótulo, desde o CONTAI-053**: com o gate de
+  // retenção em "destacada" esta tela tem um SEGUNDO campo "Valor" — o da linha
+  // de retenção, que monta no DOM em qualquer largura (o CSS o esconde abaixo de
+  // 880px). Locar por rótulo aqui funcionaria só enquanto o helper fosse chamado
+  // ANTES de responder o gate, e quebraria em silêncio na primeira vez que
+  // alguém invertesse a ordem. O valor da NOTA é este.
+  await page.locator('input[data-campo="valor"]').fill(dados.valor);
   if (dados.noCpf) {
     await escolher(page, "A nota está no seu CPF?", dados.noCpf);
   }

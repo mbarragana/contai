@@ -16,8 +16,13 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
+  acaoDaRetencaoParcial,
+  CHIP_RETENCAO_PARCIALMENTE_GRAVADA,
+  contagemDaRetencaoParcial,
   CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR,
   descricaoDaComposicao,
+  DICA_GATE_DESTACADA,
+  DICA_GATE_DESTACADA_LARGA,
   exigeGateDeRetencao,
   faltaRegistrarLinha,
   linhaRetencaoParaBanco,
@@ -338,5 +343,102 @@ describe("textos que se copiam do parecer, nunca se redigem", () => {
     ).toBe(false);
     // E nenhum export devolve uma quebra por tributo.
     expect(/Record<TributoRetido,\s*number>/.test(fonte)).toBe(false);
+  });
+});
+
+// ── CONTAI-053 · os textos da captura em tela larga ─────────────────────
+
+/**
+ * **Os quatro textos que o Gate 0 fixou** (`design/mocks/CONTAI-053.md`, §3 e
+ * §4). Dois são orientação de fluxo; o corpo do resultado parcial carrega
+ * disciplina fiscal ("nunca como 'sem retenção'") e por isso mora aqui, e não na
+ * tela.
+ */
+describe("CONTAI-053 — as dicas por largura e o resultado parcial", () => {
+  /**
+   * ⚠️ **Critério 6, em forma de teste**: a dica do piso continua EXATAMENTE a
+   * de sempre. Quem "unificar" as duas frases numa só quebra este teste — e é
+   * essa a intenção: unificar significaria escolher entre dizer o falso em uma
+   * das duas larguras.
+   */
+  it("a dica do piso não muda, e a de tela larga diz onde o detalhe está", () => {
+    expect(DICA_GATE_DESTACADA).toBe(
+      "Você detalha isso depois, sentado — aqui só marcamos que a nota tem retenção.",
+    );
+    expect(DICA_GATE_DESTACADA_LARGA).toBe(
+      "As linhas de retenção aparecem logo abaixo — preencha agora, com a nota " +
+        "na mão, ou deixe em branco e complete depois, na tela desta nota.",
+    );
+    // A frase de tela larga NÃO pode prometer "depois": é o defeito que ela
+    // existe para corrigir.
+    expect(DICA_GATE_DESTACADA_LARGA).not.toContain("detalha isso depois");
+  });
+
+  it("o chip do resultado parcial é o texto 3 do spec", () => {
+    expect(CHIP_RETENCAO_PARCIALMENTE_GRAVADA).toBe(
+      "Retenção parcialmente gravada",
+    );
+  });
+
+  /**
+   * ⚠️ **Substantivo com `total`, VERBO com `entraram`** — correção do Gate 2, e
+   * é o que o ASCII do spec sempre mostrou: *"1 de 3 linhas de retenção
+   * entrou"*. O verbo no plural aqui ("3 linhas … entraram") diria que entraram
+   * três, que é o oposto do que a mensagem existe para dizer.
+   */
+  it("a contagem concorda: substantivo com o total, verbo com quantas entraram — verbo na frente", () => {
+    expect(contagemDaRetencaoParcial(1, 3)).toBe(
+      "Entrou 1 de 3 linhas de retenção — 2 não gravaram.",
+    );
+    expect(contagemDaRetencaoParcial(2, 3)).toBe(
+      "Entraram 2 de 3 linhas de retenção — 1 não gravou.",
+    );
+    // Zero vai para o plural ("Entraram 0..."); singular é só o 1.
+    expect(contagemDaRetencaoParcial(0, 1)).toBe(
+      "Entraram 0 de 1 linha de retenção — 1 não gravou.",
+    );
+    expect(contagemDaRetencaoParcial(0, 2)).toBe(
+      "Entraram 0 de 2 linhas de retenção — 2 não gravaram.",
+    );
+  });
+
+  /**
+   * ⚠️ A última cláusula é a que importa fiscalmente: linha que não gravou é
+   * **pendência**, e a nota nunca é lida como "sem retenção" (CONTAI-038,
+   * critérios 2 e 5). Ela é afirmação de regra, não consolo de UI.
+   */
+  it("a ação diz o que fazer e reafirma que a lacuna é pendência", () => {
+    expect(acaoDaRetencaoParcial(1)).toBe(
+      "Abra o documento e registre a que falta de novo, olhando a nota — elas " +
+        'ficam como pendência até lá, nunca como "sem retenção".',
+    );
+    expect(acaoDaRetencaoParcial(2)).toContain("as que faltam");
+    expect(acaoDaRetencaoParcial(2)).toContain('nunca como "sem retenção"');
+  });
+
+  /**
+   * As duas funções de descrição passaram a aceitar a linha AINDA NÃO GRAVADA
+   * (`EntradaLinhaRetencao`, tudo `null` no começo) para que a captura e a gestão
+   * descrevam a mesma linha com o mesmo código. A ampliação não pode ter aberto
+   * uma porta para nomear tributo onde não há.
+   */
+  it("a linha ainda não gravada é descrita pelas MESMAS funções da gestão", () => {
+    const local: EntradaLinhaRetencao = {
+      rotuloLiteral: "Total das Retenções (ISSQN / Federais)",
+      valorCentavos: 54_000,
+      composicao: "combinado_nao_aberto",
+      tributo: null,
+      eDescontoEfetivo: true,
+      quemRecolhe: "nao_sei",
+    };
+    expect(descricaoDaComposicao(local)).toBe(
+      "Total combinado, não aberto pela nota",
+    );
+    expect(nomeDaRetencao(local)).toBe(ROTULO_RETENCAO_NAO_DISCRIMINADA);
+    // Composição ainda em branco não inventa nome de tributo nenhum.
+    expect(nomeDaRetencao({ composicao: null, tributo: null })).toBe(
+      ROTULO_RETENCAO_NAO_DISCRIMINADA,
+    );
+    expect(descricaoDaComposicao({ composicao: null, tributo: null })).toBe("");
   });
 });

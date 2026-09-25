@@ -9,6 +9,17 @@ faltante para o `CONTAI-053`.
 Nível 2 (spec + ASCII do bloco) — reuso de componente já validado
 (`FormularioDeLinha`), não fluxo novo.
 
+## Campos
+- SEM CAMPOS — nenhum campo novo, nenhuma mudança de nome, rótulo, tipo ou
+  validação. Os seis controles que o bloco mostra (`rotuloLiteral`, `valor`,
+  `composicao`, `tributo`, `eDescontoEfetivo`, `quemRecolhe`) são os MESMOS
+  declarados no `CONTAI-038` (`## Campos`, seção do formulário "Adicionar
+  linha"), reusados pelo mesmo componente: seguem todos **SEM DEFAULT — campo
+  fiscal**, em qualquer largura de tela (critério 7 do ticket). O gate
+  `retencaoNaNota` também continua como o `CONTAI-038` o declarou. Este
+  documento só decide ONDE o bloco aparece, o que ele recapitula e o que a
+  confirmação diz quando alguma linha não grava.
+
 ## Correção sobre `captura-no-desktop-v1.md`
 
 A Decisão 4 daquele documento ("consequência nunca sai do campo que a gera")
@@ -109,7 +120,7 @@ estado já coberto pelo `CHIP_RETENCAO_SEM_LINHA` existente em
 ┌ Card border-amb ──────────────────────────────────────┐
 │ [Chip amb] Retenção parcialmente gravada               │
 │                                                          │
-│ 1 de 3 linhas de retenção entrou — 2 não gravaram.      │
+│ Entrou 1 de 3 linhas de retenção — 2 não gravaram.      │
 │                                                          │
 │ Abra o documento e registre as que faltam de novo,      │
 │ olhando a nota — elas ficam como pendência até lá,      │
@@ -123,7 +134,19 @@ estado já coberto pelo `CHIP_RETENCAO_SEM_LINHA` existente em
 > "Retenção parcialmente gravada"
 
 **Corpo (texto 4 — template com concordância singular/plural, mesmo padrão de `fase.ligados` em `page.tsx`):**
-> "`{entraram}` de `{total}` `{total === 1 ? "linha de retenção entrou" : "linhas de retenção entraram"}` — `{falharam}` `{falharam === 1 ? "não gravou" : "não gravaram"}`."
+
+⚠️ **Corrigido no Gate 2 do CONTAI-053**: a fórmula abaixo trazia o verbo
+concordando com `total` (*"3 linhas … entraram"*), o que contradizia o ASCII
+logo acima (*"Entrou 1 de 3 linhas de retenção"*). O substantivo concorda com
+`total`; o **verbo** concorda com `entraram` — quem entrou é o sujeito.
+
+⚠️ **Segunda correção, revisão de texto pós-Gate-2**: o verbo veio para o
+INÍCIO da frase, não depois da quantidade. Com o verbo depois ("1 linha …
+entraram"), o caso `total=1, entraram=0` lia mal: substantivo singular
+("1 linha") colado ao verbo plural ("entraram"). Com o verbo na frente, a
+frase lê bem nos dois sentidos.
+
+> "`{entraram === 1 ? "Entrou" : "Entraram"}` `{entraram}` de `{total}` `{total === 1 ? "linha" : "linhas"}` de retenção — `{falharam}` `{falharam === 1 ? "não gravou" : "não gravaram"}`."
 >
 > "Abra o documento e registre `{falharam === 1 ? "a que falta" : "as que faltam"}` de novo, olhando a nota — elas ficam como pendência até lá, nunca como "sem retenção"."
 

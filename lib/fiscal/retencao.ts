@@ -71,6 +71,20 @@ export const OPCOES_GATE = [
 export const DICA_GATE_DESTACADA =
   "Você detalha isso depois, sentado — aqui só marcamos que a nota tem retenção.";
 
+/**
+ * **CONTAI-053 — a variante de TELA LARGA (≥880px) da dica acima**, também
+ * orientação de fluxo e não regra fiscal.
+ *
+ * ⚠️ Ela existe porque a frase de cima fica **FALSA** quando o repeater está
+ * visível ali mesmo (spec do CONTAI-053, §3): *"você detalha isso depois"* ao
+ * lado do formulário que detalha agora ensina o contrário do que a tela faz.
+ * As duas coexistem no DOM e quem escolhe é o CSS — a de cima continua **byte a
+ * byte** a de sempre abaixo de 880px (critério 6, regressão travada em E2E).
+ */
+export const DICA_GATE_DESTACADA_LARGA =
+  "As linhas de retenção aparecem logo abaixo — preencha agora, com a nota na " +
+  "mão, ou deixe em branco e complete depois, na tela desta nota.";
+
 /** Erro de campo do gate, no padrão curto e imperativo do formulário. */
 export const ERRO_GATE_SEM_RESPOSTA =
   "Responda se esta nota destaca alguma retenção.";
@@ -160,6 +174,61 @@ export const CHIP_RETENCAO_SEM_LINHA = "Retenção sem linha registrada";
 
 export const RETENCAO_SEM_LINHA_EFEITO =
   "Esta nota destaca retenção, mas nenhuma linha foi registrada ainda.";
+
+/**
+ * **CONTAI-053, critério 3 — o documento entrou e alguma linha NÃO.**
+ *
+ * O caso é real porque documento e linhas gravam em dois statements, sem
+ * transação pelo PostgREST (mesma classe de dívida dos vínculos). O pre-mortem 4
+ * do ticket nomeia o risco de deixar isso silencioso: ele não perceberia que 1
+ * de 3 linhas ficou fora, e a lacuna só apareceria na revisão anual.
+ *
+ * ⚠️ **Só aparece quando houve tentativa e houve falha** (`total > 0 &&
+ * falharam > 0`). Lista vazia não é falha: é o estado legítimo do
+ * `CHIP_RETENCAO_SEM_LINHA`, que `/documento/[id]` já mostra.
+ */
+export const CHIP_RETENCAO_PARCIALMENTE_GRAVADA = "Retenção parcialmente gravada";
+
+/**
+ * ⚠️ **O SUBSTANTIVO concorda com `total`; o VERBO, com `entraram`** — achado do
+ * Gate 2 do CONTAI-053, e é o que o ASCII do spec mostra: *"**Entrou** 1 de 3
+ * linhas de retenção — 2 não gravaram."* A fórmula do §4 daquele spec estava com
+ * o verbo no plural e foi corrigida junto com esta função. Quem sujeita o verbo é
+ * quantas entraram, não quantas havia — e o verbo vem ANTES da quantidade, de
+ * propósito: com ele depois ("1 linha ... entraram"), o caso total=1/entraram=0
+ * lia mal ("0 de 1 linha ... entraram", substantivo singular colado ao verbo
+ * plural). Achado numa segunda rodada de revisão de texto, não do Gate 2.
+ */
+export function contagemDaRetencaoParcial(
+  entraram: number,
+  total: number,
+): string {
+  const falharam = total - entraram;
+  // Verbo na frente, concordando só com `entraram` — evita o choque de
+  // "1 linha ... entraram" quando total=1 e entraram=0 (substantivo no
+  // singular, verbo no plural, lado a lado). Com o verbo antes da
+  // quantidade, a frase lê bem nos dois sentidos: "Entrou 1 de 3 linhas...",
+  // "Entraram 0 de 1 linha...".
+  const verbo = entraram === 1 ? "Entrou" : "Entraram";
+  return (
+    `${verbo} ${entraram} de ${total} ${total === 1 ? "linha" : "linhas"} de retenção` +
+    ` — ${falharam} ${falharam === 1 ? "não gravou" : "não gravaram"}.`
+  );
+}
+
+/**
+ * ⚠️ A última cláusula é disciplina fiscal, não consolo: linha que não gravou
+ * fica **pendência**, e a nota nunca é lida como "sem retenção" (`CONTAI-038`,
+ * critérios 2 e 5). O conteúdo digitado não é preservado de propósito (spec, §4)
+ * — a fonte é o papel, como em qualquer correção de linha na gestão.
+ */
+export function acaoDaRetencaoParcial(falharam: number): string {
+  return (
+    `Abra o documento e registre ${falharam === 1 ? "a que falta" : "as que faltam"} ` +
+    "de novo, olhando a nota — elas ficam como pendência até lá, nunca como " +
+    '"sem retenção".'
+  );
+}
 
 /**
  * O invariante do §2, dito em tela e não só em comentário: **nenhuma retenção
@@ -443,7 +512,11 @@ export const CHIP_RETENCAO_SOBRECOBERTA = "Retenção além do valor da nota";
  * "guia de INSS". Só a linha que o Mateus identificou pode nomear o tributo.
  */
 export function nomeDaRetencao(
-  linha: Pick<LinhaRetencao, "composicao" | "tributo">,
+  // ⚠️ `composicao` aceita `null` desde o CONTAI-053: a MESMA função descreve a
+  // linha já gravada (`LinhaRetencao`) e a que ainda está só na tela da captura
+  // (`EntradaLinhaRetencao`, onde tudo nasce `null`). Duas descrições da mesma
+  // linha divergiriam, e a primeira coisa a divergir seria o rótulo do A.2.
+  linha: { composicao: ComposicaoRetencao | null; tributo: TributoRetido | null },
 ): string {
   if (linha.composicao === "tributo_identificado" && linha.tributo !== null) {
     return NOME_TRIBUTO[linha.tributo];
@@ -453,7 +526,8 @@ export function nomeDaRetencao(
 
 /** O que a linha diz de si mesma na lista do detalhe. */
 export function descricaoDaComposicao(
-  linha: Pick<LinhaRetencao, "composicao" | "tributo">,
+  /** Mesma ampliação do `nomeDaRetencao` acima — CONTAI-053. */
+  linha: { composicao: ComposicaoRetencao | null; tributo: TributoRetido | null },
 ): string {
   if (linha.composicao === "tributo_identificado" && linha.tributo !== null) {
     return `Tributo único identificado — ${NOME_TRIBUTO[linha.tributo]}`;

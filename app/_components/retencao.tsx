@@ -3,12 +3,25 @@
 /**
  * **CONTAI-038 — o bloco "Retenção" do detalhe do documento.**
  *
- * ⚠️ **Isto é tela de GESTÃO, não de captura** (`CLAUDE.md`, tabela de
- * cenários, corrigida em 2026-08-18): o Mateus abre isto em casa, sentado, com
- * a nota na mão. A régua de "uma mão, com pressa" **não se aplica aqui** — é
- * por isso que o repeater tem cinco perguntas por linha e N linhas, e por isso
- * que ele não cabia em `/adicionar/documento`, que é captura de canteiro.
- * 375px continua sendo o piso: nada quebra no celular, só não é o alvo.
+ * ⚠️ **MUDOU NO CONTAI-053, e a frase antiga ficou obsoleta.** Ela dizia que o
+ * repeater *"não cabia em `/adicionar/documento`, que é captura de canteiro"* —
+ * e isso continua verdade **abaixo de 880px**, onde nada mudou. A partir dos
+ * 880px da casca larga do `CONTAI-047`, o **`FormularioDeLinha` deste arquivo**
+ * (e só ele) também é montado na captura, pelo `BlocoRetencaoDaCaptura` aqui
+ * embaixo: o `BlocoRetencao` inteiro continua exigindo `documento.id` gravado e
+ * continua sendo exclusivo da gestão.
+ *
+ * ⚠️ **Isto é tela de GESTÃO** (`CLAUDE.md`, tabela de cenários, corrigida em
+ * 2026-08-18): o Mateus abre isto em casa, sentado, com a nota na mão. A régua
+ * de "uma mão, com pressa" **não se aplica aqui** — é por isso que o repeater
+ * tem cinco perguntas por linha e N linhas.
+ *
+ * ⚠️ **Um formulário, duas telas — nunca dois formulários.** O `FormularioDeLinha`
+ * é o mesmo objeto nos dois lugares, com a MESMA validação
+ * (`validarLinhaRetencao`) e os MESMOS textos (`lib/fiscal/retencao.ts`). É o
+ * ponto que o Gate Fiscal do CONTAI-053 manda **revalidar**: drift de componente
+ * é o vetor mais provável de a proibição de decompor "combinado" ou a proibição
+ * de default vazar numa tela e sobreviver na outra.
  *
  * ⚠️ **Nenhuma rota nova** (spec, decisão de design 1): adicionar, remover e
  * responder acontecem **nesta tela**, expandindo e recolhendo no lugar.
@@ -263,13 +276,17 @@ function Repeater({
       {maisDeUmaEuRecolho ? <Dica>{RETENCAO_FECHA_POR_NOTA}</Dica> : null}
 
       {abrindo ? (
+        // ⚠️ **A persistência é do CHAMADOR desde o CONTAI-053** (`onAdicionar`),
+        // e aqui ela é exatamente a de sempre: INSERT imediato por linha, com o
+        // `documento.id` já gravado. O formulário não sabe mais gravar — é o que
+        // o deixa servir também à captura, onde o documento ainda não existe.
         <FormularioDeLinha
-          documentoId={documento.id}
-          onCancelar={() => setAbrindo(false)}
-          onGravou={() => {
+          onAdicionar={async (entrada) => {
+            await criarLinhaRetencao(documento.id, entrada);
             setAbrindo(false);
             onMudou();
           }}
+          onCancelar={() => setAbrindo(false)}
           onSessaoExpirada={onSessaoExpirada}
         />
       ) : (
@@ -418,27 +435,44 @@ function LinhaGravada({
 }
 
 /**
- * **Estado 5 — o formulário de linha nova.**
+ * **Estado 5 — o formulário de linha nova.** Uma peça, duas telas: a gestão
+ * (`Repeater`, acima) e a captura em tela larga (`BlocoRetencaoDaCaptura`,
+ * abaixo — CONTAI-053).
  *
  * ⚠️ Nasce **inteiramente em branco**, mesmo depois de uma linha já preenchida:
  * nenhum campo herda valor do anterior (spec, "Campos"). Herdar aqui seria um
- * default fiscal com outro nome.
+ * default fiscal com outro nome. Vale nas DUAS telas e em qualquer largura —
+ * critério 7 do CONTAI-053.
  *
- * ⚠️ **Atômico** (decisão de design 7): só chama o INSERT com todos os campos
+ * ⚠️ **Atômico** (decisão de design 7): só entrega a linha com todos os campos
  * do ramo escolhido respondidos. Não existe "linha salva incompleta" — o banco
  * não permite essa linha existir (os dois CHECKs da 0017), e o botão nomeia o
  * que falta em vez de oferecer um toque que o servidor recusaria.
+ *
+ * ⚠️ **Ele não grava: `onAdicionar` grava** (extração do CONTAI-053). Na gestão
+ * a prop é o INSERT imediato; na captura é um `push` no array local, síncrono,
+ * porque o `documento_id` ainda não existe. Embutir o INSERT aqui era o que
+ * obrigaria a captura a criar o documento antes do "Salvar" — o documento órfão
+ * do pre-mortem 3 do ticket.
  */
-function FormularioDeLinha({
-  documentoId,
+export function FormularioDeLinha({
+  onAdicionar,
   onCancelar,
-  onGravou,
   onSessaoExpirada,
 }: {
-  documentoId: string;
-  onCancelar: () => void;
-  onGravou: () => void;
-  onSessaoExpirada: () => void;
+  /**
+   * Aceita a linha VÁLIDA. Pode ser assíncrono (gestão: grava e só então
+   * resolve) ou síncrono (captura: acumula em memória). Erro levantado aqui é
+   * mostrado no formulário, que continua preenchido.
+   */
+  onAdicionar: (entrada: EntradaLinhaRetencao) => Promise<void> | void;
+  /**
+   * `undefined` esconde o "Cancelar" — é o estado vazio da captura, onde o
+   * formulário é a única coisa no bloco e não há a que voltar.
+   */
+  onCancelar?: () => void;
+  /** Só existe onde há rede: a captura não passa (nada grava antes do Salvar). */
+  onSessaoExpirada?: () => void;
 }) {
   const [entrada, setEntrada] = useState<EntradaLinhaRetencao>(
     LINHA_RETENCAO_VAZIA,
@@ -464,12 +498,11 @@ function FormularioDeLinha({
     setGravando(true);
     setErro(null);
     try {
-      await criarLinhaRetencao(documentoId, entrada);
-      onGravou();
+      await onAdicionar(entrada);
     } catch (e) {
       setGravando(false);
       if (classificarErro(e).tipo === "sem_sessao") {
-        onSessaoExpirada();
+        onSessaoExpirada?.();
         return;
       }
       // ⚠️ O formulário continua preenchido, e NADA foi gravado: a linha só
@@ -602,9 +635,142 @@ function FormularioDeLinha({
                 erros.length === 1 ? "resposta" : "respostas"
               } para adicionar`}
       </BotaoSalvar>
-      <Botao variante="ghost" type="button" onClick={onCancelar}>
-        Cancelar
-      </Botao>
+      {onCancelar ? (
+        <Botao variante="ghost" type="button" onClick={onCancelar}>
+          Cancelar
+        </Botao>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * ══ CONTAI-053 — o repeater na CAPTURA, e só a partir de 880px ═════════════
+ *
+ * Fonte do desenho: `design/mocks/CONTAI-053.md` (delta sobre
+ * `captura-no-desktop-v1.md`). Mora **dentro do card da pergunta** que o gera,
+ * entre a resposta "Destacada" e a pergunta do CNO — nunca no rail: o rail só
+ * espelha o já confirmado, e aqui pode nascer uma pendência fiscal nova
+ * (Decisão 4 do mock da casca larga).
+ *
+ * ⚠️ **A largura é decidida por CSS, nunca por JS.** O bloco **sempre monta no
+ * DOM** quando o gate é "destacada", e `hidden larga:flex` o esconde abaixo de
+ * 880px. Isso não é preferência de estilo: é o que deixa o E2E provar a ausência
+ * com `toBeHidden()` em vez de disputar uma corrida de hidratação com
+ * `window.innerWidth` (spec, §1). Critério 6 — em tela estreita nada muda.
+ *
+ * ⚠️ **Nada aqui toca rede.** As linhas vivem no `useState` do formulário de
+ * captura e só viram `INSERT` depois do "Salvar registro", por
+ * `criarLinhasRetencao`. Por isso o bloco não tem estado de carregamento nem de
+ * erro (spec, §2): não há nada para esperar e nada para falhar antes do Salvar.
+ *
+ * ⚠️ **Nenhum banner de `CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR` aqui**, ao
+ * contrário da gestão — e a omissão é regra, não esquecimento: aquele julgamento
+ * depende de `notaCoberta` (Σ pagamentos vinculados), que não existe antes de o
+ * documento e os vínculos gravarem. Dizê-lo agora seria adivinhar; quem o diz é
+ * `/documento/[id]`, com o dado de verdade.
+ */
+export function BlocoRetencaoDaCaptura({
+  linhas,
+  onAdicionar,
+  onRemover,
+}: {
+  /** As linhas acumuladas em memória, na ordem em que ele as leu na nota. */
+  linhas: EntradaLinhaRetencao[];
+  onAdicionar: (entrada: EntradaLinhaRetencao) => void;
+  onRemover: (indice: number) => void;
+}) {
+  const [abrindo, setAbrindo] = useState(false);
+  const vazio = linhas.length === 0;
+
+  return (
+    <div
+      data-captura="retencao"
+      className="hidden flex-col border-b border-line pb-3 larga:flex"
+    >
+      {linhas.map((linha, i) => (
+        <LinhaPendente
+          // O índice é chave legítima aqui: `LinhaPendente` não tem estado
+          // próprio, e a ordem é a única identidade que a linha ainda tem (ela
+          // não foi gravada, logo não tem `id`).
+          key={`${i}-${linha.rotuloLiteral}`}
+          linha={linha}
+          onRemover={() => onRemover(i)}
+        />
+      ))}
+
+      {/* ⚠️ **Estado vazio: o formulário nasce JÁ ABERTO** — desvio proposital
+          do `Repeater` da gestão (spec, §2). A Dor de Origem é "preencher tudo
+          junto na adição do registro"; cobrar um clique para abrir o que ele
+          veio preencher reintroduz a fricção que o ticket remove. Com uma linha
+          já na lista o clique passa a fazer sentido, e aí ele volta. */}
+      {vazio || abrindo ? (
+        <FormularioDeLinha
+          onAdicionar={(entrada) => {
+            onAdicionar(entrada);
+            setAbrindo(false);
+          }}
+          onCancelar={vazio ? undefined : () => setAbrindo(false)}
+        />
+      ) : (
+        <div className="mt-2.5">
+          <Botao variante="ghost" type="button" onClick={() => setAbrindo(true)}>
+            + Adicionar outra linha
+          </Botao>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Uma linha que ainda **não foi gravada** — o recap do estado "sucesso" do spec.
+ *
+ * ⚠️ Irmã de `LinhaGravada`, e as duas são renderizações da MESMA linha (dívida
+ * nomeada na Viabilidade do ticket). O que esta não tem é ação de rede: sem
+ * `id`, "Salvar resposta" e o DELETE não existem — "Remover esta linha" é
+ * `splice` local, sem confirmação e sem servidor.
+ *
+ * ⚠️ A descrição sai das MESMAS funções da gestão (`descricaoDaComposicao`,
+ * `nomeDaRetencao`): com composição combinada ou desconhecida, o nome continua
+ * sendo o rótulo literal do ADENDO A.2 — nunca "guia de ISS".
+ */
+function LinhaPendente({
+  linha,
+  onRemover,
+}: {
+  linha: EntradaLinhaRetencao;
+  onRemover: () => void;
+}) {
+  return (
+    <div className="mt-2.5 border-t border-line pt-2.5" data-retencao="pendente">
+      <div className="flex items-baseline justify-between gap-3">
+        {/* O rótulo sai como está na nota, entre aspas e sem normalização. */}
+        <span className="text-[13.5px] font-semibold break-words">
+          “{linha.rotuloLiteral}”
+        </span>
+        <span className="mono flex-none text-[13.5px]">
+          {formatarBRL(linha.valorCentavos ?? 0)}
+        </span>
+      </div>
+      <Dica>{descricaoDaComposicao(linha)}</Dica>
+      <Linha rotulo="Abatido do pagamento">
+        {linha.eDescontoEfetivo ? "sim" : "não — informativo na nota"}
+      </Linha>
+      {linha.eDescontoEfetivo ? (
+        <>
+          <Linha rotulo="A recolher como">{nomeDaRetencao(linha)}</Linha>
+          <Linha rotulo="Quem recolhe">
+            {OPCOES_QUEM_RECOLHE.find((o) => o.valor === linha.quemRecolhe)
+              ?.texto ?? "—"}
+          </Linha>
+        </>
+      ) : null}
+      <div className="mt-2">
+        <Botao variante="ghost" type="button" onClick={onRemover}>
+          Remover esta linha
+        </Botao>
+      </div>
     </div>
   );
 }

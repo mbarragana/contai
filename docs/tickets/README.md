@@ -1,6 +1,6 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 19 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
 
 *(2026-09-23: `CONTAI-011` fatiado em três — `011` continua contando como 1
 item, e `049`/`050` somam os 2 novos. `CONTAI-051` soma o 19º no mesmo dia;
@@ -18,7 +18,22 @@ ser P0; `054` depois). 2026-09-25, ainda mais tarde: **`056` entregue**
 (Gate 4, 8/8 PASS) — volta a 20, **1 item pronto na fila** (`054`).
 2026-09-25, ainda mais tarde: **`054` entregue** (Gate 4, 6/6 PASS) — volta
 a 19; `053` continua bloqueado por Gate 0, `055` agora só bloqueado por
-`053`.)*
+`053`. 2026-09-25, ainda mais tarde: **`053` entregue** (Gate 4, 9/9 PASS)
+— volta a 18; `055` fica sozinho na fila, sem bloqueio.)*
+
+**2026-09-25, ainda mais tarde**: **`053` entregue** — Gate 4 (`po`), 9/9
+critérios PASS. `FormularioDeLinha` (extraído de `app/_components/retencao.tsx`)
+passou a aparecer também em `/adicionar/documento`, tela larga ≥880px,
+quando o gate vira "destacada" — mesma validação e textos da gestão, sem
+reimplementação paralela; linhas gravam em `documento_retencao` só depois
+de `criarDocumento`, mesmo padrão não-transacional dos vínculos. Gate 2
+técnico (`cto-obra`) pediu REQUEST CHANGES real: quarentena + falha de
+gravação da retenção pulava a tela de confirmação sem mostrar o card
+parcial — corrigido, com E2E novo provando as duas coisas juntas. Ajuste de
+texto pós-Gate-2 (não lógico, registrado com transparência): concordância
+verbal de `contagemDaRetencaoParcial` lia mal no caso `total=1`/`entraram=0`,
+verbo movido para o início da frase. 1080 unitários + 307 E2E verdes, sem
+migration. Detalhe: `docs/tickets/CONTAI-053.md`.
 
 **2026-09-25, ainda mais tarde**: **`054` entregue** — Gate 4 (`po`), 6/6
 critérios PASS. O Gate 1 inicial usou fixtures reconstruídas em vez de
@@ -594,10 +609,13 @@ no topo). `054` volta a ser o único item pronto.
 no topo). `053` continua bloqueado por Gate 0; `055` agora só bloqueado por
 `053` (a lib/rota que ele consome já existe).
 
+**2026-09-25, ainda mais tarde**: **`053` sai da fila** — entregue (ver nota
+no topo). `055` fica sozinho na fila, pronto — os dois tickets que ele
+consome (`053`, `054`) já existem.
+
 | Ordem | # | Ticket | P | Pronto para `/develop` |
 |---|---|---|---|---|
-| — | 053 | Repeater de retenção também na captura, tela larga | P1 | ⛔ bloqueado por Gate 0 (`/design`) |
-| — | 055 | Sugestão de retenção pré-preenche o repeater da captura | P1 | ⛔ bloqueado por `053` |
+| 1 | 055 | Sugestão de retenção pré-preenche o repeater da captura | P1 | ✅ sim |
 
 ### 🛑 Em espera — decisão do Mateus, 2026-09-23
 

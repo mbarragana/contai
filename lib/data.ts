@@ -1211,6 +1211,58 @@ export async function criarLinhaRetencao(
 }
 
 /**
+ * **CONTAI-053 — as linhas que a CAPTURA acumulou, gravadas depois que o
+ * documento existe.**
+ *
+ * Na captura o documento ainda não tem `id` enquanto ele preenche (quem afirma o
+ * registro continua sendo o "Salvar"), então as linhas viajam em memória e
+ * gravam aqui, logo depois de `criarDocumento` — **mesmo padrão
+ * não-transacional de `criarVinculos`**: não existe transação entre tabelas pelo
+ * PostgREST, e a dívida está nomeada na Viabilidade do ticket.
+ *
+ * ⚠️ **Um único `insert` com array**, e não um laço: array é UMA statement no
+ * Postgres — ou entram todas as linhas, ou nenhuma. Dividir em N chamadas
+ * multiplicaria as combinações de falha parcial sem tornar nenhuma delas
+ * recuperável. **A segurança do caminho de quarentena depende disso** (ressalva
+ * do `contador` no Gate 2): é a atomicidade do array que garante que, quando a
+ * confirmação diz "nenhuma entrou", o banco não tenha ficado com meia lista
+ * gravada por trás.
+ *
+ * ⚠️ **Devolve quantas linhas ENTRARAM, contadas no `.select("id")`** — nunca o
+ * tamanho do array enviado. Violação de INSERT pela RLS é ERRO explícito (42501)
+ * e sobe; o que o `.select` de retorno pode esconder é outra coisa — a policy de
+ * SELECT pode ocultar linha que o INSERT gravou. Contar o que se mandou daria por
+ * confirmado o que ninguém confirmou, e é esse número que a tela relata.
+ *
+ * ⚠️ **Linha incompleta é DESCARTADA aqui, não gravada pela metade** (Gate
+ * Fiscal do CONTAI-053): os dois CHECKs da 0017 a recusariam de qualquer forma, e
+ * a lacuna vira pendência visível em `/documento/[id]` — nunca "sem retenção".
+ * A tela não deixa linha incompleta entrar na lista; esta guarda é o segundo
+ * anel, e ela conta como "não entrou".
+ */
+export async function criarLinhasRetencao(
+  documentoId: string,
+  entradas: EntradaLinhaRetencao[],
+): Promise<number> {
+  const linhas = entradas
+    .map((entrada) => linhaRetencaoParaBanco(entrada))
+    .filter((linha): linha is NonNullable<typeof linha> => linha !== null)
+    .map(({ valorCentavos, ...resto }) => ({
+      ...resto,
+      documento_id: documentoId,
+      valor: centavosParaNumeric(valorCentavos),
+    }));
+  if (linhas.length === 0) return 0;
+
+  const { data, error } = await getSupabase()
+    .from("documento_retencao")
+    .insert(linhas)
+    .select("id");
+  if (error) throw error;
+  return (data as { id: string }[] | null)?.length ?? 0;
+}
+
+/**
  * Responde (ou corrige) **quem recolhe** numa linha já gravada — o ÚNICO campo
  * de linha existente que este ticket torna editável, e a razão inteira do
  * `grant update` da 0017.
