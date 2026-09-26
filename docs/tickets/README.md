@@ -1,8 +1,13 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
 
-*(2026-09-23: `CONTAI-011` fatiado em três — `011` continua contando como 1
+*(2026-09-26: dois bugs relatados em produção logo após o `CONTAI-056`
+viram `CONTAI-057` (legibilidade de Despesas, bloqueado por Gate 0) e
+`CONTAI-058` (cache/revalidação do shell de gestão) — volta a 19.
+`CONTAI-058` entregue no mesmo dia (Gate 4, 7/7 PASS) — volta a 18, com
+`057` sozinho, bloqueado por Gate 0.
+2026-09-23: `CONTAI-011` fatiado em três — `011` continua contando como 1
 item, e `049`/`050` somam os 2 novos. `CONTAI-051` soma o 19º no mesmo dia;
 `048` saiu da fila no fim do dia, entregue, voltando a 18; `051` saiu da fila
 logo depois, entregue, voltando a 17 — **fila de implementação vazia**.
@@ -22,6 +27,22 @@ a 19; `053` continua bloqueado por Gate 0, `055` agora só bloqueado por
 — volta a 18; `055` fica sozinho na fila, sem bloqueio. 2026-09-25, ainda
 mais tarde: **`055` entregue** (Gate 4, 5/5 PASS) — volta a 17, **fila de
 implementação vazia** — fecha o backlog 71 inteiro (`053`+`054`+`055`).)*
+
+**2026-09-26**: **`CONTAI-057`/`058` criados** — dois bugs que o Mateus
+achou em produção, um dia depois do `CONTAI-056` ir ao ar (nenhum é erro de
+cálculo fiscal; os dois são consequência de a retenção ter passado a contar
+para o custo). `CONTAI-057` (P1): a coluna "Valor" de cada linha em
+Despesas mostra só o pagamento em destaque, e a retenção some numa
+anotação pequena — vira coluna própria "Custo comprovado". Bloqueado por
+Gate 0 (`/design` nível 2). `CONTAI-058` (P1): `ProvedorDeGestao`
+(`app/_components/gestao.tsx`) buscava os dados da obra uma vez só e
+guardava em contexto compartilhado por toda a árvore `(gestao)/*`, sem
+invalidar ao mutar em `documento/[id]/*` (e em qualquer outra rota do
+grupo) — Home/Despesas ficavam com número velho até F5. **Entregue no
+mesmo dia** (Gate 4, 7/7 PASS): `ProvedorDeGestao` passa a revalidar por
+mudança de rota (`usePathname()`), com stale-while-revalidate (nunca some
+o shell pra recarregar). 1085 unitários + 317 E2E verdes. Detalhe:
+`docs/tickets/CONTAI-058.md`.
 
 **2026-09-25, ainda mais tarde**: **`055` entregue** — Gate 4 (`po`), 5/5
 critérios PASS. Último ticket do backlog 71 (retenção): a sugestão do
@@ -634,9 +655,13 @@ nota no topo). Backlog 71 (retenção) fechado por inteiro: `053`, `054` e
 `055` entregues no mesmo dia. **Fila de implementação vazia** — nenhum
 ticket pronto para `/develop` aguardando início.
 
+**2026-09-26**: **`057`/`058` entram** — dois bugs de produção pós-`056`.
+`058` sai da fila no mesmo dia, entregue. `057` fica sozinho, bloqueado por
+Gate 0 (`/design`).
+
 | Ordem | # | Ticket | P | Pronto para `/develop` |
 |---|---|---|---|---|
-| — | — | *(fila vazia)* | — | — |
+| — | 057 | Coluna própria para custo comprovado em Despesas | P1 | ⛔ bloqueado por Gate 0 (`/design`) |
 
 ### 🛑 Em espera — decisão do Mateus, 2026-09-23
 

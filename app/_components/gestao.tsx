@@ -22,6 +22,7 @@
  * número, e os textos continuam nas constantes de sempre.
  */
 
+import { usePathname } from "next/navigation";
 import {
   createContext,
   useCallback,
@@ -111,6 +112,26 @@ export function useGestao(): ContextoDeGestao {
 export function ProvedorDeGestao({ children }: { children: ReactNode }) {
   const [estado, setEstado] = useState<EstadoDaGestao>({ fase: "carregando" });
   const [tentativa, setTentativa] = useState(0);
+  /**
+   * ⚠️ **CONTAI-058 — a rota é dependência do carregamento, e é isso que
+   * conserta o dado velho.**
+   *
+   * Este layout não é remontado ao navegar dentro de `app/(gestao)/`: sem o
+   * `pathname` aqui, o efeito rodava **uma vez** e o contexto ficava com o
+   * número de antes até um F5. Foi o relato de 2026-09-26 (US-B): mudar
+   * `quem_recolhe` de "a empresa" para "eu" corrigia o valor na tela da nota e
+   * deixava o KPI da Visão geral contando o antigo. Cada rota de mutação tinha
+   * o seu `tentarDeNovo` local, que só atualizava a própria tela.
+   *
+   * Por que **revalidar por rota** e não "invalidar o contexto" em cada
+   * gravação: são 33 rotas e ~35 funções de escrita: a correção por lembrança
+   * volta a falhar na próxima rota que alguém escrever (Pre-mortem 1 do
+   * ticket). Aqui é estrutural — a rota mudou, o shell relê.
+   *
+   * ⚠️ **Sem `router.refresh()`**: ele refaz payload de RSC e PRESERVA estado de
+   * client component, então o `useState` acima continuaria com o dado velho.
+   */
+  const pathname = usePathname();
 
   useEffect(() => {
     let cancelado = false;
@@ -156,7 +177,23 @@ export function ProvedorDeGestao({ children }: { children: ReactNode }) {
     return () => {
       cancelado = true;
     };
-  }, [tentativa]);
+    /**
+     * ⚠️ **`pathname` entra, e `setEstado({ fase: "carregando" })` NÃO entra
+     * aqui** (critério 4 do CONTAI-058): stale-while-revalidate. Quem zera para
+     * loading é só o `tentarDeNovo` abaixo — o botão do estado de erro, onde o
+     * Mateus PEDIU a recarga. Numa revalidação por navegação, apagar sidebar,
+     * badge e KPIs a cada toque no menu trocaria um bug de dado velho por um
+     * shell piscando em toda navegação.
+     *
+     * O `cancelado` do cleanup é o que faz a navegação em voo ser
+     * **substituída** e não enfileirada: resposta superada não escreve estado
+     * (critério 7).
+     *
+     * Falha na revalidação continua caindo no `catch` como `fase: "erro"` —
+     * número velho mantido em silêncio seria o mesmo bug com outro nome
+     * (critério 5).
+     */
+  }, [tentativa, pathname]);
 
   const tentarDeNovo = useCallback(() => {
     setEstado({ fase: "carregando" });
