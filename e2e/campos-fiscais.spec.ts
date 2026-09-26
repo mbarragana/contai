@@ -6,7 +6,12 @@ import { expect as expectBase, type Page } from "@playwright/test";
 import { lerTodosOsSpecs } from "../lib/design/specs";
 import type { CampoDoSpec } from "../lib/design/campos-do-spec";
 import { OBRA_ID_SEED } from "./ambiente";
-import { criarCompromisso, criarFavorecido, type Db } from "./banco";
+import {
+  criarCompromisso,
+  criarFavorecido,
+  criarPagamento,
+  type Db,
+} from "./banco";
 import { expect, test } from "./fixtures";
 
 /**
@@ -241,6 +246,19 @@ const MAPA: Record<string, Classificacao> = {
     iniciais: [],
     foraDaVisita:
       "espelho de `/documento/[id]/obra`: escolha por cartão, fora do alcance da enumeração — `obraDestino` e `escolhaDoc[d]` são botões",
+  },
+  /**
+   * CONTAI-061 — anexo tardio do comprovante (dívida D56). **VISITADA**: o
+   * único campo da tela é o `comprovante`, ele é um `CampoArquivo` (controle de
+   * formulário, dentro do alcance da enumeração) e ele existe no primeiro
+   * render — não há pré-requisito de várias etapas que justificasse
+   * `foraDaVisita`. O cenário é um pagamento gravado SEM comprovante, que é o
+   * estado que este ticket existe para destravar.
+   */
+  "/pagamento/[id]/comprovante": {
+    specs: ["CONTAI-061"],
+    iniciais: ["comprovante"],
+    abrir: async (db) => `/pagamento/${await umPagamentoSemComprovante(db)}/comprovante`,
   },
   "/pendencias": { semCamposFiscais: "lista de pendências, só leitura" },
   // ⚠️ CONTAI-040: a rota nasce sem a tabela (que é do CONTAI-041) — hoje é o
@@ -492,6 +510,26 @@ async function esperarNascer(page: Page, iniciais: string[]) {
   }
   await page.locator("main").waitFor();
   await expectBase(page.getByText("Carregando", { exact: false })).toHaveCount(0);
+}
+
+/**
+ * CONTAI-061 — o pagamento gravado SEM comprovante, que é o único estado em que
+ * `/pagamento/[id]/comprovante` mostra o campo (com comprovante, a guarda de
+ * reentrada substitui a tela inteira por um banner).
+ */
+async function umPagamentoSemComprovante(db: Db): Promise<string> {
+  const favorecidoId = await criarFavorecido(db, {
+    nome: "Depósito Ilha",
+    documento: "12345678000199",
+    tipo: "pj",
+  });
+  return criarPagamento(db, {
+    favorecido_id: favorecidoId,
+    valor: 9400,
+    data_pagamento: "2026-04-10",
+    meio: "pix",
+    comprovante_path: null,
+  });
 }
 
 async function umCompromisso(db: Db): Promise<string> {

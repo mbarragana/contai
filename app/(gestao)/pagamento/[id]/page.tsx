@@ -357,6 +357,20 @@ export default function DetalhePagamento() {
               consumado. O que falta é a prova, e ela é o documento mais
               perecível do acervo.
             </Dica>
+            {/* ⚠️ CONTAI-061, dívida D56 — a porta que faltava. A tela explicava
+                a consequência e não oferecia saída nenhuma: não havia controle de
+                upload aqui e não havia função de escrita no backend que
+                preenchesse `comprovante_path` depois da criação. Mesmo padrão do
+                "Ligar a uma nota" do card irmão de "pago sem nota": o card que
+                explica a consequência é também onde se age. */}
+            <div className="mt-2.5">
+              <BotaoLink
+                href={`/pagamento/${p.id}/comprovante`}
+                variante="primary"
+              >
+                Anexar comprovante
+              </BotaoLink>
+            </div>
           </Card>
         ) : null}
 

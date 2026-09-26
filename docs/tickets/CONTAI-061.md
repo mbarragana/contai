@@ -28,50 +28,50 @@ mãos, quero anexá-lo em `/pagamento/[id]`, para que o pagamento saia de
 fato pago.
 
 ## Critérios de Aceite
-1. [ ] Card "PAGO SEM COMPROVANTE" em `/pagamento/[id]` ganha uma ação
+1. [x] Card "PAGO SEM COMPROVANTE" em `/pagamento/[id]` ganha uma ação
    "Anexar comprovante" (mesmo padrão visual do botão "Ligar a uma nota"
    do card irmão de "sem nota") → leva a `/pagamento/[id]/comprovante`.
-2. [ ] Subpágina nova `/pagamento/[id]/comprovante`: guarda de reentrada
+2. [x] Subpágina nova `/pagamento/[id]/comprovante`: guarda de reentrada
    (se o pagamento já tem comprovante, mostra banner e nada mais); campo
    de anexo simples (`CampoArquivo` + `subirParaAcervo(arquivo,
    "comprovante")`, mesmo padrão já testado) — **sem nenhuma pergunta
    fiscal** (diferente de `/documento/[id]/anexar`, que pergunta CPF/
    retenção; comprovante de pagamento não pergunta nada disso).
-3. [ ] Antes de confirmar a gravação, a tela calcula e mostra o delta —
+3. [x] Antes de confirmar a gravação, a tela calcula e mostra o delta —
    reusa `lib/fiscal/revisao.ts::anosAfetadosDeUmaObra`/`abrePendencia`
    (mesma função e mesmo layout "antes → depois" de
    `/documento/[id]/corrigir/valor`), simulando o pagamento com
    `comprovantePath` preenchido.
-4. [ ] Sem pendência de "ano já declarado": confirmação simples, um clique
+4. [x] Sem pendência de "ano já declarado": confirmação simples, um clique
    grava. Com pendência: mostra o aviso citando literalmente
    `AVISO_ANO_ANTERIOR`/`SO_SEI_QUE_E_ANO_ANTERIOR` (constantes já
    existentes em `lib/fiscal/revisao.ts`, mesmo texto que
    `corrigir/valor` já usa) antes de confirmar — nunca redige texto fiscal
    novo.
-5. [ ] RPC nova (`anexar_comprovante_pagamento` ou nome equivalente
+5. [x] RPC nova (`anexar_comprovante_pagamento` ou nome equivalente
    decidido pelo `cto-obra`) só grava se `comprovante_path is null` —
    segunda tentativa contra um pagamento que já tem comprovante falha
    explicitamente (não sobrescreve). Trigger de imutabilidade no banco
    garante isso mesmo se alguém tentar um UPDATE direto pela tabela, não
    só pela RPC.
-6. [ ] A gravação registra rastro completo (entidade, campo `comprovante`,
+6. [x] A gravação registra rastro completo (entidade, campo `comprovante`,
    antes `null`, depois o path, ato, motivo) na mesma tabela `revisao` que
    já guarda correções de documento — precisa de migration ampliando o
    `check` de `revisao` para aceitar `campo = 'comprovante'` em
    `entidade = 'pagamento'`, e um novo valor de `motivo_revisao`
    (`comprovante_chegou_depois`) em migration própria e anterior (não pode
    ser criado na mesma transação em que é usado).
-7. [ ] Teste unitário: pagamento com `data_pagamento` de ano anterior,
+7. [x] Teste unitário: pagamento com `data_pagamento` de ano anterior,
    comprovante anexado no ano corrente → custo confirmado aparece no ano
    do PAGAMENTO, nunca no ano do anexo — trava o regime de caixa.
-8. [ ] Pagamento sem nenhuma nota vinculada: anexar o comprovante não muda
+8. [x] Pagamento sem nenhuma nota vinculada: anexar o comprovante não muda
    `custoComprovado` (não há documento hábil pra contar) → `anos` afetados
    vazio → sem pendência de ano anterior. Comportamento correto, não bug —
    vira teste, não crítica.
-9. [ ] `e2e/privilegios.spec.ts` ganha as duas entradas novas (a RPC e a
+9. [x] `e2e/privilegios.spec.ts` ganha as duas entradas novas (a RPC e a
    função de trigger) — tabela nova de privilégios não fica sem `GRANT`
    explícito.
-10. [ ] Gate Fiscal: `contador` confirma que todo texto de tela é cópia
+10. [x] Gate Fiscal: `contador` confirma que todo texto de tela é cópia
     literal do parecer/constantes já existentes, nunca parafraseado.
 
 ## Out of Scope
@@ -172,3 +172,46 @@ captura no canteiro. Teste do Canteiro não se aplica. **Veredito:
 APROVADO**, Gate 0 fechado em `design/mocks/CONTAI-061.md` (nível 2).
 ⚠️ **Esta ticket tem migration** — lembrar da ordem obrigatória no release:
 `npx supabase db push` ANTES de `git push` (regra do `CLAUDE.md`).
+
+✅ **Entregue em 2026-09-26.** 10/10 critérios PASS — Gate 4 (`po`). A RPC
+`anexar_comprovante_pagamento` (migration `0019`) fecha a lacuna de
+CAPACIDADE que a Dor de Origem nomeou: até este ticket, `comprovante_path`
+só era escrito no INSERT de criação, e um pagamento gravado sem comprovante
+ficava preso em "Custo em risco no IR" sem porta nenhuma no app. A guarda
+"só grava se `comprovante_path is null`" é dupla — `where ... is null` na
+RPC **e** trigger `pagamento_comprovante_path_imutavel` no banco — e as
+duas foram provadas contra o Postgres local por E2E, não só descritas: RPC
+chamada uma segunda vez recusa, e `UPDATE` direto pela tabela também
+recusa. Migration `0018`, sozinha, só define o valor de enum
+`comprovante_chegou_depois` (não pode ser usado na mesma transação em que
+nasce). O delta antes de gravar reusa `anosAfetadosDeUmaObra`/
+`abrePendencia` sem adaptação nenhuma, e o mesmo mecanismo de "ano já
+declarado" do `CONTAI-018`/parecer de 2026-08-18 — nunca um segundo
+detector.
+
+Gate 2 técnico e fiscal aprovou na 2ª rodada, depois de um bloqueante do
+`contador`: a redação original do banner de reentrada afirmava *"e o custo
+deste ano já está confirmado com base nele"* — falso no caso geral
+(pagamento com comprovante e sem nota hábil ligada tem custo confirmado
+ZERO, que é literalmente o critério 8); a redação final ("O comprovante não
+se substitui por aqui — ele é a prova do que saiu da conta.") não faz essa
+afirmação, e o mock foi atualizado para registrar a correção. O mesmo Gate
+2 achou e corrigiu, de brinde, um bug pré-existente em `/pendencias/[id]`
+(contava a linha principal como um "pagamento" a mais sempre que ela
+própria fosse `entidade = 'pagamento'` — o ato deste ticket, de uma linha
+só, diria "com 1 pagamento" num ato que não tocou pagamento nenhum além do
+próprio) e unificou dois `ROTULO_CAMPO` duplicados (`corrigir.tsx` e
+`pendencias/[id]/page.tsx`) num só, `rotuloDoCampo` exportado, exaustivo
+pelo tipo novo `CampoRevisao` — campo novo no check do banco sem rótulo
+correspondente agora quebra o typecheck, em vez de vazar como token cru na
+tela.
+
+Nenhum arquivo mudou depois do APPROVE final do `cto-obra`. A dívida já
+registrada (`corrigirValorDoDocumento`/irmãs tipando `motivo: MotivoRevisao`
+inteiro, o que tecnicamente aceitaria `comprovante_chegou_depois` por ali
+também) segue fora de escopo: nenhum caller vivo passa esse motivo por
+essas funções — quem grava é só `anexarComprovantePagamento`, direto na
+RPC. 1104 testes unitários + 28/28 E2E verdes (3 novos de
+`pagamento-comprovante-tardio.spec.ts`, contra o Postgres local, mais as
+entradas novas de `privilegios.spec.ts` e `campos-fiscais.spec.ts`), com as
+migrations `0018`/`0019` aplicadas.

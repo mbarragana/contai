@@ -1,0 +1,53 @@
+-- CONTAI-061 — o valor de enum, SOZINHO, numa migration própria.
+--
+-- Fonte normativa: docs/pareceres/2026-09-26-anexo-tardio-de-comprovante-d56.md
+-- (§§1-3) + docs/pareceres/2026-08-18-correcao-de-documento-registrado.md (§5,
+-- o rastro). Nada aqui é inferido.
+--
+-- ⚠️ **POR QUE ESTE ARQUIVO EXISTE SEPARADO, E O QUE A REGRA DO POSTGRES É DE
+-- VERDADE** (corrigido no Gate 2 do CONTAI-061, com o caso testado pelo
+-- `cto-obra` — a versão anterior deste comentário afirmava uma falha que NÃO
+-- acontece):
+--
+-- Desde o PG 12, `alter type ... add value` **roda dentro de transação**. O que
+-- o Postgres recusa é *usar* o valor novo — num `insert`/`update`/comparação que
+-- seja de fato EXECUTADO — na MESMA transação em que ele foi criado ("unsafe use
+-- of new value of enum type"). Definir uma função que apenas MENCIONA o literal
+-- não é usar: o plpgsql não resolve o corpo no `create function`, e quando a
+-- função roda pela primeira vez já é outra transação, com o valor commitado.
+--
+-- Logo, juntar este `alter type` na 0019 **teria funcionado** — a 0019 só
+-- DEFINE a RPC, não a chama. A separação fica por três razões, nenhuma delas
+-- "senão quebra":
+-- 1. **precedente do repo** — é a forma que as 0007 e 0009 nomeiam, e divergir
+--    dela em um arquivo só ensinaria a próxima migration a adivinhar;
+-- 2. **margem de segurança** — no dia em que uma migration destas precisar de um
+--    `insert` de backfill ou de um `perform` da própria função, o valor já estar
+--    commitado é a diferença entre aplicar e falhar no `db push` do remoto;
+-- 3. **`alter type ... add value` é irreversível** — não há `drop value`. Isolado
+--    num arquivo que não faz mais nada, ele é o menor diff possível de auditar.
+--
+-- ⚠️ As migrations 0007, 0009 e 0010 trazem a explicação ANTIGA e errada
+-- (*"`alter type ... add value` não roda dentro de transação"*, que era verdade
+-- antes do PG 12). Elas **não são editadas** — já foram aplicadas, e a doutrina
+-- do repo é suceder, não reescrever migration. Quem for ler aquelas notas: a
+-- correção é esta.
+--
+-- ── A PERGUNTA OBRIGATÓRIA DO REPO ──────────────────────────────────────
+-- "Isto depende de algum default do stack local que o projeto remoto não tem?"
+-- **Não.** Nenhuma tabela, coluna, sequence, view ou função nasce aqui — só um
+-- rótulo a mais num enum que já existe desde a 0009. Nada a conceder, nada a
+-- revogar: `motivo_revisao` não é objeto com ACL própria que o app toque.
+
+-- Parecer §2, literal: *"A DATA DO ANEXO é rastro obrigatório (mesmo mecanismo
+-- de toda correção de campo já gravado) — nunca usada para calcular ano de
+-- custo."* O motivo nomeia O FATO ("o comprovante chegou depois"), nunca a
+-- causa nem um juízo: é a mesma disciplina de `arquivamento_corrigido`, que a
+-- 0009 escolheu justamente para o rastro não inferir intenção.
+--
+-- ⚠️ E ele é gravado pela MÁQUINA, sem perguntar — como `arquivamento_corrigido`
+-- e ao contrário dos três primeiros. A tela de anexo tardio **não pergunta
+-- motivo**: não existe motivo possível ("por que o comprovante chegou depois?"
+-- não é pergunta fiscal), e oferecer a lista do §5 ali seria pedir ao Mateus que
+-- classificasse um fato que o próprio ato já descreve.
+alter type motivo_revisao add value 'comprovante_chegou_depois';

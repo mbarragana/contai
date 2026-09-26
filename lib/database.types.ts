@@ -1039,6 +1039,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      anexar_comprovante_pagamento: {
+        Args: {
+          p_anos: Json
+          p_comprovante_path: string
+          p_pagamento_id: string
+        }
+        Returns: string
+      }
       baixar_pendencia: {
         Args: {
           p_data?: string
@@ -1160,6 +1168,7 @@ export type Database = {
         | "emitente_corrigiu_a_nota"
         | "outro"
         | "arquivamento_corrigido"
+        | "comprovante_chegou_depois"
       natureza_aquisicao_terreno:
         | "a_vista"
         | "financiado"
@@ -1168,13 +1177,13 @@ export type Database = {
       origem_compromisso: "boleto" | "pix" | "cartao"
       origem_recurso_entrada: "proprio" | "fgts"
       quem_recolhe_retencao: "eu" | "empresa" | "nao_sei"
-      retencao_na_nota: "nenhuma" | "destacada"
       resolucao_diferenca:
         | "nao_compoe_custo"
         | "falta_documento"
         | "multiplos_documentos"
         | "erro_digitacao"
         | "previsao_errada"
+      retencao_na_nota: "nenhuma" | "destacada"
       situacao_compromisso: "aberto" | "quitado" | "cancelado"
       status_documento: "registrado" | "quarentena" | "aguardando_pagamento"
       status_pagamento: "aguardando_nf" | "conciliado"
@@ -1340,6 +1349,7 @@ export const Constants = {
         "emitente_corrigiu_a_nota",
         "outro",
         "arquivamento_corrigido",
+        "comprovante_chegou_depois",
       ],
       natureza_aquisicao_terreno: [
         "a_vista",

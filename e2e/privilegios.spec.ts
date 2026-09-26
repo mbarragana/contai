@@ -243,6 +243,25 @@ const FUNCOES_ESPERADAS: Record<string, string> = {
   // `returns trigger`, o Postgres recusa chamada direta, e o privilégio é
   // inofensivo — declarado aqui, não silenciado.
   documento_arquivo_path_imutavel: "PUBLIC,anon,authenticated",
+
+  // ── CONTAI-061 (migrations 0018 e 0019) ────────────────────────────────
+  // O ato atômico de anexar o comprovante a um pagamento JÁ GRAVADO (dívida
+  // D56): path + rastro + snapshot de anos + (quando o ano é anterior) a
+  // pendência de retificadora, num só. Até a 0019 não existia escrita nenhuma
+  // para `pagamento.comprovante_path` depois do INSERT de criação.
+  //
+  // ⚠️ Nenhuma tabela nova neste ticket, e mesmo assim este mapa MUDA: ele cobre
+  // FUNÇÃO, e função nasce com `execute` para `public` (que inclui `anon`) em
+  // qualquer Postgres. Sem o revoke da 0019, o anônimo poderia carimbar
+  // comprovante e abrir pendência de retificadora no acervo de outra pessoa.
+  anexar_comprovante_pagamento: "authenticated",
+
+  // A função do trigger que fecha `comprovante_path` depois do primeiro anexo —
+  // sem ela, "só grava se está null" seria promessa da RPC e nada mais, já que
+  // `pagamento` tem UPDATE para `authenticated` desde a 0005. Mesmo caso das
+  // outras funções de trigger acima: `returns trigger`, o Postgres recusa
+  // chamada direta, e o privilégio é inofensivo — declarado, não silenciado.
+  pagamento_comprovante_path_imutavel: "PUBLIC,anon,authenticated",
 };
 
 test.describe("privilégios do schema public", () => {

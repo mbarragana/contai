@@ -4,7 +4,14 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { CampoTexto } from "@/app/_components/campos";
-import { ROTULO_MOTIVO_NO_RASTRO } from "@/app/_components/corrigir";
+// ⚠️ `rotuloDoCampo` é IMPORTADO, e não uma cópia (Gate 2 do CONTAI-061): este
+// arquivo tinha um `ROTULO_CAMPO` próprio, idêntico ao de `corrigir.tsx`, e
+// acrescentar `comprovante` exigia editar os dois à mão — esquecer um deixaria o
+// typecheck verde com um token cru na tela. Uma definição, exaustiva pelo tipo.
+import {
+  rotuloDoCampo,
+  ROTULO_MOTIVO_NO_RASTRO,
+} from "@/app/_components/corrigir";
 import {
   CabecalhoDaTela,
   ColunaDeDetalhe,
@@ -53,14 +60,6 @@ import type {
   PendenciaPersistente,
   Revisao,
 } from "@/lib/types";
-
-const ROTULO_CAMPO: Record<string, string> = {
-  valor: "valor",
-  classificacao: "classificação",
-  nome: "nome do favorecido",
-  obra: "obra",
-  vinculo: "vínculo pagamento↔nota",
-};
 
 type Estado =
   | { fase: "carregando" }
@@ -428,14 +427,25 @@ export default function DetalheDaPendencia() {
           {[...new Set(estado.revisoes.map((r) => r.atoId))].map((atoId) => {
             const linhas = estado.revisoes.filter((r) => r.atoId === atoId);
             const principal = linhas[0];
-            const pagamentos = linhas.filter((l) => l.entidade === "pagamento");
+            /**
+             * ⚠️ `slice(1)`, e não `linhas.filter(...)` — a mesma correção que
+             * `LinhaDoAto` (`app/_components/corrigir.tsx`) já carregava desde o
+             * CONTAI-008: as secundárias são as linhas DEPOIS da principal.
+             * Contando por entidade fixa, a linha principal contava a si mesma
+             * sempre que ela fosse de `pagamento` — e o ato do CONTAI-061 é uma
+             * linha só, de `pagamento`, então diria "com 1 pagamento" num ato
+             * que não tocou pagamento nenhum além do próprio.
+             */
+            const pagamentos = linhas
+              .slice(1)
+              .filter((l) => l.entidade === "pagamento");
             return (
               <div key={atoId} className="border-t border-line py-2.5 first:border-t-0">
                 <div className="text-[11.5px] text-mut">
                   {formatarDataBR(principal.quando.slice(0, 10))} · por você
                 </div>
                 <div className="mt-0.5 font-semibold">
-                  {ROTULO_CAMPO[principal.campo] ?? principal.campo}
+                  {rotuloDoCampo(principal.campo)}
                   {pagamentos.length > 0
                     ? `, com ${pagamentos.length} ${pagamentos.length === 1 ? "pagamento" : "pagamentos"}`
                     : ""}

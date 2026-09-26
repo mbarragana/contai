@@ -517,12 +517,39 @@ export interface AnoAfetado {
   pendencia: boolean;
 }
 
+/**
+ * A lista FECHADA dos campos que o rastro admite — o **espelho em TS** do check
+ * `revisao_campo_da_entidade` (migration 0009, ampliado pela 0019 com
+ * `comprovante`).
+ *
+ * ⚠️ **A FONTE DA VERDADE É O BANCO**, e não este tipo: quem recusa
+ * `favorecido.valor` é o check, como o comentário da 0009 explica por extenso
+ * (`campo` é `text` justamente para a lista crescer sem `alter type`, que é
+ * irreversível). Este tipo existe pelo mesmo motivo que `MotivoRevisao` é
+ * derivado do enum: para o rótulo de tela ser exaustivo — valor novo no check
+ * sem rótulo correspondente quebra o **typecheck** em `ROTULO_CAMPO`, em vez de
+ * vazar para a tela como token cru.
+ *
+ * ⚠️ E é por isso que `Revisao.campo` abaixo continua `string`: o valor vem do
+ * Postgres sem validação em runtime, e tipá-lo como esta união afirmaria uma
+ * garantia que a leitura não tem. O casamento acontece no ponto de exibição
+ * (`rotuloDoCampo`), que preserva o fallback para o token.
+ */
+export type CampoRevisao =
+  | "valor"
+  | "classificacao"
+  | "obra"
+  | "nome"
+  | "vinculo"
+  | "comprovante";
+
 /** Uma linha do rastro (§5). `antes`/`depois` são texto: `null` ≠ zero. */
 export interface Revisao {
   id: string;
   atoId: string;
   entidade: EntidadeRevisao;
   entidadeId: string;
+  /** Texto, como a coluna. A lista fechada é `CampoRevisao`, acima. */
   campo: string;
   antes: string | null;
   depois: string | null;

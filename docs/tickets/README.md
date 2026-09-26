@@ -1,8 +1,10 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 19 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
 
-*(2026-09-26, mais tarde ainda ainda: **`059` entregue** (Gate 4, 9/9
+*(2026-09-26, mais tarde ainda ainda ainda: **`061` entregue** (Gate 4,
+10/10 PASS) — volta a 18, `060` sozinho na fila, bloqueado por Gate 0.
+2026-09-26, mais tarde ainda ainda: **`059` entregue** (Gate 4, 9/9
 PASS) — volta a 18; no mesmo momento, **`CONTAI-061` criado** (D56, anexar
 comprovante tardiamente — achado tentando resolver a pendência real do
 Achado 2) — volta a 19. `060` continua bloqueado por Gate 0; `061` também.
@@ -35,6 +37,32 @@ a 19; `053` continua bloqueado por Gate 0, `055` agora só bloqueado por
 — volta a 18; `055` fica sozinho na fila, sem bloqueio. 2026-09-25, ainda
 mais tarde: **`055` entregue** (Gate 4, 5/5 PASS) — volta a 17, **fila de
 implementação vazia** — fecha o backlog 71 inteiro (`053`+`054`+`055`).)*
+
+**2026-09-26, mais tarde ainda ainda ainda**: **`061` entregue** — Gate 4
+(`po`), 10/10 critérios PASS. RPC nova `anexar_comprovante_pagamento`
+(migration 0019) grava `pagamento.comprovante_path` — até este ticket só o
+INSERT de criação escrevia ali, e um pagamento gravado sem comprovante
+ficava preso em "Custo em risco no IR" sem porta nenhuma no app. Guarda
+"só grava se `comprovante_path is null`" é dupla: `where ... is null` na
+RPC **e** trigger `pagamento_comprovante_path_imutavel` no banco (não só
+promessa da RPC — UPDATE direto pela tabela também é recusado, provado por
+E2E contra o Postgres local). Delta antes de gravar reusa
+`anosAfetadosDeUmaObra`/`abrePendencia` sem adaptação; o mesmo mecanismo de
+"ano já declarado" (aviso + grava + pendência persistente de retificadora)
+do `CONTAI-018`/parecer de 2026-08-18. Nova migration 0018, sozinha, só
+para o valor de enum `comprovante_chegou_depois` (não pode nascer na mesma
+transação em que é usado). Gate 2 técnico e fiscal pediu uma correção
+bloqueante antes de aprovar: a redação original do banner de reentrada
+afirmava que "o custo deste ano já está confirmado" — falso no caso geral
+(pagamento com comprovante e sem nota hábil ligada tem custo confirmado
+ZERO, o próprio critério 8); corrigida para não fazer essa afirmação. O
+Gate 2 também achou e corrigiu um bug pré-existente em `/pendencias/[id]`
+(contava a linha principal como um "pagamento" adicional sempre que ela
+própria fosse de `pagamento`) e unificou dois `ROTULO_CAMPO` duplicados
+(`corrigir.tsx`/`pendencias/[id]`) num só, exaustivo pelo tipo novo
+`CampoRevisao`. Nenhum arquivo mudou depois do APPROVE final do `cto-obra`.
+1104 unitários + 3 E2E novos (28/28 verdes na suíte cruzada com
+`privilegios`/`campos-fiscais`) verdes, com as duas migrations 0018/0019.
 
 **2026-09-26, mais tarde ainda ainda**: **`059` entregue** — Gate 4 (`po`),
 9/9 critérios PASS. `motivoDaRetencaoAberta` (novo, `lib/fiscal/retencao.ts`)
@@ -747,10 +775,14 @@ Despesas). Os dois bloqueados por Gate 0 (`/design`).
 nota no topo). **`061` entra** (D56, anexar comprovante tardio), bloqueado
 por Gate 0.
 
+**2026-09-26, mais tarde ainda ainda ainda**: **`061` sai da fila** —
+Gate 0 fechou (`/design`, nível 2), passou pelo `/develop` inteiro e saiu
+entregue no mesmo lote (ver nota no topo). `060` fica sozinho na fila,
+ainda bloqueado por Gate 0.
+
 | Ordem | # | Ticket | P | Pronto para `/develop` |
 |---|---|---|---|---|
 | — | 060 | Seletor de ano no shell (Home + Despesas + Pendências) | P2 | ⛔ bloqueado por Gate 0 (`/design`) |
-| — | 061 | Anexar comprovante tardiamente a pagamento (D56) | P1 | ⛔ bloqueado por Gate 0 (`/design`) |
 
 ### 🛑 Em espera — decisão do Mateus, 2026-09-23
 

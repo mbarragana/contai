@@ -41,9 +41,21 @@ onde se age — o mesmo papel que o card de "sem nota" cumpre para o botão dele
 1. Carrega `carregarPagamento(id)` e, com o `obraId`, `carregarPainel(obraId)`
    — o mesmo par usado em `corrigir/valor`.
 2. **Guarda de reentrada**: se `comprovantePath !== null` (URL direta depois de
-   já resolvido), banner âmbar "Este pagamento já tem comprovante.", sem
-   controle — mesmo papel do guard de `anexar/page.tsx:148-162`; comprovante
-   não é corrigível por aqui.
+   já resolvido), banner âmbar sem controle nenhum — mesmo papel do guard de
+   `anexar/page.tsx:148-162`; comprovante não é corrigível por aqui. Texto,
+   **fechado no Gate 2 pelo `contador`**: "**Este pagamento já tem
+   comprovante.** O comprovante não se substitui por aqui — ele é a prova do
+   que saiu da conta." Abaixo dele, o comprovante como item de `ListaDeAnexos`
+   (ele é visível, só não é substituível) e o link de volta ao pagamento.
+
+   ⚠️ **O banner NÃO pode dizer que o custo daquele ano está confirmado.** A
+   redação implementada na primeira rodada acrescentava *"e o custo deste ano
+   já está confirmado com base nele"*, e o `contador` a barrou: é afirmação
+   fiscal nova e **falsa no caso geral** — pagamento com comprovante e **sem
+   nota hábil ligada** tem custo confirmado ZERO
+   (`min(Σ pagamentos, Σ documentos hábeis) = 0`), que é literalmente o
+   critério de aceite 8 deste ticket. Quem limita o custo é a nota; o
+   comprovante só destrava o pagamento.
 3. **Vazio**: só `CampoArquivo` ("Comprovante do pagamento", ajuda "PDF, foto
    ou print — é ele que comprova este pagamento.",
    `accept="application/pdf,image/*"`). Sem pergunta fiscal — ao contrário de
@@ -57,8 +69,21 @@ onde se age — o mesmo papel que o card de "sem nota" cumpre para o botão dele
    Mostra Card "O que isso muda no seu custo": `Linha` por ano
    (`antes → depois`, `⚠ ano anterior` se `pendencia`) + "Acumulado até
    {anoCorrente}" via `custoComprovadoAteOAno` — mesma tabela de
-   `corrigir/valor/page.tsx:405-441`. Se `conta.anos.length === 0`, Dica: este
-   pagamento já não bloqueava custo (caso raro).
+   `corrigir/valor/page.tsx:405-441`.
+
+   Se `conta.anos.length === 0`, Dica — **texto revisto no Gate 2, e a
+   implementação ficou mais correta que este spec**: a redação original dizia
+   *"este pagamento já não bloqueava custo (caso raro)"*, e ela erra duas
+   coisas. (a) **Não é caso raro**: é o pagamento sem nota hábil ligada, que é
+   metade do parque de registros do Mateus (PIX avulso). (b) **Ele ESTAVA
+   bloqueando**: sem comprovante o elegível é zero, e é por isso que ele
+   aparecia em "Custo em risco no IR" — o que falta agora é a NOTA, não o
+   comprovante. O texto implementado, que é o que vale: "Nenhum ano muda: sem
+   nota hábil ligada a este pagamento, o comprovante não põe custo confirmado
+   em ano nenhum. Pagamento sozinho não comprova custo — o que comprova é o
+   par. Ele deixa de bloquear o custo, e passa a contar quando houver nota no
+   seu CPF que o cubra." É o critério de aceite 8 dito na tela, e o teste
+   unitário que o trava está em `lib/fiscal/revisao.test.ts`.
 5. **Ramo A — sem pendência** (`!abrePendencia(conta.anos)`): confirmação
    simples, botão único "Anexar comprovante — o custo confirmado de {ano}
    passa a {valor}"; um clique sobe e grava.

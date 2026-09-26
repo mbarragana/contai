@@ -1131,6 +1131,54 @@ export async function anexarArquivoDocumento(
   if (error) throw error;
 }
 
+/**
+ * **CONTAI-061, dívida D56** — o comprovante do PAGAMENTO chegou depois.
+ *
+ * Fonte: `docs/pareceres/2026-09-26-anexo-tardio-de-comprovante-d56.md` (§§1-3).
+ *
+ * ⚠️ **Isto era uma lacuna de CAPACIDADE, não de tela.** Até este ticket
+ * `pagamento.comprovante_path` só era escrito no INSERT de criação
+ * (`criarPagamento`, `fatura_desembolso_gravar`): não havia `.update()` nem RPC
+ * para preenchê-lo depois, e um pagamento gravado sem comprovante ficava preso
+ * em "Custo em risco no IR" com o comprovante na mão e nenhuma porta no app.
+ *
+ * ⚠️ **RPC, e não `.update()`** (mesma razão da 0009 e da 0014): o path, a linha
+ * de `revisao` e o snapshot de anos afetados — que pode ABRIR a pendência de
+ * retificadora — gravam juntos ou não gravam. Das duas ordens possíveis em dois
+ * statements, uma deixa rastro de um anexo que não aconteceu e a outra deixa
+ * anexo sem rastro.
+ *
+ * ⚠️ **Nenhum check fiscal aqui**, ao contrário de `anexarArquivoDocumento`:
+ * *"a nota está no seu CPF?"* e o gate de retenção são perguntas sobre o que
+ * está impresso numa NOTA, e comprovante de pagamento não responde nenhuma das
+ * duas (parecer D56, "O que isto NÃO decide").
+ *
+ * ⚠️ **`anos` NUNCA sai da data de hoje.** O custo conta no ano do PAGAMENTO
+ * (regime de caixa, §3) — quem calcula é `anosAfetadosDeUmaObra` sobre o painel
+ * com `comprovantePath` simulado, e a data do anexo é só rastro (`revisao.quando`,
+ * §2). Devolve o id do ATO.
+ *
+ * A função Postgres aceita SÓ pagamento com `comprovante_path is null`: segunda
+ * chamada levanta exceção em vez de gravar por cima, e o trigger
+ * `pagamento_comprovante_path_imutavel` fecha o caminho direto pela tabela.
+ */
+export async function anexarComprovantePagamento(
+  pagamentoId: string,
+  comprovantePath: string,
+  anos: readonly AnoAfetado[],
+): Promise<string> {
+  const { data, error } = await getSupabase().rpc(
+    "anexar_comprovante_pagamento",
+    {
+      p_pagamento_id: pagamentoId,
+      p_comprovante_path: comprovantePath,
+      p_anos: paraAnosJson(anos),
+    },
+  );
+  if (error) throw error;
+  return data as string;
+}
+
 // ── CONTAI-038 · as linhas de retenção ───────────────────────────────────
 //
 // ⚠️ **Três funções, e nenhuma RPC.** Ao contrário de `anexar_arquivo_documento`,

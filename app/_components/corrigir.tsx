@@ -36,14 +36,23 @@ import {
   type AtoDeCorrecao,
 } from "@/lib/fiscal/revisao";
 import { formatarBRL, numericParaCentavos } from "@/lib/money";
-import type { MotivoRevisao, Revisao } from "@/lib/types";
+import type { CampoRevisao, MotivoRevisao, Revisao } from "@/lib/types";
 
 /**
  * O motivo, do §5 do parecer: "carrega o §3 — é a primeira pergunta de um
  * auditor". `arquivamento_corrigido` não aparece aqui de propósito: ele é o
  * motivo do move, gravado sozinho.
+ *
+ * ⚠️ `comprovante_chegou_depois` (CONTAI-061) sai pela MESMA razão, e não por
+ * simetria de estilo: ele é gravado pela máquina no anexo tardio do comprovante,
+ * e aquela tela **não pergunta motivo** — não existe motivo possível para "o
+ * comprovante chegou depois". Oferecê-lo na lista do §5 seria pedir ao Mateus
+ * que escolhesse a causa de um fato que o próprio ato já descreve.
  */
-export type MotivoEscolhido = Exclude<MotivoRevisao, "arquivamento_corrigido">;
+export type MotivoEscolhido = Exclude<
+  MotivoRevisao,
+  "arquivamento_corrigido" | "comprovante_chegou_depois"
+>;
 
 /** A quarta resposta do passo 1, e ela NÃO grava nada (adendo §1). */
 export type RespostaPasso1 = MotivoEscolhido | "erro_do_papel";
@@ -71,6 +80,13 @@ export const ROTULO_MOTIVO: Record<MotivoEscolhido, string> = {
 export const ROTULO_MOTIVO_NO_RASTRO: Record<MotivoRevisao, string> = {
   ...ROTULO_MOTIVO,
   arquivamento_corrigido: "arquivamento corrigido",
+  /**
+   * CONTAI-061 — como `arquivamento_corrigido`, este fica com o token legível:
+   * ele é gravado pela MÁQUINA no anexo tardio do comprovante, sem pergunta (a
+   * tela não pergunta motivo — não há motivo possível para "o comprovante
+   * chegou depois"). Não há frase do Mateus para exibir.
+   */
+  comprovante_chegou_depois: "o comprovante chegou depois",
 };
 
 /**
@@ -320,13 +336,44 @@ export function MotivoEscolhidoResumo({
 
 // ── O histórico de correções (critério 16) ───────────────────────────────
 
-const ROTULO_CAMPO: Record<string, string> = {
+/**
+ * O campo do rastro como o histórico o nomeia.
+ *
+ * ⚠️ **UMA definição, e a unificação é do Gate 2 do CONTAI-061.** Este mapa
+ * existia DUAS vezes — aqui e em `/pendencias/[id]` —, os dois `Record<string,
+ * string>`: acrescentar `comprovante` exigiu editar os dois à mão, e esquecer um
+ * deixaria o typecheck VERDE com um token cru na tela (o mesmo defeito que o
+ * item C do CONTAI-035 nomeia para a cor da régua, na outra ponta).
+ *
+ * `Record<CampoRevisao, string>` é o que fecha isso: valor novo no check
+ * `revisao_campo_da_entidade` sem rótulo aqui **quebra o typecheck**. A lista
+ * fechada continua morando no banco (`lib/types.ts` explica por quê); este é o
+ * espelho de exibição.
+ */
+const ROTULO_CAMPO: Record<CampoRevisao, string> = {
   valor: "valor",
   classificacao: "classificação",
   nome: "nome do favorecido",
   obra: "obra",
   vinculo: "vínculo pagamento↔nota",
+  // CONTAI-061 — o comprovante do pagamento, anexado depois (dívida D56).
+  comprovante: "comprovante do pagamento",
 };
+
+/**
+ * O rótulo do campo, com fallback para o token.
+ *
+ * ⚠️ **É esta função que sai do módulo, e não o mapa** — `Revisao.campo` é
+ * `string` (vem do Postgres sem validação em runtime), e indexar um
+ * `Record<CampoRevisao, …>` com `string` no call site exigiria um cast, que é
+ * exatamente onde o tipo para de proteger. O casamento acontece aqui, uma vez:
+ * exaustividade garantida do lado do mapa, fallback garantido do lado da
+ * leitura. Campo que o banco admita e a tela não conheça aparece como o token,
+ * nunca como `undefined`.
+ */
+export function rotuloDoCampo(campo: string): string {
+  return ROTULO_CAMPO[campo as CampoRevisao] ?? campo;
+}
 
 const ROTULO_CLASSIFICACAO: Record<string, string> = {
   material: "material",
@@ -362,6 +409,17 @@ function legivel(
   if (campo === "vinculo") {
     if (valor === null) return "vínculo desfeito";
     return documentos.get(valor) ?? "nota deste acervo";
+  }
+  /**
+   * ⚠️ CONTAI-061, e a razão é a mesma de `vinculo` logo acima: o `depois` desta
+   * linha é o CAMINHO do objeto no bucket (`{user_id}/comprovante/{uuid}-…`).
+   * Pela regra geral ele sairia cru numa tela cujo propósito declarado é ser
+   * lida em 2034 — e o caminho não prova nada a quem lê o histórico; o que
+   * importa é que antes não havia comprovante e agora há. O papel em si abre
+   * pela `ListaDeAnexos` do detalhe do pagamento, não por aqui.
+   */
+  if (campo === "comprovante") {
+    return valor === null ? "sem comprovante" : "comprovante anexado";
   }
   if (valor === null) return "(em branco)";
   if (campo === "valor") {
@@ -415,7 +473,7 @@ function LinhaDoAto({
       ? `${notas.length} ${notas.length === 1 ? "nota" : "notas"}`
       : null,
   ].filter((p): p is string => p !== null);
-  const campo = ROTULO_CAMPO[principal.campo] ?? principal.campo;
+  const campo = rotuloDoCampo(principal.campo);
 
   return (
     <div className="border-t border-line py-2.5 first:border-t-0">

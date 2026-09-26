@@ -356,6 +356,144 @@ describe("abrePendencia — as três linhas da tabela do §5.3", () => {
   });
 });
 
+/**
+ * **CONTAI-061 — o comprovante chegou depois (dívida D56).**
+ *
+ * Fonte: `docs/pareceres/2026-09-26-anexo-tardio-de-comprovante-d56.md` §§2-3.
+ * O detector é REUSADO SEM ADAPTAÇÃO: o "depois" só troca `comprovantePath` de
+ * `null` para uma string, porque `valorElegivelDoPagamento` já zera o elegível
+ * quando ele é `null`. Nenhuma regra nova, nenhuma segunda conta de custo.
+ */
+describe("anexo tardio de comprovante — o ano é o do PAGAMENTO (CONTAI-061)", () => {
+  /** O comprovante entra: `null` → path. Nada mais muda na cópia. */
+  function comComprovante(p: Pagamento): Pagamento {
+    return { ...p, comprovantePath: "u/comprovante/pix-tardio.png" };
+  }
+
+  it("pagamento de ANO ANTERIOR: o custo aparece em 2025, nunca no ano do anexo", () => {
+    // O caso real do achado 2 do backlog 73: pagamento de 2025 registrado sem
+    // comprovante, nota hábil ligada, comprovante anexado em 2026.
+    const nota = doc({ id: "d-nf", valorCentavos: 940_000 });
+    const semComprovante = pag({
+      id: "p-pix",
+      valorCentavos: 940_000,
+      dataPagamento: "2025-11-12",
+      documentoIds: ["d-nf"],
+      comprovantePath: null,
+    });
+
+    const anos = anosAfetadosDeUmaObra(
+      CASA,
+      { documentos: [nota], pagamentos: [semComprovante] },
+      { documentos: [nota], pagamentos: [comComprovante(semComprovante)] },
+      // O anexo está sendo feito em 2026 — e é SÓ isso que este parâmetro diz.
+      2026,
+    );
+
+    // ⚠️ A TRAVA DO REGIME DE CAIXA (§3, e o pre-mortem 2 do ticket): o ano é o
+    // de `dataPagamento`. Se a data do anexo vazasse para o cálculo, apareceria
+    // uma linha de 2026 aqui — e o custo iria para a declaração do ano errado.
+    expect(anos).toEqual([
+      {
+        obraId: CASA,
+        ano: 2025,
+        antesCentavos: 0,
+        depoisCentavos: 940_000,
+        pendencia: true,
+      },
+    ]);
+    expect(anos.some((a) => a.ano === 2026)).toBe(false);
+    // Ano anterior ao corrente → pendência de avaliar retificadora com o CRC.
+    expect(abrePendencia(anos)).toBe(true);
+    expect(anosComPendencia(anos)).toEqual([2025]);
+  });
+
+  it("pagamento do ANO CORRENTE: o custo entra e não abre pendência", () => {
+    const nota = doc({ id: "d-nf", valorCentavos: 300_000 });
+    const semComprovante = pag({
+      id: "p-pix",
+      valorCentavos: 300_000,
+      dataPagamento: "2026-04-10",
+      documentoIds: ["d-nf"],
+      comprovantePath: null,
+    });
+
+    const anos = anosAfetadosDeUmaObra(
+      CASA,
+      { documentos: [nota], pagamentos: [semComprovante] },
+      { documentos: [nota], pagamentos: [comComprovante(semComprovante)] },
+      2026,
+    );
+
+    expect(anos).toEqual([
+      {
+        obraId: CASA,
+        ano: 2026,
+        antesCentavos: 0,
+        depoisCentavos: 300_000,
+        pendencia: false,
+      },
+    ]);
+    // A DAA de 2026 ainda não foi entregue: o número se corrige sozinho antes
+    // dela (§5.3). Grava sem drama.
+    expect(abrePendencia(anos)).toBe(false);
+  });
+
+  it("SEM nota vinculada: nenhum ano muda, e isso é o comportamento correto", () => {
+    // ⚠️ **Critério 8 — é comportamento, não bug.** O comprovante destrava o
+    // pagamento, mas quem LIMITA o custo continua sendo a nota:
+    // `min(Σ pagamentos, Σ documentos hábeis) = min(940.000, 0) = 0` dos dois
+    // lados. Pagamento sozinho não comprova custo em ano nenhum — e por isso
+    // não há número declarado se mexendo, logo não há pendência a abrir, nem
+    // mesmo com o pagamento em ano anterior.
+    const semNotaNemComprovante = pag({
+      id: "p-avulso",
+      valorCentavos: 940_000,
+      dataPagamento: "2025-11-12",
+      documentoIds: [],
+      comprovantePath: null,
+    });
+
+    const anos = anosAfetadosDeUmaObra(
+      CASA,
+      { documentos: [], pagamentos: [semNotaNemComprovante] },
+      { documentos: [], pagamentos: [comComprovante(semNotaNemComprovante)] },
+      2026,
+    );
+
+    expect(anos).toEqual([]);
+    expect(abrePendencia(anos)).toBe(false);
+  });
+
+  it("o custo comprovado de 2025 sai da MESMA alocação da home", () => {
+    // O "antes → depois" da tela é `alocarCusto` rodada duas vezes sobre uma
+    // cópia — nunca uma segunda conta. Este teste ancora os dois números na
+    // função que produz o número da home.
+    const nota = doc({ id: "d-nf", valorCentavos: 600_000 });
+    const semComprovante = pag({
+      id: "p-pix",
+      valorCentavos: 600_000,
+      dataPagamento: "2025-10-20",
+      documentoIds: ["d-nf"],
+      comprovantePath: null,
+    });
+
+    const antes = alocarCusto({
+      documentos: [nota],
+      pagamentos: [semComprovante],
+    });
+    const depois = alocarCusto({
+      documentos: [nota],
+      pagamentos: [comComprovante(semComprovante)],
+    });
+
+    expect(custoComprovadoDoAno(antes, 2025)).toBe(0);
+    expect(custoComprovadoDoAno(depois, 2025)).toBe(600_000);
+    // E nada aparece em 2026, que é o ano do anexo.
+    expect(custoComprovadoDoAno(depois, 2026)).toBe(0);
+  });
+});
+
 describe("pagamentos vinculados e a guarda do vínculo cruzado", () => {
   it("só o pagamento ligado a ESTA nota é perguntado", () => {
     const nota = doc({ id: "d1" });
