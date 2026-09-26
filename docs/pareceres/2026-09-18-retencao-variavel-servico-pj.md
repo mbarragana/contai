@@ -727,3 +727,192 @@ estado que já existe hoje para uma nota sem nenhum pagamento registrado —
   `documento_retencao`.
 
 **O contai redige, dateia e organiza. Não assina.**
+
+---
+
+# ADENDO 4 — 2026-09-26 · o banner de "sem recolhedor" reaproveita o mesmo texto para dois estados fiscalmente diferentes
+
+- **Provocação**: o Mateus respondeu "Eu" para "Quem recolhe isto?" numa linha
+  de retenção, e o app continuou mostrando o banner vermelho *"Retenção
+  descontada do pagamento sem confirmação de quem recolhe — se ninguém
+  recolher, não é economia, é passivo não identificado."* Reação dele: *"isso
+  aqui não está correto, eu coloquei que quem deve pagar aquilo ali sou eu,
+  logo, se sabe quem vai pagar, eu só não paguei ainda."*
+- **Achado de código, confirmado por leitura de
+  `lib/fiscal/retencao.ts:495-503`**: a função `linhaSemRecolhedor` já
+  distingue corretamente, na LÓGICA, dois estados que fazem a pendência
+  "abrir" (um terceiro estado hipotético, `quem_recolhe = "empresa"` com nota
+  não fechada, **não existe** — essa combinação sempre retorna `false`, nunca
+  abre pendência):
+  - **Estado A** — `quem_recolhe` ainda não tem resposta útil (`"nao_sei"` na
+    prática; `null` com `e_desconto_efetivo = true` é estado inválido que o
+    CHECK da migration `0017` e `validarLinhaRetencao` não deixam persistir,
+    então nunca chega ao banner real).
+  - **Estado C** — `quem_recolhe = "eu"` **e** a soma dos pagamentos
+    vinculados à nota ainda não cobre o valor bruto (`notaCoberta = false`):
+    o Mateus já confirmou que É ELE quem recolhe; falta só a guia real.
+  O bug é só de **texto reaproveitado**: `app/_components/retencao.tsx:382`
+  renderiza `CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR` para os dois estados sem
+  checar qual foi. O cálculo de custo (`retencaoContaComoPerna`) já está
+  certo desde o ADENDO 3 e não muda com este adendo.
+
+## Pergunta 1 — a distinção A/C está correta; não há um terceiro estado nem nuance entre `null`/`"nao_sei"`
+
+[Certain] A distinção acima é exatamente a que a migration `0017` e
+`validarLinhaRetencao` impõem: uma linha com `e_desconto_efetivo = true` nunca
+persiste com `quem_recolhe = null`. Para toda linha gravada no banco, Estado A
+é sempre `"nao_sei"` — o ramo `null` dentro de `linhaSemRecolhedor` é defesa
+contra dado inválido em memória, nunca alcançado pelo banner em produção. Não
+existe consequência fiscal própria para `null` que precise de um terceiro
+texto.
+
+## Pergunta 2 — as duas consequências são diferentes, e o texto genérico está certo só para uma delas
+
+[Certain] **Estado A (ninguém confirmado)**: o texto atual continua correto
+e não muda. Pela regra já normatizada no ADENDO 3, `"nao_sei"` soma como
+perna de pagamento igual a `"empresa"` — o valor JÁ conta como custo de
+aquisição comprovado. O risco aqui não é o custo de aquisição do Mateus: é
+que a retenção pode não ter fundamento legal nenhum (para tomador pessoa
+física o art. 31 não existe em percentual nenhum, §0/§2 do corpo deste
+parecer) e o prestador pode voltar cobrando a diferença que descontou sem
+direito — **passivo civil/de terceiro**, nunca do custo de aquisição dele.
+
+[Certain] **Estado C (confirmado que é ele, guia ainda não paga)**: a
+consequência é outra, e o texto genérico a descreve errado. Não há passivo
+não identificado — o responsável já está identificado, é o próprio Mateus.
+É uma pendência de **fluxo de caixa**: enquanto a guia não for paga e
+vinculada ao documento, a fatia simplesmente não conta como custo (regime de
+caixa, IN SRF 84/2001 art. 17) — mecânica normal do produto, não uma ameaça
+por si só. O risco que o texto atual NÃO cobre, e que o texto novo cobre: se
+a guia nunca for paga, dois efeitos se somam — (a) a fatia fica fora do custo
+de aquisição para sempre, aumentando o ganho de capital tributável na venda
+futura; (b) se o tributo por trás da retenção era de fato devido, o valor não
+recolhido é dívida tributária vencida em nome do próprio Mateus, sujeita a
+juros e multa — [Guessing] a alíquota de mora e o tributo exato dependem da
+composição da linha (pode ser combinada/não aberta, A.1 do adendo original) e
+exigem confirmação de contador humano (CRC) se a cobrança/apuração vier a
+acontecer de fato; este adendo não estima valor nenhum.
+
+## Pergunta 3 — os dois textos, prontos para constante
+
+**Estado A** — mantém `CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR` sem alteração
+nenhuma:
+
+> "Retenção descontada do pagamento sem confirmação de quem recolhe — se
+> ninguém recolher, não é economia, é passivo não identificado."
+
+**Estado C** — texto novo, citação literal para uma constante nova (sugestão
+de nome: `CONSEQUENCIA_RETENCAO_EU_SEM_GUIA`):
+
+> "Você já confirmou que quem recolhe esta retenção é você — a pendência
+> aqui não é de identificação, é de pagamento: enquanto a guia não for paga
+> e vinculada a este documento, esta fatia não entra no custo de aquisição
+> do ano nenhum. Se a guia nunca for paga, o efeito não é apenas essa fatia
+> ficar fora do custo para sempre — o valor retido se torna dívida
+> tributária vencida em seu nome, sujeita a juros e multa."
+
+## Continuação — 2026-09-26, resposta ao Gate 2 do `cto-obra` (CONTAI-059)
+
+O `cto-obra`, desenhando a implementação deste ADENDO, trouxe três pontos que
+tocam regra fiscal e por isso exigem ratificação minha antes de virarem
+critério de aceite — ele fez certo em não decidir sozinho.
+
+### Pergunta 4 — card por documento com linhas em A e C ao mesmo tempo: ratifico a prioridade, sem terceiro texto
+
+[Certain] Ratifico a regra proposta: **se qualquer linha aberta do documento
+está em Estado A, o card mostra o conjunto de texto do Estado A (chip, título
+e parágrafo); só quando TODAS as linhas abertas estão em Estado C o card
+mostra o conjunto do Estado C.** Não crio um terceiro texto "misto".
+
+Razão: a ordenação de gravidade entre A e C que este adendo já estabeleceu
+(Pergunta 2) não é só uma questão de tom — é uma questão de **qual ação falta
+primeiro**. Estado A é um problema de fundamento (nem sabemos quem assume o
+risco de a retenção não ter respaldo legal, §0/§2 do corpo do parecer);
+Estado C já superou esse problema e só falta um pagamento. Enquanto existir
+uma linha em A no documento, a ação pendente mais urgente continua sendo a de
+A — misturar os dois textos no card não muda qual ação o Mateus precisa tomar
+primeiro, só adiciona texto para ler. Um terceiro texto "misto" resolveria um
+problema estético (o card não descreve 100% do documento), não um problema
+fiscal — e este parecer não cria texto de consequência fiscal para resolver
+estética. O nível de linha (dentro do documento, cada linha já mostra seu
+próprio estado) é onde a granularidade real mora; o card é resumo, e resumo
+correto é o do pior caso.
+
+### Pergunta 5 — chip e título ficam em escopo deste ticket, não depois
+
+[Certain] Isto **não é over-engineering — é completar a mesma correção**, e
+deixá-los de fora piora a situação que motivou o ticket, não a mantém neutra.
+Hoje chip e banner erram na mesma direção ("sem confirmar"), o que é uma
+mentira só. Se só o parágrafo for corrigido, o card passa a ter, ao mesmo
+tempo, um título dizendo "sem confirmar quem recolhe" e um parágrafo, um
+scroll abaixo, dizendo "você já confirmou que quem recolhe é você" — duas
+frases que se contradizem dentro do mesmo componente. Isso é pior do que o
+bug original relatado pelo Mateus: antes ele desconfiava de um texto errado;
+depois da correção parcial ele veria o produto se contradizer sozinho, o que
+é o tipo exato de coisa que corrói confiança mais rápido. Incluir chip e
+título no critério de aceite do ticket.
+
+Redação — texto de produto (não citação de parecer, mesma convenção que os
+dois textos atuais em `retencao.ts`; `designer`/`cto-obra` podem ajustar a
+palavra exata, contanto que preservem os dois fatos fiscais abaixo):
+
+- **Fato 1**: não pode dizer nem sugerir "sem confirmar" — já foi confirmado.
+- **Fato 2**: não pode dizer nem sugerir "resolvido"/"quitado" — o risco da
+  guia nunca ser paga (Pergunta 2) continua de pé.
+
+Sugestão que atende aos dois:
+- Chip (`CHIP_RETENCAO_GUIA_PENDENTE`): **"Guia de retenção pendente"**
+- Título (`TITULO_RETENCAO_GUIA_PENDENTE`): **"Recolhedor confirmado — guia
+  ainda não paga"**
+
+### Pergunta 6 — Estado C muda de vermelho para âmbar; vermelho fica exclusivo do Estado A
+
+[Certain] Concordo que o Estado C deveria deixar de ser vermelho, e esta
+seção **é** o parecer que a D54 exige para autorizar a mudança — não fico só
+"em aberto".
+
+Razão: a cor vermelha, no produto, carrega um significado fiscal específico —
+é a mesma frase que justifica o texto do Estado A, "passivo não
+identificado". A Pergunta 2 deste adendo já estabeleceu, com autoridade
+fiscal, que essa frase **não se aplica** ao Estado C ("não há passivo não
+identificado... mecânica normal do produto, não uma ameaça por si só"). Manter
+vermelho no Estado C depois de já ter escrito isso é o mesmo bug que este
+ADENDO inteiro existe para corrigir — só que na cor em vez do texto: o produto
+continuaria sinalizando, por um canal diferente (cor), exatamente a mensagem
+que o parecer já disse ser falsa para este estado. Isso não é decorativo:
+gravidade/cor é onde o Mateus decide, num relance, o que precisa de atenção
+imediata — se dois estados fiscalmente distintos (um com risco presente e não
+resolvido de terceiro, outro com risco contingente e sob controle dele) usam
+a mesma cor mais grave da paleta, a cor deixa de discriminar informação.
+
+Isso não significa que o Estado C vira "sem risco" (verde/neutro seria
+exagero na direção oposta) — o risco de dívida tributária futura, se a guia
+nunca for paga, é real e está descrito na Pergunta 2. Âmbar é a categoria
+certa: atenção/ação pendente, sob controle do usuário, sem o "passivo não
+identificado" do Estado A. Vermelho fica reservado exclusivamente para Estado
+A daqui em diante, nesta família de pendência.
+
+Isto vira critério de aceite do ticket: `gravidade.ts` passa a diferenciar
+Estado A (vermelho, sem mudança) de Estado C (âmbar) para
+`retencao_sem_recolhedor` — o nome do token/enum é decisão técnica do
+`cto-obra`, a categoria de severidade é fiscal e está fixada aqui.
+
+## O que este adendo NÃO muda
+
+- Nenhuma migration, nenhum campo novo.
+- Nenhuma mudança em `retencaoContaComoPerna`/`alocarCusto` — o cálculo de
+  custo já está certo desde o ADENDO 3; este adendo é só sobre qual texto o
+  usuário lê em cada estado.
+- A recomendação de que `linhaSemRecolhedor` passe a expor o motivo (não só
+  `boolean`) para o componente escolher o texto certo é técnica, do
+  `cto-obra`/`lead-engineer` — este adendo fixa o texto e a regra fiscal por
+  trás dele, não a forma de implementar a bifurcação.
+
+## O que a continuação de 2026-09-26 muda, além do texto do banner
+
+- A gravidade/cor do Estado C deixa de ser vermelha (Pergunta 6) — é presentation
+  layer (`gravidade.ts`), sem migration e sem efeito em cálculo.
+- Chip e título ganham variante para o Estado C (Pergunta 5) — mesma natureza
+  de texto de produto que os já existentes, sem campo novo no banco.
+
+**O contai redige, dateia e organiza. Não assina.**

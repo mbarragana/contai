@@ -1,8 +1,12 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 19 tickets (mais 1 parado, aguardando o Mateus)
 
-*(2026-09-26: dois bugs relatados em produção logo após o `CONTAI-056`
+*(2026-09-26, mais tarde ainda: dois NOVOS achados de produção (texto de
+pendência errado no Estado C da retenção; `/despesas` sem filtro de ano)
+viram `CONTAI-059` e `CONTAI-060` — volta a 19, os dois bloqueados por
+Gate 0 (`/design`).
+2026-09-26: dois bugs relatados em produção logo após o `CONTAI-056`
 viram `CONTAI-057` (legibilidade de Despesas, bloqueado por Gate 0) e
 `CONTAI-058` (cache/revalidação do shell de gestão) — volta a 19.
 `CONTAI-058` entregue no mesmo dia (Gate 4, 7/7 PASS) — volta a 18, com
@@ -27,6 +31,22 @@ a 19; `053` continua bloqueado por Gate 0, `055` agora só bloqueado por
 — volta a 18; `055` fica sozinho na fila, sem bloqueio. 2026-09-25, ainda
 mais tarde: **`055` entregue** (Gate 4, 5/5 PASS) — volta a 17, **fila de
 implementação vazia** — fecha o backlog 71 inteiro (`053`+`054`+`055`).)*
+
+**2026-09-26, mais tarde ainda**: **`CONTAI-059`/`060` criados** — dois
+achados novos em produção, na mesma linha de retenção que motivou o
+`CONTAI-056`/`057`/`058`. `CONTAI-059` (P1): o banner de pendência de
+retenção usava o mesmo texto genérico ("sem confirmação de quem recolhe")
+tanto para quando ninguém respondeu quem recolhe quanto para quando o
+Mateus já respondeu "Eu" e só falta pagar a guia — texto factualmente
+errado no segundo caso. Corrige texto, chip, título **e cor** (Estado C
+deixa de ser vermelho, vira âmbar — a mudança de cor é o próprio parecer
+que a dívida D54 exigia). `CONTAI-060` (P1): `/despesas` não tinha filtro
+de ano nenhum (mostrava todos os anos da obra), enquanto a Home mostra só
+o ano corrente — comparação sempre divergia numa obra que cruza anos-
+calendário. Ganha seletor de ano no shell, sincronizando Home + Despesas
+**e fechando de graça** a dívida antiga do `CONTAI-040`/`48` sobre
+`/pendencias`. Os dois bloqueados por Gate 0 (`/design`). Detalhe:
+`docs/tickets/CONTAI-059.md`, `docs/tickets/CONTAI-060.md`.
 
 **2026-09-26, mais tarde**: **`057` entregue** — Gate 4 (`po`), 9/9
 critérios PASS. Coluna própria **"Custo confirmado"** (mono, semibold,
@@ -675,9 +695,17 @@ ticket pronto para `/develop` aguardando início.
 `058` sai da fila no mesmo dia, entregue. `057` fica sozinho, bloqueado por
 Gate 0 (`/design`).
 
+**2026-09-26, mais tarde**: **`057` sai da fila** — entregue (ver nota no
+topo). **Fila de implementação vazia** de novo.
+
+**2026-09-26, ainda mais tarde**: **`059`/`060` entram** — dois achados
+novos na mesma linha de retenção (texto/cor de pendência; filtro de ano em
+Despesas). Os dois bloqueados por Gate 0 (`/design`).
+
 | Ordem | # | Ticket | P | Pronto para `/develop` |
 |---|---|---|---|---|
-| — | 057 | Coluna própria para custo comprovado em Despesas | P1 | ⛔ bloqueado por Gate 0 (`/design`) |
+| — | 059 | Texto e cor da pendência de retenção (Estado A ≠ C) | P1 | ⛔ bloqueado por Gate 0 (`/design`) |
+| — | 060 | Seletor de ano no shell (Home + Despesas + Pendências) | P1 | ⛔ bloqueado por Gate 0 (`/design`) |
 
 ### 🛑 Em espera — decisão do Mateus, 2026-09-23
 
