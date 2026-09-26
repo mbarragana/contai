@@ -53,10 +53,9 @@ import {
   faltaOArquivo,
 } from "./documento";
 import {
-  CHIP_RETENCAO_SEM_RECOLHEDOR,
-  CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR,
   linhaSemRecolhedor,
-  TITULO_RETENCAO_SEM_RECOLHEDOR,
+  motivoDaRetencaoDoDocumento,
+  TEXTO_DA_RETENCAO_ABERTA,
 } from "./retencao";
 import { ACAO_NOTA_SEM_CNO, CONSEQUENCIA_CNO_DA_NOTA } from "./obra";
 import {
@@ -109,8 +108,14 @@ export type TipoPendencia =
   // retenção de 11%" — a
   // conta que a aferição do SERO nunca faz (parecer de 2026-09-18, §2). Esta
   // dispara por um fato do mundo: um valor foi DESCONTADO do que ele transfere
-  // ao prestador e ninguém confirmou quem recolhe. VERMELHA, por exceção
-  // nomeada na régua (critério 7a) — ver o bloco 4 lá embaixo.
+  // ao prestador e ninguém confirmou quem recolhe.
+  //
+  // ⚠️ **A COR não é mais uma só, desde o CONTAI-059** (ADENDO 4, Pergunta 6):
+  // vermelha por exceção nomeada quando ninguém foi confirmado (Estado A),
+  // âmbar pela régua quando o Mateus já respondeu "Eu" e falta só a guia
+  // (Estado C). O `tipo` continua um só de propósito — a família, a ação
+  // ("Ver detalhes") e o lugar dela na fila não mudaram; o que bifurca é o
+  // texto e a cor. Ver o bloco 4 lá embaixo e `TEXTO_DA_RETENCAO_ABERTA`.
   | "retencao_sem_recolhedor"
   // ── CONTAI-019 ─────────────────────────────────────────────────────────
   // As duas entram no bloco de PENDÊNCIAS FISCAIS porque o dinheiro JÁ SAIU:
@@ -775,32 +780,38 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
     // — e divergir aqui é a home mostrar vermelho enquanto a tela diz que
     // fechou, sobre a MESMA pendência.
     const coberta = notaCoberta(d, alocacao);
+    // ⚠️ **CONTAI-059 — o card resume o PIOR caso das linhas abertas**, e a
+    // regra é do `contador` (ADENDO 4, Pergunta 4): qualquer linha em Estado A
+    // ("não sei quem recolhe") faz o card inteiro falar por A; só com TODAS as
+    // abertas em Estado C ("sou eu, e a guia não saiu") ele fala por C. Não
+    // existe terceiro texto "misto" — o card é resumo, e a granularidade real
+    // mora no nível da linha, em `/documento/[id]`.
+    const motivo = motivoDaRetencaoDoDocumento(d.retencoes, coberta);
+    if (motivo === null) continue;
+    const texto = TEXTO_DA_RETENCAO_ABERTA[motivo];
     const abertas = d.retencoes.filter((l) => linhaSemRecolhedor(l, coberta));
-    if (abertas.length === 0) continue;
     pendencias.push({
       id: `retencao-sem-recolhedor:${d.id}`,
       tipo: "retencao_sem_recolhedor",
-      chip: CHIP_RETENCAO_SEM_RECOLHEDOR,
-      titulo: TITULO_RETENCAO_SEM_RECOLHEDOR,
+      // ⚠️ Os QUATRO campos saem do mesmo objeto, nunca escolhidos um a um: era
+      // exatamente a mistura de conjuntos (parágrafo de um estado com título de
+      // outro) que o ADENDO 4, Pergunta 5, chamou de "pior do que o bug
+      // original" — o produto se contradizendo dentro do mesmo card.
+      chip: texto.chip,
+      titulo: texto.titulo,
       detalhe: d.favorecidoNome ?? SEM_FAVORECIDO,
       // Só o que ainda está ABERTO. A linha "a empresa recolhe" some do valor
       // no mesmo carregamento em que foi respondida.
       valorCentavos: abertas.reduce((soma, l) => soma + l.valorCentavos, 0),
-      // Literal do parecer (ADENDO A.4) — a MESMA constante que o card da
-      // linha em `/documento/[id]` lê. Uma fonte, duas telas.
-      consequencia: CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR,
-      // ⚠️ **VERMELHA por EXCEÇÃO NOMEADA, nunca por cor literal** (critério
-      // 7a). Pelos dois eixos da régua isto seria âmbar — o valor retido não
-      // saiu do bolso dele (`dinheiroSaiu: false`) e a nota hábil existe
-      // (`apoioHabilNoAnoCerto: true`). O vermelho se funda em outra coisa,
-      // escrita no ADENDO A.4: *"retenção que ninguém recolhe não é economia,
-      // é passivo não identificado"*. Passivo aberto não é o objeto que a
-      // régua mede, e por isso a divergência é declarada em
-      // `lib/fiscal/gravidade.ts` em vez de escondida num `"red"` solto.
-      gravidade: gravidadeDaRegua(
-        { dinheiroSaiu: false, apoioHabilNoAnoCerto: true },
-        "retencao_sem_recolhedor",
-      ),
+      // Literal do parecer (ADENDO A.4 para o Estado A, ADENDO 4 Pergunta 3
+      // para o C) — as MESMAS constantes que o card da linha em
+      // `/documento/[id]` lê. Uma fonte, duas telas.
+      consequencia: texto.consequencia,
+      // ⚠️ **Nunca cor literal** (D54): a do Estado A é vermelha por exceção
+      // nomeada em `lib/fiscal/gravidade.ts`, a do C é âmbar pela régua sem
+      // exceção. As duas nascem em `TEXTO_DA_RETENCAO_ABERTA`, com os fatos
+      // declarados ali — este bloco não escolhe cor, ele a repassa.
+      gravidade: texto.gravidade,
       href: `/documento/${d.id}`,
     });
   }

@@ -12,7 +12,14 @@ import {
   CONSEQUENCIA_CNO_DA_NOTA,
   notasEmitidasSemCno,
 } from "@/lib/fiscal/obra";
-import { CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR } from "@/lib/fiscal/retencao";
+import {
+  CHIP_RETENCAO_GUIA_PENDENTE,
+  CHIP_RETENCAO_SEM_RECOLHEDOR,
+  CONSEQUENCIA_RETENCAO_EU_SEM_GUIA,
+  CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR,
+  TITULO_RETENCAO_GUIA_PENDENTE,
+  TITULO_RETENCAO_SEM_RECOLHEDOR,
+} from "@/lib/fiscal/retencao";
 import { calcularResumo, type EntradaResumo } from "@/lib/fiscal/resumo";
 import type {
   Documento,
@@ -733,6 +740,93 @@ describe("pendências", () => {
       });
       expect(abertas(r)).toHaveLength(1);
       expect(abertas(r)[0].valorCentavos).toBe(60_000);
+    });
+
+    // ══ CONTAI-059 · o card do documento fala por UM estado, o pior ═══════
+    //
+    // Fonte: ADENDO 4 + "Continuação — 2026-09-26" (Pergunta 4), ratificado
+    // pelo `contador`. A pendência é por DOCUMENTO desde o CONTAI-038, e um
+    // documento pode ter linha em A e linha em C ao mesmo tempo — é aqui que a
+    // prioridade do critério 6 vive, e nunca na tela.
+
+    it("todas as abertas em Estado C → o card usa o conjunto de C, âmbar", () => {
+      const r = resumo({
+        documentos: [
+          doc({
+            id: "d1",
+            tipo: "nf_servico",
+            classificacao: "mao_obra",
+            retencaoNaNota: "destacada",
+            valorCentavos: 1_800_000,
+            retencoes: [linha({ quemRecolhe: "eu", valorCentavos: 54_000 })],
+          }),
+        ],
+        // O líquido pago, a guia não: a nota segue descoberta e o C fica aberto.
+        pagamentos: [
+          pag({ id: "p1", valorCentavos: 1_746_000, documentoIds: ["d1"] }),
+        ],
+      });
+      const p = abertas(r)[0];
+      expect(p.chip).toBe(CHIP_RETENCAO_GUIA_PENDENTE);
+      expect(p.titulo).toBe(TITULO_RETENCAO_GUIA_PENDENTE);
+      expect(p.consequencia).toBe(CONSEQUENCIA_RETENCAO_EU_SEM_GUIA);
+      // ⚠️ ÂMBAR (Pergunta 6): vermelho passa a ser exclusivo do Estado A.
+      expect(p.gravidade).toBe("amb");
+      // O que NÃO mudou: id, tipo, valor da linha aberta e a porta de saída.
+      expect(p.id).toBe("retencao-sem-recolhedor:d1");
+      expect(p.valorCentavos).toBe(54_000);
+      expect(p.href).toBe("/documento/d1");
+    });
+
+    /**
+     * ⚠️ **O caso misto, e ele é o critério 6 inteiro.** Nenhum terceiro texto
+     * "misto" nasce: *"enquanto existir uma linha em A no documento, a ação
+     * pendente mais urgente continua sendo a de A"* — o card é resumo, e resumo
+     * correto é o do pior caso.
+     */
+    it("linha em A + linha em C no MESMO documento → o card fala por A", () => {
+      const r = resumo({
+        documentos: [
+          doc({
+            id: "d1",
+            tipo: "nf_servico",
+            classificacao: "mao_obra",
+            retencaoNaNota: "destacada",
+            valorCentavos: 1_800_000,
+            retencoes: [
+              linha({ id: "l1", quemRecolhe: "eu", valorCentavos: 54_000 }),
+              linha({ id: "l2", quemRecolhe: "nao_sei", valorCentavos: 10_000 }),
+            ],
+          }),
+        ],
+      });
+      const p = abertas(r)[0];
+      expect(p.chip).toBe(CHIP_RETENCAO_SEM_RECOLHEDOR);
+      expect(p.titulo).toBe(TITULO_RETENCAO_SEM_RECOLHEDOR);
+      expect(p.consequencia).toBe(CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR);
+      expect(p.gravidade).toBe("red");
+      // Continua UMA pendência, somando as DUAS linhas abertas.
+      expect(abertas(r)).toHaveLength(1);
+      expect(p.valorCentavos).toBe(64_000);
+    });
+
+    it("'A empresa' continua sem pendência nenhuma — nem A, nem C", () => {
+      const r = resumo({
+        documentos: [
+          doc({
+            id: "d1",
+            tipo: "nf_servico",
+            classificacao: "mao_obra",
+            retencaoNaNota: "destacada",
+            valorCentavos: 1_800_000,
+            retencoes: [linha({ quemRecolhe: "empresa" })],
+          }),
+        ],
+      });
+      // O CONTAI-059 não criou texto para este estado, e não devia: ele não é
+      // pendência (ADENDO 4 — a combinação "empresa" + nota descoberta nunca
+      // abriu nada). Se um card aparecer aqui, o ticket vazou de escopo.
+      expect(abertas(r)).toHaveLength(0);
     });
 
     it("nota em QUARENTENA não abre a pendência — ela está fora do custo", () => {

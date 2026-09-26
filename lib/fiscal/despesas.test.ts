@@ -38,7 +38,9 @@ import {
 import { CONSEQUENCIA_CNO_DA_NOTA } from "@/lib/fiscal/obra";
 import {
   CHIP_QUITADO_POR_RETENCAO,
+  CHIP_RETENCAO_GUIA_PENDENTE,
   CHIP_RETENCAO_SOBRECOBERTA,
+  CONSEQUENCIA_RETENCAO_EU_SEM_GUIA,
   CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR,
   RETENCAO_EXPLICA_A_SOBRA,
   RETENCAO_SOBRECOBERTA,
@@ -760,6 +762,45 @@ describe("as situações da coluna `Situação`", () => {
     const cno = linha.situacoes.find((s) => s.chip === "Nota sem CNO")!;
     expect(cno.consequencia).toBe(CONSEQUENCIA_CNO_DA_NOTA);
     expect(cno.cor).toBe("amb");
+  });
+
+  /**
+   * **CONTAI-059 — `/despesas` HERDA a bifurcação, e não a reimplementa.**
+   *
+   * A anotação desta tela copia `chip`/`consequencia`/`gravidade` do MESMO
+   * `Pendencia` que a home usa (`ORIGEM_DA_PENDENCIA.retencao_sem_recolhedor =
+   * "documento"`). Este teste é a prova de que a herança é real: se alguém
+   * reescrever o texto aqui, ele quebra — que é exatamente a D46 que a
+   * arquitetura da tela existe para impedir.
+   */
+  it("a anotação de retenção herda o texto do Estado C, sem código próprio", () => {
+    const { linhas } = projetar(
+      [
+        doc({
+          id: "d1",
+          tipo: "nf_servico",
+          classificacao: "mao_obra",
+          valorCentavos: 1_100_000,
+          retencaoNaNota: "destacada",
+          // "Eu recolho", e a guia ainda não apareceu: Estado C.
+          retencoes: [linhaRetencao({ quemRecolhe: "eu" })],
+          notaTrazCno: true,
+          cnoReferenciado: OBRA.cno,
+        }),
+      ],
+      // Só o líquido — a nota segue descoberta pelos 54.000 da retenção.
+      [pag({ id: "p1", valorCentavos: 1_046_000, documentoIds: ["d1"] })],
+    );
+
+    const anotacao = linhaDe(linhas, "pagamento:p1").situacoes.find(
+      (s) => s.chip === CHIP_RETENCAO_GUIA_PENDENTE,
+    )!;
+    expect(anotacao.consequencia).toBe(CONSEQUENCIA_RETENCAO_EU_SEM_GUIA);
+    expect(anotacao.cor).toBe("amb");
+    // E o chip do Estado A não aparece em lugar nenhum desta linha.
+    expect(chips(linhaDe(linhas, "pagamento:p1"))).not.toContain(
+      "Retenção sem recolhedor",
+    );
   });
 
   /**

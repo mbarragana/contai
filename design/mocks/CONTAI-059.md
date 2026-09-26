@@ -57,7 +57,8 @@ ação (salvar resposta) e não muda.
 
 ## Campos
 
-N/A — sem campo novo; a tela só muda o que mostra após a resposta já gravada.
+- SEM CAMPOS — sem campo novo; a tela só muda o que mostra após a resposta já
+  gravada. Nenhum controle, nenhum rótulo de campo, nenhum default tocado.
 
 ## Textos com consequência fiscal
 

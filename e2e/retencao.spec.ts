@@ -86,6 +86,20 @@ const CONSEQUENCIA =
   "Retenção descontada do pagamento sem confirmação de quem recolhe — se " +
   "ninguém recolher, não é economia, é passivo não identificado.";
 
+/**
+ * **CONTAI-059 — o texto do Estado C**, cópia literal do ADENDO 4, Pergunta 3.
+ * Digitado aqui de novo de propósito: um E2E que importasse a constante passaria
+ * mesmo se alguém reescrevesse a constante. A literalidade contra o PARECER é
+ * travada no unitário (`lib/fiscal/retencao.test.ts`).
+ */
+const CONSEQUENCIA_EU_SEM_GUIA =
+  "Você já confirmou que quem recolhe esta retenção é você — a pendência aqui " +
+  "não é de identificação, é de pagamento: enquanto a guia não for paga e " +
+  "vinculada a este documento, esta fatia não entra no custo de aquisição do " +
+  "ano nenhum. Se a guia nunca for paga, o efeito não é apenas essa fatia " +
+  "ficar fora do custo para sempre — o valor retido se torna dívida tributária " +
+  "vencida em seu nome, sujeita a juros e multa.";
+
 // ══ 1 · Captura — o gate, e SÓ o gate ════════════════════════════════════
 
 test.describe("captura: o gate de duas opções (critérios 1 e 2)", () => {
@@ -432,7 +446,13 @@ test.describe("a pendência nasce, e fecha pelas condições do parecer", () => 
     });
     await criarVinculo(db, liquido, id);
     await page.goto("/pendencias");
-    await expect(page.getByText("Retenção sem recolhedor")).toBeVisible();
+    // ⚠️ **O CHIP mudou no CONTAI-059, a CONDIÇÃO não.** Esta asserção dizia
+    // "Retenção sem recolhedor" — e era o bug relatado pelo Mateus em forma de
+    // teste: ele respondeu "Eu" e a fila continuava afirmando que ninguém foi
+    // confirmado. Aberta ela continua (a guia não apareceu); o que ela diz é
+    // que falta a GUIA.
+    await expect(page.getByText("Guia de retenção pendente")).toBeVisible();
+    await expect(page.getByText("Retenção sem recolhedor")).toHaveCount(0);
 
     // A perna da guia, vinculada à mesma nota: Σ pagamentos == bruto → fecha.
     const guia = await criarPagamento(db, {
@@ -444,7 +464,117 @@ test.describe("a pendência nasce, e fecha pelas condições do parecer", () => 
     });
     await criarVinculo(db, guia, id);
     await page.goto("/pendencias");
+    await expect(page.getByText("Guia de retenção pendente")).toHaveCount(0);
     await expect(page.getByText("Retenção sem recolhedor")).toHaveCount(0);
+  });
+
+  /**
+   * **CONTAI-059 — o Estado C tem texto e cor PRÓPRIOS nas duas superfícies.**
+   *
+   * Fonte: ADENDO 4 (2026-09-26) + "Continuação — 2026-09-26". O bug relatado
+   * pelo Mateus: ele respondeu "Eu" e continuou vendo o banner vermelho de "sem
+   * confirmar quem recolhe". Aqui o cenário é o dele — "Eu" gravado, líquido
+   * pago, guia ainda não — e a asserção é das DUAS coisas que erravam: a frase
+   * e a cor.
+   */
+  test("'Eu' sem a guia: banner ÂMBAR com o texto do Estado C, na nota e na fila", async ({
+    page,
+    db,
+  }) => {
+    const id = await notaComRetencaoDestacada(db, { valor: 18000 });
+    await criarLinhaDeRetencao(db, linhaDoFrancisco(id, { quem_recolhe: "eu" }));
+    // O líquido pago, a guia não: a nota segue descoberta pelos R$ 540,00.
+    const liquido = await criarPagamento(db, {
+      favorecido_id: (await documentos(db))[0].favorecido_id,
+      valor: 17460,
+      data_pagamento: "2026-03-25",
+      meio: "pix",
+      comprovante_path: "u/pix.png",
+    });
+    await criarVinculo(db, liquido, id);
+
+    // ── (a) o banner por linha, em `/documento/[id]` ─────────────────────
+    await page.goto(`/documento/${id}`);
+    const banner = page.locator('[data-pendencia="retencao-sem-recolhedor"]');
+    await expect(banner).toBeVisible();
+    await expect(banner).toHaveAttribute("data-motivo", "eu_sem_guia");
+    await expect(banner.getByText(CONSEQUENCIA_EU_SEM_GUIA)).toBeVisible();
+    // ⚠️ **ÂMBAR, e a cor é metade do bug** (Pergunta 6): vermelho carrega
+    // "passivo não identificado", que o parecer já disse não valer aqui.
+    await expect(banner.locator("p")).toHaveClass(/text-amb/);
+    // ⚠️ **A MOLDURA acompanha o banner** — extensão aprovada nos dois Gates 2.
+    // Com `border-red` aqui, o bloco inteiro continuaria gritando "passivo não
+    // identificado" em volta de um parágrafo âmbar que diz o contrário: é o
+    // mesmo bug deste ticket, só que no canal da cor.
+    const bloco = page.locator('[data-bloco="retencao"]');
+    await expect(bloco).toHaveClass(/border-amb/);
+    await expect(bloco).not.toHaveClass(/border-red/);
+    // E o texto do Estado A não sobra em canto nenhum da tela.
+    await expect(page.getByText(CONSEQUENCIA)).toHaveCount(0);
+
+    // ── (b) o card agregado, em `/pendencias` ────────────────────────────
+    await page.goto("/pendencias");
+    const chip = page.getByText("Guia de retenção pendente", { exact: true });
+    await expect(chip).toBeVisible();
+    await expect(chip).toHaveClass(/text-amb/);
+    await expect(
+      page.getByText("Recolhedor confirmado — guia ainda não paga"),
+    ).toBeVisible();
+    await expect(page.getByText(CONSEQUENCIA_EU_SEM_GUIA)).toBeVisible();
+    // O chip e o texto do Estado A não aparecem: um card, um estado.
+    await expect(page.getByText("Retenção sem recolhedor")).toHaveCount(0);
+    // O valor continua sendo o da LINHA aberta, e a porta continua a mesma.
+    const card = chip.locator("..");
+    await expect(card.getByText("R$ 540,00")).toBeVisible();
+    await expect(card.getByRole("link", { name: "Ver detalhes" })).toHaveAttribute(
+      "href",
+      `/documento/${id}`,
+    );
+  });
+
+  /**
+   * **Critério 6 / Pergunta 4 — o card de um documento MISTO fala pelo pior
+   * caso.** Duas linhas na mesma nota: uma "Eu" (C) e uma "Ainda não sei" (A).
+   * O card é um só, e é o de A; cada linha, dentro da nota, mostra o seu.
+   */
+  test("documento com linha em A e linha em C: o card fala por A, as linhas por si", async ({
+    page,
+    db,
+  }) => {
+    const id = await notaComRetencaoDestacada(db, { valor: 18000 });
+    await criarLinhaDeRetencao(db, linhaDoFrancisco(id, { quem_recolhe: "eu" }));
+    await criarLinhaDeRetencao(
+      db,
+      linhaDoFrancisco(id, {
+        rotulo_literal: "ISS retido na fonte",
+        valor: 100,
+        quem_recolhe: "nao_sei",
+      }),
+    );
+
+    // Na nota, cada linha diz o SEU estado — a granularidade real mora aqui.
+    await page.goto(`/documento/${id}`);
+    const banners = page.locator('[data-pendencia="retencao-sem-recolhedor"]');
+    await expect(banners).toHaveCount(2);
+    await expect(
+      page.locator('[data-motivo="eu_sem_guia"]'),
+    ).toHaveCount(1);
+    await expect(
+      page.locator('[data-motivo="sem_recolhedor"]'),
+    ).toHaveCount(1);
+    // A moldura do bloco segue o PIOR dos dois — mesma agregação do card.
+    await expect(page.locator('[data-bloco="retencao"]')).toHaveClass(
+      /border-red/,
+    );
+
+    // No resumo, UM card, e o do pior caso — sem terceiro texto "misto".
+    await page.goto("/pendencias");
+    const chip = page.getByText("Retenção sem recolhedor", { exact: true });
+    await expect(chip).toBeVisible();
+    await expect(chip).toHaveClass(/text-red/);
+    await expect(page.getByText("Guia de retenção pendente")).toHaveCount(0);
+    // Soma as DUAS linhas abertas: R$ 540,00 + R$ 100,00.
+    await expect(chip.locator("..").getByText("R$ 640,00")).toBeVisible();
   });
 
   test("linha informativa (desconto não efetivo) NUNCA abre pendência", async ({

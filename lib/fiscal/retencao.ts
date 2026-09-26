@@ -43,6 +43,7 @@
  * continua o mesmo.
  */
 
+import { gravidadeDaRegua, type Gravidade } from "./gravidade";
 import type {
   ComposicaoRetencao,
   Documento,
@@ -190,6 +191,12 @@ export const NOME_TRIBUTO: Record<TributoRetido, string> = {
  * linha em `/documento/[id]` e o card de pendência da home) — uma constante,
  * duas telas, porque duas cópias divergem e a primeira coisa que diverge é a
  * consequência fiscal.
+ *
+ * ⚠️ **Desde o CONTAI-059 ela é do ESTADO A, e só dele** (ADENDO 4, Pergunta 2):
+ * `quem_recolhe` sem resposta útil. A linha em que o Mateus já respondeu "Eu" e
+ * a guia ainda não apareceu é o **Estado C**, e lá esta frase estava
+ * literalmente errada — ver `CONSEQUENCIA_RETENCAO_EU_SEM_GUIA` e
+ * `motivoDaRetencaoAberta` mais abaixo.
  */
 export const CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR =
   "Retenção descontada do pagamento sem confirmação de quem recolhe — se " +
@@ -205,12 +212,43 @@ export const CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR =
 export const ROTULO_RETENCAO_NAO_DISCRIMINADA =
   "retenção não discriminada, presumivelmente recolhida por terceiros";
 
-/** Proposta de design (spec), a confirmar — chip da pendência na home. */
+/** Chip da pendência na home — **Estado A** desde o CONTAI-059. */
 export const CHIP_RETENCAO_SEM_RECOLHEDOR = "Retenção sem recolhedor";
 
-/** Proposta de design (spec), a confirmar — título da pendência na home. */
+/** Título da pendência na home — **Estado A** desde o CONTAI-059. */
 export const TITULO_RETENCAO_SEM_RECOLHEDOR =
   "Retenção descontada, sem confirmar quem recolhe";
+
+/**
+ * ⚠️ **CITAÇÃO LITERAL do ADENDO 4, Pergunta 3** (2026-09-26) — o texto do
+ * **Estado C**, e ele foi redigido pelo `contador` justamente porque o texto do
+ * Estado A descreve este estado errado. **Nunca reescrever, nunca parafrasear**:
+ * há teste comparando esta constante com o parágrafo do parecer.
+ *
+ * O que ela diz, e o texto do Estado A não dizia: aqui **não há passivo não
+ * identificado** — o responsável é o próprio Mateus. A pendência é de
+ * **pagamento** (a guia), com dois efeitos somados se a guia nunca for paga: a
+ * fatia fora do custo para sempre **e** dívida tributária vencida no nome dele.
+ */
+export const CONSEQUENCIA_RETENCAO_EU_SEM_GUIA =
+  "Você já confirmou que quem recolhe esta retenção é você — a pendência aqui " +
+  "não é de identificação, é de pagamento: enquanto a guia não for paga e " +
+  "vinculada a este documento, esta fatia não entra no custo de aquisição do " +
+  "ano nenhum. Se a guia nunca for paga, o efeito não é apenas essa fatia " +
+  "ficar fora do custo para sempre — o valor retido se torna dívida tributária " +
+  "vencida em seu nome, sujeita a juros e multa.";
+
+/**
+ * Chip do **Estado C** — texto de PRODUTO, não citação (ADENDO 4, Pergunta 5,
+ * que autoriza ajuste de forma). Os dois fatos fiscais que ele **não pode**
+ * violar: não sugerir "sem confirmar" (já foi confirmado) e não sugerir
+ * "resolvido"/"quitado" (o risco de a guia nunca ser paga continua de pé).
+ */
+export const CHIP_RETENCAO_GUIA_PENDENTE = "Guia de retenção pendente";
+
+/** Título do **Estado C** — mesmos dois fatos do chip acima. */
+export const TITULO_RETENCAO_GUIA_PENDENTE =
+  "Recolhedor confirmado — guia ainda não paga";
 
 /** Proposta de design (spec), a confirmar — o gate "destacada" sem linha. */
 export const CHIP_RETENCAO_SEM_LINHA = "Retenção sem linha registrada";
@@ -491,15 +529,143 @@ export function faltaRegistrarLinha(
  * @param notaCoberta `Σ pagamentos vinculados` já cobre o valor bruto da nota.
  * Vem de `saldoDescobertoDaNota(...) === null` — reaproveita o cálculo que já
  * existe, e **não escreve uma segunda soma** (Viabilidade).
+ *
+ * ⚠️ **CONTAI-059: as quatro condições mudaram de casa, não de conteúdo.** Elas
+ * agora vivem em `motivoDaRetencaoAberta`, logo abaixo, que devolve QUAL dos dois
+ * estados abriu a pendência; esta função é o mesmo predicado de sempre escrito em
+ * cima dela. Quem pergunta "abre?" continua chamando esta; quem pergunta "o que
+ * escrever?" chama a outra.
  */
 export function linhaSemRecolhedor(
   linha: Pick<LinhaRetencao, "eDescontoEfetivo" | "quemRecolhe">,
   notaCoberta: boolean,
 ): boolean {
-  if (!linha.eDescontoEfetivo) return false;
-  if (linha.quemRecolhe === "empresa") return false;
-  if (linha.quemRecolhe === "eu") return !notaCoberta;
-  return true;
+  return motivoDaRetencaoAberta(linha, notaCoberta) !== null;
+}
+
+/**
+ * **CONTAI-059 — POR QUE a pendência está aberta, que não é a mesma pergunta
+ * que "está aberta?".**
+ *
+ * Fonte: ADENDO 4 de `docs/pareceres/2026-09-18-retencao-variavel-servico-pj.md`
+ * (2026-09-26) + a "Continuação — 2026-09-26". O bug relatado pelo Mateus —
+ * *"eu coloquei que quem deve pagar aquilo ali sou eu, logo, se sabe quem vai
+ * pagar, eu só não paguei ainda"* — era de TEXTO REAPROVEITADO: a lógica de
+ * `linhaSemRecolhedor` sempre soube distinguir os dois estados, mas devolvia
+ * `boolean`, e a tela só tinha um texto para os dois.
+ *
+ * - **`"sem_recolhedor"` (Estado A)** — `quem_recolhe` sem resposta útil
+ *   (`"nao_sei"`; `null` é dado inválido que a 0017 e `validarLinhaRetencao` não
+ *   deixam persistir). Risco de FUNDAMENTO: a retenção pode não ter base legal
+ *   nenhuma e o prestador pode voltar cobrando a diferença — passivo de
+ *   terceiro, não identificado.
+ * - **`"eu_sem_guia"` (Estado C)** — `quem_recolhe = "eu"` e a nota ainda
+ *   descoberta. O responsável **já está identificado**; falta a guia. Risco de
+ *   FLUXO DE CAIXA, mais dívida tributária futura em nome dele se a guia nunca
+ *   aparecer.
+ * - **`null`** — nenhuma pendência: linha informativa, ou "a empresa recolhe",
+ *   ou "eu" com a nota já coberta pela guia.
+ *
+ * ⚠️ **As condições de ABERTURA são, byte a byte, as de `linhaSemRecolhedor`
+ * antes deste ticket** (critério 8): o que este ticket muda é só o texto e a cor
+ * exibidos. `retencaoContaComoPerna`/`alocarCusto` não olham esta função.
+ *
+ * @param notaCoberta o mesmo `saldoDescobertoDaNota(...) === null` de sempre —
+ * nunca uma segunda soma.
+ */
+export function motivoDaRetencaoAberta(
+  linha: Pick<LinhaRetencao, "eDescontoEfetivo" | "quemRecolhe">,
+  notaCoberta: boolean,
+): MotivoRetencaoAberta | null {
+  if (!linha.eDescontoEfetivo) return null;
+  if (linha.quemRecolhe === "empresa") return null;
+  if (linha.quemRecolhe === "eu") return notaCoberta ? null : "eu_sem_guia";
+  return "sem_recolhedor";
+}
+
+/** Os dois estados que abrem a pendência — união FECHADA (ADENDO 4, Pergunta 1). */
+export type MotivoRetencaoAberta = "sem_recolhedor" | "eu_sem_guia";
+
+/** O que cada estado diz de si — as quatro coisas que a tela mostra, e só elas. */
+export interface TextoDaRetencaoAberta {
+  consequencia: string;
+  chip: string;
+  titulo: string;
+  gravidade: Gravidade;
+}
+
+/**
+ * **Um motivo, um conjunto de texto e cor — e a tela não escolhe nenhum dos
+ * quatro.**
+ *
+ * `Record<MotivoRetencaoAberta, …>` é exaustivo de propósito: estado novo não
+ * compila sem os quatro campos decididos. É o que impede a volta do bug deste
+ * ticket, que era exatamente um estado sem texto próprio.
+ *
+ * ⚠️ **Nenhuma das duas cores é literal** (D54): as duas saem de
+ * `gravidadeDaRegua` com os MESMOS dois fatos — o valor retido não saiu do bolso
+ * dele (`dinheiroSaiu: false`) e a nota hábil existe (`apoioHabilNoAnoCerto:
+ * true`). O que difere é a exceção nomeada:
+ *
+ * - **Estado A** invoca `"retencao_sem_recolhedor"`, que **agrava** para
+ *   vermelho, com fundamento no ADENDO A.4 (*"passivo não identificado"*).
+ * - **Estado C** invoca exceção NENHUMA, e a régua o pinta de âmbar sozinha —
+ *   que é justamente o que o ADENDO 4, Pergunta 6, adjudicou: *"vermelho fica
+ *   reservado exclusivamente para Estado A daqui em diante, nesta família"*.
+ *   Não há exceção nova a declarar porque não há divergência da régua a
+ *   declarar: aqui a régua já acertava, e era a exceção aplicada em bloco que
+ *   errava.
+ */
+export const TEXTO_DA_RETENCAO_ABERTA: Record<
+  MotivoRetencaoAberta,
+  TextoDaRetencaoAberta
+> = {
+  sem_recolhedor: {
+    consequencia: CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR,
+    chip: CHIP_RETENCAO_SEM_RECOLHEDOR,
+    titulo: TITULO_RETENCAO_SEM_RECOLHEDOR,
+    gravidade: gravidadeDaRegua(
+      { dinheiroSaiu: false, apoioHabilNoAnoCerto: true },
+      "retencao_sem_recolhedor",
+    ),
+  },
+  eu_sem_guia: {
+    consequencia: CONSEQUENCIA_RETENCAO_EU_SEM_GUIA,
+    chip: CHIP_RETENCAO_GUIA_PENDENTE,
+    titulo: TITULO_RETENCAO_GUIA_PENDENTE,
+    gravidade: gravidadeDaRegua({
+      dinheiroSaiu: false,
+      apoioHabilNoAnoCerto: true,
+    }),
+  },
+};
+
+/**
+ * **O motivo do DOCUMENTO, quando as linhas dele discordam** (critério 6 /
+ * ADENDO 4, Pergunta 4, ratificado pelo `contador`).
+ *
+ * > "se qualquer linha aberta do documento está em Estado A, o card mostra o
+ * > conjunto de texto do Estado A (chip, título e parágrafo); só quando TODAS as
+ * > linhas abertas estão em Estado C o card mostra o conjunto do Estado C."
+ *
+ * ⚠️ **Não existe terceiro texto "misto"**, e a razão é fiscal, não estética: o
+ * card é resumo, e resumo correto é o do **pior caso** — enquanto houver uma
+ * linha em A, a ação que falta primeiro continua sendo a de A. A granularidade
+ * real mora no nível da linha, dentro de `/documento/[id]`, onde cada uma mostra
+ * o seu próprio estado.
+ *
+ * A pendência é **por documento** desde o CONTAI-038 (N cartões repetindo o
+ * mesmo remédio afogariam a lista), e é por isso que esta agregação existe.
+ */
+export function motivoDaRetencaoDoDocumento(
+  linhas: readonly Pick<LinhaRetencao, "eDescontoEfetivo" | "quemRecolhe">[],
+  notaCoberta: boolean,
+): MotivoRetencaoAberta | null {
+  const abertos = linhas
+    .map((l) => motivoDaRetencaoAberta(l, notaCoberta))
+    .filter((m): m is MotivoRetencaoAberta => m !== null);
+  if (abertos.length === 0) return null;
+  return abertos.includes("sem_recolhedor") ? "sem_recolhedor" : "eu_sem_guia";
 }
 
 /**

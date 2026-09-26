@@ -52,16 +52,17 @@ import {
   responderGateRetencao,
   responderQuemRecolhe,
 } from "@/lib/data";
+import { bordaDaGravidade } from "@/lib/fiscal/gravidade";
 import {
   AJUDA_ROTULO_LITERAL,
   AJUDA_ROTULO_LITERAL_SUGERIDO,
   AJUDA_VALOR_SUGERIDO,
   CHIP_RETENCAO_SEM_LINHA,
-  CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR,
   descricaoDaComposicao,
   LINHA_RETENCAO_VAZIA,
-  linhaSemRecolhedor,
   linhaSugerida,
+  motivoDaRetencaoAberta,
+  motivoDaRetencaoDoDocumento,
   nomeDaRetencao,
   OPCOES_COMPOSICAO,
   OPCOES_GATE,
@@ -78,9 +79,11 @@ import {
   SUGESTAO_RETENCAO_CONFIRA,
   SUGESTAO_RETENCAO_FALHOU,
   SUGESTAO_RETENCAO_LENDO,
+  TEXTO_DA_RETENCAO_ABERTA,
   validarLinhaRetencao,
   type CampoLinhaRetencao,
   type EntradaLinhaRetencao,
+  type MotivoRetencaoAberta,
   type SugestaoDeLinha,
 } from "@/lib/fiscal/retencao";
 import { centavosParaInput, formatarBRL, parseValorInput } from "@/lib/money";
@@ -244,7 +247,12 @@ function Repeater({
 }) {
   const [abrindo, setAbrindo] = useState(false);
   const linhas = documento.retencoes;
-  const abertas = linhas.filter((l) => linhaSemRecolhedor(l, notaCoberta));
+  // ⚠️ **CONTAI-059 — a borda do bloco segue o PIOR motivo aberto**, pela mesma
+  // agregação que o card da home usa (`motivoDaRetencaoDoDocumento`). Antes ela
+  // era `border-red` para qualquer pendência aberta, e deixá-la assim faria a
+  // moldura vermelha contradizer o banner âmbar do Estado C dentro dela — o
+  // mesmo bug deste ticket, num canal diferente (ADENDO 4, Pergunta 6).
+  const motivoDoBloco = motivoDaRetencaoDoDocumento(linhas, notaCoberta);
   // Decisão de design 8: o fechamento de "eu recolho" é por DOCUMENTO. Com
   // mais de uma linha nessa situação a tela DIZ isso, em vez de deixar ele
   // procurar por que duas sumiram juntas.
@@ -253,7 +261,11 @@ function Repeater({
 
   return (
     <Card
-      className={abertas.length > 0 ? "border-red" : "border-amb"}
+      className={
+        motivoDoBloco === null
+          ? "border-amb"
+          : bordaDaGravidade(TEXTO_DA_RETENCAO_ABERTA[motivoDoBloco].gravidade)
+      }
       data-bloco="retencao"
     >
       <div className="font-semibold">Retenção</div>
@@ -274,7 +286,10 @@ function Repeater({
           <LinhaGravada
             key={linha.id}
             linha={linha}
-            aberta={linhaSemRecolhedor(linha, notaCoberta)}
+            // ⚠️ **`motivo`, não `aberta`** (CONTAI-059): a prop booleana era o
+            // bug — ela dizia à tela QUE havia pendência sem dizer QUAL, e a
+            // tela não tinha como escolher entre dois textos que não conhecia.
+            motivo={motivoDaRetencaoAberta(linha, notaCoberta)}
             onMudou={onMudou}
             onSessaoExpirada={onSessaoExpirada}
           />
@@ -313,12 +328,18 @@ function Repeater({
 /** Uma linha já gravada: o que ela diz, a pendência dela e as duas ações. */
 function LinhaGravada({
   linha,
-  aberta,
+  motivo,
   onMudou,
   onSessaoExpirada,
 }: {
   linha: LinhaRetencao;
-  aberta: boolean;
+  /**
+   * Qual dos dois estados abriu a pendência desta linha, ou `null` quando ela
+   * não tem pendência nenhuma. **Texto, chip, título e cor saem todos de
+   * `TEXTO_DA_RETENCAO_ABERTA`** — este arquivo não redige nem escolhe nenhum
+   * dos quatro.
+   */
+  motivo: MotivoRetencaoAberta | null;
   onMudou: () => void;
   onSessaoExpirada: () => void;
 }) {
@@ -376,10 +397,14 @@ function LinhaGravada({
         </Banner>
       ) : null}
 
-      {aberta ? (
-        <div data-pendencia="retencao-sem-recolhedor">
-          <Consequencia cor="red">
-            {CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR}
+      {/* ⚠️ **CONTAI-059 — dois estados, dois textos, duas cores.** O
+          `data-pendencia` continua o mesmo (a família não mudou, e o E2E antigo
+          o usa); o `data-motivo` é o que diz QUAL estado está na tela.
+          Vermelho = ninguém confirmado; âmbar = "sou eu, falta a guia". */}
+      {motivo !== null ? (
+        <div data-pendencia="retencao-sem-recolhedor" data-motivo={motivo}>
+          <Consequencia cor={TEXTO_DA_RETENCAO_ABERTA[motivo].gravidade}>
+            {TEXTO_DA_RETENCAO_ABERTA[motivo].consequencia}
           </Consequencia>
         </div>
       ) : null}

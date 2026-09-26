@@ -18,7 +18,9 @@ import { describe, expect, it } from "vitest";
 import {
   acaoDaRetencaoParcial,
   CHIP_RETENCAO_PARCIALMENTE_GRAVADA,
+  CHIP_RETENCAO_SEM_RECOLHEDOR,
   contagemDaRetencaoParcial,
+  CONSEQUENCIA_RETENCAO_EU_SEM_GUIA,
   CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR,
   descricaoDaComposicao,
   DICA_GATE_DESTACADA,
@@ -29,6 +31,8 @@ import {
   linhaSemRecolhedor,
   linhaSugerida,
   LINHA_RETENCAO_VAZIA,
+  motivoDaRetencaoAberta,
+  motivoDaRetencaoDoDocumento,
   nomeDaRetencao,
   OPCOES_COMPOSICAO,
   OPCOES_GATE,
@@ -37,10 +41,16 @@ import {
   ROTULO_RETENCAO_NAO_DISCRIMINADA,
   SUGESTAO_RETENCAO_CONFIRA,
   SUGESTAO_RETENCAO_FALHOU,
+  TEXTO_DA_RETENCAO_ABERTA,
+  TITULO_RETENCAO_SEM_RECOLHEDOR,
   validarLinhaRetencao,
   type EntradaLinhaRetencao,
 } from "./retencao";
-import type { Documento, LinhaRetencao } from "@/lib/types";
+import type {
+  Documento,
+  LinhaRetencao,
+  QuemRecolheRetencao,
+} from "@/lib/types";
 
 function entrada(over: Partial<EntradaLinhaRetencao> = {}): EntradaLinhaRetencao {
   return {
@@ -255,6 +265,171 @@ describe("linhaSemRecolhedor — as quatro condições do Gate Fiscal P1", () =>
   });
 });
 
+// ── CONTAI-059 · POR QUE está aberta, que não é "está aberta?" ───────────
+
+/**
+ * **O ADENDO 4 (2026-09-26) em forma de teste.** O bug era de texto
+ * reaproveitado: um só parágrafo, vermelho, para dois estados fiscalmente
+ * distintos. Cada `it` abaixo é uma condição do adendo, e nenhuma é inferida.
+ *
+ * ⚠️ O primeiro `it` é a **trava do critério 8**: as condições de ABERTURA da
+ * pendência não podem ter mudado com o refactor. Se alguém "aproveitar" o motivo
+ * para mudar QUANDO a pendência abre, é aqui que quebra.
+ */
+describe("CONTAI-059 — o motivo da retenção aberta (ADENDO 4)", () => {
+  /**
+   * **O predicado de ANTES do CONTAI-059, transcrito à mão** — as quatro
+   * condições como `linhaSemRecolhedor` as tinha no corpo dela, antes de o motivo
+   * existir (`git show` do arquivo em 6bfe29b confirma).
+   *
+   * ⚠️ **Ele existe porque `linhaSemRecolhedor` NÃO serve de oráculo** (achado do
+   * Gate 2 do `cto-obra`): hoje ela é literalmente
+   * `motivoDaRetencaoAberta(...) !== null`, então compará-la com o motivo é
+   * comparar uma função com o wrapper dela mesma — passa por construção e não
+   * prova nada. Esta cópia é independente do código sob teste, e é isso que faz a
+   * asserção abaixo ser uma trava em vez de uma tautologia. **Nunca reescrever
+   * para chamar a função de produção**: fazer isso desliga a trava em silêncio.
+   */
+  function abriaAntesDoCONTAI059(
+    linhaDaVez: Pick<LinhaRetencao, "eDescontoEfetivo" | "quemRecolhe">,
+    notaCoberta: boolean,
+  ): boolean {
+    if (!linhaDaVez.eDescontoEfetivo) return false;
+    if (linhaDaVez.quemRecolhe === "empresa") return false;
+    if (linhaDaVez.quemRecolhe === "eu") return !notaCoberta;
+    return true;
+  }
+
+  it("o motivo abre exatamente onde o predicado ANTIGO abria — 16 combinações", () => {
+    const quem: (QuemRecolheRetencao | null)[] = [
+      null,
+      "nao_sei",
+      "eu",
+      "empresa",
+    ];
+    let combinacoes = 0;
+    for (const eDescontoEfetivo of [true, false]) {
+      for (const quemRecolhe of quem) {
+        for (const coberta of [true, false]) {
+          const l = linha({ eDescontoEfetivo, quemRecolhe });
+          const antes = abriaAntesDoCONTAI059(l, coberta);
+          expect(
+            motivoDaRetencaoAberta(l, coberta) !== null,
+            `motivo divergiu do predicado antigo em eDescontoEfetivo=${eDescontoEfetivo}, quemRecolhe=${quemRecolhe}, notaCoberta=${coberta}`,
+          ).toBe(antes);
+          // E o predicado público continua de acordo com os dois — é ele que os
+          // outros módulos chamam.
+          expect(linhaSemRecolhedor(l, coberta)).toBe(antes);
+          combinacoes += 1;
+        }
+      }
+    }
+    // A malha inteira foi percorrida: 2 × 4 × 2. Sem isto, um `for` que não roda
+    // deixaria o teste verde sem asserção nenhuma.
+    expect(combinacoes).toBe(16);
+  });
+
+  it("Estado A — sem resposta útil de quem recolhe: vermelho, texto de sempre", () => {
+    for (const quemRecolhe of ["nao_sei", null] as const) {
+      const motivo = motivoDaRetencaoAberta(linha({ quemRecolhe }), false);
+      expect(motivo).toBe("sem_recolhedor");
+      const t = TEXTO_DA_RETENCAO_ABERTA[motivo!];
+      expect(t.consequencia).toBe(CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR);
+      expect(t.chip).toBe(CHIP_RETENCAO_SEM_RECOLHEDOR);
+      expect(t.titulo).toBe(TITULO_RETENCAO_SEM_RECOLHEDOR);
+      // VERMELHO continua sendo desta família, e só dela (Pergunta 6).
+      expect(t.gravidade).toBe("red");
+    }
+  });
+
+  it("Estado C — 'Eu' com a guia ainda fora: âmbar, texto e chip novos", () => {
+    const motivo = motivoDaRetencaoAberta(linha({ quemRecolhe: "eu" }), false);
+    expect(motivo).toBe("eu_sem_guia");
+    const t = TEXTO_DA_RETENCAO_ABERTA[motivo!];
+    expect(t.consequencia).toBe(CONSEQUENCIA_RETENCAO_EU_SEM_GUIA);
+    expect(t.chip).toBe("Guia de retenção pendente");
+    expect(t.titulo).toBe("Recolhedor confirmado — guia ainda não paga");
+    // ⚠️ **ÂMBAR** (Pergunta 6): o risco é real (a guia pode nunca ser paga),
+    // mas não é mais "passivo não identificado" — o responsável é ele.
+    expect(t.gravidade).toBe("amb");
+  });
+
+  it("nenhum motivo onde não há pendência — informativa, 'a empresa', guia paga", () => {
+    expect(
+      motivoDaRetencaoAberta(
+        linha({ eDescontoEfetivo: false, quemRecolhe: null }),
+        false,
+      ),
+    ).toBeNull();
+    expect(
+      motivoDaRetencaoAberta(linha({ quemRecolhe: "empresa" }), false),
+    ).toBeNull();
+    expect(motivoDaRetencaoAberta(linha({ quemRecolhe: "eu" }), true)).toBeNull();
+  });
+
+  /**
+   * ⚠️ **Os dois conjuntos não se confundem em campo nenhum.** O ADENDO 4,
+   * Pergunta 5, nomeia o risco: corrigir só o parágrafo e deixar o título
+   * dizendo "sem confirmar" faria o card se contradizer sozinho — *"pior do que
+   * o bug original"*. Quem misturar um campo de um estado com um do outro
+   * quebra aqui.
+   */
+  it("os dois conjuntos são disjuntos nos quatro campos", () => {
+    const a = TEXTO_DA_RETENCAO_ABERTA.sem_recolhedor;
+    const c = TEXTO_DA_RETENCAO_ABERTA.eu_sem_guia;
+    expect(a.consequencia).not.toBe(c.consequencia);
+    expect(a.chip).not.toBe(c.chip);
+    expect(a.titulo).not.toBe(c.titulo);
+    expect(a.gravidade).not.toBe(c.gravidade);
+    // Os dois fatos fiscais do Estado C (Pergunta 5), em forma de asserção.
+    for (const texto of [c.chip, c.titulo, c.consequencia]) {
+      expect(texto).not.toMatch(/sem confirmar/i);
+      expect(texto).not.toMatch(/resolvid|quitad/i);
+    }
+  });
+});
+
+/**
+ * **A regra de prioridade por documento — critério 6 / ADENDO 4, Pergunta 4.**
+ *
+ * Um documento pode ter uma linha em A e outra em C ao mesmo tempo, e o card da
+ * home é UM por documento. O `contador` ratificou o pior caso, sem terceiro
+ * texto "misto": *"enquanto existir uma linha em A no documento, a ação pendente
+ * mais urgente continua sendo a de A"*.
+ */
+describe("CONTAI-059 — o motivo do DOCUMENTO quando as linhas discordam", () => {
+  const A = linha({ id: "l1", quemRecolhe: "nao_sei" });
+  const C = linha({ id: "l2", quemRecolhe: "eu" });
+  const FECHADA = linha({ id: "l3", quemRecolhe: "empresa" });
+
+  it("todas em A → conjunto de A", () => {
+    expect(motivoDaRetencaoDoDocumento([A, A], false)).toBe("sem_recolhedor");
+  });
+
+  it("A + C juntas → conjunto de A vence, em qualquer ordem", () => {
+    expect(motivoDaRetencaoDoDocumento([A, C], false)).toBe("sem_recolhedor");
+    expect(motivoDaRetencaoDoDocumento([C, A], false)).toBe("sem_recolhedor");
+  });
+
+  it("todas em C → conjunto de C", () => {
+    expect(motivoDaRetencaoDoDocumento([C, C], false)).toBe("eu_sem_guia");
+  });
+
+  it("linha já FECHADA não vota — só as abertas entram na conta", () => {
+    expect(motivoDaRetencaoDoDocumento([FECHADA, C], false)).toBe("eu_sem_guia");
+    expect(motivoDaRetencaoDoDocumento([FECHADA, A], false)).toBe(
+      "sem_recolhedor",
+    );
+    // Nenhuma aberta → nenhum motivo, e o card não nasce.
+    expect(motivoDaRetencaoDoDocumento([FECHADA], false)).toBeNull();
+    expect(motivoDaRetencaoDoDocumento([], false)).toBeNull();
+    // A nota coberta fecha o C e deixa o A de pé — é a mesma assimetria de
+    // `linhaSemRecolhedor`: a guia fecha pagamento, não fecha resposta.
+    expect(motivoDaRetencaoDoDocumento([A, C], true)).toBe("sem_recolhedor");
+    expect(motivoDaRetencaoDoDocumento([C], true)).toBeNull();
+  });
+});
+
 describe("faltaRegistrarLinha — o critério 2 em forma de predicado", () => {
   const nota = (over: Partial<Documento>) =>
     ({
@@ -298,6 +473,49 @@ describe("textos que se copiam do parecer, nunca se redigem", () => {
       "Retenção descontada do pagamento sem confirmação de quem recolhe — se " +
         "ninguém recolher, não é economia, é passivo não identificado.",
     );
+  });
+
+  /**
+   * **CONTAI-059, critério 1 — e este teste não confere contra uma cópia, confere
+   * contra o PARECER.**
+   *
+   * ⚠️ O teste irmão logo acima compara a constante com uma segunda cópia
+   * digitada no próprio teste: se alguém parafrasear as duas juntas, ele passa.
+   * Aqui a frase esperada é **extraída do arquivo do parecer**, o que faz a
+   * asserção ser a literalidade de verdade — a proibição do `CLAUDE.md`
+   * ("texto de tela com consequência fiscal se copia do parecer, não se
+   * reescreve") com um verificador, não só com uma norma.
+   */
+  it("o texto do Estado C é a citação literal do ADENDO 4, extraída do parecer", () => {
+    // A forma digitada, no mesmo padrão do teste acima.
+    expect(CONSEQUENCIA_RETENCAO_EU_SEM_GUIA).toBe(
+      "Você já confirmou que quem recolhe esta retenção é você — a pendência " +
+        "aqui não é de identificação, é de pagamento: enquanto a guia não for " +
+        "paga e vinculada a este documento, esta fatia não entra no custo de " +
+        "aquisição do ano nenhum. Se a guia nunca for paga, o efeito não é " +
+        "apenas essa fatia ficar fora do custo para sempre — o valor retido se " +
+        "torna dívida tributária vencida em seu nome, sujeita a juros e multa.",
+    );
+
+    // E a mesma frase, lida do parecer: a citação em bloco (`> "…"`) que fecha a
+    // Pergunta 3 do ADENDO 4. Desdobrada só no que o Markdown quebrou — o
+    // prefixo `> ` e o fim de linha.
+    const parecer = readFileSync(
+      "docs/pareceres/2026-09-18-retencao-variavel-servico-pj.md",
+      "utf-8",
+    );
+    const adendo4 = parecer.slice(parecer.indexOf("# ADENDO 4 —"));
+    expect(adendo4).not.toBe("");
+    const citacoes = [...adendo4.matchAll(/(?:^> .*\n)+/gm)].map((m) =>
+      m[0]
+        .split("\n")
+        .map((l) => l.replace(/^> ?/, "").trim())
+        .join(" ")
+        .trim()
+        // A citação vem entre aspas curvas no parecer; a constante não as carrega.
+        .replace(/^[“"]|[”"]$/g, ""),
+    );
+    expect(citacoes).toContain(CONSEQUENCIA_RETENCAO_EU_SEM_GUIA);
   });
 
   /**

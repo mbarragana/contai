@@ -89,6 +89,15 @@ export interface FatosDaRegua {
  *   identificado"* —, e passivo aberto não é o mesmo objeto que os dois eixos
  *   da régua medem. Declarar isso aqui é o que impede a alternativa: uma cor
  *   literal solta em `resumo.ts`, que o teste-trava D54 pegaria como dívida.
+ *
+ *   ⚠️ **ESTREITADA no `CONTAI-059`** (ADENDO 4, Pergunta 6, 2026-09-26): ela
+ *   vale só para o **Estado A** da família (`"sem_recolhedor"` — ninguém
+ *   confirmado). A linha em que o Mateus já respondeu "Eu" e falta só a guia
+ *   (Estado C, `"eu_sem_guia"`) **não invoca exceção nenhuma** e sai âmbar pela
+ *   régua, porque a frase que funda o vermelho aqui — "passivo não
+ *   identificado" — o próprio parecer disse não se aplicar a ela. Quem escolhe
+ *   qual dos dois conjuntos usar é `TEXTO_DA_RETENCAO_ABERTA` em
+ *   `lib/fiscal/retencao.ts`; nada mudou nesta régua.
  */
 export type ExcecaoNomeada =
   | "pj_pago_sem_comprovante"

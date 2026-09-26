@@ -21,19 +21,19 @@ pendência é de PAGAMENTO da guia — não de identificação de quem recolhe �
 para não desconfiar de um dado que já registrei certo.
 
 ## Critérios de Aceite
-1. [ ] Estado C (`quem_recolhe = "eu"` e `notaCoberta = false`): a tela
+1. [x] Estado C (`quem_recolhe = "eu"` e `notaCoberta = false`): a tela
    mostra `CONSEQUENCIA_RETENCAO_EU_SEM_GUIA`, cópia literal da
    "Continuação — 2026-09-26" do ADENDO 4 de
    `docs/pareceres/2026-09-18-retencao-variavel-servico-pj.md` — nunca
    parafraseado.
-2. [ ] Estado A (`quem_recolhe` sem resposta útil, na prática `null`/
+2. [x] Estado A (`quem_recolhe` sem resposta útil, na prática `null`/
    `"nao_sei"`): a tela continua mostrando
    `CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR`, sem alteração de texto nem de
    cor (continua vermelho).
-3. [ ] Estado "empresa": nenhum banner de pendência é exibido — comportamento
+3. [x] Estado "empresa": nenhum banner de pendência é exibido — comportamento
    atual de `linhaSemRecolhedor` (retorna sem pendência para esse valor) já
    está correto; este ticket não cria nem altera texto para ele.
-4. [ ] Chip e título da pendência também ganham variante para o Estado C
+4. [x] Chip e título da pendência também ganham variante para o Estado C
    (ratificado pelo contador — corrigir só o parágrafo criaria uma
    contradição nova e mais visível entre título e corpo): chip **"Guia de
    retenção pendente"**, título **"Recolhedor confirmado — guia ainda não
@@ -41,13 +41,13 @@ para não desconfiar de um dado que já registrei certo.
    fatos: não sugerir "sem confirmar" e não sugerir "resolvido"). Estado A
    mantém chip/título atuais (`CHIP_RETENCAO_SEM_RECOLHEDOR`/
    `TITULO_RETENCAO_SEM_RECOLHEDOR`), sem alteração.
-5. [ ] Gravidade/cor do Estado C muda de vermelho para **âmbar**
+5. [x] Gravidade/cor do Estado C muda de vermelho para **âmbar**
    (`gravidade.ts`) — ratificado pelo contador como o próprio parecer que a
    dívida D54 exigia para justificar a mudança: vermelho carrega o
    significado "passivo não identificado", que o ADENDO 4 já havia dito não
    se aplicar ao Estado C. Estado A continua vermelho — é o único caso
    desta família de pendência que ainda é "passivo não identificado".
-6. [ ] Card na Home/Despesas (pendência é por DOCUMENTO, não por linha —
+6. [x] Card na Home/Despesas (pendência é por DOCUMENTO, não por linha —
    um documento pode ter uma linha em Estado A e outra em Estado C ao
    mesmo tempo): se **qualquer** linha aberta do documento é Estado A, o
    card mostra o conjunto de texto/cor de A; só quando **todas** as linhas
@@ -55,16 +55,16 @@ para não desconfiar de um dado que já registrei certo.
    contador — não é escolha estética, A é o caso mais grave (risco de
    terceiro em aberto) e o card-resumo mostra o pior caso, sem inventar um
    terceiro texto "misto".
-7. [ ] Teste unitário (Vitest) cobre: os dois estados isolados (texto, chip,
+7. [x] Teste unitário (Vitest) cobre: os dois estados isolados (texto, chip,
    título, cor); o caso documento com linha A + linha C simultâneas
    (card mostra o conjunto de A); estado "empresa" sem pendência, sem
    mudança.
-8. [ ] `linhaSemRecolhedor` (quando a pendência abre/fecha) e
+8. [x] `linhaSemRecolhedor` (quando a pendência abre/fecha) e
    `retencaoContaComoPerna`/`alocarCusto` (quando a retenção conta como
    custo) não sofrem nenhuma alteração — trava de que o custo de aquisição
    e o mecanismo de fechamento da pendência não mudam com este ticket, só
    o texto/cor exibidos.
-9. [ ] Gate Fiscal: revisão do `contador` confirma que os textos em
+9. [x] Gate Fiscal: revisão do `contador` confirma que os textos em
    produção (parágrafo, chip, título) são fiéis ao ADENDO 4/continuação, e
    que a mudança de cor está correta.
 
@@ -160,3 +160,15 @@ componente `CardPendenciaDerivada`, mesma função `calcularResumo`) — spec
 trata como um bloco só, não como lacuna. Cor âmbar confirmada como token
 já existente no design system (`cor="amb"`), não inventada. Pronto para o
 Gate 1.
+
+✅ **Entregue em 2026-09-26.** 9/9 critérios PASS — Gate 4 (`po`). Gate 2
+técnico (`cto-obra`) e fiscal (`contador`) aprovaram os dois, incluindo uma
+extensão fora do spec original: a borda do card em `/documento/[id]`
+também passou a seguir a agregação (âmbar no Estado C), para não deixar
+moldura vermelha em volta de um banner âmbar — o mesmo bug relatado, só
+que num canal visual diferente. O CTO pediu uma correção antes de fechar:
+o teste de equivalência do critério 8 era tautológico (comparava
+`linhaSemRecolhedor` contra ela mesma); corrigido com um oráculo
+independente e verificado por mutation testing (mutou a função de
+produção de propósito, viu o teste falhar, reverteu). 1100 testes
+unitários + 320 E2E verdes, sem migration.
