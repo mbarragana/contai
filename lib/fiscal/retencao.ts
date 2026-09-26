@@ -166,6 +166,22 @@ export const SUGESTAO_RETENCAO_FALHOU =
   "Não deu para ler a retenção desta nota automaticamente. Preencha as linhas " +
   "à mão — o registro segue normalmente.";
 
+/**
+ * ── CONTAI-062 ────────────────────────────────────────────────────────────
+ *
+ * O rodapé do trecho literal mostrado **ao lado do próprio gate**, em qualquer
+ * largura. Curto de propósito: ali o Mateus ainda não está editando campo
+ * nenhum, só conferindo se a nota na mão tem mesmo essa linha. A frase longa que
+ * explica a aritmética (`SUGESTAO_RETENCAO_CONFIRA`) continua onde ela vale, no
+ * formulário da linha, onde os campos de verdade estão prestes a ser editados.
+ *
+ * ⚠️ **Texto de PRODUTO, não citação de parecer** — mesma disciplina do bloco
+ * acima. Ele diz de onde veio o que está marcado e que ainda falta conferir;
+ * não afirma consequência fiscal nenhuma.
+ */
+export const SUGESTAO_GATE_CONFIRA =
+  "Sugerido a partir da leitura do PDF — confira antes de salvar.";
+
 /** A origem do que está no campo, dita no próprio campo (critério 2). */
 export const AJUDA_ROTULO_LITERAL_SUGERIDO =
   "Veio da leitura automática da nota — confira se é exatamente o rótulo impresso";

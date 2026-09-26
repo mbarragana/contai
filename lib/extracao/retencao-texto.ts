@@ -9,10 +9,34 @@
  * aritmética `total − terceiro = líquido` fecha?". Se sim, o terceiro rótulo e
  * o terceiro valor vão para o formulário **como sugestão a confirmar**.
  *
- * ⚠️ **Nunca decide o gate** `retencao_na_nota` (critério 1 e Gate Fiscal 1:
- * parecer `docs/pareceres/2026-09-18-retencao-variavel-servico-pj.md` §3 — o
- * gate é fato afirmado pelo Mateus, não leitura de campo). Qualquer `gate`
- * diferente de `"destacada"` sai por `null` antes de olhar o texto.
+ * ⚠️ **MUDOU NO CONTAI-062, e a mudança é de leitura do parecer, não de
+ * doutrina.** Até aqui este bloco afirmava que o módulo "nunca decide o gate
+ * `retencao_na_nota`", citando o §3 do parecer
+ * `docs/pareceres/2026-09-18-retencao-variavel-servico-pj.md` — leitura que o
+ * **ADENDO 5** do mesmo parecer desmente por extenso (§0 e §1): o §3 analisou
+ * `composicao`/`natureza_da_retencao`/`quem_recolhe`, que são perguntas de
+ * **classificação e responsabilidade**, e nunca analisou o gate binário, que é
+ * pergunta de **existência** — fato impresso e aritmeticamente conferível, da
+ * mesma família de uma data de emissão ou de um CNPJ.
+ *
+ * Então: **o resultado desta função habilita a sugestão do gate**, e por isso
+ * ela não recebe mais o gate como parâmetro (o `gate` que existia aqui saiu no
+ * CONTAI-062). O que o ADENDO 5 §3 exige, e que esta assinatura garante por
+ * construção:
+ *
+ * - **§3, salvaguarda 2** — só há o que sugerir quando o par único fecha. Sem
+ *   padrão reconhecido o retorno é `null`, e `null` **não é** `"nao_destacada"`:
+ *   ausência de padrão não é prova de ausência de retenção. Quem chama não pode
+ *   confundir os dois porque não existe valor de retorno que diga "nenhuma".
+ * - **§3, salvaguarda 3** — `"nao_sei"` não é representável aqui por nada: um
+ *   parser tem "achei" e "não achei", não incerteza a relatar.
+ * - **§3, salvaguarda 4** — gate e linha saem da MESMA leitura: o gate se deriva
+ *   de `sugestão !== null`, e a sugestão É o `rotuloLiteral`/`valorCentavos`.
+ *   Não existe caminho que sugira o gate sem trazer a linha que o motivou.
+ *
+ * ⚠️ O que continua proibido, sem exceção (ADENDO 5 §4): `notaNoCpf` —
+ * pergunta de admissibilidade do documento inteiro, gravidade estrutural
+ * diferente — e os quatro campos de classificação abaixo.
  *
  * ⚠️ **Nunca preenche `composicao`, `tributo`, `eDescontoEfetivo` nem
  * `quemRecolhe`** (Gate Fiscal 2, mesma trava do critério 14 do CONTAI-038):
@@ -59,13 +83,13 @@
  */
 
 import { parseValorInput } from "@/lib/money";
-import type { RespostaRetencaoNaNota } from "@/lib/types";
 
 /**
- * Tipo próprio, **fora do `ExtracaoDocumentoSchema`** (critério 6): produtor
- * diferente (parser determinístico, não modelo), timing diferente (só depois
- * do gate) e sem `confianca`. Mapeia nos dois únicos campos de
- * `EntradaLinhaRetencao` que são leitura de texto impresso.
+ * Tipo próprio, **fora do `ExtracaoDocumentoSchema`** (critério 6 do
+ * CONTAI-054): produtor diferente (parser determinístico, não modelo), gatilho
+ * diferente (o PDF anexado, não o clique em "extrair automaticamente") e sem
+ * `confianca`. Mapeia nos dois únicos campos de `EntradaLinhaRetencao` que são
+ * leitura de texto impresso.
  */
 export type SugestaoLinhaRetencao = {
   /** O rótulo como está impresso na nota — copiado, nunca traduzido. */
@@ -226,19 +250,14 @@ function extrairLinhasRotuladas(texto: string): LinhaRotulada[] {
  * A sugestão do CONTAI-054. `null` sempre que houver qualquer dúvida —
  * incluindo dúvida por excesso de resposta.
  *
+ * ⚠️ **Sem parâmetro de gate desde o CONTAI-062**: a resposta do Mateus ao gate
+ * não entra mais nesta decisão, porque agora é ela que pode nascer daqui
+ * (ADENDO 5 §1/§3). Quem decide o que fazer com o `null` é quem chama — e `null`
+ * nunca autoriza `"nao_destacada"` nem `"nao_sei"` (salvaguardas 2 e 3).
+ *
  * @param texto texto embutido do PDF, já extraído por `extrairTextoDoPdf`
- * @param gate a resposta ATUAL do Mateus ao gate de retenção. Só `"destacada"`
- *   habilita a leitura; `null` e `"nenhuma"` saem por `null` sem tocar o texto.
  */
-export function sugerirLinhaRetencao(
-  texto: string,
-  gate: RespostaRetencaoNaNota | null,
-): SugestaoLinhaRetencao | null {
-  // Critério 1 / Gate Fiscal 1: o parser não participa da decisão do gate, em
-  // nenhuma direção. Antes de qualquer leitura, para ficar óbvio que não há
-  // caminho em que o texto influencie essa resposta.
-  if (gate !== "destacada") return null;
-
+export function sugerirLinhaRetencao(texto: string): SugestaoLinhaRetencao | null {
   const linhas = extrairLinhasRotuladas(texto);
 
   const totais = linhas.filter((linha) => RE_TOTAL.test(linha.rotulo));

@@ -55,21 +55,23 @@ const FIXTURE_DANFSE_AMBIGUA = [
   "VALOR LIQUIDO DA NFS-e                     R$ 30.968,00",
 ].join("\n");
 
-describe("sugerirLinhaRetencao — o gate manda, e o parser nunca o decide", () => {
-  it("gate null devolve null, mesmo com a nota inteira legível (critério 1)", () => {
-    expect(sugerirLinhaRetencao(FIXTURE_MUNICIPAL_SIMPLES, null)).toBeNull();
-  });
-
-  it("gate 'nenhuma' devolve null — a leitura não contradiz o Mateus", () => {
-    // Gate Fiscal 1: o gate é fato afirmado por ele. Se disse "nenhuma", o
-    // texto não tem voto, nem para discordar nem para "avisar".
-    expect(sugerirLinhaRetencao(FIXTURE_DANFSE_AMBIGUA, "nenhuma")).toBeNull();
-  });
-});
+/**
+ * ⚠️ **O `describe` "o gate manda, e o parser nunca o decide" foi APAGADO no
+ * CONTAI-062** — ele provava a pré-condição `gate !== "destacada" → null`, que
+ * deixou de existir junto com o parâmetro. O ADENDO 5 (§0, §1) do parecer
+ * `docs/pareceres/2026-09-18-retencao-variavel-servico-pj.md` desfaz a leitura
+ * que a justificava: o gate é pergunta de EXISTÊNCIA de texto impresso, não de
+ * classificação, e pode ser sugerido.
+ *
+ * O que ficou no lugar não é menos trava, é outra trava: o `describe` do fim
+ * deste arquivo prova que a função **não tem como** devolver `"nao_destacada"`
+ * nem `"nao_sei"` (salvaguardas 2 e 3), e que `null` é o único jeito de dizer
+ * "não achei" — nunca "não tem".
+ */
 
 describe("sugerirLinhaRetencao — padrão estruturado reconhecido", () => {
   it("lê rótulo e valor da NFS-e municipal (um total, um líquido, uma terceira linha)", () => {
-    expect(sugerirLinhaRetencao(FIXTURE_MUNICIPAL_SIMPLES, "destacada")).toEqual({
+    expect(sugerirLinhaRetencao(FIXTURE_MUNICIPAL_SIMPLES)).toEqual({
       rotuloLiteral: "ISSRF",
       valorCentavos: 48_000,
     });
@@ -79,7 +81,7 @@ describe("sugerirLinhaRetencao — padrão estruturado reconhecido", () => {
     // O teste central do ticket. "Primeiro que achar" pegaria
     // (Valor Total Apurado = 0,00) × (VALOR LIQUIDO + IBS/CBS = 0,00) e
     // devolveria null — ou, pior, um valor de outra linha.
-    expect(sugerirLinhaRetencao(FIXTURE_DANFSE_AMBIGUA, "destacada")).toEqual({
+    expect(sugerirLinhaRetencao(FIXTURE_DANFSE_AMBIGUA)).toEqual({
       rotuloLiteral: "ISS RETIDO",
       valorCentavos: 63_200,
     });
@@ -95,7 +97,7 @@ describe("sugerirLinhaRetencao — padrão estruturado reconhecido", () => {
       "Valor Liquido ............ R$ 980,00",
     ].join("\n");
 
-    expect(sugerirLinhaRetencao(texto, "destacada")).toEqual({
+    expect(sugerirLinhaRetencao(texto)).toEqual({
       rotuloLiteral: "ISS Retido (2,00%)",
       valorCentavos: 2_000,
     });
@@ -104,7 +106,7 @@ describe("sugerirLinhaRetencao — padrão estruturado reconhecido", () => {
   it("vários pares na MESMA linha (texto de layout tabular) são lidos separados", () => {
     const texto = "Valor Total 5.000,00   ISSRF 100,00   Valor Liquido 4.900,00";
 
-    expect(sugerirLinhaRetencao(texto, "destacada")).toEqual({
+    expect(sugerirLinhaRetencao(texto)).toEqual({
       rotuloLiteral: "ISSRF",
       valorCentavos: 10_000,
     });
@@ -121,7 +123,7 @@ describe("sugerirLinhaRetencao — padrão estruturado reconhecido", () => {
       "VALOR LIQUIDO ................ R$ 23.520,00",
     ].join("\n");
 
-    expect(sugerirLinhaRetencao(texto, "destacada")).toEqual({
+    expect(sugerirLinhaRetencao(texto)).toEqual({
       rotuloLiteral: "ISSRF",
       valorCentavos: 48_000,
     });
@@ -146,7 +148,7 @@ describe("sugerirLinhaRetencao — rótulo e valor em linhas separadas", () => {
   ];
 
   it("pareia rótulo com o valor da linha seguinte", () => {
-    expect(sugerirLinhaRetencao(CELULAS.join("\n"), "destacada")).toEqual({
+    expect(sugerirLinhaRetencao(CELULAS.join("\n"))).toEqual({
       rotuloLiteral: "ISSRF",
       valorCentavos: 98_700,
     });
@@ -155,7 +157,7 @@ describe("sugerirLinhaRetencao — rótulo e valor em linhas separadas", () => {
   it("linha em branco entre rótulo e valor não quebra o par", () => {
     const comRuido = CELULAS.flatMap((linha) => [linha, ""]).join("\n");
 
-    expect(sugerirLinhaRetencao(comRuido, "destacada")).toEqual({
+    expect(sugerirLinhaRetencao(comRuido)).toEqual({
       rotuloLiteral: "ISSRF",
       valorCentavos: 98_700,
     });
@@ -174,7 +176,7 @@ describe("sugerirLinhaRetencao — rótulo e valor em linhas separadas", () => {
       "20.443,00",
     ].join("\n");
 
-    expect(sugerirLinhaRetencao(empilhado, "destacada")).toBeNull();
+    expect(sugerirLinhaRetencao(empilhado)).toBeNull();
   });
 
   it("rótulo com valor na própria linha não é pareado também com a linha seguinte", () => {
@@ -187,7 +189,7 @@ describe("sugerirLinhaRetencao — rótulo e valor em linhas separadas", () => {
 
     // Se "Valor Total" fosse pareado duas vezes (10.000,00 e 250,00), o segundo
     // par entraria como um "total" de 250,00 — lixo na busca combinatória.
-    expect(sugerirLinhaRetencao(misturado, "destacada")).toEqual({
+    expect(sugerirLinhaRetencao(misturado)).toEqual({
       rotuloLiteral: "ISSRF",
       valorCentavos: 25_000,
     });
@@ -205,7 +207,7 @@ describe("sugerirLinhaRetencao — o vocabulário do rótulo não decide papel",
       "R$ 22.445,80",
     ].join("\n");
 
-    expect(sugerirLinhaRetencao(texto, "destacada")).toEqual({
+    expect(sugerirLinhaRetencao(texto)).toEqual({
       rotuloLiteral: "Total das Retencoes (ISSQN / Federais)",
       valorCentavos: 69_420,
     });
@@ -230,7 +232,7 @@ describe("sugerirLinhaRetencao — o vocabulário do rótulo não decide papel",
       "R$ 0,00",
     ].join("\n");
 
-    expect(sugerirLinhaRetencao(texto, "destacada")).toEqual({
+    expect(sugerirLinhaRetencao(texto)).toEqual({
       rotuloLiteral: "Total das Retencoes (ISSQN / Federais)",
       valorCentavos: 69_420,
     });
@@ -248,14 +250,14 @@ describe("sugerirLinhaRetencao — tolerância de arredondamento (Gate Fiscal 4)
   }
 
   it("1 centavo de diferença ainda bate", () => {
-    expect(sugerirLinhaRetencao(comDiferenca(1), "destacada")).toEqual({
+    expect(sugerirLinhaRetencao(comDiferenca(1))).toEqual({
       rotuloLiteral: "Retencao",
       valorCentavos: 25_000,
     });
   });
 
   it("2 centavos de diferença não bate — sem sugestão nenhuma", () => {
-    expect(sugerirLinhaRetencao(comDiferenca(2), "destacada")).toBeNull();
+    expect(sugerirLinhaRetencao(comDiferenca(2))).toBeNull();
   });
 });
 
@@ -267,7 +269,7 @@ describe("sugerirLinhaRetencao — dúvida sempre vira null", () => {
       "Valor Liquido ..... R$ 9.000,00",
     ].join("\n");
 
-    expect(sugerirLinhaRetencao(texto, "destacada")).toBeNull();
+    expect(sugerirLinhaRetencao(texto)).toBeNull();
   });
 
   it("dois rótulos diferentes com o valor da diferença: ambiguidade genuína", () => {
@@ -280,7 +282,7 @@ describe("sugerirLinhaRetencao — dúvida sempre vira null", () => {
       "Valor Liquido ............. R$ 9.500,00",
     ].join("\n");
 
-    expect(sugerirLinhaRetencao(texto, "destacada")).toBeNull();
+    expect(sugerirLinhaRetencao(texto)).toBeNull();
   });
 
   it("dois trios independentes fechando (nota + fatura na mesma folha) vira null", () => {
@@ -293,7 +295,7 @@ describe("sugerirLinhaRetencao — dúvida sempre vira null", () => {
       "Valor Liquido a Pagar ....... R$ 19.000,00",
     ].join("\n");
 
-    expect(sugerirLinhaRetencao(texto, "destacada")).toBeNull();
+    expect(sugerirLinhaRetencao(texto)).toBeNull();
   });
 
   it("sem rótulo com 'líquido' não há conta para fechar", () => {
@@ -303,7 +305,7 @@ describe("sugerirLinhaRetencao — dúvida sempre vira null", () => {
       "A receber ......... R$ 9.800,00",
     ].join("\n");
 
-    expect(sugerirLinhaRetencao(texto, "destacada")).toBeNull();
+    expect(sugerirLinhaRetencao(texto)).toBeNull();
   });
 
   it("linha com valor zerado nunca é sugerida, mesmo com total = líquido", () => {
@@ -313,7 +315,7 @@ describe("sugerirLinhaRetencao — dúvida sempre vira null", () => {
       "Valor Liquido ..... R$ 10.000,00",
     ].join("\n");
 
-    expect(sugerirLinhaRetencao(texto, "destacada")).toBeNull();
+    expect(sugerirLinhaRetencao(texto)).toBeNull();
   });
 
   it("líquido maior que o total (papéis trocados) não produz sugestão", () => {
@@ -323,11 +325,11 @@ describe("sugerirLinhaRetencao — dúvida sempre vira null", () => {
       "Valor Liquido ..... R$ 10.000,00",
     ].join("\n");
 
-    expect(sugerirLinhaRetencao(texto, "destacada")).toBeNull();
+    expect(sugerirLinhaRetencao(texto)).toBeNull();
   });
 
   it("texto vazio devolve null", () => {
-    expect(sugerirLinhaRetencao("", "destacada")).toBeNull();
+    expect(sugerirLinhaRetencao("")).toBeNull();
   });
 
   it("frase longa terminando em valor não vira rótulo", () => {
@@ -343,7 +345,7 @@ describe("sugerirLinhaRetencao — dúvida sempre vira null", () => {
 
     // A candidata existe aritmeticamente, mas o "rótulo" é frase — sugerir
     // isso seria dar trabalho de apagar, não de confirmar.
-    expect(sugerirLinhaRetencao(texto, "destacada")).toBeNull();
+    expect(sugerirLinhaRetencao(texto)).toBeNull();
   });
 
   it("valor sem rótulo nenhum antes dele é ignorado", () => {
@@ -353,13 +355,51 @@ describe("sugerirLinhaRetencao — dúvida sempre vira null", () => {
       "Valor Liquido ..... R$ 9.500,00",
     ].join("\n");
 
-    expect(sugerirLinhaRetencao(texto, "destacada")).toBeNull();
+    expect(sugerirLinhaRetencao(texto)).toBeNull();
   });
 });
 
 describe("sugerirLinhaRetencao — o que ela NUNCA devolve (critério 3 / Gate Fiscal 2)", () => {
+  /**
+   * **CONTAI-062, salvaguardas 2 e 3 do ADENDO 5 §3, em forma de teste.**
+   *
+   * Agora que o retorno desta função habilita a sugestão do GATE, o conjunto de
+   * valores que ela pode devolver é uma regra fiscal: ela pode dizer "achei esta
+   * linha" (sugestão) ou "não achei" (`null`), e mais nada. Não existe retorno
+   * que signifique "esta nota NÃO tem retenção" (`"nao_destacada"`) nem "não sei"
+   * (`"nao_sei"`) — ausência de padrão não é prova de ausência de retenção, e um
+   * parser não tem incerteza própria a relatar.
+   */
+  it("nunca devolve 'nao_destacada' nem 'nao_sei' — só a linha achada, ou null", () => {
+    // Nota sem trio que feche: o único jeito de dizer "não achei".
+    const semPadrao = sugerirLinhaRetencao(
+      [
+        "Valor Total",
+        "24.000,00",
+        "Retencoes diversas",
+        "480,00",
+        "Valor Liquido",
+        "22.000,00",
+      ].join("\n"),
+    );
+    expect(semPadrao).toBeNull();
+
+    // E as duas notas reconhecidas devolvem OBJETO de linha — nunca uma string
+    // de resposta de gate. A varredura abaixo é a trava contra alguém fazer a
+    // função "avisar" que não tem retenção por um valor de retorno novo.
+    for (const texto of [FIXTURE_MUNICIPAL_SIMPLES, FIXTURE_DANFSE_AMBIGUA]) {
+      const sugestao = sugerirLinhaRetencao(texto);
+      expect(typeof sugestao).toBe("object");
+      expect(sugestao).not.toBeNull();
+      expect(sugestao).not.toBe("nao_destacada");
+      expect(sugestao).not.toBe("nao_sei");
+      expect(sugestao).not.toBe("nenhuma");
+      expect(sugestao!.valorCentavos).toBeGreaterThan(0);
+    }
+  });
+
   it("a sugestão tem exatamente dois campos: rótulo e valor", () => {
-    const sugestao = sugerirLinhaRetencao(FIXTURE_DANFSE_AMBIGUA, "destacada");
+    const sugestao = sugerirLinhaRetencao(FIXTURE_DANFSE_AMBIGUA);
 
     expect(sugestao).not.toBeNull();
     // Os quatro campos de classificação fiscal não existem no tipo — esta

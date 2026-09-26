@@ -916,3 +916,143 @@ Estado A (vermelho, sem mudança) de Estado C (âmbar) para
   de texto de produto que os já existentes, sem campo novo no banco.
 
 **O contai redige, dateia e organiza. Não assina.**
+
+---
+
+# ADENDO 5 — 2026-09-26 · o gate `retencao_na_nota` é fato legível, não intenção — mas o raio de efeito de sugeri-lo é maior que o da linha
+
+- **Provocação**: o `po`, em Gate Fiscal pontual (ainda sem ticket), trouxe um
+  relato do Mateus — subiu uma NF que ele mesmo deu como exemplo de origem do
+  CONTAI-054, mandou "extrair automaticamente" e a retenção não veio, porque o
+  gate `retencaoNaNota` não estava marcado manualmente (`sugerirLinhaRetencao`
+  só roda com `gate === "destacada"`, `lib/extracao/retencao-texto.ts:240`).
+  Reação dele: *"eu não espero clicar em nada... eu espero que todo o
+  formulário seja preenchido a partir daí."* Pergunta: o gate é da mesma
+  natureza fiscal que `quem_recolhe` (intenção, sem default legítimo) ou é fato
+  objetivamente legível como data/CNPJ, que o parser já lê bem quando a
+  aritmética fecha?
+
+## Resposta desconfortável primeiro
+
+**O comentário que hoje justifica a trava no código lê demais no §3 deste
+parecer.** [Certain] `lib/extracao/retencao-texto.ts:12-15` cita este parecer
+para afirmar que "o gate é fato afirmado pelo Mateus, não leitura de campo" —
+mas o §3/A.1/A.3 nunca analisaram o gate binário em si; analisaram
+`composicao`, `natureza_da_retencao` e `quem_recolhe`, que são perguntas de
+**classificação e responsabilidade**, não de **existência**. Alguém estendeu
+por analogia o mesmo instinto de "campo fiscal não tem default" — correto como
+instinto, incompleto como análise, porque tratou duas perguntas diferentes
+como se fossem uma. Isto não é mudança de doutrina; é a doutrina aplicada
+direito pela primeira vez a esta pergunta específica.
+
+## 1. O gate é fato, não intenção — mas por um critério, não por analogia com `notaNoCpf`
+
+[Certain] "Esta nota destaca uma linha de retenção" pergunta se **um texto e um
+número estão impressos no papel**, com aritmética conferível
+(`total − terceiro = líquido`, tolerância de 1 centavo) — exatamente o mesmo
+tipo de fato que uma data de emissão ou um CNPJ: não depende de saber quem é
+obrigado a reter, quem vai recolher, nem de que tributo se trata. **`quem_recolhe`
+é o oposto**: a nota não imprime quem vai pagar a guia — isso é relação entre o
+Mateus e a prestadora, inexistente no papel, e é exatamente por isso que
+permanece proibido de sugestão (§3, A.1, A.3, inalterados). O parser do
+CONTAI-054 já demonstra, com nota real, que consegue ler esse fato específico
+com o mesmo padrão de confiança (par único, aritmética batendo, ambiguidade →
+`null`) que o produto já usa para sugerir valor/número/tipo de outros campos.
+
+**Isto não abre precedente para `notaNoCpf`.** [Certain] `notaNoCpf` decide se
+o documento inteiro é hábil para as DUAS apurações (IN 84/2001 art. 17) — errar
+para "sim" contamina custo de aquisição e discriminação. `retencaoNaNota`
+apenas decide se um subformulário de retenção abre; errar para "destacada" no
+pior caso cria uma linha a mais para o Mateus revisar e descartar, sem tocar em
+custo de aquisição nem em aferição do SERO por si só (essas duas contas só
+mudam quando `e_desconto_efetivo`/`quem_recolhe` forem preenchidos, e esses
+continuam 100% manuais). São perguntas de gravidade estrutural diferente; a
+resposta a uma não generaliza para a outra.
+
+## 2. Mas o raio de efeito de sugerir o GATE é maior que o de sugerir a LINHA — e isso muda a exigência de salvaguarda
+
+[Certain] Hoje o parser só roda **depois** do Mateus já ter afirmado que existe
+retenção — então o pior caso de um falso positivo é sugerir rótulo/valor
+errados **dentro de uma seção que ele já sabe que deveria existir**, fácil de
+conferir contra o papel. Se o mesmo detector também decidir o gate, o pior caso
+muda: qualquer linha cuja diferença bata por coincidência com "total" e
+"líquido" (frete, desconto comercial, parcelamento, arredondamento de imposto
+não vigente) passaria a **abrir sozinha** um subformulário de retenção numa
+nota que não tem retenção nenhuma. Não é dano fiscal (nada é afirmado sem
+"Salvar"), mas é um tipo de erro que hoje não existe no produto e passaria a
+existir. A extrairLinhasRotuladas de propósito não filtra candidata por
+vocabulário de retenção (comentário do próprio módulo, linhas 244-254) —
+decisão correta para a linha (não perder a nota do Francisco), mas que amplia
+o espaço de falsos positivos se reaproveitada para o gate sem ajuste.
+
+## 3. Aprovo a sugestão do gate, com quatro salvaguardas obrigatórias
+
+[Certain quanto às salvaguardas; a forma de implementar é do `cto-obra`]
+
+1. **Ainda é sugestão, nunca afirmação.** Mesmo tratamento visual que
+   tipo/número/valor já recebem hoje: distinta de resposta marcada pelo
+   Mateus, nunca gravada até "Salvar registro", editável com um toque. Como o
+   gate controla se uma seção inteira aparece, a sugestão precisa mostrar, ao
+   lado, o trecho literal (rótulo + valor) que o parser leu — o mesmo texto
+   que hoje já aparece para a linha — para o Mateus conferir contra a nota sem
+   precisar procurar.
+2. **Só sugere `"destacada"`, nunca `"nao_destacada"`.** Ausência de padrão
+   reconhecido não é prova de ausência de retenção — é só um parser que não
+   achou o formato. O campo continua nascendo vazio quando não há match único,
+   exatamente como hoje.
+3. **Nunca sugere `"nao_sei"`.** Esse valor é o Mateus relatando a própria
+   incerteza; um sistema não tem incerteza para relatar — só tem "achei" ou
+   "não achei".
+4. **Gate e linha se sugerem juntos, na mesma ação.** Sugerir "destacada" sem
+   já trazer o `rotuloLiteral`/`valorCentavos` que motivou a sugestão devolve o
+   Mateus à mesma reclamação de hoje (clicar em parte do formulário para a
+   extração funcionar no resto). O critério de match para o gate é o mesmo
+   critério já implementado para a linha (par único, aritmética dentro de 1
+   centavo, ambiguidade e ausência colapsando no mesmo `null`) — não é um
+   segundo detector, é o mesmo resultado usado para preencher dois campos numa
+   tacada.
+
+**Não exijo threshold de confiança numérico nem lista de rótulos de retenção
+como pré-condição adicional** — pelo mesmo motivo que o módulo já registra no
+próprio comentário (linhas 22-25): "aritmética batendo é pré-condição de
+escopo, não voto sobre a legibilidade". O par único already é o threshold. Se,
+depois de um período de uso real, o `cto-obra`/`po` medirem uma taxa de falso
+positivo perceptível (frete/desconto puxando o gate para "destacada" sem
+retenção nenhuma), a resposta é apertar o reconhecimento de padrão — decisão
+técnica, não fiscal — não reintroduzir a proibição total.
+
+## 4. O que este adendo NÃO muda
+
+- `notaNoCpf` continua fora de qualquer sugestão — não é a mesma pergunta
+  (§1), e nada aqui reabre essa discussão.
+- `composicao`, `natureza_da_retencao`, `e_desconto_efetivo` e `quem_recolhe`
+  continuam proibidos de sugestão, sem exceção — são pergunta de classificação
+  e de responsabilidade, não de leitura (§3, A.1, A.3, ADENDO 3, todos
+  inalterados). O gate `retencaoNaNota` é a ÚNICA pergunta desta família que
+  esta ADENDO reclassifica como fato.
+- `documento.retencao11 boolean` continua morto (§3, corpo) — irrelevante
+  aqui.
+- Nenhum efeito em custo de aquisição ou aferição do SERO: essas contas
+  continuam dependendo de `e_desconto_efetivo`/`quem_recolhe`, que continuam
+  manuais (ADENDO 2, ADENDO 3, inalterados).
+- O comentário em `lib/extracao/retencao-texto.ts:12-15` fica desatualizado
+  por este adendo e deve ser corrigido no ticket que implementar a mudança,
+  para não voltar a ser lido como "o parecer proíbe" quando o parecer, lido
+  direito, sempre permitiu para esta pergunta específica.
+
+## 5. Automático × exige contador humano (CRC)
+
+**O sistema pode sozinho**: ler o mesmo par total/líquido/diferença já usado
+para a linha e usá-lo também para sugerir o gate, com as quatro salvaguardas
+do §3; nunca sugerir `"nao_destacada"` ou `"nao_sei"`; nunca afirmar nada sem
+"Salvar".
+
+**Exige revisão humana (do Mateus, não CRC)**: confirmar cada sugestão de gate
+contra o papel antes de salvar — não muda com este adendo, é o mesmo gesto que
+já existe para valor/número/tipo.
+
+**Exige CRC**: nada novo — este adendo não toca em classificação de tributo,
+recolhimento ou equiparação; essas exigências continuam as já registradas no
+corpo do parecer e nos adendos anteriores.
+
+**O contai redige, dateia e organiza. Não assina.**

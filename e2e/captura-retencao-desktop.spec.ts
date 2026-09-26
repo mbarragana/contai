@@ -101,6 +101,47 @@ async function adicionarLinha(
   await bloco.getByRole("button", { name: "Adicionar linha" }).click();
 }
 
+/**
+ * **CONTAI-062** — segura a resposta REAL de `/api/sugerir-retencao` até o teste
+ * liberar. Devolve a função que a libera.
+ *
+ * ⚠️ **`rota.continue()`, nunca `rota.fulfill()`**: o que passa pelo fio continua
+ * sendo unpdf + heurística + parser de verdade, como manda a regra dura de E2E do
+ * `CLAUDE.md`. O único controle do teste é sobre o QUANDO — e é exatamente disso
+ * que a condição de corrida do critério 7 precisa: uma janela em que a leitura
+ * está comprovadamente em voo enquanto o dedo do Mateus responde o gate.
+ */
+async function segurarSugestao(page: import("@playwright/test").Page) {
+  let liberar = () => {};
+  const emVoo = new Promise<void>((resolver) => {
+    liberar = () => resolver();
+  });
+  await page.route("**/api/sugerir-retencao", async (rota) => {
+    await emVoo;
+    await rota.continue();
+  });
+  return liberar;
+}
+
+/** O fieldset do gate — a pergunta que o CONTAI-062 passa a sugerir. */
+function grupoDoGate(page: import("@playwright/test").Page) {
+  return page.getByRole("group", {
+    name: "Esta nota destaca alguma retenção?",
+  });
+}
+
+/**
+ * A pílula de uma opção do gate, para conferir o TRATAMENTO VISUAL dela.
+ *
+ * ⚠️ O nome acessível do rádio muda quando a pílula está sugerida (ganha o
+ * " — sugerida automaticamente, ainda não confirmada" do `sr-only`), então o
+ * seletor casa pelo PREFIXO: o mesmo locator serve nos dois estados, e um teste
+ * que espera "manual" não passa por acidente só porque não achou o elemento.
+ */
+function pilulaDoGate(page: import("@playwright/test").Page, texto: string) {
+  return grupoDoGate(page).locator("label").filter({ hasText: texto });
+}
+
 // ══ 1 · O gate manda: o bloco só existe com "destacada" ══════════════════
 
 test.describe("o bloco aparece e desaparece com o gate", () => {
@@ -659,9 +700,14 @@ test("5.3 · nota sem padrão reconhecido: formulário vazio, sem destaque e sem
   await expect(bloco.locator('[data-retencao="formulario"]')).toBeVisible();
   // A espera termina, e o que sobra é o formulário em branco — sem destaque de
   // sugestão e sem banner de falha.
-  await expect(bloco.locator('[data-sugestao="lendo"]')).toHaveCount(0);
+  //
+  // ⚠️ **`gate-lendo`/`gate-falhou` migraram no CONTAI-062**: os dois estados da
+  // leitura saíram de dentro do repeater (onde só existiam ≥880px e só com o
+  // gate já em "destacada") para o lado do próprio gate, em qualquer largura.
+  // Por isso são procurados na `page`, não no `bloco`.
+  await expect(page.locator('[data-sugestao="gate-lendo"]')).toHaveCount(0);
   await expect(bloco.locator('[data-sugestao="retencao"]')).toHaveCount(0);
-  await expect(bloco.locator('[data-sugestao="falhou"]')).toHaveCount(0);
+  await expect(page.locator('[data-sugestao="gate-falhou"]')).toHaveCount(0);
   await expect(
     bloco.getByLabel("Rótulo (copie exatamente da nota)"),
   ).toHaveValue("");
@@ -690,7 +736,8 @@ test("5.4 · ⚠️ falha em /api/sugerir-retencao: avisa, não bloqueia, e o re
   await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
 
   const bloco = page.locator(BLOCO);
-  const falhou = bloco.locator('[data-sugestao="falhou"]');
+  // CONTAI-062 — fora do repeater, e por isso na `page`.
+  const falhou = page.locator('[data-sugestao="gate-falhou"]');
   await expect(falhou).toBeVisible();
   await expect(falhou).toContainText(
     "Não deu para ler a retenção desta nota automaticamente. Preencha as linhas à mão — o registro segue normalmente.",
@@ -742,7 +789,8 @@ test("5.5 · ⚠️ sugestão pendurada: o formulário e o Salvar continuam func
 
   const bloco = page.locator(BLOCO);
   // O estado de espera aparece — e o formulário aparece JUNTO com ele.
-  await expect(bloco.locator('[data-sugestao="lendo"]')).toBeVisible();
+  // CONTAI-062 — fora do repeater, e por isso na `page`.
+  await expect(page.locator('[data-sugestao="gate-lendo"]')).toBeVisible();
   await expect(bloco.locator('[data-retencao="formulario"]')).toBeVisible();
 
   await adicionarLinha(page, {
@@ -772,17 +820,21 @@ test("5.5 · ⚠️ sugestão pendurada: o formulário e o Salvar continuam func
  * gravaria não era o que estava à vista. Em campo de dinheiro que vira custo de
  * aquisição, é o pior tipo de divergência possível.
  *
- * ⚠️ A rota é ATRASADA, não falsificada: `rota.continue()` depois de uma espera
- * mantém a resposta REAL (unpdf + parser de verdade) e só a faz chegar tarde, que é
- * a única janela em que o bug existe.
+ * ⚠️ A rota é SEGURADA, não falsificada: `rota.continue()` depois de o teste
+ * liberar mantém a resposta REAL (unpdf + parser de verdade) e só a faz chegar
+ * tarde, que é a única janela em que o bug existe.
+ *
+ * ⚠️ **Deixou de ser um `setTimeout` no CONTAI-062**, e a troca não é estética: até
+ * aqui a leitura só começava DEPOIS do clique no gate, então 2s de atraso cobriam a
+ * janela com folga. Agora ela começa ao ANEXAR o PDF — vários comandos antes —, e
+ * um atraso fixo passaria a ser uma corrida contra o tempo de preenchimento do
+ * formulário, verde ou vermelho por sorte. Com a rota segurada por promessa, quem
+ * define a janela é o teste.
  */
 test("5.6 · ⚠️ valor digitado pela metade não é substituído pela sugestão que chega depois", async ({
   page,
 }) => {
-  await page.route("**/api/sugerir-retencao", async (rota) => {
-    await new Promise((resolver) => setTimeout(resolver, 2000));
-    await rota.continue();
-  });
+  const liberarSugestao = await segurarSugestao(page);
 
   await notaDeServicoAteOGate(
     page,
@@ -793,10 +845,12 @@ test("5.6 · ⚠️ valor digitado pela metade não é substituído pela sugest�
 
   const bloco = page.locator(BLOCO);
   const campoValor = bloco.getByLabel("Valor", { exact: true });
-  await expect(bloco.locator('[data-sugestao="lendo"]')).toBeVisible();
+  // CONTAI-062 — fora do repeater, e por isso na `page`.
+  await expect(page.locator('[data-sugestao="gate-lendo"]')).toBeVisible();
 
   // Ele começa a digitar o valor ANTES de a leitura responder, e para no meio.
   await campoValor.fill("1,");
+  liberarSugestao();
 
   // A sugestão chega: o rótulo (campo vazio) herda…
   await expect(
@@ -824,4 +878,461 @@ test("5.6 · ⚠️ valor digitado pela metade não é substituído pela sugest�
   await expect(
     bloco.getByRole("button", { name: "Adicionar linha" }),
   ).toBeEnabled();
+});
+
+// ══ 6 · CONTAI-062 — o GATE se sugere sozinho, a partir da leitura do PDF ══
+
+/**
+ * **A Dor de Origem, em forma de teste** (`docs/backlog/75-2026-09-26-gate-retencao-sugerido-na-extracao.md`):
+ * *"eu não espero clicar em nada, se estou anexando o pdf e mandando extrair
+ * automaticamente, eu espero que todo o formulário seja preenchido a partir daí"*.
+ *
+ * Fonte fiscal: **ADENDO 5** de
+ * `docs/pareceres/2026-09-18-retencao-variavel-servico-pj.md` — o gate
+ * `retencao_na_nota` é pergunta de EXISTÊNCIA de texto impresso, aritmeticamente
+ * conferível, e por isso pode ser sugerido; `notaNoCpf` e os quatro campos de
+ * classificação da linha continuam proibidos, sem exceção (§4).
+ *
+ * ⚠️ **Nada stubado no caminho feliz**, como na seção 5: o PDF é montado no teste
+ * e quem responde é a rota real → unpdf real → heurística real → parser real.
+ */
+
+test("6.1 · sem UM clique no gate: ele nasce sugerido, em âmbar, com selo e com o trecho literal", async ({
+  page,
+  db,
+}) => {
+  await notaDeServicoAteOGate(
+    page,
+    "Sim",
+    pdfComTexto(NFSE_COM_RETENCAO_RECONHECIVEL),
+  );
+
+  // ⚠️ **Critério 2 — nenhum `escolher` no gate acima desta linha.** O que
+  // preencheu a resposta foi a leitura do PDF, sozinha.
+  const destacada = grupoDoGate(page).getByRole("radio", { name: /^Destacada/ });
+  await expect(destacada).toBeChecked();
+  await expect(
+    grupoDoGate(page).getByRole("radio", { name: /^Nenhuma/ }),
+  ).not.toBeChecked();
+
+  // ⚠️ **Critério 4 — DOIS canais, nunca só cor** (ADENDO 5 §3, salvaguarda 1).
+  // Canal 1: a pílula é âmbar claro, e NÃO o preenchido escuro que o app usa para
+  // resposta afirmada pelo Mateus.
+  const pilula = pilulaDoGate(page, "Destacada");
+  await expect(pilula).toHaveClass(/border-amb/);
+  await expect(pilula).toHaveClass(/bg-amb-bg/);
+  await expect(pilula).not.toHaveClass(/bg-ink/);
+  // Canal 2: o selo, com a palavra escrita…
+  await expect(pilula.getByText("Sugerida", { exact: true })).toBeVisible();
+  // …e o equivalente para quem não o vê, no nome acessível do próprio rádio.
+  await expect(destacada).toHaveAccessibleName(
+    /sugerida automaticamente, ainda não confirmada/,
+  );
+
+  // ⚠️ **Critério 5 / salvaguarda 4 — gate e linha na MESMA leitura.** O trecho
+  // literal aparece ao lado do gate, fora do repeater: é ele que o Mateus confere
+  // contra o papel antes de aceitar a sugestão.
+  const trecho = page.locator('[data-sugestao="gate"]');
+  await expect(trecho).toBeVisible();
+  await expect(trecho).toContainText("Lido automaticamente desta nota");
+  await expect(trecho).toContainText(`“${RETENCAO_ESPERADA.rotulo}”`);
+  await expect(trecho).toContainText("R$ 1.048,00");
+  await expect(trecho).toContainText(
+    "Sugerido a partir da leitura do PDF — confira antes de salvar.",
+  );
+
+  // E a linha veio junto, no formulário — os dois campos de LEITURA preenchidos…
+  const bloco = page.locator(BLOCO);
+  await expect(
+    bloco.getByLabel("Rótulo (copie exatamente da nota)"),
+  ).toHaveValue(RETENCAO_ESPERADA.rotulo);
+  await expect(bloco.getByLabel("Valor", { exact: true })).toHaveValue(
+    RETENCAO_ESPERADA.valor,
+  );
+  // …e os QUATRO de classificação fiscal em branco, como sempre (ADENDO 5 §4).
+  for (const radio of await bloco.getByRole("radio").all()) {
+    await expect(radio).not.toBeChecked();
+  }
+
+  // ⚠️ **`notaNoCpf` não mudou de comportamento** (critério 11): ele está marcado
+  // porque o helper o respondeu com o dedo, e a pílula dele é a ESCURA de sempre
+  // — nenhuma sugestão encostou nesse campo.
+  const cpf = page
+    .getByRole("group", { name: "A nota está no seu CPF?" })
+    .locator("label")
+    .filter({ hasText: "Sim" });
+  await expect(cpf).toHaveClass(/bg-ink/);
+  await expect(cpf.getByText("Sugerida", { exact: true })).toHaveCount(0);
+
+  // ⚠️ **Critério 6 / a confirmação IMPLÍCITA**: ele completa a linha e salva sem
+  // nunca tocar no gate. O que grava é a resposta, e só ela — a origem
+  // ("sugerida") é estado de tela e não existe no banco.
+  await escolher(page, "O que esta linha representa?", "Tributo único identificado");
+  await escolher(page, "Qual tributo?", "ISS");
+  await escolher(
+    page,
+    "Esse valor é de fato abatido do que você transfere ao prestador?",
+    "Sim",
+  );
+  await escolher(page, "Quem recolhe isto?", "A empresa");
+  await bloco.getByRole("button", { name: "Adicionar linha" }).click();
+  await page.getByRole("button", { name: "Salvar registro" }).click();
+  await expect(page.getByRole("heading", { name: "Registrado ✓" })).toBeVisible();
+
+  const gravados = await documentos(db);
+  expect(gravados).toHaveLength(1);
+  expect(gravados[0].retencao_na_nota).toBe("destacada");
+  const linhas = await linhasDeRetencao(db);
+  expect(linhas).toHaveLength(1);
+  expect(linhas[0].rotulo_literal).toBe(RETENCAO_ESPERADA.rotulo);
+  expect(Number(linhas[0].valor)).toBe(1048);
+});
+
+/**
+ * **Critério 8 — o que acontece ao TOCAR**, nas duas direções.
+ *
+ * ⚠️ O toque na opção já sugerida é o caso que a spec do Gate 0 previu errado: ela
+ * supunha que o `onChange` do React dispara em todo clique de rádio, e ele só
+ * dispara quando `checked` muda. Este teste é o que trava a correção (um `onClick`
+ * que só existe enquanto a pílula está sugerida) — sem ela, o selo "Sugerida"
+ * ficaria na tela depois de o Mateus ter confirmado com o dedo.
+ */
+test("6.2 · tocar na opção sugerida troca só a origem; tocar na outra troca a resposta", async ({
+  page,
+}) => {
+  await notaDeServicoAteOGate(
+    page,
+    "Sim",
+    pdfComTexto(NFSE_COM_RETENCAO_RECONHECIVEL),
+  );
+  const pilula = pilulaDoGate(page, "Destacada");
+  await expect(pilula).toHaveClass(/border-amb/);
+
+  // Uma linha JÁ ACUMULADA antes do toque: é ela que prova que o toque na mesma
+  // opção não passa pela limpeza de `linhasPendentes`.
+  const bloco = page.locator(BLOCO);
+  await escolher(page, "O que esta linha representa?", "Tributo único identificado");
+  await escolher(page, "Qual tributo?", "ISS");
+  await escolher(
+    page,
+    "Esse valor é de fato abatido do que você transfere ao prestador?",
+    "Não",
+  );
+  await bloco.getByRole("button", { name: "Adicionar linha" }).click();
+  await expect(bloco.locator('[data-retencao="pendente"]')).toHaveCount(1);
+  // A linha entrou, mas o gate continua SUGERIDO: ninguém o tocou ainda.
+  await expect(pilula).toHaveClass(/border-amb/);
+
+  // ── Toque 1: a MESMA opção. Resposta igual, origem manual, linha intacta.
+  await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
+  await expect(
+    grupoDoGate(page).getByRole("radio", { name: /^Destacada/ }),
+  ).toBeChecked();
+  await expect(pilula).toHaveClass(/bg-ink/);
+  await expect(pilula).not.toHaveClass(/border-amb/);
+  await expect(pilula.getByText("Sugerida", { exact: true })).toHaveCount(0);
+  await expect(bloco.locator('[data-retencao="pendente"]')).toHaveCount(1);
+
+  // ── Toque 2: a OUTRA opção. Resposta troca, e a limpeza de sempre roda.
+  await escolher(page, "Esta nota destaca alguma retenção?", "Nenhuma");
+  await expect(page.locator('[data-sugestao="gate"]')).toHaveCount(0);
+  await expect(bloco).toHaveCount(0);
+
+  // ⚠️ E voltar para "Destacada" à mão devolve o bloco VAZIO, sem linha fantasma
+  // e **sem o trecho literal de volta**: a sugestão foi CONSUMIDA quando a linha
+  // foi adicionada (invariante do CONTAI-055), e o app não reafirma uma leitura
+  // que já foi aceita e depois descartada. Quem prova o caminho oposto — sugestão
+  // guardada, ainda não consumida, reaparecendo ao marcar "Destacada" à mão — é o
+  // 6.4 abaixo.
+  await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
+  await expect(page.locator(BLOCO)).toBeVisible();
+  await expect(
+    page.locator(BLOCO).locator('[data-retencao="pendente"]'),
+  ).toHaveCount(0);
+  await expect(page.locator('[data-sugestao="gate"]')).toHaveCount(0);
+  await expect(
+    page.locator(BLOCO).getByLabel("Rótulo (copie exatamente da nota)"),
+  ).toHaveValue("");
+  // Resposta dada pelo dedo dele: pílula escura, sem selo.
+  await expect(pilulaDoGate(page, "Destacada")).toHaveClass(/bg-ink/);
+});
+
+/**
+ * **Critério 3 / salvaguardas 2 e 3 do ADENDO 5 §3** — ausência de padrão não é
+ * prova de ausência de retenção.
+ *
+ * ⚠️ O que este teste impede: o app "ajudar" marcando "Nenhuma" quando o parser
+ * não acha o formato. Nota que o parser não entende deixa o gate VAZIO, em
+ * silêncio — vazio pergunta, preenchido afirma.
+ */
+test("6.3 · nota sem padrão reconhecido deixa o gate VAZIO — nunca 'Nenhuma'", async ({
+  page,
+}) => {
+  await notaDeServicoAteOGate(
+    page,
+    "Sim",
+    pdfComTexto(NFSE_SEM_PADRAO_RECONHECIVEL),
+  );
+
+  // A leitura termina (a espera sai da tela) e nada foi respondido por ela.
+  await expect(page.locator('[data-sugestao="gate-lendo"]')).toHaveCount(0);
+  for (const radio of await grupoDoGate(page).getByRole("radio").all()) {
+    await expect(radio).not.toBeChecked();
+  }
+  // `sugestao: null` não é falha, e não é resposta: nenhum banner de gate aparece.
+  await expect(page.locator('[data-sugestao="gate"]')).toHaveCount(0);
+  await expect(page.locator('[data-sugestao="gate-falhou"]')).toHaveCount(0);
+  await expect(page.getByText("Sugerida", { exact: true })).toHaveCount(0);
+  // E o repeater continua fora de cena: sem gate em "destacada", não existe.
+  await expect(page.locator(BLOCO)).toHaveCount(0);
+});
+
+/**
+ * ⚠️ **Critério 7 — a condição de corrida, e ela é o pior caso deste ticket.**
+ *
+ * O Mateus responde o gate com a leitura do PDF EM VOO. Se a sugestão que chega
+ * depois sobrescrevesse a resposta dele, o app afirmaria "esta nota destaca
+ * retenção" numa nota que ele acabou de dizer que não destaca — pior que o bug
+ * que o ticket corrige, porque desta vez contradiria uma afirmação humana.
+ *
+ * A segunda metade do teste é o que impede um falso verde: depois de provar que o
+ * gate NÃO mudou, ele marca "Destacada" à mão e o trecho literal aparece na hora —
+ * prova de que a resposta da leitura realmente chegou e ficou guardada, e que o
+ * teste não passou só porque a sugestão nunca veio.
+ */
+test("6.4 · resposta manual DURANTE o fetch em voo vence a sugestão que chega depois", async ({
+  page,
+  db,
+}) => {
+  const liberarSugestao = await segurarSugestao(page);
+
+  await notaDeServicoAteOGate(
+    page,
+    "Sim",
+    pdfComTexto(NFSE_COM_RETENCAO_RECONHECIVEL),
+  );
+
+  // A leitura está comprovadamente em voo, e o gate ainda está vazio.
+  await expect(page.locator('[data-sugestao="gate-lendo"]')).toBeVisible();
+  for (const radio of await grupoDoGate(page).getByRole("radio").all()) {
+    await expect(radio).not.toBeChecked();
+  }
+
+  // O dedo dele responde AGORA: esta nota não destaca retenção.
+  await escolher(page, "Esta nota destaca alguma retenção?", "Nenhuma");
+  await expect(pilulaDoGate(page, "Nenhuma")).toHaveClass(/bg-ink/);
+
+  // …e só então a leitura responde, com a sugestão de "destacada".
+  liberarSugestao();
+  await expect(page.locator('[data-sugestao="gate-lendo"]')).toHaveCount(0);
+
+  // ⚠️ A resposta dele continua de pé, e nenhuma pílula ficou âmbar.
+  await expect(
+    grupoDoGate(page).getByRole("radio", { name: /^Nenhuma/ }),
+  ).toBeChecked();
+  await expect(
+    grupoDoGate(page).getByRole("radio", { name: /^Destacada/ }),
+  ).not.toBeChecked();
+  await expect(page.getByText("Sugerida", { exact: true })).toHaveCount(0);
+  await expect(page.locator('[data-sugestao="gate"]')).toHaveCount(0);
+  await expect(page.locator(BLOCO)).toHaveCount(0);
+
+  // A prova de que a sugestão CHEGOU e só não encostou no gate: marcando
+  // "Destacada" à mão, o trecho literal aparece sem nenhum fetch novo.
+  await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
+  await expect(page.locator('[data-sugestao="gate"]')).toContainText(
+    `“${RETENCAO_ESPERADA.rotulo}”`,
+  );
+  await expect(pilulaDoGate(page, "Destacada")).toHaveClass(/bg-ink/);
+
+  // E o que grava é a resposta que ficou na tela, nunca a da leitura.
+  await escolher(page, "Esta nota destaca alguma retenção?", "Nenhuma");
+  await page.getByRole("button", { name: "Salvar registro" }).click();
+  await expect(page.getByRole("heading", { name: "Registrado ✓" })).toBeVisible();
+  const gravados = await documentos(db);
+  expect(gravados[0].retencao_na_nota).toBe("nenhuma");
+  expect(await linhasDeRetencao(db)).toHaveLength(0);
+});
+
+/**
+ * **Critério 5 em tela ESTREITA — o caso que justifica o trecho literal viver
+ * fora do repeater.**
+ *
+ * ⚠️ Abaixo de 880px o `FormularioDeLinha` está no DOM mas escondido por CSS
+ * (`hidden larga:flex`, mecanismo do CONTAI-053). Se o trecho lido morasse só lá
+ * dentro, a salvaguarda 1 do ADENDO 5 §3 ("mostrar, ao lado, o trecho literal que
+ * o parser leu") seria letra morta justamente onde o Mateus tem menos contexto na
+ * tela. Este teste prova que o gate se sugere E que o trecho aparece, com o
+ * repeater comprovadamente invisível.
+ *
+ * ⚠️ Mora neste arquivo — e não no `retencao.spec.ts` do projeto `mobile` — porque
+ * o que ele prova é o DELTA entre as duas larguras da mesma sugestão, com a mesma
+ * fixture de PDF dos testes acima. O `viewport` é estreitado aqui de propósito.
+ */
+test.describe("6.5 · no piso de 375px", () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  test("o gate se sugere e o trecho literal aparece, com o repeater invisível", async ({
+    page,
+  }) => {
+    await notaDeServicoAteOGate(
+      page,
+      "Sim",
+      pdfComTexto(NFSE_COM_RETENCAO_RECONHECIVEL),
+    );
+
+    await expect(
+      grupoDoGate(page).getByRole("radio", { name: /^Destacada/ }),
+    ).toBeChecked();
+    const pilula = pilulaDoGate(page, "Destacada");
+    await expect(pilula).toHaveClass(/border-amb/);
+    await expect(pilula.getByText("Sugerida", { exact: true })).toBeVisible();
+
+    // ⚠️ O trecho literal — aqui é o ÚNICO lugar da tela onde ele existe.
+    const trecho = page.locator('[data-sugestao="gate"]');
+    await expect(trecho).toBeVisible();
+    await expect(trecho).toContainText(`“${RETENCAO_ESPERADA.rotulo}”`);
+    await expect(trecho).toContainText("R$ 1.048,00");
+
+    // O repeater está montado e ESCONDIDO — `toBeHidden`, nunca `toHaveCount(0)`:
+    // quem o esconde é o CSS, não o JS (spec do CONTAI-053, §1).
+    await expect(page.locator(BLOCO)).toBeHidden();
+
+    // E a dica do piso continua a de sempre, byte a byte.
+    await expect(
+      page.getByText(
+        "Você detalha isso depois, sentado — aqui só marcamos que a nota tem retenção.",
+      ),
+    ).toBeVisible();
+  });
+});
+
+/**
+ * ⚠️ **O BLOQUEANTE do Gate 2 do CONTAI-062, em forma de teste.**
+ *
+ * A primeira versão do ticket invalidava a sugestão da LINHA na troca do anexo e
+ * esquecia o GATE: trocado o PDF reconhecido por um sem padrão, a pílula continuava
+ * "Destacada" com o selo "Sugerida", sem trecho literal embaixo e sem linha —
+ * motivada por um papel que já não estava mais anexado. É literalmente "a leitura
+ * de um papel exibida ao lado de outro", a regra que o bloco de invalidação existe
+ * para impedir, e é o que as salvaguardas 1 e 4 do ADENDO 5 §3 proíbem: gate e
+ * linha se sugerem juntos, logo morrem juntos.
+ *
+ * As três formas de o papel deixar de estar ali entram no mesmo teste, porque a
+ * causa é uma só (`alvoDaSugestaoDeRetencao` virou outro): outro PDF, uma foto que
+ * o parser nem tenta ler, e a remoção do anexo.
+ */
+test("6.6 · trocar ou remover o anexo mata o gate SUGERIDO junto com a linha", async ({
+  page,
+}) => {
+  const anexo = page.getByLabel("Arquivo");
+  const destacada = grupoDoGate(page).getByRole("radio", { name: /^Destacada/ });
+
+  await notaDeServicoAteOGate(
+    page,
+    "Sim",
+    pdfComTexto(NFSE_COM_RETENCAO_RECONHECIVEL),
+  );
+  await expect(destacada).toBeChecked();
+  await expect(page.locator('[data-sugestao="gate"]')).toBeVisible();
+
+  /** Nenhum resquício do papel anterior: nem resposta, nem selo, nem trecho. */
+  async function gateLimpo() {
+    for (const radio of await grupoDoGate(page).getByRole("radio").all()) {
+      await expect(radio).not.toBeChecked();
+    }
+    await expect(page.getByText("Sugerida", { exact: true })).toHaveCount(0);
+    await expect(page.locator('[data-sugestao="gate"]')).toHaveCount(0);
+    // Sem gate em "destacada" o repeater não existe — e com ele vai a linha.
+    await expect(page.locator(BLOCO)).toHaveCount(0);
+  }
+
+  // ── (1) outro PDF, sem padrão reconhecível.
+  await anexo.setInputFiles({
+    name: "nf-outra.pdf",
+    mimeType: "application/pdf",
+    buffer: pdfComTexto(NFSE_SEM_PADRAO_RECONHECIVEL),
+  });
+  await gateLimpo();
+
+  // ── (2) uma FOTO: o parser nem é acionado (`type !== application/pdf`).
+  await anexo.setInputFiles({
+    name: "nf-1042.pdf",
+    mimeType: "application/pdf",
+    buffer: pdfComTexto(NFSE_COM_RETENCAO_RECONHECIVEL),
+  });
+  await expect(destacada).toBeChecked();
+  await anexo.setInputFiles({
+    name: "foto-da-nota.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from("nao-e-pdf"),
+  });
+  await gateLimpo();
+
+  // ── (3) o anexo REMOVIDO de vez.
+  await anexo.setInputFiles({
+    name: "nf-1042.pdf",
+    mimeType: "application/pdf",
+    buffer: pdfComTexto(NFSE_COM_RETENCAO_RECONHECIVEL),
+  });
+  await expect(destacada).toBeChecked();
+  await anexo.setInputFiles([]);
+  await gateLimpo();
+});
+
+/**
+ * **O contraponto do 6.6, e é ele que impede a correção de virar excesso.**
+ *
+ * Uma resposta MANUAL não é leitura de papel nenhum: é afirmação do Mateus sobre a
+ * nota. Trocar o anexo não a revoga — é o critério 7 ("resposta manual sempre
+ * vence") aplicado à troca de papel, e não só à corrida do fetch. Apagá-la aqui
+ * seria o app desfazendo uma resposta humana por conta própria.
+ *
+ * O caminho escolhido prova as duas coisas de uma vez: ele responde "Nenhuma" com
+ * um PDF que o parser não entende e DEPOIS anexa o que ele entende — então a
+ * sugestão chega de verdade, contra um gate já respondido, e ainda assim perde.
+ */
+test("6.7 · resposta MANUAL sobrevive à troca de anexo — só a sugerida morre", async ({
+  page,
+  db,
+}) => {
+  await notaDeServicoAteOGate(
+    page,
+    "Sim",
+    pdfComTexto(NFSE_SEM_PADRAO_RECONHECIVEL),
+  );
+  // O dedo dele responde: esta nota não destaca retenção.
+  await escolher(page, "Esta nota destaca alguma retenção?", "Nenhuma");
+  await expect(pilulaDoGate(page, "Nenhuma")).toHaveClass(/bg-ink/);
+
+  // Troca o anexo por um que o parser RECONHECE — a sugestão chega mesmo.
+  await page.getByLabel("Arquivo").setInputFiles({
+    name: "nf-1042.pdf",
+    mimeType: "application/pdf",
+    buffer: pdfComTexto(NFSE_COM_RETENCAO_RECONHECIVEL),
+  });
+
+  // ⚠️ A resposta dele continua de pé, e ESCURA: afirmada, nunca sugerida.
+  await expect(
+    grupoDoGate(page).getByRole("radio", { name: /^Nenhuma/ }),
+  ).toBeChecked();
+  await expect(pilulaDoGate(page, "Nenhuma")).toHaveClass(/bg-ink/);
+  await expect(pilulaDoGate(page, "Nenhuma")).not.toHaveClass(/border-amb/);
+  await expect(page.getByText("Sugerida", { exact: true })).toHaveCount(0);
+
+  // Prova de que a leitura do NOVO anexo chegou e só não encostou no gate: ao
+  // marcar "Destacada" à mão, o trecho literal do papel novo aparece na hora.
+  await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
+  await expect(page.locator('[data-sugestao="gate"]')).toContainText(
+    `“${RETENCAO_ESPERADA.rotulo}”`,
+  );
+  await expect(pilulaDoGate(page, "Destacada")).toHaveClass(/bg-ink/);
+
+  // E o que grava é a resposta afirmada, não a leitura.
+  await escolher(page, "Esta nota destaca alguma retenção?", "Nenhuma");
+  await page.getByRole("button", { name: "Salvar registro" }).click();
+  await expect(page.getByRole("heading", { name: "Registrado ✓" })).toBeVisible();
+  const gravados = await documentos(db);
+  expect(gravados[0].retencao_na_nota).toBe("nenhuma");
+  expect(await linhasDeRetencao(db)).toHaveLength(0);
 });

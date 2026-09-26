@@ -122,17 +122,28 @@ describe("o caminho da rota, com o unpdf REAL — NFS-e municipal", () => {
     expect(lido!.texto).toContain("ISSRF\n1.048,00");
     expect(avaliarTexto(lido!.texto).suficiente).toBe(true);
 
-    expect(sugerirLinhaRetencao(lido!.texto, "destacada")).toEqual({
+    expect(sugerirLinhaRetencao(lido!.texto)).toEqual({
       rotuloLiteral: "ISSRF",
       valorCentavos: 104_800,
     });
   });
 
-  it("o mesmo PDF com o gate ainda não respondido não produz sugestão", async () => {
+  /**
+   * ⚠️ **Substitui o teste "o mesmo PDF com o gate ainda não respondido não
+   * produz sugestão", apagado no CONTAI-062**: o gate saiu da assinatura, e a
+   * pergunta que interessa virou a oposta — o MESMO PDF, sem gate nenhum
+   * respondido, TEM de produzir sugestão. É essa a Dor de Origem do ticket
+   * (`docs/backlog/75-2026-09-26-gate-retencao-sugerido-na-extracao.md`), e o
+   * ADENDO 5 §1/§3 é quem a autoriza.
+   */
+  it("o mesmo PDF produz sugestão sem gate nenhum respondido antes (ADENDO 5 §3)", async () => {
     const lido = await extrairTextoDoPdf(pdfComTexto(NOTA_MUNICIPAL_CELULAS));
 
-    expect(sugerirLinhaRetencao(lido!.texto, null)).toBeNull();
-    expect(sugerirLinhaRetencao(lido!.texto, "nenhuma")).toBeNull();
+    // Nada além do texto entra aqui: não há o que responder antes.
+    expect(sugerirLinhaRetencao(lido!.texto)).toEqual({
+      rotuloLiteral: "ISSRF",
+      valorCentavos: 104_800,
+    });
   });
 });
 
@@ -141,7 +152,7 @@ describe("o caminho da rota, com o unpdf REAL — DANFSe v2.0", () => {
     const lido = await extrairTextoDoPdf(pdfComTexto(NOTA_DANFSE_CELULAS));
 
     expect(avaliarTexto(lido!.texto).suficiente).toBe(true);
-    expect(sugerirLinhaRetencao(lido!.texto, "destacada")).toEqual({
+    expect(sugerirLinhaRetencao(lido!.texto)).toEqual({
       rotuloLiteral: "Total das Retencoes (ISSQN / Federais)",
       valorCentavos: 69_420,
     });
@@ -154,6 +165,6 @@ describe("o caminho da rota, com o unpdf REAL — DANFSe v2.0", () => {
     // virasse par com o valor da célula seguinte, a conta usaria o número
     // errado.
     expect(lido!.texto).toContain("Valor Total Apurado - IBS\n-");
-    expect(sugerirLinhaRetencao(lido!.texto, "destacada")?.valorCentavos).toBe(69_420);
+    expect(sugerirLinhaRetencao(lido!.texto)?.valorCentavos).toBe(69_420);
   });
 });

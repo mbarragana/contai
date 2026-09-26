@@ -1,6 +1,50 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 19 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 20 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda**:
+**`062` entregue** — Gate 4 (`po`), 13/13 critérios PASS. O gate `retencaoNaNota`
+e a origem da resposta (`"manual"`/`"sugerida"`) viraram um estado único
+(`gateDeRetencao`) em `page.tsx`, decisão atômica que resolve o critério 7: o
+updater lê o valor MAIS RECENTE do gate no instante em que a sugestão chega,
+nunca o capturado quando o efeito nasceu — resposta manual vence sempre,
+inclusive com o fetch em voo. Gate 1/2 corrigiu duas premissas erradas do
+Gate 0: o `onChange` do React só dispara quando `checked` muda (exigiu um
+`onClick` próprio em `Escolha`, ativo só enquanto a pílula está sugerida); e a
+invalidação por troca de anexo zerava a sugestão da LINHA mas esquecia o
+GATE — corrigido para os dois morrerem juntos, com a resposta MANUAL
+sobrevivendo à troca de papel. Trecho literal e estados de leitura/falha
+saíram de dentro do `BlocoRetencaoDaCaptura` (só ≥880px, só "destacada") para
+o lado do próprio gate, em qualquer largura e com o gate ainda vazio. Nenhum
+arquivo mudou depois do APPROVE final do Gate 2. 1121 unitários + 334 E2E
+verdes, sem migration. Achado não bloqueante registrado no diário do backlog
+75. Detalhe: `docs/tickets/CONTAI-062.md` — volta a 20.
+
+**2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda**:
+**`CONTAI-064` e `CONTAI-065` criados** — relato direto do Mateus na sessão
+(`docs/backlog/78-2026-09-26-cartao-nao-herda-documento.md`): trocar "Como
+foi pago" para Cartão em `/adicionar/pagamento?documento=<id>` redireciona
+para `/adicionar/compra-cartao` **vazia**, mesmo com favorecido/CNPJ/valor
+já resolvidos um passo antes. Consulta de arquitetura ao `cto-obra`
+**rejeitou** a hipótese inicial de buraco de schema (`fatura_desembolso`
+sem vínculo a `documento`) — `compromisso.documento_origem_id` já é
+genérico para qualquer origem (pix/boleto/cartão) desde a migration
+`0007`, e a RPC `compra_cartao_gravar` (`0013`) já o grava; é lacuna de UI,
+zero migration. Achado mais sério do `cto-obra`: esse campo é
+**write-only** em todo o app (dívida nova **D79**) — nunca propagado para
+`pagamento_documento` na quitação, nem no cartão nem no PIX/boleto
+agendado. `contador` liberou a replicação automática como segura
+(`docs/pareceres/2026-09-26-replicar-vinculo-documento-quitacao.md`: não é
+heurística, é persistir afirmação humana já feita, com 5 condições de
+guarda). Vira **`CONTAI-064`** (P1, S, herança na tela de captura, zero
+migration) e **`CONTAI-065`** (P1, M, propagar o vínculo na quitação, com
+migration, sem Gate 0 — mudança de RPC, nenhuma UI nova) — volta a 21, os
+dois independentes entre si. **`064` fechou Gate 0** no mesmo dia
+(`design/mocks/CONTAI-064.md`, nível 2) — achado extra do `designer`: o
+link "Corrigir na nota" precisa de uma opção nova de retorno
+(`?voltar=compra-cartao`) em `corrigir/emitente/page.tsx`, virou critério 9
+do ticket, confirmação de escopo pendente para o Gate 2 do `cto-obra`. **Os
+dois tickets prontos para `/develop`.**
 
 **2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda**: **`060`
 entregue** — Gate 4 (`po`), 6/6 critérios PASS. Seletor de ano vira grupo de
@@ -849,9 +893,32 @@ da fila** — Gate 0 fechou (`/design` nível 2), passou pelo `/develop`
 inteiro e saiu entregue (ver nota no topo). Esta tabela não lista `062`
 nem `063` (entradas de outros tickets, fora do escopo deste Gate 4).
 
+**2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda**:
+**`064`/`065` entram** — herança de documento na compra no cartão (dívida
+D79, ver nota no topo). `064` bloqueado por Gate 0 (`/design` nível 2, em
+andamento); `065` **pronto para `/develop`** — arquitetura fechada pelo
+`cto-obra` e condição fiscal fechada pelo `contador` na própria consulta
+que originou os dois tickets, sem UI nova a desenhar.
+
+**2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda**:
+**`064` sai de "bloqueado por Gate 0"** — spec nível 2 fechado em
+`design/mocks/CONTAI-064.md`. O `designer` achou uma lacuna real fora da
+Viabilidade original do `cto-obra`: o link "Corrigir na nota" tem
+`?voltar=pagamento` fixo em `corrigir/emitente/page.tsx`, e sem uma opção
+`voltar=compra-cartao` ele devolveria o Mateus para `/adicionar/pagamento`
+vazio. Virou critério 9 do ticket, com confirmação de escopo pendente para
+o Gate 2 do `cto-obra` (não bloqueia o Gate 1). **Os dois tickets prontos
+para `/develop`.**
+
+**2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda
+ainda**: **`062` sai da fila** — passou pelo `/develop` inteiro e saiu
+entregue no mesmo lote (ver nota no topo). `064`/`065` continuam a fila
+ativa, sem mudança.
+
 | Ordem | # | Ticket | P | Pronto para `/develop` |
 |---|---|---|---|---|
-| — | — | — | — | Nenhum ticket desta tabela aguardando `/develop` |
+| 1 | 065 | Propagar vínculo com a nota na quitação (D79) | P1 | 🟢 sim |
+| 2 | 064 | Cartão herda favorecido/CNPJ/valor da nota | P1 | 🟢 sim (Gate 0 fechado) |
 
 ### 🛑 Em espera — decisão do Mateus, 2026-09-23
 

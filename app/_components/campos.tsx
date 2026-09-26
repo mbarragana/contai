@@ -110,6 +110,7 @@ export function Escolha<T extends string>({
   onChange,
   erro,
   destaque = false,
+  sugerido = null,
 }: ComCampo & {
   rotulo: string;
   opcoes: readonly { valor: T; texto: string }[];
@@ -118,6 +119,21 @@ export function Escolha<T extends string>({
   erro?: string;
   /** Checks fiscais obrigatórios ficam visualmente marcados. */
   destaque?: boolean;
+  /**
+   * **CONTAI-062** — o valor cuja pílula MARCADA deve ser lida como
+   * **sugestão a conferir**, e não como resposta que o Mateus deu: âmbar claro
+   * com selo, nunca o preenchido escuro de sempre.
+   *
+   * `null` (o default) é "nenhuma mudança de visual" — todo outro `Escolha` do
+   * app continua idêntico, byte a byte, porque nenhum deles passa este prop.
+   *
+   * ⚠️ **Dois canais, nunca só cor** (ADENDO 5 §3, salvaguarda 1 do parecer
+   * `docs/pareceres/2026-09-18-retencao-variavel-servico-pj.md`): cor âmbar +
+   * o selo com a palavra "Sugerida" + o equivalente para leitor de tela. Cor
+   * sozinha é um canal só e falha para quem não a distingue — o mesmo motivo
+   * que o `Chip vazado` de `ui.tsx` já documenta.
+   */
+  sugerido?: T | null;
 }) {
   const nome = useId();
   return (
@@ -130,6 +146,10 @@ export function Escolha<T extends string>({
       <div className="flex flex-wrap gap-2">
         {opcoes.map((o) => {
           const marcado = valor === o.valor;
+          // Só a pílula MARCADA pode ser "sugerida": sugestão sem valor marcado
+          // não existe — o gate ou está preenchido (por ele ou pela leitura) ou
+          // está vazio.
+          const ehSugerido = marcado && sugerido === o.valor;
           return (
             // ⚠️ `relative` existe por causa do `sr-only` do rádio abaixo:
             // `sr-only` é `position: absolute`, e sem um ancestral posicionado
@@ -142,11 +162,13 @@ export function Escolha<T extends string>({
             <label
               key={o.valor}
               className={`relative flex min-h-[44px] flex-1 cursor-pointer items-center justify-center rounded-lg border px-3 text-center text-[13.5px] font-semibold ${
-                marcado
-                  ? "border-ink bg-ink text-paper"
-                  : erro
-                    ? "border-red bg-white text-ink"
-                    : "border-line bg-white text-ink"
+                ehSugerido
+                  ? "border-amb bg-amb-bg text-ink"
+                  : marcado
+                    ? "border-ink bg-ink text-paper"
+                    : erro
+                      ? "border-red bg-white text-ink"
+                      : "border-line bg-white text-ink"
               }`}
             >
               <input
@@ -155,9 +177,58 @@ export function Escolha<T extends string>({
                 value={o.valor}
                 checked={marcado}
                 onChange={() => onChange(o.valor)}
+                /**
+                 * ⚠️ **CONTAI-062 — e aqui a spec do Gate 0 estava errada.** Ela
+                 * afirmava que o `onChange` do React dispara "em TODO clique,
+                 * mesmo quando a opção clicada já estava marcada". Não dispara:
+                 * o `ChangeEventPlugin` do react-dom só sintetiza `change` a
+                 * partir do `click` de um radio quando `node.checked` MUDOU, e
+                 * clicar no rádio já marcado não muda nada. Sem este `onClick`,
+                 * tocar na pílula sugerida não teria efeito nenhum e o selo
+                 * "Sugerida" ficaria na tela depois de o Mateus tê-la
+                 * confirmado com o dedo — critério 8 do ticket. **Medido**, não
+                 * deduzido: com esta linha comentada, o caso "toque 1" do teste
+                 * 6.2 reprova com a pílula ainda em `border-amb bg-amb-bg`.
+                 *
+                 * Ele existe **só enquanto a pílula está sugerida**, e é isso
+                 * que o mantém inofensivo: nenhum outro `Escolha` passa
+                 * `sugerido`, então `ehSugerido` é sempre `false` no resto do
+                 * app e o handler nem chega ao DOM. No único caso em que ele
+                 * existe, `onChange` não pode disparar junto (o valor não muda),
+                 * logo não há chamada dupla — e a chamada que ele faz é a mesma
+                 * que o toque do dedo significa: "esta resposta agora é minha".
+                 */
+                onClick={ehSugerido ? () => onChange(o.valor) : undefined}
                 className="sr-only"
               />
-              {o.texto}
+              {/* ⚠️ O texto da opção mora num `<span>` PRÓPRIO, e não solto no
+                  `<label>`: com o selo e o texto de leitor de tela ao lado, o
+                  `textContent` do label deixa de ser só "Destacada", e o
+                  `getByText(opcao, { exact: true })` de `e2e/formularios.ts`
+                  (o `escolher`, usado por ~20 testes) não acharia mais a opção.
+                  Com o span, o alvo exato continua existindo em qualquer
+                  estado. */}
+              <span>{o.texto}</span>
+              {ehSugerido ? (
+                <>
+                  {/* O selo: âmbar SÓLIDO com texto claro, porque o corpo da
+                      pílula já é o âmbar claro — claro sobre claro não seria
+                      segundo canal nenhum. */}
+                  <span
+                    aria-hidden="true"
+                    className="absolute -top-2 right-1 rounded-full bg-amb px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-paper uppercase"
+                  >
+                    Sugerida
+                  </span>
+                  {/* O mesmo aviso, para quem não vê o selo. Entra no nome
+                      acessível do rádio, que é exatamente onde ele precisa
+                      estar: quem ouve "Destacada" marcado tem de ouvir também
+                      que não foi ele quem marcou. */}
+                  <span className="sr-only">
+                    {" — sugerida automaticamente, ainda não confirmada"}
+                  </span>
+                </>
+              ) : null}
             </label>
           );
         })}

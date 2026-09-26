@@ -77,8 +77,6 @@ import {
   RETENCAO_SEM_LINHA_EFEITO,
   SUGESTAO_RETENCAO_CHIP,
   SUGESTAO_RETENCAO_CONFIRA,
-  SUGESTAO_RETENCAO_FALHOU,
-  SUGESTAO_RETENCAO_LENDO,
   TEXTO_DA_RETENCAO_ABERTA,
   validarLinhaRetencao,
   type CampoLinhaRetencao,
@@ -789,13 +787,15 @@ export function FormularioDeLinha({
  * captura e só viram `INSERT` depois do "Salvar registro", por
  * `criarLinhasRetencao`.
  *
- * ⚠️ **MUDOU NO CONTAI-055 a frase que seguia daí** — ela dizia que o bloco não
- * tem estado de carregamento nem de erro (spec do 053, §2), e isso deixou de ser
- * verdade: a sugestão do `POST /api/sugerir-retencao` é uma chamada, logo tem
- * espera e tem falha. O que **não** mudou é a parte fiscal: nada aqui GRAVA, e
- * nem a espera nem a falha da sugestão impedem o "Salvar registro" (critério 4).
- * Quem lê e trata a rota é a página (`lendo`/`falhou` abaixo); este bloco só
- * mostra o estado.
+ * ⚠️ **MUDOU NO CONTAI-055 e no CONTAI-062**: o comentário original dizia que o
+ * bloco não tem estado de carregamento nem de erro (spec do 053, §2); o 055
+ * desmentiu isso (a sugestão é uma chamada, logo tem espera e falha) e o 062
+ * devolveu a frase ao lugar — a espera e a falha da leitura voltaram a NÃO morar
+ * aqui, porque precisam aparecer com o gate ainda vazio e em qualquer largura,
+ * o que este bloco (só ≥880px, só com o gate em "destacada") não consegue.
+ * Quem as mostra é `page.tsx`, ao lado do próprio gate. O que nunca mudou é a
+ * parte fiscal: nada aqui GRAVA, e nem a espera nem a falha da sugestão impedem
+ * o "Salvar registro" (critério 4 do CONTAI-055).
  *
  * ⚠️ **Nenhum banner de `CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR` aqui**, ao
  * contrário da gestão — e a omissão é regra, não esquecimento: aquele julgamento
@@ -808,8 +808,6 @@ export function BlocoRetencaoDaCaptura({
   onAdicionar,
   onRemover,
   sugestao = null,
-  lendoSugestao = false,
-  falhouSugestao = false,
 }: {
   /** As linhas acumuladas em memória, na ordem em que ele as leu na nota. */
   linhas: EntradaLinhaRetencao[];
@@ -817,10 +815,6 @@ export function BlocoRetencaoDaCaptura({
   onRemover: (indice: number) => void;
   /** **CONTAI-055** — a leitura do PDF, a confirmar. `null` = sem sugestão. */
   sugestao?: SugestaoDeLinha | null;
-  /** A rota foi chamada e ainda não respondeu. */
-  lendoSugestao?: boolean;
-  /** A chamada falhou (rede, timeout, 5xx). Informa e segue — nunca bloqueia. */
-  falhouSugestao?: boolean;
 }) {
   const [abrindo, setAbrindo] = useState(false);
   const vazio = linhas.length === 0;
@@ -830,23 +824,19 @@ export function BlocoRetencaoDaCaptura({
       data-captura="retencao"
       className="hidden flex-col border-b border-line pb-3 larga:flex"
     >
-      {/* ⚠️ **Espera e falha aparecem, mas NÃO seguram o formulário** — ele
-          continua montado e digitável abaixo (critérios 3 e 4). Uma espera que
-          esconde o campo transformaria uma sugestão opcional em pré-requisito da
-          captura, que é exatamente o que o critério 4 proíbe. */}
-      {vazio && lendoSugestao ? (
-        <div role="status" data-sugestao="lendo">
-          <Dica>{SUGESTAO_RETENCAO_LENDO}</Dica>
-        </div>
-      ) : null}
-      {vazio && falhouSugestao ? (
-        <div data-sugestao="falhou">
-          <Banner cor="amb" role="status">
-            {SUGESTAO_RETENCAO_FALHOU}
-          </Banner>
-        </div>
-      ) : null}
+      {/* ⚠️ **MUDOU NO CONTAI-062 — a espera e a falha da leitura saíram daqui.**
+          Elas moravam neste bloco (`data-sugestao="lendo"|"falhou"`), e por isso
+          só apareciam ≥880px E só depois de o gate já estar em "destacada". Com a
+          leitura passando a rodar com o gate AINDA VAZIO, os dois estados
+          precisam aparecer em qualquer largura e antes de qualquer resposta —
+          então subiram para o lado do próprio gate, em `page.tsx`, como
+          `data-sugestao="gate-lendo"|"gate-falhou"`. Mantê-los aqui também
+          mostraria o mesmo texto duas vezes na mesma tela em tela larga.
 
+          O que NÃO mudou é a parte que importa: nem a espera nem a falha seguram
+          o formulário abaixo (critérios 3 e 4 do CONTAI-055) — ele continua
+          montado e digitável, porque uma espera que esconde o campo
+          transformaria uma sugestão opcional em pré-requisito da captura. */}
       {linhas.map((linha, i) => (
         <LinhaPendente
           // O índice é chave legítima aqui: `LinhaPendente` não tem estado

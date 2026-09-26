@@ -93,6 +93,10 @@ import {
   DICA_GATE_DESTACADA_LARGA,
   OPCOES_GATE,
   PERGUNTA_GATE,
+  SUGESTAO_GATE_CONFIRA,
+  SUGESTAO_RETENCAO_CHIP,
+  SUGESTAO_RETENCAO_FALHOU,
+  SUGESTAO_RETENCAO_LENDO,
   type EntradaLinhaRetencao,
 } from "@/lib/fiscal/retencao";
 import { soDigitos, tipoPorDocumento } from "@/lib/fiscal/identificacao";
@@ -255,9 +259,45 @@ export default function RegistrarDocumento() {
    * linha aparece nesta tela (`BlocoRetencaoDaCaptura`), porque a Dor de Origem é
    * ter que voltar depois para completar o que já se leu na hora, e porque o
    * cenário de gestão do Mateus é justamente a tela larga.
+   *
+   * ⚠️ **MUDOU NO CONTAI-062 — a resposta e a ORIGEM dela viajam juntas, num
+   * estado só.** O gate agora pode nascer de duas fontes: do dedo do Mateus ou
+   * da leitura do PDF (ADENDO 5 §1/§3 do parecer
+   * `docs/pareceres/2026-09-18-retencao-variavel-servico-pj.md`) — e a tela tem
+   * de dizer qual das duas foi, porque sugestão nunca pode se passar por
+   * afirmação (salvaguarda 1).
+   *
+   * **Por que UM estado com dois campos, e não `retencaoNaNota` +
+   * `origemGateRetencao` separados**: é o que torna a decisão do critério 7
+   * ATÔMICA. A sugestão chega tarde, num `await`, e só pode preencher o gate se
+   * ele ainda estiver vazio NAQUELE instante — nunca com base no valor que o
+   * efeito capturou quando nasceu. Com dois `useState` não há como ler o valor
+   * mais recente e derivar a origem correspondente na mesma transição: o
+   * updater de `setRetencaoNaNota` receberia o valor fresco, mas
+   * `setOrigemGateRetencao` não teria como saber se o primeiro se aplicou ou
+   * não, e resolver isso por `ref` espelhado depende de o efeito de espelho ter
+   * rodado antes da resposta chegar. Com um estado só, `setGateDeRetencao((atual)
+   * => atual ?? ...)` é puro, atômico e correto em qualquer ordem — a resposta
+   * manual do Mateus vence SEMPRE, inclusive quando ele responde com o fetch em
+   * voo.
+   *
+   * ⚠️ **A origem NUNCA grava**: no "Salvar registro" só `resposta` viaja para
+   * `criarDocumento`. Não existe (nem pode existir) um terceiro valor
+   * `"sugerida"` no enum `retencao_na_nota` do banco — sem migration, sem
+   * coluna nova (critério 6).
    */
-  const [retencaoNaNota, setRetencaoNaNota] =
-    useState<RespostaRetencaoNaNota | null>(null);
+  const [gateDeRetencao, setGateDeRetencao] = useState<{
+    resposta: RespostaRetencaoNaNota;
+    origem: "manual" | "sugerida";
+  } | null>(null);
+  const retencaoNaNota = gateDeRetencao?.resposta ?? null;
+  /**
+   * O valor cuja pílula deve aparecer como SUGESTÃO (âmbar + selo) em vez de
+   * resposta afirmada (preenchido escuro). `null` nos dois casos em que não há
+   * sugestão a sinalizar: gate vazio, ou gate respondido pelo Mateus.
+   */
+  const gateSugerido =
+    gateDeRetencao?.origem === "sugerida" ? gateDeRetencao.resposta : null;
   /**
    * **CONTAI-053 — as linhas de retenção antes de o documento existir.**
    *
@@ -292,15 +332,27 @@ export default function RegistrarDocumento() {
    * gate diz não ter retenção é afirmação órfã — e ela gravaria no banco contra
    * um `retencao_na_nota` que a contradiz. Voltar para "destacada" devolve o
    * bloco ao estado vazio; nunca há linha fantasma (spec, §2).
+   *
+   * ⚠️ **CONTAI-062 — todo toque aqui é MANUAL, sem exceção**, inclusive o toque
+   * na opção que a leitura já tinha sugerido. É esse toque que troca a pílula de
+   * âmbar+selo para o preenchido escuro de sempre: ele é a confirmação explícita
+   * de uma sugestão (o "confirmar implícito" é seguir em frente sem tocar e
+   * apertar "Salvar registro"). Tocar na MESMA opção não muda a resposta e, por
+   * isso, não encosta em `linhasPendentes` — só a origem muda (critério 8).
    */
   function responderGateDeRetencao(resposta: RespostaRetencaoNaNota) {
-    setRetencaoNaNota(resposta);
+    setGateDeRetencao({ resposta, origem: "manual" });
     if (resposta !== "destacada") setLinhasPendentes([]);
   }
   /**
    * CONTAI-007 — a pergunta do CNO. Nasce `null`, como todo campo fiscal deste
    * formulário: **a extração nunca a preenche** (é pergunta sobre o papel na
-   * mão, não leitura de PDF — mesma regra de `notaNoCpf` e do gate acima).
+   * mão, não leitura de PDF — mesma regra de `notaNoCpf`).
+   *
+   * ⚠️ **O gate de retenção deixou de estar nesta lista no CONTAI-062**, e só
+   * ele: o ADENDO 5 §1 do parecer o reclassifica como fato impresso e
+   * aritmeticamente conferível. `notaNoCpf`, `cnoNaNota` e os quatro campos de
+   * classificação da linha continuam 100% manuais (ADENDO 5 §4).
    */
   const [cnoNaNota, setCnoNaNota] = useState<RespostaCnoNota | null>(null);
   const [erros, setErros] = useState<ErroCampo[]>([]);
@@ -314,7 +366,17 @@ export default function RegistrarDocumento() {
 
   // US-008 Fase 2 — extração automática (Gemini). Só sugere: quem afirma o
   // campo continua sendo o dedo do Mateus em "Salvar registro". Nunca toca
-  // `notaNoCpf` nem o gate de retenção — pergunta fiscal, não leitura de PDF.
+  // `notaNoCpf` — pergunta de admissibilidade do documento inteiro, fora de
+  // qualquer sugestão (ADENDO 5 §1/§4).
+  //
+  // ⚠️ E nunca toca o gate de retenção TAMPOUCO — mas agora por um motivo
+  // diferente, e o CONTAI-062 corrigiu a frase que dizia "pergunta fiscal, não
+  // leitura de PDF": o gate É sugerido a partir do PDF, só não por AQUI. Quem o
+  // sugere é o parser determinístico local (`/api/sugerir-retencao`), num
+  // caminho separado e sem provedor de IA — decisão de gatilho da Viabilidade do
+  // CONTAI-062: amarrar a sugestão do gate ao botão do Gemini criaria dois
+  // caminhos com dois modos de falha e deixaria sem sugestão quem escolhe o tipo
+  // à mão.
   const [extraindo, setExtraindo] = useState(false);
   const [erroExtracao, setErroExtracao] = useState<string | null>(null);
   const [extracao, setExtracao] = useState<ExtracaoDocumento | null>(null);
@@ -372,7 +434,7 @@ export default function RegistrarDocumento() {
     // Tipo que não pergunta retenção não pode carregar gate NEM linha: as duas
     // coisas só existem em NF de serviço (CONTAI-053).
     if (!exigeRetencao(novo)) {
-      setRetencaoNaNota(null);
+      setGateDeRetencao(null);
       setLinhasPendentes([]);
     }
     // Sair de NF de serviço apaga a resposta do CNO: ela só existe ali, e uma
@@ -381,18 +443,28 @@ export default function RegistrarDocumento() {
   }
 
   /**
-   * ══ CONTAI-055 — a chamada a `POST /api/sugerir-retencao` ═══════════════════
+   * ══ CONTAI-055/062 — a chamada a `POST /api/sugerir-retencao` ═══════════════
    *
-   * **Quando**: o gate vira `"destacada"` em NF de serviço COM PDF anexado. A
-   * rota confere os três de novo do lado dela (ela nunca decide o gate), e aqui a
-   * condição existe para não gastar uma requisição que já se sabe vazia.
+   * **Quando** (⚠️ **mudou no CONTAI-062**): basta um PDF anexado num tipo que
+   * pergunta retenção. **O gate saiu da pré-condição** — era ele que fazia a
+   * leitura só rodar DEPOIS de o Mateus marcar "destacada" à mão, que é
+   * literalmente a Dor de Origem deste ticket (*"eu não espero clicar em nada, se
+   * estou anexando o pdf e mandando extrair automaticamente"*). Agora a leitura
+   * roda sozinha e o resultado pode preencher o gate como sugestão (ADENDO 5
+   * §1/§3 do parecer
+   * `docs/pareceres/2026-09-18-retencao-variavel-servico-pj.md`).
    *
-   * **Por que EFEITO e não no `onChange` do gate**: as três coisas que invalidam
-   * a sugestão são `tipo`, gate e ARQUIVO, e o arquivo pode ser trocado depois de
-   * o gate estar respondido. Com a chamada no handler do gate, a sugestão do PDF
-   * anterior sobreviveria à troca do anexo — leitura de um papel exibida ao lado
-   * de outro. Aqui quem manda é o `alvo` logo abaixo: ele É a regra de
-   * invalidação, num lugar só.
+   * ⚠️ **A leitura roda mesmo com o gate já em `"nenhuma"`, e isso é de
+   * propósito**: ela nunca contradiz o Mateus (o efeito abaixo só preenche o gate
+   * quando ele está `null`), mas a sugestão fica guardada — se ele mudar de ideia
+   * e marcar "destacada" à mão, o trecho literal e a linha aparecem na hora, sem
+   * um segundo fetch e sem trocar de anexo.
+   *
+   * **Por que EFEITO e não no `onChange` do gate**: as duas coisas que invalidam
+   * a sugestão são `tipo` e ARQUIVO, e o arquivo pode ser trocado a qualquer
+   * momento. Com a chamada num handler, a sugestão do PDF anterior sobreviveria à
+   * troca do anexo — leitura de um papel exibida ao lado de outro. Aqui quem
+   * manda é o `alvo` logo abaixo: ele É a regra de invalidação, num lugar só.
    *
    * ⚠️ **Falha NUNCA bloqueia o registro** (critério 4): não há `throw`, não há
    * erro de campo e o "Salvar registro" não olha para nada disto. O pior caso é o
@@ -422,10 +494,7 @@ export default function RegistrarDocumento() {
    * de quem a sugestão é: **mudou o alvo, a sugestão anterior morre**.
    */
   const alvoDaSugestaoDeRetencao =
-    exigeRetencao(tipo) &&
-    retencaoNaNota === "destacada" &&
-    arquivo !== null &&
-    arquivo.type === "application/pdf"
+    exigeRetencao(tipo) && arquivo !== null && arquivo.type === "application/pdf"
       ? arquivo
       : null;
 
@@ -435,6 +504,16 @@ export default function RegistrarDocumento() {
    * `react-hooks/set-state-in-effect` cobra (mesmo padrão do `useEsperaLonga` em
    * `ui.tsx`). Uma sugestão que sobrevive à troca do anexo é a leitura de um papel
    * exibida ao lado de outro.
+   *
+   * ⚠️ **CONTAI-062, bloqueante do Gate 2 — o GATE morre aqui junto com a linha.**
+   * A primeira versão deste ticket zerava `sugestaoRetencao`/`falhou`/`lendo` e
+   * deixava `gateDeRetencao` de pé: trocado o PDF reconhecido por um sem padrão,
+   * por uma foto, ou removido o anexo, a pílula continuava marcada "Destacada" com
+   * o selo "Sugerida" — sem trecho literal embaixo, sem linha nenhuma, motivada
+   * por um papel que já não está mais ali. É a MESMA regra que este bloco sempre
+   * aplicou à linha, só que faltava aplicar ao gate (ADENDO 5 §3, salvaguardas 1
+   * e 4 do parecer `docs/pareceres/2026-09-18-retencao-variavel-servico-pj.md`:
+   * gate e linha se sugerem juntos, logo têm de MORRER juntos).
    */
   const [alvoVistoDaSugestao, setAlvoVistoDaSugestao] = useState(
     alvoDaSugestaoDeRetencao,
@@ -444,6 +523,17 @@ export default function RegistrarDocumento() {
     setSugestaoRetencao(null);
     setFalhouSugestaoRetencao(false);
     setLendoSugestaoRetencao(alvoDaSugestaoDeRetencao !== null);
+    // ⚠️ **Só a resposta SUGERIDA morre.** Uma resposta manual — "nenhuma"
+    // inclusive — é afirmação do Mateus sobre a nota, e trocar o anexo não a
+    // revoga: é o critério 7 ("resposta manual sempre vence") aplicado à troca de
+    // papel, não só à corrida do fetch.
+    if (gateDeRetencao?.origem === "sugerida") {
+      setGateDeRetencao(null);
+      // E a linha vai com o gate — mesma limpeza que `escolherTipo` faz: linha de
+      // retenção sem gate "destacada" por trás é afirmação órfã, e gravaria
+      // contra um `retencao_na_nota` que a contradiz.
+      setLinhasPendentes([]);
+    }
   }
 
   useEffect(() => {
@@ -454,9 +544,10 @@ export default function RegistrarDocumento() {
       try {
         const form = new FormData();
         form.append("arquivo", alvoDaSugestaoDeRetencao);
-        // O gate viaja COM o arquivo, e a rota o confere do lado dela: ela nunca
-        // decide o gate, em nenhuma direção (CONTAI-054, critério 1).
-        form.append("retencaoNaNota", "destacada");
+        // ⚠️ **Só o arquivo viaja desde o CONTAI-062** — o campo
+        // `retencaoNaNota` saiu do corpo junto com a pré-condição. A rota lê o
+        // PDF e devolve `{ sugestao }`; quem decide o que fazer com isso é este
+        // efeito.
         const resposta = await fetch("/api/sugerir-retencao", {
           method: "POST",
           body: form,
@@ -470,9 +561,28 @@ export default function RegistrarDocumento() {
           sugestao: SugestaoLinhaRetencao | null;
         };
         if (cancelado) return;
-        // ⚠️ `null` não é falha: é a nota sem padrão reconhecido, e o estado
-        // certo dela é o formulário em branco, silencioso (critério 3).
-        if (corpo.sugestao) setSugestaoRetencao(corpo.sugestao);
+        // ⚠️ `null` não é falha, e não é `"nenhuma"`: é a nota sem padrão
+        // reconhecido. O estado certo dela é o gate VAZIO e o formulário em
+        // branco, em silêncio — ausência de padrão não é prova de ausência de
+        // retenção (ADENDO 5 §3, salvaguardas 2 e 3: nunca `"nao_destacada"`,
+        // nunca `"nao_sei"`). Por isso não existe nenhum `else` aqui.
+        if (corpo.sugestao) {
+          setSugestaoRetencao(corpo.sugestao);
+          // ⚠️ **Gate e linha na MESMA ação** (ADENDO 5 §3, salvaguarda 4): a
+          // condição é a própria existência da sugestão, então não há caminho em
+          // que o gate se sugira sem o rótulo/valor que o motivou.
+          //
+          // ⚠️ **E a resposta manual do Mateus vence SEMPRE** (critério 7): o
+          // updater lê o valor MAIS RECENTE do estado, não o que o efeito
+          // capturou quando nasceu. Se ele respondeu o gate enquanto o fetch
+          // estava em voo — em qualquer direção, "Nenhuma" inclusive —, `atual`
+          // já não é `null` e a sugestão não encosta nele. Sobrescrever aqui
+          // seria o app afirmando algo que ele acabou de negar, que é pior que o
+          // bug que este ticket corrige.
+          setGateDeRetencao(
+            (atual) => atual ?? { resposta: "destacada", origem: "sugerida" },
+          );
+        }
       } catch {
         if (!cancelado) setFalhouSugestaoRetencao(true);
       } finally {
@@ -1244,10 +1354,15 @@ export default function RegistrarDocumento() {
                     ) : null}
 
                     {/* A extração continua condicionada ao PDF e continua só
-                        SUGERINDO campo vazio — nunca `notaNoCpf`, nunca o gate
-                        de retenção. O que mudou é que ela ficou colada ao
-                        arquivo que lê, em vez de enterrada no meio do
-                        formulário (Decisão 3 do mock). */}
+                        SUGERINDO campo vazio — nunca `notaNoCpf`. O que mudou é
+                        que ela ficou colada ao arquivo que lê, em vez de
+                        enterrada no meio do formulário (Decisão 3 do mock).
+
+                        ⚠️ **CONTAI-062 corrigiu a frase "nunca o gate de
+                        retenção" que estava aqui**: o gate É sugerido a partir
+                        do PDF, só não por ESTE botão. Quem o sugere é o parser
+                        determinístico local, sozinho, ao anexar o arquivo —
+                        caminho separado, sem provedor de IA, sem clique. */}
                     {arquivo && arquivo.type === "application/pdf" ? (
                       <div className="flex flex-col gap-2">
                         <Botao
@@ -1486,9 +1601,92 @@ export default function RegistrarDocumento() {
                       valor={retencaoNaNota}
                       onChange={responderGateDeRetencao}
                       erro={erroDe("retencaoNaNota")}
+                      /* ⚠️ **CONTAI-062** — âmbar + selo "Sugerida" enquanto a
+                         resposta for da leitura, e não dele. Dois canais, nunca
+                         só cor (ADENDO 5 §3, salvaguarda 1). `null` no momento
+                         em que ele toca a pílula: aí a resposta passa a ser
+                         afirmação e a pílula vira o preenchido escuro de
+                         sempre. */
+                      sugerido={gateSugerido}
                     />
+
+                    {/* ══ CONTAI-062 — os estados da LEITURA, ao lado do gate ══
+                        ⚠️ **Fora do repeater, e por isso visíveis em QUALQUER
+                        largura** — inclusive com o gate ainda vazio, que é
+                        justamente o caso novo deste ticket. Antes eles moravam
+                        dentro do `BlocoRetencaoDaCaptura` (`hidden larga:flex`),
+                        onde só existiam ≥880px E só depois de "destacada": ou
+                        seja, invisíveis exatamente quando passaram a importar.
+
+                        ⚠️ Com o gate em `"nenhuma"` os dois se calam. Ele já
+                        respondeu que esta nota não destaca retenção; dizer
+                        "lendo a retenção desta nota" ou "não deu para ler a
+                        retenção" em cima disso é contradizer a resposta dele com
+                        ruído — e a leitura, se chegar, não vai mexer no gate
+                        mesmo (ela só preenche gate vazio). */}
+                    {lendoSugestaoRetencao && retencaoNaNota !== "nenhuma" ? (
+                      <div role="status" data-sugestao="gate-lendo">
+                        <Dica>{SUGESTAO_RETENCAO_LENDO}</Dica>
+                      </div>
+                    ) : null}
+                    {/* ⚠️ Âmbar CALMO, nunca vermelho, e **nunca bloqueia o
+                        "Salvar registro"** (critério 9): a frase diz as duas
+                        coisas — a leitura não aconteceu e o caminho manual
+                        continua aberto. Não é erro de campo, não gera pendência
+                        e o botão não olha para isto. */}
+                    {!lendoSugestaoRetencao &&
+                    falhouSugestaoRetencao &&
+                    sugestaoRetencao === null &&
+                    retencaoNaNota !== "nenhuma" ? (
+                      <div data-sugestao="gate-falhou">
+                        <Banner cor="amb" role="status">
+                          {SUGESTAO_RETENCAO_FALHOU}
+                        </Banner>
+                      </div>
+                    ) : null}
+
                     {retencaoNaNota === "destacada" ? (
                       <>
+                        {/* ══ CONTAI-062 — o TRECHO LITERAL, ao lado do gate ══
+                            ⚠️ **Exigência fiscal, não enfeite** (ADENDO 5 §3,
+                            salvaguarda 1): como o gate controla se uma seção
+                            inteira aparece, a sugestão tem de mostrar o trecho
+                            que o parser leu, ali, para o Mateus conferir contra
+                            o papel sem procurar. Abaixo de 880px o repeater está
+                            escondido por CSS, então este é o ÚNICO lugar onde
+                            esse trecho existe — é por isso que ele mora aqui e
+                            não lá dentro.
+
+                            Mesma legenda (`SUGESTAO_RETENCAO_CHIP`), mesma
+                            formatação da citação (aspas, negrito, valor em
+                            `mono`) e mesma cor do banner de dentro do
+                            `FormularioDeLinha`: repetido em tela larga de
+                            propósito, para os dois lugares não parecerem dois
+                            achados diferentes. O que muda é só o rodapé — aqui o
+                            curto, porque ainda não há campo nenhum sendo
+                            editado.
+
+                            ⚠️ A condição é "há sugestão guardada E o gate está
+                            em destacada", nunca "a sugestão chegou junto com o
+                            gate": se ele responder "Nenhuma" e depois mudar de
+                            ideia à mão, o trecho aparece na hora, sem novo
+                            fetch. */}
+                        {sugestaoRetencao ? (
+                          <div data-sugestao="gate">
+                            <Banner cor="amb" role="status">
+                              <Chip cor="amb">{SUGESTAO_RETENCAO_CHIP}</Chip>
+                              <p className="mt-1.5 text-[14px] leading-tight font-bold break-words">
+                                {`“${sugestaoRetencao.rotuloLiteral}” — `}
+                                <span className="mono">
+                                  {formatarBRL(sugestaoRetencao.valorCentavos)}
+                                </span>
+                              </p>
+                              <p className="mt-1.5 text-[12px]">
+                                {SUGESTAO_GATE_CONFIRA}
+                              </p>
+                            </Banner>
+                          </div>
+                        ) : null}
                         {/* ⚠️ **Duas dicas no DOM, uma por largura** — spec do
                             CONTAI-053, §3. A de baixo de 880px é **byte a byte**
                             a de sempre (critério 6); a de 880px para cima existe
@@ -1510,10 +1708,11 @@ export default function RegistrarDocumento() {
                             por CSS abaixo de 880px. */}
                         <BlocoRetencaoDaCaptura
                           linhas={linhasPendentes}
-                          /* CONTAI-055 — a leitura do PDF, a confirmar. */
+                          /* CONTAI-055 — a leitura do PDF, a confirmar.
+                             ⚠️ `lendoSugestao`/`falhouSugestao` saíram no
+                             CONTAI-062: esses dois estados agora aparecem ao
+                             lado do gate, acima, em qualquer largura. */
                           sugestao={sugestaoRetencao}
-                          lendoSugestao={lendoSugestaoRetencao}
-                          falhouSugestao={falhouSugestaoRetencao}
                           onAdicionar={(linha) => {
                             setLinhasPendentes((atual) => [...atual, linha]);
                             /* ⚠️ **A sugestão é CONSUMIDA ao adicionar a linha.**
