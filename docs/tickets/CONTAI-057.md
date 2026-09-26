@@ -39,23 +39,23 @@ do que já foi gasto.
    "Valor lançado" é verdadeiro nas duas origens (documento com e sem
    pagamento vinculado) e já era o termo informal usado em
    `e2e/despesas.spec.ts:337`.
-4. [ ] `custoComprovadoCentavos > 0` na coluna nova mostra o número;
+4. [x] `custoComprovadoCentavos > 0` na coluna nova mostra o número;
    `= 0` mostra `—` (a razão mora na célula "Situação" ao lado, que já
    carrega o texto da pendência — não duplicar explicação).
-5. [ ] O chip verde de custo comprovado (`CHIP_CUSTO_COMPROVADO`) na célula
+5. [x] O chip verde de custo comprovado (`CHIP_CUSTO_COMPROVADO`) na célula
    "Situação" perde o valor inline — a coluna nova já carrega esse número;
    repetir o mesmo valor duas vezes na mesma linha é ruído. O chip de
    retenção mantém o dele (ali ele decompõe o custo, não repete).
-6. [ ] Nenhuma soma nova acontece em tela: `custoComprovadoCentavos` é
+6. [x] Nenhuma soma nova acontece em tela: `custoComprovadoCentavos` é
    campo novo em `LinhaDeDespesa` (`lib/fiscal/despesas.ts`), calculado no
    módulo puro como soma de `comprovadoCentavos` + `comprovadoPorRetencaoCentavos`
    (já existentes) — nunca calculado ad hoc no componente de Despesas.
-7. [ ] Teste de render/unitário: `custoComprovadoCentavos` é identificável
+7. [x] Teste de render/unitário: `custoComprovadoCentavos` é identificável
    programaticamente (atributo/`data-*` próprio), não apenas texto solto na
    mesma classe CSS de qualquer outra anotação.
-8. [ ] Coluna nova não é sortável neste ticket — a ordenação por "valor"
+8. [x] Coluna nova não é sortável neste ticket — a ordenação por "valor"
    continua pelo valor lançado, sem mudança.
-9. [ ] Texto novo que mencione custo comprovado/retenção cita o parecer
+9. [x] Texto novo que mencione custo comprovado/retenção cita o parecer
    `docs/pareceres/2026-09-18-retencao-variavel-servico-pj.md` (ADENDO 2/3)
    e o `CONTAI-056` — nunca reescreve.
 
@@ -128,3 +128,20 @@ origens).
 **Gestão** — revisão de despesas é o cenário principal (em casa, sentado).
 Teste do Canteiro não se aplica. **Veredito: APROVADO**, com Gate 0 (design
 nível 2) pendente antes do Gate 1.
+
+✅ **Entregue em 2026-09-26.** 9/9 critérios PASS — Gate 4 (`po`). Coluna
+"Custo confirmado" (mono, semibold, alinhada à direita, não sortável) inserida
+entre "Valor lançado" (ex-"Valor", que perdeu o semibold) e "Situação";
+`custoComprovadoCentavos` é campo derivado em `LinhaDeDespesa`
+(`lib/fiscal/despesas.ts`, soma de `comprovadoCentavos` +
+`comprovadoPorRetencaoCentavos`, calculado só no módulo puro), exposto no DOM
+por `data-custo-comprovado`. Chip verde `CHIP_CUSTO_COMPROVADO` perdeu o valor
+inline; chip de retenção manteve o dele. Gate 2 técnico (`cto-obra`) aprovou
+direto, sem pedir mudança de mérito — só uma nota cosmética não bloqueante
+(`design/mocks/desktop-shell-v1.md`, lista de colunas ainda citava "Valor" em
+vez de "Valor lançado"), corrigida pelo coordenador depois do APPROVE, sem
+mudar produto. Sem Gate Fiscal (sem impacto fiscal, confirmado no relato de
+origem). `lib/fiscal/vinculo.ts` intocado; nenhuma soma nova em tela. 1085
+unitários + 317 E2E verdes (`npx playwright test e2e/despesas.spec.ts
+e2e/shell-desktop.spec.ts`: 36/36), `npm run typecheck` e `npm run lint`
+verdes, sem migration. Fecha o backlog 72 junto com o `CONTAI-058`.

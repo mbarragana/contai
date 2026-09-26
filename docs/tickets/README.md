@@ -1,6 +1,6 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
 
 *(2026-09-26: dois bugs relatados em produção logo após o `CONTAI-056`
 viram `CONTAI-057` (legibilidade de Despesas, bloqueado por Gate 0) e
@@ -27,6 +27,22 @@ a 19; `053` continua bloqueado por Gate 0, `055` agora só bloqueado por
 — volta a 18; `055` fica sozinho na fila, sem bloqueio. 2026-09-25, ainda
 mais tarde: **`055` entregue** (Gate 4, 5/5 PASS) — volta a 17, **fila de
 implementação vazia** — fecha o backlog 71 inteiro (`053`+`054`+`055`).)*
+
+**2026-09-26, mais tarde**: **`057` entregue** — Gate 4 (`po`), 9/9
+critérios PASS. Coluna própria **"Custo confirmado"** (mono, semibold,
+alinhada à direita, não sortável) entre "Valor lançado" (ex-"Valor", que
+perdeu o semibold) e "Situação"; `custoComprovadoCentavos` é campo derivado
+em `LinhaDeDespesa` (`lib/fiscal/despesas.ts`, soma de `comprovadoCentavos` +
+`comprovadoPorRetencaoCentavos`, só no módulo puro), identificável no DOM por
+`data-custo-comprovado`. Chip verde `CHIP_CUSTO_COMPROVADO` perdeu o valor
+inline (o número já mora na coluna nova); chip de retenção manteve o dele.
+Gate 2 técnico (`cto-obra`) aprovou direto, sem pedir mudança de mérito — só
+uma nota cosmética não bloqueante (lista de colunas do
+`desktop-shell-v1.md` ainda citava "Valor"), corrigida pelo coordenador
+depois do APPROVE, sem mudar produto. Sem Gate Fiscal. `lib/fiscal/
+vinculo.ts` intocado, nenhuma soma nova em tela. 1085 unitários + 317 E2E
+verdes. **Fecha o backlog 72 (junto com o `058`) e a fila de implementação
+volta a vazia.** Detalhe: `docs/tickets/CONTAI-057.md`.
 
 **2026-09-26**: **`CONTAI-057`/`058` criados** — dois bugs que o Mateus
 achou em produção, um dia depois do `CONTAI-056` ir ao ar (nenhum é erro de

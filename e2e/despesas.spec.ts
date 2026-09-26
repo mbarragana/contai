@@ -2,6 +2,7 @@ import { USER_ID_SEED } from "./ambiente";
 import {
   criarDocumento,
   criarFavorecido,
+  criarLinhaDeRetencao,
   criarPagamento,
   criarVinculo,
 } from "./banco";
@@ -359,6 +360,125 @@ test.describe("despesas — a tabela de verdade", () => {
     await expect(linha).toHaveCount(1);
     await expect(linha).not.toContainText("R$ 0,00");
     await expect(linha).toContainText("—");
+
+    // **CONTAI-057, critério 4** — nota sem pagamento nenhum não comprova custo
+    // nenhum, e a coluna mostra `—`, nunca "R$ 0,00". A RAZÃO não se repete
+    // aqui: ela está na célula `Situação` ao lado.
+    const confirmado = linha.locator("[data-custo-comprovado]");
+    await expect(confirmado).toHaveAttribute("data-custo-comprovado", "0");
+    await expect(confirmado).toHaveText("—");
+  });
+
+  /**
+   * **CONTAI-057** — o número que mudou de significado no `CONTAI-056` sai da
+   * anotação pequena e ganha coluna própria. Sem isto, somar as linhas de
+   * "Valor lançado" à mão dá um total diferente do KPI "Custo confirmado" da
+   * Home — que é o relato de origem, palavra por palavra.
+   *
+   * ⚠️ **Não-mockado, e a razão é a mesma do `retencao.spec.ts`**: o valor da
+   * linha de retenção atravessa `documento_retencao.valor` (`numeric(14,2)`), o
+   * formato que já passou verde por um E2E em cima de um tipo inventado.
+   */
+  test("coluna 'Custo confirmado': com retenção passa do lançado, sem retenção coincide", async ({
+    page,
+    db,
+  }) => {
+    // (a) NF de material paga por PIX, sem retenção nenhuma.
+    const casa = await criarFavorecido(db, {
+      nome: "Casa do Construtor",
+      documento: CNPJ_CASA,
+      tipo: "pj",
+    });
+    const dMaterial = await criarDocumento(db, {
+      favorecido_id: casa,
+      tipo: "nf_material",
+      classificacao: "material",
+      valor: 9640,
+      numero: "8710",
+      data_emissao: `${ANO}-01-10`,
+      destinatario_cpf_ok: true,
+      status: "registrado",
+    });
+    const pMaterial = await criarPagamento(db, {
+      favorecido_id: casa,
+      valor: 9640,
+      data_pagamento: `${ANO}-01-12`,
+      meio: "pix",
+      status: "aguardando_nf",
+      comprovante_path: `${USER_ID_SEED}/comprovante/pix.png`,
+    });
+    await criarVinculo(db, pMaterial, dMaterial);
+
+    // (b) O caso real do `CONTAI-056`: NF de serviço de R$ 18.000, PIX pelo
+    // LÍQUIDO de R$ 17.460, e os R$ 540 quitados pela retenção que a empresa
+    // recolhe. O custo de aquisição é o BRUTO — parecer
+    // `2026-09-18-retencao-variavel-servico-pj.md`, ADENDO 2/3.
+    const aje = await criarFavorecido(db, {
+      nome: "AJE Construções",
+      documento: CNPJ_AJE,
+      tipo: "pj",
+    });
+    const dServico = await criarDocumento(db, {
+      favorecido_id: aje,
+      tipo: "nf_servico",
+      classificacao: "mao_obra",
+      valor: 18000,
+      numero: "1042",
+      data_emissao: `${ANO}-03-20`,
+      destinatario_cpf_ok: true,
+      nota_traz_cno: true,
+      cno_referenciado: "12.345.67890/26",
+      retencao_na_nota: "destacada",
+      status: "registrado",
+    });
+    await criarLinhaDeRetencao(db, {
+      documento_id: dServico,
+      rotulo_literal: "Total das Retenções (ISSQN / Federais)",
+      valor: 540,
+      composicao: "combinado_nao_aberto",
+      e_desconto_efetivo: true,
+      quem_recolhe: "empresa",
+    });
+    const pLiquido = await criarPagamento(db, {
+      favorecido_id: aje,
+      valor: 17460,
+      data_pagamento: `${ANO}-03-25`,
+      meio: "pix",
+      status: "aguardando_nf",
+      comprovante_path: `${USER_ID_SEED}/comprovante/pix.png`,
+    });
+    await criarVinculo(db, pLiquido, dServico);
+
+    await page.goto("/despesas");
+    await expect(page.locator(LINHAS)).toHaveCount(2);
+
+    // ── com retenção: confirmado (bruto) > lançado (líquido) ─────────────
+    const comRetencao = page
+      .locator(LINHAS)
+      .filter({ hasText: "AJE Construções" });
+    const confirmado = comRetencao.locator("[data-custo-comprovado]");
+    await expect(confirmado).toHaveAttribute("data-custo-comprovado", "1800000");
+    await expect(confirmado).toHaveText("R$ 18.000,00");
+    // O valor lançado continua sendo o que saiu da conta, e a diferença é
+    // explicada ao lado — o chip de retenção mantém o valor dele.
+    await expect(comRetencao).toContainText("R$ 17.460,00");
+    await expect(comRetencao).toContainText("Quitado por retenção");
+    await expect(comRetencao).toContainText("R$ 540,00");
+
+    // ── sem retenção: os dois números coincidem, e isso é o esperado ─────
+    const semRetencao = page
+      .locator(LINHAS)
+      .filter({ hasText: "Casa do Construtor" });
+    const confirmadoDoMaterial = semRetencao.locator("[data-custo-comprovado]");
+    await expect(confirmadoDoMaterial).toHaveAttribute(
+      "data-custo-comprovado",
+      "964000",
+    );
+    await expect(confirmadoDoMaterial).toHaveText("R$ 9.640,00");
+    // Duas ocorrências, e só duas: "Valor lançado" e "Custo confirmado". O chip
+    // verde perdeu o valor inline (critério 5) — três seria o ruído que o
+    // ticket veio tirar.
+    await expect(semRetencao.getByText("R$ 9.640,00")).toHaveCount(2);
   });
 
   test("obra sem lançamento nenhum: a tela diz isso, sem tabela vazia", async ({

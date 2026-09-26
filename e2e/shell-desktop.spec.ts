@@ -400,7 +400,9 @@ test.describe("a tabela de Despesas no shell de gestão", () => {
     );
     await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
 
-    // ── tabela de VERDADE: as sete colunas numa linha só ─────────────────
+    // ── tabela de VERDADE: as oito colunas numa linha só ─────────────────
+    // (oito desde o CONTAI-057, que inseriu "Custo confirmado" entre "Valor
+    // lançado" e "Situação".)
     const celulas = await tabela
       .locator("tbody tr")
       .first()
@@ -411,16 +413,22 @@ test.describe("a tabela de Despesas no shell de gestão", () => {
           return { x: Math.round(r.x), y: Math.round(r.y) };
         }),
       );
-    expect(celulas).toHaveLength(7);
+    expect(celulas).toHaveLength(8);
     // Mesma linha, x crescente — empilhado seria a pilha de 375px esticada.
     expect(new Set(celulas.map((c) => c.y)).size).toBe(1);
     for (let i = 1; i < celulas.length; i++) {
       expect(celulas[i].x).toBeGreaterThan(celulas[i - 1].x);
     }
 
-    // O cabeçalho da tabela existe de verdade nesta largura, com as sete
-    // colunas nomeadas e as duas ordenáveis anunciando a ordem.
-    await expect(tabela.locator("thead th")).toHaveCount(7);
+    // O cabeçalho da tabela existe de verdade nesta largura, com as oito
+    // colunas nomeadas e as duas ordenáveis anunciando a ordem. "Custo
+    // confirmado" NÃO é ordenável (CONTAI-057, critério 8): continuam duas.
+    await expect(tabela.locator("thead th")).toHaveCount(8);
+    await expect(tabela.locator("thead th button[data-ordenar]")).toHaveCount(2);
+    // A ordem do spec: "Custo confirmado" entre "Valor lançado" e "Situação".
+    await expect(tabela.locator("thead th").nth(4)).toContainText("Valor lançado");
+    await expect(tabela.locator("thead th").nth(5)).toHaveText("Custo confirmado");
+    await expect(tabela.locator("thead th").nth(6)).toHaveText("Situação");
     await expect(tabela.locator("thead th").first()).toHaveAttribute(
       "aria-sort",
       "descending",

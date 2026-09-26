@@ -212,7 +212,8 @@ sem CNO (âmbar), diferença sem explicação.
   documento.
 - Busca por favorecido (texto livre).
 - Ordenação por clique no cabeçalho: Data pagamento (padrão: mais recente
-  primeiro) e Valor.
+  primeiro) e Valor lançado (`CONTAI-057`: coluna renomeada de "Valor";
+  "Custo confirmado" é coluna nova, não sortável).
 
 **Perguntas em aberto para o `po`** (a tabela precisa de dado que não sei se
 existe hoje pronto para consulta):

@@ -241,6 +241,23 @@ export interface LinhaDeDespesa {
    * duas parcelas separadamente. Zero em toda linha sem retenção confirmada.
    */
   comprovadoPorRetencaoCentavos: number;
+  /**
+   * **CONTAI-057** — o custo de aquisição comprovado DESTA linha, inteiro:
+   * `comprovadoCentavos + comprovadoPorRetencaoCentavos`. É a grandeza da coluna
+   * "Custo confirmado" de `/despesas`, o mesmo nome que o KPI da Home já usa
+   * (`resumo.custoConfirmadoAnoCentavos`) — ali somado por ano, aqui decomposto
+   * por linha.
+   *
+   * ⚠️ **Derivado AQUI, nunca na tela.** Somar as duas parcelas no componente
+   * seria uma segunda implementação da mesma conta, e duas implementações da
+   * mesma regra divergem sempre (lição do `emPendenciaCentavos` morto no
+   * CONTAI-005). Não reabre a porta de "soma em tela": é decomposição da própria
+   * linha, não soma entre linhas.
+   *
+   * Invariante, sem condição nova: `custoComprovadoCentavos > valorCentavos`
+   * ⇔ `comprovadoPorRetencaoCentavos > 0`.
+   */
+  custoComprovadoCentavos: number;
   situacoes: SituacaoDaLinha[];
   /** Filtro "Só comprovadas". Convive com `temPendencia` (linha mista). */
   comprovada: boolean;
@@ -374,6 +391,8 @@ export function linhasDeDespesa(
       comprovadoCentavos: comprovado,
       // Preenchida no bloco 3b, depois de as linhas existirem.
       comprovadoPorRetencaoCentavos: 0,
+      // Derivado no bloco 7, depois de o 3b somar a perna de retenção.
+      custoComprovadoCentavos: 0,
       situacoes: [],
       comprovada: comprovado > 0,
       temPendencia: false,
@@ -415,6 +434,7 @@ export function linhasDeDespesa(
       // nenhum (CONTAI-056, ADENDO 3 Pergunta 2).
       comprovadoCentavos: 0,
       comprovadoPorRetencaoCentavos: 0,
+      custoComprovadoCentavos: 0,
       situacoes: [],
       comprovada: false,
       temPendencia: false,
@@ -436,7 +456,13 @@ export function linhasDeDespesa(
       // sustenta (critério 6).
       consequencia: null,
       nota: null,
-      valorCentavos: linha.comprovadoCentavos,
+      // ⚠️ **Sem valor inline desde o CONTAI-057** (critério 5): quem carrega
+      // este número agora é a coluna "Custo confirmado", e ela o carrega
+      // INTEIRO (com a perna de retenção). Repetir aqui só a parcela do
+      // dinheiro, ao lado do total, era o ruído que fazia a leitura de linha
+      // divergir do KPI da Home. O chip de retenção mantém o dele, porque ali
+      // o valor DECOMPÕE o total em vez de repeti-lo.
+      valorCentavos: null,
     });
   }
 
@@ -583,6 +609,17 @@ export function linhasDeDespesa(
       });
       // ⚠️ **Não mexe em `temPendencia`**: nem comprovado nem em risco.
     }
+  }
+
+  // ── 7 · O custo comprovado da linha, INTEIRO (CONTAI-057) ──────────────
+  //
+  // ⚠️ **Passada final, e a posição importa**: a perna de retenção só existe
+  // depois do bloco 3b, que a encontra pela linha do pagamento âncora. Derivar
+  // o campo na construção da linha daria o valor de ANTES da retenção — que é
+  // exatamente o número que a tabela mostrava e que este ticket veio consertar.
+  for (const linha of linhas) {
+    linha.custoComprovadoCentavos =
+      linha.comprovadoCentavos + linha.comprovadoPorRetencaoCentavos;
   }
 
   return linhas;

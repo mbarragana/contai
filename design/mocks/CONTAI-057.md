@@ -78,9 +78,9 @@ e "Situação", com `<Rotulo>Custo confirmado</Rotulo>` à esquerda do número �
 mesmo padrão de toda outra célula da tabela. Nenhum JSX condicional novo.
 
 ## Campos
-Nenhum — não há formulário nem entrada do usuário; é célula de leitura
-derivada (`custoComprovadoCentavos` em `LinhaDeDespesa`, calculado no módulo
-puro `lib/fiscal/despesas.ts`, nunca no componente).
+- SEM CAMPOS — não há formulário nem entrada do usuário; é célula de leitura
+  derivada (`custoComprovadoCentavos` em `LinhaDeDespesa`, calculado no módulo
+  puro `lib/fiscal/despesas.ts`, nunca no componente).
 
 ## Textos com consequência fiscal
 Nenhum texto novo. `RETENCAO_EXPLICA_A_SOBRA` e o chip `CHIP_CUSTO_COMPROVADO`

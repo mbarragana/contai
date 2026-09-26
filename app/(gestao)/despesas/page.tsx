@@ -300,8 +300,12 @@ function Tabela({
             coluna="valor"
             ordem={ordem}
             onOrdenar={onOrdenar}
-            rotulo="Valor"
+            rotulo="Valor lançado"
           />
+          {/* ⚠️ **Não sortável neste ticket** (CONTAI-057, critério 8): a
+              ordenação por valor continua sendo pelo VALOR LANÇADO, sem
+              mudança — por isso `ThFixo`, e não `Cabecalho`. */}
+          <ThFixo direita>Custo confirmado</ThFixo>
           <ThFixo>Situação</ThFixo>
           <ThFixo>
             <span className="sr-only">Ação</span>
@@ -320,8 +324,21 @@ function Tabela({
 const TH =
   "px-3.5 py-[11px] text-[11px] font-semibold tracking-[0.05em] text-mut uppercase align-bottom";
 
-function ThFixo({ children }: { children: React.ReactNode }) {
-  return <th className={`${COLUNAS_FIXAS} ${TH}`}>{children}</th>;
+/** `direita`: coluna de número, alinhada como `Cabecalho` já alinha "valor". */
+function ThFixo({
+  children,
+  direita = false,
+}: {
+  children: React.ReactNode;
+  direita?: boolean;
+}) {
+  return (
+    <th
+      className={`${COLUNAS_FIXAS} ${TH} ${direita ? "lg:text-right" : ""}`}
+    >
+      {children}
+    </th>
+  );
 }
 
 function Cabecalho({
@@ -423,15 +440,39 @@ function Linha({ linha }: { linha: LinhaDeDespesa }) {
         {rotuloDoMeio(linha.meio)}
       </td>
 
+      {/* ⚠️ **O número SECUNDÁRIO da linha desde o CONTAI-057.** Ele perdeu o
+          `font-semibold` para a coluna ao lado: o que interessa na revisão é o
+          custo comprovado, e o valor lançado é a parcela que saiu da conta. */}
       <td className={`${TD} lg:text-right`}>
-        <Rotulo>Valor</Rotulo>
+        <Rotulo>Valor lançado</Rotulo>
         {/* ⚠️ Nota sem valor lançado mostra `—`, nunca "R$ 0,00": zero
             afirmado onde não há dado é a afirmação que o produto proíbe — e é
             o mesmo `—` que `/documento/[id]` já mostra para esta nota. */}
-        <span className="mono font-semibold whitespace-nowrap">
+        <span className="mono whitespace-nowrap">
           {linha.valorCentavos === null
             ? SEM_DADO
             : formatarBRL(linha.valorCentavos)}
+        </span>
+      </td>
+
+      {/* **CONTAI-057** — o custo de aquisição comprovado da linha, inteiro.
+          Maior que o valor lançado exatamente quando houve retenção quitando
+          uma fatia da nota, e a diferença é explicada ao lado, na célula
+          `Situação`, pelo chip `Quitado por retenção` (parecer
+          `2026-09-18-retencao-variavel-servico-pj.md`, ADENDO 2/3, via
+          CONTAI-056) — aqui nenhum texto é redigido e nada é somado: o campo
+          já vem derivado de `lib/fiscal/despesas.ts`. */}
+      <td className={`${TD} lg:text-right`}>
+        <Rotulo>Custo confirmado</Rotulo>
+        <span
+          data-custo-comprovado={linha.custoComprovadoCentavos}
+          className="mono font-semibold whitespace-nowrap"
+        >
+          {/* Zero mostra `—`, nunca "R$ 0,00": a RAZÃO já está na célula
+              `Situação` ao lado, e duplicar a explicação aqui seria ruído. */}
+          {linha.custoComprovadoCentavos === 0
+            ? SEM_DADO
+            : formatarBRL(linha.custoComprovadoCentavos)}
         </span>
       </td>
 

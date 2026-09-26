@@ -303,11 +303,15 @@ describe("critério 4 — nenhum centavo contado duas vezes", () => {
     expect(linha.comprovada).toBe(true);
     expect(linha.temPendencia).toBe(true);
 
-    // E as duas anotações PARTICIONAM o pagamento, sem sobreposição.
+    // E as duas PARTICIONAM o pagamento, sem sobreposição.
+    //
+    // ⚠️ **A perna comprovada se lê no CAMPO, não no chip** (CONTAI-057): o
+    // chip verde perdeu o valor inline porque quem carrega esse número agora é
+    // a coluna "Custo confirmado". A partição continua sendo o invariante.
     const [verde, vermelha] = linha.situacoes;
-    expect(verde.valorCentavos).toBe(200_000);
+    expect(verde.valorCentavos).toBeNull();
     expect(vermelha.valorCentavos).toBe(300_000);
-    expect((verde.valorCentavos ?? 0) + (vermelha.valorCentavos ?? 0)).toBe(
+    expect(linha.comprovadoCentavos + (vermelha.valorCentavos ?? 0)).toBe(
       linha.valorCentavos,
     );
     expect(resumo.custoConfirmadoAnoCentavos).toBe(200_000);
@@ -534,9 +538,12 @@ describe("critério 4 — nenhum centavo contado duas vezes", () => {
     expect(p2.comprovadoCentavos).toBe(5_000_000);
     expect(p1.temPendencia).toBe(false);
     expect(p2.temPendencia).toBe(true);
-    // A linha mista particiona o pagamento exatamente.
+    // A linha mista particiona o pagamento exatamente — a perna comprovada no
+    // campo (o chip verde não traz mais valor inline desde o CONTAI-057), o
+    // resto nas anotações de pendência.
     expect(
-      p2.situacoes.reduce((s, x) => s + (x.valorCentavos ?? 0), 0),
+      p2.comprovadoCentavos +
+        p2.situacoes.reduce((s, x) => s + (x.valorCentavos ?? 0), 0),
     ).toBe(p2.valorCentavos);
   });
 
@@ -822,6 +829,85 @@ describe("as situações da coluna `Situação`", () => {
     expect(linha.temPendencia).toBe(true);
     // Sem arquivo ela não é hábil, então o terceiro estado não se aplica.
     expect(chips(linha)).not.toContain(CHIP_SEM_PAGAMENTO);
+  });
+
+  /**
+   * **CONTAI-057 — o campo que a coluna "Custo confirmado" lê.**
+   *
+   * O invariante é um só, e é o que impede a tela de voltar a somar: o campo é
+   * SEMPRE a soma das duas parcelas da linha, e por isso a leitura de linha
+   * nunca mais divergirá do KPI da Home (que soma a mesma grandeza por ano).
+   * O corolário, sem condição nova: ele passa do valor lançado **exatamente**
+   * quando houve perna de retenção.
+   */
+  it("custoComprovadoCentavos é a soma das duas parcelas, em toda linha", () => {
+    const { linhas, resumo } = projetar(
+      [
+        // Sem retenção: as duas colunas coincidem.
+        doc({ id: "d1", valorCentavos: 200_000 }),
+        // Com retenção confirmada: o custo passa do que saiu da conta.
+        doc({
+          id: "d2",
+          numero: "1032",
+          tipo: "nf_servico",
+          classificacao: "mao_obra",
+          valorCentavos: 1_100_000,
+          retencaoNaNota: "destacada",
+          retencoes: [linhaRetencao({ documentoId: "d2", quemRecolhe: "empresa" })],
+          notaTrazCno: true,
+          cnoReferenciado: OBRA.cno,
+        }),
+        // Nota hábil sem pagamento: nada comprovado, e a coluna mostra `—`.
+        doc({ id: "d3", numero: "8711", valorCentavos: 480_000 }),
+      ],
+      [
+        pag({
+          id: "p1",
+          valorCentavos: 200_000,
+          dataPagamento: `${ANO}-01-12`,
+          documentoIds: ["d1"],
+        }),
+        // O LÍQUIDO da nota de serviço — a fatia retida é quitada pela perna.
+        pag({
+          id: "p2",
+          valorCentavos: 1_046_000,
+          dataPagamento: `${ANO}-03-25`,
+          documentoIds: ["d2"],
+        }),
+      ],
+    );
+
+    // ── o invariante, em TODA linha do cenário ───────────────────────────
+    for (const l of linhas) {
+      expect(l.custoComprovadoCentavos, `linha ${l.id}`).toBe(
+        l.comprovadoCentavos + l.comprovadoPorRetencaoCentavos,
+      );
+    }
+    // Nada a mais nem a menos que o que os componentes comprovam: é a MESMA
+    // grandeza do KPI da Home, decomposta por linha em vez de somada por ano.
+    expect(
+      linhas.reduce((s, l) => s + l.custoComprovadoCentavos, 0),
+    ).toBe(somaDeComprovados(linhas));
+
+    const semRetencao = linhaDe(linhas, "pagamento:p1");
+    expect(semRetencao.custoComprovadoCentavos).toBe(200_000);
+    // Sem retenção os dois números coincidem — esperado, não é bug.
+    expect(semRetencao.custoComprovadoCentavos).toBe(semRetencao.valorCentavos);
+
+    const comRetencao = linhaDe(linhas, "pagamento:p2");
+    expect(comRetencao.comprovadoCentavos).toBe(1_046_000);
+    expect(comRetencao.comprovadoPorRetencaoCentavos).toBe(54_000);
+    // O BRUTO da nota, que é o custo de aquisição de verdade (CONTAI-056).
+    expect(comRetencao.custoComprovadoCentavos).toBe(1_100_000);
+    expect(comRetencao.custoComprovadoCentavos).toBeGreaterThan(
+      comRetencao.valorCentavos!,
+    );
+    expect(resumo.custoConfirmadoAnoCentavos).toBe(1_300_000);
+
+    // A linha sem desembolso nenhum mostra `—`, nunca "R$ 0,00" — o zero aqui é
+    // o que a célula traduz em traço, e a razão mora na célula `Situação`.
+    const semPagamento = linhaDe(linhas, "documento:d3");
+    expect(semPagamento.custoComprovadoCentavos).toBe(0);
   });
 
   it("nenhuma linha fica sem dizer nada", () => {
