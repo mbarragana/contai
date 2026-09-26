@@ -153,5 +153,10 @@ pelo `contador` (ver Gate Fiscal acima).
 ## Cenário e checagem final
 **Gestão** — revisão de documento/pendências é o cenário principal (em
 casa, sentado). Teste do Canteiro não se aplica. **Veredito: APROVADO**,
-com Gate 0 (design nível 3 — só texto/cor mudam, sem campo nem fluxo novo)
-pendente antes do Gate 1.
+Gate 0 fechado em `design/mocks/CONTAI-059.md` (nível 3, tabela
+antes/depois). Achado do `/design`: as superfícies (b) "card agregado" e
+(c) "chip resumido" do critério original são a MESMA superfície (mesmo
+componente `CardPendenciaDerivada`, mesma função `calcularResumo`) — spec
+trata como um bloco só, não como lacuna. Cor âmbar confirmada como token
+já existente no design system (`cor="amb"`), não inventada. Pronto para o
+Gate 1.
