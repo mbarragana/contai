@@ -2,7 +2,11 @@
 
 ## 🔎 O que está em aberto — 19 tickets (mais 1 parado, aguardando o Mateus)
 
-*(2026-09-26, mais tarde ainda: dois NOVOS achados de produção (texto de
+*(2026-09-26, mais tarde ainda ainda: **`059` entregue** (Gate 4, 9/9
+PASS) — volta a 18; no mesmo momento, **`CONTAI-061` criado** (D56, anexar
+comprovante tardiamente — achado tentando resolver a pendência real do
+Achado 2) — volta a 19. `060` continua bloqueado por Gate 0; `061` também.
+2026-09-26, mais tarde ainda: dois NOVOS achados de produção (texto de
 pendência errado no Estado C da retenção; `/despesas` sem filtro de ano)
 viram `CONTAI-059` e `CONTAI-060` — volta a 19, os dois bloqueados por
 Gate 0 (`/design`).
@@ -31,6 +35,32 @@ a 19; `053` continua bloqueado por Gate 0, `055` agora só bloqueado por
 — volta a 18; `055` fica sozinho na fila, sem bloqueio. 2026-09-25, ainda
 mais tarde: **`055` entregue** (Gate 4, 5/5 PASS) — volta a 17, **fila de
 implementação vazia** — fecha o backlog 71 inteiro (`053`+`054`+`055`).)*
+
+**2026-09-26, mais tarde ainda ainda**: **`059` entregue** — Gate 4 (`po`),
+9/9 critérios PASS. `motivoDaRetencaoAberta` (novo, `lib/fiscal/retencao.ts`)
+distingue Estado A (quem recolhe sem resposta, vermelho, sem mudança) de
+Estado C (quem recolhe = "eu", guia não paga — texto/chip/título novos,
+cor âmbar). Card agregado na Home/Despesas/Pendências (`resumo.ts`) mostra
+o pior caso quando um documento tem linha A e linha C juntas. Gates 2
+técnico e fiscal aprovaram, com uma extensão fora do spec original (borda
+do card em `/documento/[id]` também segue a agregação — senão ficaria
+moldura vermelha em volta de banner âmbar, o mesmo bug noutro canal) e uma
+correção pontual (teste de equivalência do critério 8 era tautológico,
+corrigido com oráculo independente + mutation testing). 1100 unitários +
+320 E2E verdes, sem migration.
+
+**2026-09-26, mais tarde ainda ainda**: **`CONTAI-061` criado** — o
+Mateus, tentando resolver de verdade a pendência real "Custo em risco no
+IR" (achado 2, corrigido), foi anexar o comprovante que faltava e
+descobriu que `/pagamento/[id]` não tem NENHUM jeito de anexar depois —
+nem UI, nem backend (`lib/data.ts` só grava `comprovantePath` na criação).
+Materializa a dívida **D56**, nomeada desde `docs/backlog/29-2026-08-24-...md`.
+`contador` já escreveu o parecer completo
+(`docs/pareceres/2026-09-26-anexo-tardio-de-comprovante-d56.md`): anexo
+tardio não muda validade nem prazo; a data do anexo é metadado obrigatório
+separado da data do pagamento; custo sempre conta no ano do PAGAMENTO,
+nunca do anexo; reusa o proxy já existente de "DAA já entregue" (não
+implementa um novo). **P1**, bloqueado por Gate 0.
 
 **2026-09-26, mais tarde ainda**: **`CONTAI-059`/`060` criados** — dois
 achados novos em produção, na mesma linha de retenção que motivou o
@@ -713,10 +743,14 @@ topo). **Fila de implementação vazia** de novo.
 novos na mesma linha de retenção (texto/cor de pendência; filtro de ano em
 Despesas). Os dois bloqueados por Gate 0 (`/design`).
 
+**2026-09-26, ainda mais tarde**: **`059` sai da fila** — entregue (ver
+nota no topo). **`061` entra** (D56, anexar comprovante tardio), bloqueado
+por Gate 0.
+
 | Ordem | # | Ticket | P | Pronto para `/develop` |
 |---|---|---|---|---|
-| — | 059 | Texto e cor da pendência de retenção (Estado A ≠ C) | P1 | ⛔ bloqueado por Gate 0 (`/design`) |
 | — | 060 | Seletor de ano no shell (Home + Despesas + Pendências) | P2 | ⛔ bloqueado por Gate 0 (`/design`) |
+| — | 061 | Anexar comprovante tardiamente a pagamento (D56) | P1 | ⛔ bloqueado por Gate 0 (`/design`) |
 
 ### 🛑 Em espera — decisão do Mateus, 2026-09-23
 
