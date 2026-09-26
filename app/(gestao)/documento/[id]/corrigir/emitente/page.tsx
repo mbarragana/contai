@@ -163,10 +163,21 @@ function CorrigirEmitente() {
   }
 
   const documentoHref = `/documento/${id}`;
+  /**
+   * ⚠️ CONTAI-064, critério 9: `compra-cartao` é a SEGUNDA origem possível
+   * deste desvio. Sem esta linha, corrigir o emitente a partir da compra no
+   * cartão devolvia o Mateus para `/adicionar/pagamento` — trocando o meio de
+   * pagamento da compra sem avisar, num formulário vazio. Toda origem nova de
+   * `?voltar=` entra aqui no mesmo diff que passa a produzi-la.
+   */
   const voltaHref =
     voltarPara === "pagamento"
       ? `/adicionar/pagamento?documento=${id}`
-      : documentoHref;
+      : voltarPara === "compra-cartao"
+        ? `/adicionar/compra-cartao?documento=${id}`
+        : documentoHref;
+  const veioDeCaptura =
+    voltarPara === "pagamento" || voltarPara === "compra-cartao";
 
   if (!documento || !alcance) {
     return (
@@ -212,16 +223,18 @@ function CorrigirEmitente() {
           </Card>
         </ColunaDeDetalhe>
         {/* ⚠️ CONTAI-043 — a ÚNICA saída que o breadcrumb não cobre, e por isso
-            a única que continua num rodapé. O `?voltar=pagamento` vem do
-            registro de pagamento em `(captura)`: a correção do nome foi um
-            desvio no meio daquele formulário, e mandar o Mateus de volta para o
-            documento perderia o registro que ele estava preenchendo. Quando não
-            há desvio, a volta ao documento é o "‹ Documento" do topbar — muda
-            de lugar, não se duplica. */}
-        {voltarPara === "pagamento" ? (
+            a única que continua num rodapé. O `?voltar=` vem de `(captura)` —
+            do registro de pagamento ou, desde o CONTAI-064, da compra no
+            cartão: a correção do nome foi um desvio no meio daquele formulário,
+            e mandar o Mateus de volta para o documento perderia o registro que
+            ele estava preenchendo. Quando não há desvio, a volta ao documento é
+            o "‹ Documento" do topbar — muda de lugar, não se duplica. */}
+        {veioDeCaptura ? (
           <RodapeDeAcao>
             <BotaoLink href={voltaHref} variante="primary">
-              Voltar ao pagamento — com o nome novo
+              {voltarPara === "compra-cartao"
+                ? "Voltar para a compra — com o nome novo"
+                : "Voltar ao pagamento — com o nome novo"}
             </BotaoLink>
           </RodapeDeAcao>
         ) : null}

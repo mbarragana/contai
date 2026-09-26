@@ -15,7 +15,8 @@
  * relatório anual).
  */
 
-import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 import { CampoTexto, Escolha } from "@/app/_components/campos";
 import {
@@ -23,6 +24,13 @@ import {
   COLUNA_DO_FORMULARIO,
   PassosDaCaptura,
 } from "@/app/_components/captura";
+import {
+  ajudaDoValorDaNota,
+  FavorecidoHerdado,
+  LigadoANota,
+  sugerirValorDaNota,
+  type SugestaoValor,
+} from "@/app/_components/nota-de-origem";
 import { useSessao } from "@/app/_components/sessao";
 import { AfirmacaoObra, TelaTrocarObra } from "@/app/_components/obra";
 import { useObraDoRegistro } from "@/app/_components/usar-obra-do-registro";
@@ -41,6 +49,7 @@ import {
   Rodape,
 } from "@/app/_components/ui";
 import {
+  carregarDocumento,
   classificarErro,
   criarCompraCartao,
   garantirFavorecido,
@@ -53,10 +62,16 @@ import {
   type EntradaCompraCartao,
   type RespostaParcelamento,
 } from "@/lib/fiscal/fatura";
-import { tipoPorDocumento } from "@/lib/fiscal/identificacao";
+import {
+  formatarDocumento,
+  soDigitos,
+  tipoPorDocumento,
+} from "@/lib/fiscal/identificacao";
+import { MOTIVO_OBRA_DIFERENTE, podeVincular } from "@/lib/fiscal/vinculo";
 import { hojeIso } from "@/lib/hoje";
 import { formatarBRL, parseValorInput } from "@/lib/money";
 import { formatarDataBR } from "@/lib/fiscal/obra";
+import type { Documento } from "@/lib/types";
 
 const RESPOSTAS_PARC = [
   { valor: "vista", texto: "À vista" },
@@ -73,15 +88,40 @@ type Fase =
       valorCentavos: number;
       dataCompra: string;
       dataVencimento: string;
+      /**
+       * CONTAI-064, critério 10: a nota que ficou ANOTADA como origem desta
+       * compra — e só quando ficou de verdade (obra divergente grava `null`, e
+       * aí a confirmação não tem nada a dizer sobre nota nenhuma).
+       */
+      notaDeOrigem: Documento | null;
     };
 
-export default function NovaCompraCartao() {
+function RegistrarCompraCartao() {
   const registro = useObraDoRegistro();
   const { pedirReautenticacao } = useSessao();
   const obra = registro.obra;
   const [trocando, setTrocando] = useState(false);
   const [fase, setFase] = useState<Fase>({ nome: "formulario" });
   const [erroSalvar, setErroSalvar] = useState<string | null>(null);
+
+  /**
+   * CONTAI-064 — a compra que nasce de uma nota já registrada: o documento de
+   * origem vem na query string de quem mandou para cá (hoje, a troca de "Como
+   * foi pago" para Cartão em `/adicionar/pagamento`).
+   *
+   * `useSearchParams` e não `window.location` no primeiro render: chegando por
+   * navegação client-side, o `location` ainda não tem a query e a herança
+   * desapareceria sem aviso — que é exatamente o silêncio que este ticket veio
+   * matar. O custo é a fronteira de Suspense no fim do arquivo.
+   */
+  const documentoNaUrl = useSearchParams().get("documento");
+  const [documentoDeOrigemId, setDocumentoDeOrigemId] = useState<string | null>(
+    documentoNaUrl,
+  );
+  const [documentoDeOrigem, setDocumentoDeOrigem] = useState<Documento | null>(
+    null,
+  );
+  const [tentativaDaNota, setTentativaDaNota] = useState(0);
 
   const [nome, setNome] = useState("");
   const [documento, setDocumento] = useState("");
@@ -90,9 +130,75 @@ export default function NovaCompraCartao() {
   const [dataCompra, setDataCompra] = useState("");
   const [dataVencimento, setDataVencimento] = useState("");
   const [erros, setErros] = useState<ErroCampoCompraCartao[]>([]);
+  /** O valor que veio da nota, para a tela poder DIZER de onde ele saiu. */
+  const [sugestaoValor, setSugestaoValor] = useState<SugestaoValor | null>(null);
+
+  useEffect(() => {
+    if (!documentoDeOrigemId) return;
+    let cancelado = false;
+
+    void (async () => {
+      try {
+        const carregado = await carregarDocumento(documentoDeOrigemId);
+        if (cancelado) return;
+        setDocumentoDeOrigem(carregado);
+        // NOME e CNPJ/CPF vêm da nota porque é o MESMO favorecido, e ele já
+        // existe no banco com esse documento. Não é (só) para poupar
+        // digitação: a dedup de `garantirFavorecido` é pela chave
+        // (dono, DOCUMENTO), então um dígito trocado na redigitação cria um
+        // SEGUNDO favorecido, e a ficha Pagamentos Efetuados sairia com a
+        // mesma empresa em duas linhas. Nenhum dos dois sobrescreve o que já
+        // está no campo — o dedo do Mateus vence o carregamento.
+        setNome((atual) => atual || (carregado.favorecidoNome ?? ""));
+        setDocumento(
+          (atual) =>
+            atual || formatarDocumento(carregado.favorecidoDocumento ?? ""),
+        );
+        const sugestao = await sugerirValorDaNota(carregado);
+        if (cancelado || sugestao === null) return;
+        setSugestaoValor(sugestao);
+        setValor((atual) => atual || sugestao.texto);
+      } catch {
+        // Documento que não abre não pode travar o registro da compra: o
+        // dispêndio (aqui, o compromisso) é o fato, e ele tem de entrar. A
+        // tela segue como se tivesse chegado sem parâmetro nenhum.
+        if (!cancelado) setDocumentoDeOrigemId(null);
+      }
+    })();
+
+    return () => {
+      cancelado = true;
+    };
+  }, [documentoDeOrigemId, tentativaDaNota]);
+
+  /**
+   * O "Tentar de novo" padrão do `Carregando` recarrega a página, e aqui isso
+   * apagaria valor, datas e a resposta do parcelamento já preenchidos.
+   */
+  const recarregarNota = useCallback(() => {
+    setTentativaDaNota((t) => t + 1);
+  }, []);
 
   const erroDe = (campo: ErroCampoCompraCartao["campo"]) =>
     erros.find((e) => e.campo === campo)?.mensagem;
+
+  /**
+   * Conferido ANTES de salvar, como no registro de pagamento: chegando por
+   * `?documento=` de uma nota da obra B com a preferência do aparelho na obra
+   * A, o vínculo é impossível — e o Mateus tem de saber disso enquanto ainda
+   * pode trocar a obra desta tela, não depois de gravar.
+   */
+  const permissaoVinculo =
+    documentoDeOrigem && obra
+      ? podeVincular({ obraId: obra.id }, documentoDeOrigem)
+      : null;
+  const obraDivergente = permissaoVinculo !== null && !permissaoVinculo.ok;
+  /**
+   * Critério 7: é este id que vai para a RPC — `null` sempre que a nota é de
+   * outra obra. Vínculo de obra errada não se grava para depois se explicar.
+   */
+  const origemParaGravar =
+    documentoDeOrigem && !obraDivergente ? documentoDeOrigem.id : null;
 
   const entrada: EntradaCompraCartao = useMemo(
     () => ({
@@ -135,7 +241,13 @@ export default function NovaCompraCartao() {
       if (tipoFavorecido === null) throw new Error("CNPJ/CPF inválido.");
       const favorecidoId = await garantirFavorecido({
         nome: nome.trim(),
-        documento,
+        // ⚠️ SÓ DÍGITOS, como no registro de pagamento. A dedup de
+        // `garantirFavorecido` é pela chave (dono, DOCUMENTO): gravando a
+        // máscara, a compra herdada de uma nota criaria um SEGUNDO favorecido
+        // com o mesmo CNPJ — exatamente o duplicado que a herança existe para
+        // impedir, e a ficha Pagamentos Efetuados sairia com duas linhas da
+        // mesma empresa.
+        documento: soDigitos(documento),
         tipo: tipoFavorecido,
       });
       const valorCentavos = entrada.valorCentavos as number;
@@ -145,6 +257,11 @@ export default function NovaCompraCartao() {
         valorCentavos,
         dataCompra,
         dataVencimentoFatura: dataVencimento,
+        // A origem viaja DENTRO da mesma chamada atômica que grava a compra
+        // (`compra_cartao_gravar`, migration 0013) — não existe aqui o modo de
+        // falha "compra salvou, vínculo falhou" que o registro de pagamento
+        // tem, porque lá são duas chamadas e aqui é uma.
+        documentoOrigemId: origemParaGravar,
       });
       setFase({
         nome: "agendado",
@@ -153,6 +270,7 @@ export default function NovaCompraCartao() {
         valorCentavos,
         dataCompra,
         dataVencimento,
+        notaDeOrigem: origemParaGravar ? documentoDeOrigem : null,
       });
     } catch (erro) {
       setFase({ nome: "formulario" });
@@ -191,6 +309,34 @@ export default function NovaCompraCartao() {
               decide é o dia em que a fatura (ou a parte dela) for paga.
             </Dica>
           </Card>
+
+          {/* ⚠️ CONTAI-064, critério 10 — O QUE O SISTEMA GARANTE HOJE, e nada
+              além. A nota fica ANOTADA como origem do compromisso
+              (`documento_origem_id`); ela NÃO sobrevive à quitação da fatura,
+              porque o pagamento que nasce lá não herda o vínculo. Dizer
+              "compra ligada à nota" aqui seria a mesma afirmação que morre na
+              quitação — a armadilha que este ticket existe para não repetir.
+              O aviso aparece SÓ aqui, na confirmação, e não no formulário:
+              aviso que aparece toda vez vira aviso que se aprende a ignorar. */}
+          {fase.notaDeOrigem ? (
+            <Card className="border-dashed">
+              <div className="text-[13px]">
+                <strong>Nota de origem:</strong>{" "}
+                {fase.notaDeOrigem.favorecidoNome ?? "documento sem emitente"} ·{" "}
+                <span className="mono">
+                  {formatarBRL(fase.notaDeOrigem.valorCentavos ?? 0)}
+                </span>
+              </div>
+              <Dica>
+                Fica anotada como origem desta compra —{" "}
+                <strong>ainda não é vínculo de custo</strong>. Quando você pagar
+                a fatura, o pagamento que nascer daqui{" "}
+                <strong>não vem ligado a esta nota automaticamente</strong>:
+                hoje, para o custo entrar no ano certo, é preciso abrir esse
+                pagamento e usar &quot;Ligar a uma nota&quot; à mão.
+              </Dica>
+            </Card>
+          ) : null}
           <Banner cor="red" role="status">
             ⚠️ <strong>Ressalva que viaja junto:</strong> a tese do ano do
             pagamento da fatura é defensável, não pacífica. Exige confirmação
@@ -231,7 +377,14 @@ export default function NovaCompraCartao() {
     <>
       <AppBar
         titulo="Nova compra no cartão"
-        sub={`hoje é ${formatarDataBR(hojeIso())}`}
+        sub={
+          // Mesmo texto literal do registro de pagamento quando ele nasce
+          // ligado. Fora desse caso o subtítulo não muda: a compra é sempre
+          // agendamento aqui, não existe o branch "vai virar agendamento".
+          documentoDeOrigem && !obraDivergente
+            ? `Já nasce ligado a ${formatarBRL(documentoDeOrigem.valorCentavos ?? 0)}`
+            : `hoje é ${formatarDataBR(hojeIso())}`
+        }
       />
       <PassosDaCaptura atual={2} />
       {/* ⚠️ Sem rail, pela mesma decisão do `po` que valeu para o pagamento
@@ -263,6 +416,29 @@ export default function NovaCompraCartao() {
               }
             />
 
+            {/* Dito ANTES de salvar, com o motivo e a saída — e os dois blocos
+                aparecem independente de "Parcelado?", para o Mateus ver o que a
+                compra ia herdar antes de qualquer outra escolha. */}
+            {obraDivergente ? (
+              <Banner cor="red" role="alert">
+                <strong>Esta compra não vai nascer ligada à nota.</strong>{" "}
+                {MOTIVO_OBRA_DIFERENTE} Troque a obra desta tela ou desfaça o
+                vínculo antes de salvar.
+              </Banner>
+            ) : null}
+
+            {documentoDeOrigem ? (
+              <LigadoANota
+                nota={documentoDeOrigem}
+                onDesfazer={() => {
+                  // Os dois juntos: o efeito só CARREGA, e desfazer é ato do
+                  // usuário, não sincronização de estado.
+                  setDocumentoDeOrigemId(null);
+                  setDocumentoDeOrigem(null);
+                }}
+              />
+            ) : null}
+
             <Banner cor="amb" role="status">
               <strong>Esta compra nasce sempre agendamento</strong> — o
               dinheiro só sai quando a fatura for paga. O favorecido é o{" "}
@@ -292,24 +468,52 @@ export default function NovaCompraCartao() {
                     larga. A `Escolha` "Parcelado?" e a `RECUSA_PARCELADO` que
                     a acompanha ficam no card de cima, em coluna única: bloco de
                     pergunta fiscal não divide largura (Pre-mortem 1). */}
-                <CamposCurtos>
-                  <CampoTexto
-                    campo="favorecido"
-                    rotulo="Favorecido"
-                    valor={nome}
-                    onChange={setNome}
-                    placeholder="O lojista — nunca o banco ou a administradora"
-                    erro={erroDe("favorecidoNome")}
-                  />
-                  <CampoTexto
-                    campo="favorecidoDocumento"
-                    rotulo="CNPJ / CPF do favorecido"
-                    valor={documento}
-                    onChange={setDocumento}
-                    inputMode="numeric"
-                    placeholder="00.000.000/0000-00"
-                  />
-                </CamposCurtos>
+                {/* CONTAI-064 — nascendo de uma nota, quem recebe o dinheiro é
+                    atributo DELA e não tem campo (adendo de 2026-08-18, §1);
+                    avulso, continua digitável. Mesma estrutura condicional do
+                    registro de pagamento. */}
+                {documentoDeOrigemId ? (
+                  documentoDeOrigem ? (
+                    <FavorecidoHerdado
+                      nota={documentoDeOrigem}
+                      nome={nome}
+                      documento={documento}
+                      erroNome={erroDe("favorecidoNome")}
+                      erroDocumento={erroDe("favorecidoDocumento")}
+                      /* Sem `onSairParaCorrigir`: esta tela não replica a
+                         confirmação de saída (Fora de Escopo do ticket), então
+                         "Corrigir na nota" é sempre link direto — e o
+                         `voltar=compra-cartao` é o que traz o Mateus de volta
+                         PARA CÁ com o nome novo, em vez de despejá-lo num
+                         `/adicionar/pagamento` vazio. */
+                      voltarPara="compra-cartao"
+                    />
+                  ) : (
+                    <Carregando
+                      rotulo="Carregando a nota"
+                      onTentarDeNovo={recarregarNota}
+                    />
+                  )
+                ) : (
+                  <CamposCurtos>
+                    <CampoTexto
+                      campo="favorecido"
+                      rotulo="Favorecido"
+                      valor={nome}
+                      onChange={setNome}
+                      placeholder="O lojista — nunca o banco ou a administradora"
+                      erro={erroDe("favorecidoNome")}
+                    />
+                    <CampoTexto
+                      campo="favorecidoDocumento"
+                      rotulo="CNPJ / CPF do favorecido"
+                      valor={documento}
+                      onChange={setDocumento}
+                      inputMode="numeric"
+                      placeholder="00.000.000/0000-00"
+                    />
+                  </CamposCurtos>
+                )}
                 <CampoTexto
                   campo="fValor"
                   rotulo="Valor da compra"
@@ -317,6 +521,7 @@ export default function NovaCompraCartao() {
                   onChange={setValor}
                   inputMode="decimal"
                   placeholder="0,00"
+                  ajuda={ajudaDoValorDaNota(sugestaoValor, valor)}
                   erro={erroDe("valorCentavos")}
                 />
                 <CamposCurtos>
@@ -373,5 +578,14 @@ export default function NovaCompraCartao() {
         </Rodape>
       )}
     </>
+  );
+}
+
+/** A fronteira que `useSearchParams` exige (Next 16). */
+export default function Pagina() {
+  return (
+    <Suspense fallback={<Carregando rotulo="Carregando a obra" />}>
+      <RegistrarCompraCartao />
+    </Suspense>
   );
 }

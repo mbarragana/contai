@@ -1,6 +1,27 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 20 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 19 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda ainda
+ainda**: **`064` entregue** — Gate 4 (`po`), 11/11 critérios PASS, incluindo o
+critério 9 (achado do `designer`, confirmado no escopo pelo `cto-obra` no
+Gate 2: `corrigir/emitente/page.tsx` ganha `?voltar=compra-cartao`). Trocar
+"Como foi pago" para Cartão em `/adicionar/pagamento?documento=<id>` agora
+leva o documento na URL (pelo ESTADO `documentoDeOrigemId`, nunca o parâmetro
+cru — respeita quem desfez o vínculo antes de trocar); `compra-cartao/page.tsx`
+lê `?documento=`, pré-popula favorecido/CNPJ (herdados, sem campo) e sugere o
+valor da nota, com banner de obra divergente gravando `documentoOrigemId:
+null` e a tela "Agendado" afirmando só "anotada como origem" — nunca "ligada"
+— até o `CONTAI-065` fechar a propagação na quitação (D79 fica **parcialmente**
+paga por este ticket). `FavorecidoHerdado`/`LigadoANota`/`sugerirValorDaNota`
+extraídos para `app/_components/nota-de-origem.tsx`, importados por
+`pagamento/page.tsx` e `compra-cartao/page.tsx`, sem duplicação. Nenhum arquivo
+mudou depois do APPROVE final do Gate 2. Zero migration, como a Viabilidade
+previa. 1121 unitários + 338 E2E verdes. **D80** nova (favorecido com CNPJ
+mascarado gravado por `compra-cartao` antes deste ticket — query de
+diagnóstico ainda não rodada no banco remoto). `065` fica sozinho na fila,
+pronto. Detalhe:
+`docs/backlog/79-2026-09-26-contai-064-entregue-e-d80-mascara-favorecido.md`.
 
 **2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda**:
 **`062` entregue** — Gate 4 (`po`), 13/13 critérios PASS. O gate `retencaoNaNota`
@@ -915,10 +936,14 @@ ainda**: **`062` sai da fila** — passou pelo `/develop` inteiro e saiu
 entregue no mesmo lote (ver nota no topo). `064`/`065` continuam a fila
 ativa, sem mudança.
 
+**2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda ainda
+ainda ainda**: **`064` sai da fila** — passou pelo `/develop` inteiro e saiu
+entregue (ver nota no topo). `065` fica sozinho na fila, pronto — depende só
+da própria arquitetura já fechada, sem bloqueio.
+
 | Ordem | # | Ticket | P | Pronto para `/develop` |
 |---|---|---|---|---|
 | 1 | 065 | Propagar vínculo com a nota na quitação (D79) | P1 | 🟢 sim |
-| 2 | 064 | Cartão herda favorecido/CNPJ/valor da nota | P1 | 🟢 sim (Gate 0 fechado) |
 
 ### 🛑 Em espera — decisão do Mateus, 2026-09-23
 

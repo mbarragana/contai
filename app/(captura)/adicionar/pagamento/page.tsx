@@ -3,18 +3,19 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
-import {
-  CampoArquivo,
-  CampoTexto,
-  Escolha,
-  ErroCampo,
-  Rotulo,
-} from "@/app/_components/campos";
+import { CampoArquivo, CampoTexto, Escolha } from "@/app/_components/campos";
 import {
   CamposCurtos,
   COLUNA_DO_FORMULARIO,
   PassosDaCaptura,
 } from "@/app/_components/captura";
+import {
+  ajudaDoValorDaNota,
+  FavorecidoHerdado,
+  LigadoANota,
+  sugerirValorDaNota,
+  type SugestaoValor,
+} from "@/app/_components/nota-de-origem";
 import { SugestaoQuitacao } from "@/app/_components/quitacao";
 import { AfirmacaoObra, TelaTrocarObra } from "@/app/_components/obra";
 import { Registrado } from "@/app/_components/registrado";
@@ -38,7 +39,6 @@ import {
 import {
   carregarDocumento,
   carregarPagamento,
-  carregarPainel,
   classificarErro,
   criarCompromisso,
   criarPagamento,
@@ -50,11 +50,9 @@ import {
 } from "@/lib/data";
 import { decidirRegistro, type Destino } from "@/lib/fiscal/compromisso";
 import {
-  alocarCusto,
   ehDocumentoHabil,
   MOTIVO_OBRA_DIFERENTE,
   podeVincular,
-  saldoDescobertoDaNota,
 } from "@/lib/fiscal/vinculo";
 import {
   formatarDocumento,
@@ -78,7 +76,7 @@ import {
   NF_SERVICO_SEM_CNO_ALAVANCA,
 } from "@/lib/fiscal/obra";
 import { hojeIso } from "@/lib/hoje";
-import { centavosParaInput, formatarBRL, parseValorInput } from "@/lib/money";
+import { formatarBRL, parseValorInput } from "@/lib/money";
 import type {
   Documento,
   MeioPagamento,
@@ -127,19 +125,6 @@ type Fase =
       dataPrevista: string;
       valorPrevistoCentavos: number;
     };
-
-const NOME_TIPO = {
-  nf_material: "NF de material",
-  nf_servico: "NF de serviço",
-  boleto: "Boleto",
-} as const;
-
-/**
- * De onde saiu o número do campo Valor. Rótulo curto e literal — o campo
- * preenchido pelo app sem dizer a origem lê como algo já conferido, e não foi.
- */
-const ROTULO_VALOR_DA_NOTA = "valor da nota";
-const ROTULO_FALTA_DA_NOTA = "falta desta nota";
 
 function RegistrarPagamento() {
   const router = useRouter();
@@ -199,54 +184,21 @@ function RegistrarPagamento() {
    */
   const [confirmandoSaida, setConfirmandoSaida] = useState(false);
   /**
-   * O valor que veio da nota, guardado para a tela poder DIZER de onde ele
-   * saiu. A ajuda só aparece enquanto o campo continua com esse número: no
-   * instante em que o Mateus digita outro, o texto some — rótulo que sobrevive
-   * à edição vira mentira sobre a origem do número.
+   * O valor que veio da nota (`sugerirValorDaNota`), guardado para a tela poder
+   * DIZER de onde ele saiu.
    */
-  const [sugestaoValor, setSugestaoValor] = useState<{
-    texto: string;
-    rotulo: string;
-  } | null>(null);
+  const [sugestaoValor, setSugestaoValor] = useState<SugestaoValor | null>(null);
 
   useEffect(() => {
     if (!documentoDeOrigemId) return;
     let cancelado = false;
 
-    /**
-     * O VALOR também vem da nota, e vem como SALDO — o que ainda falta pagar
-     * dela, nunca o valor cheio de novo (decisão do Mateus, 2026-08-18: a
-     * empreiteira emite nota por medição, e o pagamento costuma bater com ela).
-     *
-     * Quem calcula é `saldoDescobertoDaNota`, LEITURA da mesma alocação que
-     * produz o número da home — não existe segunda conta de "quanto falta
-     * nesta nota". Repetir o valor cheio na segunda parcela dobraria o custo,
-     * que é a única direção de erro que gera passivo tributário (parecer §4).
-     *
-     * Nota sem valor, não hábil ou já coberta por inteiro não sugere nada:
-     * campo vazio pergunta, campo preenchido afirma.
-     */
+    /** Nota sem saldo a descobrir não sugere nada: campo vazio pergunta. */
     async function preencherValorDaNota(nota: Documento) {
-      try {
-        // O painel é o da obra DA NOTA: o saldo dela sai dos pagamentos já
-        // ligados a ela, e nada soma entre obras.
-        const painel = await carregarPainel(nota.obraId);
-        if (cancelado) return;
-        const saldo = saldoDescobertoDaNota(nota, alocarCusto(painel));
-        if (saldo === null) return;
-        const texto = centavosParaInput(saldo);
-        setSugestaoValor({
-          texto,
-          rotulo:
-            saldo === nota.valorCentavos
-              ? ROTULO_VALOR_DA_NOTA
-              : ROTULO_FALTA_DA_NOTA,
-        });
-        setValor((atual) => atual || texto);
-      } catch {
-        // Painel que não carrega deixa o campo vazio, e nada além disso: o
-        // valor é digitável, e o registro do dispêndio não pode depender dele.
-      }
+      const sugestao = await sugerirValorDaNota(nota);
+      if (cancelado || sugestao === null) return;
+      setSugestaoValor(sugestao);
+      setValor((atual) => atual || sugestao.texto);
     }
 
     void (async () => {
@@ -627,10 +579,7 @@ function RegistrarPagamento() {
   const rotulos = rotulosPagoSemNota(tipoFavorecido);
 
   // Só enquanto o campo mostra o número que veio da nota (ver `sugestaoValor`).
-  const ajudaValor =
-    sugestaoValor && valor === sugestaoValor.texto
-      ? `Vem da nota — ${sugestaoValor.rotulo}. Dá para trocar.`
-      : undefined;
+  const ajudaValor = ajudaDoValorDaNota(sugestaoValor, valor);
 
   /**
    * Tela s1c do mock do CONTAI-021 — a confirmação de dois botões NOMEADOS.
@@ -771,28 +720,15 @@ function RegistrarPagamento() {
             {/* Mock s3b — o vínculo é afirmado na tela e desfazível ANTES de
                 salvar: ninguém liga por engano o PIX à nota errada. */}
             {documentoDeOrigem ? (
-              <Card>
-                <div className="text-[13px]">
-                  <strong>Ligado a:</strong>{" "}
-                  {documentoDeOrigem.favorecidoNome ?? "documento sem emitente"} ·{" "}
-                  <span className="mono">
-                    {formatarBRL(documentoDeOrigem.valorCentavos ?? 0)}
-                  </span>
-                </div>
-                <div className="mt-2">
-                  <Botao
-                    variante="ghost"
-                    onClick={() => {
-                      // Os dois juntos: o efeito só CARREGA, e desfazer é ato
-                      // do usuário, não sincronização de estado.
-                      setDocumentoDeOrigemId(null);
-                      setDocumentoDeOrigem(null);
-                    }}
-                  >
-                    Desfazer o vínculo antes de salvar
-                  </Botao>
-                </div>
-              </Card>
+              <LigadoANota
+                nota={documentoDeOrigem}
+                onDesfazer={() => {
+                  // Os dois juntos: o efeito só CARREGA, e desfazer é ato do
+                  // usuário, não sincronização de estado.
+                  setDocumentoDeOrigemId(null);
+                  setDocumentoDeOrigem(null);
+                }}
+              />
             ) : null}
 
             {/* ⚠️ MEIO. CONTAI-032: nasce sem nenhuma opção marcada.
@@ -811,7 +747,23 @@ function RegistrarPagamento() {
                 valor={meio}
                 onChange={(v) => {
                   if (v === "cartao") {
-                    router.push("/adicionar/compra-cartao");
+                    /**
+                     * CONTAI-064, critério 1: a compra no cartão LEVA a nota
+                     * daqui. Até aqui o `push` ia sem parâmetro nenhum e
+                     * jogava fora favorecido, CNPJ e valor já resolvidos — o
+                     * Mateus redigitava, no canteiro, o que o app sabia um
+                     * passo atrás.
+                     *
+                     * ⚠️ O ESTADO, nunca `documentoNaUrl`: quem desfez o
+                     * vínculo antes de trocar para Cartão pediu para a compra
+                     * nascer SEM herança, e o parâmetro cru da URL
+                     * ressuscitaria o vínculo que ele acabou de desfazer.
+                     */
+                    router.push(
+                      documentoDeOrigemId
+                        ? `/adicionar/compra-cartao?documento=${documentoDeOrigemId}`
+                        : "/adicionar/compra-cartao",
+                    );
                     return;
                   }
                   setMeio(v);
@@ -852,6 +804,7 @@ function RegistrarPagamento() {
                       comprovante !== null
                     }
                     onSairParaCorrigir={() => setConfirmandoSaida(true)}
+                    voltarPara="pagamento"
                   />
                 ) : (
                   <Carregando
@@ -1068,108 +1021,6 @@ function RegistrarPagamento() {
         </Rodape>
       )}
     </>
-  );
-}
-
-/**
- * Favorecido e CNPJ/CPF do pagamento que NASCE LIGADO a uma nota: herdados,
- * sem campo de edição.
- *
- * Adendo de 2026-08-18 do parecer
- * `docs/pareceres/2026-08-17-vinculo-pagamento-documento.md`, §1 e §4:
- *
- *   Fiscalmente, o par que sustenta custo é `documento hábil ↔ desembolso
- *   correspondente`. Quem recebe o dinheiro não é um terceiro grau de
- *   liberdade: é atributo do documento. [...] O produto não deve oferecer o
- *   campo.
- *
- * O campo editável não era só o caminho do bug (typo criando favorecido
- * duplicado, ou renomeando o antigo): é um campo que fiscalmente não existe.
- * O VALOR continua editável — é o único dos três que diverge legitimamente,
- * porque a nota se paga em parcelas.
- *
- * ⚠️ Impasse com saída, nunca bloqueio total (§4, item 4: "impasse sem saída
- * ensina o usuário a inventar dado no campo que sobrou"). São duas: corrigir
- * na nota, e o "Desfazer o vínculo antes de salvar" logo acima — sem vínculo,
- * o pagamento é avulso e os campos voltam a ser digitáveis.
- *
- * Os erros de validação aparecem AQUI: nota sem emitente identificado
- * reprovaria no "Salvar" com a mensagem sem lugar para aparecer, que é a
- * falha muda que este produto não aceita.
- */
-function FavorecidoHerdado({
-  nota,
-  nome,
-  documento,
-  erroNome,
-  erroDocumento,
-  temAlgoDigitado,
-  onSairParaCorrigir,
-}: {
-  nota: Documento;
-  nome: string;
-  documento: string;
-  erroNome?: string;
-  erroDocumento?: string;
-  /** Critério 17: com o formulário pela metade, o link avisa antes de sair. */
-  temAlgoDigitado: boolean;
-  onSairParaCorrigir: () => void;
-}) {
-  const daNota = `da ${NOME_TIPO[nota.tipo]} de ${formatarBRL(nota.valorCentavos ?? 0)}`;
-  return (
-    // `group` com nome: dá ao bloco herdado uma identidade acessível — e é por
-    // ela que o E2E distingue o que está AQUI do mesmo nome repetido no cartão
-    // "Ligado a:" logo acima.
-    <div
-      role="group"
-      aria-label="Favorecido da nota"
-      className="flex flex-col gap-3"
-    >
-      <div className="flex flex-col gap-1">
-        <Rotulo>Favorecido — {daNota}</Rotulo>
-        <div className="text-[15px] font-semibold">
-          {nome || "esta nota está sem emitente identificado"}
-        </div>
-        <ErroCampo mensagem={erroNome} />
-      </div>
-      <div className="flex flex-col gap-1">
-        <Rotulo>CNPJ / CPF do favorecido — {daNota}</Rotulo>
-        <div className="mono text-[15px]">
-          {documento || "esta nota está sem CNPJ/CPF"}
-        </div>
-        <ErroCampo mensagem={erroDocumento} />
-      </div>
-      <p className="text-[12px] text-mut">
-        Quem recebe o dinheiro é atributo da nota, não do pagamento. CNPJ/CPF
-        errado não se edita: é outro favorecido — corrige-se o documento e
-        refaz-se o vínculo.
-      </p>
-      <div>
-        {/**
-         * Critério 2 do CONTAI-021 — o link sai da CAIXA DO FAVORECIDO, então o
-         * destino natural é a correção do NOME DO EMITENTE, não uma tela
-         * genérica. De lá, quem descobre que o erro é outro tem saída para as
-         * outras duas ações e para o texto do CNPJ.
-         *
-         * ⚠️ Até 19/08 ele levava a `/documento/[id]`, onde não existia
-         * correção nenhuma: "o usuário clica em Corrigir na nota e chega numa
-         * tela que não corrige" — a disciplina do critério 19 do CONTAI-018
-         * (nenhuma tela promete comportamento que não existe) violada por um
-         * botão.
-         */}
-        {temAlgoDigitado ? (
-          <Botao variante="ghost" onClick={onSairParaCorrigir}>
-            Corrigir na nota
-          </Botao>
-        ) : (
-          <BotaoLink
-            href={`/documento/${nota.id}/corrigir/emitente?voltar=pagamento`}
-          >
-            Corrigir na nota
-          </BotaoLink>
-        )}
-      </div>
-    </div>
   );
 }
 

@@ -1,7 +1,10 @@
+import { OBRA_ID_SEED } from "./ambiente";
 import {
   compromissos,
   criarCompraCartao,
+  criarDocumento,
   criarFavorecido,
+  favorecidos,
   faturaCompromissos,
   faturaDesembolsos,
   faturas,
@@ -335,6 +338,231 @@ test.describe("fatura paga parcialmente — o rotativo nunca quita sozinho", () 
     await expect(
       page.getByRole("link", { name: "Registrar pagamento parcial (rotativo)" }),
     ).toHaveCount(0);
+  });
+});
+
+/**
+ * CONTAI-064 — a compra no cartão HERDA favorecido/CNPJ/valor da nota de
+ * origem.
+ *
+ * O que estes testes travam é o relato com screenshot que gerou a D79:
+ * *"vincular pagamento via cartão não está preenchendo os dados do favorecido
+ * automaticamente, mesmo sendo vinculado a nota fiscal"*. O `router.push` para
+ * `/adicionar/compra-cartao` ia SEM parâmetro nenhum, e a tela nascia vazia
+ * depois de o app já ter resolvido favorecido, CNPJ e valor um passo atrás.
+ *
+ * ⚠️ O que estes testes **não** afirmam: que o custo nasce ligado. A origem
+ * fica gravada em `compromisso.documento_origem_id` e **não** sobrevive à
+ * quitação da fatura — é o CONTAI-065, ticket separado. É por isso que a
+ * asserção do texto da confirmação está aqui: promessa a mais nessa tela é
+ * afirmação que morre na quitação.
+ */
+test.describe("herança da nota de origem (CONTAI-064)", () => {
+  /** A nota do depósito, com CNPJ que passa na validação real de dígito. */
+  async function notaDaLoja(db: Db, obraId?: string) {
+    const loja = await criarFavorecido(db, {
+      tipo: "pj",
+      nome: "Depósito Bom Jesus",
+      documento: "11222333000181",
+    });
+    const documentoId = await criarDocumento(db, {
+      ...(obraId ? { obra_id: obraId } : {}),
+      favorecido_id: loja,
+      tipo: "nf_material",
+      classificacao: "material",
+      valor: 950,
+      destinatario_cpf_ok: true,
+      status: "registrado",
+    });
+    return { loja, documentoId };
+  }
+
+  test("chega preenchida, grava documento_origem_id e NÃO promete vínculo de custo", async ({
+    page,
+    db,
+  }) => {
+    const { documentoId } = await notaDaLoja(db);
+
+    await page.goto(`/adicionar/compra-cartao?documento=${documentoId}`);
+    // Mesmo subtítulo literal do registro de pagamento que nasce ligado.
+    await expect(page.getByText("Já nasce ligado a R$ 950,00")).toBeVisible();
+    // O vínculo é afirmado e desfazível ANTES de salvar, como no pagamento.
+    await expect(page.getByText("Ligado a:")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Desfazer o vínculo antes de salvar" }),
+    ).toBeVisible();
+
+    await escolher(page, "Parcelado?", "À vista");
+
+    // Os dois do favorecido vêm SEM CAMPO (adendo de 2026-08-18): quem recebe
+    // o dinheiro é atributo da nota, não do desembolso.
+    const herdado = page.getByRole("group", { name: "Favorecido da nota" });
+    await expect(
+      herdado.getByText("Favorecido — da NF de material de R$ 950,00", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(herdado.getByText("Depósito Bom Jesus")).toBeVisible();
+    await expect(herdado.getByText(CNPJ_LOJA)).toBeVisible();
+    await expect(page.getByLabel("Favorecido", { exact: true })).toHaveCount(0);
+    await expect(page.getByLabel("CNPJ / CPF do favorecido")).toHaveCount(0);
+
+    // O VALOR é o único dos três que diverge legitimamente: sugestão editável,
+    // com a origem dita no próprio campo.
+    await expect(page.getByLabel("Valor da compra")).toHaveValue("950,00");
+    await expect(page.getByLabel("Valor da compra")).toBeEditable();
+    await expect(page.getByText("Vem da nota — valor da nota.")).toBeVisible();
+
+    // Critério 9: a saída para corrigir o emitente volta PARA CÁ, e não para
+    // um `/adicionar/pagamento` vazio (que trocaria o meio de pagamento em
+    // silêncio).
+    await expect(
+      page.getByRole("link", { name: "Corrigir na nota" }),
+    ).toHaveAttribute(
+      "href",
+      `/documento/${documentoId}/corrigir/emitente?voltar=compra-cartao`,
+    );
+
+    await page.getByLabel("Data da compra").fill("2026-10-20");
+    await page.getByLabel("Vencimento da fatura").fill("2026-11-10");
+    await page.getByRole("button", { name: /^Agendar/ }).click();
+    await expect(page.getByRole("heading", { name: "Agendado" })).toBeVisible();
+
+    // ⚠️ O TEXTO É O CRITÉRIO 10: "anotada como origem", nunca "ligada".
+    await expect(page.getByText("Nota de origem:")).toBeVisible();
+    await expect(
+      page.getByText("ainda não é vínculo de custo", { exact: false }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("não vem ligado a esta nota automaticamente", {
+        exact: false,
+      }),
+    ).toBeVisible();
+
+    const cs = await compromissos(db);
+    expect(cs).toHaveLength(1);
+    expect(cs[0].documento_origem_id).toBe(documentoId);
+    expect(cs[0].origem).toBe("cartao");
+    expect(Number(cs[0].valor_previsto)).toBe(950);
+
+    // ⚠️ NENHUM FAVORECIDO NOVO. O CNPJ herdado grava só dígitos, como está na
+    // nota: a dedup é pela chave (dono, documento), e gravar a máscara criaria
+    // uma segunda linha da MESMA empresa na ficha Pagamentos Efetuados — o
+    // duplicado que a herança existe justamente para impedir.
+    expect(await favorecidos(db)).toHaveLength(1);
+  });
+
+  test("nota de OUTRA obra: banner antes de salvar e documento_origem_id nulo", async ({
+    page,
+    db,
+  }) => {
+    const { data, error } = await db
+      .from("obra")
+      .insert({ nome: "Casa do Morro", data_inicio_obra: "2026-03-15" })
+      .select("id")
+      .single();
+    expect(error).toBeNull();
+    const { documentoId } = await notaDaLoja(db, data!.id);
+
+    await page.goto(`/adicionar/compra-cartao?documento=${documentoId}`);
+    await expect(
+      page.getByText("Esta compra não vai nascer ligada à nota."),
+    ).toBeVisible();
+    await expect(page.getByText("obras diferentes", { exact: false })).toBeVisible();
+    // E o subtítulo NÃO promete o que a gravação não vai fazer.
+    await expect(page.getByText("Já nasce ligado a R$ 950,00")).toHaveCount(0);
+
+    await escolher(page, "Parcelado?", "À vista");
+    await page.getByLabel("Data da compra").fill("2026-10-20");
+    await page.getByLabel("Vencimento da fatura").fill("2026-11-10");
+    await page.getByRole("button", { name: /^Agendar/ }).click();
+    await expect(page.getByRole("heading", { name: "Agendado" })).toBeVisible();
+
+    // Sem origem gravada, a confirmação não diz nada sobre nota nenhuma: o
+    // banner já avisou ANTES do clique.
+    await expect(page.getByText("Nota de origem:")).toHaveCount(0);
+
+    const cs = await compromissos(db);
+    expect(cs).toHaveLength(1);
+    expect(cs[0].documento_origem_id).toBeNull();
+    expect(cs[0].obra_id).toBe(OBRA_ID_SEED);
+  });
+
+  test("trocar para Cartão leva a nota — e respeita quem desfez o vínculo antes", async ({
+    page,
+    db,
+  }) => {
+    const { documentoId } = await notaDaLoja(db);
+
+    // Caminho normal: o contexto já resolvido viaja para a compra.
+    await page.goto(`/adicionar/pagamento?documento=${documentoId}`);
+    await escolher(page, "Como foi pago", "Cartão");
+    await expect(page).toHaveURL(
+      `/adicionar/compra-cartao?documento=${documentoId}`,
+    );
+    await expect(page.getByText("Ligado a:")).toBeVisible();
+
+    // Critério 1: quem DESFEZ o vínculo pediu para a compra nascer sem herança
+    // nenhuma — e o redirect usa o estado, não o parâmetro cru da URL.
+    await page.goto(`/adicionar/pagamento?documento=${documentoId}`);
+    await page
+      .getByRole("button", { name: "Desfazer o vínculo antes de salvar" })
+      .click();
+    await escolher(page, "Como foi pago", "Cartão");
+    await expect(page).toHaveURL("/adicionar/compra-cartao");
+    await expect(page.getByText("Ligado a:")).toHaveCount(0);
+
+    await escolher(page, "Parcelado?", "À vista");
+    await expect(page.getByLabel("Favorecido", { exact: true })).toBeEditable();
+    await expect(page.getByLabel("CNPJ / CPF do favorecido")).toBeEditable();
+    await expect(page.getByLabel("Valor da compra")).toHaveValue("");
+    await expect(
+      page.getByRole("group", { name: "Favorecido da nota" }),
+    ).toHaveCount(0);
+  });
+
+  test("'Corrigir na nota' devolve para a COMPRA, com o nome novo", async ({
+    page,
+    db,
+  }) => {
+    const { documentoId } = await notaDaLoja(db);
+
+    await page.goto(`/adicionar/compra-cartao?documento=${documentoId}`);
+    await escolher(page, "Parcelado?", "À vista");
+    await page.getByRole("link", { name: "Corrigir na nota" }).click();
+    await expect(page).toHaveURL(
+      `/documento/${documentoId}/corrigir/emitente?voltar=compra-cartao`,
+    );
+
+    await page
+      .getByRole("button", { name: "Só aqui no app — eu digitei errado" })
+      .click();
+    await page.getByRole("button", { name: "Continuar", exact: true }).click();
+    await page
+      .getByLabel("Nome como está impresso na nota")
+      .fill("Depósito Bom Jesus ME");
+    // A afirmação do CNPJ é obrigatória — é o único checkbox desta tela.
+    await page.getByRole("checkbox").check();
+    await page.getByRole("button", { name: "Gravar a correção" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Nome corrigido ✓" }),
+    ).toBeVisible();
+
+    // ⚠️ Sem o critério 9 este botão dizia "Voltar ao pagamento" e levava para
+    // `/adicionar/pagamento` — trocando o meio de pagamento da compra sem
+    // avisar.
+    await page
+      .getByRole("link", { name: "Voltar para a compra — com o nome novo" })
+      .click();
+    await expect(page).toHaveURL(
+      `/adicionar/compra-cartao?documento=${documentoId}`,
+    );
+    await escolher(page, "Parcelado?", "À vista");
+    await expect(
+      page
+        .getByRole("group", { name: "Favorecido da nota" })
+        .getByText("Depósito Bom Jesus ME"),
+    ).toBeVisible();
   });
 });
 
