@@ -21,6 +21,7 @@ import {
   FILTROS_PADRAO,
   FILTRO_SITUACAO_PADRAO,
   filtrarLinhas,
+  filtrarPorAno,
   linhasDeDespesa,
   ordenarLinhas,
   ORDEM_PADRAO,
@@ -61,6 +62,14 @@ import type {
 } from "@/lib/types";
 
 const ANO = 2026;
+
+/**
+ * **"Todos os anos" (CONTAI-060)** — é o valor que os testes de Situação/Tipo/
+ * Busca usam, para provarem o que se propõem a provar sem um corte de ano por
+ * baixo. O padrão do PRODUTO é o oposto: o shell nasce no ano corrente, e
+ * "todos" só existe por clique explícito (critério 3).
+ */
+const TODOS: number | null = null;
 
 const OBRA: Obra = {
   id: "obra-1",
@@ -169,6 +178,9 @@ function entrada(
     informesFinanciamento: [],
     financiamento: null,
     ano: ANO,
+    // CONTAI-060: no fixture os dois coincidem — quem os separa é o teste que
+    // precisa provar a diferença entre "ano em tela" e "hoje".
+    anoCorrente: ANO,
     ...over,
   };
 }
@@ -1130,12 +1142,12 @@ describe("filtros (critério 8)", () => {
     expect(FILTRO_SITUACAO_PADRAO).toBe("todas");
     expect(FILTROS_PADRAO.situacao).toBe("todas");
     const { linhas } = cenario();
-    expect(filtrarLinhas(linhas, FILTROS_PADRAO)).toHaveLength(linhas.length);
+    expect(filtrarLinhas(linhas, FILTROS_PADRAO, TODOS)).toHaveLength(linhas.length);
     // E com o padrão TODA pendência da obra continua visível.
     const comPendencia = linhas.filter((l) => l.temPendencia);
     expect(comPendencia.length).toBeGreaterThan(0);
     for (const l of comPendencia) {
-      expect(filtrarLinhas(linhas, FILTROS_PADRAO)).toContain(l);
+      expect(filtrarLinhas(linhas, FILTROS_PADRAO, TODOS)).toContain(l);
     }
   });
 
@@ -1148,11 +1160,11 @@ describe("filtros (critério 8)", () => {
     const comprovadas = filtrarLinhas(linhas, {
       ...FILTROS_PADRAO,
       situacao: "comprovadas",
-    });
+    }, TODOS);
     const pendentes = filtrarLinhas(linhas, {
       ...FILTROS_PADRAO,
       situacao: "pendencia",
-    });
+    }, TODOS);
     expect(comprovadas).toContain(mista);
     expect(pendentes).toContain(mista);
     // Linha só comprovada não aparece em "com pendência", e vice-versa.
@@ -1163,12 +1175,12 @@ describe("filtros (critério 8)", () => {
   it("o terceiro estado não é comprovado nem pendência: só aparece em TODAS", () => {
     const { linhas } = cenario();
     const terceiro = linhaDe(linhas, "documento:d2");
-    expect(filtrarLinhas(linhas, FILTROS_PADRAO)).toContain(terceiro);
+    expect(filtrarLinhas(linhas, FILTROS_PADRAO, TODOS)).toContain(terceiro);
     expect(
-      filtrarLinhas(linhas, { ...FILTROS_PADRAO, situacao: "comprovadas" }),
+      filtrarLinhas(linhas, { ...FILTROS_PADRAO, situacao: "comprovadas" }, TODOS),
     ).not.toContain(terceiro);
     expect(
-      filtrarLinhas(linhas, { ...FILTROS_PADRAO, situacao: "pendencia" }),
+      filtrarLinhas(linhas, { ...FILTROS_PADRAO, situacao: "pendencia" }, TODOS),
     ).not.toContain(terceiro);
   });
 
@@ -1177,7 +1189,7 @@ describe("filtros (critério 8)", () => {
     const material = filtrarLinhas(linhas, {
       ...FILTROS_PADRAO,
       tipo: "nf_material",
-    });
+    }, TODOS);
     expect(material.map((l) => l.id).sort()).toEqual([
       "documento:d2",
       "pagamento:p1",
@@ -1186,31 +1198,31 @@ describe("filtros (critério 8)", () => {
     const servico = filtrarLinhas(linhas, {
       ...FILTROS_PADRAO,
       tipo: "nf_servico",
-    });
+    }, TODOS);
     expect(servico.map((l) => l.id)).toEqual(["pagamento:p2"]);
 
-    const boleto = filtrarLinhas(linhas, { ...FILTROS_PADRAO, tipo: "boleto" });
+    const boleto = filtrarLinhas(linhas, { ...FILTROS_PADRAO, tipo: "boleto" }, TODOS);
     expect(boleto.map((l) => l.id)).toEqual(["documento:d4"]);
 
     const semDoc = filtrarLinhas(linhas, {
       ...FILTROS_PADRAO,
       tipo: "sem_documento",
-    });
+    }, TODOS);
     expect(semDoc.map((l) => l.id)).toEqual(["pagamento:p3"]);
   });
 
   it("busca por favorecido ignora caixa e acento", () => {
     const { linhas } = cenario();
     expect(
-      filtrarLinhas(linhas, { ...FILTROS_PADRAO, busca: "joao" }).map(
+      filtrarLinhas(linhas, { ...FILTROS_PADRAO, busca: "joao" }, TODOS).map(
         (l) => l.id,
       ),
     ).toEqual(["pagamento:p3"]);
     expect(
-      filtrarLinhas(linhas, { ...FILTROS_PADRAO, busca: "  CASA do  " }).length,
+      filtrarLinhas(linhas, { ...FILTROS_PADRAO, busca: "  CASA do  " }, TODOS).length,
     ).toBeGreaterThan(0);
     expect(
-      filtrarLinhas(linhas, { ...FILTROS_PADRAO, busca: "inexistente" }),
+      filtrarLinhas(linhas, { ...FILTROS_PADRAO, busca: "inexistente" }, TODOS),
     ).toEqual([]);
   });
 
@@ -1220,9 +1232,160 @@ describe("filtros (critério 8)", () => {
       situacao: "pendencia",
       tipo: "sem_documento",
       busca: "pedreiro",
-    });
+    }, TODOS);
     expect(filtradas.map((l) => l.id)).toEqual(["pagamento:p3"]);
     expect(filtradas[0].valorCentavos).toBe(320_000);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+/**
+ * **CONTAI-060 — o corte por ano-calendário.**
+ *
+ * O que estes testes travam é a regra de duas partes do parecer
+ * `docs/pareceres/2026-09-26-regime-caixa-dado-incompleto-escopo-ano.md` e a
+ * contagem "N de M" do critério 4 do spec de design: o M é do ANO em exibição, e
+ * a linha sem data de pagamento não sai da lista em ano nenhum.
+ */
+describe("corte por ano (CONTAI-060)", () => {
+  /**
+   * Três anos e uma nota órfã:
+   * - `p1` (com `d1`): pago em 2025 — comprovado, cai em 2025;
+   * - `p2`: pago em 2026 — sem documento, "pago sem nota";
+   * - `d2`: NF hábil SEM pagamento — não tem `dataPagamento`, não cai em ano
+   *   nenhum e não pode desaparecer de nenhum ano.
+   */
+  function cenario() {
+    return projetar(
+      [
+        doc({ id: "d1", valorCentavos: 200_000, dataEmissao: "2025-11-30" }),
+        doc({ id: "d2", valorCentavos: 96_400, numero: "8710" }),
+      ],
+      [
+        pag({
+          id: "p1",
+          valorCentavos: 200_000,
+          dataPagamento: "2025-12-10",
+          documentoIds: ["d1"],
+        }),
+        pag({
+          id: "p2",
+          valorCentavos: 320_000,
+          dataPagamento: `${ANO}-03-10`,
+          favorecidoId: "fav-joao",
+          favorecidoNome: "João Pedreiro",
+          favorecidoTipo: "pf",
+        }),
+      ],
+    );
+  }
+
+  it("filtra pela DATA DO PAGAMENTO, não pela emissão", () => {
+    const { linhas } = cenario();
+    // `d1` foi emitida em 2025 e paga em 2025; a linha é a do pagamento.
+    expect(filtrarPorAno(linhas, 2025).map((l) => l.id).sort()).toEqual([
+      "documento:d2",
+      "pagamento:p1",
+    ]);
+    expect(filtrarPorAno(linhas, ANO).map((l) => l.id).sort()).toEqual([
+      "documento:d2",
+      "pagamento:p2",
+    ]);
+  });
+
+  it("ano `null` é 'todos os anos': nada é escondido", () => {
+    const { linhas } = cenario();
+    expect(filtrarPorAno(linhas, TODOS)).toHaveLength(linhas.length);
+  });
+
+  /**
+   * ⚠️ **Critério 5, a metade que só um teste pega.** Parecer de 2026-09-26: a
+   * linha sem `dataPagamento` fica *"sempre visível como pendência de captura,
+   * em qualquer ano selecionado"*. Sumir com ela no ano em que ela não cai seria
+   * esconder a captura que falta justamente de quem está revisando aquele ano.
+   */
+  it("linha sem data de pagamento aparece em TODO ano, inclusive num sem lançamento", () => {
+    const { linhas } = cenario();
+    const orfa = linhaDe(linhas, "documento:d2");
+    expect(orfa.dataPagamento).toBeNull();
+    for (const ano of [2024, 2025, ANO, ANO + 1, null]) {
+      expect(filtrarPorAno(linhas, ano)).toContain(orfa);
+      expect(filtrarLinhas(linhas, FILTROS_PADRAO, ano)).toContain(orfa);
+    }
+    // Num ano sem pagamento nenhum ela é a ÚNICA linha — a lista não fica vazia
+    // fingindo que não há nada a capturar.
+    expect(filtrarPorAno(linhas, 2024).map((l) => l.id)).toEqual([
+      "documento:d2",
+    ]);
+  });
+
+  /**
+   * ⚠️ **A outra metade do critério 5, e é a que protege o número.** Estar na
+   * lista não pode significar entrar em soma: sem data não há ano-calendário, e
+   * o regime de caixa exige a data que falta.
+   */
+  it("a linha sem data não leva valor comprovado para ano nenhum", () => {
+    const { linhas, resumo } = cenario();
+    const orfa = linhaDe(linhas, "documento:d2");
+    expect(orfa.custoComprovadoCentavos).toBe(0);
+    expect(orfa.comprovadoCentavos).toBe(0);
+    expect(orfa.comprovadoPorRetencaoCentavos).toBe(0);
+    // E o acumulado da obra (todos os anos) também não a inclui: o resumo é do
+    // ano corrente do cenário, e ela não está em nenhuma das duas somas.
+    expect(resumo.custoConfirmadoAnoCentavos).toBe(0);
+    for (const ano of [2025, ANO, null]) {
+      const soma = filtrarPorAno(linhas, ano).reduce(
+        (s, l) => s + l.custoComprovadoCentavos,
+        0,
+      );
+      expect(soma).toBe(
+        ano === 2025 || ano === null ? 200_000 : 0,
+      );
+    }
+  });
+
+  /**
+   * **O "N de M" do spec, item 3.** `visiveis ⊆ linhasDoAno`, e o M que a barra
+   * mostra é `linhasDoAno.length` — comparar com o total de todos os anos é a
+   * comparação de janelas diferentes que originou o ticket.
+   */
+  it("o universo do 'N de M' é o do ano, e o filtro de situação cabe dentro dele", () => {
+    const { linhas } = cenario();
+    const doAno = filtrarPorAno(linhas, ANO);
+    expect(doAno).toHaveLength(2);
+    expect(linhas).toHaveLength(3);
+
+    const visiveis = filtrarLinhas(
+      linhas,
+      { ...FILTROS_PADRAO, situacao: "pendencia" },
+      ANO,
+    );
+    expect(visiveis.map((l) => l.id)).toEqual(["pagamento:p2"]);
+    for (const l of visiveis) expect(doAno).toContain(l);
+    // A linha comprovada de 2025 não entra no universo de 2026 por nenhum
+    // caminho — nem com o filtro de situação mais permissivo.
+    expect(
+      filtrarLinhas(linhas, FILTROS_PADRAO, ANO).map((l) => l.id),
+    ).not.toContain("pagamento:p1");
+  });
+
+  it("o ano se combina com Situação, Tipo e Busca — e nenhum deles o cancela", () => {
+    const { linhas } = cenario();
+    expect(
+      filtrarLinhas(linhas, { ...FILTROS_PADRAO, busca: "joao" }, 2025),
+    ).toEqual([]);
+    expect(
+      filtrarLinhas(linhas, { ...FILTROS_PADRAO, busca: "joao" }, ANO).map(
+        (l) => l.id,
+      ),
+    ).toEqual(["pagamento:p2"]);
+    expect(
+      filtrarLinhas(
+        linhas,
+        { ...FILTROS_PADRAO, situacao: "comprovadas" },
+        2025,
+      ).map((l) => l.id),
+    ).toEqual(["pagamento:p1"]);
   });
 });
 

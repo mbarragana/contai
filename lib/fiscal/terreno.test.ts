@@ -38,6 +38,7 @@ import {
   PAGO_SEM_COMPROVANTE,
   PAGO_SEM_PAPEL,
   pagoSemComprovante,
+  terrenoTemRegistro,
   pagosSemComprovante,
   temComprovante,
   totalPagoSemComprovanteCentavos,
@@ -175,6 +176,50 @@ describe("cada desembolso no ano da SUA data (critério 24a)", () => {
     expect(custoTerrenoAteOAno([terreno, itbi], [], 2023).confirmadoCentavos).toBe(
       0,
     );
+  });
+});
+
+// ── CONTAI-060, Gate 2 ───────────────────────────────────────────────────
+
+/**
+ * **"O terreno está registrado?" é pergunta da OBRA, sem ano.**
+ *
+ * Esta função existe porque a condição de `terrenoSemRegistro` estava amarrada ao
+ * ano em tela, e o seletor do `CONTAI-060` transformou isso em CTA falso: com o
+ * terreno pago em 2025, olhar 2024 acendia "nada foi registrado ainda".
+ */
+describe("terrenoTemRegistro — da obra inteira, sem ano (CONTAI-060)", () => {
+  const pagoEDatado = desembolso({ id: "d1", dataPagamento: "2025-06-10" });
+  const semData = desembolso({
+    id: "d2",
+    dataPagamento: null,
+    anexos: [],
+  });
+  const previsto = desembolso({
+    id: "d3",
+    dataPagamento: null,
+    estado: "previsto",
+    anexos: [],
+  });
+
+  it("nada registrado: nem desembolso datado, nem informe", () => {
+    expect(terrenoTemRegistro([], [])).toBe(false);
+    // Os dois estados que NÃO são registro, cada um pelo seu motivo.
+    expect(terrenoTemRegistro([semData], [])).toBe(false);
+    expect(terrenoTemRegistro([previsto], [])).toBe(false);
+  });
+
+  it("um desembolso datado basta — em QUALQUER ano, porque não há ano aqui", () => {
+    expect(terrenoTemRegistro([pagoEDatado], [])).toBe(true);
+    // Sem comprovante ele fica fora da SOMA, mas continua registrado: dizer
+    // "nada foi registrado" ali seria trocar um zero que mente por outro.
+    expect(
+      terrenoTemRegistro([{ ...pagoEDatado, anexos: [] }], []),
+    ).toBe(true);
+  });
+
+  it("um informe lançado também basta", () => {
+    expect(terrenoTemRegistro([], [informe({ id: "i1" })])).toBe(true);
   });
 });
 

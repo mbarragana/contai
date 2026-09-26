@@ -71,7 +71,7 @@ import {
   NOTA_SEM_ARQUIVO_EFEITO,
   BOLETO_FORA_DO_TOTAL,
 } from "./documento";
-import { rotulosPagoSemNota } from "./pagamento";
+import { anoCalendario, rotulosPagoSemNota } from "./pagamento";
 import {
   CHIP_QUITADO_POR_RETENCAO,
   CHIP_RETENCAO_SOBRECOBERTA,
@@ -696,13 +696,68 @@ function casaTipo(linha: LinhaDeDespesa, filtro: FiltroTipo): boolean {
   return linha.documentos.some((d) => d.tipo === filtro);
 }
 
+// ── O corte por ano-calendário (CONTAI-060) ──────────────────────────────
+
+/**
+ * **O recorte por ANO, sozinho — e a linha sem data de pagamento NUNCA sai
+ * dele.**
+ *
+ * Fonte: `docs/pareceres/2026-09-26-regime-caixa-dado-incompleto-escopo-ano.md`,
+ * regra de duas partes, e o critério 5 do `CONTAI-060`:
+ *
+ * - (a) linha sem `dataPagamento` não entra em **total monetário nenhum** — nem
+ *   delta do ano nem acumulado. Isso já é verdade por construção e **não é
+ *   decidido aqui**: quem soma é `calcularResumo`/`alocarCusto`, pela data do
+ *   pagamento, e uma linha de documento chega aqui com
+ *   `custoComprovadoCentavos === 0`;
+ * - (b) ela **nunca desaparece da tela** ao trocar o filtro de ano — fica
+ *   sempre visível como pendência de captura, em qualquer ano e também sob
+ *   "todos os anos". É o `dataPagamento === null → true` abaixo, e é a única
+ *   razão de ele existir: sem data não há ano-calendário, e esconder a linha no
+ *   ano errado seria sumir com a nota órfã exatamente no filtro em que ela
+ *   parece resolvida.
+ *
+ * `ano === null` é "todos os anos": o predicado não se aplica, nada é escondido.
+ *
+ * ⚠️ **`anoCalendario` é a MESMA função que `calcularResumo` usa** para o custo
+ * do ano. Duas definições de "que ano é este pagamento" divergiriam, e a
+ * divergência seria justo entre a tabela e o KPI — o defeito que originou o
+ * ticket.
+ */
+export function filtrarPorAno(
+  linhas: readonly LinhaDeDespesa[],
+  ano: number | null,
+): LinhaDeDespesa[] {
+  return linhas.filter((l) => casaAno(l, ano));
+}
+
+function casaAno(linha: LinhaDeDespesa, ano: number | null): boolean {
+  if (ano === null) return true;
+  if (linha.dataPagamento === null) return true;
+  return anoCalendario(linha.dataPagamento) === ano;
+}
+
+/**
+ * ⚠️ **O `ano` é parâmetro OBRIGATÓRIO e separado de `FiltrosDaTabela`**, e os
+ * dois detalhes são de propósito:
+ *
+ * - **obrigatório**: chamador que o esquecesse voltaria a listar todos os anos
+ *   em silêncio, que é o bug de origem do `CONTAI-060`;
+ * - **fora de `FiltrosDaTabela`**: o ano não é filtro de tela, é estado do
+ *   shell (`ProvedorDeGestao`), compartilhado com a Home e com `/pendencias`.
+ *   Dentro dos `Filtros` ele nasceria com um padrão neste módulo — e "todos os
+ *   anos" como padrão é exatamente o que o critério 3 proíbe — e o botão
+ *   "Mostrar todos" da barra o zeraria junto com Situação/Tipo/Busca.
+ */
 export function filtrarLinhas(
   linhas: readonly LinhaDeDespesa[],
   filtros: FiltrosDaTabela,
+  ano: number | null,
 ): LinhaDeDespesa[] {
   const busca = normalizar(filtros.busca);
   return linhas.filter(
     (l) =>
+      casaAno(l, ano) &&
       casaSituacao(l, filtros.situacao) &&
       casaTipo(l, filtros.tipo) &&
       (busca === "" ||

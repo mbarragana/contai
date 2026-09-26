@@ -179,7 +179,10 @@ export default function Obras() {
               new Map(
                 estado.paineis.map((p) => [
                   p.obra.id,
-                  calcularResumo({ ...p, ano }).pendencias.length,
+                  // `/obras` não passa pelo seletor de ano do shell: aqui os dois
+                  // anos são o mesmo, e é o de hoje (CONTAI-060).
+                  calcularResumo({ ...p, ano, anoCorrente: ano }).pendencias
+                    .length,
                 ]),
               )
             }

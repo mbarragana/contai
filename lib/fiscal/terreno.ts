@@ -65,6 +65,38 @@ export function entraEmAlgumAno(d: TerrenoDesembolso): boolean {
   return anoDoDesembolso(d) !== null;
 }
 
+/**
+ * **O terreno desta obra está REGISTRADO em algum lugar?** — pergunta da OBRA
+ * INTEIRA, sem ano nenhum por parâmetro.
+ *
+ * ⚠️ **É de propósito que não exista um `ano` aqui** (Gate 2 do `CONTAI-060`). A
+ * pendência `terreno_sem_registro` diz *"R$ 0,00 aqui significa que nada foi
+ * registrado, não que nada foi pago"*, e essa é uma afirmação sobre o acervo, não
+ * sobre uma janela de leitura. Amarrada ao ano em tela, ela passava a mentir
+ * assim que o seletor do shell (`CONTAI-060`) permitiu olhar um ano ANTERIOR à
+ * compra do terreno: com o terreno pago e comprovado em 2025, escolher 2024
+ * acendia "nada foi registrado ainda" e oferecia o CTA de registrar um terreno
+ * que já está no sistema. Pendência que nasce de filtro de leitura é alarme
+ * falso, e alarme falso é a doença que o `CONTAI-035` veio curar.
+ *
+ * O que conta como registro, e cada exclusão tem o mesmo motivo de sempre:
+ * - desembolso **pago e datado**, com ou sem comprovante (`entraEmAlgumAno`) —
+ *   sem comprovante ele está registrado e fica fora da soma, o que é dito em
+ *   linha própria (§4.5); trocar um zero que mente por outro é o que esta
+ *   inclusão evita;
+ * - qualquer **informe** anual lançado — amortização + juros já são custo.
+ *
+ * `previsto` e `pago` sem data continuam **não** sendo registro: o primeiro não
+ * foi pago, o segundo não cai em ano nenhum e já tem pendência própria
+ * (`terrenoSemData`).
+ */
+export function terrenoTemRegistro(
+  desembolsos: readonly TerrenoDesembolso[],
+  informes: readonly FinanciamentoInforme[],
+): boolean {
+  return desembolsos.some(entraEmAlgumAno) || informes.length > 0;
+}
+
 // ── A composição do custo do informe (critérios 12, 13 e 24d) ───────────
 
 /**

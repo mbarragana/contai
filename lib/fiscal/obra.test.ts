@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  anosDaObra,
   AVISO_CNO_NA_CORRECAO_DE_OBRA,
   CONSEQUENCIA_CNO_DA_NOTA,
   exigeAvisoEquiparacao,
@@ -537,5 +538,57 @@ describe("CONTAI-007, critério 8 · notas emitidas na janela sem CNO", () => {
       valorCentavos: 1_800_000,
       dataEmissao: "2026-03-20",
     });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+/**
+ * **CONTAI-060 — os anos que o seletor do shell oferece.**
+ *
+ * As três decisões do `anosDaObra` têm teste cada uma: o ano corrente entra
+ * sempre, o intervalo é contínuo e desembolso de terreno não entra.
+ */
+describe("anosDaObra", () => {
+  function pago(dataPagamento: string) {
+    return { dataPagamento };
+  }
+
+  it("obra sem pagamento nenhum: oferece o ano corrente, e a lista nunca é vazia", () => {
+    expect(anosDaObra({ pagamentos: [] }, 2026)).toEqual([2026]);
+  });
+
+  it("do mais recente para o mais antigo, e o ano corrente entra sempre", () => {
+    expect(
+      anosDaObra({ pagamentos: [pago("2025-12-10"), pago("2026-03-01")] }, 2026),
+    ).toEqual([2026, 2025]);
+    // Obra que só teve pagamento em anos passados continua oferecendo "hoje":
+    // é nele que o próximo pagamento vai cair.
+    expect(anosDaObra({ pagamentos: [pago("2024-05-02")] }, 2026)).toEqual([
+      2026, 2025, 2024,
+    ]);
+  });
+
+  /**
+   * ⚠️ Intervalo CONTÍNUO, e não o conjunto dos anos com pagamento: 2025 sem
+   * pagamento nenhum continua sendo um ano-calendário de leitura válido (o
+   * acumulado até 31/12/2025 existe). Furo na régua faria o ano parecer
+   * inexistente.
+   */
+  it("ano sem pagamento no meio da obra continua sendo oferecido", () => {
+    expect(
+      anosDaObra({ pagamentos: [pago("2024-08-01"), pago("2026-01-09")] }, 2026),
+    ).toEqual([2026, 2025, 2024]);
+  });
+
+  it("pagamento FUTURO estende a lista para frente — nada é escondido", () => {
+    expect(anosDaObra({ pagamentos: [pago("2027-01-05")] }, 2026)).toEqual([
+      2027, 2026,
+    ]);
+  });
+
+  it("data ilegível não vira ano: o intervalo não explode", () => {
+    expect(
+      anosDaObra({ pagamentos: [pago(""), pago("xx"), pago("2026-02-02")] }, 2026),
+    ).toEqual([2026]);
   });
 });

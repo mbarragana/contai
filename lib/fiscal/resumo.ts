@@ -75,6 +75,7 @@ import {
   NOME_DO_DESEMBOLSO,
   pagosSemComprovante,
   pendenciaDeDatasAberta,
+  terrenoTemRegistro,
   TERRENO_ZERO_NAO_E_NADA_PAGO,
 } from "./terreno";
 import { gravidadeDaRegua, type Gravidade } from "./gravidade";
@@ -517,7 +518,30 @@ export interface EntradaResumo {
    * `dataContrato`, que diz desde quando enumerar os anos.
    */
   financiamento: Financiamento | null;
+  /**
+   * O ano-calendário **EM TELA** — o recorte de leitura. Todo número "do ano"
+   * sai dele: custo confirmado do ano, acumulado até 31/12 dele, a parte do
+   * terreno que entra nessa soma.
+   */
   ano: number;
+  /**
+   * O ano-calendário **DE HOJE**, e ele não é o mesmo conceito (`CONTAI-060`,
+   * Gate 2).
+   *
+   * ⚠️ **Existe porque um filtro de leitura não pode mudar a GRAVIDADE de uma
+   * pendência.** Enquanto os dois coincidiam, `anosDoFinanciamento` recebia o ano
+   * em tela e o tratava como "hoje" — então, a partir de 01/01/2027, revisar o
+   * ano-base 2026 (que é o cenário principal desta feature: março-maio, com o
+   * informe de 2026 já publicado) marcaria 2026 como `aguardando_informe`
+   * (âmbar, *"não afeta declaração nenhuma"*) em vez de `falta_lancar`
+   * (vermelho, pendência real). A declaração de 2026 JÁ afeta, e o extrato JÁ
+   * saiu: é download.
+   *
+   * Regra, em uma linha: **"ano fechado × ano corrente" é do calendário, nunca
+   * da tela.** Quem depende de "hoje" lê este campo; quem é recorte de leitura
+   * lê `ano`.
+   */
+  anoCorrente: number;
 }
 
 const SEM_FAVORECIDO = "Favorecido não informado";
@@ -548,6 +572,7 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
     informesFinanciamento,
     financiamento,
     ano,
+    anoCorrente,
   } = entrada;
 
   // TODO o cálculo de custo sai daqui — e nenhuma linha dele olha `status`.
@@ -1022,14 +1047,24 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
   //
   // Sem financiamento (`null`), nada é afirmado — a obra à vista continua sem
   // ver uma palavra sobre informe, que é o comportamento certo.
-  const temInformeDoAno = informesFinanciamento.some((i) => i.anoBase === ano);
+  //
+  // ⚠️ **CONTAI-060, Gate 2 — este aviso é sobre HOJE, e só existe no ano
+  // corrente.** "O informe só é publicado em jan/fev do ano seguinte" é uma
+  // afirmação sobre o calendário do banco no presente: dizê-la sobre um ano já
+  // fechado (porque o seletor do shell está apontado para ele) rebaixaria uma
+  // pendência vermelha real — `falta_lancar` — a um aviso âmbar que promete que
+  // "não afeta declaração nenhuma". Por isso a condição carrega
+  // `ano === anoCorrente`, e tudo aqui dentro lê `anoCorrente`, nunca `ano`.
+  const temInformeDoAnoCorrente = informesFinanciamento.some(
+    (i) => i.anoBase === anoCorrente,
+  );
   const informeAnterior = informesFinanciamento.find(
-    (i) => i.anoBase === ano - 1,
+    (i) => i.anoBase === anoCorrente - 1,
   );
   const financiamentoAguardandoInforme: FinanciamentoAguardandoInforme | null =
-    financiamento !== null && !temInformeDoAno
+    financiamento !== null && ano === anoCorrente && !temInformeDoAnoCorrente
       ? {
-          ano,
+          ano: anoCorrente,
           // ⚠️ Ordem de grandeza, NUNCA somada — ver `ESTIMATIVA_NAO_E_APURACAO`.
           estimativaCentavos: informeAnterior
             ? custoDoInformeCentavos(informeAnterior)
@@ -1043,10 +1078,21 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
   // Os anos JÁ FECHADOS sem informe — o caso que dói hoje. `anosDoFinanciamento`
   // é a mesma função que o painel do terreno usa: uma definição só de "desde
   // quando enumerar" e de "o que é falta_lancar".
+  //
+  // ⚠️ **`anoCorrente`, nunca `ano`** (CONTAI-060, Gate 2): pendência real não
+  // pode sumir — nem mudar de cor — por causa do ano que está selecionado na
+  // tela. Com o ano em tela aqui, escolher 2026 em 2027 fazia o informe faltante
+  // de 2026 deixar de ser `falta_lancar`, e escolher 2025 escondia o de 2026
+  // inteiro. Enumerar sempre até hoje é o que mantém a fila igual em qualquer
+  // recorte de leitura.
   const financiamentoFaltaLancar: FinanciamentoFaltaLancar[] =
     financiamento === null
       ? []
-      : anosDoFinanciamento(financiamento.dataContrato, informesFinanciamento, ano)
+      : anosDoFinanciamento(
+          financiamento.dataContrato,
+          informesFinanciamento,
+          anoCorrente,
+        )
           .filter((a) => a.situacao === "falta_lancar")
           .map((a) => ({
             ano: a.ano,
@@ -1076,16 +1122,25 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
   // desembolso datado e sem comprovante, o confirmado é zero mas o terreno
   // ESTÁ registrado — dizer "nada foi registrado" ali seria trocar um zero que
   // mente por outro.
+  //
+  // ⚠️ **A pergunta é da OBRA INTEIRA, sem ano** (`terrenoTemRegistro`,
+  // CONTAI-060 Gate 2). Enquanto ela era "nenhum valor datado ATÉ o ano em
+  // tela", o seletor do shell virava gerador de alarme falso: terreno pago e
+  // comprovado em 2025, ano em tela 2024, e a tela acendia "nada foi registrado
+  // ainda" com CTA para registrar o que já está no sistema. O R$ 0,00 de um ano
+  // anterior à compra é honesto — nada havia sido pago até lá —, e quem explica
+  // zero com registro existente é a explicação do custo zero, não esta.
   const terrenoNoAcumuladoCentavos = custoDoTerreno.confirmadoCentavos;
-  const terrenoSemRegistro: TerrenoSemRegistro | null =
-    terrenoNoAcumuladoCentavos === 0 &&
-    custoDoTerreno.semComprovanteCentavos === 0
-      ? {
-          terrenoNoAcumuladoCentavos,
-          aviso: TERRENO_ZERO_NAO_E_NADA_PAGO,
-          href: `/obras/${obra.id}/terreno`,
-        }
-      : null;
+  const terrenoSemRegistro: TerrenoSemRegistro | null = terrenoTemRegistro(
+    desembolsosTerreno,
+    informesFinanciamento,
+  )
+    ? null
+    : {
+        terrenoNoAcumuladoCentavos,
+        aviso: TERRENO_ZERO_NAO_E_NADA_PAGO,
+        href: `/obras/${obra.id}/terreno`,
+      };
 
   // Critério 11 — o agregado da OBRA, a superfície que faltava (D47).
   const semComprovante = pagosSemComprovante(desembolsosTerreno);

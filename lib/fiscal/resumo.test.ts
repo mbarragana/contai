@@ -153,6 +153,9 @@ function resumo(over: Partial<EntradaResumo> = {}) {
     informesFinanciamento: [],
     financiamento: null,
     ano: 2026,
+    // Os dois coincidem no fixture; quem separa os dois é o teste que precisa
+    // (CONTAI-060: ano em tela × ano de hoje).
+    anoCorrente: 2026,
     ...over,
   });
 }
@@ -1365,7 +1368,7 @@ describe("os oito lugares (parecer §2, itens 1 a 8)", () => {
   });
 
   it("5 · 'pago sem nota' e qualquer pendência fiscal só olham pagamento", () => {
-    const r = calcularResumo({ obra: OBRA, ...painel, ano: 2026 });
+    const r = calcularResumo({ obra: OBRA, ...painel, ano: 2026, anoCorrente: 2026 });
     for (const p of r.pendencias) {
       expect(p.id.startsWith("compromisso")).toBe(false);
     }
@@ -1383,6 +1386,7 @@ describe("os oito lugares (parecer §2, itens 1 a 8)", () => {
       informesFinanciamento: [],
       financiamento: null,
       ano: 2026,
+      anoCorrente: 2026,
     });
     expect(r.notasSemPagamentoCentavos).toBe(300_000);
     for (const n of r.notasSemPagamento) {
@@ -1394,7 +1398,7 @@ describe("os oito lugares (parecer §2, itens 1 a 8)", () => {
     // A prova está em `vinculo.test.ts` (`@ts-expect-error` na entrada de
     // `alocarCusto` + a forma do componente). Aqui fica o elo: o resumo inteiro
     // vem daquele grafo, então o que não entra lá não entra em número nenhum.
-    const r = calcularResumo({ obra: OBRA, ...painel, ano: 2026 });
+    const r = calcularResumo({ obra: OBRA, ...painel, ano: 2026, anoCorrente: 2026 });
     // `vinculosOrfaos`: CONTAI-008, critério 12 — rede de vínculo cruzando
     // obras, sem valor e fora de toda soma. Compromisso continua não existindo.
     expect(Object.keys(r.alocacao).sort()).toEqual([
@@ -1886,6 +1890,61 @@ describe("terreno e financiamento fora das pendências (critério 21)", () => {
       expect(r.financiamentoFaltaLancar).toEqual([]);
     });
 
+    /**
+     * ⚠️ **CONTAI-060, Gate 2 — a data-gatilho é 01/01/2027, e o cenário é o
+     * principal desta feature**: revisão anual em março-maio de 2027, com o ano
+     * 2026 selecionado no shell e o informe de 2026 já publicado pelo banco.
+     *
+     * Enquanto `calcularResumo` recebia um ano só, o ano EM TELA era lido como
+     * "hoje" — e 2026 aparecia como `aguardando_informe` (âmbar, *"não afeta
+     * declaração nenhuma"*) em vez de `falta_lancar` (vermelha). Filtro de
+     * leitura rebaixando gravidade de pendência real é erro fiscal silencioso, e
+     * é o que estes três testes travam.
+     */
+    it("revisar 2026 em 2027: o informe de 2026 é FALTA LANÇAR, não 'aguardando'", () => {
+      const r = resumo({
+        financiamento: CONTRATO,
+        informesFinanciamento: [],
+        ano: 2026,
+        anoCorrente: 2027,
+      });
+      expect(r.financiamentoFaltaLancar.map((f) => f.ano)).toEqual([
+        2024, 2025, 2026,
+      ]);
+      expect(r.financiamentoAguardandoInforme).toBeNull();
+    });
+
+    it("'aguardando informe' existe SÓ quando o ano em tela é o ano corrente", () => {
+      const emTela = (ano: number) =>
+        resumo({
+          financiamento: CONTRATO,
+          informesFinanciamento: [],
+          ano,
+          anoCorrente: 2026,
+        }).financiamentoAguardandoInforme;
+      expect(emTela(2026)).not.toBeNull();
+      // Olhar um ano fechado não transforma o calendário do banco em desculpa
+      // para aquele ano: ali o que existe é `falta_lancar`.
+      expect(emTela(2025)).toBeNull();
+      expect(emTela(2024)).toBeNull();
+    });
+
+    it("a lista de 'falta lançar' é a MESMA em qualquer ano em tela", () => {
+      const porAnoEmTela = [2024, 2025, 2026].map((ano) =>
+        resumo({
+          financiamento: CONTRATO,
+          informesFinanciamento: [],
+          ano,
+          anoCorrente: 2026,
+        }).financiamentoFaltaLancar.map((f) => f.ano),
+      );
+      expect(porAnoEmTela).toEqual([
+        [2024, 2025],
+        [2024, 2025],
+        [2024, 2025],
+      ]);
+    });
+
     it("nada disso soma: o acumulado é o mesmo com e sem os avisos", () => {
       const comContrato = resumo({
         financiamento: CONTRATO,
@@ -1945,6 +2004,28 @@ describe("terreno e financiamento fora das pendências (critério 21)", () => {
     it("um desembolso DATADO cala o aviso — aí o número é apuração", () => {
       const r = resumo({ desembolsosTerreno: [TERRENO] });
       expect(r.terrenoSemRegistro).toBeNull();
+    });
+
+    /**
+     * ⚠️ **CONTAI-060, Gate 2 — a condição é da OBRA INTEIRA, não "até o ano em
+     * tela".** Com o seletor do shell, escolher um ano ANTERIOR à compra do
+     * terreno acendia "nada foi registrado ainda" e oferecia o CTA de registrar
+     * um terreno que já está no sistema: CTA falso nascido de filtro de leitura.
+     *
+     * O R$ 0,00 de 2024 é honesto — nada havia sido pago até lá —, e é por isso
+     * que o aviso do zero NÃO se aplica: ele fala de ausência de REGISTRO.
+     */
+    it("ano em tela ANTERIOR à compra não ressuscita o aviso (Gate 2 do CONTAI-060)", () => {
+      const r = resumo({
+        desembolsosTerreno: [TERRENO], // pago e datado em 2025
+        informesFinanciamento: [],
+        ano: 2024,
+        anoCorrente: 2026,
+      });
+      expect(r.terrenoSemRegistro).toBeNull();
+      // E o número do ano continua zero, sem fingir apuração nenhuma: em 2024
+      // não havia desembolso nenhum.
+      expect(r.acumuladoImovelCentavos).toBe(0);
     });
 
     it("só o informe também basta para o número virar apuração", () => {

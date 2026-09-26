@@ -45,30 +45,30 @@ explícita e rotulada, para poder somar de cabeça sem comparar grandezas
 diferentes por engano.
 
 ## Critérios de Aceite
-1. [ ] Ao abrir `/despesas` sem interação prévia, o ano mostrado é o mesmo
+1. [x] Ao abrir `/despesas` sem interação prévia, o ano mostrado é o mesmo
    que a Home está mostrando naquele momento — nascem sincronizados na
    entrada, via estado único no `ProvedorDeGestao` (não query param, não
    estado duplicado por tela).
-2. [ ] Existe um controle de ano no shell (não um seletor por tela) —
+2. [x] Existe um controle de ano no shell (não um seletor por tela) —
    trocar o ano num lugar reflete em Home, Despesas **e Pendências** na
    mesma renderização (a correção fecha a dívida do `CONTAI-040`/`48`
    sem esforço extra, porque `/pendencias` já lê o mesmo estado do
    provedor).
-3. [ ] Existe uma opção explícita e rotulada para ver "todos os anos"
+3. [x] Existe uma opção explícita e rotulada para ver "todos os anos"
    (acumulado) — nunca o estado inicial, nunca indistinguível do total "do
    ano". Na Home, o KPI sob "todos os anos" rotula o campo já existente
    `acumuladoImovelCentavos`, não inventa uma soma nova.
-4. [ ] Trocar de ano NÃO refaz fetch da obra — é recálculo local
+4. [x] Trocar de ano NÃO refaz fetch da obra — é recálculo local
    (`useMemo`) sobre os dados já carregados pelo `ProvedorDeGestao`; o
    `pathname`-revalidate do `CONTAI-058` continua intacto e não é
    disparado pela troca de ano.
-5. [ ] Linha sem `dataPagamento` (nota órfã, pagamento sem data
+5. [x] Linha sem `dataPagamento` (nota órfã, pagamento sem data
    registrada): **nunca entra em nenhum total monetário** (nem delta do
    ano, nem acumulado) **e nunca desaparece da tela ao trocar o filtro de
    ano** — fica sempre visível como pendência de captura, em qualquer
    ano selecionado. Ratificado pelo `contador`:
    `docs/pareceres/2026-09-26-regime-caixa-dado-incompleto-escopo-ano.md`.
-6. [ ] Teste (Vitest/Playwright) cobre: estado inicial sincronizado entre
+6. [x] Teste (Vitest/Playwright) cobre: estado inicial sincronizado entre
    Home e Despesas; troca de ano refletida nas três telas (Home, Despesas,
    Pendências) na mesma renderização; total acumulado nunca é o default;
    linha sem data de pagamento visível em qualquer ano selecionado, sem
@@ -175,3 +175,30 @@ data) ratificado pelo `contador`.
 sentado). Teste do Canteiro não se aplica (o grupo `(captura)` fica fora
 do provedor, por design). **Veredito: APROVADO**, com Gate 0 (design nível
 2 — controle novo no shell, `spec + ASCII`) pendente antes do Gate 1.
+
+✅ **Entregue em 2026-09-26.** 6/6 critérios PASS — Gate 4 (`po`). Gate 2
+técnico (`cto-obra`) e fiscal (`contador`) levou duas rodadas: a primeira
+pediu duas correções bloqueantes de regime fiscal — `financiamentoAguardandoInforme`/
+`financiamentoFaltaLancar` e `terrenoSemRegistro` liam o ANO EM TELA como se
+fosse "hoje", o que rebaixaria pendência real (`falta_lancar`, vermelha) a
+aviso (`aguardando_informe`, âmbar) a partir de 01/01/2027, e faria "terreno
+sem registro" acender por filtro de leitura numa obra com o terreno já
+registrado. Corrigido separando `ano` (recorte de leitura) de `anoCorrente`
+(calendário) em `EntradaResumo`, com a doutrina nova "ano fechado × ano
+corrente é do calendário, nunca da tela" — ver
+`docs/backlog/77-2026-09-26-ano-em-tela-vs-hoje-gate2-contai-060.md`. A
+segunda rodada aprovou. `terrenoTemRegistro` (`lib/fiscal/terreno.ts`) nasceu
+nesta correção — pergunta da obra inteira, sem ano por parâmetro.
+`e2e/pendencias.spec.ts` tinha um teste que consagrava o segundo defeito como
+esperado; foi reescrito para provar o contrário (informe de ano fechado não
+sai da fila nem muda de cor com o seletor).
+
+Nenhum arquivo mudou depois do APPROVE final do `cto-obra`, além de dois
+mocks de OUTROS tickets (`design/mocks/CONTAI-062.md` e `CONTAI-063.md`)
+editados em paralelo pelo orquestrador — sem relação com este ticket, e
+excluídos desta verificação por instrução explícita.
+
+D78 (rótulos de escopo que só ficam ambíguos quando a obra cruzar de ano,
+data-gatilho 01/01/2027) nomeada em `docs/backlog.md`, sem ticket próprio
+ainda — revisar ao entrar em 2027. 1122 testes unitários + 327 E2E verdes,
+sem migration.

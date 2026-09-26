@@ -1,9 +1,11 @@
-import { OBRA_ID_SEED } from "./ambiente";
+import { OBRA_ID_SEED, USER_ID_SEED } from "./ambiente";
 import {
   criarAnexoDeDesembolso,
   criarDesembolsoTerreno,
   criarDocumento,
   criarFavorecido,
+  criarFinanciamento,
+  criarPagamento,
 } from "./banco";
 import { expect, test } from "./fixtures";
 
@@ -18,6 +20,9 @@ import { expect, test } from "./fixtures";
  * Contra o Supabase LOCAL, como o resto da suíte: sessão de verdade, linhas de
  * verdade com RLS.
  */
+
+/** O ano corrente real — o mesmo com que o shell nasce (`CONTAI-060`). */
+const ANO = new Date().getFullYear();
 
 let proximoEmitente = 0;
 
@@ -177,5 +182,129 @@ test.describe("a fila unificada", () => {
     ).toBeVisible();
     // Nenhuma promessa de que dá para declarar.
     await expect(page.getByText("tudo pronto", { exact: false })).toHaveCount(0);
+  });
+
+  /**
+   * **CONTAI-060, critério 2 — o ano é UM, e trocá-lo num lugar chega às três
+   * telas.** Fecha a dívida de `docs/backlog/48-2026-09-21-gate1-decisoes-contai-040.md`.
+   *
+   * ⚠️ **Este teste foi REESCRITO no Gate 2, e a versão anterior consagrava um
+   * defeito**: ela mexia o badge selecionando um ano ANTERIOR à compra do
+   * terreno e esperava ver "Terreno sem registro" — ou seja, tomava como
+   * esperado um alarme falso que só existia porque a condição daquela família
+   * estava amarrada ao ano em tela. Com a correção, a pergunta "o terreno está
+   * registrado?" é da obra inteira, e a família não se mexe com o seletor.
+   *
+   * O que este teste prova agora, e as três coisas são invariantes de verdade:
+   * - **a fila segue o ano onde ela DEVE seguir**: `aguardando_informe` é do ano
+   *   corrente e só dele;
+   * - **a fila NÃO se mexe onde não deve**: `falta_lancar` de um ano fechado
+   *   continua na fila, com a mesma cor, em qualquer ano selecionado — é a trava
+   *   do Gate 2 contra "filtro de leitura rebaixando pendência vermelha";
+   * - **o badge é invariante ao recorte de leitura**: contagem de pendência é
+   *   estado da obra hoje, não função da janela que está sendo lida. Um badge
+   *   que mudasse com o seletor seria o mesmo erro fiscal com outro rosto.
+   *
+   * A navegação é sempre por LINK: `goto` remontaria o provedor e reporia o ano
+   * corrente, e o teste passaria sem provar a sincronização.
+   */
+  test("o ano do shell chega a Pendências — e pendência real não muda de cor com ele", async ({
+    page,
+    db,
+  }) => {
+    // Contrato de financiamento em ANO−2 e NENHUM informe lançado: ANO−2 e ANO−1
+    // estão fechados sem informe (`falta_lancar`, âmbar, contam no badge) e o ano
+    // corrente está `aguardando_informe` (aviso, fora do badge).
+    await criarFinanciamento(db, {
+      instituicao: "Banco do Brasil",
+      data_contrato: `${ANO - 2}-03-20`,
+      preco_contratado: 650000,
+      numero_parcelas: 240,
+    });
+    // Um pagamento em ANO−2 é o que faz o seletor oferecer aquele ano
+    // (`anosDaObra` = intervalo das datas de pagamento ∪ ano corrente).
+    await criarPagamento(db, {
+      favorecido_id: await emitente(db),
+      valor: 1500,
+      data_pagamento: `${ANO - 2}-09-10`,
+      meio: "pix",
+      status: "aguardando_nf",
+      comprovante_path: `${USER_ID_SEED}/comprovante/pix.png`,
+    });
+
+    await page.goto("/pendencias");
+    const faltaLancarAnterior = page.locator(
+      `[data-falta-lancar="${ANO - 1}"]`,
+    );
+    await expect(faltaLancarAnterior).toBeVisible();
+    await expect(page.getByText(`Aguardando informe de ${ANO}`, { exact: true })).toBeVisible();
+    await expect(
+      page.getByText(`apuradas em ${ANO}`, { exact: false }),
+    ).toBeVisible();
+
+    // ── trocar o ano em DESPESAS, e o badge não se mexer ──────────────────
+    const badge = page.locator('[data-shell="faixa"] [data-badge="pendencias"]');
+    const antes = await badge.innerText();
+    await page
+      .locator('[data-shell="faixa"]')
+      .getByRole("link", { name: "Despesas", exact: true })
+      .click();
+    const seletor = page.getByRole("group", { name: "Ano em exibição" });
+    await seletor.getByRole("button", { name: String(ANO - 2) }).click();
+    // O estado CHEGOU (a tabela é do ano escolhido) e a contagem de pendências
+    // continua a mesma — as duas coisas ao mesmo tempo são o ponto.
+    await expect(page.locator('[data-contagem="despesas"]')).toHaveText(
+      `1 lançamento em ${ANO - 2}`,
+    );
+    await expect(badge).toHaveText(antes);
+
+    // ── e a fila já chega no ano escolhido, sem perder a pendência real ───
+    await page
+      .locator('[data-shell="faixa"]')
+      // ⚠️ O badge entra no nome acessível do link ("Pendências 4"): `exact`
+      // não serve aqui.
+      .getByRole("link", { name: /^Pendências/ })
+      .click();
+    await expect(
+      page.getByText(`apuradas em ${ANO - 2}`, { exact: false }),
+    ).toBeVisible();
+    // ⚠️ **A trava do Gate 2**: o informe faltante de um ano FECHADO não sai da
+    // fila nem vira aviso porque a tela está apontada para outro ano.
+    await expect(faltaLancarAnterior).toBeVisible();
+    await expect(faltaLancarAnterior).toContainText("Falta lançar o informe");
+    // O aviso do ano corrente, esse SIM, é só do ano corrente: ele fala do
+    // calendário do banco HOJE, e não de um ano já fechado.
+    await expect(page.getByText(`Aguardando informe de ${ANO}`, { exact: true })).toHaveCount(
+      0,
+    );
+    // E o ano fechado nunca é descrito como "ainda não afeta declaração".
+    await expect(
+      page.getByText("não afeta declaração nenhuma", { exact: false }),
+    ).toHaveCount(0);
+
+    // ── "todos os anos": dito por extenso, e ancorado em hoje ─────────────
+    await page
+      .locator('[data-shell="faixa"]')
+      .getByRole("link", { name: "Visão geral", exact: true })
+      .click();
+    await page
+      .getByRole("group", { name: "Ano em exibição" })
+      .getByRole("button", { name: "Todos os anos" })
+      .click();
+    // O KPI passa a rotular o ACUMULADO, sem inventar soma nova (critério 3).
+    await expect(page.locator('[data-kpi="custo-confirmado"]')).toContainText(
+      "Custo confirmado, acumulado em todos os anos",
+    );
+    await page
+      .locator('[data-shell="faixa"]')
+      .getByRole("link", { name: /^Pendências/ })
+      .click();
+    await expect(
+      page.getByText("apuradas em todos os anos", { exact: false }),
+    ).toBeVisible();
+    // Sob "todos os anos" o cálculo se ancora em HOJE, então o aviso do ano
+    // corrente volta — e o informe fechado continua cobrado.
+    await expect(page.getByText(`Aguardando informe de ${ANO}`, { exact: true })).toBeVisible();
+    await expect(faltaLancarAnterior).toBeVisible();
   });
 });

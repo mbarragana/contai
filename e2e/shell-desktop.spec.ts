@@ -1225,9 +1225,9 @@ test.describe("obra e terreno no shell de gestão", () => {
   /**
    * **Critério 5 e Pre-mortem 2** — `discriminacao/[ano]` recebe o ano por
    * PARÂMETRO DE ROTA, e o `CONTAI-042` §5 fixou que "o ano é um só" dentro do
-   * shell. Os dois convivem porque o `ano` do shell é função de `hojeIso()`,
-   * calculada uma vez no `ProvedorDeGestao` e sem setter nenhum: navegar para
-   * outro ano não tem como escrever nele.
+   * shell. Os dois convivem porque quem escreve o ano do shell é só o seletor do
+   * subtítulo (`CONTAI-060`): navegar para a discriminação de outro ano não tem
+   * como escrever nele.
    */
   test("abrir a discriminação de outro ano não mexe no ano do shell", async ({
     page,
@@ -1243,7 +1243,29 @@ test.describe("obra e terreno no shell de gestão", () => {
 
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Visão geral" })).toBeVisible();
-    await expect(page.getByRole("banner")).toContainText(`Casa Cachoeira · ${ANO}`);
+    await expect(page.getByRole("banner")).toContainText("Casa Cachoeira");
+    // ⚠️ **CONTAI-060** — o fragmento `· {ano}` do subtítulo virou o SELETOR, e
+    // ele nasce no ano corrente com "Todos os anos" solto ao lado, nunca
+    // pressionado (critério 3).
+    const seletor = page
+      .getByRole("banner")
+      .getByRole("group", { name: "Ano em exibição" });
+    await expect(
+      seletor.getByRole("button", { name: String(ANO) }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      seletor.getByRole("button", { name: "Todos os anos" }),
+    ).toHaveAttribute("aria-pressed", "false");
+    // O controle é do SHELL e não da tela: some onde a tela publica cabeçalho
+    // próprio, e não existe em Pendências nem em Obras (spec, decisão 1).
+    await page.goto("/pendencias");
+    await expect(
+      page.getByRole("group", { name: "Ano em exibição" }),
+    ).toHaveCount(0);
+    await page.goto("/despesas");
+    await expect(
+      page.getByRole("group", { name: "Ano em exibição" }),
+    ).toBeVisible();
   });
 
   test("notas sem CNO: leitura no shell, com o texto de cobrança inteiro", async ({

@@ -250,8 +250,33 @@ export function tituloDaView(pathname: string): string {
   );
 }
 
+/**
+ * **As duas views cujo subtítulo carrega o SELETOR de ano** (CONTAI-060, spec do
+ * designer item 1) — Visão geral e Despesas, as duas recortadas por
+ * ano-calendário.
+ *
+ * ⚠️ **Igualdade exata, e não `ehViewAtiva`.** Por prefixo, `/documento/[id]` (que
+ * pertence a Despesas) entraria aqui, e o subtítulo daquela tela é o do
+ * DOCUMENTO, que pode ser de outra obra — o Pre-mortem 1 do `CONTAI-043`. As
+ * demais rotas do grupo não ganham o controle: trocar o ano numa delas continua
+ * possível pelas duas views, e o estado é um só (critério 2 — sincronizar não
+ * exige o controle visível em toda tela).
+ */
+export function viewComSeletorDeAno(pathname: string): boolean {
+  return pathname === "/" || pathname === "/despesas";
+}
+
 export interface ContextoDoSubtitulo {
   nomeDaObra: string | null;
+  /**
+   * O ano em exibição. `null` cobre os dois casos em que não há ANO a afirmar —
+   * carga não terminada e "todos os anos" (CONTAI-060) — e nos dois o subtítulo
+   * simplesmente não nomeia ano nenhum.
+   *
+   * ⚠️ Nas duas views que o `viewComSeletorDeAno` marca, quem diz o escopo é o
+   * seletor (e ele diz "Todos os anos" por extenso); nas outras rotas do grupo o
+   * subtítulo é só o nome da obra, e nenhuma delas é recortada por ano.
+   */
   ano: number | null;
   /**
    * Vermelhas + âmbares (`PendenciasUnificadas.abertas`). `null` enquanto a

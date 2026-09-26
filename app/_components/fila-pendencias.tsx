@@ -48,6 +48,7 @@ import {
   GRAVIDADE_CORRECAO_ANO_ANTERIOR,
 } from "@/lib/fiscal/revisao";
 import { COR_TERRENO_MAIS_DE_UMA_DATA } from "@/lib/fiscal/terreno";
+import { rotuloDoAno } from "@/lib/gestao/ano";
 import { formatarBRL } from "@/lib/money";
 import type { Obra } from "@/lib/types";
 
@@ -272,7 +273,14 @@ function CorpoDoItem({
  * pendência" escrito de novo no dashboard seria a D59 de volta pela porta que o
  * `CONTAI-042` acabou de fechar.
  */
-export function NadaAberto({ obra, ano }: { obra: Obra | null; ano: number }) {
+export function NadaAberto({
+  obra,
+  ano,
+}: {
+  obra: Obra | null;
+  /** `null` = todos os anos (CONTAI-060) — a frase o diz por extenso. */
+  ano: number | null;
+}) {
   return (
     <>
       <Banner cor="grn" role="status">
@@ -286,7 +294,7 @@ export function NadaAberto({ obra, ano }: { obra: Obra | null; ano: number }) {
           <>
             Nenhuma das dezoito famílias de pendência está aberta: nem as de
             correção, em nenhuma das suas obras, nem as que dependem do estado
-            atual de {obra.nome} em {ano}.
+            atual de {obra.nome} em {rotuloDoAno(ano)}.
           </>
         )}
       </Banner>

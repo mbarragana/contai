@@ -107,7 +107,7 @@ export default function VisaoGeral() {
 
       {/* ── OS TRÊS NÚMEROS ─────────────────────────────────────────────── */}
       <div className="grid gap-4 lg:grid-cols-3 lg:items-start">
-        <TileCustoConfirmado resumo={resumo} nomeDaObra={obra.nome} />
+        <TileCustoConfirmado resumo={resumo} nomeDaObra={obra.nome} ano={ano} />
         <TileCustoEmRisco risco={resumo.custoEmRiscoIr} nomeDaObra={obra.nome} />
         {/* Outra apuração, em BASE, e nunca somada à de cima (R2). Só com CNO e
             só com exposição — mesma condição da home. */}

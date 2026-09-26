@@ -93,6 +93,7 @@ function risco(over: Partial<EntradaResumo> = {}) {
     informesFinanciamento: [],
     financiamento: null,
     ano: 2026,
+    anoCorrente: 2026,
     ...over,
   });
 }
@@ -422,6 +423,7 @@ describe("R2 — a base da aferição, por união de documentos", () => {
       informesFinanciamento: [],
       financiamento: null,
       ano: 2026,
+      anoCorrente: 2026,
     });
     // Mesmo silêncio do CONTAI-007: não se cobra do prestador um CNO que ainda
     // não foi registrado. Quem destrava é a pendência da OBRA.

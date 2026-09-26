@@ -15,6 +15,7 @@ import {
 } from "@/app/_components/ui";
 import { formatarDataBR } from "@/lib/fiscal/obra";
 import type { PendenciasUnificadas } from "@/lib/fiscal/pendencias-unificadas";
+import { rotuloDoAno } from "@/lib/gestao/ano";
 import { hojeIso } from "@/lib/hoje";
 import { formatarBRL } from "@/lib/money";
 import type { Obra } from "@/lib/types";
@@ -86,7 +87,13 @@ function ListaDePendencias({
   unificadas: PendenciasUnificadas;
   obra: Obra | null;
   obras: Map<string, string>;
-  ano: number;
+  /**
+   * O ano em exibição, escolhido no seletor do shell (`CONTAI-060`) — `null` =
+   * todos os anos. Esta tela não tem o controle, e não precisa: o estado é um
+   * só, e trocar o ano na Visão geral ou em Despesas muda a fila e o badge aqui
+   * na mesma renderização (critério 2).
+   */
+  ano: number | null;
 }) {
   const hoje = hojeIso();
   const vermelhas = unificadas.itens.filter((i) => i.bloco === "vermelho");
@@ -194,7 +201,14 @@ function ListaDePendencias({
  * esta obra" (as derivadas) em silêncio, e a contagem passaria a significar duas
  * coisas ao mesmo tempo. Número que não se sabe do que é não decide nada.
  */
-function EscopoDaLista({ obra, ano }: { obra: Obra | null; ano: number }) {
+function EscopoDaLista({
+  obra,
+  ano,
+}: {
+  obra: Obra | null;
+  /** `null` = todos os anos (CONTAI-060) — dito por extenso, nunca omitido. */
+  ano: number | null;
+}) {
   if (obra === null) {
     return (
       <Banner cor="amb" role="status">
@@ -217,7 +231,7 @@ function EscopoDaLista({ obra, ano }: { obra: Obra | null; ano: number }) {
       <Link href={`/obras/${obra.id}`} className="underline">
         {obra.nome}
       </Link>
-      , apuradas em {ano}.
+      , apuradas em {rotuloDoAno(ano)}.
     </Dica>
   );
 }

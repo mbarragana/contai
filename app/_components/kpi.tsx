@@ -60,28 +60,55 @@ import {
 import { EXPLICACAO_CUSTO_ZERO } from "@/lib/fiscal/vinculo";
 import { formatarBRL } from "@/lib/money";
 
-/** KPI 1 — o custo que a declaração deste ano aceita. */
+/**
+ * KPI 1 — o custo que a declaração deste ano aceita.
+ *
+ * ⚠️ **CONTAI-060 — sob "todos os anos" o tile TROCA DE CAMPO, não de conta.** O
+ * número passa a ser `acumuladoImovelCentavos`, que já existia e já era mostrado
+ * logo abaixo; nada novo é somado (critério 3). A linha "Acumulado desta obra"
+ * sai justamente porque ela repetiria o headline.
+ *
+ * O resto do tile não muda uma palavra: a moldura "31/12", "Terreno nesta soma",
+ * "Gasto real" e as despesas comprovadas não nomeiam ano nenhum, e os valores já
+ * saem certos porque `calcularResumo` recebe o ano real sob "todos" (spec do
+ * designer, item 2).
+ */
 export function TileCustoConfirmado({
   resumo,
   nomeDaObra,
+  ano,
 }: {
   resumo: ResumoObra;
   nomeDaObra: string;
+  /**
+   * O ano EM EXIBIÇÃO — `null` = todos os anos. Separado de `resumo.ano`, que é
+   * sempre um número concreto (sob "todos" ele é o ano real, de onde o acumulado
+   * "até 31/12" é medido).
+   */
+  ano: number | null;
 }) {
+  const todosOsAnos = ano === null;
+  /** O número do headline, e é o único que a escolha do ano troca. */
+  const headlineCentavos = todosOsAnos
+    ? resumo.acumuladoImovelCentavos
+    : resumo.custoConfirmadoAnoCentavos;
   return (
     <Tile cor="grn" data-kpi="custo-confirmado">
       {/* Critério 9: todo número carrega o nome da obra. */}
       <TileRotulo>
-        Custo confirmado em {resumo.ano} · {nomeDaObra}
+        {todosOsAnos
+          ? "Custo confirmado, acumulado em todos os anos"
+          : `Custo confirmado em ${resumo.ano}`}{" "}
+        · {nomeDaObra}
       </TileRotulo>
-      <TileNumero cor="grn">
-        {formatarBRL(resumo.custoConfirmadoAnoCentavos)}
-      </TileNumero>
+      <TileNumero cor="grn">{formatarBRL(headlineCentavos)}</TileNumero>
 
       {/* Critério 14: o zero NUNCA aparece mudo havendo registro na obra. O
           texto é cópia literal do parecer §5.1 — colapsar "não demonstrável"
-          em "inexistente" é o defeito que o CONTAI-018 veio matar. */}
-      {resumo.custoConfirmadoAnoCentavos === 0 && resumo.temRegistro ? (
+          em "inexistente" é o defeito que o CONTAI-018 veio matar.
+          ⚠️ A condição acompanha o campo mostrado (CONTAI-060): sob "todos os
+          anos" o zero que precisa de explicação é o do acumulado. */}
+      {headlineCentavos === 0 && resumo.temRegistro ? (
         <Consequencia cor="amb">
           {EXPLICACAO_CUSTO_ZERO} Ligue cada pagamento à sua nota na fila de
           pendências.
@@ -98,9 +125,14 @@ export function TileCustoConfirmado({
         </TileNota>
       ) : null}
 
-      <div className="mono mt-2 text-[14px] font-semibold">
-        Acumulado desta obra: {formatarBRL(resumo.acumuladoImovelCentavos)}
-      </div>
+      {/* Omitida sob "todos os anos": ela É o headline nesse caso, e repetir o
+          mesmo número duas vezes no mesmo tile é a D46 em miniatura — o mesmo
+          fato com dois rostos (spec do designer, item 2). */}
+      {todosOsAnos ? null : (
+        <div className="mono mt-2 text-[14px] font-semibold">
+          Acumulado desta obra: {formatarBRL(resumo.acumuladoImovelCentavos)}
+        </div>
+      )}
 
       {/* ⚠️ A MOLDURA CAI JUNTO COM O NÚMERO. Sem terreno registrado, chamar
           isto de "situação em 31/12 na ficha Bens e Direitos" é afirmar que o

@@ -155,7 +155,7 @@ test.describe("despesas — a tabela de verdade", () => {
     // somá-la contaria a mesma despesa duas vezes (critério 4).
     await expect(page.locator(LINHAS)).toHaveCount(5);
     await expect(page.locator('[data-contagem="despesas"]')).toHaveText(
-      "5 lançamentos",
+      `5 lançamentos em ${ANO}`,
     );
 
     // ── (a) as quatro naturezas convivem ────────────────────────────────
@@ -236,7 +236,7 @@ test.describe("despesas — a tabela de verdade", () => {
     await expect(page.locator(LINHAS)).toHaveCount(1);
     await expect(page.locator(LINHAS)).toContainText("Casa do Construtor");
     await expect(page.locator('[data-contagem="despesas"]')).toHaveText(
-      "1 de 5 lançamentos",
+      `1 de 5 lançamentos em ${ANO}`,
     );
 
     // Só com pendência: as três com consequência fiscal aberta. O terceiro
@@ -265,7 +265,7 @@ test.describe("despesas — a tabela de verdade", () => {
     await expect(page.locator(TABELA)).toHaveCount(0);
     const aviso = page.getByRole("status");
     await expect(aviso).toContainText("Nenhum lançamento com estes filtros");
-    await expect(aviso).toContainText("5 lançamentos");
+    await expect(aviso).toContainText(`5 lançamentos em ${ANO}`);
     await page.getByRole("button", { name: "Mostrar todos" }).click();
     await expect(page.locator(LINHAS)).toHaveCount(5);
     await expect(page.getByLabel("Situação")).toHaveValue("todas");
@@ -479,6 +479,207 @@ test.describe("despesas — a tabela de verdade", () => {
     // verde perdeu o valor inline (critério 5) — três seria o ruído que o
     // ticket veio tirar.
     await expect(semRetencao.getByText("R$ 9.640,00")).toHaveCount(2);
+  });
+
+  /**
+   * **CONTAI-060 — o seletor de ano do shell recorta esta tabela.**
+   *
+   * Três coisas de uma vez, e as três são critério de aceite:
+   * - o ano nasce no ano CORRENTE, nunca em "todos" (critério 3);
+   * - trocar o ano recorta a tabela e a contagem "N de M", com M do ano em
+   *   exibição (critério 1 + achado do designer, item 3);
+   * - a linha SEM data de pagamento continua visível em qualquer ano — inclusive
+   *   num ano sem lançamento nenhum (critério 5, parecer de 2026-09-26).
+   */
+  test("o seletor de ano recorta a tabela, e a linha sem data nunca desaparece", async ({
+    page,
+    db,
+  }) => {
+    const casa = await criarFavorecido(db, {
+      nome: "Casa do Construtor",
+      documento: CNPJ_CASA,
+      tipo: "pj",
+    });
+    // Pago em ANO−1: só aparece no ano passado.
+    const dAnterior = await criarDocumento(db, {
+      favorecido_id: casa,
+      tipo: "nf_material",
+      classificacao: "material",
+      valor: 5000,
+      numero: "7001",
+      data_emissao: `${ANO - 1}-11-20`,
+      destinatario_cpf_ok: true,
+      status: "registrado",
+    });
+    const pAnterior = await criarPagamento(db, {
+      favorecido_id: casa,
+      valor: 5000,
+      data_pagamento: `${ANO - 1}-11-25`,
+      meio: "pix",
+      status: "aguardando_nf",
+      comprovante_path: `${USER_ID_SEED}/comprovante/pix.png`,
+    });
+    await criarVinculo(db, pAnterior, dAnterior);
+
+    // Pago no ano corrente.
+    const joao = await criarFavorecido(db, {
+      nome: "João Pedreiro",
+      documento: CPF_JOAO,
+      tipo: "pf",
+    });
+    await criarPagamento(db, {
+      favorecido_id: joao,
+      valor: 3200,
+      data_pagamento: `${ANO}-02-14`,
+      meio: "pix",
+      status: "aguardando_nf",
+      comprovante_path: `${USER_ID_SEED}/comprovante/pix.png`,
+    });
+
+    // A NOTA ÓRFÃ: registrada, sem pagamento nenhum — não tem data de
+    // pagamento, logo não cai em ano nenhum e não pode sumir de nenhum.
+    const aje = await criarFavorecido(db, {
+      nome: "AJE Construções",
+      documento: CNPJ_AJE,
+      tipo: "pj",
+    });
+    await criarDocumento(db, {
+      favorecido_id: aje,
+      tipo: "nf_servico",
+      classificacao: "mao_obra",
+      valor: 11000,
+      numero: "1032",
+      data_emissao: `${ANO}-03-09`,
+      retencao_na_nota: "nenhuma",
+      nota_traz_cno: true,
+      cno_referenciado: "12.345.67890/26",
+      destinatario_cpf_ok: true,
+      status: "registrado",
+    });
+
+    await page.goto("/despesas");
+    const seletor = page.getByRole("group", { name: "Ano em exibição" });
+    await expect(seletor).toBeVisible();
+
+    // ── (a) nasce no ano corrente; "Todos os anos" NUNCA é o default ─────
+    await expect(
+      seletor.getByRole("button", { name: String(ANO) }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      seletor.getByRole("button", { name: "Todos os anos" }),
+    ).toHaveAttribute("aria-pressed", "false");
+    // O ano anterior é oferecido porque a obra tem pagamento nele (`anosDaObra`).
+    await expect(
+      seletor.getByRole("button", { name: String(ANO - 1) }),
+    ).toBeVisible();
+
+    // No ano corrente: o PIX de fevereiro + a nota órfã. O pagamento do ano
+    // passado não está aqui.
+    const linhaDe = (favorecido: string) =>
+      page.locator(LINHAS).filter({ hasText: favorecido });
+    await expect(page.locator(LINHAS)).toHaveCount(2);
+    await expect(linhaDe("João Pedreiro")).toHaveCount(1);
+    await expect(linhaDe("AJE Construções")).toHaveCount(1);
+    await expect(page.locator('[data-contagem="despesas"]')).toHaveText(
+      `2 lançamentos em ${ANO}`,
+    );
+
+    // ── (b) trocar o ano recorta a tabela, sem recarregar a página ───────
+    await seletor.getByRole("button", { name: String(ANO - 1) }).click();
+    await expect(page.locator('[data-contagem="despesas"]')).toHaveText(
+      `2 lançamentos em ${ANO - 1}`,
+    );
+    await expect(linhaDe("Casa do Construtor")).toHaveCount(1);
+    await expect(linhaDe("João Pedreiro")).toHaveCount(0);
+    // ⚠️ A nota órfã continua aqui: ela é pendência de CAPTURA, e não pertence a
+    // ano nenhum (parecer de 2026-09-26, parte b).
+    await expect(linhaDe("AJE Construções")).toHaveCount(1);
+
+    // O "M" do "N de M" é do ANO, nunca o total da obra — senão a contagem
+    // compara janelas diferentes, que é o erro de leitura que originou o ticket.
+    await page.getByLabel("Situação").selectOption("comprovadas");
+    await expect(page.locator('[data-contagem="despesas"]')).toHaveText(
+      `1 de 2 lançamentos em ${ANO - 1}`,
+    );
+    await page.getByLabel("Situação").selectOption("todas");
+
+    // ── (c) "Todos os anos": explícito, rotulado, e some com o corte ─────
+    await seletor.getByRole("button", { name: "Todos os anos" }).click();
+    await expect(page.locator(LINHAS)).toHaveCount(3);
+    await expect(page.locator('[data-contagem="despesas"]')).toHaveText(
+      "3 lançamentos em todos os anos",
+    );
+
+    // ── (d) voltar ao ano corrente devolve o recorte de (a) ──────────────
+    await seletor.getByRole("button", { name: String(ANO) }).click();
+    await expect(
+      seletor.getByRole("button", { name: String(ANO) }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(LINHAS)).toHaveCount(2);
+    await expect(linhaDe("Casa do Construtor")).toHaveCount(0);
+  });
+
+  /**
+   * **CONTAI-060, item 3 do spec** — ano sem lançamento nenhum é um estado
+   * PRÓPRIO: ele nomeia o ano, diz quantos lançamentos existem nos outros anos e
+   * **não** oferece "Mostrar todos", que só zera Situação/Tipo/Busca e não traria
+   * de volta lançamento de outro ano. Sem isso, o vazio se lê como obra vazia.
+   */
+  test("ano sem lançamento: banner que nomeia o ano e manda trocá-lo", async ({
+    page,
+    db,
+  }) => {
+    // Um pagamento, dois anos atrás, com a nota ligada — assim não existe linha
+    // sem data de pagamento, e o ano do meio fica realmente vazio.
+    const casa = await criarFavorecido(db, {
+      nome: "Casa do Construtor",
+      documento: CNPJ_CASA,
+      tipo: "pj",
+    });
+    const d = await criarDocumento(db, {
+      favorecido_id: casa,
+      tipo: "nf_material",
+      classificacao: "material",
+      valor: 5000,
+      numero: "7002",
+      data_emissao: `${ANO - 2}-05-18`,
+      destinatario_cpf_ok: true,
+      status: "registrado",
+    });
+    const p = await criarPagamento(db, {
+      favorecido_id: casa,
+      valor: 5000,
+      data_pagamento: `${ANO - 2}-05-20`,
+      meio: "pix",
+      status: "aguardando_nf",
+      comprovante_path: `${USER_ID_SEED}/comprovante/pix.png`,
+    });
+    await criarVinculo(db, p, d);
+
+    await page.goto("/despesas");
+    const seletor = page.getByRole("group", { name: "Ano em exibição" });
+    // O ano corrente não tem lançamento nenhum — e é o estado inicial.
+    const aviso = page.getByRole("status");
+    await expect(aviso).toContainText(`Nenhum lançamento em ${ANO}.`);
+    await expect(aviso).toContainText("1 lançamento em outro(s) ano(s)");
+    await expect(aviso).toContainText("troque o ano no topo da tela");
+    await expect(page.locator(TABELA)).toHaveCount(0);
+    // Este banner NÃO tem escape de filtro: filtro não é o que está escondendo.
+    await expect(page.getByRole("button", { name: "Mostrar todos" })).toHaveCount(
+      0,
+    );
+
+    // O ano do MEIO é oferecido mesmo sem pagamento nenhum (intervalo contínuo),
+    // e continua vazio; o ano do pagamento mostra a linha.
+    await seletor.getByRole("button", { name: String(ANO - 1) }).click();
+    await expect(page.getByRole("status")).toContainText(
+      `Nenhum lançamento em ${ANO - 1}.`,
+    );
+    await seletor.getByRole("button", { name: String(ANO - 2) }).click();
+    await expect(page.locator(LINHAS)).toHaveCount(1);
+    await expect(page.locator('[data-contagem="despesas"]')).toHaveText(
+      `1 lançamento em ${ANO - 2}`,
+    );
   });
 
   test("obra sem lançamento nenhum: a tela diz isso, sem tabela vazia", async ({

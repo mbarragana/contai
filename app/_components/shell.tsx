@@ -35,6 +35,7 @@ import {
 } from "@/app/_components/detalhe";
 import { useGestao } from "@/app/_components/gestao";
 import { useSessao } from "@/app/_components/sessao";
+import { rotuloDoAno } from "@/lib/gestao/ano";
 import {
   OPCOES_DE_REGISTRO,
   VIEWS_DE_GESTAO,
@@ -42,6 +43,7 @@ import {
   migalhaDaRota,
   subtituloDaView,
   tituloDaView,
+  viewComSeletorDeAno,
 } from "@/lib/gestao/navegacao";
 
 /**
@@ -59,7 +61,7 @@ export function ShellDeGestao({ children }: { children: React.ReactNode }) {
 
 function MolduraDeGestao({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { estado } = useGestao();
+  const { estado, escolherAno } = useGestao();
   const { email, sairDaConta } = useSessao();
 
   const pronto = estado.fase === "pronto" ? estado : null;
@@ -77,6 +79,15 @@ function MolduraDeGestao({ children }: { children: React.ReactNode }) {
    */
   const daTela = useCabecalhoDaTela();
   const titulo = daTela?.titulo ?? tituloDaView(pathname);
+  /**
+   * **CONTAI-060 — o seletor de ano ocupa o lugar do fragmento `· {ano}`**, e só
+   * nas duas views cujo subtítulo é `{obra} · {ano}`: Visão geral e Despesas
+   * (spec do designer, item 1). A tela de detalhe continua vencendo a rota — lá o
+   * subtítulo é o do documento, que pode ser de outra obra, e não haveria ano da
+   * view para trocar.
+   */
+  const comSeletorDeAno =
+    daTela === null && viewComSeletorDeAno(pathname) && pronto !== null && obra !== null;
   const subtitulo = daTela
     ? (daTela.sub ?? null)
     : subtituloDaView(pathname, {
@@ -221,7 +232,16 @@ function MolduraDeGestao({ children }: { children: React.ReactNode }) {
             <h1 className="text-[16px] tracking-tight lg:text-[19px]">
               {titulo}
             </h1>
-            {subtitulo ? (
+            {comSeletorDeAno && obra !== null && pronto !== null ? (
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11.5px] text-mut lg:text-[12px]">
+                <span className="truncate">{obra.nome} ·</span>
+                <SeletorDeAno
+                  anos={pronto.anos}
+                  ano={pronto.ano}
+                  onEscolher={escolherAno}
+                />
+              </div>
+            ) : subtitulo ? (
               <div className="mt-0.5 text-[11.5px] text-mut lg:text-[12px]">
                 {subtitulo}
               </div>
@@ -260,6 +280,81 @@ function Badge({ abertas }: { abertas: number | null }) {
     >
       {abertas}
     </span>
+  );
+}
+
+/**
+ * **CONTAI-060 — o seletor do ano em exibição, no subtítulo do shell.**
+ *
+ * Fonte do desenho: `design/mocks/CONTAI-060.md`, item 1.
+ *
+ * ⚠️ **Botões com `aria-pressed`, não um `<select>`** (decisão do spec): a
+ * escolha fica LEGÍVEL sem abrir nada, e o padrão é o mesmo de `corrigir.tsx` —
+ * ativo `border-ink bg-ink text-paper`, inativo `border-line`.
+ *
+ * ⚠️ **"Todos os anos" por extenso e separado por um traço vertical.** As duas
+ * coisas juntas são o critério 3: rótulo por extenso para não ser indistinguível
+ * de um total "do ano", e a separação VISUAL para não parecer mais um ano na
+ * fila. Ele também é o único que muda o significado do KPI da Visão geral, e por
+ * isso nunca nasce pressionado.
+ *
+ * ⚠️ **Nenhum `<Link>` e nenhum query param**: o ano é estado do
+ * `ProvedorDeGestao`, e uma URL com `?ano=` obrigaria cada link da sidebar a
+ * carregá-lo (Viabilidade do CTO). Sem alvo de 44px de propósito — cenário de
+ * gestão, em casa, com mouse.
+ */
+function SeletorDeAno({
+  anos,
+  ano,
+  onEscolher,
+}: {
+  anos: readonly number[];
+  ano: number | null;
+  onEscolher: (ano: number | null) => void;
+}) {
+  return (
+    <span
+      role="group"
+      aria-label="Ano em exibição"
+      data-seletor="ano"
+      className="flex flex-wrap items-center gap-1"
+    >
+      {anos.map((a) => (
+        <PilulaDeAno key={a} ativo={ano === a} onClick={() => onEscolher(a)}>
+          {a}
+        </PilulaDeAno>
+      ))}
+      <span className="ml-0.5 border-l border-line pl-1.5">
+        <PilulaDeAno ativo={ano === null} onClick={() => onEscolher(null)}>
+          Todos os anos
+        </PilulaDeAno>
+      </span>
+    </span>
+  );
+}
+
+function PilulaDeAno({
+  ativo,
+  onClick,
+  children,
+}: {
+  ativo: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={ativo}
+      onClick={onClick}
+      className={`rounded-full border px-2 py-0.5 text-[11px] ${
+        ativo
+          ? "border-ink bg-ink text-paper"
+          : "border-line text-mut hover:bg-soft"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -319,7 +414,16 @@ function BlocoObraAberta() {
           </div>
           <div className="mono mt-0.5 text-[11.5px] text-side-mut">
             {obra.cno ? `CNO ${obra.cno}` : "sem CNO"}
-            {pronto ? ` · ano ${pronto.ano}` : ""}
+            {/* O ano em exibição, dito também aqui: o bloco fica visível em toda
+                tela do grupo — inclusive nas que não têm o seletor —, e é ele que
+                impede "troquei em Despesas e esqueci" de virar leitura de
+                pendência no ano errado. Sob "todos os anos" ele diz isso por
+                extenso (CONTAI-060). */}
+            {pronto === null
+              ? ""
+              : pronto.ano === null
+                ? ` · ${rotuloDoAno(null)}`
+                : ` · ano ${pronto.ano}`}
           </div>
           <Link
             href="/obras"

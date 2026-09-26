@@ -410,6 +410,7 @@ function resumoCom(entrada: {
     informesFinanciamento: [],
     financiamento: null,
     ano: 2026,
+    anoCorrente: 2026,
   });
 }
 

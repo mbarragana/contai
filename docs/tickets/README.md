@@ -1,8 +1,72 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 19 tickets (mais 1 parado, aguardando o Mateus)
 
-*(2026-09-26, mais tarde ainda ainda ainda: **`061` entregue** (Gate 4,
+**2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda**: **`060`
+entregue** — Gate 4 (`po`), 6/6 critérios PASS. Seletor de ano vira grupo de
+botões no subtítulo do shell (`Casa Tanheiros · [2026] [2025] | [Todos os
+anos]`), estado único em `ProvedorDeGestao` (`ano: number | null`, `null` =
+todos os anos, nunca persiste) — Home, Despesas e Pendências leem o mesmo
+campo, e a troca é `useMemo` local, sem refazer fetch (o revalidate por
+`pathname` do `CONTAI-058` fica intacto). `anosDaObra`
+(`lib/fiscal/obra.ts`) oferece o intervalo contínuo de anos com pagamento,
+unido ao ano corrente — nunca vazio. `filtrarPorAno`/`filtrarLinhas`
+(`lib/fiscal/despesas.ts`) recortam a tabela; a linha sem `dataPagamento`
+nunca entra em total nenhum e nunca some, em ano nenhum nem sob "todos"
+(parecer `docs/pareceres/2026-09-26-regime-caixa-dado-incompleto-escopo-ano.md`).
+Sob "todos os anos" o KPI da Home troca de campo (`acumuladoImovelCentavos`),
+nunca inventa soma nova. Fecha de graça a dívida do seletor de ano do
+`CONTAI-040`/`48` sobre `/pendencias`. Gate 2 técnico+fiscal levou duas
+rodadas: a primeira pediu duas correções bloqueantes de regime fiscal —
+`financiamentoAguardandoInforme`/`financiamentoFaltaLancar` e
+`terrenoSemRegistro` estavam lendo o ANO EM TELA como se fosse "hoje", o que
+rebaixaria pendência real (`falta_lancar`, vermelha) a aviso
+(`aguardando_informe`, âmbar) a partir de 01/01/2027 e faria "terreno sem
+registro" acender por filtro de leitura numa obra com o terreno já
+registrado; corrigido separando `ano` (recorte de leitura) de `anoCorrente`
+(calendário) em `EntradaResumo`, com a doutrina nova "ano fechado × ano
+corrente é do calendário, nunca da tela"
+(`docs/backlog/77-2026-09-26-ano-em-tela-vs-hoje-gate2-contai-060.md`) — a
+segunda rodada aprovou. Nenhum arquivo mudou depois do APPROVE final, além
+de dois mocks de OUTROS tickets (`CONTAI-062`/`063`) editados em paralelo
+pelo orquestrador, sem relação com este. 1122 unitários + 327 E2E verdes,
+sem migration. Detalhe: `docs/tickets/CONTAI-060.md`.
+
+**2026-09-26, mais tarde ainda ainda ainda ainda ainda**: **`CONTAI-063`
+criado** — relato direto do Mateus na sessão
+(`docs/backlog/76-2026-09-26-filtro-sem-pagamento-despesas.md`): filtrou
+`/despesas` por texto "casa" só para isolar 4 notas "Sem pagamento ligado",
+porque o dropdown de Situação (`todas`/`comprovadas`/`pendencia`) não tem
+opção que isole esse estado neutro por desenho (`CHIP_SEM_PAGAMENTO`). **P1**,
+sem Gate Fiscal (filtro de leitura, confirmado pelo `po` e pelo `cto-obra`,
+`contador` não precisou ser acionado). `cto-obra` fechou viabilidade S, sem
+migration — `LinhaDeDespesa` ganha booleano dedicado `semPagamentoLigado`
+(não vasculhar `situacoes` por chip, para não quebrar em silêncio se o rótulo
+mudar depois). `designer` fechou spec nível 2 em `design/mocks/CONTAI-063.md`
+(rótulo "Sem pagamento ligado", no fim da lista, textos de contagem/vazio
+reaproveitados sem variante nova). **Bloqueado por `CONTAI-060`** (mesmo
+arquivo, `lib/fiscal/despesas.ts`, em retrabalho de Gate 2 — conflito textual
+certo, não provável) — Gate 1 só depois do `060` commitado em `main`. Detalhe:
+`docs/tickets/CONTAI-063.md`.
+
+*(2026-09-26, mais tarde ainda ainda ainda ainda: **`CONTAI-062` criado** —
+relato direto do Mateus na sessão (`docs/backlog/75-2026-09-26-gate-retencao-sugerido-na-extracao.md`):
+"extrair automaticamente" preenche tipo/número/série/data/favorecido/valor
+mas nunca o gate de retenção, que só libera a sugestão de linha do
+`CONTAI-054` depois de marcado manualmente. Gate Fiscal fechado no mesmo dia
+— **ADENDO 5** do parecer `docs/pareceres/2026-09-18-retencao-variavel-servico-pj.md`:
+`retencaoNaNota` é fato legível (categoria de data/CNPJ), diferente de
+`quem_recolhe`/`composicao`/`natureza_da_retencao` (que seguem proibidos);
+parser pode sugerir "destacada" (nunca "não destacada" nem "não sei"),
+sempre junto com a linha, com 4 salvaguardas. `cto-obra` reaproveita o efeito
+`alvoDaSugestaoDeRetencao` já existente (tira a pré-condição de gate já
+marcado), sem migration, complexidade M; achou e resolveu a race condition
+de resposta manual chegando com o fetch em voo. `designer` fechou spec nível
+2 em `design/mocks/CONTAI-062.md` (pílula âmbar + selo "Sugerida", dois
+canais, trecho literal fora do repeater em qualquer largura). **Pronto para
+`/develop`**, sem Gate 0 pendente — volta a 19, com **2 itens na fila**
+(`060`, bloqueado por Gate 0; `062`, pronto).
+2026-09-26, mais tarde ainda ainda ainda: **`061` entregue** (Gate 4,
 10/10 PASS) — volta a 18, `060` sozinho na fila, bloqueado por Gate 0.
 2026-09-26, mais tarde ainda ainda: **`059` entregue** (Gate 4, 9/9
 PASS) — volta a 18; no mesmo momento, **`CONTAI-061` criado** (D56, anexar
@@ -780,9 +844,14 @@ Gate 0 fechou (`/design`, nível 2), passou pelo `/develop` inteiro e saiu
 entregue no mesmo lote (ver nota no topo). `060` fica sozinho na fila,
 ainda bloqueado por Gate 0.
 
+**2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda**: **`060` sai
+da fila** — Gate 0 fechou (`/design` nível 2), passou pelo `/develop`
+inteiro e saiu entregue (ver nota no topo). Esta tabela não lista `062`
+nem `063` (entradas de outros tickets, fora do escopo deste Gate 4).
+
 | Ordem | # | Ticket | P | Pronto para `/develop` |
 |---|---|---|---|---|
-| — | 060 | Seletor de ano no shell (Home + Despesas + Pendências) | P2 | ⛔ bloqueado por Gate 0 (`/design`) |
+| — | — | — | — | Nenhum ticket desta tabela aguardando `/develop` |
 
 ### 🛑 Em espera — decisão do Mateus, 2026-09-23
 

@@ -15,6 +15,7 @@ import {
 import {
   FILTROS_PADRAO,
   filtrarLinhas,
+  filtrarPorAno,
   linhasDeDespesa,
   ordenarLinhas,
   ORDEM_PADRAO,
@@ -30,6 +31,7 @@ import {
   type Ordem,
   type SituacaoDaLinha,
 } from "@/lib/fiscal/despesas";
+import { rotuloDoAno } from "@/lib/gestao/ano";
 import { formatarBRL } from "@/lib/money";
 
 /**
@@ -71,6 +73,12 @@ export default function Despesas() {
   const pronto = estado.fase === "pronto" ? estado : null;
   const painel = pronto?.painel ?? null;
   const resumo = pronto?.resumo ?? null;
+  /**
+   * **O ano vem do shell, não desta tela** (CONTAI-060, critério 1): abrir
+   * `/despesas` mostra o mesmo ano que a Visão geral está mostrando, porque é o
+   * mesmo estado. `null` = todos os anos.
+   */
+  const ano = pronto?.ano ?? null;
 
   const linhas = useMemo(
     () =>
@@ -84,9 +92,20 @@ export default function Despesas() {
     [painel, resumo],
   );
 
+  /**
+   * ⚠️ **O universo do ano em exibição — e é ELE o "M" do "N de M"** (achado do
+   * designer, item 3 do spec). Contar "N de M" com M sendo o total de todos os
+   * anos compararia janelas diferentes, que é literalmente o erro de leitura que
+   * originou este ticket.
+   *
+   * A linha sem `dataPagamento` está sempre aqui dentro, em qualquer ano —
+   * `filtrarPorAno` é quem garante, com o parecer citado.
+   */
+  const linhasDoAno = useMemo(() => filtrarPorAno(linhas, ano), [linhas, ano]);
+
   const visiveis = useMemo(
-    () => ordenarLinhas(filtrarLinhas(linhas, filtros), ordem),
-    [linhas, filtros, ordem],
+    () => ordenarLinhas(filtrarLinhas(linhas, filtros, ano), ordem),
+    [linhas, filtros, ano, ordem],
   );
 
   /**
@@ -147,16 +166,31 @@ export default function Despesas() {
           <BarraDeFiltros
             filtros={filtros}
             onMudar={setFiltros}
-            total={linhas.length}
+            ano={ano}
+            total={linhasDoAno.length}
             visiveis={visiveis.length}
           />
 
-          {visiveis.length === 0 ? (
+          {/* ⚠️ **Ano vazio e filtro vazio são DOIS estados, e a diferença é a
+              saída.** Trocar Situação/Tipo/Busca não traz de volta lançamento de
+              outro ano, então oferecer "Mostrar todos" aqui seria um botão que
+              não resolve o que a frase diz (spec do designer, item 3). Quem
+              resolve é o seletor de ano, no topo da tela — e a tela DIZ quantos
+              lançamentos existem nos outros anos, para o vazio nunca ser lido
+              como obra vazia. */}
+          {linhasDoAno.length === 0 ? (
+            <Banner cor="amb" role="status">
+              <strong>Nenhum lançamento em {rotuloDoAno(ano)}.</strong> A obra
+              tem {linhas.length}{" "}
+              {linhas.length === 1 ? "lançamento" : "lançamentos"} em outro(s)
+              ano(s) — troque o ano no topo da tela.
+            </Banner>
+          ) : visiveis.length === 0 ? (
             <Banner cor="amb" role="status">
               <strong>Nenhum lançamento com estes filtros.</strong> A obra tem{" "}
-              {linhas.length}{" "}
-              {linhas.length === 1 ? "lançamento" : "lançamentos"} — o filtro é
-              que está escondendo.
+              {linhasDoAno.length}{" "}
+              {linhasDoAno.length === 1 ? "lançamento" : "lançamentos"} em{" "}
+              {rotuloDoAno(ano)} — o filtro é que está escondendo.
               <div className="mt-2.5">
                 <Botao
                   variante="ghost"
@@ -202,11 +236,19 @@ const CAMPO =
 function BarraDeFiltros({
   filtros,
   onMudar,
+  ano,
   total,
   visiveis,
 }: {
   filtros: typeof FILTROS_PADRAO;
   onMudar: (f: typeof FILTROS_PADRAO) => void;
+  /** O ano em exibição, só para NOMEAR a contagem — o seletor mora no shell. */
+  ano: number | null;
+  /**
+   * ⚠️ **O total do ANO EM EXIBIÇÃO, nunca o da obra inteira** (CONTAI-060). Ver
+   * `linhasDoAno` acima: "N de M" com M de outra janela é a comparação errada
+   * que originou o ticket.
+   */
   total: number;
   visiveis: number;
 }) {
@@ -256,9 +298,12 @@ function BarraDeFiltros({
         data-contagem="despesas"
         className="text-[12px] text-mut lg:ml-auto"
       >
+        {/* O escopo do ano viaja NA contagem: "5 lançamentos" sem dizer de
+            quando foi o que deixou de bater com o KPI "Custo confirmado em
+            2026" da Visão geral. */}
         {visiveis === total
-          ? `${total} ${total === 1 ? "lançamento" : "lançamentos"}`
-          : `${visiveis} de ${total} lançamentos`}
+          ? `${total} ${total === 1 ? "lançamento" : "lançamentos"} em ${rotuloDoAno(ano)}`
+          : `${visiveis} de ${total} lançamentos em ${rotuloDoAno(ano)}`}
       </span>
     </div>
   );

@@ -425,6 +425,56 @@ export function escolherObraAtiva<T extends { id: string }>(
   return obras.find((o) => o.id === preferidaId) ?? null;
 }
 
+// ── Os anos que a obra tem para oferecer (CONTAI-060) ────────────────────
+
+export interface EntradaAnosDaObra {
+  /**
+   * Os pagamentos da obra. **A data do PAGAMENTO é a única que decide
+   * ano-calendário** (regime de caixa): emissão e vencimento não decidem ano
+   * nenhum, e por isso documento não entra nesta conta.
+   */
+  pagamentos: readonly { dataPagamento: string }[];
+}
+
+/**
+ * **Os anos-calendário que o seletor do shell oferece** — do mais recente para
+ * o mais antigo.
+ *
+ * Três decisões, e nenhuma delas é estética:
+ *
+ * 1. **O ano corrente entra sempre**, mesmo numa obra sem pagamento nenhum: a
+ *    lista nunca é vazia, e "o ano em que estou" nunca desaparece da oferta.
+ * 2. **É um INTERVALO contínuo**, não o conjunto dos anos com pagamento. Um ano
+ *    sem pagamento no meio da obra continua sendo um ano-calendário válido de
+ *    leitura — o acumulado até 31/12 dele existe e é o que a ficha Bens e
+ *    Direitos daquele exercício pediria. Furo na régua faria o ano parecer
+ *    inexistente.
+ * 3. **Desembolso de terreno fica FORA**, e é deliberado: o terreno pode ter
+ *    sido pago anos antes de a obra começar (o desta obra foi), e enfiá-lo aqui
+ *    transformaria uma obra de 20 meses numa fila de pílulas de uma década. A
+ *    posição do terreno tem tela própria, e o custo dele continua entrando no
+ *    acumulado de todo ano ≥ o do desembolso, por `custoTerrenoAteOAno`.
+ *
+ * Pura: "hoje" entra por parâmetro, como em todo este módulo.
+ */
+export function anosDaObra(
+  entrada: EntradaAnosDaObra,
+  anoCorrente: number,
+): number[] {
+  let primeiro = anoCorrente;
+  let ultimo = anoCorrente;
+  for (const p of entrada.pagamentos) {
+    // Data ilegível não vira ano: `NaN` na régua daria um intervalo infinito.
+    if (!ehDataValida(p.dataPagamento)) continue;
+    const ano = Number(p.dataPagamento.slice(0, 4));
+    if (ano < primeiro) primeiro = ano;
+    if (ano > ultimo) ultimo = ano;
+  }
+  const anos: number[] = [];
+  for (let ano = ultimo; ano >= primeiro; ano -= 1) anos.push(ano);
+  return anos;
+}
+
 // ── Correção da obra de um registro já salvo (critério 13) ───────────────
 
 /**
