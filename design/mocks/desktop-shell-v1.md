@@ -184,7 +184,9 @@ literal ao pedido do Mateus ("despesas em formato de tabela").
 ### Colunas
 `Data pagamento` (sortável) · `Favorecido` (+ tipo PF/PJ) · `Documento` (tipo
 + número, ou o texto que falta: "sem NF vinculada") · `Meio` (PIX/Boleto/
-Cartão) · `Valor` (sortável) · `Situação` · `Ação`.
+Cartão) · `Valor lançado` (sortável) · `Custo confirmado` (não sortável;
+soma pagamento + retenção da própria linha — `CONTAI-057`,
+`design/mocks/CONTAI-057.md`) · `Situação` · `Ação`.
 
 ### A coluna Situação é a peça central da Meta 1 nesta tela
 

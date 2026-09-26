@@ -23,18 +23,22 @@ sem somar de cabeça qual é o custo de aquisição comprovado de cada nota
 do que já foi gasto.
 
 ## Critérios de Aceite
-1. [ ] Proposta de design nível 2 (spec + ASCII do bloco — campo/coluna a
+1. [x] Proposta de design nível 2 (spec + ASCII do bloco — campo/coluna a
    mais numa tabela existente, não fluxo novo) descrita em
    `design/mocks/CONTAI-057.md`.
-2. [ ] Nova coluna **"Custo comprovado"** entre "Valor" e "Situação",
-   alinhada à direita, `mono font-semibold` (o mesmo peso visual que
-   "Valor" tem hoje). "Valor" perde o `font-semibold` — passa a ser o
-   número secundário da linha.
-3. [ ] A coluna "Valor" **não** se chama "Valor pago" nem qualquer rótulo
-   que afirme desembolso — 3 das 5 linhas de fixture do E2E existente são
-   documento sem pagamento (`dataPagamento === null`), e "pago" seria falso
-   nelas. O rótulo escolhido tem que ser verdadeiro nas duas origens
-   (documento com e sem pagamento vinculado). Ex. válido: "Valor lançado".
+2. [x] Nova coluna **"Custo confirmado"** (decidido no `/design`, evita
+   colidir com o texto do chip `CHIP_CUSTO_COMPROVADO` já existente na
+   célula Situação, e reusa o vocabulário do KPI equivalente da Home) entre
+   "Valor" e "Situação", alinhada à direita, `mono font-semibold` (o mesmo
+   peso visual que "Valor" tem hoje). "Valor" perde o `font-semibold` —
+   passa a ser o número secundário da linha.
+3. [x] A coluna "Valor" passa a se chamar **"Valor lançado"** (decidido no
+   `/design`) — nunca "Valor pago" nem qualquer rótulo que afirme
+   desembolso: 3 das 5 linhas de fixture do E2E existente são documento sem
+   pagamento (`dataPagamento === null`), e "pago" seria falso nelas.
+   "Valor lançado" é verdadeiro nas duas origens (documento com e sem
+   pagamento vinculado) e já era o termo informal usado em
+   `e2e/despesas.spec.ts:337`.
 4. [ ] `custoComprovadoCentavos > 0` na coluna nova mostra o número;
    `= 0` mostra `—` (a razão mora na célula "Situação" ao lado, que já
    carrega o texto da pendência — não duplicar explicação).
@@ -75,7 +79,7 @@ efeito fiscal real) já estão corretas desde o `CONTAI-056`.
 
 ## Pre-mortem
 1. **Vira redesign da tabela.** Mitigação: escopo travado nas colunas
-   "Valor"/"Custo comprovado"/"Situação", nada além.
+   "Valor lançado"/"Custo confirmado"/"Situação", nada além.
 2. **Reintroduz soma em tela.** Mitigação: critério 6 exige que o campo
    venha pronto do módulo fiscal, nunca calculado no componente — mesmo
    dado que a Home já lê.
@@ -98,11 +102,13 @@ efeito fiscal real) já estão corretas desde o `CONTAI-056`.
     asserção: campo = soma das parcelas).
   - `app/(gestao)/despesas/page.tsx` — `Tabela` (cabeçalhos) e `Linha`
     (célula); o `Rotulo` mobile segue o padrão existente, sem bifurcar JSX.
-  - `e2e/despesas.spec.ts` — `getByText("Custo comprovado")` (linha ~161)
-    quebra em strict mode se o cabeçalho novo usar o mesmo texto do chip:
-    escopar o locator ao `tbody` ou escolher outro texto de cabeçalho.
-    Acrescentar uma linha com retenção na fixture, afirmando que a coluna
-    mostra o comprovado maior que o pago.
+  - `e2e/despesas.spec.ts` — o risco de colisão em strict mode com
+    `getByText("Custo comprovado")` (linha ~161, o chip) foi resolvido no
+    `/design`: o cabeçalho da coluna nova é **"Custo confirmado"**, não
+    "Custo comprovado" — não há substring em comum, nenhum ajuste de
+    locator existente é necessário. Acrescentar uma linha com retenção na
+    fixture, afirmando que a coluna mostra o confirmado maior que o
+    lançado.
   - `design/mocks/desktop-shell-v1.md` (lista de colunas) — atualizar.
 - **Nível de design: 2** (não o 1 sugerido inicialmente pelo `po`) — não há
   tela nem fluxo novo, é campo/estado a mais numa tabela existente.
