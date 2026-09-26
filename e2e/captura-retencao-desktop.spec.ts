@@ -6,6 +6,12 @@ import {
   preencherDocumentoBasico,
   responderCnoDaNota,
 } from "./formularios";
+import {
+  NFSE_COM_RETENCAO_RECONHECIVEL,
+  NFSE_SEM_PADRAO_RECONHECIVEL,
+  pdfComTexto,
+  RETENCAO_ESPERADA,
+} from "./pdf-sintetico";
 
 /**
  * **CONTAI-053 — o repeater de retenção na CAPTURA, a partir de 880px.**
@@ -35,6 +41,14 @@ async function notaDeServicoAteOGate(
    * ser cancelada e reemitida.
    */
   noCpf: "Sim" | "Não" = "Sim",
+  /**
+   * **CONTAI-055** — o anexo. O default é um PDF sem camada de texto
+   * (`%PDF-1.4 nf`), e ele é o que faz todos os testes do CONTAI-053 acima
+   * continuarem sem sugestão nenhuma: `extrairTextoDoPdf` devolve `null` e a
+   * rota responde `{ sugestao: null }`. Quem quer sugestão passa um PDF de
+   * verdade, montado por `pdfComTexto`.
+   */
+  buffer: Buffer = Buffer.from("%PDF-1.4 nf"),
 ) {
   await page.goto("/adicionar/documento");
   await preencherDocumentoBasico(page, {
@@ -48,7 +62,7 @@ async function notaDeServicoAteOGate(
     arquivo: {
       name: "nf-1042.pdf",
       mimeType: "application/pdf",
-      buffer: Buffer.from("%PDF-1.4 nf"),
+      buffer,
     },
   });
   await responderCnoDaNota(page, "É o CNO desta obra");
@@ -470,4 +484,344 @@ test("⚠️ quarentena + linha que não gravou: a confirmação fica e diz as D
     retencao_na_nota: "destacada",
   });
   expect(await linhasDeRetencao(db)).toHaveLength(0);
+});
+
+// ══ 5 · CONTAI-055 — a sugestão determinística pré-preenche a 1ª linha ════
+
+/**
+ * **A integração do CONTAI-053 (repeater) com o CONTAI-054 (parser).**
+ *
+ * ⚠️ **Nada é stubado no caminho feliz**: o PDF é montado no teste com camada de
+ * texto de verdade (`e2e/pdf-sintetico.ts`), e quem responde é a rota real →
+ * `unpdf` real → heurística real → parser real. Stubar `/api/sugerir-retencao`
+ * para "provar" que a sugestão aparece validaria a suposição de quem escreveu o
+ * teste, não o sistema — a regra dura de E2E do `CLAUDE.md` aplicada à camada de
+ * cima. A única rota falsificada aqui é a FALHA (testes 5.3 e 5.4), que não tem
+ * como ser produzida de verdade contra o stack local.
+ */
+
+const BLOCO = '[data-captura="retencao"]';
+
+test("5.1 · sugestão do PDF nasce no 1º formulário, em destaque, e grava o que foi confirmado", async ({
+  page,
+  db,
+}) => {
+  await notaDeServicoAteOGate(
+    page,
+    "Sim",
+    pdfComTexto(NFSE_COM_RETENCAO_RECONHECIVEL),
+  );
+  await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
+
+  const bloco = page.locator(BLOCO);
+  const destaque = bloco.locator('[data-sugestao="retencao"]');
+
+  // ⚠️ **Critério 5 — o RÓTULO LITERAL em destaque, não só o valor discreto.**
+  // É a recomendação dos dois revisores do Gate 2 do CONTAI-054: o parser fecha o
+  // trio pela aritmética, e uma linha de desconto fecha a mesma conta.
+  await expect(destaque).toBeVisible();
+  await expect(destaque).toContainText("Lido automaticamente desta nota");
+  await expect(destaque).toContainText(`“${RETENCAO_ESPERADA.rotulo}”`);
+  await expect(destaque).toContainText("R$ 1.048,00");
+  await expect(destaque).toContainText(
+    "uma linha de DESCONTO fecha a mesma conta",
+  );
+
+  // Critério 1 — os dois campos de LEITURA nascem preenchidos…
+  await expect(
+    bloco.getByLabel("Rótulo (copie exatamente da nota)"),
+  ).toHaveValue(RETENCAO_ESPERADA.rotulo);
+  await expect(bloco.getByLabel("Valor", { exact: true })).toHaveValue(
+    RETENCAO_ESPERADA.valor,
+  );
+  // …e a origem é dita no próprio campo: valor preenchido sem dizer de onde veio
+  // lê como valor já conferido, e não foi.
+  await expect(
+    bloco.getByText(
+      "Veio da leitura automática da nota — confira se é exatamente o rótulo impresso",
+    ),
+  ).toBeVisible();
+
+  // ⚠️ **Os QUATRO campos de classificação fiscal continuam em branco** — Gate
+  // Fiscal do ticket, herdado do CONTAI-054. E o botão nomeia as duas respostas
+  // que faltam, em vez de oferecer um toque que gravaria linha incompleta.
+  for (const radio of await bloco.getByRole("radio").all()) {
+    await expect(radio).not.toBeChecked();
+  }
+  await expect(
+    bloco.getByRole("button", { name: "Faltam 2 respostas para adicionar" }),
+  ).toBeDisabled();
+
+  // O humano responde as duas e confirma a linha lida.
+  await escolher(page, "O que esta linha representa?", "Tributo único identificado");
+  await escolher(page, "Qual tributo?", "ISS");
+  await escolher(
+    page,
+    "Esse valor é de fato abatido do que você transfere ao prestador?",
+    "Sim",
+  );
+  await escolher(page, "Quem recolhe isto?", "A empresa");
+  await bloco.getByRole("button", { name: "Adicionar linha" }).click();
+
+  const recap = bloco.locator('[data-retencao="pendente"]');
+  await expect(recap).toHaveCount(1);
+  await expect(recap).toContainText(`“${RETENCAO_ESPERADA.rotulo}”`);
+  await expect(recap).toContainText("R$ 1.048,00");
+
+  // ⚠️ **A sugestão é CONSUMIDA**: o próximo formulário nasce em branco, sem
+  // rótulo herdado — o default fiscal que o critério 7 do CONTAI-053 proíbe.
+  await expect(destaque).toHaveCount(0);
+  await bloco.getByRole("button", { name: "+ Adicionar outra linha" }).click();
+  await expect(
+    bloco.getByLabel("Rótulo (copie exatamente da nota)"),
+  ).toHaveValue("");
+  await expect(bloco.locator('[data-sugestao="retencao"]')).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Salvar registro" }).click();
+  await expect(page.getByRole("heading", { name: "Registrado ✓" })).toBeVisible();
+
+  // O ESTADO GRAVADO — o rótulo é o LITERAL lido da nota, e a classificação é a
+  // que o humano respondeu.
+  const gravados = await documentos(db);
+  const linhas = await linhasDeRetencao(db);
+  expect(linhas).toHaveLength(1);
+  expect(linhas[0]).toMatchObject({
+    documento_id: gravados[0].id,
+    rotulo_literal: RETENCAO_ESPERADA.rotulo,
+    composicao: "tributo_identificado",
+    tributo: "iss",
+    e_desconto_efetivo: true,
+    quem_recolhe: "empresa",
+  });
+  expect(Number(linhas[0].valor)).toBe(1048);
+});
+
+/**
+ * **Critério 2, a segunda metade** — sugerido é sugerido: o que grava é o que
+ * ficou no campo no momento do "Salvar", não o que o parser leu.
+ */
+test("5.2 · o rótulo e o valor sugeridos são substituíveis antes de salvar", async ({
+  page,
+  db,
+}) => {
+  await notaDeServicoAteOGate(
+    page,
+    "Sim",
+    pdfComTexto(NFSE_COM_RETENCAO_RECONHECIVEL),
+  );
+  await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
+
+  const bloco = page.locator(BLOCO);
+  await expect(bloco.locator('[data-sugestao="retencao"]')).toBeVisible();
+
+  await bloco
+    .getByLabel("Rótulo (copie exatamente da nota)")
+    .fill("ISS Retido na Fonte");
+  await bloco.getByLabel("Valor", { exact: true }).fill("1.000,00");
+  await escolher(
+    page,
+    "O que esta linha representa?",
+    "Total combinado, não aberto pela nota",
+  );
+  await escolher(
+    page,
+    "Esse valor é de fato abatido do que você transfere ao prestador?",
+    "Não",
+  );
+  await bloco.getByRole("button", { name: "Adicionar linha" }).click();
+
+  await page.getByRole("button", { name: "Salvar registro" }).click();
+  await expect(page.getByRole("heading", { name: "Registrado ✓" })).toBeVisible();
+
+  const linhas = await linhasDeRetencao(db);
+  expect(linhas).toHaveLength(1);
+  expect(linhas[0].rotulo_literal).toBe("ISS Retido na Fonte");
+  expect(Number(linhas[0].valor)).toBe(1000);
+});
+
+/**
+ * **Critério 3 — sem sugestão, a experiência é a do CONTAI-053 sozinho.** As duas
+ * fontes de "sem sugestão" convivem no mesmo teste: o PDF com texto que não fecha
+ * trio nenhum e o PDF sem camada de texto (foto/scan, que é o anexo default desta
+ * suíte). Nenhum dos dois é ERRO: o silêncio é o estado certo.
+ */
+test("5.3 · nota sem padrão reconhecido: formulário vazio, sem destaque e sem aviso", async ({
+  page,
+}) => {
+  await notaDeServicoAteOGate(
+    page,
+    "Sim",
+    pdfComTexto(NFSE_SEM_PADRAO_RECONHECIVEL),
+  );
+  await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
+
+  const bloco = page.locator(BLOCO);
+  await expect(bloco.locator('[data-retencao="formulario"]')).toBeVisible();
+  // A espera termina, e o que sobra é o formulário em branco — sem destaque de
+  // sugestão e sem banner de falha.
+  await expect(bloco.locator('[data-sugestao="lendo"]')).toHaveCount(0);
+  await expect(bloco.locator('[data-sugestao="retencao"]')).toHaveCount(0);
+  await expect(bloco.locator('[data-sugestao="falhou"]')).toHaveCount(0);
+  await expect(
+    bloco.getByLabel("Rótulo (copie exatamente da nota)"),
+  ).toHaveValue("");
+  await expect(bloco.getByLabel("Valor", { exact: true })).toHaveValue("");
+});
+
+/**
+ * **Critério 4 — falha da chamada NUNCA bloqueia o registro.**
+ *
+ * ⚠️ Falsificação de rede deliberada e nomeada: `abort` da nossa própria rota é a
+ * única forma de produzir "rede caiu/timeout" contra o stack local. O que o teste
+ * prova é o que nenhuma outra camada prova: a captura inteira continua
+ * funcionando, com a linha digitada à mão, e o "Salvar registro" grava.
+ */
+test("5.4 · ⚠️ falha em /api/sugerir-retencao: avisa, não bloqueia, e o registro grava", async ({
+  page,
+  db,
+}) => {
+  await page.route("**/api/sugerir-retencao", (rota) => rota.abort("failed"));
+
+  await notaDeServicoAteOGate(
+    page,
+    "Sim",
+    pdfComTexto(NFSE_COM_RETENCAO_RECONHECIVEL),
+  );
+  await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
+
+  const bloco = page.locator(BLOCO);
+  const falhou = bloco.locator('[data-sugestao="falhou"]');
+  await expect(falhou).toBeVisible();
+  await expect(falhou).toContainText(
+    "Não deu para ler a retenção desta nota automaticamente. Preencha as linhas à mão — o registro segue normalmente.",
+  );
+  // Sem sugestão nenhuma, e o formulário continua ali, vazio e digitável.
+  await expect(bloco.locator('[data-sugestao="retencao"]')).toHaveCount(0);
+  await expect(
+    bloco.getByLabel("Rótulo (copie exatamente da nota)"),
+  ).toHaveValue("");
+
+  await adicionarLinha(page, {
+    rotulo: "Total das Retenções (ISSQN / Federais)",
+    valor: "540,00",
+    composicao: "Total combinado, não aberto pela nota",
+    descontoEfetivo: "Sim",
+    quemRecolhe: "A empresa",
+  });
+
+  await page.getByRole("button", { name: "Salvar registro" }).click();
+  await expect(page.getByRole("heading", { name: "Registrado ✓" })).toBeVisible();
+  await expect(page.locator('[data-retencao="parcial"]')).toHaveCount(0);
+
+  const linhas = await linhasDeRetencao(db);
+  expect(linhas).toHaveLength(1);
+  expect(linhas[0].rotulo_literal).toBe("Total das Retenções (ISSQN / Federais)");
+});
+
+/**
+ * **Critério 4, o caso do TIMEOUT** — a resposta que nunca chega.
+ *
+ * ⚠️ O que este teste existe para impedir: a tentação de esconder o formulário
+ * enquanto a sugestão não responde. Uma espera que esconde o campo transforma uma
+ * sugestão opcional em pré-requisito da captura — e no canteiro, com rede ruim,
+ * isso é o registro que não acontece.
+ */
+test("5.5 · ⚠️ sugestão pendurada: o formulário e o Salvar continuam funcionando", async ({
+  page,
+  db,
+}) => {
+  // Nunca resolve dentro do teste: a rota fica pendurada até o fim dele.
+  await page.route("**/api/sugerir-retencao", async () => {});
+
+  await notaDeServicoAteOGate(
+    page,
+    "Sim",
+    pdfComTexto(NFSE_COM_RETENCAO_RECONHECIVEL),
+  );
+  await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
+
+  const bloco = page.locator(BLOCO);
+  // O estado de espera aparece — e o formulário aparece JUNTO com ele.
+  await expect(bloco.locator('[data-sugestao="lendo"]')).toBeVisible();
+  await expect(bloco.locator('[data-retencao="formulario"]')).toBeVisible();
+
+  await adicionarLinha(page, {
+    rotulo: "ISSRF",
+    valor: "1.048,00",
+    composicao: "Tributo único identificado",
+    tributo: "ISS",
+    descontoEfetivo: "Sim",
+    quemRecolhe: "A empresa",
+  });
+  await page.getByRole("button", { name: "Salvar registro" }).click();
+  await expect(page.getByRole("heading", { name: "Registrado ✓" })).toBeVisible();
+
+  const linhas = await linhasDeRetencao(db);
+  expect(linhas).toHaveLength(1);
+  expect(linhas[0].rotulo_literal).toBe("ISSRF");
+});
+
+/**
+ * **O bloqueante do Gate 2 do CONTAI-055, em forma de teste.**
+ *
+ * A sincronização da sugestão decidia por duas condições diferentes — o número por
+ * `valorCentavos ?? sugestao`, o texto do input por `valorTexto || sugestao`. Elas
+ * divergem exatamente em texto que **não parseia**: com `"1,"` no campo,
+ * `parseValorInput` devolve `null`, então o número herdava a sugestão e o texto
+ * não. A tela mostrava `"1,"` e a validação passava com R$ 1.048,00 — o que
+ * gravaria não era o que estava à vista. Em campo de dinheiro que vira custo de
+ * aquisição, é o pior tipo de divergência possível.
+ *
+ * ⚠️ A rota é ATRASADA, não falsificada: `rota.continue()` depois de uma espera
+ * mantém a resposta REAL (unpdf + parser de verdade) e só a faz chegar tarde, que é
+ * a única janela em que o bug existe.
+ */
+test("5.6 · ⚠️ valor digitado pela metade não é substituído pela sugestão que chega depois", async ({
+  page,
+}) => {
+  await page.route("**/api/sugerir-retencao", async (rota) => {
+    await new Promise((resolver) => setTimeout(resolver, 2000));
+    await rota.continue();
+  });
+
+  await notaDeServicoAteOGate(
+    page,
+    "Sim",
+    pdfComTexto(NFSE_COM_RETENCAO_RECONHECIVEL),
+  );
+  await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
+
+  const bloco = page.locator(BLOCO);
+  const campoValor = bloco.getByLabel("Valor", { exact: true });
+  await expect(bloco.locator('[data-sugestao="lendo"]')).toBeVisible();
+
+  // Ele começa a digitar o valor ANTES de a leitura responder, e para no meio.
+  await campoValor.fill("1,");
+
+  // A sugestão chega: o rótulo (campo vazio) herda…
+  await expect(
+    bloco.getByLabel("Rótulo (copie exatamente da nota)"),
+  ).toHaveValue(RETENCAO_ESPERADA.rotulo);
+  // …e o valor NÃO, porque o campo não estava vazio.
+  await expect(campoValor).toHaveValue("1,");
+
+  // A prova de que tela e estado concordam: com as duas respostas fiscais dadas, o
+  // que ainda falta é O VALOR — se o número tivesse herdado a sugestão em silêncio,
+  // o botão estaria habilitado sobre um valor que a tela não mostra.
+  await escolher(page, "O que esta linha representa?", "Tributo único identificado");
+  await escolher(page, "Qual tributo?", "ISS");
+  await escolher(
+    page,
+    "Esse valor é de fato abatido do que você transfere ao prestador?",
+    "Não",
+  );
+  await expect(
+    bloco.getByRole("button", { name: "Faltam 1 resposta para adicionar" }),
+  ).toBeDisabled();
+
+  // E corrigir o campo à mão continua funcionando normalmente.
+  await campoValor.fill("1.048,00");
+  await expect(
+    bloco.getByRole("button", { name: "Adicionar linha" }),
+  ).toBeEnabled();
 });

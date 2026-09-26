@@ -81,6 +81,19 @@ Consequência prática: zerar `linhasPendentes` quando o gate muda de
 ao estado **vazio** se o usuário voltar para "destacada" depois — nunca há
 linha fantasma.
 
+> ⚠️ **ADENDO — CONTAI-055 (2026-09-25): a linha "loading: não existe" da
+> tabela acima ficou obsoleta.** Com a integração da sugestão determinística
+> (`CONTAI-054`), o bloco passou a ter três estados que a tabela não previa,
+> todos ligados à chamada a `POST /api/sugerir-retencao`: **lendo** (a rota foi
+> chamada e não respondeu), **falhou** (rede/timeout/5xx — banner âmbar) e
+> **sugestão aplicada** (rótulo e valor do primeiro `FormularioDeLinha`
+> pré-preenchidos, com o `rotulo_literal` em destaque visual para confirmação).
+> **Nenhum dos três segura o formulário nem o botão "Salvar registro"**: o
+> formulário continua montado, vazio e digitável durante a espera e depois da
+> falha, e a ausência de sugestão é silenciosa. O resto desta seção — inclusive
+> "erro não existe neste bloco" no sentido de erro de GRAVAÇÃO — continua
+> valendo: nada aqui toca o banco antes do "Salvar".
+
 ## 3. Textos — dicas de fluxo (produto, não consequência fiscal)
 
 Os dois pares abaixo coexistem no DOM; a visibilidade é por CSS

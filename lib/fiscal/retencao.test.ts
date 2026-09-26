@@ -27,6 +27,7 @@ import {
   faltaRegistrarLinha,
   linhaRetencaoParaBanco,
   linhaSemRecolhedor,
+  linhaSugerida,
   LINHA_RETENCAO_VAZIA,
   nomeDaRetencao,
   OPCOES_COMPOSICAO,
@@ -34,6 +35,8 @@ import {
   OPCOES_QUEM_RECOLHE,
   PERGUNTA_DESCONTO_EFETIVO,
   ROTULO_RETENCAO_NAO_DISCRIMINADA,
+  SUGESTAO_RETENCAO_CONFIRA,
+  SUGESTAO_RETENCAO_FALHOU,
   validarLinhaRetencao,
   type EntradaLinhaRetencao,
 } from "./retencao";
@@ -440,5 +443,89 @@ describe("CONTAI-053 — as dicas por largura e o resultado parcial", () => {
       ROTULO_RETENCAO_NAO_DISCRIMINADA,
     );
     expect(descricaoDaComposicao({ composicao: null, tributo: null })).toBe("");
+  });
+});
+
+// ── CONTAI-055 · a sugestão pré-preenche DOIS campos, e só ──────────────
+
+/**
+ * **O Gate Fiscal do CONTAI-055 em forma de teste.** Ele não traz regra nova:
+ * reafirma a fronteira do CONTAI-054 — `composicao`, `tributo`,
+ * `eDescontoEfetivo` e `quemRecolhe` **nunca** vêm de leitura de PDF — agora que
+ * existe um caminho de código que preenche campo a partir de PDF.
+ */
+describe("CONTAI-055 — a linha nascida de sugestão", () => {
+  const SUGESTAO = { rotuloLiteral: "ISSRF", valorCentavos: 104_800 };
+
+  /**
+   * ⚠️ Igualdade PROFUNDA de propósito, e não `toMatchObject`: o ponto é que os
+   * outros quatro campos continuam `null`, e `toMatchObject` não afirmaria isso.
+   */
+  it("preenche rótulo e valor, e deixa os quatro campos fiscais em null", () => {
+    expect(linhaSugerida(SUGESTAO)).toEqual({
+      rotuloLiteral: "ISSRF",
+      valorCentavos: 104_800,
+      composicao: null,
+      tributo: null,
+      eDescontoEfetivo: null,
+      quemRecolhe: null,
+    } satisfies EntradaLinhaRetencao);
+    // E a linha vazia não foi mutada pelo spread.
+    expect(LINHA_RETENCAO_VAZIA.rotuloLiteral).toBe("");
+  });
+
+  /**
+   * ⚠️ **A linha sugerida REPROVA na validação, e isso é o critério 1**: o
+   * humano ainda tem de responder composição e desconto efetivo. Se algum dia ela
+   * passar, alguém ensinou a extração a responder pergunta fiscal.
+   */
+  it("continua faltando exatamente as duas respostas fiscais do ramo raiz", () => {
+    const erros = validarLinhaRetencao(linhaSugerida(SUGESTAO));
+    expect(erros.map((e) => e.campo)).toEqual([
+      "composicao",
+      "eDescontoEfetivo",
+    ]);
+    // E nunca reclama dos dois que a sugestão preencheu.
+    expect(erros.some((e) => e.campo === "rotuloLiteral")).toBe(false);
+    expect(erros.some((e) => e.campo === "valorCentavos")).toBe(false);
+  });
+
+  /** Nada da sugestão chega ao banco sozinho — nem por este caminho. */
+  it("não produz linha gravável antes da confirmação humana", () => {
+    expect(linhaRetencaoParaBanco(linhaSugerida(SUGESTAO))).toBeNull();
+  });
+
+  /**
+   * O espelho do critério 3 do CONTAI-054 ("`grep` no diff confirma zero
+   * atribuição automática a esses quatro campos"), agora do lado da UI: nem o
+   * componente nem a tela de captura podem ler um desses campos de uma sugestão.
+   * O compilador já barra (o tipo não os declara); isto barra a gambiarra de
+   * afrouxar o tipo sem ninguém notar.
+   */
+  it("nem a UI nem o módulo derivam campo fiscal de uma sugestão", () => {
+    const fontes = [
+      "lib/fiscal/retencao.ts",
+      "app/_components/retencao.tsx",
+      "app/(captura)/adicionar/documento/page.tsx",
+    ].map((caminho) => readFileSync(caminho, "utf-8"));
+    for (const fonte of fontes) {
+      expect(
+        /sugestao(Retencao)?\??\.(composicao|tributo|eDescontoEfetivo|quemRecolhe)/.test(
+          fonte,
+        ),
+      ).toBe(false);
+    }
+  });
+
+  /**
+   * ⚠️ **Critério 5** — o aviso tem de nomear o risco que ele existe para
+   * cobrir: linha de DESCONTO fechando a mesma aritmética. Sem essa palavra o
+   * texto vira "confira, por favor", que é o que ninguém lê.
+   */
+  it("o aviso da sugestão nomeia a aritmética e a linha de desconto", () => {
+    expect(SUGESTAO_RETENCAO_CONFIRA).toContain("aritmética");
+    expect(SUGESTAO_RETENCAO_CONFIRA).toContain("DESCONTO");
+    // E a falha diz que o registro segue — critério 4, dito em tela.
+    expect(SUGESTAO_RETENCAO_FALHOU).toContain("o registro segue normalmente");
   });
 });

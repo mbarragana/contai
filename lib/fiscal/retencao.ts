@@ -129,6 +129,49 @@ export const OPCOES_QUEM_RECOLHE = [
 
 export const AJUDA_ROTULO_LITERAL = "Copie exatamente como está na nota";
 
+// ── CONTAI-055 — a sugestão do CONTAI-054 dita em tela ───────────────────
+//
+// ⚠️ **Texto de PRODUTO, não citação de parecer**: nenhuma frase abaixo afirma
+// consequência fiscal. Elas dizem de onde veio o que está no campo e por que
+// ele ainda precisa ser conferido — a mesma disciplina do `ajuda` de
+// `CampoTexto` ("campo preenchido pelo app SEM dizer a origem lê como algo que
+// o usuário digitou e conferiu, e não foi isso que aconteceu").
+
+/** Chip do bloco de sugestão, no formulário da primeira linha. */
+export const SUGESTAO_RETENCAO_CHIP = "Lido automaticamente desta nota";
+
+/**
+ * ⚠️ **O aviso do critério 5 do CONTAI-055**, e ele é recomendação dos dois
+ * revisores do Gate 2 do CONTAI-054: o parser aceita o trio pela ARITMÉTICA
+ * (`total − candidato = líquido`), e uma linha de **desconto** fecha a mesma
+ * conta. Por isso o rótulo literal aparece em destaque ao lado desta frase — é
+ * a única defesa contra confirmar sem olhar o papel.
+ */
+export const SUGESTAO_RETENCAO_CONFIRA =
+  "Confira na nota antes de adicionar: a leitura acha esta linha pela " +
+  "aritmética (total − retenção = líquido), e uma linha de DESCONTO fecha a " +
+  "mesma conta. Se o rótulo acima não for de retenção, corrija ou apague os " +
+  "dois campos.";
+
+/** Estado de espera do bloco — a chamada é local e rápida, mas não é grátis. */
+export const SUGESTAO_RETENCAO_LENDO = "Lendo a retenção nesta nota…";
+
+/**
+ * ⚠️ **Critério 4 — a falha NUNCA bloqueia o registro.** A frase diz as duas
+ * coisas: a leitura não aconteceu e o caminho manual continua aberto. Mesma
+ * disciplina do erro da extração de documento nesta tela.
+ */
+export const SUGESTAO_RETENCAO_FALHOU =
+  "Não deu para ler a retenção desta nota automaticamente. Preencha as linhas " +
+  "à mão — o registro segue normalmente.";
+
+/** A origem do que está no campo, dita no próprio campo (critério 2). */
+export const AJUDA_ROTULO_LITERAL_SUGERIDO =
+  "Veio da leitura automática da nota — confira se é exatamente o rótulo impresso";
+
+export const AJUDA_VALOR_SUGERIDO =
+  "Veio da leitura automática da nota — confira contra o papel";
+
 export const NOME_TRIBUTO: Record<TributoRetido, string> = {
   iss: "ISS",
   inss: "INSS",
@@ -277,6 +320,38 @@ export const LINHA_RETENCAO_VAZIA: EntradaLinhaRetencao = {
 };
 
 export type CampoLinhaRetencao = keyof EntradaLinhaRetencao;
+
+/**
+ * **CONTAI-055 — o que a sugestão do CONTAI-054 pode carregar, e nada mais.**
+ *
+ * ⚠️ Os dois campos são os únicos que são LEITURA DE TEXTO IMPRESSO. Os quatro
+ * de classificação fiscal (`composicao`, `tributo`, `eDescontoEfetivo`,
+ * `quemRecolhe`) não cabem neste tipo **por construção** — a trava do Gate
+ * Fiscal não é disciplina de quem chama, é o compilador. Estruturalmente igual
+ * ao `SugestaoLinhaRetencao` de `lib/extracao/retencao-texto.ts`, e declarado
+ * aqui de novo de propósito: módulo fiscal não importa módulo de extração.
+ */
+export type SugestaoDeLinha = {
+  rotuloLiteral: string;
+  valorCentavos: number;
+};
+
+/**
+ * A linha como a sugestão a deixa: os dois campos lidos preenchidos, **os
+ * quatro fiscais em `null`**, herdados de `LINHA_RETENCAO_VAZIA`.
+ *
+ * ⚠️ O resultado continua REPROVANDO em `validarLinhaRetencao` — e isso é o
+ * ponto, não um efeito colateral: a linha sugerida não pode ser adicionada até o
+ * humano responder composição e desconto efetivo (Gate Fiscal do CONTAI-055,
+ * herdado do CONTAI-054).
+ */
+export function linhaSugerida(sugestao: SugestaoDeLinha): EntradaLinhaRetencao {
+  return {
+    ...LINHA_RETENCAO_VAZIA,
+    rotuloLiteral: sugestao.rotuloLiteral,
+    valorCentavos: sugestao.valorCentavos,
+  };
+}
 
 /**
  * Erro de campo DESTE formulário. Tipo próprio, e não o `ErroCampo` de

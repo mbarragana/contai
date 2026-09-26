@@ -54,11 +54,14 @@ import {
 } from "@/lib/data";
 import {
   AJUDA_ROTULO_LITERAL,
+  AJUDA_ROTULO_LITERAL_SUGERIDO,
+  AJUDA_VALOR_SUGERIDO,
   CHIP_RETENCAO_SEM_LINHA,
   CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR,
   descricaoDaComposicao,
   LINHA_RETENCAO_VAZIA,
   linhaSemRecolhedor,
+  linhaSugerida,
   nomeDaRetencao,
   OPCOES_COMPOSICAO,
   OPCOES_GATE,
@@ -71,11 +74,16 @@ import {
   PERGUNTA_TRIBUTO,
   RETENCAO_FECHA_POR_NOTA,
   RETENCAO_SEM_LINHA_EFEITO,
+  SUGESTAO_RETENCAO_CHIP,
+  SUGESTAO_RETENCAO_CONFIRA,
+  SUGESTAO_RETENCAO_FALHOU,
+  SUGESTAO_RETENCAO_LENDO,
   validarLinhaRetencao,
   type CampoLinhaRetencao,
   type EntradaLinhaRetencao,
+  type SugestaoDeLinha,
 } from "@/lib/fiscal/retencao";
-import { formatarBRL, parseValorInput } from "@/lib/money";
+import { centavosParaInput, formatarBRL, parseValorInput } from "@/lib/money";
 import type {
   ComposicaoRetencao,
   Documento,
@@ -454,11 +462,19 @@ function LinhaGravada({
  * porque o `documento_id` ainda não existe. Embutir o INSERT aqui era o que
  * obrigaria a captura a criar o documento antes do "Salvar" — o documento órfão
  * do pre-mortem 3 do ticket.
+ *
+ * ⚠️ **MUDOU NO CONTAI-055 — e só para DOIS campos.** Com `sugestao`, `rótulo` e
+ * `valor` nascem preenchidos pela leitura determinística do PDF (CONTAI-054). A
+ * frase "nasce inteiramente em branco" acima continua valendo **para os quatro
+ * campos de classificação fiscal**, que a sugestão não tem como preencher: o
+ * tipo `SugestaoDeLinha` não os declara, e quem barra não é disciplina de quem
+ * chama, é o compilador (Gate Fiscal do CONTAI-055).
  */
 export function FormularioDeLinha({
   onAdicionar,
   onCancelar,
   onSessaoExpirada,
+  sugestao = null,
 }: {
   /**
    * Aceita a linha VÁLIDA. Pode ser assíncrono (gestão: grava e só então
@@ -473,14 +489,68 @@ export function FormularioDeLinha({
   onCancelar?: () => void;
   /** Só existe onde há rede: a captura não passa (nada grava antes do Salvar). */
   onSessaoExpirada?: () => void;
+  /**
+   * **CONTAI-055** — a leitura determinística do PDF, a CONFIRMAR. `null` (o
+   * default) é o formulário de sempre, em branco. Nenhuma tela de gestão passa
+   * isto: a sugestão só existe na captura, onde o PDF está na mão.
+   */
+  sugestao?: SugestaoDeLinha | null;
 }) {
-  const [entrada, setEntrada] = useState<EntradaLinhaRetencao>(
-    LINHA_RETENCAO_VAZIA,
+  const [entrada, setEntrada] = useState<EntradaLinhaRetencao>(() =>
+    sugestao ? linhaSugerida(sugestao) : LINHA_RETENCAO_VAZIA,
   );
-  const [valorTexto, setValorTexto] = useState("");
+  const [valorTexto, setValorTexto] = useState(() =>
+    sugestao ? centavosParaInput(sugestao.valorCentavos) : "",
+  );
   const [tentou, setTentou] = useState(false);
   const [gravando, setGravando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+
+  /**
+   * ⚠️ **A sugestão CHEGA DEPOIS de o formulário montar** — o gate é respondido, o
+   * bloco aparece no mesmo instante e a rota responde alguns milissegundos mais
+   * tarde. O estado inicial acima cobre só o caso de o formulário nascer depois da
+   * resposta; este bloco cobre o caso normal.
+   *
+   * ⚠️ **Ajustado no RENDER, não num efeito** — é o padrão do React para estado
+   * que acompanha uma prop, e é o que o `react-hooks/set-state-in-effect` cobra.
+   * Mesmo padrão do `useEsperaLonga` em `ui.tsx`. `key` no chamador resolveria o
+   * mesmo problema REMONTANDO, e remontar aqui apagaria em silêncio o que ele
+   * tivesse começado a digitar enquanto a rota respondia.
+   *
+   * ⚠️ **Só preenche campo VAZIO**, exatamente como `extrairDaNota` faz com os
+   * campos do documento (`setNumero((atual) => atual || …)`): leitura automática
+   * nunca sobrescreve o que o Mateus já digitou. E o spread de `atual` é o que
+   * mantém os quatro campos fiscais intocados — inclusive quando a sugestão troca.
+   *
+   * ⚠️ **O CAMPO DE VALOR TEM DOIS ESTADOS, E UMA CONDIÇÃO SÓ os governa** —
+   * bloqueante do Gate 2 do CONTAI-055. A primeira versão decidia por
+   * `valorCentavos ?? …` de um lado e por `valorTexto || …` do outro, e as duas
+   * divergem em texto que não parseia: com `"1,"` digitado antes da resposta da
+   * rota, `parseValorInput` devolve `null` (o número herdava a sugestão) enquanto
+   * `valorTexto` continuava `"1,"` (o texto não herdava) — a validação passava com
+   * um valor que a tela não mostrava, que é a classe de bug mais cara que este
+   * produto pode ter. Quem decide é **o que está no campo**: só `""` herda.
+   */
+  const [sugestaoVista, setSugestaoVista] = useState(sugestao);
+  if (sugestaoVista !== sugestao) {
+    setSugestaoVista(sugestao);
+    if (sugestao !== null) {
+      // Lido na fase de render, logo é o valor corrente do estado — os `set…`
+      // abaixo só se aplicam no render seguinte.
+      const campoDeValorVazio = valorTexto === "";
+      setEntrada((atual) => ({
+        ...atual,
+        rotuloLiteral: atual.rotuloLiteral || sugestao.rotuloLiteral,
+        valorCentavos: campoDeValorVazio
+          ? sugestao.valorCentavos
+          : atual.valorCentavos,
+      }));
+      if (campoDeValorVazio) {
+        setValorTexto(centavosParaInput(sugestao.valorCentavos));
+      }
+    }
+  }
 
   const erros = validarLinhaRetencao(entrada);
   // Erro por campo só depois da primeira tentativa: um formulário que nasce
@@ -536,11 +606,41 @@ export function FormularioDeLinha({
         />
       ) : null}
 
+      {/* ══ CONTAI-055, critérios 2 e 5 — a sugestão em DESTAQUE ═══════════
+          ⚠️ **O rótulo literal aparece grande, entre aspas, ANTES dos campos** —
+          não é enfeite: o parser aceita o trio pela aritmética, e uma linha de
+          desconto fecha a mesma conta (recomendação dos dois revisores do Gate 2
+          do CONTAI-054). Valor discreto e pré-preenchido, sozinho, é exatamente
+          o que faz confirmar sem olhar.
+
+          Âmbar é o MESMO padrão que a extração de documento já usa nesta tela para
+          leitura de confiança baixa (`extracao.confianca === "baixa"` → `Banner
+          cor="amb"`), não uma exceção inventada aqui: aritmética fechando não é
+          voto sobre o que a linha É (CONTAI-054, Gate Fiscal 3), então a leitura
+          nunca chega no verde de "confira por cima". Mesmo componente, mesma
+          `role="status"`, severidade coerente com o resto da tela. */}
+      {sugestao ? (
+        <div data-sugestao="retencao">
+          <Banner cor="amb" role="status">
+            <Chip cor="amb">{SUGESTAO_RETENCAO_CHIP}</Chip>
+            <p className="mt-2 text-[16px] leading-tight font-bold break-words">
+              “{sugestao.rotuloLiteral}”
+            </p>
+            <p className="mono mt-1 text-[15px] font-bold">
+              {formatarBRL(sugestao.valorCentavos)}
+            </p>
+            <p className="mt-2 text-[12.5px]">{SUGESTAO_RETENCAO_CONFIRA}</p>
+          </Banner>
+        </div>
+      ) : null}
+
       <CampoTexto
         rotulo="Rótulo (copie exatamente da nota)"
         valor={entrada.rotuloLiteral}
         onChange={(v) => mudar({ rotuloLiteral: v })}
-        ajuda={AJUDA_ROTULO_LITERAL}
+        /* A origem do que está no campo, dita no campo: preenchido sem dizer de
+           onde veio, ele lê como algo já conferido — e não foi. */
+        ajuda={sugestao ? AJUDA_ROTULO_LITERAL_SUGERIDO : AJUDA_ROTULO_LITERAL}
         placeholder="Total das Retenções (ISSQN / Federais)"
         erro={erroDe("rotuloLiteral")}
       />
@@ -552,6 +652,7 @@ export function FormularioDeLinha({
           setValorTexto(v);
           mudar({ valorCentavos: parseValorInput(v) });
         }}
+        ajuda={sugestao ? AJUDA_VALOR_SUGERIDO : undefined}
         inputMode="decimal"
         placeholder="0,00"
         erro={erroDe("valorCentavos")}
@@ -661,8 +762,15 @@ export function FormularioDeLinha({
  *
  * ⚠️ **Nada aqui toca rede.** As linhas vivem no `useState` do formulário de
  * captura e só viram `INSERT` depois do "Salvar registro", por
- * `criarLinhasRetencao`. Por isso o bloco não tem estado de carregamento nem de
- * erro (spec, §2): não há nada para esperar e nada para falhar antes do Salvar.
+ * `criarLinhasRetencao`.
+ *
+ * ⚠️ **MUDOU NO CONTAI-055 a frase que seguia daí** — ela dizia que o bloco não
+ * tem estado de carregamento nem de erro (spec do 053, §2), e isso deixou de ser
+ * verdade: a sugestão do `POST /api/sugerir-retencao` é uma chamada, logo tem
+ * espera e tem falha. O que **não** mudou é a parte fiscal: nada aqui GRAVA, e
+ * nem a espera nem a falha da sugestão impedem o "Salvar registro" (critério 4).
+ * Quem lê e trata a rota é a página (`lendo`/`falhou` abaixo); este bloco só
+ * mostra o estado.
  *
  * ⚠️ **Nenhum banner de `CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR` aqui**, ao
  * contrário da gestão — e a omissão é regra, não esquecimento: aquele julgamento
@@ -674,11 +782,20 @@ export function BlocoRetencaoDaCaptura({
   linhas,
   onAdicionar,
   onRemover,
+  sugestao = null,
+  lendoSugestao = false,
+  falhouSugestao = false,
 }: {
   /** As linhas acumuladas em memória, na ordem em que ele as leu na nota. */
   linhas: EntradaLinhaRetencao[];
   onAdicionar: (entrada: EntradaLinhaRetencao) => void;
   onRemover: (indice: number) => void;
+  /** **CONTAI-055** — a leitura do PDF, a confirmar. `null` = sem sugestão. */
+  sugestao?: SugestaoDeLinha | null;
+  /** A rota foi chamada e ainda não respondeu. */
+  lendoSugestao?: boolean;
+  /** A chamada falhou (rede, timeout, 5xx). Informa e segue — nunca bloqueia. */
+  falhouSugestao?: boolean;
 }) {
   const [abrindo, setAbrindo] = useState(false);
   const vazio = linhas.length === 0;
@@ -688,6 +805,23 @@ export function BlocoRetencaoDaCaptura({
       data-captura="retencao"
       className="hidden flex-col border-b border-line pb-3 larga:flex"
     >
+      {/* ⚠️ **Espera e falha aparecem, mas NÃO seguram o formulário** — ele
+          continua montado e digitável abaixo (critérios 3 e 4). Uma espera que
+          esconde o campo transformaria uma sugestão opcional em pré-requisito da
+          captura, que é exatamente o que o critério 4 proíbe. */}
+      {vazio && lendoSugestao ? (
+        <div role="status" data-sugestao="lendo">
+          <Dica>{SUGESTAO_RETENCAO_LENDO}</Dica>
+        </div>
+      ) : null}
+      {vazio && falhouSugestao ? (
+        <div data-sugestao="falhou">
+          <Banner cor="amb" role="status">
+            {SUGESTAO_RETENCAO_FALHOU}
+          </Banner>
+        </div>
+      ) : null}
+
       {linhas.map((linha, i) => (
         <LinhaPendente
           // O índice é chave legítima aqui: `LinhaPendente` não tem estado
@@ -706,6 +840,12 @@ export function BlocoRetencaoDaCaptura({
           já na lista o clique passa a fazer sentido, e aí ele volta. */}
       {vazio || abrindo ? (
         <FormularioDeLinha
+          /* ⚠️ **A sugestão alimenta SÓ o formulário do estado vazio** — o
+             primeiro, o que nasce aberto. "+ Adicionar outra linha" nasce em
+             branco em qualquer caso: herdar valor entre linhas é o default fiscal
+             que o critério 7 do CONTAI-053 proíbe, e uma segunda linha com o
+             rótulo da primeira seria isso com outro nome. */
+          sugestao={vazio ? sugestao : null}
           onAdicionar={(entrada) => {
             onAdicionar(entrada);
             setAbrindo(false);

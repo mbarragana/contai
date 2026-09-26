@@ -20,23 +20,23 @@ pelo `CONTAI-053`) já venha com rótulo e valor preenchidos pela leitura
 automática (`CONTAI-054`), para eu só confirmar em vez de digitar.
 
 ## Critérios de Aceite
-1. [ ] Ao anexar o PDF e responder "destacada" em `/adicionar/documento`
+1. [x] Ao anexar o PDF e responder "destacada" em `/adicionar/documento`
    (tela larga), a captura chama `POST /api/sugerir-retencao`; se vier
    sugestão, o primeiro `FormularioDeLinha` nasce com `rotuloLiteral` e
    `valorCentavos` preenchidos — os quatro campos de classificação fiscal
    continuam sempre vazios.
-2. [ ] A sugestão é visualmente identificada como sugestão (mesma UX já usada
+2. [x] A sugestão é visualmente identificada como sugestão (mesma UX já usada
    para os demais campos que a extração de documento preenche hoje) e é
    sempre editável/substituível antes de salvar — nenhum valor sugerido é
    gravado sem o "Salvar" do documento.
-3. [ ] Sem sugestão (nota sem padrão reconhecido pelo `CONTAI-054`, ou
+3. [x] Sem sugestão (nota sem padrão reconhecido pelo `CONTAI-054`, ou
    scan/foto sem texto embutido), a experiência é idêntica à do `CONTAI-053`
    sozinho — formulário nasce vazio, sem regressão.
-4. [ ] Falha da chamada a `/api/sugerir-retencao` (rede, timeout) nunca
+4. [x] Falha da chamada a `/api/sugerir-retencao` (rede, timeout) nunca
    bloqueia o registro — a captura segue com o formulário vazio, mesma
    disciplina de "sugestão que falha não impede o Salvar" já aplicada à
    extração de documento hoje.
-5. [ ] O `rotuloLiteral` sugerido aparece em destaque visual na tela de
+5. [x] O `rotuloLiteral` sugerido aparece em destaque visual na tela de
    confirmação (não só o valor pré-preenchido, discreto) — recomendação dos
    dois revisores do Gate 2 do `CONTAI-054`: o parser pode sugerir uma linha
    de desconto (não só retenção) se a aritmética fechar por coincidência, e
@@ -73,3 +73,15 @@ para receber um `inicial?` opcional).
 ## Cenário e checagem final
 **Captura**, mesma variante de tela larga do `CONTAI-053`. **Veredito:
 APROVADO**, bloqueado até `CONTAI-053` e `CONTAI-054` estarem prontos.
+
+✅ **Entregue em 2026-09-25.** 5/5 critérios PASS — Gate 4 (`po`). Gate 2
+técnico (`cto-obra`) achou um bug de borda real: a sincronização da
+sugestão no `FormularioDeLinha` usava duas condições diferentes para
+"campo vazio" (uma para o texto exibido, outra para o valor em centavos),
+e um texto parcialmente digitado como "1," (que `parseValorInput` rejeita)
+fazia o valor herdar a sugestão em silêncio enquanto a tela mostrava outra
+coisa — corrigido com uma condição única, provado por um E2E que atrasa a
+resposta da rota de propósito para expor a janela exata do bug. Gate 2
+fiscal (`contador`) aprovou sem pendência. Último ticket do backlog 71
+(retenção) — **fila de implementação volta a vazia**. 1085 testes
+unitários + 313 E2E verdes, sem migration.

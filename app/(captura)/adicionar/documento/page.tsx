@@ -121,6 +121,7 @@ import {
   VER_DOCUMENTO_PISO,
   XML_SEM_PREVIEW,
 } from "@/lib/preview-anexo";
+import type { SugestaoLinhaRetencao } from "@/lib/extracao/retencao-texto";
 import { paraCentavos, type ExtracaoDocumento } from "@/lib/extracao/schema";
 import { hojeIso } from "@/lib/hoje";
 import { centavosParaInput, formatarBRL, parseValorInput } from "@/lib/money";
@@ -270,6 +271,22 @@ export default function RegistrarDocumento() {
   );
 
   /**
+   * **CONTAI-055 — a sugestão determinística do CONTAI-054, nesta tela.**
+   *
+   * Três estados, e nenhum deles é fiscal: a leitura a confirmar, a espera e a
+   * falha. Quem os produz é o efeito logo abaixo; quem os mostra é o
+   * `BlocoRetencaoDaCaptura`.
+   *
+   * ⚠️ A sugestão **nunca** carrega `composicao`, `tributo`, `eDescontoEfetivo`
+   * nem `quemRecolhe` — o tipo `SugestaoLinhaRetencao` não os declara (Gate
+   * Fiscal do ticket, herdado do CONTAI-054).
+   */
+  const [sugestaoRetencao, setSugestaoRetencao] =
+    useState<SugestaoLinhaRetencao | null>(null);
+  const [lendoSugestaoRetencao, setLendoSugestaoRetencao] = useState(false);
+  const [falhouSugestaoRetencao, setFalhouSugestaoRetencao] = useState(false);
+
+  /**
    * ⚠️ **Sair de "destacada" APAGA as linhas acumuladas**, pela mesma razão do
    * `setCnoNaNota(null)` ao trocar de obra: uma linha guardada numa nota que o
    * gate diz não ter retenção é afirmação órfã — e ela gravaria no banco contra
@@ -362,6 +379,110 @@ export default function RegistrarDocumento() {
     // resposta guardada em tipo que não a pergunta é afirmação órfã.
     if (!exigeCnoReferenciado(novo)) setCnoNaNota(null);
   }
+
+  /**
+   * ══ CONTAI-055 — a chamada a `POST /api/sugerir-retencao` ═══════════════════
+   *
+   * **Quando**: o gate vira `"destacada"` em NF de serviço COM PDF anexado. A
+   * rota confere os três de novo do lado dela (ela nunca decide o gate), e aqui a
+   * condição existe para não gastar uma requisição que já se sabe vazia.
+   *
+   * **Por que EFEITO e não no `onChange` do gate**: as três coisas que invalidam
+   * a sugestão são `tipo`, gate e ARQUIVO, e o arquivo pode ser trocado depois de
+   * o gate estar respondido. Com a chamada no handler do gate, a sugestão do PDF
+   * anterior sobreviveria à troca do anexo — leitura de um papel exibida ao lado
+   * de outro. Aqui quem manda é o `alvo` logo abaixo: ele É a regra de
+   * invalidação, num lugar só.
+   *
+   * ⚠️ **Falha NUNCA bloqueia o registro** (critério 4): não há `throw`, não há
+   * erro de campo e o "Salvar registro" não olha para nada disto. O pior caso é o
+   * formulário de linha em branco, que é o comportamento do CONTAI-053 sozinho.
+   *
+   * ⚠️ **Nada aqui grava**: a rota só lê o PDF que vai no corpo e devolve uma
+   * sugestão a confirmar. O que grava continua sendo o "Salvar registro".
+   *
+   * ⚠️ A chamada acontece em QUALQUER largura, inclusive no piso de 375px onde o
+   * bloco está escondido por CSS. É deliberado e foi aprovado no Gate 2: ler
+   * `window.innerWidth` para decidir seria a corrida de hidratação que o spec do
+   * CONTAI-053 proíbe, e o custo de uma leitura LOCAL sem gravação não justifica
+   * trocar a disciplina.
+   * **A condição de validade disto está nomeada**: vale enquanto
+   * `/api/sugerir-retencao` for parser determinístico local. No dia em que ela
+   * chamar provedor de IA pago, gastar cota numa tela onde o resultado está
+   * escondido deixa de ser aceitável — e aí a saída é um gate por `matchMedia`
+   * dentro de um efeito (nunca no render), não desligar a sugestão.
+   *
+   * ⚠️ Sem `AbortController` de propósito (nit não-bloqueante do Gate 2): o
+   * `cancelado` já impede resposta velha de virar estado, e a requisição é um POST
+   * local de milissegundos. Abortar de verdade só passa a valer a pena quando
+   * houver custo por chamada do outro lado — mesma condição do parágrafo acima.
+   *
+   * O `alvo` abaixo é o PDF que a sugestão desta tela descreve — ou `null` quando
+   * não há sugestão possível. É ele, e não três condições espalhadas, que define
+   * de quem a sugestão é: **mudou o alvo, a sugestão anterior morre**.
+   */
+  const alvoDaSugestaoDeRetencao =
+    exigeRetencao(tipo) &&
+    retencaoNaNota === "destacada" &&
+    arquivo !== null &&
+    arquivo.type === "application/pdf"
+      ? arquivo
+      : null;
+
+  /**
+   * ⚠️ **A invalidação é ajustada no RENDER, não dentro do efeito** — é o padrão
+   * do React para estado que acompanha um valor derivado, e é o que o
+   * `react-hooks/set-state-in-effect` cobra (mesmo padrão do `useEsperaLonga` em
+   * `ui.tsx`). Uma sugestão que sobrevive à troca do anexo é a leitura de um papel
+   * exibida ao lado de outro.
+   */
+  const [alvoVistoDaSugestao, setAlvoVistoDaSugestao] = useState(
+    alvoDaSugestaoDeRetencao,
+  );
+  if (alvoVistoDaSugestao !== alvoDaSugestaoDeRetencao) {
+    setAlvoVistoDaSugestao(alvoDaSugestaoDeRetencao);
+    setSugestaoRetencao(null);
+    setFalhouSugestaoRetencao(false);
+    setLendoSugestaoRetencao(alvoDaSugestaoDeRetencao !== null);
+  }
+
+  useEffect(() => {
+    if (alvoDaSugestaoDeRetencao === null) return;
+
+    let cancelado = false;
+    void (async () => {
+      try {
+        const form = new FormData();
+        form.append("arquivo", alvoDaSugestaoDeRetencao);
+        // O gate viaja COM o arquivo, e a rota o confere do lado dela: ela nunca
+        // decide o gate, em nenhuma direção (CONTAI-054, critério 1).
+        form.append("retencaoNaNota", "destacada");
+        const resposta = await fetch("/api/sugerir-retencao", {
+          method: "POST",
+          body: form,
+        });
+        if (cancelado) return;
+        if (!resposta.ok) {
+          setFalhouSugestaoRetencao(true);
+          return;
+        }
+        const corpo = (await resposta.json()) as {
+          sugestao: SugestaoLinhaRetencao | null;
+        };
+        if (cancelado) return;
+        // ⚠️ `null` não é falha: é a nota sem padrão reconhecido, e o estado
+        // certo dela é o formulário em branco, silencioso (critério 3).
+        if (corpo.sugestao) setSugestaoRetencao(corpo.sugestao);
+      } catch {
+        if (!cancelado) setFalhouSugestaoRetencao(true);
+      } finally {
+        if (!cancelado) setLendoSugestaoRetencao(false);
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [alvoDaSugestaoDeRetencao]);
 
   const entrada: EntradaDocumento = useMemo(
     () => ({
@@ -1389,9 +1510,19 @@ export default function RegistrarDocumento() {
                             por CSS abaixo de 880px. */}
                         <BlocoRetencaoDaCaptura
                           linhas={linhasPendentes}
-                          onAdicionar={(linha) =>
-                            setLinhasPendentes((atual) => [...atual, linha])
-                          }
+                          /* CONTAI-055 — a leitura do PDF, a confirmar. */
+                          sugestao={sugestaoRetencao}
+                          lendoSugestao={lendoSugestaoRetencao}
+                          falhouSugestao={falhouSugestaoRetencao}
+                          onAdicionar={(linha) => {
+                            setLinhasPendentes((atual) => [...atual, linha]);
+                            /* ⚠️ **A sugestão é CONSUMIDA ao adicionar a linha.**
+                               Sem isto, remover a linha adicionada devolveria o
+                               formulário vazio com a mesma sugestão de volta — o
+                               app reafirmando uma leitura que ele acabou de
+                               rejeitar, que é o oposto do critério 5. */
+                            setSugestaoRetencao(null);
+                          }}
                           onRemover={(indice) =>
                             setLinhasPendentes((atual) =>
                               atual.filter((_, i) => i !== indice),

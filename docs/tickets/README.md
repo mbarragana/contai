@@ -1,6 +1,6 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
 
 *(2026-09-23: `CONTAI-011` fatiado em três — `011` continua contando como 1
 item, e `049`/`050` somam os 2 novos. `CONTAI-051` soma o 19º no mesmo dia;
@@ -19,7 +19,23 @@ ser P0; `054` depois). 2026-09-25, ainda mais tarde: **`056` entregue**
 2026-09-25, ainda mais tarde: **`054` entregue** (Gate 4, 6/6 PASS) — volta
 a 19; `053` continua bloqueado por Gate 0, `055` agora só bloqueado por
 `053`. 2026-09-25, ainda mais tarde: **`053` entregue** (Gate 4, 9/9 PASS)
-— volta a 18; `055` fica sozinho na fila, sem bloqueio.)*
+— volta a 18; `055` fica sozinho na fila, sem bloqueio. 2026-09-25, ainda
+mais tarde: **`055` entregue** (Gate 4, 5/5 PASS) — volta a 17, **fila de
+implementação vazia** — fecha o backlog 71 inteiro (`053`+`054`+`055`).)*
+
+**2026-09-25, ainda mais tarde**: **`055` entregue** — Gate 4 (`po`), 5/5
+critérios PASS. Último ticket do backlog 71 (retenção): a sugestão do
+`CONTAI-054` (parser determinístico) passa a pré-preencher o primeiro
+`FormularioDeLinha` do repeater do `CONTAI-053` quando o padrão bate, com o
+rótulo sugerido em destaque visual (recomendação herdada do Gate 2 do
+`054`) e sempre editável. Gate 2 técnico (`cto-obra`) achou um bug de borda
+real: duas condições diferentes decidiam "campo vazio" (texto exibido vs.
+valor em centavos), e um texto parcial como "1," fazia o valor herdar a
+sugestão em silêncio enquanto a tela mostrava outra coisa — corrigido com
+uma condição única, provado por E2E que atrasa a resposta da rota de
+propósito. Gate 2 fiscal (`contador`) aprovou sem pendência. 1085
+unitários + 313 E2E verdes, sem migration. **Fila de implementação volta a
+vazia.** Detalhe: `docs/tickets/CONTAI-055.md`.
 
 **2026-09-25, ainda mais tarde**: **`053` entregue** — Gate 4 (`po`), 9/9
 critérios PASS. `FormularioDeLinha` (extraído de `app/_components/retencao.tsx`)
@@ -613,9 +629,14 @@ no topo). `053` continua bloqueado por Gate 0; `055` agora só bloqueado por
 no topo). `055` fica sozinho na fila, pronto — os dois tickets que ele
 consome (`053`, `054`) já existem.
 
+**2026-09-25, ainda mais tarde**: **`055` sai da fila** — entregue (ver
+nota no topo). Backlog 71 (retenção) fechado por inteiro: `053`, `054` e
+`055` entregues no mesmo dia. **Fila de implementação vazia** — nenhum
+ticket pronto para `/develop` aguardando início.
+
 | Ordem | # | Ticket | P | Pronto para `/develop` |
 |---|---|---|---|---|
-| 1 | 055 | Sugestão de retenção pré-preenche o repeater da captura | P1 | ✅ sim |
+| — | — | *(fila vazia)* | — | — |
 
 ### 🛑 Em espera — decisão do Mateus, 2026-09-23
 
