@@ -1,21 +1,36 @@
 # CONTAI-060 Seletor de ano no shell, sincronizando Home + Despesas (+ Pendências de graça)
 
 ## Tipo e Prioridade
-bug — P1 (fricção/confiança de dado). Achado em produção pelo Mateus logo
-depois do `CONTAI-057`: não é erro de cálculo (`despesas.ts`/`vinculo.ts`
-concordam matematicamente) — é comparar duas grandezas diferentes sem a
-tela deixar isso óbvio.
+feature — **P2** (rebaixado de P1 em 2026-09-26 — ver nota abaixo:
+verificado em produção que este ticket NÃO explica o sintoma que o Mateus
+relatou; continua válido como melhoria, para quando a obra cruzar para
+2027, mas deixou de ser urgente).
+
+⚠️ **Correção de diagnóstico, 2026-09-26**: o Mateus apontou que "todos os
+valores inputados até agora são de 2026", o que invalidava a hipótese de
+escopo de ano como causa do que ele via. Conferido ao vivo em produção
+(`https://contai-rosy.vercel.app/despesas`, obra Casa Tanheiros): a soma
+manual da coluna "Custo confirmado" bate **exatamente** com o KPI "Custo
+confirmado em 2026" da Home (R$ 55.655,22 = R$ 55.655,22) — sem bug, sem
+divergência de escopo de ano nenhuma no caso real. A divergência que o
+Mateus via era somar a coluna "Valor lançado" (que inclui uma nota "pago
+sem comprovante") contra o KPI "Custo confirmado" — a diferença de
+R$ 7.449,76 é **exatamente** o card separado "Custo em risco no IR",
+corretamente fora do custo confirmado por desenho (meta 1: nenhum
+pagamento sem documento hábil vira custo confirmado). Não era o `CONTAI-060`
+que precisava resolver isso.
 
 ## Dor de Origem
 `docs/backlog/73-2026-09-26-texto-pendencia-retencao-e-escopo-ano-despesas.md`,
 US-B. Palavras do Mateus: *"outra coisa, o somatório na visão geral ainda
-esta diferente se eu somar todas as despesas."* Causa raiz: `/despesas`
+esta diferente se eu somar todas as despesas."* Investigação original
+(agora sabida incompleta): `/despesas`
 (`app/(gestao)/despesas/page.tsx`) não tem filtro de ano nenhum — mostra
 TODAS as despesas da obra, todos os anos; a Home mostra "Custo confirmado
-**em 2026**" (escopado por ano). Somar manualmente todas as linhas de
-Despesas e comparar com o KPI de um ano só da Home sempre diverge quando a
-obra tem pagamento em mais de um ano-calendário — que é o caso real desta
-obra (~20 meses, cruzando anos).
+**em 2026**" (escopado por ano). Isso continua sendo um gap real — só não
+é o que causou o sintoma relatado, porque toda a obra até agora está em
+2026 (o gap só vai se manifestar quando a obra cruzar para 2027, ~20 meses
+de duração).
 
 Materializa a dívida já nomeada em
 `docs/backlog/48-2026-09-21-gate1-decisoes-contai-040.md` ("seletor de ano

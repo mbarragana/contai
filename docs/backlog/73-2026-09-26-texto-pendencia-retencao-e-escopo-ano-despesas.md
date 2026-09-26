@@ -256,3 +256,32 @@ prescrever. Recomendo passagem por `/design` (o `48-…` já apontava isso).
    sentido revisar esse rótulo para o Estado C (onde o recolhedor já existe),
    ou o rótulo genérico do card é aceitável desde que o texto de dentro dele
    esteja certo? (Sugestão do próprio `contador`, não vinculante.)
+
+## Correção de diagnóstico — 2026-09-26, mais tarde
+
+**US-B estava investigada incompleta.** O Mateus apontou o furo antes de eu
+confirmar: *"todos os valores inputados até agora são de 2026."* Isso
+invalidava a hipótese de escopo de ano (Home vs. Despesas mostrando anos
+diferentes) como causa do sintoma relatado — nesta obra, hoje, não há
+mistura de anos-calendário nenhuma.
+
+Conferido ao vivo em produção (`https://contai-rosy.vercel.app/despesas`,
+obra Casa Tanheiros, com autorização do Mateus para acessar): a soma manual
+da coluna "Custo confirmado" das 8 linhas confirmadas dá **R$ 55.655,22**
+— idêntico, centavo a centavo, ao KPI "Custo confirmado em 2026" da Home.
+**Não há divergência nenhuma entre os dois quando se soma a coluna certa.**
+
+A divergência que o Mateus via vinha de somar a coluna **"Valor lançado"**
+(R$ 63.104,98) contra o KPI "Custo confirmado" da Home — uma diferença de
+R$ 7.449,76, que é **exatamente** o valor do card separado "Custo em risco
+no IR" (uma nota "pago sem comprovante"). Esse card existe precisamente
+para isso: o valor não desapareceu, está ali, só numa apuração separada,
+por desenho (meta 1 — nenhum pagamento sem documento hábil vira custo
+confirmado). Não é bug de cálculo, de cache, nem de escopo de ano.
+
+**Consequência**: `CONTAI-060` (seletor de ano) continua sendo uma correção
+válida — `/despesas` de fato não tem filtro de ano, e isso vai importar
+quando a obra cruzar para 2027 — mas foi **rebaixado para P2**, porque não
+era a explicação do que foi relatado. `CONTAI-059` (texto/cor da retenção)
+não foi afetado por esta correção — continua P1, confirmado ao vivo que o
+banner errado ainda está no ar nas duas notas da AJE.

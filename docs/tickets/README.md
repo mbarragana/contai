@@ -40,13 +40,24 @@ tanto para quando ninguém respondeu quem recolhe quanto para quando o
 Mateus já respondeu "Eu" e só falta pagar a guia — texto factualmente
 errado no segundo caso. Corrige texto, chip, título **e cor** (Estado C
 deixa de ser vermelho, vira âmbar — a mudança de cor é o próprio parecer
-que a dívida D54 exigia). `CONTAI-060` (P1): `/despesas` não tinha filtro
-de ano nenhum (mostrava todos os anos da obra), enquanto a Home mostra só
-o ano corrente — comparação sempre divergia numa obra que cruza anos-
-calendário. Ganha seletor de ano no shell, sincronizando Home + Despesas
-**e fechando de graça** a dívida antiga do `CONTAI-040`/`48` sobre
-`/pendencias`. Os dois bloqueados por Gate 0 (`/design`). Detalhe:
+que a dívida D54 exigia). `CONTAI-060` (P2, rebaixado — ver nota abaixo):
+`/despesas` não tem filtro de ano nenhum (mostra todos os anos da obra),
+enquanto a Home mostra só o ano corrente — gap real, mas verificado em
+produção que NÃO era a causa do sintoma relatado (a obra inteira está em
+2026 até agora). Ganha seletor de ano no shell, sincronizando Home +
+Despesas **e fechando de graça** a dívida antiga do `CONTAI-040`/`48`
+sobre `/pendencias`, como melhoria não urgente pra quando a obra cruzar
+para 2027. Os dois bloqueados por Gate 0 (`/design`). Detalhe:
 `docs/tickets/CONTAI-059.md`, `docs/tickets/CONTAI-060.md`.
+
+**2026-09-26, mais tarde ainda**: **correção de diagnóstico** — conferido
+ao vivo em produção (`https://contai-rosy.vercel.app/despesas`): a soma da
+coluna "Custo confirmado" bate exatamente com o KPI da Home
+(R$ 55.655,22 = R$ 55.655,22). O que o Mateus via era a coluna "Valor
+lançado" (que inclui uma nota "pago sem comprovante", R$ 7.449,76) somada
+contra o KPI "Custo confirmado" — a diferença é exatamente o card "Custo
+em risco no IR", corretamente excluído por desenho (meta 1). Não havia bug
+de escopo de ano no caso real. `CONTAI-060` rebaixado para P2.
 
 **2026-09-26, mais tarde**: **`057` entregue** — Gate 4 (`po`), 9/9
 critérios PASS. Coluna própria **"Custo confirmado"** (mono, semibold,
@@ -705,7 +716,7 @@ Despesas). Os dois bloqueados por Gate 0 (`/design`).
 | Ordem | # | Ticket | P | Pronto para `/develop` |
 |---|---|---|---|---|
 | — | 059 | Texto e cor da pendência de retenção (Estado A ≠ C) | P1 | ⛔ bloqueado por Gate 0 (`/design`) |
-| — | 060 | Seletor de ano no shell (Home + Despesas + Pendências) | P1 | ⛔ bloqueado por Gate 0 (`/design`) |
+| — | 060 | Seletor de ano no shell (Home + Despesas + Pendências) | P2 | ⛔ bloqueado por Gate 0 (`/design`) |
 
 ### 🛑 Em espera — decisão do Mateus, 2026-09-23
 
