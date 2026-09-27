@@ -603,6 +603,13 @@ export async function criarCompraCartao(
     dataCompra: string;
     dataVencimento: string;
     obraId?: string;
+    /**
+     * A nota que o Mateus afirmou como origem no agendamento (CONTAI-064). A
+     * RPC aceita o uuid sem olhar a obra dele — a guarda de obra da CAPTURA é
+     * da tela —, e é isso que permite montar aqui o cenário "a obra do
+     * documento divergiu depois do agendamento" do CONTAI-065.
+     */
+    documentoOrigemId?: string;
   },
 ): Promise<{ compromissoId: string; faturaId: string }> {
   const { data, error } = await db.rpc("compra_cartao_gravar", {
@@ -611,6 +618,9 @@ export async function criarCompraCartao(
     p_valor: entrada.valor,
     p_data_compra: entrada.dataCompra,
     p_data_vencimento: entrada.dataVencimento,
+    ...(entrada.documentoOrigemId
+      ? { p_documento_origem_id: entrada.documentoOrigemId }
+      : {}),
   });
   conferir("criar compra no cartão", error);
   const resultado = data as { compromisso_id: string; fatura_id: string };
@@ -896,6 +906,70 @@ export function plantarLinhaDeRetencaoDeOutroDono(): string {
     "plantar linha de retenção de outro dono",
   );
   return linhaAlheia;
+}
+
+/**
+ * Uma NOTA de outra conta — o cenário do critério 5 do CONTAI-065: a FK de
+ * `compromisso.documento_origem_id` aceita qualquer uuid existente, e a
+ * ESCRITA daquele campo nunca foi validada contra o dono. É esse uuid que o
+ * teste pendura num compromisso do Mateus para provar que a propagação da
+ * quitação **não** cria vínculo com papel de terceiro.
+ *
+ * ⚠️ Montar a conta alheia passa pelo andaime de administrador, como os dois
+ * plantios acima: é montagem de ambiente, não comportamento do app. O que o
+ * teste não contorna é a policy — a quitação é feita pelo client autenticado do
+ * Mateus, exatamente como o app faz.
+ *
+ * Reaproveita de propósito a MESMA conta, obra e nota do plantio de retenção
+ * (`on conflict do nothing` nos três), para não existir uma segunda conta
+ * alheia com id parecido e significado diferente.
+ */
+export function plantarDocumentoDeOutroDono(): string {
+  const obraAlheia = "99999999-0000-4000-8000-000000000001";
+  const documentoAlheio = "99999999-0000-4000-8000-000000000003";
+  sqlAdmin(
+    `insert into auth.users (
+       instance_id, id, aud, role, email, encrypted_password,
+       email_confirmed_at, created_at, updated_at,
+       raw_app_meta_data, raw_user_meta_data,
+       confirmation_token, recovery_token, email_change_token_new,
+       email_change, email_change_token_current, phone_change,
+       phone_change_token, reauthentication_token
+     ) values (
+       '00000000-0000-0000-0000-000000000000',
+       ${literalSql(DONO_ALHEIO)},
+       'authenticated', 'authenticated', 'outra-conta@contai.local',
+       crypt('nao-usada-em-lugar-nenhum', gen_salt('bf')),
+       now(), now(), now(), '{}'::jsonb, '{}'::jsonb,
+       '', '', '', '', '', '', '', ''
+     ) on conflict (id) do nothing;
+
+     insert into obra (id, user_id, nome, data_inicio_obra)
+     values (${literalSql(obraAlheia)}, ${literalSql(DONO_ALHEIO)},
+             'Obra de outra conta', '2026-01-10')
+     on conflict (id) do nothing;
+
+     insert into documento (
+       id, user_id, obra_id, tipo, arquivo_path, valor, classificacao,
+       destinatario_cpf_ok, retencao_na_nota, status
+     ) values (
+       ${literalSql(documentoAlheio)}, ${literalSql(DONO_ALHEIO)},
+       ${literalSql(obraAlheia)}, 'nf_material',
+       ${literalSql(`${DONO_ALHEIO}/documento/alheia.pdf`)}, 950, 'material',
+       true, null, 'registrado'
+     ) on conflict (id) do nothing;`,
+    "plantar documento de outro dono",
+  );
+  return documentoAlheio;
+}
+
+/** Quantas linhas de vínculo existem no banco INTEIRO, sem passar pela RLS. */
+export function contarVinculosSemRls(): number {
+  const [linha] = consultarAdmin(
+    "select count(*) from pagamento_documento;",
+    "contar vínculos sem RLS",
+  );
+  return Number(linha?.[0] ?? 0);
 }
 
 export function contarLinhasDeRetencaoDeOutroDono(linhaId: string): number {

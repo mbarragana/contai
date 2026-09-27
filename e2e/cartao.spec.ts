@@ -351,11 +351,12 @@ test.describe("fatura paga parcialmente — o rotativo nunca quita sozinho", () 
  * `/adicionar/compra-cartao` ia SEM parâmetro nenhum, e a tela nascia vazia
  * depois de o app já ter resolvido favorecido, CNPJ e valor um passo atrás.
  *
- * ⚠️ O que estes testes **não** afirmam: que o custo nasce ligado. A origem
- * fica gravada em `compromisso.documento_origem_id` e **não** sobrevive à
- * quitação da fatura — é o CONTAI-065, ticket separado. É por isso que a
- * asserção do texto da confirmação está aqui: promessa a mais nessa tela é
- * afirmação que morre na quitação.
+ * ⚠️ A origem gravada em `compromisso.documento_origem_id` PASSOU a sobreviver
+ * à quitação da fatura no CONTAI-065 (migration 0020), e o texto desta tela foi
+ * reescrito no mesmo diff: ele mandava religar à mão um vínculo que o app já
+ * faz. O que o vínculo replicado vira em custo é asserido em
+ * `e2e/vinculo-de-origem.spec.ts`; aqui só se afirma o que a tela de CAPTURA
+ * promete.
  */
 test.describe("herança da nota de origem (CONTAI-064)", () => {
   /** A nota do depósito, com CNPJ que passa na validação real de dígito. */
@@ -377,7 +378,7 @@ test.describe("herança da nota de origem (CONTAI-064)", () => {
     return { loja, documentoId };
   }
 
-  test("chega preenchida, grava documento_origem_id e NÃO promete vínculo de custo", async ({
+  test("chega preenchida, grava documento_origem_id e não promete CUSTO nenhum", async ({
     page,
     db,
   }) => {
@@ -428,16 +429,24 @@ test.describe("herança da nota de origem (CONTAI-064)", () => {
     await page.getByRole("button", { name: /^Agendar/ }).click();
     await expect(page.getByRole("heading", { name: "Agendado" })).toBeVisible();
 
-    // ⚠️ O TEXTO É O CRITÉRIO 10: "anotada como origem", nunca "ligada".
+    // ⚠️ O TEXTO É O CRITÉRIO 10 — reescrito pelo CONTAI-065: o que a tela
+    // NÃO pode prometer é CUSTO (nada entrou em custo aqui, e quem limita é o
+    // documento hábil). O vínculo, esse sim, passou a ser promessa cumprida
+    // pela migration 0020 — e a frase que mandava religar à mão saiu.
     await expect(page.getByText("Nota de origem:")).toBeVisible();
     await expect(
-      page.getByText("ainda não é vínculo de custo", { exact: false }),
+      page.getByText("já nasce ligado a esta nota", { exact: false }),
     ).toBeVisible();
+    await expect(
+      page.getByText("Quem limita quanto disso vira custo", { exact: false }),
+    ).toBeVisible();
+    // ⚠️ A frase que mandava religar à mão SAIU: ela pedia um trabalho que a
+    // migration 0020 já faz, e aviso falso é o que ensina a ignorar aviso.
     await expect(
       page.getByText("não vem ligado a esta nota automaticamente", {
         exact: false,
       }),
-    ).toBeVisible();
+    ).toHaveCount(0);
 
     const cs = await compromissos(db);
     expect(cs).toHaveLength(1);

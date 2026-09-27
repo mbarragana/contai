@@ -1969,9 +1969,22 @@ export async function mudarDataPrevista(
  *
  * ⚠️ **Este é o único caminho que cria vínculo de quitação, e ele só é chamado
  * a partir de um toque** (critério 41).
+ *
+ * ⚠️ **CONTAI-065**: quando o compromisso tem nota de origem, a quitação
+ * PROPAGA esse vínculo para `pagamento_documento` — a tabela que `alocarCusto`
+ * consome. Não é vínculo por heurística (proibido pelo §5 do parecer de
+ * 2026-08-17): é a persistência de uma afirmação que o Mateus já fez no
+ * agendamento, com o dedo dele (parecer de 2026-09-26). As cinco condições —
+ * origem preenchida, obra batendo NA HORA, vínculo pré-existente intocado,
+ * documento do próprio dono, diferença de valor irrelevante — moram todas na
+ * RPC `propagar_vinculo_de_origem` (migration 0020), e não aqui: o caminho do
+ * cartão precisa da mesma regra, e duas cópias dela divergiriam.
  */
 export async function quitarCompromisso(entrada: {
-  compromisso: Pick<Compromisso, "id" | "obraId" | "dataPrevista">;
+  compromisso: Pick<
+    Compromisso,
+    "id" | "obraId" | "dataPrevista" | "documentoOrigemId"
+  >;
   pagamento: Pick<Pagamento, "id" | "obraId">;
   quitaIntegralmente: boolean;
   /** Quando fica saldo: a nova data prevista, ou `null` = "sem data definida". */
@@ -1986,6 +1999,27 @@ export async function quitarCompromisso(entrada: {
     { onConflict: "compromisso_id,pagamento_id", ignoreDuplicates: true },
   );
   if (vinculo.error) throw vinculo.error;
+
+  // CONTAI-065 · a nota afirmada no agendamento acompanha o pagamento.
+  //
+  // A chamada só sai quando há o que propagar — a RPC reconfere tudo (ela é a
+  // guarda, não esta linha), mas pedir ao banco para concluir "não havia nada"
+  // em toda quitação seria uma ida de rede por nada.
+  //
+  // ⚠️ ANTES do `update` da situação e do `mudarDataPrevista`, de propósito:
+  // aqui não há transação multi-statement pelo PostgREST, e as duas chamadas
+  // acima são idempotentes (upsert com `ignoreDuplicates`, e a RPC devolve
+  // `false` sem escrever quando a linha já existe). Depois de
+  // `mudarDataPrevista`, uma falha nesta chamada faria o retry gravar uma
+  // SEGUNDA linha de histórico de data — rastro duplicado de um adiamento que
+  // aconteceu uma vez.
+  if (entrada.compromisso.documentoOrigemId !== null) {
+    const { error } = await supabase.rpc("propagar_vinculo_de_origem", {
+      p_compromisso_id: entrada.compromisso.id,
+      p_pagamento_id: entrada.pagamento.id,
+    });
+    if (error) throw error;
+  }
 
   if (entrada.quitaIntegralmente) {
     const { error } = await supabase

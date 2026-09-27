@@ -1130,6 +1130,10 @@ export type Database = {
         Returns: string
       }
       pendencia_do_ano: { Args: { p_ano: number }; Returns: string }
+      propagar_vinculo_de_origem: {
+        Args: { p_compromisso_id: string; p_pagamento_id: string }
+        Returns: boolean
+      }
       revisao_gravar_anos: {
         Args: { p_anos: Json; p_revisao_id: string }
         Returns: undefined

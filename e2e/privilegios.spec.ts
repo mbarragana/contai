@@ -262,6 +262,19 @@ const FUNCOES_ESPERADAS: Record<string, string> = {
   // outras funções de trigger acima: `returns trigger`, o Postgres recusa
   // chamada direta, e o privilégio é inofensivo — declarado, não silenciado.
   pagamento_comprovante_path_imutavel: "PUBLIC,anon,authenticated",
+
+  // ── CONTAI-065 (migration 0020) ────────────────────────────────────────
+  // A propagação do vínculo com a nota de origem na QUITAÇÃO (dívida D79).
+  // Chamada por dentro de `fatura_desembolso_gravar`/`fatura_alocar` (que são
+  // `security invoker`, logo a chamada interna roda com o papel do app — o
+  // mesmo motivo das auxiliares da 0009) E direto pelo PostgREST, no caminho
+  // de PIX/boleto de `quitarCompromisso`.
+  //
+  // ⚠️ Nenhuma tabela nova neste ticket, e mesmo assim este mapa MUDA: função
+  // nasce com `execute` para `public` (que inclui `anon`) em qualquer Postgres.
+  // Sem o revoke da 0020, o anônimo poderia criar vínculo de custo entre um
+  // pagamento e uma nota no acervo de outra pessoa.
+  propagar_vinculo_de_origem: "authenticated",
 };
 
 test.describe("privilégios do schema public", () => {

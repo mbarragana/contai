@@ -1,6 +1,29 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 19 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda ainda
+ainda ainda ainda ainda**: **`065` entregue** — Gate 4 (`po`), 8/8 critérios
+PASS. Migration `0020` (`propagar_vinculo_de_origem`) faz
+`fatura_desembolso_gravar`/`fatura_alocar` (cartão) e `quitarCompromisso`
+(`lib/data.ts`, PIX/boleto) propagarem `compromisso.documento_origem_id`
+para `pagamento_documento` no ato da quitação — a nota que o Mateus afirmou
+no agendamento passa a nascer ligada ao pagamento, sem precisar religar à
+mão. Cinco guardas na RPC: origem preenchida, obra batendo NA HORA da
+quitação (não a do agendamento), nunca por cima de vínculo já existente,
+documento do próprio dono (a FK aceitava qualquer uuid; a escrita nunca era
+validada), diferença de valor não bloqueia. Texto da tela "Agendado" em
+`compra-cartao/page.tsx` reescrito — a frase que mandava religar à mão saiu,
+porque virou falsa. `e2e/vinculo-de-origem.spec.ts` novo (11 casos) +
+`propagar_vinculo_de_origem: "authenticated"` em `e2e/privilegios.spec.ts`.
+Nenhum arquivo mudou depois do APPROVE do `cto-obra` no Gate 2. `npm run
+quality` verde: **1125 Vitest / 350 Playwright**. **D79 fechada por
+completo** (o `CONTAI-064` já pagava a metade, herança na captura). **D82**
+nova (pagamento único quitando N compromissos com origens distintas
+propaga só a do primeiro) e **D83** nova (`pagamento.status` não acompanha
+o vínculo propagado — sem impacto fiscal, confirmado). `066` fica sozinho
+na fila. Detalhe:
+`docs/backlog/81-2026-09-26-contai-065-entregue-e-d82-d83.md`.
 
 **2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda ainda
 ainda ainda ainda**: **`063` entregue** — Gate 4 (`po`), 8/8 critérios PASS.
@@ -1034,10 +1057,14 @@ Gate 0 fechados no mesmo dia (ver nota no topo). Independente do `065`
 (arquivos e telas diferentes, sem sobreposição) — os dois podem rodar em
 qualquer ordem.
 
+**2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda ainda
+ainda ainda ainda ainda**: **`065` sai da fila** — passou pelo `/develop`
+inteiro e saiu entregue (ver nota no topo). `066` fica sozinho na fila,
+pronto.
+
 | Ordem | # | Ticket | P | Pronto para `/develop` |
 |---|---|---|---|---|
-| 1 | 065 | Propagar vínculo com a nota na quitação (D79) | P1 | 🟢 sim |
-| 2 | 066 | Compra de cartão retroativa — atalho até confirmar + texto | P1 | 🟢 sim |
+| 1 | 066 | Compra de cartão retroativa — atalho até confirmar + texto | P1 | 🟢 sim |
 
 ### 🛑 Em espera — decisão do Mateus, 2026-09-23
 

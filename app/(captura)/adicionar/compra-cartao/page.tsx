@@ -311,13 +311,17 @@ function RegistrarCompraCartao() {
           </Card>
 
           {/* ⚠️ CONTAI-064, critério 10 — O QUE O SISTEMA GARANTE HOJE, e nada
-              além. A nota fica ANOTADA como origem do compromisso
-              (`documento_origem_id`); ela NÃO sobrevive à quitação da fatura,
-              porque o pagamento que nasce lá não herda o vínculo. Dizer
-              "compra ligada à nota" aqui seria a mesma afirmação que morre na
-              quitação — a armadilha que este ticket existe para não repetir.
-              O aviso aparece SÓ aqui, na confirmação, e não no formulário:
-              aviso que aparece toda vez vira aviso que se aprende a ignorar. */}
+              além. O aviso aparece SÓ aqui, na confirmação, e não no
+              formulário: aviso que aparece toda vez vira aviso que se aprende
+              a ignorar.
+              ⚠️ **REESCRITO pelo CONTAI-065.** Até ele, este texto dizia que o
+              pagamento da fatura "não vem ligado a esta nota automaticamente" e
+              mandava religar à mão — porque `documento_origem_id` era
+              write-only e o vínculo morria na quitação (D79). A migration 0020
+              propaga, então a frase antiga passou a ser FALSA: ela mandava
+              repetir um trabalho que o app já faz. O que continua verdadeiro e
+              segue escrito: nada entrou em CUSTO aqui, e quem limita quanto
+              disso vira custo é o documento hábil, nunca a previsão. */}
           {fase.notaDeOrigem ? (
             <Card className="border-dashed">
               <div className="text-[13px]">
@@ -328,12 +332,12 @@ function RegistrarCompraCartao() {
                 </span>
               </div>
               <Dica>
-                Fica anotada como origem desta compra —{" "}
-                <strong>ainda não é vínculo de custo</strong>. Quando você pagar
-                a fatura, o pagamento que nascer daqui{" "}
-                <strong>não vem ligado a esta nota automaticamente</strong>:
-                hoje, para o custo entrar no ano certo, é preciso abrir esse
-                pagamento e usar &quot;Ligar a uma nota&quot; à mão.
+                Fica anotada como origem desta compra. Quando você pagar a
+                fatura, o pagamento que nascer daqui{" "}
+                <strong>já nasce ligado a esta nota</strong>, e o vínculo
+                continua visível e desfazível na tela do pagamento. Quem limita
+                quanto disso vira custo é o documento hábil, nunca esta
+                previsão.
               </Dica>
             </Card>
           ) : null}
