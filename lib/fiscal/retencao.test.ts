@@ -719,6 +719,15 @@ describe("CONTAI-055 — a linha nascida de sugestão", () => {
    * componente nem a tela de captura podem ler um desses campos de uma sugestão.
    * O compilador já barra (o tipo não os declara); isto barra a gambiarra de
    * afrouxar o tipo sem ninguém notar.
+   *
+   * ⚠️ **QUALIFICADO NO CONTAI-070, e continua valendo como está escrito.** A
+   * categoria sugerida chega por um canal PRÓPRIO (`tributoSugerido`, campo irmão
+   * na resposta da rota e parâmetro próprio de `linhaSugerida`), nunca lida de
+   * dentro de uma `sugestao` — é exatamente por isso que esta varredura continua
+   * verde depois daquele ticket. O que ela guarda hoje é a fronteira que sobrou:
+   * ninguém pode passar a ler `sugestao.eDescontoEfetivo`/`sugestao.quemRecolhe`
+   * (proibidos sem exceção, ponto unânime entre o `contador` e o Mateus) nem
+   * reenfiar a classificação dentro do tipo que serve de trava.
    */
   it("nem a UI nem o módulo derivam campo fiscal de uma sugestão", () => {
     const fontes = [
@@ -745,5 +754,77 @@ describe("CONTAI-055 — a linha nascida de sugestão", () => {
     expect(SUGESTAO_RETENCAO_CONFIRA).toContain("DESCONTO");
     // E a falha diz que o registro segue — critério 4, dito em tela.
     expect(SUGESTAO_RETENCAO_FALHOU).toContain("o registro segue normalmente");
+  });
+});
+
+// ── CONTAI-070 · a categoria sugerida entra como PAR, e só ela ──────────
+
+/**
+ * **O Gate Fiscal do CONTAI-070 em forma de teste.**
+ *
+ * ⚠️ Este describe registra uma decisão de produto que **sobrepôs** a recomendação
+ * do `contador`: ele reprovou sugerir `composicao`/`tributo` "sem exceção"
+ * (`docs/pareceres/2026-09-27-extracao-tributo-e-cno.md`, Pergunta 1, citando o
+ * critério 14 do CONTAI-038) e o Mateus estendeu ao tributo a decisão já tomada
+ * para o CNO (`docs/backlog/85-2026-09-27-cno-automatico-contraria-contador.md`,
+ * ADENDO). O que estas asserções guardam é o que NÃO foi aberto junto:
+ * `eDescontoEfetivo` e `quemRecolhe` seguem manuais e obrigatórios, e a linha
+ * sugerida continua REPROVANDO na validação.
+ */
+describe("CONTAI-070 — a linha nascida de sugestão com categoria", () => {
+  const SUGESTAO = { rotuloLiteral: "ISSRF", valorCentavos: 104_800 };
+
+  /** Igualdade PROFUNDA: o ponto é o que continua `null` ao lado do par. */
+  it("preenche composição E tributo juntos, e nada além disso", () => {
+    expect(linhaSugerida(SUGESTAO, "iss")).toEqual({
+      rotuloLiteral: "ISSRF",
+      valorCentavos: 104_800,
+      composicao: "tributo_identificado",
+      tributo: "iss",
+      // ⚠️ Critério 8: os dois campos que a decisão do Mateus NÃO abriu.
+      eDescontoEfetivo: null,
+      quemRecolhe: null,
+    } satisfies EntradaLinhaRetencao);
+  });
+
+  /** Sem categoria (rótulo ambíguo ou composto) é a linha de antes do ticket. */
+  it("categoria null devolve exatamente a linha do CONTAI-055", () => {
+    expect(linhaSugerida(SUGESTAO, null)).toEqual(linhaSugerida(SUGESTAO));
+    expect(linhaSugerida(SUGESTAO, null).composicao).toBeNull();
+    expect(linhaSugerida(SUGESTAO, null).tributo).toBeNull();
+  });
+
+  /**
+   * ⚠️ **Nunca meio par** (critério 5/7): não existe chamada que devolva `tributo`
+   * sem `composicao` nem o contrário — um parâmetro só governa os dois, então o
+   * CHECK `documento_retencao_tributo_coerente` fica satisfeito por construção.
+   */
+  it("tributo e composição nascem e morrem juntos, nas 6 categorias", () => {
+    for (const tributo of ["iss", "inss", "irrf", "pis", "cofins", "csll"] as const) {
+      const linha = linhaSugerida(SUGESTAO, tributo);
+      expect(linha.composicao).toBe("tributo_identificado");
+      expect(linha.tributo).toBe(tributo);
+    }
+  });
+
+  /**
+   * ⚠️ **A sugestão do par NÃO destrava a linha** — é o que mantém a confirmação
+   * humana obrigatória (critério 8/9): faltam `eDescontoEfetivo` e, dependendo da
+   * resposta dele, `quemRecolhe`. Se algum dia esta linha passar direto, alguém
+   * ensinou a extração a responder pergunta de responsabilidade.
+   */
+  it("continua reprovando na validação — falta o desconto efetivo, manual", () => {
+    const erros = validarLinhaRetencao(linhaSugerida(SUGESTAO, "iss"));
+    expect(erros.map((e) => e.campo)).toEqual(["eDescontoEfetivo"]);
+    expect(linhaRetencaoParaBanco(linhaSugerida(SUGESTAO, "iss"))).toBeNull();
+
+    // E com o desconto respondido, ainda falta quem recolhe.
+    const comDesconto = {
+      ...linhaSugerida(SUGESTAO, "iss"),
+      eDescontoEfetivo: true,
+    };
+    expect(validarLinhaRetencao(comDesconto).map((e) => e.campo)).toEqual([
+      "quemRecolhe",
+    ]);
   });
 });

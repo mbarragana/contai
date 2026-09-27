@@ -492,12 +492,30 @@ function LinhaGravada({
  * campos de classificação fiscal**, que a sugestão não tem como preencher: o
  * tipo `SugestaoDeLinha` não os declara, e quem barra não é disciplina de quem
  * chama, é o compilador (Gate Fiscal do CONTAI-055).
+ *
+ * ⚠️ **MUDOU NO CONTAI-070 — e agora são QUATRO campos, não dois.** Com
+ * `tributoSugerido`, `composicao` e `tributo` também nascem preenchidos, **como
+ * sugestão** (pílula âmbar + selo "Sugerida", o par do CONTAI-062). O `contador`
+ * reprovou isso "sem exceção" (`docs/pareceres/2026-09-27-extracao-tributo-e-cno.md`,
+ * Pergunta 1) e o Mateus sobrepôs a reprovação
+ * (`docs/backlog/85-2026-09-27-cno-automatico-contraria-contador.md`, ADENDO); a
+ * salvaguarda mora no classificador (`lib/extracao/tributo-rotulo.ts`), que só
+ * devolve categoria sob match único e exclusivo.
+ *
+ * ⚠️ **O que NÃO mudou, e é o que impede a sugestão de virar fato**:
+ * `eDescontoEfetivo` e `quemRecolhe` continuam 100% manuais e obrigatórios antes
+ * de "Adicionar linha" (critério 8) — `validarLinhaRetencao` cobra os dois, então
+ * o Mateus toca este formulário obrigatoriamente antes de a linha existir. É o
+ * `tributoSugerido` chegar por um PARÂMETRO PRÓPRIO, e não dentro de
+ * `SugestaoDeLinha`, que mantém os outros dois campos impossíveis de sugerir por
+ * construção.
  */
 export function FormularioDeLinha({
   onAdicionar,
   onCancelar,
   onSessaoExpirada,
   sugestao = null,
+  tributoSugerido = null,
 }: {
   /**
    * Aceita a linha VÁLIDA. Pode ser assíncrono (gestão: grava e só então
@@ -518,13 +536,34 @@ export function FormularioDeLinha({
    * isto: a sugestão só existe na captura, onde o PDF está na mão.
    */
   sugestao?: SugestaoDeLinha | null;
+  /**
+   * **CONTAI-070** — a categoria que o rótulo lido nomeia de forma inequívoca e
+   * exclusiva, a CONFIRMAR. `null` (o default) é o comportamento de antes do
+   * ticket: `composicao`/`tributo` nascem vazios, em silêncio, sem aviso nenhum
+   * (critério 6). Só tem efeito junto com `sugestao` — sem linha lida não há
+   * rótulo do qual a categoria poderia ter saído.
+   */
+  tributoSugerido?: TributoRetido | null;
 }) {
   const [entrada, setEntrada] = useState<EntradaLinhaRetencao>(() =>
-    sugestao ? linhaSugerida(sugestao) : LINHA_RETENCAO_VAZIA,
+    sugestao ? linhaSugerida(sugestao, tributoSugerido) : LINHA_RETENCAO_VAZIA,
   );
   const [valorTexto, setValorTexto] = useState(() =>
     sugestao ? centavosParaInput(sugestao.valorCentavos) : "",
   );
+  /**
+   * **CONTAI-070 — UM estado de origem para os DOIS campos**, e é isso que faz a
+   * regra "nascem e morrem como par" (critério 7) ser estrutural em vez de uma
+   * convenção que alguém esquece de aplicar a um dos dois. Não existe estado
+   * representável em que `composicao` esteja `"sugerida"` e `tributo` `"manual"`.
+   *
+   * `null` = nenhum dos dois foi preenchido por ninguém ainda. **A origem nunca
+   * grava**: `linhaRetencaoParaBanco` recebe só `entrada`, e não há coluna de
+   * origem no banco (mock, "Campos" — sem migration).
+   */
+  const [origemComposicaoTributo, setOrigemComposicaoTributo] = useState<
+    "manual" | "sugerida" | null
+  >(() => (sugestao && tributoSugerido ? "sugerida" : null));
   const [tentou, setTentou] = useState(false);
   const [gravando, setGravando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -558,20 +597,49 @@ export function FormularioDeLinha({
   const [sugestaoVista, setSugestaoVista] = useState(sugestao);
   if (sugestaoVista !== sugestao) {
     setSugestaoVista(sugestao);
+    // ⚠️ **CONTAI-070, critério 10 — o par SUGERIDO morre com o papel que o
+    // motivou.** Trocado ou removido o anexo, `sugestao` vira `null` (a
+    // invalidação de `page.tsx`) e chegar aqui já é prova de que o papel de
+    // origem não está mais na tela. Deixar `composicao`/`tributo` marcados seria
+    // a classificação de um papel exibida ao lado de outro — a mesma regra que o
+    // Gate 2 do CONTAI-062 aplicou ao gate.
+    //
+    // ⚠️ **E só a SUGERIDA morre**: com a origem em `"manual"`, o que está nos
+    // dois campos é afirmação do Mateus sobre a nota, e trocar o papel não a
+    // revoga (critério 7 / mesma assimetria do gate).
+    if (origemComposicaoTributo === "sugerida") {
+      setEntrada((atual) => ({ ...atual, composicao: null, tributo: null }));
+      setOrigemComposicaoTributo(null);
+    }
     if (sugestao !== null) {
-      // Lido na fase de render, logo é o valor corrente do estado — os `set…`
-      // abaixo só se aplicam no render seguinte.
+      // Lidos na fase de render, logo são os valores correntes do estado — os
+      // `set…` abaixo só se aplicam no render seguinte.
       const campoDeValorVazio = valorTexto === "";
+      // ⚠️ **Só campo VAZIO, e o par inteiro depende de UMA condição só**
+      // (critério 5): `composicao` vazia. Ela é a raiz do ramo — com ela
+      // respondida, `tributo` já é dele, mesmo quando ainda está `null` porque o
+      // ramo escolhido não o pede. Uma segunda condição aqui abriria justamente o
+      // estado que o critério 7 proíbe (um campo sugerido, o outro manual).
+      //
+      // "Vazia" inclui a composição que a leitura ANTERIOR sugeriu e que o bloco
+      // acima acabou de invalidar: valor sugerido não é resposta dele, e o
+      // `setEntrada` do clear ainda não se aplicou nesta passagem de render.
+      const composicaoVazia =
+        entrada.composicao === null || origemComposicaoTributo === "sugerida";
+      const parSugerido = composicaoVazia && tributoSugerido !== null;
       setEntrada((atual) => ({
         ...atual,
         rotuloLiteral: atual.rotuloLiteral || sugestao.rotuloLiteral,
         valorCentavos: campoDeValorVazio
           ? sugestao.valorCentavos
           : atual.valorCentavos,
+        composicao: parSugerido ? "tributo_identificado" : atual.composicao,
+        tributo: parSugerido ? tributoSugerido : atual.tributo,
       }));
       if (campoDeValorVazio) {
         setValorTexto(centavosParaInput(sugestao.valorCentavos));
       }
+      if (parSugerido) setOrigemComposicaoTributo("sugerida");
     }
   }
 
@@ -583,6 +651,34 @@ export function FormularioDeLinha({
 
   function mudar(patch: Partial<EntradaLinhaRetencao>) {
     setEntrada((atual) => ({ ...atual, ...patch }));
+  }
+
+  /**
+   * **CONTAI-070, critério 7 — tocar em UM dos dois confirma o PAR inteiro.**
+   *
+   * ⚠️ Os dois handlers marcam a MESMA origem, e é isso que impede o selo órfão:
+   * tocar na pílula de composição tira o "Sugerida" da pílula de tributo também,
+   * mesmo sem ela ter sido tocada — porque a partir daquele toque a classificação
+   * inteira é dele. Tocar na opção JÁ sugerida conta como toque (o `onClick` de
+   * `campos.tsx`, CONTAI-062): confirmar explicitamente é um caminho previsto, e
+   * não uma não-ação.
+   */
+  function responderComposicao(v: ComposicaoRetencao) {
+    setOrigemComposicaoTributo("manual");
+    // ⚠️ Trocar a composição LIMPA o tributo (comportamento existente, inalterado
+    // pelo CONTAI-070): um tributo escolhido e depois abandonado sobreviveria
+    // escondido no estado e violaria o CHECK `documento_retencao_tributo_coerente`.
+    // Com o par sugerido, é também o que garante que não sobre selo em campo que
+    // nem aparece mais.
+    mudar({
+      composicao: v,
+      tributo: v === "tributo_identificado" ? entrada.tributo : null,
+    });
+  }
+
+  function responderTributo(v: TributoRetido) {
+    setOrigemComposicaoTributo("manual");
+    mudar({ tributo: v });
   }
 
   async function adicionar() {
@@ -681,19 +777,19 @@ export function FormularioDeLinha({
         erro={erroDe("valorCentavos")}
       />
 
+      {/* ══ CONTAI-070 — os dois campos da classificação, sugeridos como PAR ══
+          A pílula sugerida é âmbar claro + selo "Sugerida" (dois canais, nunca só
+          cor — salvaguarda 1 do ADENDO 5 §3), o MESMO tratamento que o CONTAI-062
+          deu ao gate: `campos.tsx` não muda uma linha. Resposta afirmada pelo dedo
+          dele continua no preenchido escuro de sempre. */}
       <Escolha
         destaque
         rotulo={PERGUNTA_COMPOSICAO}
         opcoes={OPCOES_COMPOSICAO}
         valor={entrada.composicao}
-        onChange={(v: ComposicaoRetencao) =>
-          // ⚠️ Trocar a composição LIMPA o tributo: um tributo escolhido e
-          // depois abandonado sobreviveria escondido no estado e violaria o
-          // CHECK `documento_retencao_tributo_coerente`.
-          mudar({
-            composicao: v,
-            tributo: v === "tributo_identificado" ? entrada.tributo : null,
-          })
+        onChange={responderComposicao}
+        sugerido={
+          origemComposicaoTributo === "sugerida" ? "tributo_identificado" : null
         }
         erro={erroDe("composicao")}
       />
@@ -704,7 +800,12 @@ export function FormularioDeLinha({
           rotulo={PERGUNTA_TRIBUTO}
           opcoes={OPCOES_TRIBUTO}
           valor={entrada.tributo}
-          onChange={(v: TributoRetido) => mudar({ tributo: v })}
+          onChange={responderTributo}
+          /* Uma origem só para os dois campos: o selo aparece nos dois juntos e
+             sai dos dois juntos (critério 7). */
+          sugerido={
+            origemComposicaoTributo === "sugerida" ? entrada.tributo : null
+          }
           erro={erroDe("tributo")}
         />
       ) : null}
@@ -808,6 +909,7 @@ export function BlocoRetencaoDaCaptura({
   onAdicionar,
   onRemover,
   sugestao = null,
+  tributoSugerido = null,
 }: {
   /** As linhas acumuladas em memória, na ordem em que ele as leu na nota. */
   linhas: EntradaLinhaRetencao[];
@@ -815,6 +917,11 @@ export function BlocoRetencaoDaCaptura({
   onRemover: (indice: number) => void;
   /** **CONTAI-055** — a leitura do PDF, a confirmar. `null` = sem sugestão. */
   sugestao?: SugestaoDeLinha | null;
+  /**
+   * **CONTAI-070** — a categoria classificada a partir do rótulo lido, a
+   * confirmar. `null` = rótulo ambíguo, composto ou sem match: silêncio simples.
+   */
+  tributoSugerido?: TributoRetido | null;
 }) {
   const [abrindo, setAbrindo] = useState(false);
   const vazio = linhas.length === 0;
@@ -861,6 +968,11 @@ export function BlocoRetencaoDaCaptura({
              que o critério 7 do CONTAI-053 proíbe, e uma segunda linha com o
              rótulo da primeira seria isso com outro nome. */
           sugestao={vazio ? sugestao : null}
+          /* Mesma regra para a categoria (CONTAI-070): ela viaja com a sugestão
+             que a produziu, e só para o formulário do estado vazio. Herdar
+             classificação entre linhas seria o default fiscal que o critério 7 do
+             CONTAI-053 proíbe, na sua forma mais grave. */
+          tributoSugerido={vazio ? tributoSugerido : null}
           onAdicionar={(entrada) => {
             onAdicionar(entrada);
             setAbrindo(false);

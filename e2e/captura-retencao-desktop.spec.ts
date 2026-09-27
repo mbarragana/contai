@@ -7,9 +7,11 @@ import {
   responderCnoDaNota,
 } from "./formularios";
 import {
+  NFSE_COM_RETENCAO_AMBIGUA,
   NFSE_COM_RETENCAO_RECONHECIVEL,
   NFSE_SEM_PADRAO_RECONHECIVEL,
   pdfComTexto,
+  RETENCAO_AMBIGUA_ESPERADA,
   RETENCAO_ESPERADA,
 } from "./pdf-sintetico";
 
@@ -583,17 +585,32 @@ test("5.1 · sugestão do PDF nasce no 1º formulário, em destaque, e grava o q
     ),
   ).toBeVisible();
 
-  // ⚠️ **Os QUATRO campos de classificação fiscal continuam em branco** — Gate
-  // Fiscal do ticket, herdado do CONTAI-054. E o botão nomeia as duas respostas
-  // que faltam, em vez de oferecer um toque que gravaria linha incompleta.
-  for (const radio of await bloco.getByRole("radio").all()) {
+  // ⚠️ **MUDOU NO CONTAI-070, e a mudança é uma decisão de produto que sobrepôs a
+  // recomendação do `contador`**: com o rótulo "ISSRF" nomeando UMA categoria de
+  // forma inequívoca, `composicao` e `tributo` nascem SUGERIDOS (o par tem seção
+  // própria, 8.x, abaixo). O que este teste continua guardando é o resto do Gate
+  // Fiscal: **`eDescontoEfetivo` e `quemRecolhe` seguem em branco e obrigatórios**,
+  // e o botão nomeia o que falta em vez de oferecer um toque que gravaria linha
+  // incompleta.
+  for (const radio of await page
+    .getByRole("group", {
+      name: "Esse valor é de fato abatido do que você transfere ao prestador?",
+    })
+    .getByRole("radio")
+    .all()) {
     await expect(radio).not.toBeChecked();
   }
+  // E "Quem recolhe isto?" nem existe ainda: ele só aparece depois de o desconto
+  // efetivo ser respondido, com o dedo dele.
   await expect(
-    bloco.getByRole("button", { name: "Faltam 2 respostas para adicionar" }),
+    page.getByRole("group", { name: "Quem recolhe isto?" }),
+  ).toHaveCount(0);
+  await expect(
+    bloco.getByRole("button", { name: "Faltam 1 resposta para adicionar" }),
   ).toBeDisabled();
 
-  // O humano responde as duas e confirma a linha lida.
+  // O humano confirma a classificação sugerida e responde as duas que são só
+  // dele — é o toque obrigatório que existe antes de qualquer linha nascer.
   await escolher(page, "O que esta linha representa?", "Tributo único identificado");
   await escolher(page, "Qual tributo?", "ISS");
   await escolher(
@@ -952,10 +969,24 @@ test("6.1 · sem UM clique no gate: ele nasce sugerido, em âmbar, com selo e co
   await expect(bloco.getByLabel("Valor", { exact: true })).toHaveValue(
     RETENCAO_ESPERADA.valor,
   );
-  // …e os QUATRO de classificação fiscal em branco, como sempre (ADENDO 5 §4).
-  for (const radio of await bloco.getByRole("radio").all()) {
+  // …e os dois campos que NENHUMA leitura toca em branco, como sempre (ADENDO 5
+  // §4, ponto unânime entre o `contador` e o Mateus).
+  //
+  // ⚠️ **MUDOU NO CONTAI-070**: `composicao`/`tributo` saíram desta asserção
+  // porque passaram a nascer sugeridos quando o rótulo nomeia UMA categoria — aqui
+  // "ISSRF" nomeia. O que não muda, e é o que segura a confirmação humana, são os
+  // dois abaixo.
+  for (const radio of await page
+    .getByRole("group", {
+      name: "Esse valor é de fato abatido do que você transfere ao prestador?",
+    })
+    .getByRole("radio")
+    .all()) {
     await expect(radio).not.toBeChecked();
   }
+  await expect(
+    page.getByRole("group", { name: "Quem recolhe isto?" }),
+  ).toHaveCount(0);
 
   // ⚠️ **`notaNoCpf` não mudou de comportamento** (critério 11): ele está marcado
   // porque o helper o respondeu com o dedo, e a pílula dele é a ESCURA de sempre
@@ -1338,4 +1369,339 @@ test("6.7 · resposta MANUAL sobrevive à troca de anexo — só a sugerida morr
   const gravados = await documentos(db);
   expect(gravados[0].retencao_na_nota).toBe("nenhuma");
   expect(await linhasDeRetencao(db)).toHaveLength(0);
+});
+
+// ══ 8 · CONTAI-070 — composição + tributo sugeridos a partir do rótulo ═════
+
+/**
+ * **A decisão de produto que SOBREPÔS a recomendação do `contador`.** Ele reprovou
+ * sugerir `composicao`/`tributo` **sem exceção**
+ * (`docs/pareceres/2026-09-27-extracao-tributo-e-cno.md`, Pergunta 1, citando o
+ * critério 14 do `CONTAI-038`): mapear rótulo em língua natural para 1 de 6
+ * categorias legais é interpretar texto livre contra taxonomia jurídica, não ler um
+ * fato aritmético. O Mateus estendeu ao tributo a decisão que já tinha tomado para
+ * o CNO (`docs/backlog/85-2026-09-27-cno-automatico-contraria-contador.md`,
+ * ADENDO).
+ *
+ * ⚠️ **As salvaguardas provadas nesta seção não são zelo de quem escreveu o teste:
+ * são a contenção do risco que o próprio parecer nomeou**, e nenhuma delas é
+ * opcional — match único e exclusivo (8.1), par que nasce e morre junto (8.2),
+ * silêncio total sob rótulo composto (8.3, o contraexemplo real do corpus) e morte
+ * da sugestão com a troca do papel (8.4). O que NÃO foi aberto, em nenhum teste
+ * daqui: `eDescontoEfetivo` e `quemRecolhe`, que seguem manuais e obrigatórios.
+ *
+ * ⚠️ Nada stubado no caminho feliz: PDF montado no teste, rota real, `unpdf` real,
+ * parser e classificador reais.
+ */
+
+/** O fieldset de uma das duas perguntas da classificação. */
+function grupoDaLinha(page: import("@playwright/test").Page, pergunta: string) {
+  return page.getByRole("group", { name: pergunta });
+}
+
+/**
+ * A pílula de uma opção, para conferir o tratamento visual dela.
+ *
+ * ⚠️ **Casa pelo `<span>` do texto EXATO, não por `hasText`**: as opções de tributo
+ * são "ISS", "INSS", "IRRF"… e `hasText: "ISS"` casaria dentro de "INSS" — a mesma
+ * colisão de substring que a fronteira de palavra do classificador existe para
+ * evitar, agora no seletor do teste.
+ */
+function pilulaDaLinha(
+  page: import("@playwright/test").Page,
+  pergunta: string,
+  opcao: string,
+) {
+  return grupoDaLinha(page, pergunta)
+    .locator("label")
+    .filter({ has: page.getByText(opcao, { exact: true }) });
+}
+
+const PERGUNTA_COMPOSICAO = "O que esta linha representa?";
+const PERGUNTA_TRIBUTO = "Qual tributo?";
+
+/** Âmbar claro + selo: os dois canais da sugestão (nunca só cor). */
+async function pilulaSugerida(pilula: ReturnType<typeof pilulaDaLinha>) {
+  await expect(pilula).toHaveClass(/border-amb/);
+  await expect(pilula).toHaveClass(/bg-amb-bg/);
+  await expect(pilula).not.toHaveClass(/bg-ink/);
+  await expect(pilula.getByText("Sugerida", { exact: true })).toBeVisible();
+}
+
+/** Preenchido escuro, sem selo: resposta afirmada pelo dedo dele. */
+async function pilulaAfirmada(pilula: ReturnType<typeof pilulaDaLinha>) {
+  await expect(pilula).toHaveClass(/bg-ink/);
+  await expect(pilula).not.toHaveClass(/border-amb/);
+  await expect(pilula.getByText("Sugerida", { exact: true })).toHaveCount(0);
+}
+
+test("8.1 · rótulo de UMA categoria: composição e tributo nascem sugeridos, em par", async ({
+  page,
+  db,
+}) => {
+  await notaDeServicoAteOGate(
+    page,
+    "Sim",
+    pdfComTexto(NFSE_COM_RETENCAO_RECONHECIVEL),
+  );
+  await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
+
+  const bloco = page.locator(BLOCO);
+  // ⚠️ **Nenhum `escolher` na classificação acima desta linha**: quem marcou os
+  // dois campos foi a leitura do rótulo "ISSRF", sozinha.
+  const composicao = grupoDaLinha(page, PERGUNTA_COMPOSICAO).getByRole("radio", {
+    name: /^Tributo único identificado/,
+  });
+  const tributo = grupoDaLinha(page, PERGUNTA_TRIBUTO).getByRole("radio", {
+    name: /^ISS/,
+  });
+  await expect(composicao).toBeChecked();
+  await expect(tributo).toBeChecked();
+
+  // Critério 5 — dois canais nas DUAS pílulas, e o mesmo par do CONTAI-062.
+  await pilulaSugerida(pilulaDaLinha(page, PERGUNTA_COMPOSICAO, "Tributo único identificado"));
+  await pilulaSugerida(pilulaDaLinha(page, PERGUNTA_TRIBUTO, "ISS"));
+  await expect(composicao).toHaveAccessibleName(
+    /sugerida automaticamente, ainda não confirmada/,
+  );
+  await expect(tributo).toHaveAccessibleName(
+    /sugerida automaticamente, ainda não confirmada/,
+  );
+  // As outras cinco pílulas de tributo continuam vazias e sem selo.
+  for (const outra of ["INSS", "IRRF", "PIS", "COFINS", "CSLL"]) {
+    const pilula = pilulaDaLinha(page, PERGUNTA_TRIBUTO, outra);
+    await expect(pilula).toHaveClass(/border-line/);
+    await expect(pilula.getByText("Sugerida", { exact: true })).toHaveCount(0);
+  }
+
+  // ⚠️ **Critério 8 — o que a sugestão NÃO toca.** Os dois campos que dependem de
+  // um fato que o papel não conta continuam vazios, e o botão cobra o primeiro.
+  for (const radio of await grupoDaLinha(
+    page,
+    "Esse valor é de fato abatido do que você transfere ao prestador?",
+  )
+    .getByRole("radio")
+    .all()) {
+    await expect(radio).not.toBeChecked();
+  }
+  await expect(grupoDaLinha(page, "Quem recolhe isto?")).toHaveCount(0);
+  await expect(
+    bloco.getByRole("button", { name: "Faltam 1 resposta para adicionar" }),
+  ).toBeDisabled();
+
+  // ⚠️ **Critério 9 / confirmação IMPLÍCITA**: ele NÃO toca na classificação —
+  // responde só os dois campos manuais e adiciona. O que grava é o valor; a origem
+  // "sugerida" é estado de tela e não existe no banco (sem migration).
+  await escolher(
+    page,
+    "Esse valor é de fato abatido do que você transfere ao prestador?",
+    "Sim",
+  );
+  await escolher(page, "Quem recolhe isto?", "A empresa");
+  await bloco.getByRole("button", { name: "Adicionar linha" }).click();
+  await expect(bloco.locator('[data-retencao="pendente"]')).toHaveCount(1);
+
+  await page.getByRole("button", { name: "Salvar registro" }).click();
+  await expect(page.getByRole("heading", { name: "Registrado ✓" })).toBeVisible();
+
+  const linhas = await linhasDeRetencao(db);
+  expect(linhas).toHaveLength(1);
+  expect(linhas[0]).toMatchObject({
+    rotulo_literal: RETENCAO_ESPERADA.rotulo,
+    composicao: "tributo_identificado",
+    tributo: "iss",
+    e_desconto_efetivo: true,
+    quem_recolhe: "empresa",
+  });
+});
+
+/**
+ * **Critério 7 — os dois campos têm UMA origem só.**
+ *
+ * ⚠️ O que este teste impede é o selo órfão: tocar só a pílula de composição e a de
+ * tributo continuar dizendo "Sugerida", como se metade da classificação fosse dele
+ * e metade do parser. Os dois nascem e morrem como par, e tocar em QUALQUER um
+ * confirma o conjunto.
+ */
+test("8.2 · tocar em UM dos dois confirma o PAR inteiro", async ({ page }) => {
+  await notaDeServicoAteOGate(
+    page,
+    "Sim",
+    pdfComTexto(NFSE_COM_RETENCAO_RECONHECIVEL),
+  );
+  await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
+  await pilulaSugerida(pilulaDaLinha(page, PERGUNTA_TRIBUTO, "ISS"));
+
+  // ── Toque na pílula de TRIBUTO, a mesma que já estava sugerida. A resposta não
+  // muda; a origem vira manual para OS DOIS campos.
+  await escolher(page, PERGUNTA_TRIBUTO, "ISS");
+  await pilulaAfirmada(pilulaDaLinha(page, PERGUNTA_TRIBUTO, "ISS"));
+  await pilulaAfirmada(
+    pilulaDaLinha(page, PERGUNTA_COMPOSICAO, "Tributo único identificado"),
+  );
+  await expect(
+    grupoDaLinha(page, PERGUNTA_TRIBUTO).getByRole("radio", { name: /^ISS/ }),
+  ).toBeChecked();
+
+  // ── E na direção oposta, num formulário novo: tocar a COMPOSIÇÃO já sugerida
+  // tira o selo da pílula de tributo, que ninguém tocou.
+  await notaDeServicoAteOGate(
+    page,
+    "Sim",
+    pdfComTexto(NFSE_COM_RETENCAO_RECONHECIVEL),
+  );
+  await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
+  await pilulaSugerida(pilulaDaLinha(page, PERGUNTA_TRIBUTO, "ISS"));
+  await escolher(page, PERGUNTA_COMPOSICAO, "Tributo único identificado");
+  await pilulaAfirmada(
+    pilulaDaLinha(page, PERGUNTA_COMPOSICAO, "Tributo único identificado"),
+  );
+  await pilulaAfirmada(pilulaDaLinha(page, PERGUNTA_TRIBUTO, "ISS"));
+
+  // ── Trocar a composição para outra opção limpa o tributo — comportamento já
+  // existente — e não sobra selo em campo que nem aparece mais.
+  await escolher(page, PERGUNTA_COMPOSICAO, "Total combinado, não aberto pela nota");
+  await expect(grupoDaLinha(page, PERGUNTA_TRIBUTO)).toHaveCount(0);
+  await pilulaAfirmada(
+    pilulaDaLinha(page, PERGUNTA_COMPOSICAO, "Total combinado, não aberto pela nota"),
+  );
+});
+
+/**
+ * ⚠️ **O CONTRAEXEMPLO REAL DO PARECER, e é ele que justifica a salvaguarda
+ * inteira** (`docs/pareceres/2026-09-27-extracao-tributo-e-cno.md`, Pergunta 1). O
+ * rótulo "Total das Retenções (ISSQN / Federais)" cita uma categoria municipal e um
+ * GRUPO federal na mesma string: classificá-lo como ISS registraria como municipal
+ * uma retenção parcialmente federal e calaria, em silêncio, a pendência de quem
+ * recolhe.
+ *
+ * A linha continua sendo sugerida (rótulo e valor são leitura de texto, aprovada
+ * desde o ADENDO 5 §3) — o que não existe é categoria. **Silêncio simples, sem
+ * aviso novo** (critério 6): a tela fica idêntica à de antes do ticket.
+ */
+test("8.3 · 'Total das Retenções (ISSQN / Federais)': linha sugerida, categoria NENHUMA", async ({
+  page,
+  db,
+}) => {
+  await notaDeServicoAteOGate(
+    page,
+    "Sim",
+    pdfComTexto(NFSE_COM_RETENCAO_AMBIGUA),
+  );
+  await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
+
+  const bloco = page.locator(BLOCO);
+  // A leitura funcionou: rótulo e valor estão lá, com o destaque de sempre.
+  await expect(bloco.locator('[data-sugestao="retencao"]')).toContainText(
+    `“${RETENCAO_AMBIGUA_ESPERADA.rotulo}”`,
+  );
+  await expect(
+    bloco.getByLabel("Rótulo (copie exatamente da nota)"),
+  ).toHaveValue(RETENCAO_AMBIGUA_ESPERADA.rotulo);
+
+  // ⚠️ E a classificação NÃO: nenhuma pílula marcada, nenhum selo, nenhum texto
+  // novo explicando a ausência.
+  for (const radio of await grupoDaLinha(page, PERGUNTA_COMPOSICAO)
+    .getByRole("radio")
+    .all()) {
+    await expect(radio).not.toBeChecked();
+  }
+  await expect(grupoDaLinha(page, PERGUNTA_TRIBUTO)).toHaveCount(0);
+  await expect(
+    grupoDaLinha(page, PERGUNTA_COMPOSICAO).getByText("Sugerida", { exact: true }),
+  ).toHaveCount(0);
+  // Critério 6, dito pelo avesso: a tela inteira não tem um selo "Sugerida" (o do
+  // gate saiu no toque manual acima), e nenhum banner novo nasceu para explicar a
+  // ausência de categoria — diferente do CONTAI-069, aqui não há dois números a
+  // comparar, então não há veredito a exibir.
+  await expect(page.getByText("Sugerida", { exact: true })).toHaveCount(0);
+
+  // O formulário é o de sempre: as duas respostas fiscais do ramo raiz faltando.
+  await expect(
+    bloco.getByRole("button", { name: "Faltam 2 respostas para adicionar" }),
+  ).toBeDisabled();
+
+  // E a mão dele classifica como a nota permite: combinado, não aberto.
+  await escolher(page, PERGUNTA_COMPOSICAO, "Total combinado, não aberto pela nota");
+  await escolher(
+    page,
+    "Esse valor é de fato abatido do que você transfere ao prestador?",
+    "Sim",
+  );
+  await escolher(page, "Quem recolhe isto?", "A empresa");
+  await bloco.getByRole("button", { name: "Adicionar linha" }).click();
+  await page.getByRole("button", { name: "Salvar registro" }).click();
+  await expect(page.getByRole("heading", { name: "Registrado ✓" })).toBeVisible();
+
+  const linhas = await linhasDeRetencao(db);
+  expect(linhas).toHaveLength(1);
+  expect(linhas[0]).toMatchObject({
+    rotulo_literal: RETENCAO_AMBIGUA_ESPERADA.rotulo,
+    composicao: "combinado_nao_aberto",
+    tributo: null,
+  });
+});
+
+/**
+ * **Critério 10 — a mesma assimetria do Gate 2 do CONTAI-062, aplicada ao par.**
+ *
+ * A classificação sugerida morre com o papel que a motivou; a resposta MANUAL não,
+ * porque ela é afirmação do Mateus sobre a nota. O gate é respondido À MÃO no começo
+ * de propósito: é o que mantém o formulário montado através da troca do anexo (com o
+ * gate sugerido, o bloco inteiro desmonta e a pergunta nem chega a existir).
+ */
+test("8.4 · troca de anexo mata a classificação SUGERIDA; a manual sobrevive", async ({
+  page,
+}) => {
+  const anexo = page.getByLabel("Arquivo");
+
+  await notaDeServicoAteOGate(
+    page,
+    "Sim",
+    pdfComTexto(NFSE_COM_RETENCAO_RECONHECIVEL),
+  );
+  // Resposta manual no GATE — o bloco passa a sobreviver à troca do papel.
+  await escolher(page, "Esta nota destaca alguma retenção?", "Destacada");
+  // Tocar no gate não encosta na classificação: ela continua sugerida.
+  await pilulaSugerida(pilulaDaLinha(page, PERGUNTA_TRIBUTO, "ISS"));
+
+  // ── (1) outro papel, com rótulo ambíguo: o par sugerido morre, e nada o
+  // substitui. Deixá-lo marcado seria a classificação de um papel exibida ao lado
+  // de outro.
+  await anexo.setInputFiles({
+    name: "nf-ambigua.pdf",
+    mimeType: "application/pdf",
+    buffer: pdfComTexto(NFSE_COM_RETENCAO_AMBIGUA),
+  });
+  await expect(page.locator(BLOCO).locator('[data-sugestao="retencao"]')).toContainText(
+    `“${RETENCAO_AMBIGUA_ESPERADA.rotulo}”`,
+  );
+  for (const radio of await grupoDaLinha(page, PERGUNTA_COMPOSICAO)
+    .getByRole("radio")
+    .all()) {
+    await expect(radio).not.toBeChecked();
+  }
+  await expect(grupoDaLinha(page, PERGUNTA_TRIBUTO)).toHaveCount(0);
+  await expect(
+    grupoDaLinha(page, PERGUNTA_COMPOSICAO).getByText("Sugerida", { exact: true }),
+  ).toHaveCount(0);
+
+  // ── (2) a resposta MANUAL sobrevive — inclusive quando a leitura do papel novo
+  // chega de verdade e traz uma categoria inequívoca que discorda dela.
+  await escolher(page, PERGUNTA_COMPOSICAO, "Total combinado, não aberto pela nota");
+  await anexo.setInputFiles({
+    name: "nf-1042.pdf",
+    mimeType: "application/pdf",
+    buffer: pdfComTexto(NFSE_COM_RETENCAO_RECONHECIVEL),
+  });
+  // Prova de que a leitura chegou: o destaque voltou a mostrar o rótulo "ISSRF".
+  await expect(page.locator(BLOCO).locator('[data-sugestao="retencao"]')).toContainText(
+    `“${RETENCAO_ESPERADA.rotulo}”`,
+  );
+  // …e a resposta dele continua de pé, escura, sem selo — e sem o campo de tributo
+  // reaparecendo por baixo.
+  await pilulaAfirmada(
+    pilulaDaLinha(page, PERGUNTA_COMPOSICAO, "Total combinado, não aberto pela nota"),
+  );
+  await expect(grupoDaLinha(page, PERGUNTA_TRIBUTO)).toHaveCount(0);
 });

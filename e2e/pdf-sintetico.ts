@@ -84,6 +84,41 @@ export const NFSE_COM_RETENCAO_RECONHECIVEL = [
 /** O que o parser tem de devolver para a nota acima. */
 export const RETENCAO_ESPERADA = { rotulo: "ISSRF", valor: "1.048,00" };
 
+// ══ CONTAI-070 — o rótulo AMBÍGUO, que não pode sugerir categoria ═════════
+
+/**
+ * ⚠️ **O contraexemplo REAL do parecer, em forma de fixture** (nota 2 do
+ * CONTAI-054; `docs/pareceres/2026-09-27-extracao-tributo-e-cno.md`, Pergunta 1).
+ *
+ * A aritmética é a MESMA da nota acima — `52.400,00 − 1.048,00 = 51.352,00` —,
+ * então a linha continua sendo sugerida (rótulo + valor) exatamente como sempre.
+ * O que muda é só o rótulo: "Total das Retencoes (ISSQN / Federais)" cita ISSQN
+ * **e** "Federais" na mesma string, e uma regra ingênua de palavra-chave o
+ * classificaria como ISS puro — registrando como municipal uma retenção
+ * parcialmente federal e calando a pendência de quem recolhe. Aqui os dois campos
+ * de classificação têm de ficar VAZIOS, em silêncio.
+ */
+export const NFSE_COM_RETENCAO_AMBIGUA = [
+  "NOTA FISCAL DE SERVICOS ELETRONICA - NFS-e",
+  "PRESTADOR Empreiteira Sintetica Construcoes Ltda",
+  "CNPJ 11.222.333/0001-81",
+  "TOMADOR pessoa fisica CPF 123.456.789-09",
+  "DISCRIMINACAO execucao de estrutura de concreto armado do pavimento",
+  "terreo, conforme contrato de empreitada global.",
+  "Valor Total",
+  "52.400,00",
+  "Total das Retencoes (ISSQN / Federais)",
+  "1.048,00",
+  "Valor Liquido",
+  "51.352,00",
+];
+
+/** O que o parser tem de devolver para a nota ambígua: a linha, sem categoria. */
+export const RETENCAO_AMBIGUA_ESPERADA = {
+  rotulo: "Total das Retencoes (ISSQN / Federais)",
+  valor: "1.048,00",
+};
+
 // ══ CONTAI-069 — o CNO impresso na nota ═══════════════════════════════════
 //
 // ⚠️ O CNO destas fixtures é o da obra do SEED (`OBRA_SEED.cno`, em

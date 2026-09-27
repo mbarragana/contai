@@ -1,6 +1,39 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-09-27, mais tarde ainda**: **`070` entregue** — Gate 4 (`po`), 12/12
+critérios PASS. Sem migration. `sugerirTributoDoRotulo` (novo,
+`lib/extracao/tributo-rotulo.ts`) classifica o CONJUNTO de rótulos empatados
+de uma linha de retenção (`rotulosEmpatados`, campo novo de
+`SugestaoLinhaRetencao`, `lib/extracao/retencao-texto.ts`) em 1 de 6
+categorias (`iss|inss|irrf|pis|cofins|csll`) ou `null`: marcador de
+combinação/agregação ("Retenções", "Federais", "CSRF", `+`, `/`) veta antes
+de contar categoria nenhuma, e só sobra sugestão sob match único e exclusivo,
+o mesmo em TODOS os rótulos do conjunto — o contraexemplo real do parecer
+("Total das Retenções (ISSQN / Federais)") produz `null`, testado byte a
+byte. `app/api/sugerir-retencao/route.ts` devolve `tributoSugerido` como
+campo **IRMÃO** de `sugestao`, nunca dentro de `SugestaoLinhaRetencao` —
+**divergência do mock original julgada melhoria legítima no Gate 2**: o tipo
+continua garantindo por construção que `eDescontoEfetivo`/`quemRecolhe` não
+cabem ali, e o campo irmão deixa a exceção do tributo visível no tipo da
+resposta em vez de escondida dentro da trava. `linhaSugerida`
+(`lib/fiscal/retencao.ts`) ganha 2º parâmetro que preenche `composicao`+
+`tributo` juntos, nunca meio par. `FormularioDeLinha`
+(`app/_components/retencao.tsx`) usa UM estado de origem
+(`origemComposicaoTributo`) para os dois campos — estruturalmente impossível
+um nascer "sugerida" e o outro "manual"; tocar em qualquer um confirma o par
+inteiro; troca de anexo mata só a parte sugerida, resposta manual sobrevive.
+`eDescontoEfetivo`/`quemRecolhe` seguem 100% manuais e obrigatórios antes de
+"Adicionar linha", sem mudança. Crítério 14 do `CONTAI-038` ganhou exceção
+nomeada no próprio arquivo do ticket. **Ação do Gate 2 executada**: achado
+não-bloqueante do `cto-obra` (`/\bIR(RF|PJ)?\b/i` casaria o verbo comum "ir"
+por ser case-insensitive numa sigla de 2 letras) registrado como **D88** em
+`docs/backlog.md`, sem implementar — é vocabulário fiscal, exige o
+`contador` antes de mexer na regex. Nenhum arquivo mudou depois do APPROVE
+final do `cto-obra`. **1185 Vitest / 373 Playwright**, typecheck/lint
+limpos. Detalhe: `docs/backlog/87-2026-09-27-contai-070-entregue.md`. **A
+fila fica vazia** — nenhum ticket com Gate 0 fechado pendente de `/develop`.
 
 **2026-09-27, mais tarde**: **`069` entregue** — Gate 4 (`po`), 18/18 critérios
 PASS. Sem migration. `compararCandidatosCno`/`sugerirCnoNaNota`/

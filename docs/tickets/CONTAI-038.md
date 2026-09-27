@@ -129,6 +129,32 @@ não tem nenhuma relação legal com ela (parecer, §0 e §2).
     impresso, não classificação fiscal) — o Mateus confirma antes de salvar,
     igual a qualquer outro campo extraído hoje.
 
+    ⚠️ **EXCEÇÃO REGISTRADA EM 2026-09-27 — `composicao` e `tributo` saíram
+    deste critério, por decisão do Mateus (`CONTAI-070`).** Não leia mais este
+    item como "proibido, sem exceção" para esses dois campos, e não reverta a
+    feature por causa dele num Gate 0 futuro. O que mudou:
+
+    - o `contador` **reprovou** sugerir `composicao`/`tributo` a partir do
+      rótulo, sem exceção, em
+      `docs/pareceres/2026-09-27-extracao-tributo-e-cno.md` (Pergunta 1),
+      citando justamente este critério 14;
+    - **o Mateus sobrepôs a reprovação** — apetite de risco do dono do produto,
+      registrado por inteiro em
+      `docs/backlog/85-2026-09-27-cno-automatico-contraria-contador.md`
+      (ADENDO), depois de tomar a mesma decisão para o CNO (`CONTAI-069`);
+    - a exceção é **condicionada**, e a condição é critério de aceite do
+      `CONTAI-070`, não sugestão: os dois campos só vêm marcados **juntos**,
+      como **sugestão** (pílula âmbar + selo "Sugerida", resposta manual sempre
+      vence), e **só** quando todos os rótulos empatados da linha nomeiam
+      **exatamente uma** das 6 categorias, sem nenhum marcador de combinação.
+      Ambíguo, composto ou sem match → os dois ficam vazios, em silêncio.
+
+    **`e_desconto_efetivo` e `quem_recolhe` seguem neste critério, sem
+    exceção**: 100% manuais e obrigatórios antes de "Adicionar linha" — ponto
+    unânime entre o `contador` e o Mateus. `notaNoCpf` e
+    `natureza_da_retencao` também continuam proibidos (ADENDO 5 §4 do parecer
+    de 2026-09-18).
+
 **Modelo de dados / migration**
 
 15. [x] Tabela nova `documento_retencao` (colunas, enums e CHECKs conforme

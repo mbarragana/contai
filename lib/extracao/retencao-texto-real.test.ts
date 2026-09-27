@@ -167,6 +167,7 @@ describe("o caminho da rota, com o unpdf REAL — NFS-e municipal", () => {
     expect(sugerirLinhaRetencao(lido!.texto)).toEqual({
       rotuloLiteral: "ISSRF",
       valorCentavos: 104_800,
+      rotulosEmpatados: ["ISSRF"],
     });
   });
 
@@ -185,6 +186,7 @@ describe("o caminho da rota, com o unpdf REAL — NFS-e municipal", () => {
     expect(sugerirLinhaRetencao(lido!.texto)).toEqual({
       rotuloLiteral: "ISSRF",
       valorCentavos: 104_800,
+      rotulosEmpatados: ["ISSRF"],
     });
   });
 });
@@ -197,6 +199,7 @@ describe("o caminho da rota, com o unpdf REAL — DANFSe v2.0", () => {
     expect(sugerirLinhaRetencao(lido!.texto)).toEqual({
       rotuloLiteral: "Total das Retencoes (ISSQN / Federais)",
       valorCentavos: 69_420,
+      rotulosEmpatados: ["Total das Retencoes (ISSQN / Federais)"],
     });
   });
 
@@ -225,6 +228,7 @@ describe("o caminho da rota, com o unpdf REAL — retenção repetida (CONTAI-06
     expect(sugerirLinhaRetencao(lido!.texto)).toEqual({
       rotuloLiteral: "Valor ISS",
       valorCentavos: 74_250,
+      rotulosEmpatados: ["Valor ISS", "ISSRF"],
     });
   });
 });

@@ -74,6 +74,7 @@ describe("sugerirLinhaRetencao — padrão estruturado reconhecido", () => {
     expect(sugerirLinhaRetencao(FIXTURE_MUNICIPAL_SIMPLES)).toEqual({
       rotuloLiteral: "ISSRF",
       valorCentavos: 48_000,
+      rotulosEmpatados: ["ISSRF"],
     });
   });
 
@@ -84,6 +85,7 @@ describe("sugerirLinhaRetencao — padrão estruturado reconhecido", () => {
     expect(sugerirLinhaRetencao(FIXTURE_DANFSE_AMBIGUA)).toEqual({
       rotuloLiteral: "ISS RETIDO",
       valorCentavos: 63_200,
+      rotulosEmpatados: ["ISS RETIDO"],
     });
   });
 
@@ -100,6 +102,7 @@ describe("sugerirLinhaRetencao — padrão estruturado reconhecido", () => {
     expect(sugerirLinhaRetencao(texto)).toEqual({
       rotuloLiteral: "ISS Retido (2,00%)",
       valorCentavos: 2_000,
+      rotulosEmpatados: ["ISS Retido (2,00%)"],
     });
   });
 
@@ -109,6 +112,7 @@ describe("sugerirLinhaRetencao — padrão estruturado reconhecido", () => {
     expect(sugerirLinhaRetencao(texto)).toEqual({
       rotuloLiteral: "ISSRF",
       valorCentavos: 10_000,
+      rotulosEmpatados: ["ISSRF"],
     });
   });
 
@@ -126,6 +130,7 @@ describe("sugerirLinhaRetencao — padrão estruturado reconhecido", () => {
     expect(sugerirLinhaRetencao(texto)).toEqual({
       rotuloLiteral: "ISSRF",
       valorCentavos: 48_000,
+      rotulosEmpatados: ["ISSRF"],
     });
   });
 });
@@ -154,6 +159,7 @@ describe("sugerirLinhaRetencao — mesmo valor sob dois rótulos (CONTAI-068)", 
     expect(sugerirLinhaRetencao(texto)).toEqual({
       rotuloLiteral: "Valor ISS",
       valorCentavos: 74_250,
+      rotulosEmpatados: ["Valor ISS", "ISSRF"],
     });
 
     // Mesma nota com as duas linhas trocadas de lugar: vence "ISSRF" agora. O
@@ -170,6 +176,7 @@ describe("sugerirLinhaRetencao — mesmo valor sob dois rótulos (CONTAI-068)", 
     expect(sugerirLinhaRetencao(invertido)).toEqual({
       rotuloLiteral: "ISSRF",
       valorCentavos: 74_250,
+      rotulosEmpatados: ["ISSRF", "Valor ISS"],
     });
   });
 
@@ -217,6 +224,7 @@ describe("sugerirLinhaRetencao — mesmo valor sob dois rótulos (CONTAI-068)", 
     expect(sugerirLinhaRetencao(texto)).toEqual({
       rotuloLiteral: "Valor ISS",
       valorCentavos: 16_800,
+      rotulosEmpatados: ["Valor ISS", "ISS Retido Fonte"],
     });
   });
 });
@@ -242,6 +250,7 @@ describe("sugerirLinhaRetencao — rótulo e valor em linhas separadas", () => {
     expect(sugerirLinhaRetencao(CELULAS.join("\n"))).toEqual({
       rotuloLiteral: "ISSRF",
       valorCentavos: 98_700,
+      rotulosEmpatados: ["ISSRF"],
     });
   });
 
@@ -251,6 +260,7 @@ describe("sugerirLinhaRetencao — rótulo e valor em linhas separadas", () => {
     expect(sugerirLinhaRetencao(comRuido)).toEqual({
       rotuloLiteral: "ISSRF",
       valorCentavos: 98_700,
+      rotulosEmpatados: ["ISSRF"],
     });
   });
 
@@ -283,6 +293,7 @@ describe("sugerirLinhaRetencao — rótulo e valor em linhas separadas", () => {
     expect(sugerirLinhaRetencao(misturado)).toEqual({
       rotuloLiteral: "ISSRF",
       valorCentavos: 25_000,
+      rotulosEmpatados: ["ISSRF"],
     });
   });
 });
@@ -301,6 +312,7 @@ describe("sugerirLinhaRetencao — o vocabulário do rótulo não decide papel",
     expect(sugerirLinhaRetencao(texto)).toEqual({
       rotuloLiteral: "Total das Retencoes (ISSQN / Federais)",
       valorCentavos: 69_420,
+      rotulosEmpatados: ["Total das Retencoes (ISSQN / Federais)"],
     });
   });
 
@@ -326,6 +338,7 @@ describe("sugerirLinhaRetencao — o vocabulário do rótulo não decide papel",
     expect(sugerirLinhaRetencao(texto)).toEqual({
       rotuloLiteral: "Total das Retencoes (ISSQN / Federais)",
       valorCentavos: 69_420,
+      rotulosEmpatados: ["Total das Retencoes (ISSQN / Federais)"],
     });
   });
 });
@@ -344,6 +357,7 @@ describe("sugerirLinhaRetencao — tolerância de arredondamento (Gate Fiscal 4)
     expect(sugerirLinhaRetencao(comDiferenca(1))).toEqual({
       rotuloLiteral: "Retencao",
       valorCentavos: 25_000,
+      rotulosEmpatados: ["Retencao"],
     });
   });
 
@@ -489,14 +503,22 @@ describe("sugerirLinhaRetencao — o que ela NUNCA devolve (critério 3 / Gate F
     }
   });
 
-  it("a sugestão tem exatamente dois campos: rótulo e valor", () => {
+  it("a sugestão tem exatamente três campos, e nenhum deles é classificação fiscal", () => {
     const sugestao = sugerirLinhaRetencao(FIXTURE_DANFSE_AMBIGUA);
 
     expect(sugestao).not.toBeNull();
-    // Os quatro campos de classificação fiscal não existem no tipo — esta
-    // asserção é a trava em runtime contra alguém "aproveitar" o objeto para
-    // carregar `composicao` num campo extra.
-    expect(Object.keys(sugestao!).sort()).toEqual(["rotuloLiteral", "valorCentavos"]);
+    // ⚠️ **`rotulosEmpatados` entrou no CONTAI-070, e os três campos são LEITURA
+    // de texto impresso** — nenhum deles é classificação. A trava que esta
+    // asserção guarda não mudou: os quatro campos de classificação fiscal não
+    // existem neste tipo, e ninguém pode "aproveitar" o objeto para carregar
+    // `composicao` num campo extra. A categoria sugerida pelo CONTAI-070 viaja
+    // num campo IRMÃO da resposta da rota, fora deste objeto, exatamente para a
+    // exceção ficar visível em vez de escondida aqui dentro.
+    expect(Object.keys(sugestao!).sort()).toEqual([
+      "rotuloLiteral",
+      "rotulosEmpatados",
+      "valorCentavos",
+    ]);
     for (const proibido of [
       "composicao",
       "tributo",

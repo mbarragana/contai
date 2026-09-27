@@ -399,6 +399,13 @@ export type CampoLinhaRetencao = keyof EntradaLinhaRetencao;
  * Fiscal não é disciplina de quem chama, é o compilador. Estruturalmente igual
  * ao `SugestaoLinhaRetencao` de `lib/extracao/retencao-texto.ts`, e declarado
  * aqui de novo de propósito: módulo fiscal não importa módulo de extração.
+ *
+ * ⚠️ **INTOCADO PELO CONTAI-070, e de propósito.** Aquele ticket passou a
+ * sugerir `composicao`+`tributo`, mas por um PARÂMETRO separado de
+ * `linhaSugerida` (abaixo), nunca por um campo novo aqui: a categoria sugerida é
+ * classificação de texto, não leitura, e misturá-la neste tipo apagaria a
+ * fronteira que ele existe para marcar. `eDescontoEfetivo` e `quemRecolhe`
+ * continuam sem canal nenhum, em nenhum dos dois lugares.
  */
 export type SugestaoDeLinha = {
   rotuloLiteral: string;
@@ -411,14 +418,39 @@ export type SugestaoDeLinha = {
  *
  * ⚠️ O resultado continua REPROVANDO em `validarLinhaRetencao` — e isso é o
  * ponto, não um efeito colateral: a linha sugerida não pode ser adicionada até o
- * humano responder composição e desconto efetivo (Gate Fiscal do CONTAI-055,
- * herdado do CONTAI-054).
+ * humano responder desconto efetivo (e, com ele, quem recolhe) — Gate Fiscal do
+ * CONTAI-055, herdado do CONTAI-054 e preservado pelo CONTAI-070.
+ *
+ * ⚠️ **MUDOU NO CONTAI-070 — e a mudança é uma decisão de produto que SOBREPÔS a
+ * recomendação do `contador`.** Com `tributoSugerido` não-nulo, `composicao` nasce
+ * `"tributo_identificado"` e `tributo` nasce com a categoria: **os dois juntos,
+ * sempre**. O `contador` reprovou isso "sem exceção"
+ * (`docs/pareceres/2026-09-27-extracao-tributo-e-cno.md`, Pergunta 1) e o Mateus
+ * estendeu ao tributo a decisão que já tinha tomado para o CNO
+ * (`docs/backlog/85-2026-09-27-cno-automatico-contraria-contador.md`, ADENDO). A
+ * salvaguarda vive em `sugerirTributoDoRotulo`: a categoria só chega aqui sob
+ * match único e exclusivo — ambíguo, composto ou sem match vira `null`, e então
+ * esta função devolve exatamente a linha de antes do CONTAI-070.
+ *
+ * ⚠️ **PAR, nunca meio par**: não existe chamada que preencha `tributo` sem
+ * `composicao` nem o contrário — é um parâmetro só, e ele governa os dois campos.
+ * O CHECK `documento_retencao_tributo_coerente` continua satisfeito por
+ * construção.
  */
-export function linhaSugerida(sugestao: SugestaoDeLinha): EntradaLinhaRetencao {
+export function linhaSugerida(
+  sugestao: SugestaoDeLinha,
+  /**
+   * A categoria classificada a partir do rótulo lido, ou `null` (o default) para
+   * a linha sugerida de antes do CONTAI-070, com os quatro campos fiscais vazios.
+   */
+  tributoSugerido: TributoRetido | null = null,
+): EntradaLinhaRetencao {
   return {
     ...LINHA_RETENCAO_VAZIA,
     rotuloLiteral: sugestao.rotuloLiteral,
     valorCentavos: sugestao.valorCentavos,
+    composicao: tributoSugerido === null ? null : "tributo_identificado",
+    tributo: tributoSugerido,
   };
 }
 

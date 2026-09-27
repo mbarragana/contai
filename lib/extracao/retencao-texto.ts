@@ -43,6 +43,19 @@
  * esses quatro campos não existem no tipo devolvido aqui, por construção — não
  * é disciplina de quem chama, é o compilador.
  *
+ * ⚠️ **QUALIFICADO NO CONTAI-070, e a qualificação é uma decisão de produto que
+ * SOBREPÔS a recomendação do `contador`.** A frase acima continua verdadeira
+ * **deste tipo**: nenhum dos quatro campos passa a existir aqui. O que mudou é
+ * que `composicao` e `tributo` passaram a poder ser sugeridos por FORA, num canal
+ * separado — `sugerirTributoDoRotulo` (`tributo-rotulo.ts`) classifica o
+ * `rotulosEmpatados` abaixo, e a rota devolve o resultado num campo IRMÃO de
+ * `sugestao`, nunca dentro dela. O `contador` reprovou isso "sem exceção"
+ * (`docs/pareceres/2026-09-27-extracao-tributo-e-cno.md`, Pergunta 1) e o Mateus
+ * decidiu implementar mesmo assim, com a salvaguarda de match único e exclusivo
+ * (`docs/backlog/85-2026-09-27-cno-automatico-contraria-contador.md`, ADENDO).
+ * `eDescontoEfetivo` e `quemRecolhe` seguem proibidos, sem exceção e sem canal
+ * nenhum — ponto unânime entre o `contador` e o Mateus.
+ *
  * ⚠️ **Não tem `confianca`** (Gate Fiscal 3): aritmética batendo é
  * pré-condição de escopo, não voto sobre a legibilidade do texto-fonte.
  * Promover confiança por conta fechando inverteria a regra "rebaixa nunca
@@ -106,6 +119,21 @@ export type SugestaoLinhaRetencao = {
   rotuloLiteral: string;
   /** Sempre > 0: linha de retenção de valor zero não é sugestão, é ruído. */
   valorCentavos: number;
+  /**
+   * **NOVO — CONTAI-070, critério 2.** TODOS os rótulos que colapsaram nesta
+   * mesma linha (mesmo `valorCentavos`, colapso do CONTAI-068), na ordem de
+   * aparição no texto. `rotuloLiteral` é sempre o primeiro deles.
+   *
+   * ⚠️ **Existe porque o primeiro rótulo não basta para classificar**: se "Valor
+   * ISS" e "ISSRF" imprimem o mesmo número, os dois concordam e a categoria é
+   * ISS; se colapsassem dois rótulos de categorias diferentes, escolher o
+   * primeiro seria classificar por ordem de impressão. Quem lê este campo é
+   * `sugerirTributoDoRotulo` (`tributo-rotulo.ts`), e ele exige unanimidade.
+   *
+   * Campo ADITIVO e de leitura: não muda nada do que já existia, e continua sendo
+   * texto impresso copiado — nunca classificação.
+   */
+  rotulosEmpatados: string[];
 };
 
 /**
@@ -383,17 +411,26 @@ export function sugerirLinhaRetencao(texto: string): SugestaoLinhaRetencao | nul
   }
 
   // Desempate ESTRUTURAL: vence o rótulo que aparece primeiro no texto.
-  // `candidatas` preserva a ordem de `extrairLinhasRotuladas`, então procurar
+  // `candidatas` preserva a ordem de `extrairLinhasRotuladas`, então varrer
   // aqui — em vez de confiar na ordem de inserção no `Map`, que depende da
   // ordem dos laços total × líquido — faz o critério valer por construção, em
   // qualquer direção do texto (CONTAI-068, critério 4).
-  const primeira = candidatas.find(
-    (candidata) =>
-      candidata.valorCentavos === valorCentavos && rotulos.has(candidata.rotulo),
-  );
+  //
+  // ⚠️ **CONTAI-070 — a MESMA varredura produz o conjunto empatado.** Ela já
+  // existia para achar o primeiro rótulo; agora devolve os dois fatos que saem
+  // dela (o primeiro e o conjunto inteiro, na ordem do texto) em vez de jogar o
+  // resto fora. Derivar `rotuloLiteral` de `rotulosEmpatados[0]` é o que garante,
+  // por construção, que os dois nunca discordem sobre qual é o primeiro.
+  const rotulosEmpatados: string[] = [];
+  for (const candidata of candidatas) {
+    if (candidata.valorCentavos !== valorCentavos) continue;
+    if (!rotulos.has(candidata.rotulo)) continue;
+    if (rotulosEmpatados.includes(candidata.rotulo)) continue;
+    rotulosEmpatados.push(candidata.rotulo);
+  }
   // Inalcançável: todo rótulo do `Map` saiu de uma candidata. `null` em vez de
   // `!` porque, se algum dia deixar de ser verdade, o certo é não sugerir.
-  if (primeira === undefined) return null;
+  if (rotulosEmpatados.length === 0) return null;
 
-  return { rotuloLiteral: primeira.rotulo, valorCentavos };
+  return { rotuloLiteral: rotulosEmpatados[0], valorCentavos, rotulosEmpatados };
 }

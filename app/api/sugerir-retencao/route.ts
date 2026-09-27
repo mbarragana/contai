@@ -50,7 +50,9 @@ import {
   type SugestaoLinhaRetencao,
 } from "@/lib/extracao/retencao-texto";
 import { avaliarTexto, extrairTextoDoPdf } from "@/lib/extracao/texto-pdf";
+import { sugerirTributoDoRotulo } from "@/lib/extracao/tributo-rotulo";
 import type { CandidatoCnoLido } from "@/lib/fiscal/obra";
+import type { TributoRetido } from "@/lib/types";
 
 /** Mesmo teto da rota de extração: payload de função no Vercel Hobby. */
 const TAMANHO_MAXIMO_BYTES = 3 * 1024 * 1024;
@@ -69,9 +71,28 @@ type Resposta = {
    * veredito.
    */
   cno: CandidatoCnoLido[];
+  /**
+   * **NOVO — CONTAI-070.** A categoria que TODOS os rótulos empatados da linha
+   * nomeiam de forma inequívoca e exclusiva, ou `null`. `null` é o caso comum e
+   * não é falha: rótulo ambíguo, composto, de grupo ou sem sigla nenhuma.
+   *
+   * ⚠️ **Campo IRMÃO de `sugestao`, nunca dentro dela** — e isso é decisão de
+   * arquitetura (Viabilidade do ticket), não arrumação. `SugestaoLinhaRetencao`
+   * garante POR CONSTRUÇÃO que `eDescontoEfetivo` e `quemRecolhe` não existem
+   * ali; enfiar a categoria lá dentro esconderia a exceção que o Mateus abriu
+   * (`docs/backlog/85-2026-09-27-cno-automatico-contraria-contador.md`, ADENDO)
+   * dentro do tipo que o `contador` usou como trava. Fora dela, a exceção fica
+   * visível no tipo — e os outros dois campos continuam sem canal nenhum.
+   *
+   * ⚠️ **Nunca vem sozinho**: só é calculado quando existe `sugestao`, porque a
+   * entrada dele é o `rotulosEmpatados` dessa sugestão. Não há caminho em que a
+   * rota sugira uma categoria sem a linha que a motivou — mesma salvaguarda 4 do
+   * ADENDO 5 §3 aplicada a este campo.
+   */
+  tributoSugerido: TributoRetido | null;
 };
 
-const SEM_SUGESTAO: Resposta = { sugestao: null, cno: [] };
+const SEM_SUGESTAO: Resposta = { sugestao: null, cno: [], tributoSugerido: null };
 
 export async function POST(request: Request) {
   let arquivo: File | null;
@@ -122,5 +143,11 @@ export async function POST(request: Request) {
 
   const sugestao = sugerirLinhaRetencao(lido.texto);
   const cno = extrairCandidatosCno(lido.texto);
-  return NextResponse.json({ sugestao, cno } satisfies Resposta);
+  // ⚠️ **CONTAI-070 — a classificação sai do conjunto INTEIRO de rótulos
+  // empatados**, nunca só do primeiro (critério 2): rótulos que colapsaram por
+  // valor idêntico têm de concordar na categoria, senão a resposta é `null`.
+  // Sem sugestão de linha não há rótulo nenhum para classificar.
+  const tributoSugerido =
+    sugestao === null ? null : sugerirTributoDoRotulo(sugestao.rotulosEmpatados);
+  return NextResponse.json({ sugestao, cno, tributoSugerido } satisfies Resposta);
 }

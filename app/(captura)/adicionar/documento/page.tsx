@@ -142,6 +142,7 @@ import type {
   Pagamento,
   RespostaRetencaoNaNota,
   TipoDocumento,
+  TributoRetido,
 } from "@/lib/types";
 
 /**
@@ -332,6 +333,27 @@ export default function RegistrarDocumento() {
     useState<SugestaoLinhaRetencao | null>(null);
   const [lendoSugestaoRetencao, setLendoSugestaoRetencao] = useState(false);
   const [falhouSugestaoRetencao, setFalhouSugestaoRetencao] = useState(false);
+  /**
+   * **CONTAI-070 — a categoria classificada a partir do(s) rótulo(s) lidos, a
+   * confirmar.** `null` é o caso comum: rótulo ambíguo, composto, de grupo ou sem
+   * sigla nenhuma → silêncio simples, sem aviso (critério 6).
+   *
+   * ⚠️ **Decisão de produto que SOBREPÔS a recomendação do `contador`** — ele
+   * reprovou sugerir `composicao`/`tributo` "sem exceção"
+   * (`docs/pareceres/2026-09-27-extracao-tributo-e-cno.md`, Pergunta 1) e o Mateus
+   * estendeu ao tributo a decisão já tomada para o CNO
+   * (`docs/backlog/85-2026-09-27-cno-automatico-contraria-contador.md`, ADENDO). A
+   * salvaguarda é o match único e exclusivo de `sugerirTributoDoRotulo`.
+   *
+   * ⚠️ **Estado IRMÃO de `sugestaoRetencao`, nunca dentro dele** (Viabilidade do
+   * ticket): é o que mantém `SugestaoLinhaRetencao` como a trava que ele é —
+   * `eDescontoEfetivo` e `quemRecolhe` continuam sem canal nenhum, aqui e lá. E
+   * ele só é gravado junto com a sugestão que o motivou, no mesmo `if` do efeito
+   * abaixo, então não existe categoria sugerida sem a linha lida por trás.
+   */
+  const [tributoSugerido, setTributoSugerido] = useState<TributoRetido | null>(
+    null,
+  );
 
   /**
    * ⚠️ **Sair de "destacada" APAGA as linhas acumuladas**, pela mesma razão do
@@ -593,6 +615,12 @@ export default function RegistrarDocumento() {
   if (alvoVistoDaSugestao !== alvoDaSugestaoDeRetencao) {
     setAlvoVistoDaSugestao(alvoDaSugestaoDeRetencao);
     setSugestaoRetencao(null);
+    // ⚠️ **CONTAI-070, critério 10 — a categoria morre com o papel**, no MESMO
+    // lugar e pela mesma razão que a linha: ela foi classificada a partir do
+    // rótulo daquele PDF. Quem apaga o que já estava marcado em
+    // `composicao`/`tributo` é o `FormularioDeLinha` (só o que for SUGERIDO —
+    // resposta manual sobrevive); aqui morre a fonte.
+    setTributoSugerido(null);
     setFalhouSugestaoRetencao(false);
     setLendoSugestaoRetencao(alvoDaSugestaoDeRetencao !== null);
     // ⚠️ **Só a resposta SUGERIDA morre.** Uma resposta manual — "nenhuma"
@@ -668,6 +696,12 @@ export default function RegistrarDocumento() {
           sugestao: SugestaoLinhaRetencao | null;
           /** CONTAI-069 — os números rotulados como CNO, crus, sem comparação. */
           cno?: CandidatoCnoLido[];
+          /**
+           * CONTAI-070 — a categoria do tributo, classificada pela rota a partir
+           * do conjunto de rótulos empatados. `null` sempre que houver qualquer
+           * ambiguidade.
+           */
+          tributoSugerido?: TributoRetido | null;
         };
         if (cancelado) return;
         // ⚠️ **CONTAI-069 — guarda SEMPRE, decide depois** (mesma disciplina da
@@ -683,6 +717,12 @@ export default function RegistrarDocumento() {
         // nunca `"nao_sei"`). Por isso não existe nenhum `else` aqui.
         if (corpo.sugestao) {
           setSugestaoRetencao(corpo.sugestao);
+          // ⚠️ **CONTAI-070 — a categoria entra JUNTO com a linha, no mesmo `if`**:
+          // sem linha lida não existe rótulo do qual ela poderia ter saído, e o
+          // par `composicao`/`tributo` nunca nasce sem o rótulo literal ao lado
+          // para o Mateus conferir no papel. `null` aqui é o caso comum (rótulo
+          // ambíguo ou composto) e não muda nada na tela — silêncio simples.
+          setTributoSugerido(corpo.tributoSugerido ?? null);
           // ⚠️ **Gate e linha na MESMA ação** (ADENDO 5 §3, salvaguarda 4): a
           // condição é a própria existência da sugestão, então não há caminho em
           // que o gate se sugira sem o rótulo/valor que o motivou.
@@ -1856,6 +1896,10 @@ export default function RegistrarDocumento() {
                              CONTAI-062: esses dois estados agora aparecem ao
                              lado do gate, acima, em qualquer largura. */
                           sugestao={sugestaoRetencao}
+                          /* CONTAI-070 — a categoria lida do rótulo, a confirmar.
+                             Viaja ao lado da sugestão que a produziu, nunca dentro
+                             dela. */
+                          tributoSugerido={tributoSugerido}
                           onAdicionar={(linha) => {
                             setLinhasPendentes((atual) => [...atual, linha]);
                             /* ⚠️ **A sugestão é CONSUMIDA ao adicionar a linha.**
@@ -1864,6 +1908,10 @@ export default function RegistrarDocumento() {
                                app reafirmando uma leitura que ele acabou de
                                rejeitar, que é o oposto do critério 5. */
                             setSugestaoRetencao(null);
+                            /* CONTAI-070 — a categoria é consumida com a linha:
+                               ela existe para a linha que acabou de ser
+                               confirmada, e a próxima nasce em branco. */
+                            setTributoSugerido(null);
                           }}
                           onRemover={(indice) =>
                             setLinhasPendentes((atual) =>
