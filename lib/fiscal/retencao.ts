@@ -154,17 +154,32 @@ export const SUGESTAO_RETENCAO_CONFIRA =
   "mesma conta. Se o rótulo acima não for de retenção, corrija ou apague os " +
   "dois campos.";
 
-/** Estado de espera do bloco — a chamada é local e rápida, mas não é grátis. */
-export const SUGESTAO_RETENCAO_LENDO = "Lendo a retenção nesta nota…";
+/**
+ * Estado de espera do bloco — a chamada é local e rápida, mas não é grátis.
+ *
+ * ⚠️ **A FRASE mudou no CONTAI-069, o nome da constante não** (decisão da spec,
+ * `design/mocks/CONTAI-069.md` §5): a mesma requisição passou a ler duas coisas
+ * do mesmo PDF — a linha de retenção e o CNO impresso —, e os dois gates que ela
+ * alimenta só existem em `nf_servico` (`exigeRetencao` e `exigeCnoReferenciado`
+ * nunca divergem). Dois indicadores de "Lendo…" separados apareceriam sempre
+ * juntos, e duplicar o aviso é ruído no momento da captura. Banner
+ * COMPARTILHADO, então a frase deixa de nomear só a retenção.
+ */
+export const SUGESTAO_RETENCAO_LENDO = "Lendo os dados desta nota…";
 
 /**
  * ⚠️ **Critério 4 — a falha NUNCA bloqueia o registro.** A frase diz as duas
  * coisas: a leitura não aconteceu e o caminho manual continua aberto. Mesma
  * disciplina do erro da extração de documento nesta tela.
+ *
+ * ⚠️ **Frase ampliada no CONTAI-069** (mesmo motivo do `_LENDO` acima): ela
+ * nomeia agora as duas leituras que falharam juntas, porque são a mesma
+ * requisição. O trecho final ("o registro segue normalmente") é o que sustenta o
+ * critério 4 e não muda.
  */
 export const SUGESTAO_RETENCAO_FALHOU =
-  "Não deu para ler a retenção desta nota automaticamente. Preencha as linhas " +
-  "à mão — o registro segue normalmente.";
+  "Não foi possível ler os dados desta nota automaticamente (retenção, CNO). " +
+  "Preencha à mão — o registro segue normalmente.";
 
 /**
  * ── CONTAI-062 ────────────────────────────────────────────────────────────

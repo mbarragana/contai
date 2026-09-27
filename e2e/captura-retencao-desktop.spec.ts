@@ -740,7 +740,10 @@ test("5.4 · ⚠️ falha em /api/sugerir-retencao: avisa, não bloqueia, e o re
   const falhou = page.locator('[data-sugestao="gate-falhou"]');
   await expect(falhou).toBeVisible();
   await expect(falhou).toContainText(
-    "Não deu para ler a retenção desta nota automaticamente. Preencha as linhas à mão — o registro segue normalmente.",
+    // ⚠️ Frase ampliada no CONTAI-069: a mesma requisição lê retenção E CNO, e o
+    // banner é compartilhado (spec, §5). O que não muda é o fim dela — é ele que
+    // diz que o registro segue.
+    "Não foi possível ler os dados desta nota automaticamente (retenção, CNO). Preencha à mão — o registro segue normalmente.",
   );
   // Sem sugestão nenhuma, e o formulário continua ali, vazio e digitável.
   await expect(bloco.locator('[data-sugestao="retencao"]')).toHaveCount(0);

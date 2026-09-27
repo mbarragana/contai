@@ -22,6 +22,14 @@
  * `"nao_destacada"`: é "não achei padrão", e quem chama não tem como confundir
  * os dois (salvaguardas 2 e 3).
  *
+ * ⚠️ **MUDOU NO CONTAI-069 — a rota lê DUAS coisas do mesmo PDF.** Além da linha
+ * de retenção, ela devolve os números rotulados como CNO (`extrairCandidatosCno`).
+ * Mesma requisição, mesmo PDF, mesmo alvo (`nf_servico`, de `exigeRetencao` e
+ * `exigeCnoReferenciado`, que nunca divergem) — uma segunda rota significaria um
+ * segundo upload do mesmo arquivo e uma segunda cadeia de invalidação dele. O
+ * nome da rota ficou estreito para o que ela faz; renomear é opcional e não é
+ * critério do ticket.
+ *
  * Nada de IA: só `extrairTextoDoPdf → avaliarTexto → sugerirLinhaRetencao`,
  * tudo local. Por isso **não** há `maxDuration = 60` (o caminho é de
  * milissegundos, o default do plano sobra) e **não** há fallback de visão — PDF
@@ -36,18 +44,34 @@
 
 import { NextResponse } from "next/server";
 
+import { extrairCandidatosCno } from "@/lib/extracao/cno-texto";
 import {
   sugerirLinhaRetencao,
   type SugestaoLinhaRetencao,
 } from "@/lib/extracao/retencao-texto";
 import { avaliarTexto, extrairTextoDoPdf } from "@/lib/extracao/texto-pdf";
+import type { CandidatoCnoLido } from "@/lib/fiscal/obra";
 
 /** Mesmo teto da rota de extração: payload de função no Vercel Hobby. */
 const TAMANHO_MAXIMO_BYTES = 3 * 1024 * 1024;
 
-type Resposta = { sugestao: SugestaoLinhaRetencao | null };
+type Resposta = {
+  sugestao: SugestaoLinhaRetencao | null;
+  /**
+   * **NOVO — CONTAI-069.** Os números rotulados como CNO que o parser achou no
+   * papel, crus, na ordem do texto. `[]` é "não achei nenhum".
+   *
+   * ⚠️ **A rota NÃO compara, e isso é decisão de arquitetura, não preguiça**
+   * (Viabilidade do ticket): ela não recebe dado de obra nenhum hoje e não passa
+   * a receber. Quem compara com o `obra.cno` é o CLIENTE, que tem sempre a obra
+   * CORRENTE em mão — é o que resolve o pre-mortem 3 (obra trocada com a leitura
+   * em voo) sem um segundo fetch. O que sai daqui é leitura de papel, nunca
+   * veredito.
+   */
+  cno: CandidatoCnoLido[];
+};
 
-const SEM_SUGESTAO: Resposta = { sugestao: null };
+const SEM_SUGESTAO: Resposta = { sugestao: null, cno: [] };
 
 export async function POST(request: Request) {
   let arquivo: File | null;
@@ -84,6 +108,10 @@ export async function POST(request: Request) {
   // `ToUnicode` ou sem âncora de documento fiscal não vira leitura de valor. Um
   // trio aritmeticamente coerente lido de lixo é justamente o falso positivo
   // mais caro que esta rota poderia produzir.
+  //
+  // ⚠️ **CONTAI-069 — a leitura do CNO passa pela MESMA porteira**, e de
+  // propósito: um número de 12 dígitos lido de texto poluído, rotulado por um
+  // "CNO" que a fonte sem `ToUnicode` inventou, viraria sugestão de gate fiscal.
   const avaliacao = avaliarTexto(lido.texto);
   if (!avaliacao.suficiente) {
     console.info(
@@ -93,5 +121,6 @@ export async function POST(request: Request) {
   }
 
   const sugestao = sugerirLinhaRetencao(lido.texto);
-  return NextResponse.json({ sugestao } satisfies Resposta);
+  const cno = extrairCandidatosCno(lido.texto);
+  return NextResponse.json({ sugestao, cno } satisfies Resposta);
 }

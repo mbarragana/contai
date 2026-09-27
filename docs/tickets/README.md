@@ -1,6 +1,59 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-09-27, mais tarde**: **`069` entregue** — Gate 4 (`po`), 18/18 critérios
+PASS. Sem migration. `compararCandidatosCno`/`sugerirCnoNaNota`/
+`CandidatoCnoLido` (novos, `lib/fiscal/obra.ts`, ao lado de `cnoNormalizado`)
+comparam o CNO impresso na nota (achado por `extrairCandidatosCno`, módulo
+próprio `lib/extracao/cno-texto.ts`, âncora de rótulo — nunca dígito solto)
+contra o `obra.cno` CORRENTE, sempre no cliente. Igualdade EXATA de 12 dígitos
+dos dois lados → sugestão `"desta_obra"` (pílula âmbar + selo "Sugerida",
+padrão visual do `CONTAI-062`); cadastro fora de formato ou dígitos diferentes
+→ `"diverge"` (banner com os dois números, nunca silêncio); 2+ candidatos com
+dígitos diferentes → aviso explícito de ambiguidade; dígitos repetidos
+colapsam por ordem de aparição (mesma doutrina do `CONTAI-068`). `outra_obra`/
+`nao_traz` continuam 100% manuais por construção do tipo de retorno. `page.tsx`
+unificou `cnoNaNota`/origem num estado só (`gateDeCno`), updater atômico
+garantindo que resposta manual sempre vence a corrida contra a leitura em voo
+(mesmo mecanismo do `gateDeRetencao`). Banner "Lendo…"/"Não consegui ler"
+virou compartilhado entre retenção e CNO (mesma requisição, mesmo PDF).
+**Ação do Gate 2 executada**: o critério 5 do ticket (redação "cadastro fora
+de formato → silêncio") foi corrigido para bater com o comportamento real do
+código (veredito `"diverge"`, nunca silêncio); o estado `formato_invalido`
+separado que o `contador` sugeriu como melhoria futura **não foi
+implementado** — vira **D87** em `docs/backlog.md`, sem ticket. Nenhum arquivo
+mudou depois do APPROVE final do `cto-obra`. **1169 Vitest / 369 Playwright**
+(362 pré-existentes + 7 novos em `e2e/captura-cno.spec.ts`), typecheck/lint
+limpos. `070` fica sozinho na fila. Detalhe:
+`docs/backlog/86-2026-09-27-contai-069-entregue.md`.
+
+**2026-09-27**: **`CONTAI-069` e `CONTAI-070` criados** — o Mateus, testando o
+`CONTAI-062` numa nota real, pediu duas automações que o `contador` reprovou
+no parecer `docs/pareceres/2026-09-27-extracao-tributo-e-cno.md`: sugerir
+`tributo` a partir do rótulo lido (reprovado **sem exceção**, critério 14 do
+`CONTAI-038`, já previsto no pre-mortem 2 do mesmo ticket) e marcar
+`cnoNaNota = "desta_obra"` automaticamente sob igualdade exata de dígitos
+(reprovado **duas vezes**, mesmo sob a condição exata proposta — ver ADENDO
+do mesmo parecer). **O Mateus concordou com a reprovação do tributo
+inicialmente, mas discordou da do CNO e pediu implementação mesmo assim; horas
+depois, estendeu a mesma decisão de sobrepor a recomendação fiscal também ao
+tributo** ("aplique a mesma abordagem ao tributo"). Registrado com
+transparência total em
+`docs/backlog/85-2026-09-27-cno-automatico-contraria-contador.md` (com ADENDO
+da extensão ao tributo). `/tickets-req` completo: `cto-obra` decidiu tickets
+SEPARADOS (`CONTAI-069` CNO, `CONTAI-070` tributo) — superfícies e argumentos
+fiscais distintos na mesma tela, sequenciais porque os dois estendem o mesmo
+`app/api/sugerir-retencao/route.ts` — achou dois riscos técnicos novos
+(`validarObra` sem garantia de 12 dígitos no CNO cadastrado; nota com mais de
+um número candidato de CNO) e desenhou a salvaguarda do tributo (match único
+e exclusivo por categoria, com marcadores de combinação vetando —
+"Total das Retenções (ISSQN/Federais)" continua produzindo `null`). `designer`
+fechou spec nível 2 nos dois (`design/mocks/CONTAI-069.md`,
+`design/mocks/CONTAI-070.md`), mesmo padrão visual do `CONTAI-062` (pílula
+âmbar + selo "Sugerida", texto do parecer copiado literalmente para o
+veredito de comparação do CNO). **Os dois prontos para `/develop`**, P2 por
+mérito (fila real é decisão do Mateus) — volta a 19.
 
 **2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda ainda
 ainda ainda ainda ainda ainda ainda ainda ainda ainda**: **`068` entregue** —

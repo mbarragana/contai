@@ -512,6 +512,155 @@ export function cnoNormalizado(cno: string | null): string | null {
   return digitos === "" ? null : digitos;
 }
 
+// ── CONTAI-069 — o CNO impresso na nota, comparado com o da obra ──────────
+
+/**
+ * **Quantos dígitos um CNO tem.** É a guarda do critério 5 do CONTAI-069, e ela
+ * existe por causa do pre-mortem 1 do ticket: `validarObra` só exige "não
+ * vazio" do CNO cadastrado, então um cadastro histórico com 11 dígitos (erro de
+ * digitação) chegaria aqui. Comparar dois números de tamanhos diferentes e
+ * chamar o resultado de "igualdade exata" seria dar nome de certeza a uma
+ * comparação que não é.
+ */
+export const DIGITOS_DO_CNO = 12;
+
+/** Os dígitos do CNO, **só** quando são exatamente 12. `null` em todo o resto. */
+function cnoComDozeDigitos(cno: string | null): string | null {
+  const digitos = cnoNormalizado(cno);
+  return digitos !== null && digitos.length === DIGITOS_DO_CNO ? digitos : null;
+}
+
+/**
+ * Um número que o parser achou no texto do PDF sob um rótulo de CNO
+ * (`lib/extracao/cno-texto.ts`). Mora aqui, e não no módulo de extração, porque
+ * é este arquivo que declara a regra de comparação de CNO do sistema — e é para
+ * ela que o candidato existe. A dependência fica numa direção só
+ * (extração → fiscal), sem ciclo.
+ */
+export type CandidatoCnoLido = {
+  /** O rótulo como está impresso: "CNO", "Cadastro Nacional de Obras", "Matrícula CEI". */
+  rotuloLiteral: string;
+  /** O número como está impresso, com pontuação (`12.345.67890/26`) — nunca normalizado. */
+  numeroBruto: string;
+};
+
+/**
+ * O veredito da comparação, para a tela dizer em palavras o que a máquina
+ * concluiu — **nunca** para a tela fazer a comparação de novo.
+ *
+ * `null` é "nada a dizer": nenhum candidato lido, ou obra sem CNO cadastrado.
+ */
+export type ComparacaoCno =
+  | { estado: "bate"; candidato: CandidatoCnoLido }
+  | { estado: "diverge"; candidato: CandidatoCnoLido }
+  /**
+   * 2+ candidatos com DÍGITOS DIFERENTES entre si (critério 9). Nunca por citar
+   * "CNO" duas vezes com o mesmo número — isso é repetição de leiaute, e
+   * `extrairCandidatosCno` já a colapsa antes de chegar aqui (critério 10).
+   */
+  | { estado: "ambiguo"; candidatos: CandidatoCnoLido[] }
+  | null;
+
+/**
+ * ⚠️ **CONTAI-069 — esta função existe por uma decisão do Mateus que SOBREPÕE a
+ * recomendação do `contador`**, e o registro disso é parte do código:
+ *
+ * - o parecer `docs/pareceres/2026-09-27-extracao-tributo-e-cno.md` (Pergunta 2
+ *   + ADENDO) aprova **ler e comparar** o CNO impresso, e **reprova** marcar
+ *   `cnoNaNota = "desta_obra"` sozinho — duas vezes, a segunda já sob a
+ *   condição de igualdade exata de dígitos (ADENDO §3);
+ * - o Mateus decidiu implementar a marcação mesmo assim, como sugestão
+ *   editável, e a decisão está registrada por inteiro em
+ *   `docs/backlog/85-2026-09-27-cno-automatico-contraria-contador.md`.
+ *
+ * O que esta função NÃO faz, e é por construção, não por disciplina de quem
+ * chama: ela não devolve `"outra_obra"` nem `"nao_traz"` em nenhum ramo. Os dois
+ * continuam 100% manuais (Gate Fiscal do ticket, ponto unânime entre o
+ * `contador` e o Mateus) — o tipo `ComparacaoCno` não tem como expressá-los.
+ *
+ * **Igualdade EXATA de dígitos, nunca prefixo, nunca aproximação** — e dos DOIS
+ * lados com 12 dígitos (critério 5). Cadastro fora de formato cai em
+ * `"diverge"`, que mostra os dois números na tela: é o que torna o sintoma
+ * visível em vez de "a automação não funciona" (pre-mortem 1).
+ *
+ * Roda no CLIENTE, contra o `obra.cno` CORRENTE — nunca na rota. É o que resolve
+ * o pre-mortem 3: trocada a obra com a leitura em voo, a comparação se refaz
+ * contra a obra nova sem novo fetch e sem novo parse.
+ */
+export function compararCandidatosCno(
+  candidatos: readonly CandidatoCnoLido[],
+  cnoDaObra: string | null,
+): ComparacaoCno {
+  // Obra sem CNO devolve `null` de propósito: a opção "desta obra" nem aparece
+  // no gate nesse caso, então não há com o que comparar nem o que avisar.
+  //
+  // ⚠️ **A ausência é medida por `cnoNormalizado`, não por `=== null`**: cadastro
+  // com string vazia ou sem dígito nenhum é ausência de CNO com outra aparência, e
+  // deixá-lo passar renderizaria "CNO da obra: " com nada do lado — o banner
+  // comparando um número com um vazio.
+  if (candidatos.length === 0 || cnoNormalizado(cnoDaObra) === null) return null;
+
+  const digitosLidos = new Set(candidatos.map((c) => cnoNormalizado(c.numeroBruto)));
+  if (digitosLidos.size > 1) return { estado: "ambiguo", candidatos: [...candidatos] };
+
+  const candidato = candidatos[0];
+  const daNota = cnoComDozeDigitos(candidato.numeroBruto);
+  const daObra = cnoComDozeDigitos(cnoDaObra);
+  const bate = daNota !== null && daObra !== null && daNota === daObra;
+  return { estado: bate ? "bate" : "diverge", candidato };
+}
+
+/**
+ * ⚠️ **Texto do ADENDO §5 do parecer
+ * `docs/pareceres/2026-09-27-extracao-tributo-e-cno.md`, COPIADO, não reescrito**
+ * (critério 7 do CONTAI-069): *"CNO da obra: [número] · CNO da nota: [número] —
+ * números idênticos"* ou *"— números diferentes"*. Foi o que o `contador` pediu
+ * literalmente como recomendação de UX — a máquina, e não o olho do Mateus,
+ * dizendo se os dígitos batem. Quem for mexer nestas duas frases passa pelo
+ * `contador`.
+ *
+ * ⚠️ **SEPARADO em duas constantes no Gate 2 (bloqueante do `cto-obra`).** A
+ * primeira versão colava *"A resposta abaixo já veio marcada"* dentro desta
+ * frase, e aí ela MENTIA em tela fiscal exatamente no caso que o critério 11
+ * existe para proteger: resposta manual vencendo a corrida contra a leitura (E2E
+ * 7.6). O veredito da igualdade é sobre os NÚMEROS e vale sempre; a frase sobre o
+ * campo é sobre a ORIGEM da resposta e só vale quando a sugestão de fato decidiu
+ * o campo. Duas afirmações diferentes não podem viver na mesma string.
+ */
+export const CNO_VEREDITO_IDENTICOS = "— números idênticos.";
+
+/**
+ * A segunda oração, e ela só aparece **quando a resposta do gate é a SUGERIDA**
+ * (`cnoSugerido !== null`). Com resposta manual na tela, dizer que ela "veio
+ * marcada" pela leitura seria o app descrevendo errado um ato do Mateus.
+ * Redação da spec do Gate 0, `design/mocks/CONTAI-069.md` §4.
+ */
+export const CNO_SUGESTAO_JA_MARCADA =
+  "A resposta abaixo já veio marcada; confira antes de salvar.";
+
+export const CNO_VEREDITO_DIFERENTES =
+  "— números diferentes. Confira à mão qual resposta vale para esta nota.";
+
+/**
+ * Critério 9: mais de um candidato com dígitos diferentes **nunca vira silêncio
+ * mudo** — silêncio na nota que "claramente" traz o CNO leria como automação
+ * quebrada, e o app escolher um dos dois seria pior (pre-mortem 2).
+ */
+export const CNO_MAIS_DE_UM_CANDIDATO =
+  "Mais de um número de CNO encontrado nesta nota — confira no papel antes de responder.";
+
+/**
+ * A sugestão do gate, derivada do veredito. **`"desta_obra"` ou nada** — o tipo
+ * de retorno é a salvaguarda: quem quiser fazer o parser sugerir `"outra_obra"`
+ * ou `"nao_traz"` tem de reabrir esta assinatura, e reabri-la é onde este
+ * comentário está esperando (Gate Fiscal do CONTAI-069).
+ */
+export function sugerirCnoNaNota(
+  comparacao: ComparacaoCno,
+): "desta_obra" | null {
+  return comparacao?.estado === "bate" ? "desta_obra" : null;
+}
+
 /**
  * ⚠️ **O CNO NÃO BLOQUEIA A CORREÇÃO DE OBRA, E ISSO É REGRA FISCAL** — parecer
  * `docs/pareceres/2026-09-20-cno-nao-bloqueia-correcao-de-obra.md`, que é a

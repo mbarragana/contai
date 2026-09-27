@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   anosDaObra,
   AVISO_CNO_NA_CORRECAO_DE_OBRA,
+  compararCandidatosCno,
   CONSEQUENCIA_CNO_DA_NOTA,
   exigeAvisoEquiparacao,
   diasEntre,
@@ -16,8 +17,10 @@ import {
   podeCorrigirObra,
   prazoCno,
   somarDias,
+  sugerirCnoNaNota,
   temPrazoCorrendo,
   validarObra,
+  type CandidatoCnoLido,
   type EntradaObra,
 } from "@/lib/fiscal/obra";
 import type { Documento, Obra } from "@/lib/types";
@@ -590,5 +593,127 @@ describe("anosDaObra", () => {
     expect(
       anosDaObra({ pagamentos: [pago(""), pago("xx"), pago("2026-02-02")] }, 2026),
     ).toEqual([2026]);
+  });
+});
+
+// ── CONTAI-069 — a comparação do CNO lido com o CNO da obra ───────────────
+
+/**
+ * ⚠️ **Estes testes guardam uma decisão de produto que SOBREPÔS a recomendação
+ * do `contador`** — ele reprovou a marcação automática de `cnoNaNota =
+ * "desta_obra"` duas vezes (`docs/pareceres/2026-09-27-extracao-tributo-e-cno.md`,
+ * Pergunta 2 + ADENDO §3), e o Mateus decidiu implementá-la como sugestão
+ * editável (`docs/backlog/85-2026-09-27-cno-automatico-contraria-contador.md`).
+ * O que esta suíte prova é que as salvaguardas que tornaram a decisão aceitável
+ * estão de pé: igualdade EXATA, 12 dígitos dos dois lados, e nenhuma sugestão
+ * fora de `"desta_obra"`.
+ */
+describe("CONTAI-069 · compararCandidatosCno", () => {
+  const candidato = (numeroBruto: string, rotuloLiteral = "CNO"): CandidatoCnoLido => ({
+    rotuloLiteral,
+    numeroBruto,
+  });
+
+  it("dígitos iguais → bate, e a sugestão é 'desta_obra'", () => {
+    const veredito = compararCandidatosCno(
+      [candidato("12.345.67890/26")],
+      "12.345.67890/26",
+    );
+    expect(veredito).toEqual({
+      estado: "bate",
+      candidato: candidato("12.345.67890/26"),
+    });
+    expect(sugerirCnoNaNota(veredito)).toBe("desta_obra");
+  });
+
+  /**
+   * ⚠️ A pontuação nunca decide: só os dígitos identificam (é o que
+   * `cnoNormalizado` já declarava como a ÚNICA regra de comparação do sistema).
+   * O cadastro digitado à mão, sem ponto e sem barra, tem de bater com a nota
+   * impressa pelo sistema da prefeitura.
+   */
+  it("formatação diferente dos dois lados, mesmos dígitos → ainda bate", () => {
+    expect(
+      compararCandidatosCno([candidato("12.345.67890/26")], "123456789026")?.estado,
+    ).toBe("bate");
+    expect(
+      compararCandidatosCno([candidato("123456789026")], " 12.345.678-90/26 ")?.estado,
+    ).toBe("bate");
+  });
+
+  it("dígitos diferentes → diverge, e NÃO sugere nada", () => {
+    const veredito = compararCandidatosCno(
+      [candidato("98.765.43210/18")],
+      "12.345.67890/26",
+    );
+    expect(veredito?.estado).toBe("diverge");
+    expect(sugerirCnoNaNota(veredito)).toBeNull();
+  });
+
+  /**
+   * ⚠️ **Pre-mortem 1 do ticket, e é o caso que o critério 5 existe para
+   * cobrir**: `validarObra` só exige "não vazio" do CNO cadastrado, então um
+   * cadastro histórico com 11 dígitos chega aqui. Ele nunca "bate" — nem quando é
+   * prefixo exato do número da nota. Igualdade de prefixo não é igualdade.
+   */
+  it("cadastro da obra fora do formato (11 dígitos) NUNCA bate — nem por prefixo", () => {
+    const veredito = compararCandidatosCno(
+      [candidato("12.345.67890/26")],
+      "12345678902",
+    );
+    // `diverge`, e não silêncio: é o banner com os dois números que torna o
+    // cadastro errado visível, em vez de "a automação não funciona".
+    expect(veredito?.estado).toBe("diverge");
+    expect(sugerirCnoNaNota(veredito)).toBeNull();
+  });
+
+  it("nota com número de 12 dígitos e obra com 13 → diverge, nunca bate", () => {
+    expect(
+      compararCandidatosCno([candidato("123456789026")], "1234567890267")?.estado,
+    ).toBe("diverge");
+  });
+
+  /** Critério 9: dois candidatos divergentes viram AVISO, nunca escolha. */
+  it("dois candidatos com dígitos diferentes → ambíguo, sem sugestão", () => {
+    const candidatos = [
+      candidato("98.765.43210/18", "Matrícula CEI"),
+      candidato("12.345.67890/26"),
+    ];
+    const veredito = compararCandidatosCno(candidatos, "12.345.67890/26");
+    expect(veredito).toEqual({ estado: "ambiguo", candidatos });
+    // ⚠️ Um dos dois BATE com a obra, e ainda assim não há sugestão: escolher o
+    // que bate seria o app decidindo qual número do papel vale.
+    expect(sugerirCnoNaNota(veredito)).toBeNull();
+  });
+
+  it("nenhum candidato → null, silêncio total", () => {
+    expect(compararCandidatosCno([], "12.345.67890/26")).toBeNull();
+    expect(sugerirCnoNaNota(null)).toBeNull();
+  });
+
+  /** Obra sem CNO: a opção "desta obra" nem aparece no gate — nada a comparar. */
+  it("obra sem CNO cadastrado → null, sem erro e sem sugestão", () => {
+    expect(compararCandidatosCno([candidato("12.345.67890/26")], null)).toBeNull();
+    expect(compararCandidatosCno([candidato("12.345.67890/26")], "")).toBeNull();
+  });
+
+  /**
+   * ⚠️ A trava de tipo, dita em teste: o retorno de `sugerirCnoNaNota` só admite
+   * `"desta_obra"` ou `null`. `"outra_obra"` e `"nao_traz"` continuam 100%
+   * manuais — ponto unânime entre o `contador` e o Mateus.
+   */
+  it("nenhum estado produz 'outra_obra' nem 'nao_traz'", () => {
+    const vereditos = [
+      compararCandidatosCno([candidato("12.345.67890/26")], "12.345.67890/26"),
+      compararCandidatosCno([candidato("98.765.43210/18")], "12.345.67890/26"),
+      compararCandidatosCno(
+        [candidato("98.765.43210/18"), candidato("12.345.67890/26")],
+        "12.345.67890/26",
+      ),
+      compararCandidatosCno([], "12.345.67890/26"),
+    ];
+    for (const veredito of vereditos) {
+      expect(["desta_obra", null]).toContain(sugerirCnoNaNota(veredito));
+    }
   });
 });

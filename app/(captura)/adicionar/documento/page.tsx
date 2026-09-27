@@ -102,13 +102,20 @@ import {
 import { soDigitos, tipoPorDocumento } from "@/lib/fiscal/identificacao";
 import {
   ACAO_NOTA_SEM_CNO,
+  CNO_MAIS_DE_UM_CANDIDATO,
   CNO_NAO_ALCANCA_O_CUSTO,
+  CNO_SUGESTAO_JA_MARCADA,
+  CNO_VEREDITO_DIFERENTES,
+  CNO_VEREDITO_IDENTICOS,
+  compararCandidatosCno,
   CONSEQUENCIA_CNO_DA_NOTA,
   formatarDataBR,
   NF_SERVICO_SEM_CNO_ALAVANCA,
   NF_SERVICO_SEM_CNO_EFEITO,
   NF_SERVICO_SEM_CNO_TITULO,
   ROTULO_SALVAR_SEM_CNO,
+  sugerirCnoNaNota,
+  type CandidatoCnoLido,
 } from "@/lib/fiscal/obra";
 import {
   alocarCusto,
@@ -346,15 +353,75 @@ export default function RegistrarDocumento() {
   }
   /**
    * CONTAI-007 — a pergunta do CNO. Nasce `null`, como todo campo fiscal deste
-   * formulário: **a extração nunca a preenche** (é pergunta sobre o papel na
-   * mão, não leitura de PDF — mesma regra de `notaNoCpf`).
+   * formulário.
    *
-   * ⚠️ **O gate de retenção deixou de estar nesta lista no CONTAI-062**, e só
-   * ele: o ADENDO 5 §1 do parecer o reclassifica como fato impresso e
-   * aritmeticamente conferível. `notaNoCpf`, `cnoNaNota` e os quatro campos de
-   * classificação da linha continuam 100% manuais (ADENDO 5 §4).
+   * ⚠️ **MUDOU NO CONTAI-069, e a mudança é uma decisão de produto que SOBREPÕE
+   * a recomendação do `contador`.** Até aqui este bloco afirmava que `cnoNaNota`
+   * continua "100% manual", citando o ADENDO 5 §4 do parecer de 2026-09-18 — e
+   * essa frase deixaria de ser verdade com o código abaixo. O que aconteceu:
+   *
+   * - o parecer `docs/pareceres/2026-09-27-extracao-tributo-e-cno.md` (Pergunta 2
+   *   + ADENDO) aprova **ler e comparar** o CNO impresso e exibir o veredito em
+   *   palavras, mas **reprova marcar** `cnoNaNota = "desta_obra"` sozinho — duas
+   *   vezes, a segunda já sob a condição de igualdade EXATA de dígitos (ADENDO
+   *   §3: `desta_obra` é o único desta família cujo espelho (`outra_obra`) o
+   *   CONTAI-007 trata como erro sem conserto, e trocar "decidir" por "confirmar
+   *   uma decisão do sistema" é mudança de tarefa cognitiva);
+   * - **o Mateus decidiu implementar a marcação mesmo assim**, como sugestão
+   *   editável — apetite de risco do dono do produto, registrado por inteiro em
+   *   `docs/backlog/85-2026-09-27-cno-automatico-contraria-contador.md`.
+   *
+   * O que NÃO mudou, e é ponto unânime entre o `contador` e o Mateus:
+   * `"outra_obra"` e `"nao_traz"` continuam 100% manuais, sem exceção — o tipo de
+   * `sugerirCnoNaNota` não tem como expressá-los. `notaNoCpf` e os quatro campos
+   * de classificação da linha também seguem proibidos (ADENDO 5 §4 do parecer de
+   * 2026-09-18).
+   *
+   * **Por que UM estado com resposta + origem**, e não dois `useState`: é o mesmo
+   * motivo já escrito por extenso no `gateDeRetencao` acima — a decisão de
+   * preencher o gate chega tarde (depois de um `await`, ou de uma troca de obra)
+   * e só pode valer se o gate ainda estiver vazio NAQUELE instante. Com um estado
+   * só, `setGateDeCno((atual) => atual ?? …)` é atômico, e a resposta manual do
+   * Mateus vence sempre (critério 11).
+   *
+   * ⚠️ **A origem NUNCA grava**: no "Salvar registro" só `resposta` viaja, via
+   * `cnoReferenciadoParaBanco`/`notaTrazCnoParaBanco`. Nenhum valor novo de enum,
+   * nenhuma migration (critério 15).
    */
-  const [cnoNaNota, setCnoNaNota] = useState<RespostaCnoNota | null>(null);
+  const [gateDeCno, setGateDeCno] = useState<{
+    resposta: RespostaCnoNota;
+    origem: "manual" | "sugerida";
+  } | null>(null);
+  const cnoNaNota = gateDeCno?.resposta ?? null;
+  /** A pílula a mostrar em âmbar + selo "Sugerida" — `"desta_obra"` ou nada. */
+  const cnoSugerido =
+    gateDeCno?.origem === "sugerida" ? gateDeCno.resposta : null;
+  /**
+   * **CONTAI-069** — os números rotulados como CNO que a leitura do PDF achou,
+   * crus, como a rota os devolveu. Guardados sempre (mesmo com o gate já
+   * respondido), porque é deles que sai o veredito exibido na tela.
+   */
+  const [candidatosCno, setCandidatosCno] = useState<CandidatoCnoLido[]>([]);
+  /**
+   * O veredito, recalculado a cada mudança do CNO da obra CORRENTE — é isto que
+   * faz a troca de obra no meio do formulário rederivar a sugestão sem novo fetch
+   * e sem novo parse do PDF (critério 14 / pre-mortem 3).
+   */
+  const comparacaoCno = useMemo(
+    () => compararCandidatosCno(candidatosCno, obra?.cno ?? null),
+    [candidatosCno, obra?.cno],
+  );
+
+  /**
+   * ⚠️ **Todo toque no gate do CNO é MANUAL**, inclusive o toque na opção que a
+   * leitura já tinha sugerido — é ele que troca a pílula de âmbar+selo para o
+   * preenchido escuro de sempre (critério 12, mecanismo espelhado do gate de
+   * retenção). O "confirmar implícito" é seguir em frente sem tocar e apertar
+   * "Salvar registro".
+   */
+  function responderGateDeCno(resposta: RespostaCnoNota) {
+    setGateDeCno({ resposta, origem: "manual" });
+  }
   const [erros, setErros] = useState<ErroCampo[]>([]);
   /**
    * CONTAI-033 — o diálogo do §A.7.1. **Overlay dentro desta tela**, nunca rota
@@ -438,8 +505,13 @@ export default function RegistrarDocumento() {
       setLinhasPendentes([]);
     }
     // Sair de NF de serviço apaga a resposta do CNO: ela só existe ali, e uma
-    // resposta guardada em tipo que não a pergunta é afirmação órfã.
-    if (!exigeCnoReferenciado(novo)) setCnoNaNota(null);
+    // resposta guardada em tipo que não a pergunta é afirmação órfã. ⚠️ Os
+    // candidatos lidos vão com ela (CONTAI-069): número lido de um papel exibido
+    // num tipo que não pergunta o CNO é a mesma orfandade, com outro nome.
+    if (!exigeCnoReferenciado(novo)) {
+      setGateDeCno(null);
+      setCandidatosCno([]);
+    }
   }
 
   /**
@@ -534,6 +606,41 @@ export default function RegistrarDocumento() {
       // contra um `retencao_na_nota` que a contradiz.
       setLinhasPendentes([]);
     }
+    // ⚠️ **CONTAI-069, critério 13 — o CNO lido morre com o papel**, pela mesma
+    // razão e com a mesma assimetria: os números somem da tela, e a resposta do
+    // gate só cai se ela era SUGERIDA. Uma resposta manual — `"nao_traz"` e
+    // `"outra_obra"` inclusive — é afirmação do Mateus sobre a nota, e trocar o
+    // anexo não a revoga.
+    setCandidatosCno([]);
+    if (gateDeCno?.origem === "sugerida") setGateDeCno(null);
+  }
+
+  /**
+   * ══ CONTAI-069 — a sugestão do gate do CNO, aplicada ═══════════════════════
+   *
+   * ⚠️ **Ajustada no RENDER, não dentro de um efeito** — mesmo padrão do bloco de
+   * invalidação acima (e do `useEsperaLonga` em `ui.tsx`), que é o que o
+   * `react-hooks/set-state-in-effect` cobra. O gatilho é um valor DERIVADO
+   * (`comparacaoCno`), e ele muda por dois caminhos: a leitura do PDF chegando e
+   * a troca de obra — o segundo sem fetch nenhum, que é exatamente o critério 14.
+   *
+   * ⚠️ **`atual ?? …`, e a resposta manual vence SEMPRE** (critério 11): o updater
+   * lê o valor mais recente do gate no instante em que a sugestão chega, nunca um
+   * valor capturado em closure antigo. Se o Mateus respondeu enquanto a leitura
+   * estava em voo — em qualquer direção —, `atual` já não é `null` e a sugestão
+   * não encosta nele.
+   *
+   * ⚠️ **Só `"desta_obra"`, e o compilador é quem garante**: o valor vem de
+   * `sugerirCnoNaNota`, cujo tipo de retorno é `"desta_obra" | null`. `"outra_obra"`
+   * e `"nao_traz"` não têm caminho até aqui.
+   */
+  const [comparacaoVista, setComparacaoVista] = useState(comparacaoCno);
+  if (comparacaoVista !== comparacaoCno) {
+    setComparacaoVista(comparacaoCno);
+    const sugestao = sugerirCnoNaNota(comparacaoCno);
+    if (sugestao !== null) {
+      setGateDeCno((atual) => atual ?? { resposta: sugestao, origem: "sugerida" });
+    }
   }
 
   useEffect(() => {
@@ -559,8 +666,16 @@ export default function RegistrarDocumento() {
         }
         const corpo = (await resposta.json()) as {
           sugestao: SugestaoLinhaRetencao | null;
+          /** CONTAI-069 — os números rotulados como CNO, crus, sem comparação. */
+          cno?: CandidatoCnoLido[];
         };
         if (cancelado) return;
+        // ⚠️ **CONTAI-069 — guarda SEMPRE, decide depois** (mesma disciplina da
+        // sugestão de retenção): quem transforma número lido em sugestão de gate é
+        // o bloco de render acima, contra o `obra.cno` corrente. Aqui só se guarda
+        // o que o papel traz. `[]` é "não achei" — e nunca "esta nota não traz
+        // CNO", que é resposta do Mateus, não conclusão de parser.
+        setCandidatosCno(corpo.cno ?? []);
         // ⚠️ `null` não é falha, e não é `"nenhuma"`: é a nota sem padrão
         // reconhecido. O estado certo dela é o gate VAZIO e o formulário em
         // branco, em silêncio — ausência de padrão não é prova de ausência de
@@ -1111,8 +1226,15 @@ export default function RegistrarDocumento() {
            * É também o que torna "Registrar na outra obra" uma saída de
            * verdade para o bloqueio: ele volta ao formulário com a pergunta
            * em aberto, e responde de novo olhando o mesmo papel.
+           *
+           * ⚠️ **CONTAI-069, critério 14** — o que NÃO se zera aqui é
+           * `candidatosCno`: o número impresso no papel não mudou porque a obra da
+           * tela mudou. A sugestão se **rederiva** contra o CNO da obra nova (o
+           * `useMemo` de `comparacaoCno` depende de `obra?.cno`), sem novo fetch e
+           * sem novo parse do PDF. Obra sem CNO cadastrado produz `null`
+           * naturalmente — sem erro, sem sugestão.
            */
-          setCnoNaNota(null);
+          setGateDeCno(null);
         }}
         onCancelar={() => setTrocando(false)}
       />
@@ -1168,7 +1290,12 @@ export default function RegistrarDocumento() {
               antes de registrar esta nota.
             </Dica>
           )}
-          <Botao variante="ghost" onClick={() => setCnoNaNota(null)}>
+          {/* ⚠️ Volta o gate para VAZIO, nunca para a sugestão: o bloqueio só
+              existe depois de `"outra_obra"`, que é sempre resposta MANUAL
+              (CONTAI-069 — o parser não sugere esse valor), e desfazê-la tem de
+              devolver a pergunta em aberto. A sugestão não renasce sozinha aqui:
+              `comparacaoCno` não mudou, então o bloco de render não dispara. */}
+          <Botao variante="ghost" onClick={() => setGateDeCno(null)}>
             Voltar e corrigir a resposta
           </Botao>
         </Rodape>
@@ -1618,13 +1745,25 @@ export default function RegistrarDocumento() {
                         onde só existiam ≥880px E só depois de "destacada": ou
                         seja, invisíveis exatamente quando passaram a importar.
 
-                        ⚠️ Com o gate em `"nenhuma"` os dois se calam. Ele já
-                        respondeu que esta nota não destaca retenção; dizer
-                        "lendo a retenção desta nota" ou "não deu para ler a
-                        retenção" em cima disso é contradizer a resposta dele com
-                        ruído — e a leitura, se chegar, não vai mexer no gate
-                        mesmo (ela só preenche gate vazio). */}
-                    {lendoSugestaoRetencao && retencaoNaNota !== "nenhuma" ? (
+                        ⚠️ Com o gate de retenção em `"nenhuma"` os dois se calam.
+                        Ele já respondeu que esta nota não destaca retenção; dizer
+                        "lendo…" ou "não deu para ler" em cima disso é contradizer
+                        a resposta dele com ruído — e a leitura, se chegar, não vai
+                        mexer naquele gate mesmo (ela só preenche gate vazio).
+
+                        ⚠️ **AJUSTADO NO CONTAI-069 (Gate 2, `cto-obra`) — o
+                        silêncio passou a depender dos DOIS gates.** Este banner
+                        virou COMPARTILHADO entre retenção e CNO (critério 16:
+                        mesma requisição, mesmo PDF), e a condição herdada do
+                        CONTAI-062 olhava só a retenção. Resultado: respondida a
+                        retenção como "Nenhuma", a leitura do CNO em voo — e a
+                        FALHA dela — ficava muda, e uma falha real de leitura
+                        virava indistinguível de "esta nota não traz CNO". Com
+                        `cnoNaNota === null` ainda há um gate esperando a leitura,
+                        então o aviso continua devido. Ele só se cala quando os dois
+                        gates já estão resolvidos. */}
+                    {lendoSugestaoRetencao &&
+                    (retencaoNaNota !== "nenhuma" || cnoNaNota === null) ? (
                       <div role="status" data-sugestao="gate-lendo">
                         <Dica>{SUGESTAO_RETENCAO_LENDO}</Dica>
                       </div>
@@ -1637,7 +1776,11 @@ export default function RegistrarDocumento() {
                     {!lendoSugestaoRetencao &&
                     falhouSugestaoRetencao &&
                     sugestaoRetencao === null &&
-                    retencaoNaNota !== "nenhuma" ? (
+                    /* Mesma correção do bloco acima (Gate 2 do CONTAI-069): com o
+                       gate do CNO ainda vazio, a falha da leitura continua sendo
+                       notícia — ela é a diferença entre "não achei CNO no papel" e
+                       "não consegui ler o papel". */
+                    (retencaoNaNota !== "nenhuma" || cnoNaNota === null) ? (
                       <div data-sugestao="gate-falhou">
                         <Banner cor="amb" role="status">
                           {SUGESTAO_RETENCAO_FALHOU}
@@ -1754,8 +1897,15 @@ export default function RegistrarDocumento() {
                           : RESPOSTAS_CNO
                       }
                       valor={cnoNaNota}
-                      onChange={setCnoNaNota}
+                      onChange={responderGateDeCno}
                       erro={erroDe("cnoNaNota")}
+                      /* ⚠️ **CONTAI-069** — âmbar + selo "Sugerida" enquanto a
+                         resposta for da leitura do papel, e não dele. Dois
+                         canais, nunca só cor, mesmo par de classes e mesmo selo
+                         do CONTAI-062 (`campos.tsx` não muda). `"desta_obra"` é o
+                         único valor que pode chegar aqui: o parser nunca conclui
+                         `"outra_obra"` nem `"nao_traz"`. */
+                      sugerido={cnoSugerido}
                     />
                     <Dica>
                       {semCnoNaObra ? (
@@ -1771,6 +1921,80 @@ export default function RegistrarDocumento() {
                         </>
                       )}
                     </Dica>
+                    {/* ══ CONTAI-069 — o veredito da comparação, em palavras ══
+                        ⚠️ **É a recomendação de UX que o `contador` pediu
+                        literalmente** (ADENDO §5 de
+                        `docs/pareceres/2026-09-27-extracao-tributo-e-cno.md`): a
+                        máquina, e não o olho do Mateus, dizendo se os dígitos
+                        batem. Ela vale nos DOIS casos — inclusive quando NÃO bate,
+                        onde o gate fica vazio e este banner é a única coisa na
+                        tela que explica por quê (critério 7).
+
+                        `mono` nos dois números, mesma formatação: a comparação
+                        tem de ser tão fácil de ler para ele quanto foi para a
+                        máquina. */}
+                    {comparacaoCno?.estado === "bate" ||
+                    comparacaoCno?.estado === "diverge" ? (
+                      <div
+                        data-sugestao={
+                          comparacaoCno.estado === "bate"
+                            ? "cno-bate"
+                            : "cno-diverge"
+                        }
+                      >
+                        <Banner cor="amb" role="status">
+                          {/* Mesma legenda do gate de retenção, reaproveitada de
+                              propósito: é a mesma frase ("isto veio da leitura do
+                              PDF, ainda não é fato"), e uma segunda legenda para
+                              dizer o mesmo só somaria vocabulário. */}
+                          <Chip cor="amb">{SUGESTAO_RETENCAO_CHIP}</Chip>
+                          <p className="mono mt-1.5 text-[13px]">
+                            CNO da obra: {obra.cno}
+                          </p>
+                          <p className="mono mt-0.5 text-[13px]">
+                            CNO da nota: {comparacaoCno.candidato.numeroBruto}
+                          </p>
+                          {/* ⚠️ **Bloqueante do Gate 2 — o veredito e a origem são
+                              DUAS afirmações, e só a primeira vale sempre.** "A
+                              resposta abaixo já veio marcada" só é verdade quando
+                              a sugestão realmente decidiu o campo
+                              (`cnoSugerido !== null`). Quando a resposta manual do
+                              Mateus venceu a corrida contra a leitura (critério
+                              11), o banner ainda tem de dizer que os números são
+                              idênticos — isso é fato sobre o papel —, mas dizer que
+                              o campo "veio marcado" descreveria errado um ato dele.
+                              Em tela fiscal isso não é imprecisão, é mentira. */}
+                          <p className="mt-1.5 text-[12px] font-bold">
+                            {comparacaoCno.estado === "bate"
+                              ? CNO_VEREDITO_IDENTICOS
+                              : CNO_VEREDITO_DIFERENTES}
+                            {comparacaoCno.estado === "bate" && cnoSugerido !== null
+                              ? ` ${CNO_SUGESTAO_JA_MARCADA}`
+                              : ""}
+                          </p>
+                        </Banner>
+                      </div>
+                    ) : null}
+                    {/* ⚠️ Critério 9 — dois números rotulados como CNO com
+                        dígitos diferentes NUNCA viram silêncio nem escolha
+                        arbitrária. O app lista os dois e devolve a decisão para o
+                        papel na mão dele. */}
+                    {comparacaoCno?.estado === "ambiguo" ? (
+                      <div data-sugestao="cno-ambiguo">
+                        <Banner cor="amb" role="status">
+                          <p className="text-[13px] font-bold">
+                            {CNO_MAIS_DE_UM_CANDIDATO}
+                          </p>
+                          <ul className="mono mt-1.5 text-[12px]">
+                            {comparacaoCno.candidatos.map((c) => (
+                              <li key={c.numeroBruto}>
+                                {c.rotuloLiteral}: {c.numeroBruto}
+                              </li>
+                            ))}
+                          </ul>
+                        </Banner>
+                      </div>
+                    ) : null}
                     {cnoNaNota === "nao_traz" ? (
                       <Banner cor="amb" role="status">
                         {CONSEQUENCIA_CNO_DA_NOTA} Salva assim mesmo, com

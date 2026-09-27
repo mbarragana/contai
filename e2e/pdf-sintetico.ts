@@ -84,10 +84,68 @@ export const NFSE_COM_RETENCAO_RECONHECIVEL = [
 /** O que o parser tem de devolver para a nota acima. */
 export const RETENCAO_ESPERADA = { rotulo: "ISSRF", valor: "1.048,00" };
 
+// ══ CONTAI-069 — o CNO impresso na nota ═══════════════════════════════════
+//
+// ⚠️ O CNO destas fixtures é o da obra do SEED (`OBRA_SEED.cno`, em
+// `ambiente.ts`) — é a igualdade com ele que faz a sugestão existir. Mudar um
+// sem o outro deixa a suíte vermelha no lugar certo.
+//
+// As três notas abaixo partem de `NFSE_SEM_PADRAO_RECONHECIVEL` de propósito:
+// sem trio aritmético que feche, o gate de RETENÇÃO fica vazio e o único
+// comportamento em jogo é o do CNO. Uma nota que sugerisse os dois gates
+// misturaria os dois assuntos no mesmo assert.
+
+/** O CNO da obra do seed, como o papel o imprimiria. */
+export const CNO_DA_OBRA_SEED = "12.345.67890/26";
+
+/** Outro CNO, com 12 dígitos e formato idêntico — só os dígitos divergem. */
+export const CNO_DE_OUTRA_OBRA = "98.765.43210/18";
+
+/**
+ * A célula "CNO / número" em duas linhas, que é como o `unpdf` devolve uma
+ * célula de tabela de DANFSe (medido no CONTAI-054).
+ */
+function notaComCno(...numeros: string[]) {
+  return [
+    "NOTA FISCAL DE SERVICOS ELETRONICA - NFS-e",
+    "PRESTADOR Empreiteira Sintetica Construcoes Ltda",
+    "CNPJ 11.222.333/0001-81",
+    "TOMADOR pessoa fisica CPF 123.456.789-09",
+    "DISCRIMINACAO execucao de estrutura de concreto armado do pavimento",
+    "terreo, conforme contrato de empreitada global.",
+    ...numeros.flatMap((numero, i) => [i === 0 ? "CNO" : "Matricula CEI", numero]),
+    "Valor Total",
+    "52.400,00",
+    "Retencoes diversas",
+    "1.048,00",
+    "Valor Liquido",
+    "49.900,00",
+  ];
+}
+
+/** Traz o CNO da obra do seed, dígito por dígito: a sugestão tem de nascer. */
+export const NFSE_COM_CNO_DESTA_OBRA = notaComCno(CNO_DA_OBRA_SEED);
+
+/**
+ * Traz um CNO de 12 dígitos que NÃO é o da obra. Gate vazio + os dois números na
+ * tela com "— números diferentes" (critério 7).
+ */
+export const NFSE_COM_CNO_DE_OUTRA_OBRA = notaComCno(CNO_DE_OUTRA_OBRA);
+
+/**
+ * Cita DOIS CNOs com dígitos diferentes — o caso do pre-mortem 2 (nota que
+ * referencia um contrato anterior). Aviso explícito, nunca escolha automática,
+ * **mesmo com um dos dois batendo** com a obra.
+ */
+export const NFSE_COM_DOIS_CNOS = notaComCno(CNO_DE_OUTRA_OBRA, CNO_DA_OBRA_SEED);
+
 /**
  * A MESMA nota sem trio que feche: o líquido não é `total − ISSRF`. Texto
  * suficiente (âncoras e volume batem), padrão reconhecido nenhum — é o caso
  * "nota sem padrão" do critério 3, e não um caso de erro.
+ *
+ * ⚠️ **Também é a nota SEM CNO nenhum** desde o CONTAI-069: nenhum rótulo de CNO
+ * no texto, então nem sugestão nem banner — o silêncio do critério 8.
  */
 export const NFSE_SEM_PADRAO_RECONHECIVEL = [
   "NOTA FISCAL DE SERVICOS ELETRONICA - NFS-e",
