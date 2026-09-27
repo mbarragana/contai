@@ -283,6 +283,18 @@ function RegistrarCompraCartao() {
   }
 
   if (fase.nome === "agendado") {
+    /**
+     * CONTAI-066 — a MESMA condição dos três pontos do ticket: comparação
+     * lexicográfica de string ISO `YYYY-MM-DD`, padrão já usado no arquivo.
+     * Aqui dispensa o guard de string vazia que o formulário precisa: a
+     * compra já foi gravada, então `fase.dataVencimento` está preenchida.
+     *
+     * Vencido ≠ pago (rotativo, atraso). Isto NÃO afirma que a fatura foi
+     * paga — só muda para onde o wayfinding aponta. Quem afirma o pagamento
+     * (com data real + comprovante) continua sendo o clique dentro de
+     * `/fatura/[id]/confirmar` (Pre-mortem 1).
+     */
+    const faturaVencida = fase.dataVencimento <= hojeIso();
     return (
       <>
         <AppBar titulo="Agendado" sub={fase.favorecidoNome} />
@@ -308,6 +320,17 @@ function RegistrarCompraCartao() {
               A data da compra <strong>não decide ano nenhum</strong>. Quem
               decide é o dia em que a fatura (ou a parte dela) for paga.
             </Dica>
+            {/* CONTAI-066, critério 2 — wayfinding, não alegação fiscal: a
+                Dica acima diz QUANDO o custo entra, esta diz PARA ONDE ir
+                agora. Segunda `<Dica>` no mesmo Card de propósito (spec, item
+                2) — Card ou Banner novo daria a este texto o peso de aviso
+                fiscal, que ele não tem. */}
+            {faturaVencida ? (
+              <Dica>
+                Esta fatura já venceu. O próximo passo é confirmar esse
+                pagamento e anexar o comprovante da fatura.
+              </Dica>
+            ) : null}
           </Card>
 
           {/* ⚠️ CONTAI-064, critério 10 — O QUE O SISTEMA GARANTE HOJE, e nada
@@ -350,10 +373,23 @@ function RegistrarCompraCartao() {
         {/* Critério 8: "Ver a fatura" e "Voltar ao início" são rotas de
             `app/(gestao)/` — abrem com o shell, e o fluxo termina num lugar
             reconhecível do produto. */}
+        {/* CONTAI-066, critério 1 + spec item 3 — destino e rótulo trocam
+            JUNTOS: "Ver a fatura" apontando para a confirmação seria
+            wayfinding falso. O rótulo descreve o destino real, não promete
+            que o pagamento já existe. */}
         <Rodape className={COLUNA_DO_FORMULARIO}>
-          <BotaoLink href={`/fatura/${fase.faturaId}`} variante="primary">
-            Ver a fatura
-          </BotaoLink>
+          {faturaVencida ? (
+            <BotaoLink
+              href={`/fatura/${fase.faturaId}/confirmar`}
+              variante="primary"
+            >
+              Confirmar o pagamento
+            </BotaoLink>
+          ) : (
+            <BotaoLink href={`/fatura/${fase.faturaId}`} variante="primary">
+              Ver a fatura
+            </BotaoLink>
+          )}
           <BotaoLink href="/adicionar/compra-cartao">
             Registrar outra compra
           </BotaoLink>
@@ -376,6 +412,19 @@ function RegistrarCompraCartao() {
       />
     );
   }
+
+  /**
+   * CONTAI-066 — a mesma condição do estado "agendado", agora sobre o campo que
+   * o Mateus está digitando. Nunca inferida de outra fonte (Fora de Escopo): só
+   * a data que ele próprio informou.
+   *
+   * Declarada aqui, depois da saída do estado "agendado", justamente para não
+   * sombrear a de lá: são duas leituras da mesma regra, em fontes diferentes.
+   *
+   * O guard de string vazia não é detalhe: `"" <= hojeIso()` é `true`, e sem
+   * ele a frase apareceria com o campo ainda em branco.
+   */
+  const faturaVencida = dataVencimento !== "" && dataVencimento <= hojeIso();
 
   return (
     <>
@@ -443,10 +492,21 @@ function RegistrarCompraCartao() {
               />
             ) : null}
 
+            {/* CONTAI-066, critério 3 — frase extra no banner JÁ EXISTENTE,
+                nunca banner novo (spec, item 1). O banner está acima do campo
+                "Vencimento da fatura" na árvore e reage a ele assim que o
+                Mateus digita; não mover o banner (fora de escopo). */}
             <Banner cor="amb" role="status">
               <strong>Esta compra nasce sempre agendamento</strong> — o
               dinheiro só sai quando a fatura for paga. O favorecido é o{" "}
               <strong>lojista</strong>, nunca o banco nem a administradora.
+              {faturaVencida ? (
+                <>
+                  {" "}
+                  Esta fatura já venceu: o próximo passo depois de salvar é
+                  confirmar esse pagamento e anexar o comprovante da fatura.
+                </>
+              ) : null}
             </Banner>
 
             <Card className="flex flex-col gap-3.5">

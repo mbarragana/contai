@@ -3,6 +3,68 @@
 ## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
 
 **2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda ainda
+ainda ainda ainda ainda ainda ainda**: **`066` entregue** — Gate 4 (`po`),
+8/8 critérios PASS. Sem migration. Na tela "Agendado" de
+`/adicionar/compra-cartao`, quando `fase.dataVencimento <= hoje`, o link
+primário do rodapé passa a levar a `/fatura/{faturaId}/confirmar` com o
+rótulo "Confirmar o pagamento" (antes: sempre "Ver a fatura", mesmo com a
+fatura já vencida); vencimento futuro mantém o comportamento de sempre. O
+Card da tela "Agendado" ganha uma segunda `<Dica>` de wayfinding, e o banner
+âmbar do formulário ganha a mesma frase (substância única, duas ocasiões)
+assim que o Mateus digita um vencimento `<= hoje` — guard de string vazia
+evita a frase aparecer com o campo em branco. Rótulo do botão final
+("Agendar — não entra no custo") permanece literal, byte a byte, e os 4
+seletores E2E citados no critério 4 seguem batendo
+(`e2e/cartao.spec.ts` ×5 — 3 antigos + 2 novos —, `e2e/compromisso.spec.ts`
+×1). Mecanismo de gravação intocado: nasce sempre `compromisso` via
+`criarCompraCartao`, nunca `decidirRegistro`; o redirect não afirma que a
+fatura foi paga (vencido ≠ pago — quem afirma continua sendo o clique dentro
+de `/fatura/[id]/confirmar`). Gate Fiscal: os dois textos são paráfrases da
+mesma frase, conferidos byte a byte contra `design/mocks/CONTAI-066.md` —
+achado de navegação, não fiscal. Nenhum arquivo mudou depois do APPROVE do
+`cto-obra` no Gate 2. `npm run typecheck`/`lint` limpos,
+`e2e/cartao.spec.ts` (16/16) e `e2e/compromisso.spec.ts` (12/12) verdes —
+**`npm run quality` completo não rodado nesta rodada** (escopo do Gate 4
+foram os specs citados no critério 4, por instrução explícita de quem
+acionou o gate; fica pendência de confirmação formal antes do próximo `git
+push`). `067` fica sozinho na fila. Detalhe:
+`docs/backlog/83-2026-09-26-contai-066-entregue.md`.
+
+**2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda ainda
+ainda ainda ainda ainda ainda**: **`CONTAI-067` criado** — o ADENDO de
+2026-09-26 ao parecer `docs/pareceres/2026-09-26-comprovante-por-item-compra-cartao.md`
+(provocado pela pergunta do Mateus: *"mas o que comprova que aquele pagamento
+foi pago em tal fatura se não tem o comprovante único do pagamento?"`)
+identificou um documento faltando que o `§2` original não tinha visto: o
+**extrato da fatura** emitido pela administradora do cartão (PDF itemizado,
+documento de terceiro, um por fatura) — sem ele, a associação compra↔fatura
+(que decide o ano-calendário do custo) é só autodeclaração do Mateus.
+Classificado **gate fiscal novo, não conveniência**. `/tickets-req` completo:
+`cto-obra` decidiu coluna nova `fatura.extrato_path` (nunca em
+`fatura_desembolso` — um extrato serve N desembolsos da mesma fatura, grão
+oposto ao do `comprovante_path`), grant **de coluna** (`update
+(extrato_path)`, nunca de tabela — `fatura` não ganha UPDATE geral), RPC
+`anexar_extrato_fatura` para o anexo tardio/rotativo (canônico em
+`/fatura/[id]`, nunca em `/parcial`), e recomendou incluir a fila unificada
+de pendências no mesmo ticket (D47 — sem lista de faturas, a pendência fica
+invisível da home). Consulta pontual ao `contador` fechou a cor: **vermelha**
+(ADENDO 2 do mesmo parecer — regra do A.4, "ano certo?" não "quantas saídas
+afeta"; escopo do veto é só a discriminação da ficha Bens e Direitos, não a
+aferição INSS nem Pagamentos Efetuados). **D84/D85/D86** nomeadas (colisão de
+multicartão no mesmo `extrato_path`, falta de leitor "todas as faturas",
+sem rastro em `revisao` por decisão). **CONTAI-066** também recebeu correção
+de citação (a exclusão de "comprovante por item" continua válida; o Gate
+Fiscal dele agora aponta para o ADENDO e para este ticket, sem bloquear).
+**Gate 0 fechado no mesmo dia** (`design/mocks/CONTAI-067.md`, nível 2):
+dois `CampoArquivo` empilhados em `/fatura/[id]/confirmar` ("Comprovante da
+fatura" / "Extrato da fatura (emitido pelo cartão)"), bloco de anexo tardio
+em `/fatura/[id]` com dois parágrafos (consequência + escopo do NÃO-veto,
+para o card vermelho não sugerir que trava Pagamentos Efetuados/aferição
+INSS), e card espelhando `documentos_sem_arquivo` na fila unificada.
+Achado do Gate 0 virou critério 20 (`PapelDeAnexo` ganha `"extrato"`).
+**Pronto para `/develop`.** Detalhe: `docs/tickets/CONTAI-067.md`.
+
+**2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda ainda
 ainda ainda ainda ainda**: **`065` entregue** — Gate 4 (`po`), 8/8 critérios
 PASS. Migration `0020` (`propagar_vinculo_de_origem`) faz
 `fatura_desembolso_gravar`/`fatura_alocar` (cartão) e `quitarCompromisso`
@@ -1062,9 +1124,14 @@ ainda ainda ainda ainda**: **`065` sai da fila** — passou pelo `/develop`
 inteiro e saiu entregue (ver nota no topo). `066` fica sozinho na fila,
 pronto.
 
+**2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda ainda
+ainda ainda ainda ainda ainda ainda**: **`066` sai da fila** — passou pelo
+`/develop` inteiro e saiu entregue (ver nota no topo). `067` fica sozinho na
+fila, pronto.
+
 | Ordem | # | Ticket | P | Pronto para `/develop` |
 |---|---|---|---|---|
-| 1 | 066 | Compra de cartão retroativa — atalho até confirmar + texto | P1 | 🟢 sim |
+| 1 | 067 | Extrato da fatura do cartão — elo compra↔fatura | **P0** | 🟢 sim |
 
 ### 🛑 Em espera — decisão do Mateus, 2026-09-23
 

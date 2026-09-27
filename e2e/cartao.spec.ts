@@ -1,3 +1,5 @@
+import { type Page } from "@playwright/test";
+
 import { OBRA_ID_SEED } from "./ambiente";
 import {
   compromissos,
@@ -27,6 +29,19 @@ import { escolher } from "./formularios";
 // CNPJ com dígito verificador válido de verdade (o do mock não passa na
 // validação real — `validarCnpj`, `lib/fiscal/identificacao.ts`).
 const CNPJ_LOJA = "11.222.333/0001-81";
+
+/** ISO de hoje no fuso do aparelho — o mesmo `hojeIso()` que o app usa. */
+function hoje(): string {
+  const agora = new Date();
+  const local = new Date(agora.getTime() - agora.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
+function maisDias(dias: number): string {
+  const d = new Date(`${hoje()}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
 
 let proximoCnpj = 0;
 
@@ -142,6 +157,119 @@ test.describe("registrar a compra — o gate do parcelamento", () => {
     });
     expect(a.faturaId).not.toBe(b.faturaId);
     expect(await faturas(db)).toHaveLength(2);
+  });
+});
+
+/**
+ * CONTAI-066 — backfill de compra antiga: quando o vencimento que o Mateus
+ * digitou já passou, a tela diz para onde ir e o rodapé leva direto à
+ * confirmação da fatura. Datas relativas a hoje de propósito: data fixa em
+ * arquivo faz o teste trocar de significado sozinho quando a data passa.
+ *
+ * O que estes testes NÃO afirmam: que a fatura foi paga. Vencido ≠ pago — o
+ * mecanismo (compra nasce sempre agendamento) é o mesmo nos dois casos, e o
+ * rótulo "Agendar — não entra no custo" é asserido literal aqui (critério 4).
+ */
+test.describe("compra retroativa — wayfinding até confirmar a fatura (CONTAI-066)", () => {
+  /** Preenche o formulário inteiro, menos o vencimento (que é a variável). */
+  async function preencherCompra(
+    page: Page,
+    { dataCompra }: { dataCompra: string },
+  ) {
+    await page.goto("/adicionar/compra-cartao");
+    await escolher(page, "Parcelado?", "À vista");
+    await page.getByLabel("Favorecido", { exact: true }).fill("Depósito Bom Jesus");
+    await page.getByLabel("CNPJ / CPF do favorecido").fill(CNPJ_LOJA);
+    await page.getByLabel("Valor da compra").fill("1.240,00");
+    await page.getByLabel("Data da compra").fill(dataCompra);
+  }
+
+  const FRASE_NO_FORMULARIO =
+    /Esta fatura já venceu: o próximo passo depois de salvar é confirmar esse pagamento e anexar o comprovante da fatura/;
+  const FRASE_NO_AGENDADO =
+    /Esta fatura já venceu\. O próximo passo é confirmar esse pagamento e anexar o comprovante da fatura/;
+
+  test("vencimento FUTURO: nenhum texto extra, e o rodapé continua em 'Ver a fatura'", async ({
+    page,
+    db,
+  }) => {
+    await preencherCompra(page, { dataCompra: hoje() });
+
+    // Antes de digitar o vencimento, nada — `"" <= hoje` seria `true` sem o
+    // guard de string vazia, e a frase apareceria num campo ainda em branco.
+    await expect(page.getByText(FRASE_NO_FORMULARIO)).toHaveCount(0);
+
+    // Fronteira do `<=`: vencer HOJE já conta como vencida.
+    await page.getByLabel("Vencimento da fatura").fill(hoje());
+    await expect(page.getByText(FRASE_NO_FORMULARIO)).toBeVisible();
+
+    // E some ao empurrar o vencimento para o futuro — o banner reage ao campo.
+    await page.getByLabel("Vencimento da fatura").fill(maisDias(30));
+    await expect(page.getByText(FRASE_NO_FORMULARIO)).toHaveCount(0);
+
+    await expect(
+      page.getByRole("button", { name: "Agendar — não entra no custo" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: /^Agendar/ }).click();
+    await expect(page.getByRole("heading", { name: "Agendado" })).toBeVisible();
+
+    await expect(page.getByText(FRASE_NO_AGENDADO)).toHaveCount(0);
+
+    const fs = await faturas(db);
+    expect(fs).toHaveLength(1);
+    await expect(
+      page.getByRole("link", { name: "Ver a fatura" }),
+    ).toHaveAttribute("href", `/fatura/${fs[0].id}`);
+    await expect(
+      page.getByRole("link", { name: "Confirmar o pagamento" }),
+    ).toHaveCount(0);
+  });
+
+  test("vencimento JÁ PASSADO: frase no formulário, Dica no 'Agendado' e rodapé direto para /confirmar", async ({
+    page,
+    db,
+  }) => {
+    await preencherCompra(page, { dataCompra: maisDias(-150) });
+    await page.getByLabel("Vencimento da fatura").fill(maisDias(-120));
+
+    await expect(page.getByText(FRASE_NO_FORMULARIO)).toBeVisible();
+    // Critério 4: o rótulo do botão é o mesmo, byte a byte, fatura vencida ou
+    // não — o mecanismo não muda, só o wayfinding.
+    await expect(
+      page.getByRole("button", { name: "Agendar — não entra no custo" }),
+    ).toBeVisible();
+
+    await page.getByRole("button", { name: /^Agendar/ }).click();
+    await expect(page.getByRole("heading", { name: "Agendado" })).toBeVisible();
+
+    // A Dica fiscal de sempre continua lá, e a de wayfinding entra ao lado —
+    // não no lugar dela (critério 2).
+    await expect(page.getByText(/A data da compra/)).toBeVisible();
+    await expect(page.getByText(FRASE_NO_AGENDADO)).toBeVisible();
+
+    const fs = await faturas(db);
+    expect(fs).toHaveLength(1);
+    await expect(page.getByRole("link", { name: "Ver a fatura" })).toHaveCount(0);
+    const atalho = page.getByRole("link", { name: "Confirmar o pagamento" });
+    await expect(atalho).toHaveAttribute(
+      "href",
+      `/fatura/${fs[0].id}/confirmar`,
+    );
+
+    // O atalho tem de POUSAR na tela de confirmação — href certo apontando
+    // para rota que não abre seria o mesmo beco sem saída do relato.
+    await atalho.click();
+    await expect(
+      page.getByRole("heading", { name: "Fatura paga · integral" }),
+    ).toBeVisible();
+
+    // Nada de pagamento gravado por ter passado por aqui: quem afirma que a
+    // fatura foi paga é o clique DENTRO de /confirmar (Pre-mortem 1).
+    expect(await pagamentos(db)).toHaveLength(0);
+    const cs = await compromissos(db);
+    expect(cs).toHaveLength(1);
+    expect(cs[0].situacao).toBe("aberto");
+    expect(cs[0].origem).toBe("cartao");
   });
 });
 
