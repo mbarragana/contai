@@ -134,7 +134,7 @@ async function cenario(db: Parameters<typeof criarFavorecido>[0]) {
     status: "registrado",
   });
 
-  return { p1, p2 };
+  return { p1, p2, casa, aje, joao };
 }
 
 const TABELA = '[data-tabela="despesas"]';
@@ -163,7 +163,12 @@ test.describe("despesas — a tabela de verdade", () => {
     await expect(page.getByText(rotulosPagoSemNota("pf").chip)).toBeVisible();
     await expect(page.getByText("Quarentena")).toBeVisible();
     // O terceiro estado, com chip NEUTRO — nem comprovado nem em risco.
-    await expect(page.getByText("Sem pagamento ligado")).toBeVisible();
+    // ⚠️ Escopo na TABELA desde o CONTAI-063: o mesmo texto é o rótulo da quarta
+    // opção do dropdown de Situação, e ele reaproveita a constante do chip de
+    // propósito — sem escopo, o localizador casa com os dois.
+    await expect(
+      page.locator(TABELA).getByText("Sem pagamento ligado"),
+    ).toBeVisible();
 
     // ── a consequência fiscal, INTEIRA e sem clique nenhum ──────────────
     await expect(page.getByText(CONSEQUENCIA_QUARENTENA)).toBeVisible();
@@ -269,6 +274,100 @@ test.describe("despesas — a tabela de verdade", () => {
     await page.getByRole("button", { name: "Mostrar todos" }).click();
     await expect(page.locator(LINHAS)).toHaveCount(5);
     await expect(page.getByLabel("Situação")).toHaveValue("todas");
+  });
+
+  /**
+   * **CONTAI-063 — a quarta opção de Situação, e o atalho que ela aposenta.**
+   *
+   * O relato de origem: para achar as notas ainda sem pagamento, o Mateus digitava
+   * o nome do favorecido na BUSCA, porque nenhuma das três opções isolava o
+   * terceiro estado (ele não é comprovado nem pendência, por desenho). Este teste
+   * cobre as três coisas que o ticket pede: rótulo exato no FIM da lista, o
+   * isolamento sem digitar nada, e a contagem da barra.
+   */
+  test("a quarta opção de Situação isola 'Sem pagamento ligado', sem busca", async ({
+    page,
+    db,
+  }) => {
+    const { casa } = await cenario(db);
+    // Uma SEGUNDA nota hábil sem pagamento, de outro favorecido e outro tipo:
+    // com uma linha só, "isola" passaria por acidente.
+    await criarDocumento(db, {
+      favorecido_id: casa,
+      tipo: "nf_material",
+      classificacao: "material",
+      valor: 1500,
+      numero: "9001",
+      data_emissao: `${ANO}-03-02`,
+      destinatario_cpf_ok: true,
+      status: "registrado",
+    });
+
+    await page.goto("/despesas");
+    await expect(page.locator(LINHAS)).toHaveCount(6);
+
+    // ── o rótulo é o texto do chip, e a opção é a ÚLTIMA da lista ─────────
+    await expect(
+      page.getByLabel("Situação").locator("option"),
+    ).toHaveText([
+      "Todas as situações",
+      "Só comprovadas",
+      "Só com pendência",
+      "Sem pagamento ligado",
+    ]);
+
+    // ── o isolamento, sem digitar nada na busca ──────────────────────────
+    await page.getByLabel("Situação").selectOption("sem_pagamento");
+    const linhas = page.locator(LINHAS);
+    await expect(linhas).toHaveCount(2);
+    // Sem asserção de ORDEM: as duas linhas não têm data de pagamento e
+    // desempatam por id, que é um uuid — ordem estável no produto, arbitrária
+    // aqui.
+    await expect(linhas.filter({ hasText: "AJE Construções" })).toHaveCount(1);
+    await expect(
+      linhas.filter({ hasText: "NF de material nº 9001" }),
+    ).toHaveCount(1);
+    // Toda linha visível carrega o chip — e NENHUMA outra situação aparece.
+    // ⚠️ Escopo na TABELA: fora dela o `<option>` novo tem o mesmo texto.
+    const naTabela = page.locator(TABELA);
+    await expect(naTabela.getByText("Sem pagamento ligado")).toHaveCount(2);
+    await expect(
+      naTabela.getByText(EXPLICACAO_NOTAS_SEM_PAGAMENTO),
+    ).toHaveCount(2);
+    await expect(naTabela.getByText("Custo comprovado")).toHaveCount(0);
+    await expect(naTabela.getByText("Quarentena")).toHaveCount(0);
+    await expect(naTabela.getByText(CONSEQUENCIA_BOLETO)).toHaveCount(0);
+    await expect(
+      naTabela.getByText(rotulosPagoSemNota("pf").chip),
+    ).toHaveCount(0);
+
+    // ── a contagem da barra, no padrão genérico já existente ─────────────
+    await expect(page.locator('[data-contagem="despesas"]')).toHaveText(
+      `2 de 6 lançamentos em ${ANO}`,
+    );
+
+    // ── compõe em E com Tipo e com Busca, como as outras opções ──────────
+    await page.getByLabel("Tipo de documento").selectOption("nf_servico");
+    await expect(page.locator(LINHAS)).toHaveCount(1);
+    await expect(page.locator(LINHAS)).toContainText("AJE Construções");
+    await expect(page.locator('[data-contagem="despesas"]')).toHaveText(
+      `1 de 6 lançamentos em ${ANO}`,
+    );
+
+    await page.getByLabel("Tipo de documento").selectOption("todos");
+    await page.getByLabel("Buscar favorecido").fill("casa");
+    await expect(page.locator(LINHAS)).toHaveCount(1);
+    await expect(page.locator(LINHAS)).toContainText("NF de material nº 9001");
+
+    // Interseção vazia é vazia, e o banner genérico devolve a saída — sem
+    // variante nova para esta opção.
+    await page.getByLabel("Buscar favorecido").fill("pedreiro");
+    await expect(page.locator(TABELA)).toHaveCount(0);
+    const aviso = page.getByRole("status");
+    await expect(aviso).toContainText("Nenhum lançamento com estes filtros");
+    await page.getByRole("button", { name: "Mostrar todos" }).click();
+    await expect(page.getByLabel("Situação")).toHaveValue("todas");
+    await expect(page.locator(LINHAS)).toHaveCount(6);
   });
 
   test("ordenação por clique no cabeçalho — data e valor", async ({

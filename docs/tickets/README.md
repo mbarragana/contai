@@ -3,6 +3,58 @@
 ## 🔎 O que está em aberto — 19 tickets (mais 1 parado, aguardando o Mateus)
 
 **2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda ainda
+ainda ainda ainda**: **`063` entregue** — Gate 4 (`po`), 8/8 critérios PASS.
+Implementado só depois do `CONTAI-060` commitado em `main` (bloqueio de
+árvore de trabalho, não técnico), como a Dependência exigia. `LinhaDeDespesa`
+ganhou `semPagamentoLigado: boolean`, setado no mesmo laço do bloco 6 que já
+empurra `CHIP_SEM_PAGAMENTO` — o predicado de `casaSituacao` lê esse
+booleano, nunca varre `situacoes` pelo chip nem compara string de rótulo
+(protege contra o dia em que o `designer` mudar a copy do chip). `FiltroSituacao`
+ganhou `"sem_pagamento"`, `SITUACOES` (`app/(gestao)/despesas/page.tsx`) ganhou
+a quarta entrada com o rótulo puxado da própria constante `CHIP_SEM_PAGAMENTO`
+(não digitado de novo), no fim da lista, sem tocar nas três opções existentes.
+Sem migration — puramente filtro de leitura sobre a projeção em memória.
+Testes novos travam os três Pre-mortens do ticket: isolamento sem digitar
+busca (critério 3), composição em E com Tipo/Busca/Ano sem que um cancele o
+outro (critério 4), e a quarentena — que também não tem `dataPagamento` —
+ficando de fora do terceiro estado (prova de que o predicado não é
+`dataPagamento === null`, e não a string do chip). Zero regressão nas três
+opções antigas, testada explicitamente. 49 unitários
+(`lib/fiscal/despesas.test.ts`) + 56 E2E escopados
+(`despesas.spec.ts`/`shell-desktop.spec.ts`/`documento-sem-arquivo.spec.ts`)
+verdes — suíte cheia não rodou neste Gate 4 por concorrência de árvore com o
+`CONTAI-065` (Gate 1 em andamento na mesma sessão, arquivos ignorados por
+instrução explícita). Nenhum arquivo mudou depois do APPROVE do `cto-obra`
+além dos quatro já listados na Viabilidade (`lib/fiscal/despesas.ts`+`.test.ts`,
+`page.tsx`, `e2e/despesas.spec.ts`). Volta a 19. Detalhe:
+`docs/tickets/CONTAI-063.md`.
+
+**2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda ainda
+ainda ainda**: **`CONTAI-066` criado** — relato do Mateus com screenshot,
+registrando uma compra de cartão retroativa em `/adicionar/compra-cartao`
+(`docs/backlog/80-2026-09-26-comprovante-fatura-e-agendamento-retroativo-cartao.md`):
+não achava onde anexar "o comprovante do pagamento específico do item", e
+achou estranho o botão dizer "Agendar — não entra no custo" com as datas já
+passadas. Parecer novo do `contador`
+(`docs/pareceres/2026-09-26-comprovante-por-item-compra-cartao.md`) fechou as
+duas perguntas de arquitetura sem precisar voltar ao Mateus: comprovante
+único por FATURA está certo e suficiente (evento de caixa é a liquidação da
+fatura); não existe comprovante por item que a fatura não supra (o item já é
+sustentado por NF do favorecido + comprovante da fatura); registro tardio não
+muda regime de caixa. **Diagnóstico: confusão de navegação, não dívida
+fiscal.** `cto-obra` recomendou redirect (não formulário fundido): quando
+`Vencimento da fatura <= hoje`, a tela "Agendado" leva direto a
+`/fatura/[id]/confirmar` em vez de `/fatura/[id]` — PP, sem migration, sem
+RPC nova. Rótulo "Agendar — não entra no custo" permanece intocado (4
+seletores E2E). **D81** nova (compra atrasada numa fatura que já tem
+desembolso duplica o registro de saída de caixa) — fora deste ticket,
+registrada como dívida candidata a ticket próprio. **Gate 0 fechado no mesmo
+dia** (`design/mocks/CONTAI-066.md`, nível 2): as duas frases novas entram em
+elementos já existentes (banner âmbar do formulário; segundo `<Dica>` no Card
+da tela "Agendado"), e o link primário do rodapé troca destino e rótulo
+juntos ("Confirmar o pagamento" quando vencida). **Pronto para `/develop`.**
+
+**2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda ainda
 ainda**: **`064` entregue** — Gate 4 (`po`), 11/11 critérios PASS, incluindo o
 critério 9 (achado do `designer`, confirmado no escopo pelo `cto-obra` no
 Gate 2: `corrigir/emitente/page.tsx` ganha `?voltar=compra-cartao`). Trocar
@@ -166,6 +218,41 @@ a 19; `053` continua bloqueado por Gate 0, `055` agora só bloqueado por
 — volta a 18; `055` fica sozinho na fila, sem bloqueio. 2026-09-25, ainda
 mais tarde: **`055` entregue** (Gate 4, 5/5 PASS) — volta a 17, **fila de
 implementação vazia** — fecha o backlog 71 inteiro (`053`+`054`+`055`).)*
+
+**2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda ainda
+ainda ainda ainda**: **`063` entregue** — Gate 4 (`po`), 8/8 critérios PASS.
+Quarta opção no dropdown de Situação de `/despesas`, isolando o terceiro
+estado ("Sem pagamento ligado") sem precisar digitar nada na busca — o
+próprio cenário do relato de origem
+(`docs/backlog/76-2026-09-26-filtro-sem-pagamento-despesas.md`, Mateus
+digitando "casa" só para achar essas 4 notas). Implementado só depois do
+`CONTAI-060` estar commitado em `main`, como a Dependência do ticket exigia
+(conflito textual certo, não provável, nos mesmos arquivos). `LinhaDeDespesa`
+ganhou o campo próprio `semPagamentoLigado: boolean`, setado no mesmo laço do
+bloco 6 que já empurra `CHIP_SEM_PAGAMENTO` — o predicado de `casaSituacao`
+lê esse booleano, nunca varre `situacoes` pelo chip nem compara string de
+rótulo (Pre-mortem 3 do ticket: protege contra o dia em que o `designer`
+revisar a copy do chip e o filtro parar de funcionar em silêncio).
+`FiltroSituacao` ganhou `"sem_pagamento"`; `SITUACOES`
+(`app/(gestao)/despesas/page.tsx`) ganhou a quarta entrada com o rótulo
+puxado da própria constante `CHIP_SEM_PAGAMENTO` (não digitado de novo), no
+fim da lista, sem tocar rótulo, posição ou comportamento das três opções
+existentes. Sem migration — filtro de leitura sobre a projeção em memória,
+sem Gate Fiscal (confirmado pelo `po`/`cto-obra`, `contador` não precisou ser
+acionado). Testes novos (`lib/fiscal/despesas.test.ts`) travam os três
+Pre-mortens do ticket: isolamento sem digitar busca; composição em E com
+Tipo/Busca/Ano sem que um filtro cancele o outro; e a linha em quarentena —
+que também não tem `dataPagamento` e é pendência REAL — ficando de fora do
+terceiro estado, prova de que o predicado não é `dataPagamento === null`.
+Zero regressão nas três opções antigas, testada explicitamente
+linha por linha. 49 unitários + 56 E2E escopados
+(`despesas.spec.ts`/`shell-desktop.spec.ts`/`documento-sem-arquivo.spec.ts`)
+verdes neste Gate 4; a suíte cheia não rodou por concorrência de árvore com o
+`CONTAI-065` (Gate 1 em andamento na mesma sessão — arquivos dele ignorados
+por instrução explícita, nenhum tocado). Nenhum arquivo mudou depois do
+APPROVE do `cto-obra` além dos quatro já listados na Viabilidade
+(`lib/fiscal/despesas.ts`+`.test.ts`, `page.tsx`, `e2e/despesas.spec.ts`).
+Detalhe: `docs/tickets/CONTAI-063.md`.
 
 **2026-09-26, mais tarde ainda ainda ainda**: **`061` entregue** — Gate 4
 (`po`), 10/10 critérios PASS. RPC nova `anexar_comprovante_pagamento`
@@ -941,9 +1028,16 @@ ainda ainda**: **`064` sai da fila** — passou pelo `/develop` inteiro e saiu
 entregue (ver nota no topo). `065` fica sozinho na fila, pronto — depende só
 da própria arquitetura já fechada, sem bloqueio.
 
+**2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda ainda
+ainda ainda ainda**: **`066` entra, pronto** — relato + parecer fiscal +
+Gate 0 fechados no mesmo dia (ver nota no topo). Independente do `065`
+(arquivos e telas diferentes, sem sobreposição) — os dois podem rodar em
+qualquer ordem.
+
 | Ordem | # | Ticket | P | Pronto para `/develop` |
 |---|---|---|---|---|
 | 1 | 065 | Propagar vínculo com a nota na quitação (D79) | P1 | 🟢 sim |
+| 2 | 066 | Compra de cartão retroativa — atalho até confirmar + texto | P1 | 🟢 sim |
 
 ### 🛑 Em espera — decisão do Mateus, 2026-09-23
 

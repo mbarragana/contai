@@ -869,6 +869,9 @@ describe("as situações da coluna `Situação`", () => {
     // O terceiro estado não é pendência e não é custo comprovado.
     expect(linha.temPendencia).toBe(false);
     expect(linha.comprovada).toBe(false);
+    // **CONTAI-063** — e ele tem campo PRÓPRIO, no mesmo laço que empurra o
+    // chip: é este booleano que o filtro de Situação lê.
+    expect(linha.semPagamentoLigado).toBe(true);
     expect(linha.outraData).toEqual({
       rotulo: "emitida em",
       iso: `${ANO}-03-20`,
@@ -882,6 +885,11 @@ describe("as situações da coluna `Situação`", () => {
     expect(linha.temPendencia).toBe(true);
     // Sem arquivo ela não é hábil, então o terceiro estado não se aplica.
     expect(chips(linha)).not.toContain(CHIP_SEM_PAGAMENTO);
+    // **CONTAI-063** — e o campo acompanha o chip: "sem pagamento na linha" não
+    // é "sem pagamento ligado". Se o filtro fosse `dataPagamento === null`, esta
+    // nota (e a em quarentena) apareceriam nele.
+    expect(linha.semPagamentoLigado).toBe(false);
+    expect(linha.dataPagamento).toBeNull();
   });
 
   /**
@@ -1235,6 +1243,199 @@ describe("filtros (critério 8)", () => {
     }, TODOS);
     expect(filtradas.map((l) => l.id)).toEqual(["pagamento:p3"]);
     expect(filtradas[0].valorCentavos).toBe(320_000);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+/**
+ * **CONTAI-063 — a quarta opção de Situação: isolar o terceiro estado.**
+ *
+ * Antes deste ticket a situação "Sem pagamento ligado" era invisível a filtro:
+ * por desenho ela não é `comprovada` nem `temPendencia`, então só aparecia sob
+ * "todas" — e o Mateus isolava as notas digitando o nome do favorecido na busca.
+ *
+ * O que estes testes travam, na ordem dos Pre-mortens do ticket:
+ * - o predicado é o BOOLEANO dedicado, não o chip nem `dataPagamento === null`
+ *   (Pre-mortem 3 / critério 7): a linha em quarentena também não tem pagamento
+ *   e **não** pode entrar aqui;
+ * - a composição em E com Tipo, Busca e Ano (Pre-mortem 2), que é o que "funciona
+ *   isolado e mente combinado" deixaria passar;
+ * - as três opções antigas devolvendo exatamente o que devolviam (critério 6).
+ */
+describe("filtro 'Sem pagamento ligado' (CONTAI-063)", () => {
+  /**
+   * As quatro situações convivendo — e o terceiro estado com DUAS linhas, de
+   * tipos e favorecidos diferentes. Com uma linha só, a composição com
+   * Tipo/Busca passaria por acidente (o filtro de situação sozinho já devolveria
+   * o resultado certo).
+   */
+  function cenario() {
+    return projetar(
+      [
+        // comprovada: paga por `p1`, sem linha própria
+        doc({ id: "d1", valorCentavos: 200_000 }),
+        // terceiro estado (1): NF de material da Casa do Construtor
+        doc({ id: "d2", numero: "8710", valorCentavos: 96_400 }),
+        // terceiro estado (2): NF de serviço da AJE, hábil — traz o CNO da obra
+        doc({
+          id: "d3",
+          numero: "1032",
+          tipo: "nf_servico",
+          classificacao: "mao_obra",
+          valorCentavos: 1_100_000,
+          retencaoNaNota: "nenhuma",
+          notaTrazCno: true,
+          cnoReferenciado: OBRA.cno,
+          favorecidoId: "fav-aje",
+          favorecidoNome: "AJE Construções",
+          favorecidoDocumento: "11222333000181",
+        }),
+        // ⚠️ **A armadilha do Pre-mortem 3**: quarentena também não tem
+        // pagamento nem data de pagamento — e é pendência REAL, não terceiro
+        // estado.
+        doc({
+          id: "d4",
+          numero: "8899",
+          valorCentavos: 480_000,
+          status: "quarentena",
+          destinatarioCpfOk: false,
+          motivoQuarentena: "Documento não está no CPF do dono da obra.",
+        }),
+      ],
+      [
+        pag({
+          id: "p1",
+          valorCentavos: 200_000,
+          dataPagamento: `${ANO}-01-12`,
+          documentoIds: ["d1"],
+        }),
+        // Pendência em OUTRO ano — está aqui para a composição com Ano ter o que
+        // esconder.
+        pag({
+          id: "p2",
+          valorCentavos: 320_000,
+          dataPagamento: `${ANO - 1}-03-10`,
+          favorecidoId: "fav-joao",
+          favorecidoNome: "João Pedreiro",
+          favorecidoTipo: "pf",
+        }),
+      ],
+    );
+  }
+
+  const SEM_PAGAMENTO = { ...FILTROS_PADRAO, situacao: "sem_pagamento" } as const;
+
+  it("isola exatamente as linhas do terceiro estado — e a quarentena fica fora", () => {
+    const { linhas } = cenario();
+    const isoladas = filtrarLinhas(linhas, SEM_PAGAMENTO, TODOS);
+
+    expect(isoladas.map((l) => l.id).sort()).toEqual([
+      "documento:d2",
+      "documento:d3",
+    ]);
+    // Toda linha visível carrega o chip, e nenhuma outra situação aparece
+    // (critério 3).
+    for (const l of isoladas) {
+      expect(chips(l), `linha ${l.id}`).toEqual([CHIP_SEM_PAGAMENTO]);
+      expect(l.semPagamentoLigado).toBe(true);
+      expect(l.comprovada).toBe(false);
+      expect(l.temPendencia).toBe(false);
+    }
+    // ⚠️ A quarentena está fora, e ela é a prova de que o predicado NÃO é
+    // "linha sem data de pagamento": ela não tem data nenhuma e é pendência.
+    const quarentena = linhaDe(linhas, "documento:d4");
+    expect(quarentena.dataPagamento).toBeNull();
+    expect(quarentena.temPendencia).toBe(true);
+    expect(quarentena.semPagamentoLigado).toBe(false);
+    expect(isoladas).not.toContain(quarentena);
+  });
+
+  it("as três opções antigas não mudam de resultado — adição, não redesenho", () => {
+    const { linhas } = cenario();
+    expect(filtrarLinhas(linhas, FILTROS_PADRAO, TODOS)).toHaveLength(
+      linhas.length,
+    );
+    expect(
+      filtrarLinhas(linhas, { ...FILTROS_PADRAO, situacao: "comprovadas" }, TODOS)
+        .map((l) => l.id),
+    ).toEqual(["pagamento:p1"]);
+    expect(
+      filtrarLinhas(linhas, { ...FILTROS_PADRAO, situacao: "pendencia" }, TODOS)
+        .map((l) => l.id)
+        .sort(),
+    ).toEqual(["documento:d4", "pagamento:p2"]);
+    // E o terceiro estado continua fora das duas, como sempre esteve.
+    for (const situacao of ["comprovadas", "pendencia"] as const) {
+      const fora = filtrarLinhas(linhas, { ...FILTROS_PADRAO, situacao }, TODOS);
+      expect(fora.map((l) => l.id)).not.toContain("documento:d2");
+      expect(fora.map((l) => l.id)).not.toContain("documento:d3");
+    }
+  });
+
+  it("compõe em E com Tipo e Busca, pela mesma regra das outras opções", () => {
+    const { linhas } = cenario();
+
+    // Tipo recorta DENTRO do terceiro estado.
+    expect(
+      filtrarLinhas(linhas, { ...SEM_PAGAMENTO, tipo: "nf_servico" }, TODOS).map(
+        (l) => l.id,
+      ),
+    ).toEqual(["documento:d3"]);
+    expect(
+      filtrarLinhas(linhas, { ...SEM_PAGAMENTO, tipo: "nf_material" }, TODOS).map(
+        (l) => l.id,
+      ),
+    ).toEqual(["documento:d2"]);
+    // Interseção vazia é vazia — não "o filtro mais permissivo vence".
+    expect(
+      filtrarLinhas(linhas, { ...SEM_PAGAMENTO, tipo: "boleto" }, TODOS),
+    ).toEqual([]);
+    expect(
+      filtrarLinhas(linhas, { ...SEM_PAGAMENTO, tipo: "sem_documento" }, TODOS),
+    ).toEqual([]);
+
+    // Busca por favorecido, e é o atalho que o relato usava: "casa" com a
+    // Situação em "todas" trazia a linha comprovada junto; agora não.
+    expect(
+      filtrarLinhas(linhas, { ...SEM_PAGAMENTO, busca: "casa" }, TODOS).map(
+        (l) => l.id,
+      ),
+    ).toEqual(["documento:d2"]);
+    expect(
+      filtrarLinhas(linhas, { ...FILTROS_PADRAO, busca: "casa" }, TODOS).map(
+        (l) => l.id,
+      ),
+    ).toEqual(["pagamento:p1", "documento:d2", "documento:d4"]);
+    expect(
+      filtrarLinhas(linhas, { ...SEM_PAGAMENTO, busca: "pedreiro" }, TODOS),
+    ).toEqual([]);
+  });
+
+  it("compõe com o Ano, e nenhum dos dois cancela o outro", () => {
+    const { linhas } = cenario();
+
+    // ⚠️ As duas linhas do terceiro estado não têm `dataPagamento`: elas ficam
+    // visíveis em TODO ano (parecer de 2026-09-26, parte b) — inclusive num ano
+    // em que a obra não tem lançamento nenhum.
+    for (const ano of [ANO - 1, ANO, ANO + 1, TODOS]) {
+      expect(
+        filtrarLinhas(linhas, SEM_PAGAMENTO, ano).map((l) => l.id).sort(),
+        `ano ${ano}`,
+      ).toEqual(["documento:d2", "documento:d3"]);
+    }
+    // E o ano continua recortando o resto: a linha comprovada de ANO não entra
+    // no universo de ANO−1 por caminho nenhum.
+    expect(
+      filtrarLinhas(linhas, { ...FILTROS_PADRAO, situacao: "comprovadas" }, ANO - 1),
+    ).toEqual([]);
+    // Os três filtros juntos, em E, sobre o ano: uma linha só.
+    expect(
+      filtrarLinhas(
+        linhas,
+        { situacao: "sem_pagamento", tipo: "nf_servico", busca: "aje" },
+        ANO - 1,
+      ).map((l) => l.id),
+    ).toEqual(["documento:d3"]);
   });
 });
 

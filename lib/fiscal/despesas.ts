@@ -263,6 +263,26 @@ export interface LinhaDeDespesa {
   comprovada: boolean;
   /** Filtro "Só com pendência". O terceiro estado **não** conta aqui. */
   temPendencia: boolean;
+  /**
+   * **CONTAI-063** — o TERCEIRO ESTADO, em campo próprio: esta linha carrega o
+   * chip `CHIP_SEM_PAGAMENTO` (nota hábil registrada, ainda sem pagamento
+   * ligado). Setado no bloco 6, no mesmo laço que empurra o chip.
+   *
+   * ⚠️ **É por este booleano que o filtro de Situação o isola, nunca varrendo
+   * `situacoes` pelo chip nem comparando a string do rótulo** (critério 7). O
+   * dia em que o `designer` revisar a copy do chip, um filtro acoplado ao texto
+   * pararia de funcionar **em silêncio** — sem erro, sem teste vermelho, só uma
+   * lista sempre vazia.
+   *
+   * ⚠️ **Não é `dataPagamento === null`**, e a diferença é conceitual: documento
+   * em quarentena também não tem data de pagamento, e ele é pendência REAL, não
+   * terceiro estado. Colapsar os dois predicados juntaria o que
+   * `pendencias-unificadas.ts` separa de propósito.
+   *
+   * Ortogonal a `comprovada`/`temPendencia`: nem comprovado nem em risco — a
+   * neutralidade do chip não muda neste ticket.
+   */
+  semPagamentoLigado: boolean;
   /** Coluna `Ação` — as rotas de detalhe que já existem. */
   href: string;
 }
@@ -396,6 +416,8 @@ export function linhasDeDespesa(
       situacoes: [],
       comprovada: comprovado > 0,
       temPendencia: false,
+      // Linha de pagamento nunca é o terceiro estado: ela É o pagamento.
+      semPagamentoLigado: false,
       href: `/pagamento/${p.id}`,
     };
     linhas.push(linha);
@@ -438,6 +460,10 @@ export function linhasDeDespesa(
       situacoes: [],
       comprovada: false,
       temPendencia: false,
+      // Decidido no bloco 6, pelo MESMO predicado do chip — não aqui: "sem
+      // pagamento ligado" não é "sem pagamento na linha", é nota HÁBIL sem
+      // pagamento (quarentena e nota sem arquivo também caem nesta linha).
+      semPagamentoLigado: false,
       href: `/documento/${d.id}`,
     };
     linhas.push(linha);
@@ -608,6 +634,11 @@ export function linhasDeDespesa(
         valorCentavos: null,
       });
       // ⚠️ **Não mexe em `temPendencia`**: nem comprovado nem em risco.
+      //
+      // **CONTAI-063** — o que muda é só o campo PRÓPRIO do terceiro estado, no
+      // mesmo laço que empurra o chip: uma fonte, dois consumidores (a célula
+      // `Situação` e o filtro de Situação), nenhum deles lendo o texto do outro.
+      linha.semPagamentoLigado = true;
     }
   }
 
@@ -653,8 +684,17 @@ export function pendenciasForaDaTabela(
  * ⚠️ **O padrão é `"todas"`, e não é detalhe de implementação** (Pre-mortem 2):
  * *"o padrão ao abrir a tela é 'Todas', nunca 'Só comprovadas' — para não
  * nascer com o filtro errado escondendo pendência na primeira visita"*.
+ *
+ * **CONTAI-063** acrescentou `"sem_pagamento"` — o TERCEIRO ESTADO, que antes
+ * não tinha como ser isolado por filtro nenhum (por desenho ele não é
+ * `comprovada` nem `temPendencia`, então só aparecia sob "todas"). Adição no FIM
+ * da lista: as três primeiras não mudam de valor, de rótulo nem de resultado.
  */
-export type FiltroSituacao = "todas" | "comprovadas" | "pendencia";
+export type FiltroSituacao =
+  | "todas"
+  | "comprovadas"
+  | "pendencia"
+  | "sem_pagamento";
 
 export const FILTRO_SITUACAO_PADRAO: FiltroSituacao = "todas";
 
@@ -687,6 +727,10 @@ function normalizar(texto: string): string {
 function casaSituacao(linha: LinhaDeDespesa, filtro: FiltroSituacao): boolean {
   if (filtro === "comprovadas") return linha.comprovada;
   if (filtro === "pendencia") return linha.temPendencia;
+  // ⚠️ **CONTAI-063 — o booleano dedicado, nunca o chip.** Ver
+  // `semPagamentoLigado`: varrer `linha.situacoes` por `CHIP_SEM_PAGAMENTO`
+  // amarraria o filtro à copy, e a quebra seria silenciosa.
+  if (filtro === "sem_pagamento") return linha.semPagamentoLigado;
   return true;
 }
 

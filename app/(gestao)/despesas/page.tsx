@@ -13,6 +13,7 @@ import {
   EstadoErro,
 } from "@/app/_components/ui";
 import {
+  CHIP_SEM_PAGAMENTO,
   FILTROS_PADRAO,
   filtrarLinhas,
   filtrarPorAno,
@@ -215,10 +216,23 @@ export default function Despesas() {
 
 // ── Filtros ──────────────────────────────────────────────────────────────
 
+/**
+ * ⚠️ **A quarta opção é a ÚLTIMA, e o rótulo dela é o texto do chip**
+ * (CONTAI-063, spec do designer §1). Ela entra no fim, sem intercalar: as três
+ * primeiras formam uma progressão de leitura (tudo → o que já está ok → o que
+ * está em risco), e o terceiro estado é neutro por desenho — posicioná-lo no
+ * meio implicaria uma urgência que ele não tem.
+ *
+ * O rótulo vem da CONSTANTE, não digitado de novo: quem reconhece o chip na
+ * coluna `Situação` reconhece a opção no dropdown, e uma revisão de copy do chip
+ * não pode deixar os dois textos divergindo. Ela também não leva o prefixo "Só"
+ * das duas anteriores — "Só sem pagamento ligado" não ganha clareza nenhuma.
+ */
 const SITUACOES: readonly { valor: FiltroSituacao; rotulo: string }[] = [
   { valor: "todas", rotulo: "Todas as situações" },
   { valor: "comprovadas", rotulo: "Só comprovadas" },
   { valor: "pendencia", rotulo: "Só com pendência" },
+  { valor: "sem_pagamento", rotulo: CHIP_SEM_PAGAMENTO },
 ];
 
 const TIPOS: readonly { valor: FiltroTipo; rotulo: string }[] = [
