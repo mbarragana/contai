@@ -30,7 +30,8 @@ const ROTULO_DESFECHO: Record<string, string> = {
 };
 
 /**
- * **A lista de pendências — as DEZOITO famílias, numa fila só (CONTAI-042).**
+ * **A lista de pendências — as DEZENOVE famílias, numa fila só (CONTAI-042;
+ * a décima nona, `fatura_sem_extrato`, entrou no CONTAI-067).**
  *
  * Até o 042 esta tela cobria duas: a correção de ano anterior e o CNPJ errado. As
  * outras dezesseis viviam agregadas dentro da home, e nenhuma superfície do app
@@ -214,7 +215,7 @@ function EscopoDaLista({
       <Banner cor="amb" role="status">
         <strong>Nenhuma obra aberta neste aparelho.</strong> Abaixo estão só as
         pendências de <strong>correção</strong>, que são de todas as suas obras.
-        As outras dezesseis famílias dependem do estado atual de uma obra —
+        As outras dezessete famílias dependem do estado atual de uma obra —
         quarentena, pago sem nota, terreno, financiamento, CNO —{" "}
         <strong>e não foram apuradas</strong>.{" "}
         <Link href="/obras" className="underline">

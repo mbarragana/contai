@@ -37,7 +37,7 @@ const NO_PAINEL = 4;
  * as quatro pendências mais graves, as quatro despesas mais recentes e a
  * agenda. Quem quer o detalhe completo vai para Pendências ou Despesas.
  *
- * ⚠️ **Nada foi perdido no caminho.** As dezoito famílias de pendência já
+ * ⚠️ **Nada foi perdido no caminho.** As dezenove famílias de pendência já
  * moram em `/pendencias` desde o `CONTAI-042` — este painel é um **subconjunto
  * dos mesmos itens**, desenhado pelo **mesmo** `ItemDaFila`, e não um resumo com
  * texto reescrito (critério 9). O que continuava só na home — o terceiro estado

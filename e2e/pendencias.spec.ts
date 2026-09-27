@@ -10,7 +10,8 @@ import {
 import { expect, test } from "./fixtures";
 
 /**
- * **CONTAI-042 — `/pendencias` passa a listar as DEZOITO famílias.**
+ * **CONTAI-042 — `/pendencias` passa a listar as DEZOITO famílias** (dezenove
+ * desde o CONTAI-067, que acrescentou `fatura_sem_extrato`).**
  *
  * O que esta suíte prova é a promessa do ticket, e só ela: uma pendência que
  * antes só existia agregada dentro da home **aparece aqui**. As condições de

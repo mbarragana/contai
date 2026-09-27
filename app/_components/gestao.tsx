@@ -58,6 +58,7 @@ import {
 
 import {
   carregarCompromissos,
+  carregarFaturas,
   carregarObras,
   carregarPainel,
   carregarPainelDePendencias,
@@ -66,6 +67,7 @@ import {
   type PainelDados,
 } from "@/lib/data";
 import { montarAgendaDaHome, type AgendaHome } from "@/lib/fiscal/compromisso";
+import { faturasSemExtrato } from "@/lib/fiscal/fatura";
 import { anosDaObra, escolherObraAtiva } from "@/lib/fiscal/obra";
 import {
   unificarPendencias,
@@ -74,7 +76,7 @@ import {
 import { calcularResumo, type ResumoObra } from "@/lib/fiscal/resumo";
 import { hojeIso } from "@/lib/hoje";
 import { lerObraPreferida, observarObraPreferida } from "@/lib/obra-ativa";
-import type { Compromisso } from "@/lib/types";
+import type { Compromisso, FaturaSemCompras } from "@/lib/types";
 
 export type EstadoDaGestao =
   | { fase: "carregando" }
@@ -109,7 +111,8 @@ export type EstadoDaGestao =
        */
       compromissos: Compromisso[];
       /**
-       * As dezoito famílias, já ordenadas e contadas (`CONTAI-042`). É daqui
+       * As dezenove famílias, já ordenadas e contadas (`CONTAI-042`, mais
+       * `fatura_sem_extrato` do `CONTAI-067`). É daqui
        * que sai o badge da sidebar — sem contagem provisória e sem uma segunda
        * definição de "pendência aberta".
        */
@@ -164,6 +167,16 @@ type Carga =
       fase: "pronto";
       painel: PainelDados | null;
       compromissos: Compromisso[];
+      /**
+       * **CONTAI-067** — as faturas de cartão da obra aberta, com os desembolsos.
+       *
+       * ⚠️ Campo SEPARADO do painel, pela mesma razão de `compromissos`: fatura
+       * não entra em `calcularResumo` por caminho nenhum. O extrato não compõe
+       * custo, não abate aferição e não move ano-calendário — o que ele sustenta é
+       * a composição do ciclo, e a única coisa derivada dele é a pendência
+       * `fatura_sem_extrato`.
+       */
+      faturas: FaturaSemCompras[];
       /** O painel das persistentes, de TODAS as obras. */
       pendencias: Awaited<ReturnType<typeof carregarPainelDePendencias>>;
       obras: Map<string, string>;
@@ -220,13 +233,22 @@ export function ProvedorDeGestao({ children }: { children: ReactNode }) {
         // redirecionar daqui seria um laço.
         const ativa = escolherObraAtiva(obras, lerObraPreferida());
         const painel = ativa ? await carregarPainel(ativa.id) : null;
-        const compromissos = ativa ? await carregarCompromissos(ativa.id) : [];
+        const [compromissos, faturas] = ativa
+          ? await Promise.all([
+              carregarCompromissos(ativa.id),
+              // CONTAI-067, critério 15 — sem esta leitura a pendência
+              // `fatura_sem_extrato` não teria de onde sair, e o bloco de anexo em
+              // `/fatura/[id]` ficaria invisível da home (dívida D85).
+              carregarFaturas(ativa.id),
+            ])
+          : [[], []];
         if (cancelado) return;
 
         setCarga({
           fase: "pronto",
           painel,
           compromissos,
+          faturas,
           pendencias: painelPendencias,
           obras: new Map(obras.map((o) => [o.id, o.nome])),
         });
@@ -292,6 +314,10 @@ export function ProvedorDeGestao({ children }: { children: ReactNode }) {
       unificadas: unificarPendencias({
         resumo,
         obra: painel?.obra ?? null,
+        // ⚠️ **Já agregado, e o agregado é do módulo fiscal** — `unificarPendencias`
+        // não soma valor nenhum, por regra escrita dele. Quem sabe o que significa
+        // "o que já foi pago a esta fatura" é `lib/fiscal/fatura.ts`.
+        faturaSemExtrato: faturasSemExtrato(carga.faturas),
         painel: carga.pendencias,
         // ⚠️ **`anoReal`, nunca `ano`**: é a fronteira "já declarado × ainda
         // corrigível sozinho" (`anosAfetados`, §5.3 do parecer de revisão), e

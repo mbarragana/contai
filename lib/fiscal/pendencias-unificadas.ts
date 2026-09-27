@@ -37,6 +37,10 @@
  */
 
 import { COR_NOTA_SEM_ARQUIVO } from "@/lib/fiscal/documento";
+import {
+  COR_FATURA_SEM_EXTRATO,
+  type FaturaSemExtrato,
+} from "@/lib/fiscal/fatura";
 import { COR_PENDENCIA_CNO } from "@/lib/fiscal/obra";
 import {
   COR_PAGO_SEM_COMPROVANTE,
@@ -70,8 +74,13 @@ import type {
 } from "@/lib/fiscal/resumo";
 
 /**
- * **As DEZOITO famílias — lista fechada, e a ordem desta lista é a ordem
+ * **As DEZENOVE famílias — lista fechada, e a ordem desta lista é a ordem
  * doutrinária DENTRO de cada cor.**
+ *
+ * ⚠️ Eram dezoito até o `CONTAI-067`, que acrescentou `fatura_sem_extrato`. O
+ * número aparece por extenso em texto de tela (`NadaAberto`, `EscopoDaLista`):
+ * família nova muda os dois no mesmo diff, ou o app passa a afirmar uma contagem
+ * que não é a dele.
  *
  * Fechada por `grep` em `app/page.tsx` no Gate 1 do `CONTAI-042` (o achado do
  * `cto-obra` nomeava dezessete e deixava a décima-oitava em aberto; ela é
@@ -119,6 +128,13 @@ export const FAMILIAS_DE_PENDENCIA = [
   "vinculo_cruzando_obras",
   "terreno_pago_sem_comprovante",
   "documentos_sem_arquivo",
+  // ── CONTAI-067 — logo depois do irmão estrutural, e a vizinhança é o ponto:
+  //    as duas são vermelhas, as duas são agregadas, as duas falam de documento
+  //    que falta. O que as separa é o RAIO DE EFEITO, e é por isso que o card
+  //    desta troca a frase de veto por uma frase de NÃO-veto (Gate Fiscal item 4
+  //    do ticket): lá caem as três saídas anuais; aqui só a discriminação do
+  //    ano-calendário em Bens e Direitos.
+  "fatura_sem_extrato",
   "terreno_sem_data",
   "terreno_mais_de_uma_data",
   "financiamento_falta_lancar",
@@ -222,6 +238,10 @@ export type ItemDePendencia =
       familia: "documentos_sem_arquivo";
       documentosSemArquivo: DocumentosSemArquivo;
     })
+  | (Comum & {
+      familia: "fatura_sem_extrato";
+      faturaSemExtrato: FaturaSemExtrato;
+    })
   | (Comum & { familia: "terreno_sem_data"; terrenoSemData: TerrenoSemData })
   | (Comum & {
       familia: "terreno_mais_de_uma_data";
@@ -251,6 +271,22 @@ export interface EntradaPendenciasUnificadas {
   resumo: ResumoObra | null;
   /** A obra aberta, de onde sai a pendência de CNO. `null` junto com o resumo. */
   obra: Obra | null;
+  /**
+   * **CONTAI-067** — o agregado das faturas pagas sem extrato, já derivado por
+   * `faturasSemExtrato` (`lib/fiscal/fatura.ts`). `null` = nenhuma nesta
+   * condição.
+   *
+   * ⚠️ **Campo próprio, FORA de `resumo`**, e a separação é deliberada: as
+   * faturas não entram em `calcularResumo` por caminho nenhum (mesma razão pela
+   * qual `compromisso` também não — CONTAI-019, crit. 3). O extrato não compõe
+   * custo, não abate aferição e não move ano-calendário; passá-lo por dentro do
+   * resumo sugeriria que ele participa de alguma dessas contas.
+   *
+   * ⚠️ **Já vem AGREGADO, nunca a lista crua de faturas**: este módulo registra
+   * por escrito que nenhum valor nasce nele, e o card mostra a soma do que já foi
+   * pago às faturas sem extrato. Quem soma é `lib/fiscal/fatura.ts`.
+   */
+  faturaSemExtrato: FaturaSemExtrato | null;
   /**
    * O painel das persistentes, **de todas as obras** — é assim que `/pendencias`
    * já funciona hoje, e restringi-lo à obra aberta esconderia a correção de
@@ -301,7 +337,7 @@ const PESO_DO_BLOCO: Record<BlocoDaFila, number> = {
 };
 
 /**
- * Agrega as dezoito famílias numa fila só, ordenada por gravidade.
+ * Agrega as dezenove famílias numa fila só, ordenada por gravidade.
  *
  * Pura: recebe o que já foi carregado, não consulta nada. A ordenação é
  * **estável** — dentro da mesma cor e da mesma família, a ordem de origem é
@@ -311,7 +347,7 @@ const PESO_DO_BLOCO: Record<BlocoDaFila, number> = {
 export function unificarPendencias(
   entrada: EntradaPendenciasUnificadas,
 ): PendenciasUnificadas {
-  const { resumo, obra, painel, anoCorrente } = entrada;
+  const { resumo, obra, painel, anoCorrente, faturaSemExtrato } = entrada;
   const itens: ItemDePendencia[] = [];
 
   // ── 1 · CNO: obrigação acessória da obra aberta ────────────────────────
@@ -358,6 +394,23 @@ export function unificarPendencias(
       bloco: bloco(sinal.gravidade),
       persistente: p,
       sinal,
+    });
+  }
+
+  // ── 2b · CONTAI-067 · fatura paga sem extrato ──────────────────────────
+  //
+  // ⚠️ **FORA do `if (resumo !== null)` de propósito.** Ela não sai de
+  // `calcularResumo` (o extrato não compõe custo nem aferição), e pendurá-la
+  // naquele `if` faria um item já derivado ser DESCARTADO em silêncio se algum
+  // chamador futuro tivesse fatura sem resumo — que é exatamente a classe de
+  // desaparecimento (D47) que este módulo existe para impedir. A única condição
+  // é a regra pura de `faltaOExtrato`, já aplicada por quem derivou o agregado.
+  if (faturaSemExtrato !== null) {
+    itens.push({
+      id: "fatura-sem-extrato",
+      familia: "fatura_sem_extrato",
+      bloco: bloco(COR_FATURA_SEM_EXTRATO),
+      faturaSemExtrato,
     });
   }
 

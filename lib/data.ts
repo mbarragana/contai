@@ -30,6 +30,7 @@ import type {
   ComFavorecidoTipado,
   DocumentoComRetencoes,
   EntradaObraBanco,
+  FaturaComDesembolsos,
   TerrenoDesembolsoComAnexos,
 } from "@/lib/dados/comum";
 import { podeQuitar } from "@/lib/fiscal/compromisso";
@@ -63,6 +64,7 @@ import type {
   DocumentoInsert,
   DocumentoRow,
   Fatura,
+  FaturaSemCompras,
   FavorecidoInsert,
   Financiamento,
   FinanciamentoInforme,
@@ -1009,8 +1011,14 @@ export async function subirParaAcervo(
    * terreno e o extrato anual do financiamento. O primeiro nível do caminho
    * continua sendo o `user_id` — é isso que a policy do bucket exige
    * (0002_storage.sql); o segundo é organização nossa.
+   *
+   * `extrato` nasce no CONTAI-067: o extrato itemizado da fatura do cartão.
+   * Pasta PRÓPRIA, e não `comprovante`, porque são dois documentos com função
+   * diferente sobre o mesmo evento — o comprovante prova a saída de caixa, o
+   * extrato prova a composição (parecer de 2026-09-26, ADENDO). Misturá-los na
+   * mesma pasta é perder essa distinção no dossiê de 2034.
    */
-  pasta: "documento" | "comprovante" | "terreno" | "informe",
+  pasta: "documento" | "comprovante" | "terreno" | "informe" | "extrato",
 ): Promise<string> {
   const usuarioId = await getUsuarioId();
   const seguro = arquivo.name.replace(/[^\w.\-]+/g, "_").slice(-80);
@@ -1836,6 +1844,8 @@ export async function carregarFatura(id: string): Promise<Fatura> {
     id: row.id,
     obraId: row.obra_id,
     dataVencimento: row.data_vencimento,
+    // CONTAI-067 — o documento da FATURA, não do desembolso.
+    extratoPath: row.extrato_path,
     compromissoIds: (vinculos.data ?? []).map((v) => v.compromisso_id),
     desembolsos: (desembolsos.data ?? []).map((d) => ({
       id: d.id,
@@ -1845,6 +1855,49 @@ export async function carregarFatura(id: string): Promise<Fatura> {
       comprovantePath: d.comprovante_path,
     })),
   };
+}
+
+/**
+ * **CONTAI-067, critério 15** — TODAS as faturas da obra, com os desembolsos
+ * aninhados. Antes deste ticket só existia `carregarFatura(id)`, uma por vez
+ * (dívida **D85**), e sem lista a pendência `fatura_sem_extrato` ficaria
+ * invisível da home: ninguém navega para uma fatura que não sabe que existe.
+ *
+ * ⚠️ **Não traz as compras, e o TIPO diz isso** — `FaturaSemCompras`, não
+ * `Fatura` (correção do Gate 2). A fila unificada só precisa de `desembolsos` +
+ * `extratoPath`, as duas pernas de `faltaOExtrato`, e buscar `fatura_compromisso`
+ * por fatura seria N+1. Devolver `compromissoIds: []` num `Fatura` completo seria
+ * pior que o N+1: lista vazia é indistinguível de "fatura sem compra nenhuma".
+ * Sem o campo no tipo, o compilador recusa a leitura em vez de deixá-la mentir —
+ * quem precisa das compras chama `carregarFatura(id)`.
+ *
+ * O embed do PostgREST (`fatura_desembolso(*)`) traz as filhas num pedido só; a
+ * RLS derivada do pai (migration 0013) vale DENTRO do embed.
+ */
+export async function carregarFaturas(
+  obraId: string,
+): Promise<FaturaSemCompras[]> {
+  await getUsuarioId();
+  const { data, error } = await getSupabase()
+    .from("fatura")
+    .select("*, fatura_desembolso(*)")
+    .eq("obra_id", obraId)
+    .order("data_vencimento", { ascending: false });
+  if (error) throw error;
+
+  return ((data ?? []) as FaturaComDesembolsos[]).map((row) => ({
+    id: row.id,
+    obraId: row.obra_id,
+    dataVencimento: row.data_vencimento,
+    extratoPath: row.extrato_path,
+    desembolsos: (row.fatura_desembolso ?? []).map((d) => ({
+      id: d.id,
+      faturaId: d.fatura_id,
+      valorCentavos: numericParaCentavos(d.valor) ?? 0,
+      dataPagamento: d.data_pagamento,
+      comprovantePath: d.comprovante_path,
+    })),
+  }));
 }
 
 /**
@@ -1872,6 +1925,12 @@ export async function buscarFaturaDoCompromisso(
  * para o rotativo puro (s6), todas as abertas para a confirmação integral
  * (s4, calculada pelo chamador a partir de `carregarCompromissos` +
  * `compromissosAbertosDaFatura`).
+ *
+ * ⚠️ **CONTAI-067 — `extratoPath` grava NO MESMO ATO** (critério 3). Dois passos
+ * (RPC do desembolso, depois anexo do extrato) deixariam, numa falha parcial, o
+ * desembolso gravado com o extrato perdido — e não há como repetir a subida de um
+ * arquivo que já saiu da tela. A RPC recusa (`raise`) se a fatura já tiver
+ * extrato, em vez de gravar por cima em silêncio.
  */
 export async function registrarDesembolsoDeFatura(entrada: {
   faturaId: string;
@@ -1879,6 +1938,8 @@ export async function registrarDesembolsoDeFatura(entrada: {
   dataPagamento: string;
   comprovantePath: string | null;
   compromissoIds: string[];
+  /** O extrato do CICLO — opcional, e `null` significa "não escolhi arquivo". */
+  extratoPath?: string | null;
 }): Promise<string> {
   const { data, error } = await getSupabase().rpc("fatura_desembolso_gravar", {
     p_fatura_id: entrada.faturaId,
@@ -1886,9 +1947,43 @@ export async function registrarDesembolsoDeFatura(entrada: {
     p_data_pagamento: entrada.dataPagamento,
     p_comprovante_path: entrada.comprovantePath ?? undefined,
     p_compromisso_ids: entrada.compromissoIds,
+    p_extrato_path: entrada.extratoPath ?? undefined,
   });
   if (error) throw error;
   return data as string;
+}
+
+/**
+ * **CONTAI-067** — o extrato da fatura chegou DEPOIS (anexo tardio), ou a fatura
+ * nunca passou por `/confirmar` (o caminho do rotativo).
+ *
+ * Fonte: `docs/pareceres/2026-09-26-comprovante-por-item-compra-cartao.md`,
+ * ADENDO e ADENDO 2.
+ *
+ * ⚠️ **RPC, e não `.update()`** (mesma razão da 0014/0019): a guarda é
+ * `where extrato_path is null` DENTRO da função, com `for update`. Um
+ * `.update().is("extrato_path", null)` devolveria zero linhas afetadas na segunda
+ * tentativa — indistinguível de um sucesso que não mudou nada. E o trigger
+ * `fatura_extrato_path_imutavel` fecha o caminho direto pela tabela, porque o
+ * grant de coluna da 0021 expõe `extrato_path` ao PostgREST.
+ *
+ * ⚠️ **Nenhuma linha em `revisao`** (critério 13): o extrato não entra em
+ * apuração nenhuma, logo não há "anos afetados" a fotografar nem pendência de
+ * retificadora a abrir. Dívida **D86**, nomeada e não resolvida aqui.
+ *
+ * ⚠️ **Nenhum check fiscal**, ao contrário de `anexarArquivoDocumento`: *"a nota
+ * está no seu CPF?"* e o gate de retenção são perguntas sobre o que está impresso
+ * numa NOTA, e o extrato da fatura não responde nenhuma das duas.
+ */
+export async function anexarExtratoFatura(
+  faturaId: string,
+  extratoPath: string,
+): Promise<void> {
+  const { error } = await getSupabase().rpc("anexar_extrato_fatura", {
+    p_fatura_id: faturaId,
+    p_extrato_path: extratoPath,
+  });
+  if (error) throw error;
 }
 
 /**

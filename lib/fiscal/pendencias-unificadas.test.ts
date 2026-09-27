@@ -21,7 +21,7 @@ import type { Obra, PendenciaPersistente, Revisao } from "@/lib/types";
  * **nenhuma família de pendência some**. O defeito que o ticket veio matar
  * (**D46/D47**, e a **D59** como sintoma) é sempre o mesmo: uma família some de
  * uma superfície e ninguém percebe, porque nenhum lugar as enumerava juntas.
- * Por isso o teste central é *"o cenário que acende as dezoito produz dezoito
+ * Por isso o teste central é *"o cenário que acende as dezenove produz dezenove
  * famílias"*, e não *"a função devolve uma lista"*.
  */
 
@@ -162,7 +162,7 @@ const PAINEL_COM_PERSISTENTES: EntradaPendenciasUnificadas["painel"] = {
 };
 
 /**
- * O cenário que acende **as dezoito ao mesmo tempo**. É deliberadamente
+ * O cenário que acende **as dezenove ao mesmo tempo**. É deliberadamente
  * irrealista: uma obra não fica assim. Ele existe para uma coisa só — provar
  * que a fila não perde nenhuma família pelo caminho.
  */
@@ -179,6 +179,11 @@ function tudoAceso(): EntradaPendenciasUnificadas {
   return {
     obra: OBRA_SEM_CNO,
     anoCorrente: 2026,
+    faturaSemExtrato: {
+      quantidade: 1,
+      totalCentavos: 12_340_00,
+      href: "/fatura/fat-1",
+    },
     painel: PAINEL_COM_PERSISTENTES,
     resumo: resumo({
       pendencias: sete.map((t) => derivada(t)),
@@ -258,10 +263,10 @@ function tudoAceso(): EntradaPendenciasUnificadas {
   };
 }
 
-describe("a lista fechada das 18 famílias", () => {
-  it("tem exatamente 18 nomes, sem repetição", () => {
-    expect(FAMILIAS_DE_PENDENCIA).toHaveLength(18);
-    expect(new Set(FAMILIAS_DE_PENDENCIA).size).toBe(18);
+describe("a lista fechada das 19 famílias", () => {
+  it("tem exatamente 19 nomes, sem repetição", () => {
+    expect(FAMILIAS_DE_PENDENCIA).toHaveLength(19);
+    expect(new Set(FAMILIAS_DE_PENDENCIA).size).toBe(19);
   });
 
   /**
@@ -269,10 +274,10 @@ describe("a lista fechada das 18 famílias", () => {
    * família ao sistema e esquecer de ligá-la à fila, este teste fica vermelho
    * com o nome dela — em vez de a pendência sumir em silêncio, que é a D47.
    */
-  it("o cenário que acende as 18 produz as 18, cada uma uma vez", () => {
+  it("o cenário que acende as 19 produz as 19, cada uma uma vez", () => {
     const { itens } = unificarPendencias(tudoAceso());
     const familias = itens.map((i) => i.familia);
-    expect(new Set(familias).size).toBe(18);
+    expect(new Set(familias).size).toBe(19);
     for (const f of FAMILIAS_DE_PENDENCIA) {
       expect(familias, `a família ${f} sumiu da fila`).toContain(f);
     }
@@ -286,6 +291,95 @@ describe("a lista fechada das 18 famílias", () => {
   });
 });
 
+describe("CONTAI-067 — `fatura_sem_extrato`, a 19ª família", () => {
+  it("entra na fila como VERMELHA, com o agregado inteiro no payload", () => {
+    const { itens, vermelhas } = unificarPendencias({
+      obra: OBRA_COM_CNO,
+      anoCorrente: 2026,
+      painel: PAINEL_VAZIO,
+      resumo: resumo(),
+      faturaSemExtrato: {
+        quantidade: 2,
+        totalCentavos: 12_340_00,
+        href: null,
+      },
+    });
+    expect(itens).toHaveLength(1);
+    expect(itens[0].familia).toBe("fatura_sem_extrato");
+    expect(itens[0].bloco).toBe("vermelho");
+    expect(vermelhas).toBe(1);
+    // O payload é o objeto de origem INTEIRO: quem desenha lê dele, e o texto
+    // fiscal continua vindo das constantes de `lib/fiscal/fatura.ts`.
+    expect(
+      itens[0].familia === "fatura_sem_extrato" ? itens[0].faturaSemExtrato : null,
+    ).toEqual({ quantidade: 2, totalCentavos: 12_340_00, href: null });
+  });
+
+  it("`null` não cria item nenhum — o card some sozinho quando o extrato chega", () => {
+    const { itens } = unificarPendencias({
+      obra: OBRA_COM_CNO,
+      anoCorrente: 2026,
+      painel: PAINEL_VAZIO,
+      resumo: resumo(),
+      faturaSemExtrato: null,
+    });
+    expect(itens).toEqual([]);
+  });
+
+  /**
+   * ⚠️ **NÃO depende de `resumo`**, e a independência é a guarda contra o
+   * desaparecimento silencioso (D47): o agregado não sai de `calcularResumo` (o
+   * extrato não compõe custo nem aferição), e pendurá-lo no `if (resumo !== null)`
+   * faria um item já derivado ser descartado sem aviso.
+   */
+  it("aparece mesmo sem resumo — não é derivada de `calcularResumo`", () => {
+    const { itens } = unificarPendencias({
+      obra: null,
+      anoCorrente: 2026,
+      painel: PAINEL_VAZIO,
+      resumo: null,
+      faturaSemExtrato: {
+        quantidade: 1,
+        totalCentavos: 500_00,
+        href: "/fatura/fat-9",
+      },
+    });
+    expect(itens.map((i) => i.familia)).toEqual(["fatura_sem_extrato"]);
+  });
+
+  /**
+   * A ordem dentro do vermelho é a da lista doutrinária: `documentos_sem_arquivo`
+   * antes, `terreno_sem_data` depois. A vizinhança é deliberada (são os dois cards
+   * de "documento que falta"), e é justamente por isso que o card DESTA precisa da
+   * frase de NÃO-veto — sem ela, a semelhança convida à leitura errada.
+   */
+  it("fica logo depois de `documentos_sem_arquivo` na ordem da fila", () => {
+    const { itens } = unificarPendencias({
+      obra: OBRA_COM_CNO,
+      anoCorrente: 2026,
+      painel: PAINEL_VAZIO,
+      resumo: resumo({
+        documentosSemArquivo: { quantidade: 1, totalCentavos: 100_00, href: null },
+        terrenoSemData: [
+          {
+            id: "terreno-sem-data:t1",
+            titulo: "ITBI — falta a data",
+            valorCentavos: 4_000_00,
+            consequencia: "consequencia",
+            href: "/obras/obra-1/terreno/desembolsos",
+          },
+        ],
+      }),
+      faturaSemExtrato: { quantidade: 1, totalCentavos: 500_00, href: "/fatura/f" },
+    });
+    expect(itens.map((i) => i.familia)).toEqual([
+      "documentos_sem_arquivo",
+      "fatura_sem_extrato",
+      "terreno_sem_data",
+    ]);
+  });
+});
+
 describe("o que NÃO é pendência fica de fora", () => {
   /**
    * Parecer §5.2, o terceiro estado: nota hábil registrada e ainda não paga não
@@ -296,6 +390,7 @@ describe("o que NÃO é pendência fica de fora", () => {
     const { itens } = unificarPendencias({
       obra: OBRA_COM_CNO,
       anoCorrente: 2026,
+      faturaSemExtrato: null,
       painel: PAINEL_VAZIO,
       resumo: resumo({
         notasSemPagamento: [
@@ -317,6 +412,7 @@ describe("o que NÃO é pendência fica de fora", () => {
     const { itens } = unificarPendencias({
       obra: OBRA_COM_CNO,
       anoCorrente: 2026,
+      faturaSemExtrato: null,
       painel: PAINEL_VAZIO,
       resumo: resumo({
         despesas: [
@@ -409,6 +505,7 @@ describe("a ordem da fila", () => {
     const { itens } = unificarPendencias({
       obra: OBRA_COM_CNO,
       anoCorrente: 2026,
+      faturaSemExtrato: null,
       painel: PAINEL_VAZIO,
       resumo: resumo({
         pendencias: [
@@ -433,6 +530,7 @@ describe("a ordem da fila", () => {
     const { itens, vermelhas } = unificarPendencias({
       obra: OBRA_COM_CNO,
       anoCorrente: 2026,
+      faturaSemExtrato: null,
       painel: PAINEL_VAZIO,
       resumo: resumo({
         pendencias: Array.from({ length: 40 }, (_, i) =>
@@ -450,6 +548,7 @@ describe("a contagem que o badge do CONTAI-040 consome", () => {
     const saida = unificarPendencias({
       obra: OBRA_COM_CNO,
       anoCorrente: 2026,
+      faturaSemExtrato: null,
       painel: PAINEL_VAZIO,
       resumo: resumo({
         pendencias: [
@@ -485,6 +584,7 @@ describe("a contagem que o badge do CONTAI-040 consome", () => {
     const saida = unificarPendencias({
       obra: OBRA_COM_CNO,
       anoCorrente: 2026,
+      faturaSemExtrato: null,
       painel: PAINEL_VAZIO,
       resumo: resumo({
         documentosSemArquivo: {
@@ -512,6 +612,7 @@ describe("as persistentes", () => {
     const saida = unificarPendencias({
       obra: OBRA_COM_CNO,
       anoCorrente: 2026,
+      faturaSemExtrato: null,
       resumo: resumo(),
       painel: { ...PAINEL_COM_PERSISTENTES, pendencias: [EMITENTE, baixada] },
     });
@@ -528,6 +629,7 @@ describe("as persistentes", () => {
     const semVinculo = unificarPendencias({
       obra: OBRA_COM_CNO,
       anoCorrente: 2026,
+      faturaSemExtrato: null,
       resumo: resumo(),
       painel: { ...PAINEL_VAZIO, pendencias: [EMITENTE] },
     });
@@ -536,6 +638,7 @@ describe("as persistentes", () => {
     const comVinculo = unificarPendencias({
       obra: OBRA_COM_CNO,
       anoCorrente: 2026,
+      faturaSemExtrato: null,
       resumo: resumo(),
       painel: {
         ...PAINEL_VAZIO,
@@ -561,6 +664,7 @@ describe("o escopo de obra (Gate Fiscal §3.4)", () => {
       obra: null,
       resumo: null,
       anoCorrente: 2026,
+      faturaSemExtrato: null,
       painel: PAINEL_COM_PERSISTENTES,
     });
     expect(saida.itens.map((i) => i.familia).sort()).toEqual([
@@ -574,6 +678,7 @@ describe("o escopo de obra (Gate Fiscal §3.4)", () => {
       obra: null,
       resumo: null,
       anoCorrente: 2026,
+      faturaSemExtrato: null,
       painel: PAINEL_VAZIO,
     });
     expect(saida.itens).toEqual([]);
@@ -585,6 +690,7 @@ describe("o escopo de obra (Gate Fiscal §3.4)", () => {
       obra: OBRA_COM_CNO,
       resumo: resumo(),
       anoCorrente: 2026,
+      faturaSemExtrato: null,
       painel: PAINEL_VAZIO,
     });
     expect(saida.itens.map((i) => i.familia)).not.toContain("cno");
@@ -600,6 +706,7 @@ describe("o aviso informativo", () => {
     const saida = unificarPendencias({
       obra: OBRA_COM_CNO,
       anoCorrente: 2026,
+      faturaSemExtrato: null,
       painel: PAINEL_VAZIO,
       resumo: resumo({
         financiamentoAguardandoInforme: {

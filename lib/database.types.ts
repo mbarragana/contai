@@ -349,6 +349,7 @@ export type Database = {
         Row: {
           created_at: string
           data_vencimento: string
+          extrato_path: string | null
           id: string
           obra_id: string
           user_id: string
@@ -356,6 +357,7 @@ export type Database = {
         Insert: {
           created_at?: string
           data_vencimento: string
+          extrato_path?: string | null
           id?: string
           obra_id: string
           user_id?: string
@@ -363,6 +365,7 @@ export type Database = {
         Update: {
           created_at?: string
           data_vencimento?: string
+          extrato_path?: string | null
           id?: string
           obra_id?: string
           user_id?: string
@@ -1047,6 +1050,10 @@ export type Database = {
         }
         Returns: string
       }
+      anexar_extrato_fatura: {
+        Args: { p_extrato_path: string; p_fatura_id: string }
+        Returns: undefined
+      }
       baixar_pendencia: {
         Args: {
           p_data?: string
@@ -1102,6 +1109,7 @@ export type Database = {
           p_compromisso_ids?: string[]
           p_comprovante_path?: string
           p_data_pagamento: string
+          p_extrato_path?: string
           p_fatura_id: string
           p_valor: number
         }

@@ -798,11 +798,21 @@ export const ROTULO_DO_PAPEL: Record<PapelDeAnexo, string> = {
   comprovante: "Comprovante do pagamento",
   nota: "Nota ou recibo",
   contrato: "Contrato ou escritura",
+  // CONTAI-067 — o extrato do ciclo do cartão. Nunca oferecido no formulário do
+  // terreno (ver `PAPEIS_DE_ANEXO` abaixo): existe para `ListaDeAnexos` rotular
+  // o item do acervo nas duas telas da fatura.
+  extrato: "Extrato da fatura",
 };
 
 /**
  * A ordem em que os três se oferecem, e ela não é alfabética: é a do mock
  * aprovado — o dinheiro saiu · o que eu comprei · o que eu combinei.
+ *
+ * ⚠️ **São TRÊS, e `extrato` fica de fora de propósito** (CONTAI-067): esta lista
+ * é o seletor de papel do anexo do desembolso do TERRENO, e
+ * `terreno_desembolso_anexo.papel` tem `check (papel in ('comprovante','nota',
+ * 'contrato'))` desde a migration 0010. Oferecer `extrato` aqui seria oferecer uma
+ * escolha que o banco recusa na gravação.
  */
 export const PAPEIS_DE_ANEXO: readonly PapelDeAnexo[] = [
   "comprovante",

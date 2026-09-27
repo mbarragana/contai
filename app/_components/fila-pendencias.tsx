@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * **A fila unificada na tela — as dezoito famílias desenhadas uma a uma.**
+ * **A fila unificada na tela — as dezenove famílias desenhadas uma a uma.**
  *
  * Extraído de `app/pendencias/page.tsx` no `CONTAI-040`: o dashboard mostra as
  * **quatro mais graves** e a view Pendências mostra a fila inteira, e o critério
@@ -20,6 +20,7 @@
 
 import { PendenciaCno } from "@/app/_components/obra";
 import { CardDocumentosSemArquivo } from "@/app/_components/documento-sem-arquivo";
+import { CardFaturaSemExtrato } from "@/app/_components/fatura-sem-extrato";
 import { PendenciaDeDatas } from "@/app/_components/datas-do-desembolso";
 import { CardPagoSemComprovante } from "@/app/_components/pago-sem-comprovante";
 import {
@@ -212,6 +213,18 @@ function CorpoDoItem({
         />
       );
 
+    // CONTAI-067 — o card irmão do de cima, com a frase de veto TROCADA por uma
+    // frase de NÃO-veto. A diferença é fiscal (Gate Fiscal item 4 do ticket) e
+    // mora dentro do componente, não aqui.
+    case "fatura_sem_extrato":
+      return (
+        <CardFaturaSemExtrato
+          totalCentavos={item.faturaSemExtrato.totalCentavos}
+          quantidade={item.faturaSemExtrato.quantidade}
+          href={item.faturaSemExtrato.href}
+        />
+      );
+
     case "terreno_sem_data":
       return <CardTerrenoSemData terreno={item.terrenoSemData} />;
 
@@ -292,7 +305,7 @@ export function NadaAberto({
           </>
         ) : (
           <>
-            Nenhuma das dezoito famílias de pendência está aberta: nem as de
+            Nenhuma das dezenove famílias de pendência está aberta: nem as de
             correção, em nenhuma das suas obras, nem as que dependem do estado
             atual de {obra.nome} em {rotuloDoAno(ano)}.
           </>

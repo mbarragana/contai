@@ -65,6 +65,9 @@ export type DocumentoAnexoRow = Tables<"documento_anexo">;
 export type DocumentoRetencaoRow = Tables<"documento_retencao">;
 export type PendenciaRow = Tables<"pendencia">;
 export type PendenciaDesfechoRow = Tables<"pendencia_desfecho">;
+// CONTAI-067 — `carregarFaturas` lê a fatura com os desembolsos ANINHADOS.
+export type FaturaRow = Tables<"fatura">;
+export type FaturaDesembolsoRow = Tables<"fatura_desembolso">;
 
 // ── Inserts ──────────────────────────────────────────────────────────────
 export type ObraInsert = TablesInsert<"obra">;
@@ -346,7 +349,39 @@ export interface Fatura {
   compromissoIds: string[];
   /** Os valores pagos à fatura — integral ou parcial (rotativo). */
   desembolsos: FaturaDesembolso[];
+  /**
+   * **CONTAI-067** — o extrato itemizado que a administradora emite, no acervo.
+   * `null` = não anexado.
+   *
+   * ⚠️ **Mora na FATURA, e não em `FaturaDesembolso`**, e a direção é o inverso
+   * exato de `comprovantePath`: o comprovante é do desembolso (N por fatura, no
+   * rotativo), o extrato é do CICLO — **um** por fatura, sirva ele 1 ou N
+   * desembolsos.
+   *
+   * ⚠️ **Não entra em apuração nenhuma**: nem `alocarCusto`, nem aferição, nem
+   * ano-calendário. Ele prova a **composição** (quais compras estavam dentro da
+   * fatura), que é o elo que a NF e o comprovante de pagamento não cobrem
+   * (parecer de 2026-09-26, ADENDO). A ausência é pendência VERMELHA
+   * (`faltaOExtrato`, `lib/fiscal/fatura.ts`), nunca um bloqueio.
+   */
+  extratoPath: string | null;
 }
+
+/**
+ * A fatura **sem as compras** — o que `carregarFaturas` (a LISTA da obra) sabe.
+ *
+ * ⚠️ **Tipo próprio, e ele existe para fechar um footgun** (achado do Gate 2 do
+ * `CONTAI-067`): a leitura da lista não busca `fatura_compromisso`, porque a fila
+ * de pendências só precisa de `desembolsos` + `extratoPath`, e um pedido por
+ * fatura só para preencher o vínculo seria N+1. Devolver `compromissoIds: []`
+ * dentro de um `Fatura` completo seria pior que o N+1: uma lista VAZIA é
+ * indistinguível de *"esta fatura não tem compra nenhuma"* — e qualquer tela que
+ * lesse esse campo daqui contaria zero compras com convicção. Com o campo
+ * **ausente do tipo**, o compilador recusa a leitura em vez de deixá-la mentir.
+ *
+ * Quem precisa das compras chama `carregarFatura(id)`, que traz o vínculo.
+ */
+export type FaturaSemCompras = Omit<Fatura, "compromissoIds">;
 
 /**
  * Um pagamento FEITO À FATURA. Fato consumado, **nunca custo, nunca
@@ -444,15 +479,27 @@ export interface TerrenoDesembolsoAnexo {
 }
 
 /**
- * Critério 14 e §7 do parecer de 2026-08-21 — conjunto FECHADO de três,
- * obrigatório e sem default. Não alimenta apuração nenhuma: existe para o
- * dossiê responder, em 2034, qual papel sustenta o quê.
+ * Critério 14 e §7 do parecer de 2026-08-21 — conjunto fechado, obrigatório e
+ * sem default. Não alimenta apuração nenhuma: existe para o dossiê responder, em
+ * 2034, qual papel sustenta o quê.
  *
  * ⚠️ **Valor novo neste conjunto exige parecer do `contador`** (mesma
  * contrapartida da D32). E `comprovante` é o **único** que dispara a pergunta
  * do critério 12.
+ *
+ * ⚠️ **`extrato` entrou no CONTAI-067** (critério 20), com o parecer de
+ * 2026-09-26 (ADENDO) atrás dele: é o PDF itemizado que a administradora do
+ * cartão emite, documento de terceiro distinto do comprovante de pagamento.
+ * `subirParaAcervo` e `ListaDeAnexos` precisam dele para rotular o item nas duas
+ * telas da fatura.
+ *
+ * ⚠️ **`extrato` NÃO é oferecido em `PAPEIS_DE_ANEXO`** (`lib/fiscal/terreno.ts`)
+ * e não pode ser: aquela lista alimenta o anexo do desembolso do TERRENO, cuja
+ * coluna `papel` tem `check (papel in ('comprovante','nota','contrato'))` desde a
+ * migration 0010. O extrato não persiste em coluna de papel nenhuma — ele mora em
+ * `fatura.extrato_path` —, então este valor é rótulo de tela, não dado gravado.
  */
-export type PapelDeAnexo = "comprovante" | "nota" | "contrato";
+export type PapelDeAnexo = "comprovante" | "nota" | "contrato" | "extrato";
 
 /** O contrato, 1x na vida (critério 7). Um por obra. */
 export interface Financiamento {

@@ -1,6 +1,6 @@
 import { type Page } from "@playwright/test";
 
-import { OBRA_ID_SEED } from "./ambiente";
+import { OBRA_ID_SEED, USER_ID_SEED } from "./ambiente";
 import {
   compromissos,
   criarCompraCartao,
@@ -755,5 +755,442 @@ test.describe("compra no cartão nunca vai para o pagamento avulso", () => {
     const fs = await faturas(db);
     const novaFatura = fs.find((f) => f.id === vinculos[0].fatura_id);
     expect(novaFatura?.data_vencimento).toBe("2026-10-10");
+  });
+});
+
+// ══ CONTAI-067 · o EXTRATO DA FATURA ════════════════════════════════════
+//
+// Fonte normativa: `docs/pareceres/2026-09-26-comprovante-por-item-compra-cartao.md`,
+// **ADENDO** (requisito do extrato) e **ADENDO 2** (cor/gravidade).
+//
+// O que se prova aqui não é o que a tela mostrou: é o **ESTADO GRAVADO** —
+// `fatura.extrato_path`, a recusa da segunda gravação pela RPC E pelo trigger, e a
+// pendência vermelha nas duas superfícies. Nada é stubado: a RPC
+// `anexar_extrato_fatura`, o trigger `fatura_extrato_path_imutavel` e a assinatura
+// nova de `fatura_desembolso_gravar` (migration 0021) rodam de verdade, como
+// `security invoker`, sob a MESMA RLS do app.
+
+/** Um arquivo qualquer — o app guarda o documento, nunca audita o conteúdo. */
+function arquivo(nome: string) {
+  return {
+    name: nome,
+    mimeType: "application/pdf",
+    buffer: Buffer.from(`pdf-falso-${nome}`),
+  };
+}
+
+const EXTRATO_ROTULO = "Extrato da fatura (emitido pelo cartão)";
+
+test.describe("extrato da fatura — captura no ato de confirmar (CONTAI-067)", () => {
+  test("os DOIS campos de arquivo, rótulos distintos, e os dois gravam num ato só", async ({
+    page,
+    db,
+  }) => {
+    const loja = await favorecidoLoja(db, "Leroy Merlin");
+    const c = await criarCompraCartao(db, {
+      favorecidoId: loja,
+      valor: 1234.4,
+      dataCompra: "2026-08-14",
+      dataVencimento: "2026-09-10",
+    });
+
+    await page.goto(`/fatura/${c.faturaId}/confirmar`);
+
+    // ── Os dois campos, e o pre-mortem 1: rótulos que não se confundem ────
+    await expect(page.getByLabel("Comprovante da fatura")).toBeVisible();
+    await expect(page.getByLabel(EXTRATO_ROTULO)).toBeVisible();
+    // Texto de ajuda copiado do ADENDO, nunca reescrito.
+    await expect(
+      page.getByText(
+        "O comprovante prova a saída de caixa; o extrato prova a composição — " +
+          "quais compras estavam dentro dela.",
+      ),
+    ).toBeVisible();
+
+    // ── O extrato é OPCIONAL: só a data habilita/desabilita o botão ────────
+    // (critério 4 — nunca bloqueia "Confirmar pagamento").
+    await expect(
+      page.getByRole("button", { name: /^Confirmar pagamento/ }),
+    ).toBeDisabled();
+    await page.getByLabel("Data em que a fatura foi paga").fill("2026-09-10");
+    await expect(
+      page.getByRole("button", { name: /^Confirmar pagamento/ }),
+    ).toBeEnabled();
+
+    await page
+      .getByLabel("Comprovante da fatura")
+      .setInputFiles(arquivo("pix-da-fatura.pdf"));
+    await page.getByLabel(EXTRATO_ROTULO).setInputFiles(arquivo("fatura-setembro.pdf"));
+
+    await page.getByRole("button", { name: /^Confirmar pagamento/ }).click();
+    await expect(
+      page.getByRole("heading", { name: "1 pagamento gerado" }),
+    ).toBeVisible();
+    // ⚠️ A Dica final diz uma cláusula POR DOCUMENTO, porque o grão é diferente:
+    // o comprovante é copiado para cada pagamento gerado, o extrato fica na
+    // fatura e cobre o ciclo. Uma frase só para os dois igualava as duas coisas.
+    await expect(
+      page.getByText("O comprovante vale para o pagamento gerado."),
+    ).toBeVisible();
+    await expect(
+      page.getByText("O extrato fica na fatura e cobre o ciclo inteiro."),
+    ).toBeVisible();
+
+    // ── (i) O extrato foi para a FATURA, em pasta própria do acervo ────────
+    const fs = await faturas(db);
+    expect(fs).toHaveLength(1);
+    expect(fs[0].extrato_path).toMatch(new RegExp(`^${USER_ID_SEED}/extrato/`));
+
+    // ── (ii) O comprovante continua no DESEMBOLSO, e são dois objetos ──────
+    // O extrato não substituiu nem se confundiu com o comprovante: um por ciclo,
+    // o outro por saída de caixa.
+    const ds = await faturaDesembolsos(db);
+    expect(ds).toHaveLength(1);
+    expect(ds[0].comprovante_path).toMatch(
+      new RegExp(`^${USER_ID_SEED}/comprovante/`),
+    );
+    expect(ds[0].comprovante_path).not.toBe(fs[0].extrato_path);
+
+    // ── (iii) A pendência não existe mais: o card some sozinho ─────────────
+    await page.goto(`/fatura/${c.faturaId}`);
+    await expect(page.getByText("Fatura sem extrato")).toHaveCount(0);
+    // Título do bloco resolvido + o chip do papel no item do acervo.
+    await expect(page.getByText("Extrato da fatura").first()).toBeVisible();
+  });
+
+  test("confirmar SEM extrato grava o pagamento igual — fato consumado nunca é recusado", async ({
+    page,
+    db,
+  }) => {
+    const loja = await favorecidoLoja(db);
+    const c = await criarCompraCartao(db, {
+      favorecidoId: loja,
+      valor: 800,
+      dataCompra: "2026-08-14",
+      dataVencimento: "2026-09-10",
+    });
+
+    await page.goto(`/fatura/${c.faturaId}/confirmar`);
+    await page.getByLabel("Data em que a fatura foi paga").fill("2026-09-10");
+    await page.getByRole("button", { name: /^Confirmar pagamento/ }).click();
+    await expect(
+      page.getByRole("heading", { name: "1 pagamento gerado" }),
+    ).toBeVisible();
+
+    // Sem anexo nenhum, nenhuma das duas cláusulas aparece: a Dica não afirma
+    // sobre documento que não existe.
+    await expect(page.getByText("O comprovante vale para")).toHaveCount(0);
+    await expect(page.getByText("O extrato fica na fatura")).toHaveCount(0);
+
+    // O valor pago gravou, e o extrato ficou null — pendência, nunca bloqueio.
+    expect(await faturaDesembolsos(db)).toHaveLength(1);
+    expect((await faturas(db))[0].extrato_path).toBeNull();
+    expect(await pagamentos(db)).toHaveLength(1);
+  });
+});
+
+test.describe("extrato da fatura — anexo TARDIO em /fatura/[id]", () => {
+  /**
+   * O cenário que o critério 5 existe para resolver: a fatura foi confirmada sem o
+   * extrato (ele chegou depois), e `/fatura/[id]` é o ÚNICO ponto de anexo.
+   */
+  test("o bloco vermelho aparece, anexa pela RPC e vira estado resolvido — sem sair da tela", async ({
+    page,
+    db,
+  }) => {
+    const loja = await favorecidoLoja(db);
+    const c = await criarCompraCartao(db, {
+      favorecidoId: loja,
+      valor: 1500,
+      dataCompra: "2026-08-14",
+      dataVencimento: "2026-09-10",
+    });
+    // Fatura paga, sem extrato — montada pela RPC, como a tela faria.
+    await db.rpc("fatura_desembolso_gravar", {
+      p_fatura_id: c.faturaId,
+      p_valor: 1500,
+      p_data_pagamento: "2026-09-10",
+      p_compromisso_ids: [c.compromissoId],
+    });
+
+    await page.goto(`/fatura/${c.faturaId}`);
+
+    // ── A consequência e o ESCOPO DO NÃO-VETO, os dois parágrafos ──────────
+    await expect(page.getByText("Fatura sem extrato").first()).toBeVisible();
+    await expect(
+      page.getByText(
+        "Você já pagou esta fatura, mas não tem o documento da administradora " +
+          "que prova quais compras estavam dentro dela — falta o apoio hábil " +
+          "que fixa o ano-calendário certo dessas compras na ficha Bens e " +
+          "Direitos.",
+      ),
+    ).toBeVisible();
+    // ⚠️ A frase que impede a leitura errada do vermelho (critério 16).
+    await expect(
+      page.getByText(
+        "Isso não trava a lista de Pagamentos Efetuados nem a posição da " +
+          "aferição do INSS — compra no cartão não é mão de obra. O que fica em " +
+          "risco é o ano-calendário certo do gasto na discriminação de Bens e " +
+          "Direitos.",
+      ),
+    ).toBeVisible();
+
+    // ── Grava no CLIQUE, nunca ao escolher o arquivo ───────────────────────
+    const anexar = page.getByRole("button", { name: "Anexar extrato" });
+    await expect(anexar).toBeDisabled();
+    await page.getByLabel(EXTRATO_ROTULO).setInputFiles(arquivo("ciclo-setembro.pdf"));
+    await expect(anexar).toBeEnabled();
+    // Nada gravado ainda: a seleção do arquivo por si não afirma nada.
+    expect((await faturas(db))[0].extrato_path).toBeNull();
+
+    await anexar.click();
+    // ⚠️ Filtrado: esta tela já tem o `role="status"` do banner âmbar "a fatura
+    // não é documento hábil" — `getByRole("status")` seco é strict-mode violation.
+    await expect(
+      page.getByRole("status").filter({ hasText: "Extrato anexado." }),
+    ).toBeVisible();
+
+    const fs = await faturas(db);
+    expect(fs[0].extrato_path).toMatch(new RegExp(`^${USER_ID_SEED}/extrato/`));
+
+    // Estado resolvido na mesma tela — sem `router.push`: o Mateus decide quando
+    // sair (mesma disciplina do CONTAI-061).
+    await expect(page).toHaveURL(new RegExp(`/fatura/${c.faturaId}$`));
+    await expect(page.getByLabel(EXTRATO_ROTULO)).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Anexar extrato" })).toHaveCount(0);
+  });
+
+  /**
+   * O caminho do ROTATIVO — que nunca passa por `/confirmar`. Aqui é a única porta
+   * do extrato, e é por isso que `/parcial` não ganha campo (critério 6): a
+   * administradora emite um extrato por CICLO, não por desembolso.
+   */
+  test("rotativo: `/parcial` não pede extrato, e um extrato só cobre os N desembolsos", async ({
+    page,
+    db,
+  }) => {
+    const loja = await favorecidoLoja(db);
+    const c = await criarCompraCartao(db, {
+      favorecidoId: loja,
+      valor: 2000,
+      dataCompra: "2026-09-15",
+      dataVencimento: "2026-10-10",
+    });
+
+    await page.goto(`/fatura/${c.faturaId}/parcial`);
+    await expect(page.getByLabel(EXTRATO_ROTULO)).toHaveCount(0);
+    await page.getByLabel("Data em que você pagou").fill("2026-10-08");
+    await page.getByLabel("Valor pago").fill("800,00");
+    await page.getByRole("button", { name: /^Salvar pagamento/ }).click();
+    await expect(page.getByRole("heading", { name: "Alocar o pagamento" })).toBeVisible();
+
+    // Segundo desembolso parcial, pela RPC — o resto do rotativo.
+    await db.rpc("fatura_desembolso_gravar", {
+      p_fatura_id: c.faturaId,
+      p_valor: 1200,
+      p_data_pagamento: "2026-11-08",
+    });
+    expect(await faturaDesembolsos(db)).toHaveLength(2);
+
+    // UM extrato, em `/fatura/[id]`, cobre os dois desembolsos: a pendência
+    // desaparece inteira, e não pela metade.
+    await page.goto(`/fatura/${c.faturaId}`);
+    await page.getByLabel(EXTRATO_ROTULO).setInputFiles(arquivo("ciclo-outubro.pdf"));
+    await page.getByRole("button", { name: "Anexar extrato" }).click();
+    // ⚠️ Filtrado: esta tela já tem o `role="status"` do banner âmbar "a fatura
+    // não é documento hábil" — `getByRole("status")` seco é strict-mode violation.
+    await expect(
+      page.getByRole("status").filter({ hasText: "Extrato anexado." }),
+    ).toBeVisible();
+    await expect(page.getByText("Fatura sem extrato")).toHaveCount(0);
+    expect((await faturas(db))[0].extrato_path).not.toBeNull();
+  });
+
+  test("fatura SEM desembolso nenhum não cobra extrato — bloco ausente, não vazio", async ({
+    page,
+    db,
+  }) => {
+    const loja = await favorecidoLoja(db);
+    const c = await criarCompraCartao(db, {
+      favorecidoId: loja,
+      valor: 300,
+      dataCompra: "2026-10-01",
+      dataVencimento: "2026-11-10",
+    });
+
+    await page.goto(`/fatura/${c.faturaId}`);
+    await expect(page.getByText("Fatura sem extrato")).toHaveCount(0);
+    await expect(page.getByLabel(EXTRATO_ROTULO)).toHaveCount(0);
+  });
+});
+
+test.describe("extrato da fatura — a segunda gravação é recusada pelo BANCO", () => {
+  test("RPC recusa o segundo anexo, trigger recusa o UPDATE direto, e nada muda", async ({
+    page,
+    db,
+  }) => {
+    const loja = await favorecidoLoja(db);
+    const c = await criarCompraCartao(db, {
+      favorecidoId: loja,
+      valor: 700,
+      dataCompra: "2026-08-14",
+      dataVencimento: "2026-09-10",
+    });
+    await db.rpc("fatura_desembolso_gravar", {
+      p_fatura_id: c.faturaId,
+      p_valor: 700,
+      p_data_pagamento: "2026-09-10",
+      p_compromisso_ids: [c.compromissoId],
+    });
+
+    // Primeiro anexo, pela tela.
+    await page.goto(`/fatura/${c.faturaId}`);
+    await page.getByLabel(EXTRATO_ROTULO).setInputFiles(arquivo("primeiro.pdf"));
+    await page.getByRole("button", { name: "Anexar extrato" }).click();
+    // ⚠️ Filtrado: esta tela já tem o `role="status"` do banner âmbar "a fatura
+    // não é documento hábil" — `getByRole("status")` seco é strict-mode violation.
+    await expect(
+      page.getByRole("status").filter({ hasText: "Extrato anexado." }),
+    ).toBeVisible();
+    const primeiro = (await faturas(db))[0].extrato_path!;
+
+    // ── (a) A RPC: a guarda é do BANCO, não da tela ────────────────────────
+    const segunda = await db.rpc("anexar_extrato_fatura", {
+      p_fatura_id: c.faturaId,
+      p_extrato_path: `${USER_ID_SEED}/extrato/outro.pdf`,
+    });
+    expect(segunda.error?.message ?? "").toContain("já tem extrato");
+
+    // ── (b) O trigger: UPDATE direto pela tabela também é recusado ─────────
+    // A 0021 concedeu `update (extrato_path)` a `authenticated` e o PostgREST
+    // expõe a coluna — sem `fatura_extrato_path_imutavel`, "só grava se está null"
+    // seria promessa da RPC e nada mais.
+    const direto = await db
+      .from("fatura")
+      .update({ extrato_path: `${USER_ID_SEED}/extrato/pela-tabela.pdf` })
+      .eq("id", c.faturaId);
+    expect(direto.error?.message ?? "").toContain(
+      "extrato_path já foi definido",
+    );
+
+    // ── (c) A chave natural continua fora de alcance: grant é de COLUNA ────
+    const redatar = await db
+      .from("fatura")
+      .update({ data_vencimento: "2026-12-10" })
+      .eq("id", c.faturaId);
+    expect(redatar.error?.message ?? "").toMatch(/permission denied|permissão/i);
+
+    // ── (d) Confirmar com extrato numa fatura que JÁ tem: recusa, não silêncio
+    const comExtrato = await db.rpc("fatura_desembolso_gravar", {
+      p_fatura_id: c.faturaId,
+      p_valor: 100,
+      p_data_pagamento: "2026-09-11",
+      p_extrato_path: `${USER_ID_SEED}/extrato/terceiro.pdf`,
+    });
+    expect(comExtrato.error?.message ?? "").toContain("já tem extrato anexado");
+
+    // Nada mudou, e o desembolso da chamada recusada NÃO entrou (a transação
+    // desfaz os dois juntos).
+    const fs = await faturas(db);
+    expect(fs[0].extrato_path).toBe(primeiro);
+    expect(fs[0].data_vencimento).toBe("2026-09-10");
+    expect(await faturaDesembolsos(db)).toHaveLength(1);
+  });
+});
+
+test.describe("extrato da fatura — a pendência vermelha nas duas superfícies", () => {
+  test("aparece em /pendencias e no painel da home, com o texto do NÃO-veto", async ({
+    page,
+    db,
+  }) => {
+    const loja = await favorecidoLoja(db);
+    const c = await criarCompraCartao(db, {
+      favorecidoId: loja,
+      valor: 1234.4,
+      dataCompra: "2026-08-14",
+      dataVencimento: "2026-09-10",
+    });
+    await db.rpc("fatura_desembolso_gravar", {
+      p_fatura_id: c.faturaId,
+      p_valor: 1234.4,
+      p_data_pagamento: "2026-09-10",
+      p_compromisso_ids: [c.compromissoId],
+    });
+
+    // ── A fila unificada ──────────────────────────────────────────────────
+    await page.goto("/pendencias");
+    const naFila = page.locator('[data-item-pendencia="fatura_sem_extrato"]');
+    await expect(naFila).toHaveCount(1);
+    // VERMELHA: mora no bloco "Resolver primeiro", nunca no âmbar.
+    await expect(
+      page.locator('[data-pendencia="fatura-sem-extrato"]'),
+    ).toHaveClass(/border-red/);
+    await expect(naFila).toContainText("R$ 1.234,40");
+    await expect(naFila).toContainText("1 fatura");
+    await expect(naFila).toContainText(
+      "não trava a lista de Pagamentos Efetuados nem a posição da aferição do INSS",
+    );
+    // ⚠️ E NÃO diz a frase de veto do card irmão — a diferença é fiscal.
+    await expect(naFila).not.toContainText("nenhuma saída anual é gerada");
+
+    // CTA com uma fatura só: aponta para a tela onde a ação mora.
+    await naFila.getByRole("link", { name: "Ver a fatura" }).click();
+    await expect(page).toHaveURL(new RegExp(`/fatura/${c.faturaId}$`));
+
+    // ── O painel da home lê os MESMOS itens ───────────────────────────────
+    await page.goto("/");
+    await expect(
+      page
+        .locator('[data-painel="pendencias-urgentes"]')
+        .locator('[data-item-pendencia="fatura_sem_extrato"]'),
+    ).toHaveCount(1);
+
+    // ── E some sozinha quando o extrato chega ─────────────────────────────
+    await page.goto(`/fatura/${c.faturaId}`);
+    await page.getByLabel(EXTRATO_ROTULO).setInputFiles(arquivo("ciclo.pdf"));
+    await page.getByRole("button", { name: "Anexar extrato" }).click();
+    // ⚠️ Filtrado: esta tela já tem o `role="status"` do banner âmbar "a fatura
+    // não é documento hábil" — `getByRole("status")` seco é strict-mode violation.
+    await expect(
+      page.getByRole("status").filter({ hasText: "Extrato anexado." }),
+    ).toBeVisible();
+
+    await page.goto("/pendencias");
+    await expect(
+      page.locator('[data-item-pendencia="fatura_sem_extrato"]'),
+    ).toHaveCount(0);
+  });
+
+  test("duas faturas sem extrato: card agregado, sem CTA, com a soma das duas", async ({
+    page,
+    db,
+  }) => {
+    const loja = await favorecidoLoja(db);
+    for (const [valor, vencimento] of [
+      [1000, "2026-09-10"],
+      [500, "2026-10-10"],
+    ] as const) {
+      const c = await criarCompraCartao(db, {
+        favorecidoId: loja,
+        valor,
+        dataCompra: "2026-08-14",
+        dataVencimento: vencimento,
+      });
+      await db.rpc("fatura_desembolso_gravar", {
+        p_fatura_id: c.faturaId,
+        p_valor: valor,
+        p_data_pagamento: vencimento,
+        p_compromisso_ids: [c.compromissoId],
+      });
+    }
+
+    await page.goto("/pendencias");
+    const naFila = page.locator('[data-item-pendencia="fatura_sem_extrato"]');
+    // UM card agregado, nunca um por fatura.
+    await expect(naFila).toHaveCount(1);
+    await expect(naFila).toContainText("R$ 1.500,00");
+    await expect(naFila).toContainText("2 faturas");
+    // Sem lista de faturas no app, o card fica informativo — decisão do `po`.
+    await expect(naFila.getByRole("link", { name: "Ver a fatura" })).toHaveCount(0);
   });
 });

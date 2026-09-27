@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   compromissosAbertosDaFatura,
+  COR_FATURA_SEM_EXTRATO,
+  faltaOExtrato,
+  faturasSemExtrato,
+  FATURA_SEM_EXTRATO_NAO_VETA,
   nadaElegivelParaAlocacao,
   RECUSA_PARCELADO,
   saldoNaoAlocadoCentavos,
@@ -68,7 +72,19 @@ function fatura(over: Partial<Fatura> = {}): Fatura {
     dataVencimento: "2026-10-10",
     compromissoIds: ["c1", "c2", "c3"],
     desembolsos: [],
+    extratoPath: null,
     ...over,
+  };
+}
+
+/** Um desembolso qualquer — o que importa aqui é EXISTIR e o valor dele. */
+function desembolso(id: string, valorCentavos: number) {
+  return {
+    id,
+    faturaId: "fat-1",
+    valorCentavos,
+    dataPagamento: "2026-10-10",
+    comprovantePath: null,
   };
 }
 
@@ -193,5 +209,146 @@ describe("totalDesembolsadoCentavos / saldoNaoAlocadoCentavos", () => {
     expect(
       saldoNaoAlocadoCentavos(f, [{ valorPrevistoCentavos: 150_000 }]),
     ).toBe(0);
+  });
+});
+
+// ══ CONTAI-067 · a regra da pendência "fatura sem extrato" ═══════════════
+//
+// Fonte: `docs/pareceres/2026-09-26-comprovante-por-item-compra-cartao.md`,
+// ADENDO (requisito) e ADENDO 2 (cor/gravidade).
+
+describe("faltaOExtrato — a regra do critério 14, e ela tem DUAS pernas", () => {
+  /**
+   * ⚠️ **A perna que se esquece.** Fatura sem pagamento nenhum **não cobra
+   * extrato**: o ciclo pode nem ter fechado, o dinheiro não saiu e não há
+   * ano-calendário a fixar. Cobrar ali seria alarme sem consequência — e alarme
+   * sem consequência ensina a ignorar alarme.
+   */
+  it("sem desembolso nenhum NÃO falta extrato, mesmo com extratoPath null", () => {
+    expect(faltaOExtrato(fatura({ desembolsos: [], extratoPath: null }))).toBe(
+      false,
+    );
+  });
+
+  it("com desembolso e sem extrato, falta — é a pendência", () => {
+    expect(
+      faltaOExtrato(
+        fatura({ desembolsos: [desembolso("d1", 150_000)], extratoPath: null }),
+      ),
+    ).toBe(true);
+  });
+
+  it("com desembolso e COM extrato, não falta nada", () => {
+    expect(
+      faltaOExtrato(
+        fatura({
+          desembolsos: [desembolso("d1", 150_000)],
+          extratoPath: "uid/extrato/fatura-outubro.pdf",
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  /**
+   * O rotativo: N desembolsos, UM extrato. É o argumento inteiro de a coluna
+   * morar em `fatura` e não em `fatura_desembolso` — com o extrato anexado, dois
+   * desembolsos parciais não abrem duas pendências.
+   */
+  it("N desembolsos parciais com um extrato só: nada falta", () => {
+    expect(
+      faltaOExtrato(
+        fatura({
+          desembolsos: [desembolso("d1", 100_000), desembolso("d2", 50_000)],
+          extratoPath: "uid/extrato/ciclo.pdf",
+        }),
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("faturasSemExtrato — o agregado do card", () => {
+  it("nenhuma fatura na condição devolve null, e o card desaparece sozinho", () => {
+    expect(faturasSemExtrato([])).toBeNull();
+    expect(
+      faturasSemExtrato([
+        fatura({ desembolsos: [] }),
+        fatura({
+          id: "fat-2",
+          desembolsos: [desembolso("d1", 100_000)],
+          extratoPath: "uid/extrato/a.pdf",
+        }),
+      ]),
+    ).toBeNull();
+  });
+
+  /**
+   * O valor exibido é **dinheiro já saído sem apoio hábil que fixe o ano** — a
+   * soma dos desembolsos das faturas nesta condição, e só delas. A fatura com
+   * extrato e a fatura sem pagamento não entram na conta.
+   */
+  it("soma só o desembolsado das faturas SEM extrato, e aponta para ela quando é uma", () => {
+    const agregado = faturasSemExtrato([
+      fatura({ id: "fat-1", desembolsos: [desembolso("d1", 123_400)] }),
+      // com extrato: fora da conta
+      fatura({
+        id: "fat-2",
+        desembolsos: [desembolso("d2", 900_000)],
+        extratoPath: "uid/extrato/a.pdf",
+      }),
+      // sem desembolso: fora da conta
+      fatura({ id: "fat-3", desembolsos: [] }),
+    ]);
+    expect(agregado).toEqual({
+      quantidade: 1,
+      totalCentavos: 123_400,
+      href: "/fatura/fat-1",
+    });
+  });
+
+  /**
+   * ⚠️ **Sem CTA com mais de uma**, e o corte é o precedente literal de
+   * `documentos_sem_arquivo` (decisão do `po` em 2026-09-19): não existe lista de
+   * faturas no app, e criar uma é fricção de processo, não obrigação fiscal.
+   */
+  it("com mais de uma, o card fica informativo — href null", () => {
+    const agregado = faturasSemExtrato([
+      fatura({ id: "fat-1", desembolsos: [desembolso("d1", 100_000)] }),
+      fatura({
+        id: "fat-2",
+        desembolsos: [desembolso("d2", 50_000), desembolso("d3", 25_000)],
+      }),
+    ]);
+    expect(agregado).toEqual({
+      quantidade: 2,
+      totalCentavos: 175_000,
+      href: null,
+    });
+  });
+});
+
+describe("a cor e o escopo do veto — adjudicação do contador, não do código", () => {
+  /** ADENDO 2, "Veredito": vermelho, mesma classe de `documentosSemArquivo`. */
+  it("a cor é vermelha", () => {
+    expect(COR_FATURA_SEM_EXTRATO).toBe("red");
+  });
+
+  /**
+   * ⚠️ **Critério 16 — o comportamento observável obrigatório.** A frase diz o
+   * que o Gate Fiscal item 4 decidiu: Pagamentos Efetuados e a aferição do INSS
+   * NÃO são afetados; o que fica em risco é a discriminação do ano-calendário em
+   * Bens e Direitos. Este teste existe porque a frase é o oposto exato da frase
+   * de veto do card irmão ("nenhuma saída anual é gerada"), e trocar uma pela
+   * outra por semelhança visual é o erro que o ticket nomeia.
+   */
+  it("o texto de escopo NEGA o veto das outras duas saídas anuais", () => {
+    expect(FATURA_SEM_EXTRATO_NAO_VETA).toContain(
+      "não trava a lista de Pagamentos Efetuados",
+    );
+    expect(FATURA_SEM_EXTRATO_NAO_VETA).toContain("aferição");
+    expect(FATURA_SEM_EXTRATO_NAO_VETA).toContain("Bens e Direitos");
+    // E não diz, em lugar nenhum, a frase do card irmão.
+    expect(FATURA_SEM_EXTRATO_NAO_VETA).not.toContain(
+      "nenhuma saída anual é gerada",
+    );
   });
 });

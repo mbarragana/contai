@@ -150,6 +150,38 @@ const ESPERADO: Record<string, string> = {
 };
 
 /**
+ * **CONTAI-067 — o mapa de GRANT DE COLUNA, e por que ele precisou existir.**
+ *
+ * O mapa de cima lê `information_schema.role_table_grants`, que **não enxerga
+ * grant de coluna**. A migration 0021 concedeu `update (extrato_path) on table
+ * fatura` — e só a coluna, porque `fatura` tem apenas `select, insert` de tabela de
+ * propósito (`data_vencimento` é a chave natural; UPDATE de tabela liberaria
+ * reescrevê-la pelo PostgREST). Sem este mapa, o privilégio ficaria **invisível à
+ * suíte**: o ponto cego local≠remoto de 2026-08-17 reaberto por um caminho novo.
+ *
+ * ⚠️ **A fonte é `pg_attribute.attacl`, e NÃO `role_column_grants`**, e a troca é
+ * deliberada (medida no Gate 1): `role_column_grants` (como
+ * `information_schema.column_privileges`) **expande o grant de TABELA para cada
+ * coluna** — hoje são 443 linhas para `authenticated`, quase todas herdadas de
+ * `documento`/`pagamento`/`obra`. Um mapa exaustivo sobre ela seria 443 entradas
+ * que ninguém mantém, e um mapa NÃO exaustivo não pegaria a coluna de amanhã, que
+ * é o objetivo inteiro deste arquivo. `attacl` guarda ACL **só** quando o grant foi
+ * dado na coluna: é a lista curta e exata das decisões explícitas.
+ *
+ * O teste de `role_column_grants` continua existindo logo abaixo, como assertiva
+ * POSITIVA do caso nomeado no critério 9 do ticket — é a view que o PostgREST e o
+ * planner consultam, e ver o privilégio chegar lá prova que ele vale de verdade.
+ *
+ * Chave: `tabela.coluna`.
+ */
+const COLUNAS_ESPERADAS: Record<string, string> = {
+  // ── CONTAI-067 (migration 0021) ────────────────────────────────────────
+  // O extrato itemizado da fatura do cartão. A transição é única (`null → path`,
+  // trigger `fatura_extrato_path_imutavel`), e o UPDATE existe só para ela.
+  "fatura.extrato_path": "UPDATE",
+};
+
+/**
  * O mapa acima só enxerga TABELA. A migration 0009 trouxe as PRIMEIRAS FUNÇÕES
  * do repo, e **função nasce com `execute` para `public`** — em qualquer
  * Postgres, local ou remoto —, o que inclui `anon`. Um mapa só de tabela
@@ -275,6 +307,29 @@ const FUNCOES_ESPERADAS: Record<string, string> = {
   // Sem o revoke da 0020, o anônimo poderia criar vínculo de custo entre um
   // pagamento e uma nota no acervo de outra pessoa.
   propagar_vinculo_de_origem: "authenticated",
+
+  // ── CONTAI-067 (migration 0021) ────────────────────────────────────────
+  // O anexo TARDIO do extrato da fatura — o lugar canônico é `/fatura/[id]`, e o
+  // caminho do rotativo (que nunca passa por `/confirmar`) só tem este. Grava uma
+  // vez só: `where extrato_path is null` + `for update`.
+  //
+  // ⚠️ Nenhuma tabela nova neste ticket, e mesmo assim este mapa MUDA: função nasce
+  // com `execute` para `public` (que inclui `anon`) em qualquer Postgres. Sem o
+  // revoke da 0021, o anônimo poderia carimbar extrato em fatura de outra pessoa.
+  anexar_extrato_fatura: "authenticated",
+
+  // A função do trigger que fecha `extrato_path` depois do primeiro anexo — sem
+  // ela, "só grava se está null" seria promessa da RPC e nada mais, já que a 0021
+  // concedeu UPDATE nessa coluna e o PostgREST expõe a tabela. Mesmo caso das
+  // outras funções de trigger acima: `returns trigger`, o Postgres recusa chamada
+  // direta, e o privilégio é inofensivo — declarado, não silenciado.
+  fatura_extrato_path_imutavel: "PUBLIC,anon,authenticated",
+
+  // ⚠️ `fatura_desembolso_gravar` (acima, CONTAI-022) foi **recriada** pela 0021
+  // com `p_extrato_path text default null` no fim: aridade nova, logo `drop` +
+  // `create`, logo revoke/grant novos. O NOME não muda, então a entrada continua
+  // sendo aquela — e é justamente por não haver sobrecarga que este mapa pode ser
+  // indexado por nome (ver o ⚠️ do cabeçalho).
 };
 
 test.describe("privilégios do schema public", () => {
@@ -313,6 +368,94 @@ test.describe("privilégios do schema public", () => {
         `privilégios de authenticated em ${tabela}`,
       ).toBe(esperado);
     }
+  });
+
+  /**
+   * **CONTAI-067** — grant de COLUNA é decisão explícita, como o de tabela.
+   *
+   * Fonte `pg_attribute.attacl`: só o que foi concedido NA COLUNA aparece aqui
+   * (o grant de tabela não polui). Coluna nova com privilégio de coluna que não
+   * esteja no mapa deixa a suíte vermelha com o nome dela.
+   */
+  test("nenhuma coluna com GRANT próprio fora do mapa", () => {
+    const concedido = new Map(
+      consultarAdmin(
+        `select c.relname || '.' || a.attname as coluna,
+                string_agg(distinct acl.privilege_type, ',' order by acl.privilege_type) as privs
+           from pg_class c
+           join pg_namespace n on n.oid = c.relnamespace
+           join pg_attribute a on a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped
+           cross join lateral aclexplode(a.attacl) acl
+          where n.nspname = 'public'
+            and pg_get_userbyid(acl.grantee) = 'authenticated'
+          group by 1
+          order by 1;`,
+        "ler grants de COLUNA de authenticated",
+      ).map(([coluna, privs]) => [coluna, privs]),
+    );
+
+    expect(
+      [...concedido.keys()].sort(),
+      "coluna com GRANT próprio fora do mapa: o grant de coluna é invisível em " +
+        "`role_table_grants`, então ou ele entra em COLUNAS_ESPERADAS na migration " +
+        "que o concedeu, ou ninguém percebe que o produto ganhou uma superfície " +
+        "de escrita nova",
+    ).toEqual(Object.keys(COLUNAS_ESPERADAS).sort());
+
+    for (const [coluna, esperado] of Object.entries(COLUNAS_ESPERADAS)) {
+      expect(
+        concedido.get(coluna) ?? "(nenhum)",
+        `privilégios de authenticated na coluna ${coluna}`,
+      ).toBe(esperado);
+    }
+  });
+
+  /**
+   * **CONTAI-067, critério 9** — a mesma decisão vista pela view que o Postgres
+   * consulta de verdade. Aqui a assertiva é POSITIVA e nomeada: sem ela, um
+   * `attacl` presente mas não efetivo (por exemplo, um `revoke` posterior no
+   * papel) passaria batido.
+   */
+  test("`fatura.extrato_path` tem UPDATE para authenticated em role_column_grants", () => {
+    const linhas = consultarAdmin(
+      `select privilege_type
+         from information_schema.role_column_grants
+        where table_schema = 'public'
+          and table_name = 'fatura'
+          and column_name = 'extrato_path'
+          and grantee = 'authenticated'
+        order by privilege_type;`,
+      "ler grants de coluna de fatura.extrato_path",
+    ).map(([priv]) => priv);
+
+    // ⚠️ `INSERT,SELECT` vêm do grant de TABELA da 0013, expandido por esta view
+    // para cada coluna — é exatamente a expansão que torna `role_column_grants`
+    // inútil como mapa exaustivo (ver o cabeçalho de COLUNAS_ESPERADAS). O que
+    // este teste prova é o **UPDATE**, que não vem de tabela nenhuma.
+    expect(
+      linhas,
+      "sem UPDATE nesta coluna a RPC `anexar_extrato_fatura` (security invoker) " +
+        "falha em produção depois de um login bem-sucedido — a família do " +
+        "incidente de 2026-08-17",
+    ).toEqual(["INSERT", "SELECT", "UPDATE"]);
+
+    // E o UPDATE **não** se estendeu à chave natural: `data_vencimento` continua
+    // fora de alcance do PostgREST, que é o motivo de o grant ser de coluna.
+    expect(
+      consultarAdmin(
+        `select privilege_type
+           from information_schema.role_column_grants
+          where table_schema = 'public'
+            and table_name = 'fatura'
+            and column_name = 'data_vencimento'
+            and grantee = 'authenticated'
+            and privilege_type = 'UPDATE';`,
+        "conferir que data_vencimento NÃO tem UPDATE",
+      ),
+      "`data_vencimento` é a chave natural da fatura: UPDATE nela permitiria " +
+        "re-datar uma fatura pelo PostgREST e fazer um ciclo cobrir compras que " +
+        "nunca estiveram nele",
+    ).toEqual([]);
   });
 
   test("nenhuma função de public sem decisão explícita de GRANT", () => {

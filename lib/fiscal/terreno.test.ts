@@ -56,6 +56,7 @@ import {
   perguntaNoRegistro,
   perguntaPendente,
   perguntaRepresada,
+  PAPEIS_DE_ANEXO,
   rubricasComClassificacaoEmAberto,
   ROTULO_DO_PAPEL,
   somaDasRubricasCentavos,
@@ -675,7 +676,24 @@ describe("critério 14 — os três papéis, e só eles", () => {
     expect(ROTULO_DO_PAPEL.comprovante).toBe("Comprovante do pagamento");
     expect(ROTULO_DO_PAPEL.nota).toBe("Nota ou recibo");
     expect(ROTULO_DO_PAPEL.contrato).toBe("Contrato ou escritura");
-    expect(Object.keys(ROTULO_DO_PAPEL)).toHaveLength(3);
+  });
+
+  /**
+   * ⚠️ **A trava que importa mudou de lugar no CONTAI-067, e não enfraqueceu.**
+   *
+   * Até o 067 ela era `Object.keys(ROTULO_DO_PAPEL).length === 3`. O 067 deu a
+   * `PapelDeAnexo` um quarto valor (`extrato`, do parecer de 2026-09-26) que é
+   * **rótulo de tela da FATURA do cartão** e não persiste em coluna de papel
+   * nenhuma — o extrato mora em `fatura.extrato_path`.
+   *
+   * O invariante de verdade é este: o que o FORMULÁRIO do terreno oferece tem de
+   * ser exatamente o que `terreno_desembolso_anexo.papel` aceita — `check (papel
+   * in ('comprovante','nota','contrato'))`, migration 0010. Oferecer `extrato`
+   * ali seria oferecer uma escolha que o banco recusa na gravação.
+   */
+  it("o formulário do terreno oferece exatamente os três que a 0010 aceita", () => {
+    expect([...PAPEIS_DE_ANEXO]).toEqual(["comprovante", "nota", "contrato"]);
+    expect(PAPEIS_DE_ANEXO).not.toContain("extrato");
   });
 
   it("só `comprovante` conta para a pergunta", () => {

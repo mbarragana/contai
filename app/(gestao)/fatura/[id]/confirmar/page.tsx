@@ -12,11 +12,20 @@
  * Cada compra vira UM pagamento, na mesma data (a da fatura), com o
  * favorecido/valor/classificação DELA — nunca um pagamento único pela
  * fatura (ADENDO §B(b), literal).
+ *
+ * ⚠️ **CONTAI-067 — DOIS arquivos aqui, com funções diferentes.** O
+ * *comprovante* prova a **saída de caixa**; o *extrato* da administradora prova a
+ * **composição** (quais compras estavam dentro da fatura), que é o elo que decide
+ * o ano-calendário do gasto e que nenhum documento capturado até o 067 sustentava
+ * (parecer de 2026-09-26, ADENDO). Os dois são opcionais e **nenhum dos dois
+ * bloqueia "Confirmar pagamento"** — o valor pago é fato consumado, nunca
+ * recusado; a ausência do extrato vira pendência VERMELHA, nunca um silêncio.
  */
 
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { ListaDeAnexos } from "@/app/_components/anexo";
 import { CampoArquivo, CampoTexto } from "@/app/_components/campos";
 import {
   CabecalhoDaTela,
@@ -41,7 +50,12 @@ import {
   subirParaAcervo,
   type ErroDeTela,
 } from "@/lib/data";
-import { compromissosAbertosDaFatura } from "@/lib/fiscal/fatura";
+import {
+  compromissosAbertosDaFatura,
+  EXTRATO_DA_FATURA_AJUDA,
+  EXTRATO_DA_FATURA_ROTULO,
+} from "@/lib/fiscal/fatura";
+import { ROTULO_DO_PAPEL } from "@/lib/fiscal/terreno";
 import { ehDataValida } from "@/lib/fiscal/pagamento";
 import { formatarDataBR } from "@/lib/fiscal/obra";
 import { formatarBRL } from "@/lib/money";
@@ -52,13 +66,33 @@ type Estado =
   | { fase: "erro"; erro: ErroDeTela }
   | { fase: "pronto"; fatura: Fatura; abertas: Compromisso[] }
   | { fase: "salvando"; fatura: Fatura; abertas: Compromisso[] }
-  | { fase: "salvo"; abertas: Compromisso[]; dataPagamento: string };
+  | {
+      fase: "salvo";
+      abertas: Compromisso[];
+      dataPagamento: string;
+      /**
+       * Qual dos dois papéis foi anexado — só para a frase extra da `Dica` final,
+       * nunca um fato fiscal novo.
+       *
+       * ⚠️ **Os DOIS, separados, e não um `comAlgumAnexo` booleano** (Gate 2,
+       * `cto-obra`, 2026-09-26): os dois documentos **não têm o mesmo grão**, e
+       * uma frase só para os dois igualava o que a RPC faz com cada um. Só o
+       * comprovante é COPIADO para cada um dos N `pagamento` gerados (0013 §3); o
+       * extrato fica em `fatura` e cobre o CICLO, sem ser replicado por pagamento.
+       */
+      anexados: { comprovante: boolean; extrato: boolean };
+    };
 
 export default function ConfirmarFaturaIntegral() {
   const { id } = useParams<{ id: string }>();
   const [estado, setEstado] = useState<Estado>({ fase: "carregando" });
   const [dataPagamento, setDataPagamento] = useState("");
   const [comprovante, setComprovante] = useState<File | null>(null);
+  /**
+   * CONTAI-067 — estado local PRÓPRIO, sem relação de dependência com o
+   * comprovante: pode-se anexar só um, os dois ou nenhum.
+   */
+  const [extrato, setExtrato] = useState<File | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
@@ -131,6 +165,28 @@ export default function ConfirmarFaturaIntegral() {
             Juros de rotativo, juros de parcelamento, IOF, anuidade e multa
             ficam fora do custo — a mesma separação principal × encargos de
             sempre.
+            {/*
+              CONTAI-067 — uma frase a mais, e só sobre o que foi de fato anexado.
+
+              ⚠️ **Uma cláusula por documento, porque o GRÃO é diferente** (Gate 2,
+              `cto-obra`): o comprovante é copiado para cada um dos N `pagamento`
+              gerados (é o `comprovante_path` que a RPC replica), e o extrato fica
+              em `fatura`, cobrindo o ciclo inteiro — não é replicado por
+              pagamento. Uma frase só para os dois dizia que fazem a mesma coisa.
+            */}
+            {estado.anexados.comprovante ? (
+              <>
+                {" "}
+                O comprovante vale para{" "}
+                {estado.abertas.length === 1
+                  ? "o pagamento gerado"
+                  : `os ${estado.abertas.length} pagamentos gerados`}
+                .
+              </>
+            ) : null}
+            {estado.anexados.extrato ? (
+              <> O extrato fica na fatura e cobre o ciclo inteiro.</>
+            ) : null}
           </Dica>
         </ColunaDeDetalhe>
       </>
@@ -146,8 +202,18 @@ export default function ConfirmarFaturaIntegral() {
     setErro(null);
     setEstado({ fase: "salvando", fatura, abertas });
     try {
+      /**
+       * ⚠️ **CONTAI-067, critério 3 — os dois sobem ANTES da RPC, e a gravação é
+       * UMA.** Falha em qualquer subida não grava nada: nem o desembolso, nem o
+       * comprovante, nem o extrato. Dois passos separados deixariam, numa falha
+       * parcial, o desembolso gravado com o arquivo perdido — e o arquivo já saiu
+       * da tela, não há como pedi-lo de novo.
+       */
       const comprovantePath = comprovante
         ? await subirParaAcervo(comprovante, "comprovante")
+        : null;
+      const extratoPath = extrato
+        ? await subirParaAcervo(extrato, "extrato")
         : null;
       await registrarDesembolsoDeFatura({
         faturaId: fatura.id,
@@ -155,8 +221,17 @@ export default function ConfirmarFaturaIntegral() {
         dataPagamento,
         comprovantePath,
         compromissoIds: abertas.map((c) => c.id),
+        extratoPath,
       });
-      setEstado({ fase: "salvo", abertas, dataPagamento });
+      setEstado({
+        fase: "salvo",
+        abertas,
+        dataPagamento,
+        anexados: {
+          comprovante: comprovantePath !== null,
+          extrato: extratoPath !== null,
+        },
+      });
     } catch (e) {
       setEstado({ fase: "pronto", fatura, abertas });
       setErro(mensagemDeErroDeGravacao(e, "na fatura, se o pagamento já aparece lançado"));
@@ -197,6 +272,38 @@ export default function ConfirmarFaturaIntegral() {
             arquivo={comprovante}
             onChange={setComprovante}
           />
+          {/*
+            CONTAI-067 — o SEGUNDO arquivo, empilhado abaixo do comprovante (a
+            ordem é do critério 2, e o comprovante não se reordena).
+
+            ⚠️ O parêntese **"(emitido pelo cartão)"** no rótulo é a guarda do
+            pre-mortem 1 do ticket: ele diz de quem é o documento, e é isso que
+            impede o Mateus de anexar o comprovante no campo do extrato. Nunca
+            "Anexo 1"/"Anexo 2".
+
+            ⚠️ Quando o extrato JÁ existe (fatura em rotativo cujo extrato foi
+            anexado em `/fatura/[id]` antes desta confirmação), o campo **não
+            aparece**: no lugar dele, a linha de leitura com link ao acervo. Não é
+            um banner de bloqueio como o guard de `/pagamento/[id]/comprovante` —
+            ali a tela inteira é sobre um documento, aqui é um dos dois campos, e
+            o resto da confirmação segue normal.
+          */}
+          {fatura.extratoPath === null ? (
+            <CampoArquivo
+              rotulo={EXTRATO_DA_FATURA_ROTULO}
+              ajuda={EXTRATO_DA_FATURA_AJUDA}
+              accept=".pdf,image/*"
+              arquivo={extrato}
+              onChange={setExtrato}
+            />
+          ) : (
+            <ListaDeAnexos
+              titulo={EXTRATO_DA_FATURA_ROTULO}
+              itens={[
+                { path: fatura.extratoPath, papel: ROTULO_DO_PAPEL.extrato },
+              ]}
+            />
+          )}
         </Card>
 
         <Card>

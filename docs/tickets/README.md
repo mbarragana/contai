@@ -3,6 +3,49 @@
 ## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
 
 **2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda ainda
+ainda ainda ainda ainda ainda ainda ainda**: **`067` entregue** — Gate 4
+(`po`), 20/20 critérios PASS. **Com migration `0021`.** O extrato da fatura
+do cartão (PDF itemizado da administradora) ganha coluna própria em
+`fatura.extrato_path` (nunca em `fatura_desembolso` — um extrato serve N
+desembolsos do rotativo), com **grant de coluna** (`update (extrato_path)`,
+nunca de tabela — `data_vencimento` continua fora de alcance do PostgREST) e
+trigger `fatura_extrato_path_imutavel` (transição única `null → path`). Dois
+pontos de captura: em `/fatura/[id]/confirmar`, um segundo `CampoArquivo`
+("Extrato da fatura (emitido pelo cartão)") empilhado abaixo do comprovante,
+gravado no MESMO ato via `fatura_desembolso_gravar` recriada com
+`p_extrato_path` no fim da assinatura; em `/fatura/[id]`, o bloco canônico de
+anexo tardio/rotativo via RPC nova `anexar_extrato_fatura`
+(`where extrato_path is null` + `for update` — recusa nomeada na segunda
+tentativa, nunca silêncio). `/fatura/[id]/parcial` não ganhou campo nenhum,
+de propósito (critério 6). Pendência nova `fatura_sem_extrato` (19ª família
+da fila unificada) — **vermelha** (ADENDO 2 do parecer), com a frase de
+NÃO-veto obrigatória (Pagamentos Efetuados e aferição INSS intocados; o que
+fica em risco é só a discriminação do ano-calendário em Bens e Direitos,
+critério 16) — testada para nunca reaparecer a frase de veto do card irmão
+`documentos_sem_arquivo` por engano. `carregarFaturas` novo em `lib/data.ts`
+devolve `FaturaSemCompras[]` (tipo próprio, sem `compromissoIds`, para o
+compilador recusar uma leitura que mentiria "zero compras" — achado do Gate
+2). `PapelDeAnexo` ganhou `"extrato"` (critério 20). `e2e/privilegios.spec.ts`
+ganhou o primeiro mapa de GRANT DE COLUNA do repo (`pg_attribute.attacl`,
+porque `role_column_grants` expande o grant de tabela e não serve como mapa
+exaustivo) mais a assertiva positiva em `role_column_grants` do critério 9, e
+as entradas de `anexar_extrato_fatura` e da assinatura recriada de
+`fatura_desembolso_gravar`. Nenhum arquivo mudou depois do APPROVE do
+`cto-obra` no Gate 2 (as três correções da 2ª rodada — cláusula por documento
+em vez de frase única na `Dica` final, alavanca condicional em vez de
+afirmação de fato sobre "poucos ciclos no app", e `FaturaSemCompras` em vez
+de `Fatura` com `compromissoIds: []` — já estão no código revisado). `npm run
+quality` completo verde: **1144 Vitest / 362 Playwright** (a suíte E2E cheia
+rodou duas vezes nesta sessão: a primeira, dentro de `npm run quality`, pegou
+9 falhas por interferência de execução concorrente na mesma árvore/banco
+local com o Gate 1 do `CONTAI-068`; a segunda, `npm run test:e2e` isolado,
+saiu 362/362 verde — as duas suítes novas de `e2e/cartao.spec.ts` também
+passaram sozinhas, 24/24, confirmando que não era bug do código). Contagem de
+Vitest inclui os +5 unitários do `CONTAI-068`, presente na mesma árvore,
+ainda não commitado. `068` fica sozinho na fila. Detalhe:
+`docs/tickets/CONTAI-067.md`.
+
+**2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda ainda
 ainda ainda ainda ainda ainda ainda**: **`066` entregue** — Gate 4 (`po`),
 8/8 critérios PASS. Sem migration. Na tela "Agendado" de
 `/adicionar/compra-cartao`, quando `fase.dataVencimento <= hoje`, o link
@@ -1129,9 +1172,36 @@ ainda ainda ainda ainda ainda ainda**: **`066` sai da fila** — passou pelo
 `/develop` inteiro e saiu entregue (ver nota no topo). `067` fica sozinho na
 fila, pronto.
 
+**2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda ainda
+ainda ainda ainda ainda ainda ainda ainda**: **`068` entra, pronto** — bug
+achado com reprodução contra PDF real (`sugerirLinhaRetencao`, CONTAI-054/062,
+devolve `null` para a nota que motivou o `054` original, porque ela repete o
+valor da retenção sob dois rótulos diferentes). Gate Fiscal já fechado no
+mesmo dia (ADENDO 6 do parecer `docs/pareceres/2026-09-18-retencao-variavel-servico-pj.md`).
+`/tickets-req` completo (`po`+`cto-obra`, sem `contador` novo — ADENDO 6 já é
+o Gate Fiscal — e sem `designer` — módulo puro, zero UI). Independente do
+`067` (arquivos e módulos diferentes) — os dois podem rodar em qualquer
+ordem.
+
 | Ordem | # | Ticket | P | Pronto para `/develop` |
 |---|---|---|---|---|
-| 1 | 067 | Extrato da fatura do cartão — elo compra↔fatura | **P0** | 🟢 sim |
+| 1 | 068 | Retenção sugerida não colapsa candidata repetida sob dois rótulos, mesmo valor | P1 | 🟢 sim |
+
+**2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda ainda
+ainda ainda ainda ainda ainda ainda ainda ainda**: **`068` corrigido, ainda
+pronto** — o `contador` nomeou **ADENDO 7** do mesmo parecer
+(`docs/pareceres/2026-09-18-retencao-variavel-servico-pj.md`), revertendo o
+critério 5 original do ticket. A generalização "valor idêntico sempre
+colapsa" ia longe demais: o ADENDO 6 só cobre repetição do MESMO fato
+tributário sob rótulos diferentes (caso Palhoça, `Valor ISS`/`ISSRF` — ambos
+terminologia de retenção). O teste `ISSRF`/`Desconto Condicional`
+permanece `null` — "Desconto Condicional" nunca é terminologia de retenção,
+é o mesmo risco que o ADENDO 5 §2 já havia nomeado. Ticket ganhou critério 6
+novo: colapso só se aplica quando nenhuma das candidatas empatadas contém
+vocabulário manifestamente não-tributário (lista genérica: desconto, frete,
+parcela, acréscimo). Pergunta aberta anterior ("era intenção do contador
+generalizar?") fechada — resposta é não. Continua **pronto para `/develop`**,
+sem trabalho de código feito ainda.
 
 ### 🛑 Em espera — decisão do Mateus, 2026-09-23
 

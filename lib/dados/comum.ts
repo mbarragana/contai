@@ -17,6 +17,8 @@ import type {
   Documento,
   DocumentoRetencaoRow,
   DocumentoRow,
+  FaturaDesembolsoRow,
+  FaturaRow,
   Financiamento,
   FinanciamentoInforme,
   FinanciamentoInformeRow,
@@ -59,6 +61,19 @@ export type ComFavorecidoSimples = { favorecido: { nome: string } | null };
 
 export type TerrenoDesembolsoComAnexos = TerrenoDesembolsoRow & {
   terreno_desembolso_anexo: TerrenoDesembolsoAnexoRow[] | null;
+};
+
+/**
+ * **CONTAI-067** — a fatura vem com os DESEMBOLSOS aninhados, num pedido só
+ * (`fatura_desembolso(*)`), como os anexos do desembolso do terreno. A RLS
+ * derivada do pai (migration 0013) vale DENTRO do embed.
+ *
+ * `carregarFaturas` (a lista da obra, critério 15) precisa das duas pernas da
+ * regra `faltaOExtrato`: os desembolsos e o `extrato_path` do pai. Sem o embed
+ * seriam N+1 requisições, uma por fatura.
+ */
+export type FaturaComDesembolsos = FaturaRow & {
+  fatura_desembolso: FaturaDesembolsoRow[] | null;
 };
 
 /**
