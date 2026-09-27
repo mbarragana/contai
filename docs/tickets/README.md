@@ -1,6 +1,25 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda ainda
+ainda ainda ainda ainda ainda ainda ainda ainda ainda**: **`068` entregue** —
+Gate 4 (`po`), 9/9 critérios PASS. Sem migration, sem UI. Bugfix cirúrgico em
+`sugerirLinhaRetencao` (`lib/extracao/retencao-texto.ts`): a chave do `Map`
+trocou de `` `${rótulo}|${valor}` `` para `valorCentavos`, com um guard de
+"primeiro vence" (ordem de aparição no texto, nunca vocabulário) e uma
+triagem prévia (`RE_NAO_TRIBUTARIO`: desconto/abatimento/frete/parcela/
+acréscimo) que impede colapso quando qualquer candidata do empate não é,
+isoladamente, terminologia de retenção — a linha do ADENDO 7. Teste do
+critério 1 prova o desempate nas duas direções (texto invertido, "Valor ISS"
+e depois "ISSRF" trocam de vencedor); o teste antigo `ISSRF`/`Desconto
+Condicional` (critério 5) segue **byte a byte intocado**, `null`; teste novo
+do critério 6 prova os três casos lado a lado (colapsa/não colapsa/não
+colapsa). `retencao-texto-real.test.ts` ganhou a Nota 3 (padrão Palhoça, PDF
+sintético via `unpdf` real, valores inventados) provando o caminho ponta a
+ponta. Nenhum arquivo mudou depois do APPROVE do `cto-obra` no Gate 2. `npm
+run quality` completo verde: **1144 Vitest / 362 Playwright**. Detalhe:
+`docs/tickets/CONTAI-068.md`.
 
 **2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda ainda
 ainda ainda ainda ainda ainda ainda ainda**: **`067` entregue** — Gate 4
@@ -1202,6 +1221,16 @@ vocabulário manifestamente não-tributário (lista genérica: desconto, frete,
 parcela, acréscimo). Pergunta aberta anterior ("era intenção do contador
 generalizar?") fechada — resposta é não. Continua **pronto para `/develop`**,
 sem trabalho de código feito ainda.
+
+**2026-09-26, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda ainda
+ainda ainda ainda ainda ainda ainda ainda ainda ainda**: **`068` sai da fila**
+— passou pelo `/develop` inteiro (Gate 1 e Gate 2 já fechados de sessões
+anteriores; Gate 4 do `po` fechou 9/9 critérios PASS) e saiu entregue (ver
+nota no topo). Fila de implementação fica **vazia**.
+
+| Ordem | # | Ticket | P | Pronto para `/develop` |
+|---|---|---|---|---|
+| — | — | *(nenhum ticket na fila)* | — | — |
 
 ### 🛑 Em espera — decisão do Mateus, 2026-09-23
 

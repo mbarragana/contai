@@ -112,6 +112,48 @@ const NOTA_DANFSE_CELULAS = [
   "R$ 0,00",
 ];
 
+/**
+ * Nota 3 — CONTAI-068, o padrão que devolvia `null` em PDF real (município de
+ * Palhoça/SC): o MESMO valor de retenção impresso duas vezes, sob rótulos
+ * diferentes, em dois blocos do documento — "Valor ISS" no bloco do item de
+ * serviço e "ISSRF" no resumo financeiro. Estrutura real (célula por linha),
+ * números inventados: 15.760,00 − 742,50 = 15.017,50. É aqui que se prova que o
+ * colapso do ADENDO 6 funciona no texto que o `unpdf` produz de verdade, e não
+ * só em fixture de uma linha por campo.
+ */
+const NOTA_ISS_REPETIDO_CELULAS = [
+  "NOTA FISCAL DE SERVICOS ELETRONICA - NFS-e",
+  "MUNICIPIO Anonimizado - SC",
+  "PRESTADOR Empreiteira Anonimizada Ltda",
+  "CNPJ 11.444.777/0001-61",
+  "TOMADOR pessoa fisica CPF 123.456.789-09",
+  "DISCRIMINACAO servicos de instalacao hidrossanitaria do pavimento terreo",
+  // Bloco de descricao do item de servico.
+  "Valor Unidade",
+  "15.760,00",
+  "Valor Servico",
+  "15.760,00",
+  "Deducao",
+  "0,00",
+  "Valor ISS",
+  "742,50",
+  // Bloco de resumo financeiro — repete a mesma retencao com outro nome.
+  "Valor Total da Nota",
+  "15.760,00",
+  "Base de Calculo",
+  "15.760,00",
+  "ISSRF",
+  "742,50",
+  "IR",
+  "0,00",
+  "INSS",
+  "0,00",
+  "CSLL",
+  "0,00",
+  "Valor Liquido",
+  "15.017,50",
+];
+
 describe("o caminho da rota, com o unpdf REAL — NFS-e municipal", () => {
   it("rótulo e valor em linhas separadas (uma célula por par) viram sugestão", async () => {
     const lido = await extrairTextoDoPdf(pdfComTexto(NOTA_MUNICIPAL_CELULAS));
@@ -166,5 +208,23 @@ describe("o caminho da rota, com o unpdf REAL — DANFSe v2.0", () => {
     // errado.
     expect(lido!.texto).toContain("Valor Total Apurado - IBS\n-");
     expect(sugerirLinhaRetencao(lido!.texto)?.valorCentavos).toBe(69_420);
+  });
+});
+
+describe("o caminho da rota, com o unpdf REAL — retenção repetida (CONTAI-068)", () => {
+  it("mesmo valor sob 'Valor ISS' e 'ISSRF' em blocos diferentes vira UMA sugestão", async () => {
+    const lido = await extrairTextoDoPdf(pdfComTexto(NOTA_ISS_REPETIDO_CELULAS));
+
+    expect(avaliarTexto(lido!.texto).suficiente).toBe(true);
+    // Confirma no texto real que as duas ocorrências existem, em blocos
+    // distintos: é isso que a chave antiga por `rótulo|valor` contava como duas
+    // sugestões, zerando a nota.
+    expect(lido!.texto).toContain("Valor ISS\n742,50");
+    expect(lido!.texto).toContain("ISSRF\n742,50");
+
+    expect(sugerirLinhaRetencao(lido!.texto)).toEqual({
+      rotuloLiteral: "Valor ISS",
+      valorCentavos: 74_250,
+    });
   });
 });

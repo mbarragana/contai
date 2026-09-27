@@ -130,6 +130,97 @@ describe("sugerirLinhaRetencao — padrão estruturado reconhecido", () => {
   });
 });
 
+/**
+ * CONTAI-068. A própria linha de RETENÇÃO repetida sob dois rótulos, mesmo
+ * valor, é repetição de leiaute — o caso real de Palhoça/SC, em que "Valor ISS"
+ * (bloco do item de serviço) e "ISSRF" (resumo financeiro) imprimem o mesmo
+ * número (ADENDO 6 do parecer). Valores aqui são INVENTADOS: nem os reais da
+ * nota, nem os já usados nos outros testes deste arquivo.
+ *
+ * O limite vem do ADENDO 7: colapsar exige que as DUAS candidatas empatadas
+ * sejam, isoladamente, terminologia de retenção. Empate com vocabulário
+ * manifestamente não-tributário segue `null` (testes abaixo e o de
+ * `ISSRF`/`Desconto Condicional`, intocado, em "dúvida sempre vira null").
+ */
+describe("sugerirLinhaRetencao — mesmo valor sob dois rótulos (CONTAI-068)", () => {
+  it("mesmo valor sob dois rótulos diferentes, aritmética fechando — repetição, não ambiguidade (CONTAI-068)", () => {
+    const texto = [
+      "Valor Total ............... R$ 15.760,00",
+      "Valor ISS .................. R$ 742,50",
+      "ISSRF ...................... R$ 742,50",
+      "Valor Liquido .............. R$ 15.017,50",
+    ].join("\n");
+
+    expect(sugerirLinhaRetencao(texto)).toEqual({
+      rotuloLiteral: "Valor ISS",
+      valorCentavos: 74_250,
+    });
+
+    // Mesma nota com as duas linhas trocadas de lugar: vence "ISSRF" agora. O
+    // desempate é a ORDEM DE APARIÇÃO (critério 4), nunca preferência por um dos
+    // dois vocabulários — preferência daria a mesma resposta nas duas direções e
+    // reprovaria aqui.
+    const invertido = [
+      "Valor Total ............... R$ 15.760,00",
+      "ISSRF ...................... R$ 742,50",
+      "Valor ISS .................. R$ 742,50",
+      "Valor Liquido .............. R$ 15.017,50",
+    ].join("\n");
+
+    expect(sugerirLinhaRetencao(invertido)).toEqual({
+      rotuloLiteral: "ISSRF",
+      valorCentavos: 74_250,
+    });
+  });
+
+  it("valores PRÓXIMOS mas não idênticos, os dois dentro da tolerância, continuam null", () => {
+    // Prova de que o colapso é por valor EXATO e não por proximidade: os dois
+    // rótulos são terminologia de retenção (a triagem do ADENDO 7 não é o que
+    // está zerando aqui) e ambos fechariam a conta sozinhos dentro de
+    // `TOLERANCIA_CENTAVOS` — mas são dois VALORES distintos, logo ambiguidade
+    // genuína (critério 2 / ADENDO 6 §5).
+    const texto = [
+      "Valor Total ....... R$ 10.000,00",
+      "ISSRF ............. R$ 500,00",
+      "INSS Retido ....... R$ 500,01",
+      "Valor Liquido ..... R$ 9.500,00",
+    ].join("\n");
+
+    expect(sugerirLinhaRetencao(texto)).toBeNull();
+  });
+
+  it("empate em que uma candidata é manifestamente não-tributária continua null (ADENDO 7)", () => {
+    // Mesmo empate estrutural do primeiro teste, mas "Desconto Comercial" nunca
+    // é terminologia de retenção: valor igual aqui é coincidência numérica entre
+    // dois conceitos, não repetição de um só. Doutrina "empate real vira null"
+    // intocada para este caso.
+    const texto = [
+      "Valor Total ....... R$ 7.000,00",
+      "IRRF .............. R$ 210,00",
+      "Desconto Comercial  R$ 210,00",
+      "Valor Liquido ..... R$ 6.790,00",
+    ].join("\n");
+
+    expect(sugerirLinhaRetencao(texto)).toBeNull();
+  });
+
+  it("e o mesmo empate com os dois rótulos tributários colapsa normalmente", () => {
+    // Contraprova lado a lado do teste acima: só o vocabulário da segunda
+    // candidata muda, e a resposta deixa de ser null.
+    const texto = [
+      "Valor Total ....... R$ 8.400,00",
+      "Valor ISS ......... R$ 168,00",
+      "ISS Retido Fonte .. R$ 168,00",
+      "Valor Liquido ..... R$ 8.232,00",
+    ].join("\n");
+
+    expect(sugerirLinhaRetencao(texto)).toEqual({
+      rotuloLiteral: "Valor ISS",
+      valorCentavos: 16_800,
+    });
+  });
+});
+
 describe("sugerirLinhaRetencao — rótulo e valor em linhas separadas", () => {
   // O padrão DOMINANTE no texto real (medição de 2026-09-25 com o `unpdf` nas
   // duas notas do ticket): o PDF.js emite um item de texto por célula, então a

@@ -1056,3 +1056,223 @@ recolhimento ou equiparação; essas exigências continuam as já registradas no
 corpo do parecer e nos adendos anteriores.
 
 **O contai redige, dateia e organiza. Não assina.**
+
+---
+
+# ADENDO 6 — 2026-09-26 · a PRÓPRIA linha de retenção repetida sob dois
+rótulos, mesmo valor, é repetição — a doutrina "empate real vira null" do
+total/líquido não se estende a este caso, e o motivo é estrutural, não
+frouxidão de critério
+
+- **Provocação**: NFS-e real (padrão de município — Palhoça/SC), aritmética
+  batendo (Total 40.857,14 − Retenção 1.889,48 = Líquido 38.967,66), e
+  `sugerirLinhaRetencao` devolveu `null`. Causa: a mesma nota imprime
+  R$ 1.889,48 **duas vezes**, sob dois rótulos diferentes, em dois blocos
+  diferentes do documento — "Valor ISS" (bloco de descrição do item, junto de
+  Valor Unidade/Valor Serviço/Dedução) e "ISSRF" (bloco de resumo financeiro,
+  junto de Base de Cálculo/IR/INSS/CSLL/COFINS/PIS/Valor Líquido). O `Map`
+  chaveado por `rótulo|valor` (linhas 275-281 do módulo) trata isso como as
+  duas candidatas que o próprio comentário do código já havia enquadrado como
+  "ambiguidade genuína" — e por isso zera.
+
+## Resposta direta
+
+[Certain] **O comentário atual do código erra ao chamar isto de "ambiguidade
+genuína".** Ele generalizou por analogia a doutrina "empate real vira null" do
+par total/líquido (linha 65-69 e 279-281) para um caso estruturalmente
+diferente. Aprovo a mudança: colapsar as duas candidatas em uma única
+sugestão quando têm **valor idêntico**, mesmo sob rótulos textuais diferentes.
+
+## 1. Por que a doutrina do total/líquido não se aplica aqui — o critério é a ARITMÉTICA, não o RÓTULO
+
+[Certain] A doutrina "'primeiro que achar' pegaria o par errado, a aritmética
+é quem desempata" existe para um risco específico: escolher entre **duas
+combinações que produziriam VALORES DIFERENTES** de retenção sugerida (ex.: o
+"Valor Líquido da NFS-e" real vs. o "Valor Líquido + IBS/CBS" zerado da
+reforma — usar o segundo inventaria uma retenção do tamanho da nota inteira).
+Ali, escolher errado muda o número que vai para o formulário. É esse risco
+que justifica nunca decidir por "primeiro que achar" e devolver `null` no
+empate.
+
+**O caso deste ticket não tem esse risco, por construção.** A colisão
+`"Valor ISS|188948"` / `"ISSRF|188948"` só existe porque as duas candidatas
+têm **o mesmo `valorCentavos`** — é precondição do próprio empate, não
+coincidência a verificar. Se os dois rótulos tivessem valores diferentes, cada
+um seria testado independentemente contra `total − líquido`, e no máximo um
+sobreviveria (o outro falharia a tolerância de 1 centavo) — o `Map` só colide
+quando o NÚMERO já é idêntico. Logo: **não existe escolha entre dois valores
+aqui**, existe escolha entre dois RÓTULOS DE TEXTO para o mesmo número já
+verificado pela aritmética. São perguntas de gravidade diferente, a mesma
+distinção que o ADENDO 5 §1 já usou para separar `retencaoNaNota` (fato) de
+`quem_recolhe` (intenção): aqui a pergunta é "qual **fato de existência**
+bate com a aritmética" (sim, resolvida), não "qual dos dois valores é o
+verdadeiro" (a pergunta perigosa, que não se coloca).
+
+## 2. O rótulo não é decisório em lugar nenhum do sistema — só o valor é
+
+[Certain] Conferido no próprio módulo e no ADENDO 5: `rotuloLiteral` nunca
+alimenta `composicao`, `tributo`, `eDescontoEfetivo` ou `quemRecolhe` (essas
+saídas continuam 100% manuais, ADENDO 2/3, inalteradas) e nunca entra em
+custo de aquisição nem em aferição do SERO (ambas dependem só de
+`eDescontoEfetivo`/`quemRecolhe`). O papel do rótulo é exclusivamente de
+**rastreabilidade visual**: o texto que aparece ao lado do valor sugerido para
+o Mateus achar a linha no papel na hora de confirmar. Escolher "Valor ISS" ou
+"ISSRF" não muda o valor gravado, não muda gate nenhum além do binário
+`retencaoNaNota` (que já se abriria do mesmo jeito com qualquer um dos dois
+rótulos, porque o valor que dispara o gate é o mesmo) e não piora a
+conferência: o Mateus vai encontrar os dois rótulos com R$ 1.889,48 impressos
+na mesma nota de qualquer forma. Errar o rótulo é, no pior caso, mostrar
+"Valor ISS: R$ 1.889,48" quando a linha que ele esperava ver era "ISSRF: R$
+1.889,48" — mesmo número, confirmação igualmente trivial.
+
+## 3. Isto reduz falso negativo, não afrouxa a guarda contra falso positivo do ADENDO 5
+
+[Certain] O raio de efeito que o ADENDO 5 §2 me preocupou foi o de o gate
+abrir sozinho numa nota **sem retenção nenhuma** (frete, desconto, parcela
+coincidindo em aritmética com total/líquido por acaso). Este adendo não toca
+nessa guarda: a nota deste ticket **tem** retenção real, rotulada duas vezes
+como fato do próprio leiaute municipal — o parser já confirmou a aritmética
+corretamente, e o único defeito era recusar apresentar o resultado por excesso
+de rigor no desempate textual. Aprovar aqui não abre a porta para nenhum novo
+tipo de falso positivo: a tolerância aritmética e o filtro de líquido zerado
+permanecem exatamente como estão.
+
+## 4. Critério de desempate: fiscal é indiferente a QUAL rótulo vence — mas veta vocabulário hardcoded
+
+[Certain quanto ao veto; a escolha do critério é do `cto-obra`] Como o valor é
+idêntico entre as candidatas colapsadas, **qualquer critério determinístico
+de desempate é fiscalmente seguro** — não há resposta "certa" ou "errada" em
+qual rótulo textual aparece, só em qual valor é sugerido, e o valor não muda.
+A única restrição que registro, e essa sim é doutrina do próprio módulo desde
+o cabeçalho (Critério 4: "nenhum rótulo de emissor/município aparece
+hardcoded... whitelist envelheceria na terceira nota"): **o desempate não
+pode ser feito por preferência de vocabulário** (tipo `"ISSRF" > "Valor ISS"
+> genérico`). Isso reintroduziria exatamente o acoplamento a rótulo de
+prefeitura que o módulo foi desenhado para evitar, e envelheceria na próxima
+nota de outro município que rotule diferente. Critérios estruturais e
+vocabulário-livres (ordem de aparição no texto; proximidade textual ao par
+total/líquido que fechou a conta) servem igualmente bem — a escolha entre eles
+é decisão de engenharia, não fiscal.
+
+## 5. O que este adendo NÃO muda
+
+- A tolerância aritmética (`TOLERANCIA_CENTAVOS`), o filtro de líquido zerado
+  e a proibição de sugerir `"nao_destacada"`/`"nao_sei"` (ADENDO 5,
+  salvaguardas 2 e 3) continuam exatamente como estão.
+- Duas candidatas com **valores diferentes** continuam ambiguidade genuína e
+  continuam zerando para `null` — a doutrina "empate real vira null" permanece
+  intacta para esse caso, que é o caso que ela sempre existiu para cobrir.
+- `composicao`, `natureza_da_retencao`, `eDescontoEfetivo`, `quemRecolhe` e
+  `notaNoCpf` continuam fora de qualquer sugestão, sem exceção (ADENDO 5 §4,
+  inalterado).
+- O comentário em `lib/extracao/retencao-texto.ts:275-281` fica desatualizado
+  por este adendo — descreve como "ambiguidade genuína" um caso que passa a
+  ser tratado como repetição — e deve ser corrigido no ticket que implementar
+  esta mudança, para não voltar a ser lido como proibição.
+
+## 6. Automático × exige contador humano (CRC)
+
+**O sistema pode sozinho**: colapsar candidatas de valor idêntico sob rótulos
+diferentes em uma única sugestão de linha de retenção, com qualquer critério
+de desempate estrutural (não vocabulário) para escolher qual rótulo exibir;
+continuar exigindo par único quando os valores divergem.
+
+**Exige revisão humana (do Mateus, não CRC)**: confirmar a sugestão contra o
+papel antes de salvar — inalterado, mesmo gesto de sempre.
+
+**Exige CRC**: nada novo — este adendo é ajuste de desempate textual num
+parser de sugestão, não toca em classificação de tributo, recolhimento ou
+equiparação.
+
+# ADENDO 7 — 2026-09-26 · o limite do ADENDO 6 explicitado: mesmo VALOR não
+autoriza colapso quando os dois rótulos não estão no mesmo fato tributário —
+isso é o falso positivo que o ADENDO 5 §2 já havia nomeado, não um caso novo
+
+- **Provocação**: ao montar o ticket de implementação (CONTAI-068), a
+  generalização do ADENDO 6 foi lida como "duas candidatas de valor idêntico
+  sempre colapsam", e aplicada também a um teste unitário sintético existente
+  e não relacionado ao caso real de Palhoça — texto com `ISSRF` (retenção
+  tributária) e `Desconto Condicional` (desconto comercial) coincidindo em
+  valor por acidente da nota fictícia. Pergunta: o ADENDO 6 cobre este segundo
+  caso?
+
+## Resposta: não. O limite é mais estreito, e ele já estava escrito — só não
+foi lido junto
+
+[Certain] **Não colapsa. O teste que espera `null` para o par
+`ISSRF`/`Desconto Condicional` está certo e não deve ser invertido.** A leitura
+que gerou o CONTAI-068 pulou o próprio §3 do ADENDO 6, que já delimitava a
+fronteira:
+
+> "O raio de efeito que o ADENDO 5 §2 me preocupou foi o de o gate abrir
+> sozinho numa nota sem retenção nenhuma (**frete, desconto, parcela**
+> coincidindo em aritmética com total/líquido por acaso). Este adendo não toca
+> nessa guarda."
+
+`Desconto Condicional` é literalmente um dos exemplos nominados nessa frase.
+Colapsar este par não é "aplicar o ADENDO 6" — é fazer exatamente a coisa que
+o próprio ADENDO 6 disse, por escrito, que não fazia.
+
+**Por que os dois casos são estruturalmente diferentes, não uma questão de
+grau:**
+
+- **Palhoça (ADENDO 6, aprovado)**: as duas candidatas — `"Valor ISS"` e
+  `"ISSRF"` — são, cada uma isoladamente, terminologia de retenção/tributo. A
+  aritmética confirmou que ambas batem com `total − líquido`, e a única dúvida
+  era textual: dois nomes para o mesmo dado tributário, efeito de leiaute
+  municipal. O valor idêntico ali é **evidência de repetição do mesmo fato**,
+  porque não existe leitura em que `"ISSRF"` seja outra coisa que não
+  retenção.
+- **CONTAI-068 (teste sintético, não aprovado)**: uma das candidatas
+  (`Desconto Condicional`) não é, em nenhuma leitura, uma retenção tributária
+  — é uma categoria fiscal diferente (desconto comercial condicionado, sem
+  natureza de retenção nenhuma). O valor idêntico ali é **coincidência
+  numérica entre dois conceitos**, o mesmo fenômeno que o ADENDO 5 §2 batizou
+  de "arredondamento/desconto comercial coincidindo por acaso" — exatamente o
+  risco que motivou a doutrina "empate real vira `null`" nunca ter sido
+  derrubada para esse caso.
+
+**Critério para distinguir os dois, para o `cto-obra` implementar**: o que
+autoriza o colapso não é "mesmo valor" isoladamente — é "mesmo valor **e**
+nenhuma das duas candidatas pertence, por rótulo, a uma categoria fiscal
+manifestamente não-tributária (desconto, abatimento, frete, parcela,
+acréscimo)". Isto não reintroduz o veto do Critério 4/ADENDO 6 §4 (proibição
+de *preferir* um rótulo de retenção específico sobre outro *no desempate entre
+duas candidatas já tributárias*) — é uma pergunta anterior e mais grosseira:
+"esta candidata está sequer no universo de retenção, ou é claramente outra
+coisa que apenas bateu em valor?". Uma excluir explicitamente por categoria
+óbvia (desconto/frete/parcela) não é a mesma operação que preferir "ISSRF"
+sobre "Valor ISS" — a primeira decide **se** a candidata é retenção, a segunda
+decide **qual rótulo mostrar** entre duas que já são. Como classificar o rótulo
+nessa pergunta anterior (lista fechada de termos manifestamente não-tributários
+vs. outro mecanismo) é decisão de engenharia; a linha fiscal é: **na dúvida
+sobre se as duas candidatas descrevem o mesmo fato tributário, o empate
+permanece `null`** — colapsar é privilégio do caso comprovado (repetição de
+leiaute), não do caso coincidente.
+
+## O que este adendo NÃO muda
+
+- O ADENDO 6 continua valendo, sem alteração, para o caso que ele foi escrito
+  para resolver: duas candidatas cujos rótulos são ambos, isoladamente,
+  terminologia de retenção/tributo (ex.: dois nomes municipais distintos para
+  o mesmo imposto retido).
+- A doutrina "empate real vira `null`" do ADENDO 5 continua a regra padrão para
+  qualquer par que não se enquadre nesse caso comprovado — inclusive o par
+  `ISSRF`/`Desconto Condicional` do teste do CONTAI-068.
+- Nenhuma mudança em `composicao`, `natureza_da_retencao`, `eDescontoEfetivo`,
+  `quemRecolhe`, `notaNoCpf` — seguem 100% manuais.
+
+## Automático × exige contador humano (CRC)
+
+**O sistema pode sozinho**: continuar recusando colapso (`null`) sempre que
+uma das candidatas do empate for, por categoria, manifestamente não-tributária
+(desconto, frete, parcela, acréscimo) — isto é a regra já vigente antes do
+ADENDO 6, não uma feature nova.
+
+**Exige revisão humana (do Mateus, não CRC)**: nenhuma mudança — o campo
+continua nascendo vazio e ele preenche à mão quando o sistema devolve `null`.
+
+**Exige CRC**: nada — delimitação de escopo de um adendo anterior, não regra
+tributária nova.
+
+**O contai redige, dateia e organiza. Não assina.**

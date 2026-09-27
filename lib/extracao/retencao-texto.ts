@@ -68,6 +68,16 @@
  * Empate real vira `null` — ambiguidade nunca vira "melhor palpite"
  * (critério 2).
  *
+ * ⚠️ **QUALIFICADO NO CONTAI-068**: "empate real" é empate de **VALOR** entre
+ * candidatas — e, dessas, só as que **não** são, isoladamente, terminologia de
+ * retenção/tributo. Duas candidatas com o **mesmo** `valorCentavos` sob rótulos
+ * diferentes, ambos tributários, são **repetição de leiaute**, não ambiguidade:
+ * colapsam numa sugestão só (ADENDO 6 do parecer
+ * `docs/pareceres/2026-09-18-retencao-variavel-servico-pj.md`). Se qualquer uma
+ * das candidatas empatadas tiver vocabulário manifestamente não-tributário
+ * (`RE_NAO_TRIBUTARIO`), o empate volta a ser ambiguidade genuína e vira `null`
+ * (ADENDO 7 do mesmo parecer). Valores **diferentes** continuam `null` sempre.
+ *
  * ## O que a MEDIÇÃO com as notas reais corrigiu (2026-09-25)
  *
  * A primeira versão deste módulo foi escrita contra fixture reconstruída e
@@ -137,6 +147,26 @@ const RE_VALOR_ROTULADO = /(?<![\d.,])(?:\d{1,3}(?:\.\d{3})+|\d+),\d{2}(?![\d.,]
 const RE_BORDA_ROTULO = /(?:R\$|[.:;=,\-–—_·•|/\\\s])+/;
 const RE_FIM_ROTULO = new RegExp(`${RE_BORDA_ROTULO.source}$`, "u");
 const RE_INICIO_ROTULO = new RegExp(`^${RE_BORDA_ROTULO.source}`, "u");
+
+/**
+ * **Triagem do CONTAI-068 / ADENDO 7** — vocabulário manifestamente
+ * NÃO-tributário, usado **só** para decidir se duas candidatas empatadas em
+ * valor podem colapsar. Não é filtro de candidata: uma linha "Desconto ..." que
+ * feche a conta **sozinha** continua sendo sugerida como sempre foi (o rótulo
+ * nunca decide papel — a aritmética decide).
+ *
+ * Por que isto **não** é a whitelist vetada pelo Critério 4 / ADENDO 6 §4: lá o
+ * veto é a *preferência* por um rótulo de retenção sobre outro no desempate
+ * (`"ISSRF" > "Valor ISS"`); aqui a pergunta é anterior e mais grosseira — "as
+ * duas candidatas descrevem sequer o mesmo fato tributário, ou uma delas é
+ * claramente outra coisa que só bateu no número?" (ADENDO 7).
+ *
+ * A lista é **genérica** de propósito — vocabulário universal de contabilidade,
+ * nunca jargão de prefeitura ou de sistema emissor. Acrescentar termo específico
+ * de município aqui repetiria, por outra porta, o acoplamento que o Critério 4
+ * evita por desenho: passa pelo `contador` antes (pre-mortem 3 do CONTAI-068).
+ */
+const RE_NAO_TRIBUTARIO = /desconto|abatimento|frete|parcela|acr[eé]scimo/i;
 
 /** Uma linha rotulada do texto: o rótulo impresso e o valor ao lado dele. */
 type LinhaRotulada = {
@@ -272,14 +302,35 @@ export function sugerirLinhaRetencao(texto: string): SugestaoLinhaRetencao | nul
   // identidade da linha, não o vocabulário do rótulo.
   const candidatas = linhas.filter((linha) => linha.valorCentavos > 0);
 
-  // Chaveado por `rótulo|valor`: o que interessa é quantas sugestões DISTINTAS
-  // a nota admite, não quantos pares chegaram a fechar. Nota que imprime o
-  // total duas vezes (com rótulos diferentes, valor igual) fecha duas
-  // combinações apontando para a MESMA linha — isso não é ambiguidade, é
-  // repetição, e recusar aí seria recusar o caso simples de quase toda nota.
-  // Dois rótulos diferentes com o mesmo valor, esses sim, são ambiguidade
-  // genuína: qual dos dois copiar é indecidível pela estrutura.
-  const sugestoes = new Map<string, SugestaoLinhaRetencao>();
+  // Chaveado por **VALOR** (`valorCentavos`), não por `rótulo|valor` — mudou no
+  // CONTAI-068, e a mudança é do parecer, não de conveniência:
+  //
+  // - o que interessa é quantos VALORES de retenção distintos a nota admite, não
+  //   quantos pares chegaram a fechar nem quantos nomes o leiaute deu ao mesmo
+  //   número. Nota que imprime o total duas vezes (rótulos diferentes, valor
+  //   igual) fecha duas combinações apontando para a MESMA linha — repetição,
+  //   não ambiguidade;
+  // - **a própria linha de retenção repetida sob dois rótulos, mesmo valor,
+  //   também é repetição** (ADENDO 6 do parecer
+  //   `docs/pareceres/2026-09-18-retencao-variavel-servico-pj.md`): é o caso real
+  //   de Palhoça/SC, em que "Valor ISS" (bloco do item) e "ISSRF" (resumo
+  //   financeiro) imprimem o mesmo número. A chave antiga por rótulo contava isso
+  //   como duas sugestões e zerava a nota — o bug do CONTAI-068. Não há escolha
+  //   de VALOR a fazer aqui (o empate pressupõe valor idêntico, já conferido pela
+  //   aritmética), só de qual texto exibir para o Mateus achar a linha no papel;
+  // - quem desempata o texto é a **ordem de aparição** (primeiro vence), critério
+  //   estrutural. Preferir um vocabulário de prefeitura/emissor é vetado
+  //   (ADENDO 6 §4 / Critério 4 do cabeçalho);
+  // - **o limite** (ADENDO 7): colapsar é privilégio do caso comprovado — as duas
+  //   candidatas empatadas serem, isoladamente, terminologia de retenção. Se uma
+  //   delas for manifestamente não-tributária (`RE_NAO_TRIBUTARIO`: desconto,
+  //   frete, parcela…), o valor igual é coincidência numérica entre dois
+  //   conceitos, não repetição de um só — segue ambiguidade genuína, segue
+  //   `null`. É o falso positivo que o ADENDO 5 §2 já havia nomeado.
+  //
+  // Valor igual → mesma chave; valores diferentes → chaves diferentes → `null`,
+  // exatamente como antes.
+  const sugestoes = new Map<number, Set<string>>();
 
   for (const total of totais) {
     for (const liquido of liquidos) {
@@ -307,16 +358,42 @@ export function sugerirLinhaRetencao(texto: string): SugestaoLinhaRetencao | nul
         if (Math.abs(diferenca - candidata.valorCentavos) > TOLERANCIA_CENTAVOS) {
           continue;
         }
-        sugestoes.set(`${candidata.rotulo}|${candidata.valorCentavos}`, {
-          rotuloLiteral: candidata.rotulo,
-          valorCentavos: candidata.valorCentavos,
-        });
+        const rotulos = sugestoes.get(candidata.valorCentavos);
+        if (rotulos === undefined) {
+          sugestoes.set(candidata.valorCentavos, new Set([candidata.rotulo]));
+        } else {
+          rotulos.add(candidata.rotulo);
+        }
       }
     }
   }
 
-  // Zero é "não reconheci o padrão"; mais de uma é ambiguidade. As duas viram
-  // o mesmo resultado de propósito (critério 2).
+  // Zero é "não reconheci o padrão"; mais de um VALOR é ambiguidade. As duas
+  // viram o mesmo resultado de propósito (critério 2).
   if (sugestoes.size !== 1) return null;
-  return [...sugestoes.values()][0];
+  const [valorCentavos, rotulos] = [...sugestoes.entries()][0];
+
+  // Triagem do ADENDO 7, antes de aceitar o colapso: só há empate de rótulo a
+  // colapsar quando NENHUMA das candidatas empatadas é manifestamente
+  // não-tributária. Com uma candidata só, o rótulo nunca é filtrado — a
+  // aritmética é quem decide papel (nota 2 real: "Total das Retenções (ISSQN /
+  // Federais)" tem "total" dentro e é a retenção).
+  if (rotulos.size > 1 && [...rotulos].some((rotulo) => RE_NAO_TRIBUTARIO.test(rotulo))) {
+    return null;
+  }
+
+  // Desempate ESTRUTURAL: vence o rótulo que aparece primeiro no texto.
+  // `candidatas` preserva a ordem de `extrairLinhasRotuladas`, então procurar
+  // aqui — em vez de confiar na ordem de inserção no `Map`, que depende da
+  // ordem dos laços total × líquido — faz o critério valer por construção, em
+  // qualquer direção do texto (CONTAI-068, critério 4).
+  const primeira = candidatas.find(
+    (candidata) =>
+      candidata.valorCentavos === valorCentavos && rotulos.has(candidata.rotulo),
+  );
+  // Inalcançável: todo rótulo do `Map` saiu de uma candidata. `null` em vez de
+  // `!` porque, se algum dia deixar de ser verdade, o certo é não sugerir.
+  if (primeira === undefined) return null;
+
+  return { rotuloLiteral: primeira.rotulo, valorCentavos };
 }
