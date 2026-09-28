@@ -51,9 +51,15 @@ import {
   rotulosPagoSemNota,
   textoDiferencaSemExplicacao,
 } from "@/lib/fiscal/pagamento";
+import {
+  chipDoAgendado,
+  resumoDoAgendamento,
+  VENCIDO_SEM_RESPOSTA,
+} from "@/lib/fiscal/compromisso";
 import { calcularResumo, type EntradaResumo } from "@/lib/fiscal/resumo";
 import { EXPLICACAO_NOTAS_SEM_PAGAMENTO } from "@/lib/fiscal/vinculo";
 import type {
+  Compromisso,
   Documento,
   LinhaRetencao,
   Obra,
@@ -62,6 +68,13 @@ import type {
 } from "@/lib/types";
 
 const ANO = 2026;
+
+/**
+ * **CONTAI-072** — o "hoje" dos cenários, fixo: é ele que separa o agendamento
+ * dentro do prazo do vencido sem resposta, e um `new Date()` aqui faria o teste
+ * mudar de resultado com o calendário.
+ */
+const HOJE = `${ANO}-06-15`;
 
 /**
  * **"Todos os anos" (CONTAI-060)** — é o valor que os testes de Situação/Tipo/
@@ -189,10 +202,25 @@ function projetar(
   documentos: Documento[],
   pagamentos: Pagamento[],
   over: Partial<EntradaResumo> = {},
+  /**
+   * **CONTAI-072** — os compromissos da obra. Vazio em todo cenário anterior a
+   * este ticket, e é assim que eles continuam provando o que provavam: sem
+   * agendamento aberto, a linha do terceiro estado não muda em nada.
+   */
+  compromissos: Compromisso[] = [],
 ) {
   const e = entrada(documentos, pagamentos, over);
   const resumo = calcularResumo(e);
-  return { resumo, linhas: linhasDeDespesa({ documentos, pagamentos, resumo }) };
+  return {
+    resumo,
+    linhas: linhasDeDespesa({
+      documentos,
+      pagamentos,
+      resumo,
+      compromissos,
+      hojeIso: HOJE,
+    }),
+  };
 }
 
 /**
@@ -1681,5 +1709,123 @@ describe("ordenação (critério 9)", () => {
     expect(
       proximaOrdem({ coluna: "valor", direcao: "asc" }, "valor"),
     ).toEqual({ coluna: "valor", direcao: "desc" });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+/**
+ * **CONTAI-072 — a nota hábil sem pagamento que JÁ TEM agendamento aberto.**
+ *
+ * ⚠️ **O Gate Fiscal é o primeiro teste deste bloco, e não o último**: a linha
+ * não sai da tabela, não sai do filtro do terceiro estado e não muda de valor
+ * por existir compromisso vinculado — compromisso não é pagamento e pode ser
+ * cancelado (parecer `2026-08-18-compromisso-versus-pagamento.md`, §1 e §2 item
+ * 6). O que muda é chip, cor, nota de apoio e destino do link.
+ */
+describe("CONTAI-072 — agendamento aberto na linha do terceiro estado", () => {
+  const HOJE_AQUI = HOJE;
+
+  function comp(over: Partial<Compromisso> & { id: string }): Compromisso {
+    return {
+      obraId: OBRA.id,
+      favorecidoId: "fav-casa",
+      favorecidoNome: "Casa do Construtor",
+      valorPrevistoCentavos: 500_000,
+      dataPrevista: `${ANO}-07-10`, // depois de HOJE
+      origem: "cartao",
+      documentoOrigemId: "d1",
+      situacao: "aberto",
+      motivoCancelamento: null,
+      dataCompra: `${ANO}-06-01`,
+      pagamentoIds: [],
+      adiamentos: 0,
+      ...over,
+    };
+  }
+
+  const vencido = comp({ id: "c1", dataPrevista: `${ANO}-05-20` });
+  const noPrazo = comp({ id: "c1" });
+
+  it("⚠️ Gate Fiscal — a nota NÃO sai da tabela, do filtro nem da soma", () => {
+    const semNada = projetar([doc({ id: "d1" })], []);
+    const comPrazo = projetar([doc({ id: "d1" })], [], {}, [noPrazo]);
+    const comVencido = projetar([doc({ id: "d1" })], [], {}, [vencido]);
+
+    for (const { linhas, resumo } of [semNada, comPrazo, comVencido]) {
+      expect(linhas).toHaveLength(1);
+      const linha = linhaDe(linhas, "documento:d1");
+      expect(linha.valorCentavos).toBe(semNada.linhas[0].valorCentavos);
+      expect(linha.custoComprovadoCentavos).toBe(0);
+      // O campo que o filtro de Situação lê (CONTAI-063): a nota continua
+      // isolável como terceiro estado nos três sub-estados.
+      expect(linha.semPagamentoLigado).toBe(true);
+      expect(filtrarLinhas(linhas, { ...FILTROS_PADRAO, situacao: "sem_pagamento" }, TODOS)).toHaveLength(1);
+      // E o número da Home não muda com a presença do compromisso.
+      expect(resumo.notasSemPagamentoCentavos).toBe(
+        semNada.resumo.notasSemPagamentoCentavos,
+      );
+      expect(resumo.notasSemPagamento).toHaveLength(1);
+    }
+  });
+
+  it("agendado DENTRO DO PRAZO: chip 'Agendado', pill ainda NEUTRO, link para o agendamento", () => {
+    const { linhas } = projetar([doc({ id: "d1" })], [], {}, [noPrazo]);
+    const linha = linhaDe(linhas, "documento:d1");
+    const situacao = linha.situacoes[0];
+
+    expect(situacao.chip).toBe("Agendado");
+    // Não é urgente: há plano, e nada saiu da conta.
+    expect(situacao.cor).toBe("neutra");
+    expect(situacao.consequencia).toBe(EXPLICACAO_NOTAS_SEM_PAGAMENTO);
+    expect(situacao.nota).toBe(resumoDoAgendamento(noPrazo));
+    expect(linha.href).toBe("/compromisso/c1");
+    // Continua fora da fila de pendência — compromisso não é pendência fiscal.
+    expect(linha.temPendencia).toBe(false);
+  });
+
+  it("agendado VENCIDO SEM RESPOSTA: chip escalado, pill âmbar e o texto que não suaviza", () => {
+    const { linhas } = projetar([doc({ id: "d1" })], [], {}, [vencido]);
+    const linha = linhaDe(linhas, "documento:d1");
+    const situacao = linha.situacoes[0];
+
+    expect(situacao.chip).toBe(chipDoAgendado(vencido, HOJE_AQUI).texto);
+    expect(situacao.chip).toContain("Venceu em 20/05/2026");
+    // ⚠️ Sobe para âmbar, e NUNCA para vermelho: este estado já trava a geração
+    // de qualquer relatório anual, mas nada saiu da conta.
+    expect(situacao.cor).toBe("amb");
+    expect(situacao.cor).not.toBe("red");
+    expect(situacao.consequencia).toBe(VENCIDO_SEM_RESPOSTA);
+    expect(situacao.nota).toBe(resumoDoAgendamento(vencido));
+    expect(linha.href).toBe("/compromisso/c1");
+    // ⚠️ Âmbar na anotação não promove a linha a pendência: `temPendencia` é o
+    // que a fila e o filtro leem, e compromisso não entra lá (parecer §2).
+    expect(linha.temPendencia).toBe(false);
+  });
+
+  it("quitado e cancelado deixam a linha exatamente como era (critério 5)", () => {
+    const referencia = linhaDe(projetar([doc({ id: "d1" })], []).linhas, "documento:d1");
+    for (const situacao of ["quitado", "cancelado"] as const) {
+      const { linhas } = projetar([doc({ id: "d1" })], [], {}, [
+        comp({
+          id: "c1",
+          situacao,
+          motivoCancelamento: situacao === "cancelado" ? "cartão não passou" : null,
+        }),
+      ]);
+      const linha = linhaDe(linhas, "documento:d1");
+      expect(chips(linha)).toEqual([CHIP_SEM_PAGAMENTO]);
+      expect(linha.situacoes[0].cor).toBe("neutra");
+      expect(linha.situacoes[0].nota).toBeNull();
+      expect(linha.href).toBe(referencia.href);
+    }
+  });
+
+  it("compromisso de OUTRO documento não marca esta linha", () => {
+    const { linhas } = projetar([doc({ id: "d1" })], [], {}, [
+      comp({ id: "c1", documentoOrigemId: "d9" }),
+    ]);
+    const linha = linhaDe(linhas, "documento:d1");
+    expect(chips(linha)).toEqual([CHIP_SEM_PAGAMENTO]);
+    expect(linha.href).toBe("/documento/d1");
   });
 });

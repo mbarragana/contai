@@ -176,6 +176,25 @@ export interface NotaSemPagamento {
   detalhe: string;
   valorCentavos: number;
   href: string;
+  /**
+   * **CONTAI-072, critério 10 — o identificador do documento, e NADA além
+   * dele.**
+   *
+   * ⚠️ É uma `string`, e a escolha é a barreira de tipo deste arquivo em
+   * funcionamento: a Visão geral precisa saber se esta nota já tem agendamento
+   * aberto, e a resposta mora em `lib/fiscal/compromisso.ts` — que este módulo
+   * **não importa e não vai importar** (ver o comentário de `EntradaResumo`
+   * abaixo, e os testes 2-4 e 8 de `resumo.test.ts` — o primeiro proíbe este
+   * arquivo de até NOMEAR o tipo do compromisso, e é de propósito). Trazê-lo para cá para
+   * resolver o cruzamento seria abrir exatamente a porta pela qual a soma mista
+   * entra. O cruzamento acontece no CONSUMIDOR, que já tem as duas listas em
+   * mãos, e o que este campo entrega é a chave dele.
+   *
+   * `id` não serve: é `sem-pagamento:<uuid>`, e reparsear string por `split(":")`
+   * na tela é o acoplamento silencioso que o `semPagamentoLigado` do CONTAI-063
+   * evitou em `/despesas` pela mesma razão.
+   */
+  documentoId: string;
 }
 
 /**
@@ -956,6 +975,10 @@ export function calcularResumo(entrada: EntradaResumo): ResumoObra {
     detalhe: d.favorecidoNome ?? SEM_FAVORECIDO,
     valorCentavos: d.valorCentavos ?? 0,
     href: `/documento/${d.id}`,
+    // CONTAI-072 — a chave do cruzamento com os agendamentos abertos, feito
+    // fora deste arquivo. Nada mais muda aqui: a lista e a soma abaixo
+    // continuam exatamente as mesmas, com ou sem compromisso vinculado.
+    documentoId: d.id,
   }));
 
   // Mais recente primeiro: é o que o Mateus acabou de conciliar. A ordenação

@@ -71,6 +71,23 @@ import {
   NOTA_SEM_ARQUIVO_EFEITO,
   BOLETO_FORA_DO_TOTAL,
 } from "./documento";
+// ⚠️ **ESTE É O ÚNICO MÓDULO DE PROJEÇÃO QUE OLHA COMPROMISSO** (CONTAI-072,
+// critério 11), e a licença não é geral: `resumo.ts` e `vinculo.ts` continuam
+// proibidos de importar daqui (teste 8 de `resumo.test.ts`), porque são eles que
+// CALCULAM custo — e "previsto" não pode encostar em soma de custo. Este arquivo
+// não soma nada: ele projeta linhas e, do compromisso, lê apenas TEXTO e o
+// DESTINO do link. Nenhum centavo previsto atravessa a fronteira — e não é
+// promessa: o teste 2-4 de `resumo.test.ts` reprova se o campo de valor previsto
+// ou o saldo do compromisso passarem a ser lidos nesta fonte.
+//
+// ⚠️ **Uma função só, e nenhum texto.** Nem o chip do vencido nem a
+// consequência dele são redigidos ou escolhidos aqui: eles viajam DENTRO da
+// marca que `agendamentosPorDocumento` devolve, do mesmo jeito que a
+// consequência de uma pendência viaja dentro da própria `Pendencia` (critério 7
+// do CONTAI-041). Foi por isso que `VENCIDO_SEM_RESPOSTA` mudou de casa no
+// CONTAI-072: o texto tinha de sair de `app/_components/` para caber num módulo
+// puro, mesmo chegando aqui pela marca.
+import { agendamentosPorDocumento } from "./compromisso";
 import { anoCalendario, rotulosPagoSemNota } from "./pagamento";
 import {
   CHIP_QUITADO_POR_RETENCAO,
@@ -90,6 +107,7 @@ import {
   EXPLICACAO_NOTAS_SEM_PAGAMENTO,
 } from "./vinculo";
 import type {
+  Compromisso,
   Documento,
   MeioPagamento,
   Pagamento,
@@ -292,6 +310,23 @@ export interface EntradaLinhasDeDespesa {
   pagamentos: readonly Pagamento[];
   /** O resumo JÁ CALCULADO da mesma obra — alocação, pendências e terceiro estado. */
   resumo: ResumoObra;
+  /**
+   * **CONTAI-072** — os compromissos da obra, para a linha da nota hábil sem
+   * pagamento dizer se ela **já tem plano** (compra no cartão agendada, boleto
+   * marcado) ou se não tem rastro nenhum.
+   *
+   * ⚠️ **Obrigatório, e não opcional, pela mesma razão de `desembolsosTerreno`
+   * em `EntradaResumo`**: opcional faria a distinção sumir em silêncio no
+   * primeiro chamador que esquecesse de passá-lo — e o defeito que este ticket
+   * conserta é exatamente uma tela calando sobre um agendamento que existe.
+   *
+   * ⚠️ **Nada deles entra em valor de linha, em `comprovadoCentavos` nem em
+   * `custoComprovadoCentavos`.** Compromisso não é custo, é zero (parecer §2);
+   * o que ele muda aqui é chip, consequência, nota de apoio e `href`.
+   */
+  compromissos: readonly Compromisso[];
+  /** "Hoje" em ISO — é ele que separa "agendado" de "venceu e ninguém respondeu". */
+  hojeIso: string;
 }
 
 /**
@@ -366,8 +401,14 @@ function outraDataDoDocumento(
 export function linhasDeDespesa(
   entrada: EntradaLinhasDeDespesa,
 ): LinhaDeDespesa[] {
-  const { documentos, pagamentos, resumo } = entrada;
+  const { documentos, pagamentos, resumo, compromissos, hojeIso } = entrada;
   const { alocacao } = resumo;
+  /**
+   * CONTAI-072 — a MESMA função pura que o painel da Visão geral usa. Uma
+   * fonte, dois consumidores: foi a tela dizer uma coisa e a outra dizer outra
+   * sobre a mesma nota que originou o ticket.
+   */
+  const agendamentos = agendamentosPorDocumento(compromissos, hojeIso);
 
   const docPorId = new Map(documentos.map((d) => [d.id, d]));
   /** Documentos que JÁ aparecem dentro da linha de algum pagamento. */
@@ -622,17 +663,38 @@ export function linhasDeDespesa(
   // de "nota hábil ainda não paga", e não um parse do id daquela lista. Por
   // construção cada um destes documentos tem linha própria aqui: sem pagamento
   // ligado, ele não entra na linha de ninguém.
+  //
+  // ⚠️ **CONTAI-072 — a nota NÃO SAI DAQUI por ter agendamento aberto.** O Gate
+  // Fiscal é literal: compromisso não é pagamento e pode ser cancelado, então o
+  // documento *"permanece integralmente na lista e na soma"*. O laço é o mesmo,
+  // a linha é a mesma e `semPagamentoLigado` continua verdadeiro nos três
+  // sub-estados — o que muda é **texto, cor e destino do link**, e nada mais.
   for (const { documento } of documentosHabeisSemPagamento(alocacao)) {
+    const agendado = agendamentos.get(documento.id);
     for (const linha of linhasDoDocumento.get(documento.id) ?? []) {
       linha.situacoes.push({
         id: `${linha.id}:sem-pagamento`,
         pendenciaId: null,
-        chip: CHIP_SEM_PAGAMENTO,
-        cor: "neutra",
-        consequencia: EXPLICACAO_NOTAS_SEM_PAGAMENTO,
-        nota: null,
+        // Sem agendamento aberto, é a aparência de sempre (critério 2).
+        chip: agendado?.chip ?? CHIP_SEM_PAGAMENTO,
+        // ⚠️ **Âmbar SÓ no vencido sem resposta** (critério 4): esse estado já
+        // trava a geração de qualquer relatório anual
+        // (`compromissosQueBloqueiam`), e o neutro o faria ler como "está tudo
+        // certo". Dentro do prazo continua NEUTRO — há plano, não há cobrança.
+        // ⚠️ Vermelho em nenhum dos dois: nada saiu da conta.
+        cor: agendado?.vencidoSemResposta === true ? "amb" : "neutra",
+        consequencia:
+          agendado?.consequenciaExtra ?? EXPLICACAO_NOTAS_SEM_PAGAMENTO,
+        // Quem, quanto e para quando — já marcado como PREVISTO pela própria
+        // `resumoDoAgendamento` (Gate Fiscal 6.3).
+        nota: agendado?.resumo ?? null,
         valorCentavos: null,
       });
+      // ⚠️ **O link da linha passa a ser o do agendamento** (critérios 3 e 4):
+      // uma casa só para agir sobre o mesmo compromisso, e é lá que as três
+      // respostas existem (critério 7 — elas não se duplicam aqui). A nota
+      // continua alcançável pelo link da coluna `Documento`, que não muda.
+      if (agendado !== undefined) linha.href = agendado.href;
       // ⚠️ **Não mexe em `temPendencia`**: nem comprovado nem em risco.
       //
       // **CONTAI-063** — o que muda é só o campo PRÓPRIO do terceiro estado, no

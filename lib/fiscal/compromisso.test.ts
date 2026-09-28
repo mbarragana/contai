@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
+  agendamentosPorDocumento,
   CABECALHO_AGENDA_COMPROMISSOS,
   chipDoAgendado,
   compromissosElegiveisParaQuitacao,
@@ -23,6 +24,7 @@ import {
   QUITACAO_SIM,
   resumoDoAgendamento,
   saldoDoCompromisso,
+  VENCIDO_SEM_RESPOSTA,
 } from "@/lib/fiscal/compromisso";
 import { formatarBRL } from "@/lib/money";
 import type {
@@ -842,5 +844,176 @@ describe("bloco de agendados da home (critérios 42 e 43)", () => {
     const agenda = montarAgendaDaHome([comp({ id: "c1", dataPrevista: null })], HOJE);
     expect(agenda.vencidos).toHaveLength(0);
     expect(agenda.abertos.map((c) => c.id)).toEqual(["c1"]);
+  });
+});
+
+// ══ CONTAI-072 — o agendamento visto DO LADO DA NOTA ═════════════════════
+//
+// ⚠️ **O que esta função NÃO faz é metade do que ela é** (Gate Fiscal do
+// ticket): ela não tira documento de lista nenhuma e não devolve centavo
+// nenhum. Compromisso não é pagamento e pode ser cancelado, então a nota hábil
+// sem pagamento continua inteira na lista e na soma das duas telas — o que sai
+// daqui é texto e destino de link.
+
+describe("agendamentosPorDocumento (CONTAI-072, critérios 3 a 6)", () => {
+  it("aberto DENTRO DO PRAZO: 'Agendado', vazado, sem consequência extra", () => {
+    const c = comp({
+      id: "c1",
+      documentoOrigemId: "doc-1",
+      dataPrevista: "2026-09-15",
+    });
+    const marca = agendamentosPorDocumento([c], HOJE).get("doc-1")!;
+
+    expect(marca.compromissoId).toBe("c1");
+    expect(marca.chip).toBe("Agendado");
+    // Peso, nunca matiz: vazado é o de baixa urgência.
+    expect(marca.forte).toBe(false);
+    expect(marca.vencidoSemResposta).toBe(false);
+    expect(marca.resumo).toBe(resumoDoAgendamento(c));
+    // Dentro do prazo não acrescenta consequência: a tela continua dizendo o
+    // que já dizia sobre a nota sem pagamento ligado.
+    expect(marca.consequenciaExtra).toBeNull();
+    expect(marca.href).toBe("/compromisso/c1");
+  });
+
+  it("aberto VENCIDO SEM RESPOSTA: chip escalado, preenchido, e o texto do adendo §A", () => {
+    const c = comp({
+      id: "c1",
+      documentoOrigemId: "doc-1",
+      dataPrevista: "2026-08-10",
+    });
+    const marca = agendamentosPorDocumento([c], HOJE).get("doc-1")!;
+
+    // ⚠️ O MESMO texto do chip que o cartão da agenda usa — nenhuma redação
+    // nova entrou neste ticket.
+    expect(marca.chip).toBe(chipDoAgendado(c, HOJE).texto);
+    expect(marca.chip).toBe("Venceu em 10/08/2026 · 8 dias sem resposta");
+    expect(marca.forte).toBe(true);
+    expect(marca.vencidoSemResposta).toBe(true);
+    // O texto NÃO suaviza: este estado já trava a geração de qualquer relatório
+    // anual (`compromissosQueBloqueiam`), e quem diz isso é a constante.
+    expect(marca.consequenciaExtra).toBe(VENCIDO_SEM_RESPOSTA);
+    expect(compromissosQueBloqueiam([c], HOJE)).toHaveLength(1);
+  });
+
+  it("sem data prevista: marca a nota como agendada e NÃO é vencido (crit. 21b)", () => {
+    const c = comp({ id: "c1", documentoOrigemId: "doc-1", dataPrevista: null });
+    const marca = agendamentosPorDocumento([c], HOJE).get("doc-1")!;
+
+    expect(marca.vencidoSemResposta).toBe(false);
+    expect(marca.chip).toBe("Agendado");
+    expect(marca.resumo).toContain("sem data definida");
+    expect(marca.consequenciaExtra).toBeNull();
+  });
+
+  it("⚠️ quitado e cancelado NÃO marcam nada (critério 5)", () => {
+    // A marca reflete o estado ATUAL do compromisso, nunca o histórico de FK no
+    // banco: nota cujo agendamento foi cancelado volta a ser uma nota sem
+    // nenhum plano, que é a verdade.
+    const mapa = agendamentosPorDocumento(
+      [
+        comp({ id: "q", documentoOrigemId: "doc-1", situacao: "quitado" }),
+        comp({
+          id: "x",
+          documentoOrigemId: "doc-2",
+          situacao: "cancelado",
+          motivoCancelamento: "cartão não passou",
+        }),
+      ],
+      HOJE,
+    );
+    expect(mapa.size).toBe(0);
+  });
+
+  it("compromisso sem documento de origem não entra: não há nota a marcar", () => {
+    const mapa = agendamentosPorDocumento(
+      [comp({ id: "c1", documentoOrigemId: null })],
+      HOJE,
+    );
+    expect(mapa.size).toBe(0);
+  });
+
+  it("documento sem compromisso nenhum: comportamento de hoje, preservado", () => {
+    // O consumidor lê `undefined` e mantém chip, texto e CTA atuais — é o
+    // critério 2 do ticket, e é o caminho da maioria das notas.
+    expect(agendamentosPorDocumento([], HOJE).get("doc-1")).toBeUndefined();
+  });
+
+  describe("mais de um aberto no MESMO documento (critério 6)", () => {
+    // Boleto parcelado pela mesma nota é caso legítimo — o ticket proíbe
+    // `unique` em `documento_origem_id`. Sem regra de eleição, a tela mudaria de
+    // texto conforme a ordem em que o banco devolvesse as linhas.
+    it("qualquer vencido tem prioridade sobre qualquer não vencido", () => {
+      const mapa = agendamentosPorDocumento(
+        [
+          comp({ id: "futuro", documentoOrigemId: "doc-1", dataPrevista: "2026-09-15" }),
+          comp({ id: "vencido", documentoOrigemId: "doc-1", dataPrevista: "2026-08-10" }),
+        ],
+        HOJE,
+      );
+      expect(mapa.get("doc-1")!.compromissoId).toBe("vencido");
+      expect(mapa.get("doc-1")!.vencidoSemResposta).toBe(true);
+    });
+
+    it("entre vencidos, o de MAIS dias sem resposta", () => {
+      const mapa = agendamentosPorDocumento(
+        [
+          comp({ id: "oito", documentoOrigemId: "doc-1", dataPrevista: "2026-08-10" }),
+          comp({ id: "trinta", documentoOrigemId: "doc-1", dataPrevista: "2026-07-19" }),
+        ],
+        HOJE,
+      );
+      expect(mapa.get("doc-1")!.compromissoId).toBe("trinta");
+      expect(mapa.get("doc-1")!.chip).toContain("30 dias sem resposta");
+    });
+
+    it("entre não vencidos, a data prevista mais próxima — e `null` por último", () => {
+      const mapa = agendamentosPorDocumento(
+        [
+          comp({ id: "sem-data", documentoOrigemId: "doc-1", dataPrevista: null }),
+          comp({ id: "outubro", documentoOrigemId: "doc-1", dataPrevista: "2026-10-05" }),
+          comp({ id: "setembro", documentoOrigemId: "doc-1", dataPrevista: "2026-09-15" }),
+        ],
+        HOJE,
+      );
+      expect(mapa.get("doc-1")!.compromissoId).toBe("setembro");
+    });
+
+    it("a eleição não depende da ordem de entrada", () => {
+      const cs = [
+        comp({ id: "a", documentoOrigemId: "doc-1", dataPrevista: "2026-09-15" }),
+        comp({ id: "b", documentoOrigemId: "doc-1", dataPrevista: "2026-08-10" }),
+        comp({ id: "c", documentoOrigemId: "doc-1", dataPrevista: "2026-07-19" }),
+      ];
+      const eleito = (ordem: typeof cs) =>
+        agendamentosPorDocumento(ordem, HOJE).get("doc-1")!.compromissoId;
+      expect(eleito(cs)).toBe("c");
+      expect(eleito([...cs].reverse())).toBe("c");
+      expect(eleito([cs[1]!, cs[2]!, cs[0]!])).toBe("c");
+    });
+
+    it("documentos diferentes não se contaminam", () => {
+      const mapa = agendamentosPorDocumento(
+        [
+          comp({ id: "c1", documentoOrigemId: "doc-1", dataPrevista: "2026-08-10" }),
+          comp({ id: "c2", documentoOrigemId: "doc-2", dataPrevista: "2026-09-15" }),
+        ],
+        HOJE,
+      );
+      expect(mapa.get("doc-1")!.vencidoSemResposta).toBe(true);
+      expect(mapa.get("doc-2")!.vencidoSemResposta).toBe(false);
+      expect(mapa.size).toBe(2);
+    });
+  });
+
+  it("⚠️ nenhum campo da marca é dinheiro somável (regra 2 deste módulo)", () => {
+    const marca = agendamentosPorDocumento(
+      [comp({ id: "c1", documentoOrigemId: "doc-1" })],
+      HOJE,
+    ).get("doc-1")!;
+    // O valor previsto só aparece DENTRO do resumo, já marcado como previsto —
+    // não há `...Centavos` a somar com o número do card de notas sem pagamento.
+    expect(Object.keys(marca).filter((k) => /Centavos/i.test(k))).toEqual([]);
+    expect(marca.resumo).toContain("previsto");
   });
 });

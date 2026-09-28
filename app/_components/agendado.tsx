@@ -37,6 +37,7 @@ import {
   chipDoAgendado,
   ehVencidoSemResposta,
   preposicaoDeTempo,
+  VENCIDO_SEM_RESPOSTA,
   type AgendaHome,
 } from "@/lib/fiscal/compromisso";
 import { formatarBRL } from "@/lib/money";
@@ -98,14 +99,16 @@ export function MarcasAgendado({
 }
 
 /**
- * O texto do vencido sem resposta. Copiado do que o Gate Fiscal 4 e o adendo
- * §A dizem, sem prometer nada além disso: **isto não é pendência fiscal**, e
- * mesmo assim **não some sozinho**.
+ * O texto do vencido sem resposta, **agora morando em `lib/fiscal/compromisso.ts`**
+ * (CONTAI-072, critério 9) e reexportado daqui sem uma vírgula de mudança.
+ *
+ * A mudança de casa é de DEPENDÊNCIA, não de redação: `lib/fiscal/despesas.ts`
+ * passou a precisar deste texto para a linha do agendamento vencido em
+ * `/despesas`, e lib pura não importa de arquivo de componente. A reexportação
+ * fica para quem já o importava daqui não ter de mudar de import — e para o
+ * texto continuar tendo **uma** fonte.
  */
-export const VENCIDO_SEM_RESPOSTA =
-  "Isto não é pendência fiscal: nada saiu da conta, então não há risco fiscal " +
-  "ainda. Mas não some sozinho — enquanto ficar sem resposta, nenhum " +
-  "relatório anual pode ser gerado, nem o deste ano nem o de outro.";
+export { VENCIDO_SEM_RESPOSTA };
 
 /**
  * As TRÊS RESPOSTAS DE UM TOQUE (critérios 18 e 49), pelos três EFEITOS:

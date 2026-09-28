@@ -448,6 +448,23 @@ export function chipDoAgendado(
   };
 }
 
+/**
+ * O texto do vencido sem resposta. Copiado do que o Gate Fiscal 4 e o adendo
+ * §A dizem, sem prometer nada além disso: **isto não é pendência fiscal**, e
+ * mesmo assim **não some sozinho**.
+ *
+ * ⚠️ **Mudou de casa no CONTAI-072 (critério 9), e o texto NÃO mudou uma
+ * vírgula.** Morava em `app/_components/agendado.tsx`, que é arquivo de
+ * componente; `lib/fiscal/despesas.ts` é lib pura e passou a precisar dele para
+ * preencher a `consequencia` da linha do agendamento vencido — lib importando
+ * de `app/` é a dependência ao contrário. `agendado.tsx` reexporta a constante,
+ * então nenhum consumidor existente mudou de import.
+ */
+export const VENCIDO_SEM_RESPOSTA =
+  "Isto não é pendência fiscal: nada saiu da conta, então não há risco fiscal " +
+  "ainda. Mas não some sozinho — enquanto ficar sem resposta, nenhum " +
+  "relatório anual pode ser gerado, nem o deste ano nem o de outro.";
+
 /** Critério 43 — no máximo 3 abertos na home. Vencido não tem teto. */
 export const MAX_ABERTOS_NA_HOME = 3;
 
@@ -521,6 +538,151 @@ export function montarAgendaDaHome(
     contagem: partes.join(", "),
     vazia: abertosTodos.length === 0,
   };
+}
+
+// ── O agendamento visto DO LADO DA NOTA (CONTAI-072) ─────────────────────
+
+/**
+ * O que uma tela precisa saber para dizer que a nota hábil sem pagamento **já
+ * tem plano** — e nada além disso.
+ *
+ * ⚠️ **Nenhum campo aqui é dinheiro somável** (regra 2 do cabeçalho deste
+ * arquivo): o valor previsto só aparece DENTRO de `resumo`, já marcado como
+ * previsto pela própria `resumoDoAgendamento`. Não há `centavos` nesta
+ * interface, e é de propósito — quem quisesse somar previsto com o número do
+ * card teria de ir buscar o valor no `Compromisso`, o que é greppável.
+ */
+export interface AgendamentoDoDocumento {
+  /**
+   * O id do compromisso ELEITO (critério 6) — pode haver mais de um aberto.
+   *
+   * ⚠️ Só o `id`, nunca o `Compromisso` inteiro: nenhum consumidor de
+   * produção lê outro campo dele, e devolver o objeto completo exporia
+   * `valorPrevistoCentavos`/`saldoDoCompromisso` para fora da barreira que
+   * `resumo.ts`/`vinculo.ts` mantêm (Gate 2 do CONTAI-072) — a exceção fica
+   * estreita por TIPO, não só pelo teste que proíbe o grep.
+   */
+  compromissoId: string;
+  /**
+   * ⚠️ **A ÚNICA casa para agir sobre ele** (critério 7): as três respostas
+   * (`TresRespostas`) não se duplicam no card/linha da nota, moram lá.
+   */
+  href: string;
+  /** `chipDoAgendado().texto` — reaproveitado, nunca redigido de novo. */
+  chip: string;
+  /**
+   * `chipDoAgendado().forte` — chip âmbar **preenchido** contra **vazado**.
+   *
+   * ⚠️ É por PESO que o vencido escala, nunca por matiz: vermelho no app
+   * significa "o dinheiro saiu e não está no custo", e aqui nada saiu da conta
+   * (critério 4, mesma régua de `app/_components/agendado.tsx`).
+   */
+  forte: boolean;
+  vencidoSemResposta: boolean;
+  /** `resumoDoAgendamento()` — "{favorecido} — previsto R$X para DD/MM/AAAA". */
+  resumo: string;
+  /**
+   * `VENCIDO_SEM_RESPOSTA` no vencido; `null` no que está dentro do prazo.
+   *
+   * `null` é "não há nada A MAIS a dizer", e não "não há consequência": a tela
+   * continua dizendo o que já dizia sobre a nota sem pagamento ligado
+   * (`EXPLICACAO_NOTAS_SEM_PAGAMENTO`, que é de `vinculo.ts` e continua sendo
+   * lida lá). Este campo só acrescenta o que o estado vencido acrescenta.
+   */
+  consequenciaExtra: string | null;
+}
+
+/**
+ * A ordem de ELEIÇÃO do critério 6, quando a mesma nota tem mais de um
+ * compromisso aberto (boleto parcelado é caso legítimo, não defeito):
+ * qualquer vencido na frente de qualquer não vencido; entre vencidos, mais dias
+ * sem resposta primeiro; entre não vencidos, data prevista mais próxima, `null`
+ * por último. Desempate final por `id`, para a tela não dançar entre dois
+ * carregamentos.
+ */
+function porPrioridadeDoAgendamento(
+  a: Compromisso,
+  b: Compromisso,
+  hojeIso: string,
+): number {
+  const va = ehVencidoSemResposta(a, hojeIso);
+  const vb = ehVencidoSemResposta(b, hojeIso);
+  if (va !== vb) return va ? -1 : 1;
+  if (va) {
+    const dias = diasSemResposta(b, hojeIso) - diasSemResposta(a, hojeIso);
+    if (dias !== 0) return dias;
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  }
+  return porDataPrevista(a, b);
+}
+
+function marcaDoAgendamento(
+  c: Compromisso,
+  hojeIso: string,
+): AgendamentoDoDocumento {
+  const chip = chipDoAgendado(c, hojeIso);
+  const vencido = ehVencidoSemResposta(c, hojeIso);
+  return {
+    compromissoId: c.id,
+    href: `/compromisso/${c.id}`,
+    chip: chip.texto,
+    forte: chip.forte,
+    vencidoSemResposta: vencido,
+    resumo: resumoDoAgendamento(c),
+    consequenciaExtra: vencido ? VENCIDO_SEM_RESPOSTA : null,
+  };
+}
+
+/**
+ * **CONTAI-072 — o agendamento aberto de cada documento, indexado pelo
+ * documento.**
+ *
+ * ⚠️ **Ela NÃO tira nada de lista nenhuma e NÃO devolve valor nenhum a somar**
+ * (Gate Fiscal do ticket, parecer §1/§2 item 6): a nota hábil sem pagamento
+ * continua inteira na lista e na soma de "Notas hábeis sem pagamento
+ * vinculado", porque **compromisso não é pagamento e pode ser cancelado**. O
+ * que sai daqui é TEXTO e DESTINO DE LINK — a única coisa que o ticket autoriza
+ * a mudar.
+ *
+ * ⚠️ **`situacao === "aberto"` e só** (critério 5): quitado e cancelado não
+ * marcam nada. A marca reflete o estado ATUAL do compromisso, nunca o histórico
+ * de FK no banco — um agendamento cancelado deixa a nota exatamente como uma
+ * nota sem rastro nenhum, que é a verdade.
+ *
+ * ⚠️ **Função pura, e é ela nos DOIS consumidores** (critério 10 e pre-mortem
+ * 2): o painel da Visão geral cruza o resultado com `NotaSemPagamento.documentoId`
+ * fora dos módulos protegidos, e `lib/fiscal/despesas.ts` a chama por dentro.
+ * Duas implementações da mesma leitura divergiriam, e o ticket nasceu
+ * justamente de uma tela dizendo uma coisa e a outra dizendo outra sobre a
+ * mesma nota.
+ *
+ * Compromisso sem `documentoOrigemId` não entra: não há nota a marcar. Vínculo
+ * apontando para documento de outra obra degrada para "sem compromisso" —
+ * dívida conhecida e registrada, não regressão deste ticket.
+ */
+export function agendamentosPorDocumento(
+  compromissos: readonly Compromisso[],
+  hojeIso: string,
+): Map<string, AgendamentoDoDocumento> {
+  const eleitos = new Map<string, Compromisso>();
+  for (const c of compromissos) {
+    if (c.situacao !== "aberto") continue;
+    if (c.documentoOrigemId === null) continue;
+    const atual = eleitos.get(c.documentoOrigemId);
+    if (
+      atual === undefined ||
+      porPrioridadeDoAgendamento(c, atual, hojeIso) < 0
+    ) {
+      eleitos.set(c.documentoOrigemId, c);
+    }
+  }
+
+  return new Map(
+    [...eleitos].map(([documentoId, c]) => [
+      documentoId,
+      marcaDoAgendamento(c, hojeIso),
+    ]),
+  );
 }
 
 // ── Saldo (critérios 15, 29 e 30) ────────────────────────────────────────

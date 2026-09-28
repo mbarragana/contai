@@ -1,5 +1,6 @@
 import { USER_ID_SEED } from "./ambiente";
 import {
+  criarCompromisso,
   criarDocumento,
   criarFavorecido,
   criarLinhaDeRetencao,
@@ -17,6 +18,7 @@ import {
   CONSEQUENCIA_BOLETO,
   CONSEQUENCIA_QUARENTENA,
 } from "../lib/fiscal/documento";
+import { VENCIDO_SEM_RESPOSTA } from "../lib/fiscal/compromisso";
 import { rotulosPagoSemNota } from "../lib/fiscal/pagamento";
 import { EXPLICACAO_NOTAS_SEM_PAGAMENTO } from "../lib/fiscal/vinculo";
 
@@ -790,5 +792,186 @@ test.describe("despesas — a tabela de verdade", () => {
     ).toBeVisible();
     await expect(page.locator(TABELA)).toHaveCount(0);
     await expect(page.locator('[data-filtros="despesas"]')).toHaveCount(0);
+  });
+});
+
+/**
+ * **CONTAI-072 — a mesma distinção, na tabela.**
+ *
+ * O pre-mortem 2 do ticket é literalmente este arquivo: *"a distinção visual foi
+ * implementada só na Home e `/despesas` ficou com o texto antigo"*. A defesa é
+ * uma função pura só (`agendamentosPorDocumento`) com dois consumidores — e
+ * estes testes provam o segundo.
+ */
+test.describe("CONTAI-072 — a nota com agendamento aberto na tabela", () => {
+  const CNPJ_WK = "11222333000181";
+
+  /** ISO de hoje no fuso do aparelho — o mesmo `hojeIso()` que o app usa. */
+  function hoje(): string {
+    const agora = new Date();
+    const local = new Date(agora.getTime() - agora.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 10);
+  }
+
+  function maisDias(dias: number): string {
+    const d = new Date(`${hoje()}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + dias);
+    return d.toISOString().slice(0, 10);
+  }
+
+  function dataBR(iso: string): string {
+    const [ano, mes, dia] = iso.split("-");
+    return `${dia}/${mes}/${ano}`;
+  }
+
+  async function notaHabilSemPagamento(db: Parameters<typeof criarFavorecido>[0]) {
+    const wk = await criarFavorecido(db, {
+      nome: "WK Construções LTDA",
+      documento: CNPJ_WK,
+      tipo: "pj",
+    });
+    const documentoId = await criarDocumento(db, {
+      favorecido_id: wk,
+      tipo: "nf_servico",
+      classificacao: "mao_obra",
+      valor: 3000,
+      numero: "1099",
+      data_emissao: `${ANO}-03-09`,
+      retencao_na_nota: "nenhuma",
+      nota_traz_cno: true,
+      cno_referenciado: "12.345.67890/26",
+      destinatario_cpf_ok: true,
+      status: "registrado",
+    });
+    return { wk, documentoId };
+  }
+
+  test("agendado dentro do prazo: chip 'Agendado', linha NEUTRA e link para o agendamento", async ({
+    page,
+    db,
+  }) => {
+    const { wk, documentoId } = await notaHabilSemPagamento(db);
+    const prevista = maisDias(20);
+    const compromissoId = await criarCompromisso(db, {
+      favorecido_id: wk,
+      valor_previsto: 3000,
+      data_prevista: prevista,
+      origem: "cartao",
+      // A compra no cartão exige `data_compra` (CHECK da migration 0013): dado
+      // probatório, e nunca o que decide ano-calendário.
+      data_compra: maisDias(-30),
+      documento_origem_id: documentoId,
+    });
+
+    await page.goto("/despesas");
+    const tabela = page.locator(TABELA);
+    await expect(tabela).toBeVisible();
+
+    // ⚠️ A linha NÃO sai da tabela por ter agendamento (Gate Fiscal): uma nota,
+    // uma linha, e a contagem continua contando-a.
+    await expect(page.locator(LINHAS)).toHaveCount(1);
+    await expect(page.locator('[data-contagem="despesas"]')).toHaveText(
+      `1 lançamento em ${ANO}`,
+    );
+
+    await expect(tabela.getByText("Agendado", { exact: true })).toBeVisible();
+    await expect(tabela).toContainText(
+      `WK Construções LTDA — previsto R$ 3.000,00 para ${dataBR(prevista)}`,
+    );
+    // Dentro do prazo a consequência é a de sempre — há plano, não há cobrança.
+    await expect(page.getByText(EXPLICACAO_NOTAS_SEM_PAGAMENTO)).toBeVisible();
+    await expect(page.getByText(VENCIDO_SEM_RESPOSTA)).toHaveCount(0);
+
+    // O chip antigo sai de cena NA TABELA — e continua sendo o rótulo da quarta
+    // opção do filtro de Situação, que é onde a nota continua isolável.
+    await expect(tabela.getByText("Sem pagamento ligado")).toHaveCount(0);
+    await page.getByLabel("Situação").selectOption("sem_pagamento");
+    await expect(page.locator(LINHAS)).toHaveCount(1);
+
+    await expect(
+      tabela.getByRole("link", { name: "Abrir →" }),
+    ).toHaveAttribute("href", `/compromisso/${compromissoId}`);
+    // A nota continua alcançável pela coluna `Documento`, que não mudou.
+    await expect(
+      tabela.getByRole("link", { name: "NF de serviço nº 1099" }),
+    ).toHaveAttribute("href", `/documento/${documentoId}`);
+  });
+
+  test("agendado vencido sem resposta: sobe para âmbar, nunca para vermelho", async ({
+    page,
+    db,
+  }) => {
+    const { wk, documentoId } = await notaHabilSemPagamento(db);
+    const prevista = maisDias(-8);
+    const compromissoId = await criarCompromisso(db, {
+      favorecido_id: wk,
+      valor_previsto: 3000,
+      data_prevista: prevista,
+      origem: "cartao",
+      // A compra no cartão exige `data_compra` (CHECK da migration 0013): dado
+      // probatório, e nunca o que decide ano-calendário.
+      data_compra: maisDias(-30),
+      documento_origem_id: documentoId,
+    });
+
+    await page.goto("/despesas");
+    const tabela = page.locator(TABELA);
+    await expect(tabela).toBeVisible();
+    await expect(page.locator(LINHAS)).toHaveCount(1);
+
+    await expect(tabela).toContainText(
+      `Venceu em ${dataBR(prevista)} · 8 dias sem resposta`,
+    );
+    await expect(page.getByText(VENCIDO_SEM_RESPOSTA)).toBeVisible();
+    await expect(page.getByText(EXPLICACAO_NOTAS_SEM_PAGAMENTO)).toHaveCount(0);
+    await expect(
+      tabela.getByRole("link", { name: "Abrir →" }),
+    ).toHaveAttribute("href", `/compromisso/${compromissoId}`);
+
+    // ⚠️ **Nada em VERMELHO nesta linha** (critério 4): vermelho significa "o
+    // dinheiro saiu e não está no custo", e aqui nada saiu da conta. A escala é
+    // por peso — chip preenchido em vez de vazado.
+    const vermelhos = await page.evaluate(() => {
+      const fora: string[] = [];
+      for (const el of document.querySelectorAll("main table [class]")) {
+        const cor = getComputedStyle(el).color;
+        if (/rgb\(2[0-9]{2}, [0-9]{1,2}, [0-9]{1,2}\)/.test(cor)) {
+          fora.push((el.textContent ?? "").slice(0, 40));
+        }
+      }
+      return fora;
+    });
+    expect(vermelhos).toEqual([]);
+
+    // ⚠️ Continua FORA do filtro de pendência: compromisso não é pendência
+    // fiscal, e somá-lo à fila inflaria a exposição (parecer §2).
+    await page.getByLabel("Situação").selectOption("pendencia");
+    await expect(page.locator(LINHAS)).toHaveCount(0);
+    await page.getByLabel("Situação").selectOption("sem_pagamento");
+    await expect(page.locator(LINHAS)).toHaveCount(1);
+  });
+
+  test("sem compromisso aberto, a linha é a de sempre", async ({ page, db }) => {
+    const { wk, documentoId } = await notaHabilSemPagamento(db);
+    // Quitado não marca nada: a marca é do estado ATUAL, não do histórico de FK.
+    await criarCompromisso(db, {
+      favorecido_id: wk,
+      valor_previsto: 3000,
+      data_prevista: maisDias(-8),
+      origem: "cartao",
+      // A compra no cartão exige `data_compra` (CHECK da migration 0013): dado
+      // probatório, e nunca o que decide ano-calendário.
+      data_compra: maisDias(-30),
+      documento_origem_id: documentoId,
+      situacao: "quitado",
+    });
+
+    await page.goto("/despesas");
+    const tabela = page.locator(TABELA);
+    await expect(tabela.getByText("Sem pagamento ligado")).toBeVisible();
+    await expect(page.getByText(EXPLICACAO_NOTAS_SEM_PAGAMENTO)).toBeVisible();
+    await expect(
+      tabela.getByRole("link", { name: "Abrir →" }),
+    ).toHaveAttribute("href", `/documento/${documentoId}`);
   });
 });

@@ -22,6 +22,7 @@ import {
   Dica,
   EstadoErro,
 } from "@/app/_components/ui";
+import { agendamentosPorDocumento } from "@/lib/fiscal/compromisso";
 import { EXPLICACAO_NOTAS_SEM_PAGAMENTO } from "@/lib/fiscal/vinculo";
 import { hojeIso } from "@/lib/hoje";
 import { formatarBRL } from "@/lib/money";
@@ -69,7 +70,8 @@ export default function VisaoGeral() {
     return <EstadoErro erro={estado.erro} onTentarDeNovo={tentarDeNovo} />;
   }
 
-  const { painel, resumo, agenda, unificadas, obras, ano } = estado;
+  const { painel, resumo, agenda, compromissos, unificadas, obras, ano } =
+    estado;
   // Estreitamento para o TypeScript: `painel === null` já saiu acima pelo
   // `semObra`, e `resumo` nasce e morre junto com ele.
   if (painel === null || resumo === null) {
@@ -98,6 +100,25 @@ export default function VisaoGeral() {
     (i) => i.familia !== "terreno_sem_registro",
   );
   const urgentes = forasDoPainel.slice(0, NO_PAINEL);
+
+  /**
+   * **CONTAI-072 — o cruzamento nota↔agendamento acontece AQUI, e é de
+   * propósito.**
+   *
+   * `lib/fiscal/resumo.ts` e `lib/fiscal/vinculo.ts` não importam
+   * `lib/fiscal/compromisso.ts` (barreira de tipo comentada nos dois, com teste
+   * afirmando): cálculo de custo não olha previsão, senão nasce a soma mista que
+   * o parecer §2 item 8 proíbe. Esta tela, que já tem `resumo` e `compromissos`
+   * lado a lado no mesmo estado, é o lugar onde as duas metades se encontram —
+   * e o que ela cruza é uma `string` (`NotaSemPagamento.documentoId`) contra a
+   * MESMA função pura que `/despesas` usa, nunca uma segunda leitura da regra.
+   *
+   * ⚠️ **O número do card não passa por aqui.** `notasSemPagamentoCentavos` e a
+   * lista continuam vindo inteiros de `calcularResumo`: nenhuma nota sai por ter
+   * agendamento, porque compromisso não é pagamento e pode ser cancelado (Gate
+   * Fiscal do ticket).
+   */
+  const agendamentos = agendamentosPorDocumento(compromissos, hoje);
 
   return (
     <>
@@ -200,23 +221,72 @@ export default function VisaoGeral() {
                   pendência.
                 </Dica>
               </div>
-              {resumo.notasSemPagamento.map((n) => (
-                <div key={n.id} className="border-t border-line pt-3">
-                  <Chip cor="amb">Sem pagamento ligado</Chip>
-                  <div className="mt-1.5 text-[13.5px] font-semibold">
-                    {n.titulo}
+              {resumo.notasSemPagamento.map((n) => {
+                /**
+                 * **CONTAI-072** — três sub-estados, um slot só para cada
+                 * marca, e **nenhum texto novo**: chip e resumo vêm de
+                 * `chipDoAgendado`/`resumoDoAgendamento`, a consequência é a
+                 * constante `VENCIDO_SEM_RESPOSTA` que o cartão do vencido já
+                 * usa na Agenda desta mesma tela.
+                 *
+                 * ⚠️ **O vencido escala por PESO, nunca por matiz** (critério
+                 * 4): chip âmbar preenchido em vez de vazado, consequência
+                 * visível e CTA primário. Vermelho significaria "o dinheiro saiu
+                 * e não está no custo" — e aqui nada saiu da conta.
+                 */
+                const agendado = agendamentos.get(n.documentoId);
+                return (
+                  <div key={n.id} className="border-t border-line pt-3">
+                    {/* Vazado SÓ no agendado dentro do prazo: sem agendamento
+                        o chip continua preenchido, como sempre foi, e o vencido
+                        volta a preenchido para ganhar peso. */}
+                    <Chip cor="amb" vazado={agendado?.forte === false}>
+                      {agendado?.chip ?? "Sem pagamento ligado"}
+                    </Chip>
+                    <div className="mt-1.5 text-[13.5px] font-semibold">
+                      {n.titulo}
+                    </div>
+                    <Dica>
+                      {/* Com agendamento, quem, quanto e para quando — o valor
+                          dele sai marcado como PREVISTO pela própria função
+                          (Gate Fiscal 6.3). O valor à direita continua sendo o
+                          DA NOTA, que é o que compõe a soma acima. */}
+                      {agendado?.resumo ?? n.detalhe} ·{" "}
+                      <span className="mono">
+                        {formatarBRL(n.valorCentavos)}
+                      </span>
+                    </Dica>
+                    {agendado?.consequenciaExtra ? (
+                      <Consequencia cor="amb">
+                        {agendado.consequenciaExtra}
+                      </Consequencia>
+                    ) : null}
+                    <div className="mt-2.5">
+                      {agendado === undefined ? (
+                        <BotaoLink href={`${n.href}/ligar`} variante="primary">
+                          Ligar a um pagamento
+                        </BotaoLink>
+                      ) : (
+                        /* ⚠️ **Leva, não age** (critério 7): as três respostas
+                           ("Foi pago" / "Não vai ser pago" / "Mudou a data")
+                           NÃO se duplicam aqui — elas já existem no cartão do
+                           vencido, na Agenda desta mesma tela, e vão continuar
+                           existindo numa casa só, `/compromisso/{id}`. */
+                        <BotaoLink
+                          href={agendado.href}
+                          variante={
+                            agendado.vencidoSemResposta ? "primary" : "ghost"
+                          }
+                        >
+                          {agendado.vencidoSemResposta
+                            ? "Responder agendamento"
+                            : "Ver agendamento"}
+                        </BotaoLink>
+                      )}
+                    </div>
                   </div>
-                  <Dica>
-                    {n.detalhe} ·{" "}
-                    <span className="mono">{formatarBRL(n.valorCentavos)}</span>
-                  </Dica>
-                  <div className="mt-2.5">
-                    <BotaoLink href={`${n.href}/ligar`} variante="primary">
-                      Ligar a um pagamento
-                    </BotaoLink>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </Painel>
           ) : null}
 

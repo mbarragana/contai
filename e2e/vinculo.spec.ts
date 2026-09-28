@@ -4,6 +4,7 @@ import {
   USER_ID_SEED,
 } from "./ambiente";
 import {
+  criarCompromisso,
   criarDocumento,
   criarFavorecido,
   criarPagamento,
@@ -15,6 +16,9 @@ import {
   type Db,
 } from "./banco";
 import { expect, test } from "./fixtures";
+// ⚠️ O texto fiscal se confere contra a CONSTANTE que a tela lê — digitá-lo de
+// novo aqui seria só uma segunda chance de errar nos dois lados.
+import { VENCIDO_SEM_RESPOSTA } from "../lib/fiscal/compromisso";
 import {
   escolher,
   preencherDocumentoBasico,
@@ -1131,5 +1135,205 @@ test.describe("vínculo entre obras (critério 11)", () => {
     await page.goto(`/documento/${documentoId}/ligar`);
     await expect(page.getByText("Nenhum pagamento para ligar")).toBeVisible();
     await expect(page.getByRole("checkbox")).toHaveCount(0);
+  });
+});
+
+/**
+ * **CONTAI-072 — a nota hábil sem pagamento que já tem agendamento aberto.**
+ *
+ * O defeito que estes testes trancam é de LEITURA, e foi achado no banco de
+ * produção: três notas com compra no cartão já agendada apareciam no painel
+ * "Notas hábeis sem pagamento vinculado" com o CTA "Ligar a um pagamento",
+ * exatamente iguais a uma nota sem rastro nenhum — e ao mesmo tempo na Agenda,
+ * com o mesmo favorecido e o mesmo valor.
+ *
+ * ⚠️ **O que NÃO pode acontecer é a nota sair da lista ou da soma** (Gate
+ * Fiscal do ticket): compromisso não é pagamento e pode ser cancelado. Por isso
+ * a soma do painel é conferida em todos os três sub-estados, e é a primeira
+ * asserção de cada um.
+ */
+test.describe("CONTAI-072 — nota com compromisso aberto vinculado", () => {
+  const PAINEL = '[data-painel="notas-sem-pagamento"]';
+
+  /** ISO de hoje no fuso do aparelho — o mesmo `hojeIso()` que o app usa. */
+  function hoje(): string {
+    const agora = new Date();
+    const local = new Date(agora.getTime() - agora.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 10);
+  }
+
+  function maisDias(dias: number): string {
+    const d = new Date(`${hoje()}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + dias);
+    return d.toISOString().slice(0, 10);
+  }
+
+  function dataBR(iso: string): string {
+    const [ano, mes, dia] = iso.split("-");
+    return `${dia}/${mes}/${ano}`;
+  }
+
+  /** A NF de R$ 3.000 da WK, hábil e sem pagamento nenhum ligado. */
+  async function notaSemPagamento(db: Db) {
+    const wk = await criarFavorecido(db, {
+      nome: "WK Construções LTDA",
+      documento: CNPJ_WK_DIGITOS,
+      tipo: "pj",
+    });
+    const documentoId = await criarDocumento(db, {
+      favorecido_id: wk,
+      tipo: "nf_servico",
+      classificacao: "mao_obra",
+      valor: 3000,
+      retencao_na_nota: "destacada",
+      destinatario_cpf_ok: true,
+      status: "registrado",
+    });
+    return { wk, documentoId };
+  }
+
+  test("sem compromisso: o painel continua exatamente como era", async ({
+    page,
+    db,
+  }) => {
+    await notaSemPagamento(db);
+    await page.goto("/");
+
+    const painel = page.locator(PAINEL);
+    await expect(painel).toContainText("R$ 3.000,00");
+    await expect(
+      painel.getByText("Sem pagamento ligado", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      painel.getByRole("link", { name: "Ligar a um pagamento" }),
+    ).toBeVisible();
+    await expect(painel.getByText("Agendado")).toHaveCount(0);
+  });
+
+  test("agendado DENTRO DO PRAZO: 'Agendado' e 'Ver agendamento', sem perder a soma", async ({
+    page,
+    db,
+  }) => {
+    const { wk, documentoId } = await notaSemPagamento(db);
+    const prevista = maisDias(20);
+    const compromissoId = await criarCompromisso(db, {
+      favorecido_id: wk,
+      valor_previsto: 3000,
+      data_prevista: prevista,
+      origem: "cartao",
+      // A compra no cartão exige `data_compra` (CHECK da migration 0013): dado
+      // probatório, e nunca o que decide ano-calendário.
+      data_compra: maisDias(-30),
+      documento_origem_id: documentoId,
+    });
+
+    await page.goto("/");
+    const painel = page.locator(PAINEL);
+
+    // ⚠️ PRIMEIRO o número: a nota continua na lista e na soma.
+    await expect(painel).toContainText("R$ 3.000,00");
+    await expect(
+      painel.getByText("NF de serviço sem pagamento ligado"),
+    ).toBeVisible();
+
+    // Chip e resumo são os MESMOS textos da Agenda — nada foi redigido de novo.
+    await expect(painel.getByText("Agendado", { exact: true })).toBeVisible();
+    await expect(painel).toContainText(
+      `WK Construções LTDA — previsto R$ 3.000,00 para ${dataBR(prevista)}`,
+    );
+
+    // O CTA enganoso sai de cena, e o link leva para a ÚNICA casa de ação.
+    await expect(
+      painel.getByRole("link", { name: "Ligar a um pagamento" }),
+    ).toHaveCount(0);
+    const ver = painel.getByRole("link", { name: "Ver agendamento" });
+    await expect(ver).toHaveAttribute("href", `/compromisso/${compromissoId}`);
+
+    // Dentro do prazo não há consequência extra: nada venceu.
+    await expect(painel.getByText(VENCIDO_SEM_RESPOSTA)).toHaveCount(0);
+
+    await ver.click();
+    await expect(page).toHaveURL(new RegExp(`/compromisso/${compromissoId}$`));
+  });
+
+  test("agendado VENCIDO SEM RESPOSTA: escala o texto, e o CTA é responder", async ({
+    page,
+    db,
+  }) => {
+    const { wk, documentoId } = await notaSemPagamento(db);
+    const prevista = maisDias(-8);
+    const compromissoId = await criarCompromisso(db, {
+      favorecido_id: wk,
+      valor_previsto: 3000,
+      data_prevista: prevista,
+      origem: "cartao",
+      // A compra no cartão exige `data_compra` (CHECK da migration 0013): dado
+      // probatório, e nunca o que decide ano-calendário.
+      data_compra: maisDias(-30),
+      documento_origem_id: documentoId,
+    });
+
+    await page.goto("/");
+    const painel = page.locator(PAINEL);
+
+    await expect(painel).toContainText("R$ 3.000,00");
+    // O chip NOMEIA o vencimento e o silêncio — não é um "Agendado" mudo.
+    await expect(painel).toContainText(
+      `Venceu em ${dataBR(prevista)} · 8 dias sem resposta`,
+    );
+    // ⚠️ O texto NÃO suaviza: este estado já trava a geração de qualquer
+    // relatório anual, e quem diz isso é a constante do adendo §A.
+    await expect(painel.getByText(VENCIDO_SEM_RESPOSTA)).toBeVisible();
+
+    const responder = painel.getByRole("link", {
+      name: "Responder agendamento",
+    });
+    await expect(responder).toHaveAttribute(
+      "href",
+      `/compromisso/${compromissoId}`,
+    );
+    await expect(
+      painel.getByRole("link", { name: "Ligar a um pagamento" }),
+    ).toHaveCount(0);
+
+    // ⚠️ Critério 7 — as três respostas NÃO se duplicam no painel da nota; elas
+    // moram no cartão do vencido (Agenda) e na tela do agendamento.
+    await expect(painel.getByRole("link", { name: "Foi pago" })).toHaveCount(0);
+    await expect(
+      painel.getByRole("link", { name: "Mudou a data" }),
+    ).toHaveCount(0);
+
+    await responder.click();
+    await expect(page.getByRole("link", { name: "Foi pago" })).toBeVisible();
+  });
+
+  test("agendamento CANCELADO devolve a nota ao estado de sempre (critério 5)", async ({
+    page,
+    db,
+  }) => {
+    const { wk, documentoId } = await notaSemPagamento(db);
+    await criarCompromisso(db, {
+      favorecido_id: wk,
+      valor_previsto: 3000,
+      data_prevista: maisDias(-8),
+      origem: "cartao",
+      // A compra no cartão exige `data_compra` (CHECK da migration 0013): dado
+      // probatório, e nunca o que decide ano-calendário.
+      data_compra: maisDias(-30),
+      documento_origem_id: documentoId,
+      situacao: "cancelado",
+      motivo_cancelamento: "cartão não passou",
+    });
+
+    await page.goto("/");
+    const painel = page.locator(PAINEL);
+    await expect(painel).toContainText("R$ 3.000,00");
+    await expect(
+      painel.getByText("Sem pagamento ligado", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      painel.getByRole("link", { name: "Ligar a um pagamento" }),
+    ).toBeVisible();
+    await expect(painel.getByText(VENCIDO_SEM_RESPOSTA)).toHaveCount(0);
   });
 });

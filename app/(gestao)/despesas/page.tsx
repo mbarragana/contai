@@ -33,6 +33,7 @@ import {
   type SituacaoDaLinha,
 } from "@/lib/fiscal/despesas";
 import { rotuloDoAno } from "@/lib/gestao/ano";
+import { hojeIso } from "@/lib/hoje";
 import { formatarBRL } from "@/lib/money";
 
 /**
@@ -80,6 +81,14 @@ export default function Despesas() {
    * mesmo estado. `null` = todos os anos.
    */
   const ano = pronto?.ano ?? null;
+  /**
+   * **CONTAI-072** — os compromissos da obra e o "hoje", para a linha da nota
+   * hábil sem pagamento distinguir *"já tem agendamento"* de *"nada foi
+   * marcado"*. Mesma lista que a Visão geral usa na agenda, mesmo relógio de
+   * cliente (`hojeIso()`), mesma função pura por baixo.
+   */
+  const compromissos = useMemo(() => pronto?.compromissos ?? [], [pronto]);
+  const hoje = hojeIso();
 
   const linhas = useMemo(
     () =>
@@ -89,8 +98,10 @@ export default function Despesas() {
             documentos: painel.documentos,
             pagamentos: painel.pagamentos,
             resumo,
+            compromissos,
+            hojeIso: hoje,
           }),
-    [painel, resumo],
+    [painel, resumo, compromissos, hoje],
   );
 
   /**

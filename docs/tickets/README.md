@@ -1,6 +1,25 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-09-28**: **`072` entregue** — Gate 4 (`po`), 14/14 critérios PASS. Sem
+migration, sem UI nova, Gate Fiscal já fechado pelo parecer de 18/08 (sem
+nova rodada do `contador`). `agendamentosPorDocumento` (nova, em
+`lib/fiscal/compromisso.ts`) cruza documento hábil sem pagamento com
+compromisso aberto vinculado por `documentoOrigemId` (desempate: vencido >
+mais dias sem resposta > data mais próxima > id); soma e lista de "notas sem
+pagamento" continuam idênticas em qualquer caso, só o texto/chip/CTA da
+linha muda, nas duas telas (Home e `/despesas`) a partir da mesma fonte.
+`vinculo.ts`/`resumo.ts` seguem sem importar `Compromisso` — `NotaSemPagamento`
+ganhou só `documentoId: string`, cruzamento no consumidor
+(`app/(gestao)/page.tsx`); `despesas.ts` ganhou 3ª exceção nomeada e estreita
+à mesma barreira, testada por mutação no Gate 2. Correção de higiene
+pós-APPROVE (o lead-engineer travou aplicando; o orquestrador terminou):
+`AgendamentoDoDocumento` expõe só `compromissoId: string`, não o
+`Compromisso` inteiro — nenhum consumidor de produção lia mais que o `.id`.
+1202/1202 Vitest, E2E de `vinculo.spec.ts`/`despesas.spec.ts` verde (a única
+falha de uma rodada completa foi ruído de ambiente, confirmado como flake e
+revertido em duas reexecuções isoladas). Detalhe: `docs/tickets/CONTAI-072.md`.
 
 **2026-09-27, mais tarde ainda ainda ainda ainda**: **`071` entregue** — Gate 4
 (`po`), 7/7 critérios PASS. Sem migration, sem Gate Fiscal (bug de navegação
@@ -1603,9 +1622,9 @@ revisão descreveu.
 | Ordem | # | Ticket | P | Status | O que trava |
 |---|---|---|---|---|---|
 
-**`071` saiu desta tabela em 2026-09-27** — entregue, Gate 4 PASS (ver a nota
-no topo do arquivo). **Fila de implementação vazia** — o `CONTAI-072` está em
-desenvolvimento paralelo na mesma árvore, mas ainda não fechou Gate 4.
+**`071` e `072` saíram desta tabela em 2026-09-27/28** — os dois entregues,
+Gate 4 PASS (ver as notas no topo do arquivo). **Fila de implementação
+vazia.**
 
 ⚠️ **`027`, `025` e `036` saíram desta tabela em 24/08** — os três estão
 entregues e commitados; ver "Em produção" acima. `004` também saiu (entregue,

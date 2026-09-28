@@ -1349,13 +1349,25 @@ describe("os oito lugares (parecer §2, itens 1 a 8)", () => {
     // confirmação, pela mesma esteira de sempre (`vinculo.ts`/`resumo.ts`, que
     // não conhecem `Fatura` nem `Compromisso`) — `fatura.ts` não é chamado por
     // nenhum dos dois.
+    //
+    // ⚠️ **`despesas.ts` é a TERCEIRA exceção, aberta no CONTAI-072 (critério
+    // 11), e ela é NOMEADA e ESTREITA.** Ele não calcula custo: projeta
+    // `Documento`/`Pagamento` em LINHAS de tabela, e passou a precisar saber se
+    // a nota hábil sem pagamento já tem agendamento aberto — para trocar
+    // **texto, cor e destino do link**, nunca número. O que o torna seguro não é
+    // a boa intenção, é a asserção abaixo: **nenhum valor de compromisso
+    // atravessa a fronteira**. `valorPrevistoCentavos` e `saldoDoCompromisso`
+    // não aparecem nesta fonte, e o dia em que aparecerem este teste fica
+    // vermelho com o nome do arquivo — que é a mesma proteção de antes, sem a
+    // ilusão de que "não nomear o tipo" era o que protegia.
     const dir = "lib/fiscal";
     const proibidos = readdirSync(dir).filter(
       (f) =>
         f.endsWith(".ts") &&
         !f.endsWith(".test.ts") &&
         f !== "compromisso.ts" &&
-        f !== "fatura.ts",
+        f !== "fatura.ts" &&
+        f !== "despesas.ts",
     );
     expect(proibidos.length).toBeGreaterThan(3); // o teste vale alguma coisa
     for (const arquivo of proibidos) {
@@ -1363,6 +1375,16 @@ describe("os oito lugares (parecer §2, itens 1 a 8)", () => {
       expect(
         /\bCompromisso\b/.test(fonte),
         `${arquivo} passou a conhecer o tipo Compromisso — parecer §2, itens 2, 3 e 4`,
+      ).toBe(false);
+    }
+
+    // A exceção do CONTAI-072, fechada pelo lado do DINHEIRO: a projeção de
+    // linhas lê do compromisso chip, resumo e href — e nada que se possa somar.
+    const despesas = readFileSync(`${dir}/despesas.ts`, "utf-8");
+    for (const proibido of ["valorPrevistoCentavos", "saldoDoCompromisso"]) {
+      expect(
+        despesas.includes(proibido),
+        `despesas.ts passou a ler ${proibido} — valor PREVISTO dentro da projeção de custo é a soma mista do parecer §2, item 8`,
       ).toBe(false);
     }
   });
@@ -1391,6 +1413,11 @@ describe("os oito lugares (parecer §2, itens 1 a 8)", () => {
     expect(r.notasSemPagamentoCentavos).toBe(300_000);
     for (const n of r.notasSemPagamento) {
       expect(n.href.startsWith("/documento/")).toBe(true);
+      // **CONTAI-072** — a chave do cruzamento com os agendamentos é o id PURO
+      // do documento, e não o id da linha (`sem-pagamento:<uuid>`): quem cruza,
+      // no consumidor, não reparseia string nenhuma. É o que permite a Visão
+      // geral marcar "já agendado" sem este arquivo conhecer `Compromisso`.
+      expect(n.href).toBe(`/documento/${n.documentoId}`);
     }
   });
 
