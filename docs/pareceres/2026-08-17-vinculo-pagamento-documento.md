@@ -358,3 +358,241 @@ preferência de UX.
 diferente do emitente da nota — boleto sacado por banco, ou PIX para CPF de
 sócio da WK? Se nunca aconteceu, o caso 3 acima fica só como sinalização e não
 vira caminho no produto.
+
+---
+
+# ADENDO — 2026-09-28 · cobertura prévia não é motivo de exclusão da lista de candidatos
+
+- **Origem**: `CONTAI-074`. Caso real — fornecedor de concreto usinado com 3
+  notas pagas por 7 lançamentos (PIX + parcelas de dois cartões diferentes),
+  sem correspondência 1:1 limpa entre parcela e nota. `pagamentosCandidatos`
+  (`lib/fiscal/vinculo.ts`) esconde um pagamento já 100% absorvido por uma nota
+  quando o Mateus tenta ligá-lo TAMBÉM a uma segunda nota do mesmo fornecimento.
+  O Mateus confirmou que precisa da capacidade — não é caso de redistribuir sem
+  repetir, é o mesmo pagamento contando para mais de uma nota mesmo.
+- **Consome**: §1 (condição 3 — correspondência), §2 (o vínculo é fiscal, o
+  clique não) e §3 (teto do mínimo por conjunto conexo) deste parecer; o ADENDO
+  de 18/08 do mesmo arquivo (repartição cronológica); e
+  `2026-08-18-compromisso-versus-pagamento.md` §5.1 (defesa estrutural do teto
+  do mínimo contra dupla contagem).
+- **Normativo para**: `pagamentosCandidatos`, `documentosCandidatos`,
+  `pagamentosOcultosPorCobertura`, `documentosOcultosPorCobertura` e as
+  constantes `CANDIDATO_OCULTO_PAGAMENTO`/`CANDIDATO_OCULTO_DOCUMENTO`, todas em
+  `lib/fiscal/vinculo.ts`.
+
+## 1. Não existe regra fiscal que proíba um pagamento de servir a duas notas
+
+`[Certain]` A condição 3 do §1 ("existe documentação hábil... que corresponde
+àquele desembolso") nunca foi 1:1 — é apurada por **conjunto conexo**, não por
+par isolado. É exatamente por isso que `alocarCusto` existe como grafo
+bipartido com união por componente (§3, ADENDO de 18/08): o sistema já foi
+desenhado para obra real, em que parcela e nota raramente coincidem
+limpamente. Ligar o mesmo pagamento a uma segunda nota apenas **funde dois
+componentes num só**; o pagamento é um nó — entra **uma vez** na soma de
+`Σ pagamentos elegíveis`, qualquer que seja o número de vínculos (arestas) que
+partem dele. O teto `custoComprovado = min(Σ pagamentos, Σ documentos hábeis)`
+do componente resultante nunca deixa o custo exceder o que foi de fato pago,
+nem conta o mesmo pagamento duas vezes.
+
+**Conclusão**: o filtro atual (`temSaldoSemNota` escondendo pagamento com
+saldo zero) é conveniência de UX para reduzir ruído na lista comum — não é
+regra fiscal. Hoje ele bloqueia, sem querer, um cenário legítimo e recorrente
+em obra: fornecedor que fatura em notas que não seguem o parcelamento do
+pagamento.
+
+## 2. Regra exata
+
+**(a) Permitir a segunda ligação**
+
+SE o pagamento e o documento pertencem à mesma obra (`MOTIVO_OBRA_DIFERENTE`,
+inalterado) E o pagamento ainda não está ligado a ESTE documento específico
+(inalterado) → **permitir** a ligação, mesmo que o pagamento já tenha 100% do
+seu valor absorvido por vínculo com outro(s) documento(s). Cobertura prévia
+por **outro** documento deixa de ser motivo de exclusão da lista de candidatos
+ou de recusa da ligação.
+
+SE a nova ligação une dois componentes conexos antes separados → **revalidar**
+(recalcular) `custoComprovado` do componente resultante pela fórmula já
+existente. Nenhuma trava nova é necessária: a fórmula já impede inflar custo
+ou contar o mesmo pagamento mais de uma vez.
+
+Continua **recusando** (inalterado): obras diferentes; ligação de um pagamento
+a um documento ao qual ele já está ligado (vínculo idêntico repetido).
+
+**(b) Aviso obrigatório antes da confirmação**
+
+SE o pagamento selecionado já possui um ou mais vínculos com outro(s)
+documento(s) → **avisar**, antes de gravar a nova ligação, citando
+nominalmente cada nota já vinculada (identificador e valor). Texto:
+
+> Este pagamento já está ligado a [Nota nº X — R$ valor][, Nota nº Y — R$
+> valor]. Ligá-lo também a esta nota é permitido: o mesmo pagamento pode
+> servir de prova para mais de um documento, sem duplicar valor — o sistema
+> nunca conta o mesmo pagamento duas vezes na soma. Confirme que este
+> pagamento realmente corresponde também a esta nota, e não é engano.
+> [ Cancelar ]  [ Confirmar ligação também a esta nota ]
+
+**Marcar** (sempre, não só no aviso): na própria lista de candidatos, o
+pagamento já vinculado aparece identificado com a nota a que já está ligado —
+mantém a doutrina "nunca sumiço mudo" (§ deste parecer, crit. 15/C4 do Gate 2).
+
+## 3. `CANDIDATO_OCULTO_PAGAMENTO`/`CANDIDATO_OCULTO_DOCUMENTO` presumem erro — corrigir
+
+`[Certain]` O texto vigente ("abra a nota errada e desligue-o antes de ligar
+aqui") só cobre o caso em que o vínculo anterior foi engano. A partir deste
+ADENDO, "pagamento já coberto" deixa de implicar "vínculo anterior é erro":
+passa a ter duas saídas — engano a desfazer, ou intenção a manter e
+complementar — e o texto precisa nomear as duas, nunca escolher uma no lugar
+do usuário.
+
+**Redação que substitui as constantes atuais** (adaptar ao componente, sem
+perder a substância):
+
+> Pagamento já ligado a outra nota, com valor totalmente absorvido, não
+> aparece aqui por padrão. Se este pagamento também é desta nota — é
+> permitido: o mesmo pagamento pode servir de prova para mais de uma nota,
+> desde que a soma não ultrapasse o que foi realmente pago —, revele-o para
+> escolher. Se ele foi ligado à nota errada por engano, abra a nota errada e
+> desligue-o antes de ligar aqui.
+
+(Espelhar para `CANDIDATO_OCULTO_DOCUMENTO`, trocando "nota" ↔ "pagamento".)
+
+## 4. Pagamentos Efetuados (CPF-por-CPF) e discriminação anual — sem risco de duplicar, com uma condição técnica
+
+`[Certain]` Nenhum relatório de saída duplica valor, **desde que** continue
+agregando a partir da tabela de pagamentos (uma linha por pagamento, um valor,
+uma data, um CPF/CNPJ) — nunca a partir das linhas de `pagamento_documento`
+(a junção). Um pagamento ligado a duas notas continua sendo **um** pagamento
+com **um** valor: soma uma vez na ficha Pagamentos Efetuados e uma vez na
+discriminação, exatamente como `alocacao.porPagamento` (mapa por
+`pagamento.id`) já faz hoje em `lib/fiscal/vinculo.ts` e como
+`carregarSaidaAnual` (`lib/dados/saida-anual.ts`) já consome.
+
+O motivo certo não é "é o mesmo favorecido recebendo" — é que a ficha soma
+**desembolsos**, não **vínculos**, e desembolso é atributo do pagamento, não
+do documento. Valeria mesmo se as duas notas fossem de favorecidos diferentes
+ligados ao mesmo pagamento (cessão de crédito — ver o ADENDO de 18/08 deste
+mesmo arquivo, "favorecido do pagamento que nasce ligado a uma nota").
+
+**Ponto de atenção técnico para o `cto-obra`, não fiscal**: a ficha
+"Pagamentos Efetuados" ainda não tem gerador dedicado no código (busca no
+repositório não encontrou um). Quando for construída, precisa somar por
+`pagamento.id` **distinto** — nunca por linha de junção pagamento×documento —
+sob pena de duplicar o mesmo desembolso ao CPF de um favorecido só porque ele
+tem dois vínculos.
+
+## 5. Automático × humano
+
+**Sistema sozinho** `[Certain]`: permitir a segunda ligação quando as condições
+do §2(a) valem; recalcular o teto do componente; avisar citando as notas já
+vinculadas; marcar visualmente cobertura prévia na lista de candidatos; manter
+a recusa por obra diferente e por vínculo idêntico repetido.
+
+**Exige CRC**: nenhuma exigência nova além das já registradas neste parecer e
+no de 18/08 (retificadora por realocação cronológica retroativa; texto final
+da discriminação).
+
+**Alcance**: esta convenção não abre tese fiscal nova — materializa, no filtro
+de candidatos e no texto de aviso, uma capacidade que a fórmula de
+`alocarCusto` já suportava desde 17–18/08/2026.
+
+---
+
+# ADENDO — 2026-09-28 (2) · redação final ratificada: `avisoDocumentoJaLigado` e `CANDIDATO_OCULTO_DOCUMENTO`
+
+- **Origem**: Gate 2 técnico do CONTAI-074 (`cto-obra`) — veredito **APPROVE**,
+  condicionado a este registro. O ADENDO acima (mesma data) fixou a **regra**
+  em §2(b) e uma **instrução de redação** em §3 ("espelhar, trocando
+  nota↔pagamento"), mas não citava o **texto literal** que acabou implementado
+  em `lib/fiscal/vinculo.ts`. Esta seção fecha essa pendência: cita o código
+  como está hoje e ratifica o conteúdo fiscal de cada trecho, para que texto de
+  tela com consequência fiscal continue vindo do parecer, e não do commit.
+- **Consome**: ADENDO de 2026-09-28 acima (§2(b), §3); §1 e §3 do corpo deste
+  parecer (correspondência por conjunto conexo, não por par isolado).
+- **Normativo para**: `avisoDocumentoJaLigado`, `avisoPagamentoJaLigado` e
+  `CANDIDATO_OCULTO_DOCUMENTO` em `lib/fiscal/vinculo.ts`; os textos exibidos
+  em `app/(gestao)/pagamento/[id]/ligar/page.tsx` e
+  `app/(gestao)/documento/[id]/ligar/page.tsx`.
+
+## 1. `avisoDocumentoJaLigado` — texto literal (direção pagamento→documento)
+
+Usada em `app/(gestao)/pagamento/[id]/ligar/page.tsx`: aviso mostrado quando o
+Mateus está ligando um PAGAMENTO a uma nota candidata que **já está ligada a
+outro pagamento**. Texto literal, hoje, em `lib/fiscal/vinculo.ts`:
+
+> Esta nota já está ligada a [lista]. Ligá-la também a este pagamento é
+> permitido: a mesma nota pode ser comprovada por mais de um pagamento, sem
+> duplicar valor — o sistema nunca conta a mesma nota duas vezes na soma do
+> custo. Confirme que esta nota realmente corresponde também a este
+> pagamento, e não é engano.
+
+**Ratificado.** `[Certain]` A razão fiscal não é a mesma do aviso irmão: aqui
+não há um pagamento repetido — há **dois pagamentos reais e distintos**
+provando a **mesma nota** (o caso concreto do CONTAI-074: 3 notas de concreto
+usinado pagas por 7 lançamentos, sem correspondência 1:1). O nó que não pode
+entrar duas vezes na soma do custo é a **NOTA**, não o pagamento — é a
+condição 3 do §1 deste parecer apurada por conjunto conexo, com o teto
+`min(Σ pagamentos, Σ documentos hábeis)` do §3 garantindo que a nota nunca é
+contada duas vezes. Direção pagamento→documento: **"mesma nota não duplica no
+custo"**.
+
+## 2. `CANDIDATO_OCULTO_DOCUMENTO` — texto literal, e por que não é o espelho mecânico
+
+Texto literal, hoje, em `lib/fiscal/vinculo.ts`:
+
+> Nota já ligada a outro pagamento, com valor totalmente absorvido, não
+> aparece aqui por padrão. Se esta nota também é deste pagamento — é
+> permitido: a mesma nota pode ser comprovada por mais de um pagamento, desde
+> que a soma não ultrapasse o que foi realmente pago —, revele-a para
+> escolher. Se ela foi ligada ao pagamento errado por engano, abra o
+> pagamento errado e desligue-a antes de ligar aqui.
+
+**Ratificado — e a formulação escolhida é a correta, não a variante mais
+óbvia.** `[Certain]` A instrução de §3 do ADENDO acima dizia "espelhar,
+trocando nota↔pagamento", o que produziria mecanicamente *"a mesma nota pode
+**servir de prova para** mais de um pagamento"* (espelho literal de
+`CANDIDATO_OCULTO_PAGAMENTO`: *"o mesmo pagamento pode servir de prova para
+mais de uma nota"*). O código não fez esse espelho mecânico — usou **"pode
+ser comprovada por"** — e essa escolha está certa fiscalmente:
+
+- O par que sustenta custo é `documento hábil ↔ desembolso correspondente`
+  (§1, condição 3). Quem **prova** o quê tem direção: o **pagamento** (o
+  desembolso, com comprovante de transferência) é a evidência de que o
+  dinheiro saiu; a **nota** é o documento que descreve o que foi adquirido.
+  Na relação de prova, é o pagamento que comprova a nota — não o contrário.
+- Por isso **"a nota é comprovada por pagamentos"** descreve a direção real;
+  **"a nota serve de prova para pagamentos"** (o espelho mecânico) inverteria
+  essa direção e afirmaria algo que não é verdade: uma nota não é evidência de
+  que um desembolso ocorreu, ela é evidência do que foi comprado.
+- `CANDIDATO_OCULTO_PAGAMENTO` ("pagamento pode servir de prova para nota")
+  está correto na sua própria direção pelo mesmo motivo: ali o pagamento
+  segue sendo quem prova.
+
+Espelho de forma (estrutura da frase, "não aparece por padrão… revele-o…
+engano") continua valendo — é conteúdo semântico (quem prova o quê) que não
+podia ser espelhado mecanicamente, e o código acertou ao não fazer isso.
+
+## 3. Confirmação da direção-espelho: `avisoPagamentoJaLigado`
+
+Usada em `app/(gestao)/documento/[id]/ligar/page.tsx` (direção
+documento→pagamento). Texto literal, já citado em §2(b) do ADENDO acima e
+confirmado idêntico ao código atual:
+
+> Este pagamento já está ligado a [lista]. Ligá-lo também a esta nota é
+> permitido: o mesmo pagamento pode servir de prova para mais de um
+> documento, sem duplicar valor — o sistema nunca conta o mesmo pagamento
+> duas vezes na soma. Confirme que este pagamento realmente corresponde
+> também a esta nota, e não é engano.
+
+**Ratificado.** `[Certain]` Aqui o nó que não pode duplicar na soma é o
+**PAGAMENTO** — "mesmo pagamento não conta duas vezes". Não precisa (e não
+deve) ser textualmente idêntica à de §1 acima: são duas direções do mesmo
+vínculo N:M, cada uma protegendo o nó que lhe corresponde (nota de um lado,
+pagamento do outro), exatamente como o código já documenta em comentário
+próprio sobre as duas funções.
+
+## 4. Automático × humano
+
+Sem mudança em relação ao ADENDO acima (mesma data): nenhuma exigência nova de
+CRC. Esta seção é registro documental de texto já implementado e já ratificado
+no conteúdo fiscal — fecha a pendência do Gate 2, não abre tese nova.

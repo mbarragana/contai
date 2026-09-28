@@ -156,18 +156,96 @@ export const DOCUMENTO_SEM_VALOR =
   "o valor para ela entrar no custo confirmado.";
 
 /**
- * Critério 15 / C4 do Gate 2: quem já cobriu o registro por inteiro some do
- * seletor, e o sumiço mudo faz quem ligou o PIX à nota ERRADA não achá-lo na
- * nota certa — sem saber que precisa desligar antes.
+ * Critério 15 / C4 do Gate 2: quem já cobriu o registro por inteiro não aparece
+ * no seletor por padrão, e o sumiço mudo faz quem ligou o PIX à nota ERRADA não
+ * achá-lo na nota certa.
+ *
+ * ⚠️ **O texto anterior presumia que cobertura prévia é SEMPRE engano a
+ * desfazer** — e isso deixou de ser verdade no ADENDO de 2026-09-28 do parecer
+ * (CONTAI-074, §3): *"'pagamento já coberto' deixa de implicar 'vínculo anterior
+ * é erro': passa a ter duas saídas — engano a desfazer, ou intenção a manter e
+ * complementar — e o texto precisa nomear as duas, nunca escolher uma no lugar
+ * do usuário"*. Daí o bloco revelável: o candidato coberto continua fora da
+ * lista por padrão (ruído), mas agora tem como ser escolhido.
  */
 export const CANDIDATO_OCULTO_PAGAMENTO =
-  "Pagamento já coberto por inteiro por outra nota não aparece nesta lista. Se " +
-  "algum deles é desta nota, abra a nota errada e desligue-o antes de ligar aqui.";
+  "Pagamento já ligado a outra nota, com valor totalmente absorvido, não " +
+  "aparece aqui por padrão. Se este pagamento também é desta nota — é " +
+  "permitido: o mesmo pagamento pode servir de prova para mais de uma nota, " +
+  "desde que a soma não ultrapasse o que foi realmente pago —, revele-o para " +
+  "escolher. Se ele foi ligado à nota errada por engano, abra a nota errada e " +
+  "desligue-o antes de ligar aqui.";
 
+/** O espelho do de cima, trocando nota↔pagamento (ADENDO §3, última linha). */
 export const CANDIDATO_OCULTO_DOCUMENTO =
-  "Nota já coberta por inteiro por outro pagamento não aparece nesta lista. Se " +
-  "alguma delas é deste pagamento, abra a nota e desligue o pagamento errado " +
-  "antes de ligar aqui.";
+  "Nota já ligada a outro pagamento, com valor totalmente absorvido, não " +
+  "aparece aqui por padrão. Se esta nota também é deste pagamento — é " +
+  "permitido: a mesma nota pode ser comprovada por mais de um pagamento, " +
+  "desde que a soma não ultrapasse o que foi realmente pago —, revele-a para " +
+  "escolher. Se ela foi ligada ao pagamento errado por engano, abra o " +
+  "pagamento errado e desligue-a antes de ligar aqui.";
+
+/**
+ * **O aviso (b) do ADENDO de 2026-09-28** — dito ANTES de gravar, citando
+ * nominalmente cada registro a que o candidato marcado já está ligado.
+ *
+ * `lista` já vem formatada pela tela (identificador + valor), porque o formato
+ * do identificador é dela: a nota usa `NOME_TIPO_CURTO` + número, o pagamento
+ * usa data + favorecido. Ver `listarEmTexto`.
+ */
+export function avisoPagamentoJaLigado(lista: string): string {
+  return (
+    `Este pagamento já está ligado a ${lista}. Ligá-lo também a esta nota é ` +
+    "permitido: o mesmo pagamento pode servir de prova para mais de um " +
+    "documento, sem duplicar valor — o sistema nunca conta o mesmo pagamento " +
+    "duas vezes na soma. Confirme que este pagamento realmente corresponde " +
+    "também a esta nota, e não é engano."
+  );
+}
+
+/**
+ * ⚠️ **NÃO é o espelho mecânico do de cima, e a diferença é do `contador`**
+ * (fechamento do CONTAI-074, registrado no ADENDO): as duas direções não
+ * protegem contra a mesma duplicação. Ali o candidato é um pagamento e o nó que
+ * não pode entrar duas vezes na soma é o **pagamento**. Aqui são **dois
+ * pagamentos distintos e reais** provando a **mesma nota** — o que não pode
+ * duplicar é a **NOTA** no custo. Trocar "a mesma nota" por "o mesmo pagamento"
+ * nesta frase seria prometer uma garantia que não é a que está em jogo.
+ */
+export function avisoDocumentoJaLigado(lista: string): string {
+  return (
+    `Esta nota já está ligada a ${lista}. Ligá-la também a este pagamento é ` +
+    "permitido: a mesma nota pode ser comprovada por mais de um pagamento, " +
+    "sem duplicar valor — o sistema nunca conta a mesma nota duas vezes na " +
+    "soma do custo. Confirme que esta nota realmente corresponde também a " +
+    "este pagamento, e não é engano."
+  );
+}
+
+/**
+ * Critério 8: o acréscimo R$ 0,00 de um vínculo de cobertura total diz uma
+ * coisa DIFERENTE do R$ 0,00 de documento não hábil — lá o custo não sobe
+ * porque a nota não sustenta nada; aqui não sobe porque o pagamento já estava
+ * inteiro no custo, e o que muda é a prova documental.
+ *
+ * A frase serve às duas telas sem inversão: em `/documento/[id]/ligar` "este
+ * pagamento" é o candidato marcado e "esta nota" é a da tela; em
+ * `/pagamento/[id]/ligar` é o contrário, e a frase continua literalmente
+ * verdadeira.
+ */
+export const VINCULO_SO_MUDA_A_PROVA =
+  "Não muda o custo confirmado — muda a prova documental: o pagamento passa a " +
+  "comprovar também esta nota.";
+
+/**
+ * "A", "A e B", "A, B e C" — a lista de registros já vinculados dentro do
+ * texto do aviso. Vive aqui, e não em cada tela, porque as duas telas dizem a
+ * mesma frase com o mesmo separador.
+ */
+export function listarEmTexto(partes: readonly string[]): string {
+  if (partes.length <= 1) return partes[0] ?? "";
+  return `${partes.slice(0, -1).join(", ")} e ${partes[partes.length - 1]}`;
+}
 
 /** Critério 11 — recusa com o motivo na tela, nunca em silêncio. */
 export const MOTIVO_OBRA_DIFERENTE =
@@ -1055,7 +1133,7 @@ export function despesasComprovadas(alocacao: Alocacao): Componente[] {
 
 // ── Candidatos do seletor (ordena e sugere; nunca vincula) ───────────────
 
-export interface Candidato<T> {
+export interface Candidato<T, Outro> {
   item: T;
   /**
    * Rótulo de sugestão, ou `null`. É ORDENAÇÃO E RÓTULO — parecer §5.5:
@@ -1063,6 +1141,31 @@ export interface Candidato<T> {
    * existe ação em lote que ligue sem conferência item a item (critério 10).
    */
   sugestao: string | null;
+  /**
+   * **CONTAI-074** — os registros a que este candidato JÁ está ligado hoje
+   * (nunca o registro-alvo da tela: quem já está ligado a ele não é candidato).
+   * Vazio na esmagadora maioria dos candidatos.
+   *
+   * Existe para que "nunca sumiço mudo" (ADENDO §2(b), MARCAR) seja possível na
+   * própria linha da lista: a tela cita nominalmente cada um deles, na marca
+   * sempre visível e no aviso de confirmação.
+   */
+  jaLigadoA: Outro[];
+  /**
+   * O valor deste candidato já está 100% absorvido pelos vínculos que ele tem
+   * hoje — ou seja, é o caso que ATÉ O CONTAI-074 desaparecia da lista sem
+   * remédio.
+   *
+   * ⚠️ **Deixou de ser filtro e virou flag** (ADENDO de 2026-09-28, §1 e §2a):
+   * *"o filtro atual (`temSaldoSemNota` escondendo pagamento com saldo zero) é
+   * conveniência de UX para reduzir ruído na lista comum — não é regra
+   * fiscal"*. Ligar o mesmo pagamento a uma segunda nota só FUNDE dois
+   * componentes conexos, e `min(Σ pagamentos elegíveis, Σ documentos hábeis)` já
+   * conta cada nó uma vez. Quem decide esconder é a TELA (por padrão, num bloco
+   * revelável), não esta função — e `adicionar/documento` continua filtrando
+   * sem oferecer o revelar (critério 12).
+   */
+  cobertoPorInteiro: boolean;
 }
 
 const SUGESTAO_FAVORECIDO_E_VALOR = "Sugestão — mesmo favorecido e mesmo valor";
@@ -1087,7 +1190,11 @@ function rotular(favorecidoIgual: boolean, valorIgual: boolean): string | null {
 }
 
 /**
- * Sobra parte deste pagamento sem nota? Só quem tem saldo é candidato.
+ * Sobra parte deste pagamento sem nota?
+ *
+ * ⚠️ **Fonte da flag `cobertoPorInteiro`, não filtro de exclusão** desde o
+ * CONTAI-074: saldo zero por cobertura de OUTRA nota deixa de tirar o pagamento
+ * da lista de candidatos (ADENDO de 2026-09-28, §1).
  *
  * ⚠️ Aqui a conta NÃO é sobre `semNotaCentavos`, que sai do elegível: é sobre
  * a base DOCUMENTÁVEL (ver abaixo) menos o comprovado. A pergunta desta função é
@@ -1110,8 +1217,11 @@ function temSaldoSemNota(pagamento: Pagamento, alocacao: Alocacao): boolean {
  * Sobra parte desta nota sem pagamento? Documento não hábil sempre sobra.
  *
  * Pela FALTA GENUÍNA (CONTAI-056): a nota cujo bruto já fechou com líquido +
- * retenção qualificada sai do seletor de candidatos, como qualquer nota paga por
- * inteiro — e continua achável pelo contador de ocultos (`CANDIDATO_OCULTO_*`).
+ * retenção qualificada não aparece no seletor por padrão, como qualquer nota
+ * paga por inteiro.
+ *
+ * ⚠️ Mesma inversão de papel do `temSaldoSemNota` acima desde o CONTAI-074:
+ * **fonte da flag `cobertoPorInteiro`, não filtro de exclusão.**
  */
 function temSaldoDescoberto(documento: Documento, alocacao: Alocacao): boolean {
   const alocado = alocacao.porDocumento.get(documento.id);
@@ -1120,48 +1230,43 @@ function temSaldoDescoberto(documento: Documento, alocacao: Alocacao): boolean {
 }
 
 /**
- * Os que o filtro acima ESCONDEU por já estarem cobertos por inteiro — e não
- * por serem de outra obra ou já estarem ligados a este registro. A tela conta
- * quantos são e diz o motivo (C4): sumiço mudo faz quem ligou o PIX à nota
- * errada não achá-lo na nota certa.
+ * As notas DESTA obra a que o pagamento já está ligado — o `jaLigadoA` do
+ * candidato pagamento.
+ *
+ * Vínculo apontando para fora da entrada não entra: a entrada é sempre de UMA
+ * obra, e o estado "vínculo cruzando obras" tem rede própria
+ * (`vinculosOrfaos`), não se conta aqui como se fosse prova.
  */
-export function pagamentosOcultosPorCobertura(
-  documento: Documento,
-  pagamentos: readonly Pagamento[],
-  alocacao: Alocacao,
-): Pagamento[] {
-  return pagamentos.filter(
-    (p) =>
-      podeVincular(p, documento).ok &&
-      !p.documentoIds.includes(documento.id) &&
-      !temSaldoSemNota(p, alocacao),
-  );
-}
-
-export function documentosOcultosPorCobertura(
+function notasJaLigadas(
   pagamento: Pagamento,
-  documentos: readonly Documento[],
   alocacao: Alocacao,
 ): Documento[] {
-  return documentos.filter(
-    (d) =>
-      podeVincular(pagamento, d).ok &&
-      !pagamento.documentoIds.includes(d.id) &&
-      !temSaldoDescoberto(d, alocacao),
-  );
+  const ligadas: Documento[] = [];
+  for (const documentoId of pagamento.documentoIds) {
+    const alocado = alocacao.porDocumento.get(documentoId);
+    if (alocado) ligadas.push(alocado.documento);
+  }
+  return ligadas;
 }
 
 /**
  * Pagamentos que podem ser ligados a este documento, ordenados.
  *
- * Só entram os da MESMA obra (critério 11), os que ainda não estão ligados a
- * este documento, e os que ainda têm parte sem nota — um pagamento já coberto
- * por inteiro não é candidato a nada. Isso mantém visível o pagamento ligado só
- * a boleto (critério 9), que é justamente o caso "boleto pago, NF chega
- * depois".
+ * Só entram os da MESMA obra (critério 11) e os que ainda não estão ligados a
+ * ESTE documento. Isso mantém visível o pagamento ligado só a boleto (critério
+ * 9), que é justamente o caso "boleto pago, NF chega depois".
+ *
+ * ⚠️ **O pagamento já coberto por inteiro por OUTRA nota continua na lista
+ * desde o CONTAI-074**, marcado com `cobertoPorInteiro` — a tela é que o põe num
+ * bloco revelável. Antes ele era filtrado aqui, e com isso o caso real do
+ * fornecedor que fatura em notas que não seguem o parcelamento do pagamento
+ * ficava sem caminho nenhum (ADENDO de 2026-09-28, §1).
  *
  * Ordem: mesmo favorecido primeiro, depois mesmo valor, depois a menor
- * diferença de valor, e por fim data e id — para a lista não dançar.
+ * diferença de valor, e por fim data e id — para a lista não dançar. A ordem
+ * relativa dos candidatos que já apareciam é EXATAMENTE a de antes: os cobertos
+ * entraram na mesma comparação, e filtrá-los de novo devolve a lista antiga
+ * item a item.
  * "Data próxima" não entra na comparação com o documento porque `documento`
  * não tem data de emissão no schema de hoje (o próprio parecer §6 pede que
  * `data_emissao` seja completado; a coluna não existe).
@@ -1170,12 +1275,11 @@ export function pagamentosCandidatos(
   documento: Documento,
   pagamentos: readonly Pagamento[],
   alocacao: Alocacao,
-): Candidato<Pagamento>[] {
+): Candidato<Pagamento, Documento>[] {
   const alvo = valorDocumento(documento);
   return pagamentos
     .filter((p) => podeVincular(p, documento).ok)
     .filter((p) => !p.documentoIds.includes(documento.id))
-    .filter((p) => temSaldoSemNota(p, alocacao))
     .map((p) => ({
       item: p,
       favorecidoIgual: mesmoFavorecido(p, documento),
@@ -1192,6 +1296,8 @@ export function pagamentosCandidatos(
     .map(({ item, favorecidoIgual, valorIgual }) => ({
       item,
       sugestao: rotular(favorecidoIgual, valorIgual),
+      jaLigadoA: notasJaLigadas(item, alocacao),
+      cobertoPorInteiro: !temSaldoSemNota(item, alocacao),
     }));
 }
 
@@ -1199,16 +1305,20 @@ export function pagamentosCandidatos(
  * O caminho inverso (critério 3): documentos que podem ser ligados a este
  * pagamento. Documento não hábil continua na lista — vincular boleto e
  * quarentena é permitido (critérios 8 e 9), e é o que permite a dedup.
+ *
+ * ⚠️ Mesma mudança do CONTAI-074 na direção espelhada: a nota já coberta por
+ * inteiro por OUTRO pagamento continua na lista, com `cobertoPorInteiro`. Aqui
+ * são dois pagamentos distintos e reais provando a mesma nota — o que o teto do
+ * mínimo impede é a NOTA entrar duas vezes na soma.
  */
 export function documentosCandidatos(
   pagamento: Pagamento,
   documentos: readonly Documento[],
   alocacao: Alocacao,
-): Candidato<Documento>[] {
+): Candidato<Documento, Pagamento>[] {
   return documentos
     .filter((d) => podeVincular(pagamento, d).ok)
     .filter((d) => !pagamento.documentoIds.includes(d.id))
-    .filter((d) => temSaldoDescoberto(d, alocacao))
     .map((d) => ({
       item: d,
       favorecidoIgual: mesmoFavorecido(pagamento, d),
@@ -1225,6 +1335,10 @@ export function documentosCandidatos(
     .map(({ item, favorecidoIgual, valorIgual }) => ({
       item,
       sugestao: rotular(favorecidoIgual, valorIgual),
+      // Os pagamentos JÁ ligados a esta nota, cronológicos — o mesmo elo que a
+      // tela do documento lista, sem segunda implementação.
+      jaLigadoA: alocacao.porDocumento.get(item.id)?.pagamentos ?? [],
+      cobertoPorInteiro: !temSaldoDescoberto(item, alocacao),
     }));
 }
 

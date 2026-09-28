@@ -885,8 +885,15 @@ export default function RegistrarDocumento() {
    * um documento PROVISÓRIO montado com o que já está na tela, pela mesma
    * função pura do seletor do caminho B. Sugestão continua sendo ordenação e
    * rótulo; marcação é sempre do dedo do Mateus (critério 10).
+   *
+   * ⚠️ **Este fluxo CONTINUA filtrando o candidato já coberto por inteiro, e
+   * sem oferecer o "revelar"** — critério 12 do CONTAI-074, decisão do ticket,
+   * não escolha aqui: as duas telas de GESTÃO passaram a revelá-lo num bloco
+   * colapsado, mas isto é CAPTURA (≤3 interações, uma mão), e ligar o mesmo
+   * pagamento a uma segunda nota é tarefa de conciliação sentado. Ativar o
+   * revelar aqui é ticket à parte.
    */
-  const candidatos: Candidato<Pagamento>[] = useMemo(() => {
+  const candidatos: Candidato<Pagamento, Documento>[] = useMemo(() => {
     if (!painelDaObra || !obra) return [];
     const provisorio: Documento = {
       id: "novo",
@@ -928,7 +935,7 @@ export default function RegistrarDocumento() {
       provisorio,
       painelDaObra.pagamentos,
       alocarCusto(painelDaObra),
-    );
+    ).filter((c) => !c.cobertoPorInteiro);
   }, [
     painelDaObra,
     obra,

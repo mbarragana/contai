@@ -11,10 +11,13 @@ import {
 import { useSessao } from "@/app/_components/sessao";
 import {
   Banner,
+  Botao,
   BotaoLink,
   BotaoSalvar,
   Card,
   Carregando,
+  Chip,
+  Consequencia,
   Dica,
   ErroDeGravacao,
   EstadoErro,
@@ -29,18 +32,21 @@ import {
   type ErroDeTela,
   type PainelDados,
 } from "@/lib/data";
+import { formatarDataBR } from "@/lib/fiscal/obra";
 import {
   alocarCusto,
   alocarSimulando,
+  avisoDocumentoJaLigado,
   CANDIDATO_OCULTO_DOCUMENTO,
   custoComprovadoAteOAno,
   custoComprovadoDoAno,
   documentosCandidatos,
-  documentosOcultosPorCobertura,
   DOCUMENTO_SEM_VALOR,
   ehDocumentoHabil,
+  listarEmTexto,
   VINCULO_BOLETO_NAO_GERA_CUSTO,
   VINCULO_QUARENTENA_NAO_GERA_CUSTO,
+  VINCULO_SO_MUDA_A_PROVA,
   type Candidato,
 } from "@/lib/fiscal/vinculo";
 import { hojeIso } from "@/lib/hoje";
@@ -53,6 +59,15 @@ const NOME_TIPO: Record<Documento["tipo"], string> = {
   boleto: "Boleto",
 };
 
+/**
+ * Como o pagamento já vinculado é citado na marca e no aviso — data +
+ * favorecido, o mesmo formato de "Pagamentos desta nota" no detalhe do
+ * documento.
+ */
+function identificarPagamento(p: Pagamento): string {
+  return `${formatarDataBR(p.dataPagamento)} · ${p.favorecidoNome ?? "favorecido não informado"} — ${formatarBRL(p.valorCentavos)}`;
+}
+
 type Estado =
   | { fase: "carregando" }
   | { fase: "erro"; erro: ErroDeTela }
@@ -60,10 +75,9 @@ type Estado =
       fase: "pronto";
       pagamento: Pagamento;
       painel: PainelDados;
-      candidatos: Candidato<Documento>[];
+      /** UMA lista, com as já cobertas dentro dela (CONTAI-074). */
+      candidatos: Candidato<Documento, Pagamento>[];
       jaLigados: Documento[];
-      /** C4: quantos sumiram da lista por já estarem cobertos por inteiro. */
-      ocultosPorCobertura: number;
       ano: number;
     };
 
@@ -85,6 +99,8 @@ export default function LigarDocumentos() {
   const [marcados, setMarcados] = useState<string[]>([]);
   const [salvando, setSalvando] = useState(false);
   const [erroSalvar, setErroSalvar] = useState<string | null>(null);
+  /** CONTAI-074 — ver o comentário gêmeo em `documento/[id]/ligar`. */
+  const [revelarCobertos, setRevelarCobertos] = useState(false);
 
   useEffect(() => {
     let cancelado = false;
@@ -102,11 +118,6 @@ export default function LigarDocumentos() {
           jaLigados: painel.documentos.filter((d) =>
             pagamento.documentoIds.includes(d.id),
           ),
-          ocultosPorCobertura: documentosOcultosPorCobertura(
-            pagamento,
-            painel.documentos,
-            alocacao,
-          ).length,
           ano: Number(hojeIso().slice(0, 4)),
         });
       } catch (erro) {
@@ -138,6 +149,20 @@ export default function LigarDocumentos() {
   const marcadosDeVerdade = useMemo(
     () => (pronto?.candidatos ?? []).filter((c) => marcados.includes(c.item.id)),
     [pronto, marcados],
+  );
+
+  /** Partição só de RENDERIZAÇÃO — a ordenação continua sendo a do módulo puro. */
+  const visiveis = (pronto?.candidatos ?? []).filter((c) => !c.cobertoPorInteiro);
+  const cobertos = (pronto?.candidatos ?? []).filter((c) => c.cobertoPorInteiro);
+  const listaVisivel = revelarCobertos ? [...visiveis, ...cobertos] : visiveis;
+
+  const algumComVinculoPrevio = marcadosDeVerdade.some(
+    (c) => c.jaLigadoA.length > 0,
+  );
+  /** Soma das notas marcadas — o `${valor}` do rótulo de confirmação. */
+  const somaMarcados = marcadosDeVerdade.reduce(
+    (s, c) => s + (c.item.valorCentavos ?? 0),
+    0,
   );
 
   /**
@@ -328,7 +353,7 @@ export default function LigarDocumentos() {
           </div>
         </Card>
 
-        {pronto.candidatos.length === 0 ? (
+        {listaVisivel.length === 0 ? (
           <Card>
             <div className="text-center text-[34px] leading-none">📄</div>
             <div className="mt-2 text-center font-semibold">
@@ -347,48 +372,78 @@ export default function LigarDocumentos() {
         ) : (
           <>
             <Passo>Documentos desta obra</Passo>
-            {pronto.candidatos.map((c) => {
+            {listaVisivel.map((c) => {
               const marcado = marcados.includes(c.item.id);
               const habil = ehDocumentoHabil(c.item);
+              const jaLigada = listarEmTexto(
+                c.jaLigadoA.map(identificarPagamento),
+              );
               return (
-                <label
-                  key={c.item.id}
-                  className={`flex min-h-[44px] cursor-pointer gap-3 rounded-[10px] border px-3 py-2.5 ${
-                    marcado ? "border-ink bg-soft" : "border-line bg-white"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={marcado}
-                    onChange={() => alternar(c.item.id)}
-                    className="mt-1 h-5 w-5 flex-none"
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-baseline justify-between gap-2">
-                      <span className="text-[14px] font-semibold break-words">
-                        {c.item.favorecidoNome ?? "Emitente não informado"}
+                <div key={c.item.id}>
+                  <label
+                    className={`flex min-h-[44px] cursor-pointer gap-3 rounded-[10px] border px-3 py-2.5 ${
+                      marcado ? "border-ink bg-soft" : "border-line bg-white"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={marcado}
+                      onChange={() => alternar(c.item.id)}
+                      className="mt-1 h-5 w-5 flex-none"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-baseline justify-between gap-2">
+                        <span className="text-[14px] font-semibold break-words">
+                          {c.item.favorecidoNome ?? "Emitente não informado"}
+                        </span>
+                        <span className="mono flex-none text-[15px] font-bold">
+                          {formatarBRL(c.item.valorCentavos ?? 0)}
+                        </span>
                       </span>
-                      <span className="mono flex-none text-[15px] font-bold">
-                        {formatarBRL(c.item.valorCentavos ?? 0)}
+                      <span className="mt-0.5 block text-[12px] text-mut">
+                        {NOME_TIPO[c.item.tipo]}
+                        {habil ? "" : " · não gera custo confirmado"}
                       </span>
+                      {c.sugestao ? (
+                        <span className="mt-1 block text-[11.5px] font-semibold text-mut">
+                          {c.sugestao}
+                        </span>
+                      ) : null}
+                      {c.jaLigadoA.length > 0 ? (
+                        <span className="mt-1 flex flex-wrap items-center gap-1.5 text-[11.5px] text-amb">
+                          <Chip cor="amb" vazado>
+                            {c.cobertoPorInteiro
+                              ? "Coberta por inteiro"
+                              : "Vínculo parcial"}
+                          </Chip>
+                          <span>já ligada a: {jaLigada}</span>
+                        </span>
+                      ) : null}
                     </span>
-                    <span className="mt-0.5 block text-[12px] text-mut">
-                      {NOME_TIPO[c.item.tipo]}
-                      {habil ? "" : " · não gera custo confirmado"}
-                    </span>
-                    {c.sugestao ? (
-                      <span className="mt-1 block text-[11.5px] font-semibold text-mut">
-                        {c.sugestao}
-                      </span>
-                    ) : null}
-                  </span>
-                </label>
+                  </label>
+                  {/* ⚠️ A garantia citada aqui é a da NOTA, não a do pagamento —
+                      correção do `contador` no fechamento do CONTAI-074: nesta
+                      direção são dois pagamentos distintos e reais provando a
+                      mesma nota. Ver `avisoDocumentoJaLigado`. */}
+                  {marcado && c.jaLigadoA.length > 0 ? (
+                    <Consequencia cor="amb">
+                      {avisoDocumentoJaLigado(jaLigada)}
+                    </Consequencia>
+                  ) : null}
+                </div>
               );
             })}
           </>
         )}
-        {pronto.ocultosPorCobertura > 0 ? (
-          <Dica>{CANDIDATO_OCULTO_DOCUMENTO}</Dica>
+        {!revelarCobertos && cobertos.length > 0 ? (
+          <Card>
+            <Dica>{CANDIDATO_OCULTO_DOCUMENTO}</Dica>
+            <div className="mt-2.5">
+              <Botao variante="ghost" onClick={() => setRevelarCobertos(true)}>
+                {`Mostrar ${cobertos.length} ${cobertos.length === 1 ? "nota já coberta" : "notas já cobertas"}`}
+              </Botao>
+            </div>
+          </Card>
         ) : null}
       </ColunaDeDetalhe>
 
@@ -406,6 +461,16 @@ export default function LigarDocumentos() {
             {formatarBRL(efeito?.acrescimo ?? 0)}
           </span>
           {soNaoHabeis ? " — a nota não é hábil" : null}
+          {/* Critério 8, espelhado: R$ 0,00 por cobertura total não é o R$ 0,00
+              da nota não hábil. */}
+          {!soNaoHabeis &&
+          algumComVinculoPrevio &&
+          (efeito?.acrescimo ?? 0) === 0 ? (
+            <>
+              <br />
+              {VINCULO_SO_MUDA_A_PROVA}
+            </>
+          ) : null}
           <br />
           {pronto.ano}:{" "}
           <span className="mono">
@@ -424,11 +489,16 @@ export default function LigarDocumentos() {
           onClick={ligar}
           disabled={marcadosDeVerdade.length === 0 || salvando}
         >
+          {/* Mesma fricção deliberada do outro seletor: "este pagamento" é o
+              pagamento DA TELA, o alvo — por isso o rótulo não pluraliza com a
+              contagem de notas marcadas. */}
           {salvando
             ? "Ligando…"
             : marcadosDeVerdade.length === 0
               ? "Marque ao menos um documento"
-              : `Ligar ${marcadosDeVerdade.length} ${marcadosDeVerdade.length === 1 ? "documento" : "documentos"}`}
+              : algumComVinculoPrevio
+                ? `Confirmar ligação também a este pagamento — ${formatarBRL(somaMarcados)}`
+                : `Ligar ${marcadosDeVerdade.length} ${marcadosDeVerdade.length === 1 ? "documento" : "documentos"}`}
         </BotaoSalvar>
         <BotaoLink href={`/pagamento/${p.id}`}>Cancelar</BotaoLink>
       </RodapeDeAcao>

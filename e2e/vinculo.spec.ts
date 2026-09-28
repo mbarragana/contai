@@ -16,9 +16,17 @@ import {
   type Db,
 } from "./banco";
 import { expect, test } from "./fixtures";
+import type { Page } from "@playwright/test";
 // ⚠️ O texto fiscal se confere contra a CONSTANTE que a tela lê — digitá-lo de
 // novo aqui seria só uma segunda chance de errar nos dois lados.
 import { VENCIDO_SEM_RESPOSTA } from "../lib/fiscal/compromisso";
+import {
+  avisoDocumentoJaLigado,
+  avisoPagamentoJaLigado,
+  CANDIDATO_OCULTO_DOCUMENTO,
+  CANDIDATO_OCULTO_PAGAMENTO,
+  VINCULO_SO_MUDA_A_PROVA,
+} from "../lib/fiscal/vinculo";
 import {
   escolher,
   preencherDocumentoBasico,
@@ -871,7 +879,15 @@ test.describe("caminho a partir do pagamento (critério 3)", () => {
     await expect(rodape).toContainText(`${ANO}: R$ 2.000,00 → R$ 3.000,00`);
     await expect(rodape).toContainText("acumulado: R$ 2.000,00 → R$ 3.000,00");
 
-    await page.getByRole("button", { name: "Ligar 1 documento" }).click();
+    // ⚠️ O rótulo mudou no CONTAI-074, e o motivo é este cenário mesmo: a nota
+    // marcada JÁ está ligada ao PIX de 2.000 (`jaLigadoA.length > 0`, ainda que
+    // ela não esteja coberta por inteiro), então o botão pede CONFIRMAÇÃO em vez
+    // de dizer "Ligar 1 documento". Fricção deliberada, pre-mortem 2 do ticket.
+    await page
+      .getByRole("button", {
+        name: "Confirmar ligação também a este pagamento — R$ 3.000,00",
+      })
+      .click();
     await expect(page).toHaveURL(new RegExp(`/pagamento/${pagamentoAntigo}$`));
 
     // A promessa do rodapé conferida contra o número da home: o custo da obra
@@ -1335,5 +1351,233 @@ test.describe("CONTAI-072 — nota com compromisso aberto vinculado", () => {
       painel.getByRole("link", { name: "Ligar a um pagamento" }),
     ).toBeVisible();
     await expect(painel.getByText(VENCIDO_SEM_RESPOSTA)).toHaveCount(0);
+  });
+});
+
+/**
+ * **CONTAI-074** — o mesmo pagamento (ou a mesma nota) ligado a mais de um
+ * documento. Caso real: fornecedor de concreto que faturou em 3 notas pagas por
+ * 7 lançamentos, sem correspondência 1:1 — a parcela já 100% absorvida pela
+ * Nota A não aparecia como candidata na Nota B, e não havia caminho nenhum.
+ *
+ * O que estes dois testes provam, além de a tela revelar o candidato: que
+ * **ligar não dobra custo**. É o teto do mínimo por componente conexo
+ * (`min(Σ pagamentos elegíveis, Σ documentos hábeis)`) conferido contra o número
+ * da home, do jeito que o ADENDO de 2026-09-28 do parecer o descreve — o
+ * pagamento é um NÓ, entra uma vez, quantas arestas partam dele.
+ */
+test.describe("segundo vínculo de um registro já coberto (CONTAI-074)", () => {
+  /**
+   * O NÚMERO do KPI de custo confirmado, não o cartão dele. O cartão traz
+   * "acumulado" e "gasto real até agora" na mesma caixa, e um `not.toContainText`
+   * ali daria falso negativo com um valor que é legítimo em outra linha.
+   */
+  const custoConfirmadoDaHome = (page: Page) =>
+    page.locator('[data-kpi="custo-confirmado"] .mono').first();
+
+  /** Duas notas do mesmo fornecedor, e um PIX que já cobre a primeira inteira. */
+  async function duasNotasUmPix(db: Db) {
+    const wk = await criarFavorecido(db, {
+      nome: "WK Construções LTDA",
+      documento: CNPJ_WK_DIGITOS,
+      tipo: "pj",
+    });
+    const notaA = await criarDocumento(db, {
+      favorecido_id: wk,
+      tipo: "nf_servico",
+      classificacao: "mao_obra",
+      numero: "1042",
+      valor: 3000,
+      retencao_na_nota: "destacada",
+      destinatario_cpf_ok: true,
+      status: "registrado",
+    });
+    const notaB = await criarDocumento(db, {
+      favorecido_id: wk,
+      tipo: "nf_servico",
+      classificacao: "mao_obra",
+      numero: "1043",
+      valor: 3000,
+      retencao_na_nota: "destacada",
+      destinatario_cpf_ok: true,
+      status: "registrado",
+    });
+    const pix = await criarPagamento(db, {
+      favorecido_id: wk,
+      valor: 3000,
+      data_pagamento: `${ANO}-08-12`,
+      meio: "pix",
+      status: "aguardando_nf",
+      comprovante_path: `${USER_ID_SEED}/comprovante/pix-wk.png`,
+    });
+    await criarVinculo(db, pix, notaA);
+    return { wk, notaA, notaB, pix };
+  }
+
+  test("revela o pagamento já coberto, liga-o à segunda nota e o custo NÃO dobra", async ({
+    page,
+    db,
+  }) => {
+    const { notaA, notaB, pix } = await duasNotasUmPix(db);
+
+    // O ponto de partida: o custo da obra é R$ 3.000 (um PIX, uma nota).
+    await page.goto("/");
+    await expect(
+      page.getByText(/Custo confirmado em/).locator(".."),
+    ).toContainText("3.000,00");
+
+    await page.goto(`/documento/${notaB}/ligar`);
+
+    // ── Estado colapsado: a lista visível está VAZIA e o card vazio continua ──
+    await expect(page.getByText("Nenhum pagamento para ligar")).toBeVisible();
+    await expect(page.getByRole("checkbox")).toHaveCount(0);
+    // O texto novo: cobertura prévia deixou de significar "engano a desfazer".
+    await expect(page.getByText(CANDIDATO_OCULTO_PAGAMENTO)).toBeVisible();
+
+    const revelar = page.getByRole("button", {
+      name: "Mostrar 1 pagamento já coberto",
+    });
+    await expect(revelar).toBeVisible();
+    // Nada foi gravado por abrir a tela, nem por ela oferecer o revelar.
+    expect(await vinculos(db)).toHaveLength(1);
+
+    await revelar.click();
+
+    // ── Revelado: o candidato entra na MESMA lista de checkboxes, desmarcado ──
+    const candidato = page.getByRole("checkbox");
+    await expect(candidato).toHaveCount(1);
+    await expect(candidato).not.toBeChecked();
+    // A marca sempre visível (ADENDO §2b, MARCAR): chip + a quem já está ligado.
+    await expect(page.getByText("Coberto por inteiro")).toBeVisible();
+    await expect(
+      page.getByText("já ligado a: NF de serviço nº 1042 — R$ 3.000,00"),
+    ).toBeVisible();
+    // Revelar não esconde de novo: não existe botão de recolher.
+    await expect(revelar).toHaveCount(0);
+
+    // ── O aviso (b), colado no item, só depois do toque ──
+    const aviso = avisoPagamentoJaLigado("NF de serviço nº 1042 — R$ 3.000,00");
+    await expect(page.getByText(aviso)).toHaveCount(0);
+    await candidato.check();
+    await expect(page.getByText(aviso)).toBeVisible();
+
+    // ── O rodapé: acréscimo R$ 0,00, e a razão CERTA para o zero ──
+    const rodape = page.getByText(/Custo confirmado se ligar agora/);
+    await expect(rodape).toContainText(
+      /Custo confirmado se ligar agora:\s*R\$\s*0,00/,
+    );
+    await expect(rodape).toContainText(VINCULO_SO_MUDA_A_PROVA);
+    // E NÃO o zero da nota não hábil, que é outra causa e outro texto.
+    await expect(rodape).not.toContainText("a nota não é hábil");
+
+    // ── O rótulo do botão troca de verbo: confirmação, não "Ligar N" ──
+    await expect(
+      page.getByRole("button", { name: /^Ligar 1 pagamento/ }),
+    ).toHaveCount(0);
+    await page
+      .getByRole("button", {
+        name: "Confirmar ligação também a esta nota — R$ 3.000,00",
+      })
+      .click();
+
+    await expect(page.getByText(/Ligado\./)).toBeVisible();
+
+    // ── O ESTADO GRAVADO: vínculo NOVO, e o antigo INTACTO (critério 7) ──
+    const linhas = await vinculos(db);
+    expect(linhas).toHaveLength(2);
+    expect(linhas.map((v) => v.documento_id).sort()).toEqual(
+      [notaA, notaB].sort(),
+    );
+    expect(linhas.every((v) => v.pagamento_id === pix)).toBe(true);
+
+    // A nota de origem continua provando o que provava.
+    await page.goto(`/documento/${notaA}`);
+    await expect(page.getByText("Custo comprovado")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Ver o pagamento" })).toHaveCount(1);
+
+    // ⚠️ O QUE O TICKET EXISTE PARA GARANTIR: o custo continua R$ 3.000. A soma
+    // ingênua dos dois vínculos daria R$ 6.000 — custo em dobro na declaração.
+    // A asserção é no NÚMERO do KPI, não no cartão inteiro: o cartão traz outras
+    // linhas ("gasto real", acumulado) que contêm outros valores.
+    await page.goto("/");
+    await expect(custoConfirmadoDaHome(page)).toHaveText("R$ 3.000,00");
+  });
+
+  test("espelhado: a nota já coberta, revelada a partir de um segundo pagamento", async ({
+    page,
+    db,
+  }) => {
+    const { wk, notaA, pix } = await duasNotasUmPix(db);
+    // Um SEGUNDO pagamento real, distinto — é a direção em que dois
+    // desembolsos provam a MESMA nota.
+    const segundoPix = await criarPagamento(db, {
+      favorecido_id: wk,
+      valor: 1000,
+      data_pagamento: `${ANO}-09-02`,
+      meio: "pix",
+      status: "aguardando_nf",
+      comprovante_path: `${USER_ID_SEED}/comprovante/pix-2.png`,
+    });
+
+    await page.goto(`/pagamento/${segundoPix}/ligar`);
+
+    // A nota B (sem pagamento nenhum) é candidata normal; a nota A está coberta
+    // por inteiro e só aparece depois do revelar.
+    await expect(page.getByRole("checkbox")).toHaveCount(1);
+    await expect(page.getByText(CANDIDATO_OCULTO_DOCUMENTO)).toBeVisible();
+    await page
+      .getByRole("button", { name: "Mostrar 1 nota já coberta" })
+      .click();
+
+    const caixas = page.getByRole("checkbox");
+    await expect(caixas).toHaveCount(2);
+    // A revelada vem anexada ao FIM da lista visível.
+    const revelada = caixas.nth(1);
+    await expect(revelada).not.toBeChecked();
+    await expect(page.getByText("Coberta por inteiro")).toBeVisible();
+    const identificacao = `12/08/${ANO} · WK Construções LTDA — R$ 3.000,00`;
+    await expect(page.getByText(`já ligada a: ${identificacao}`)).toBeVisible();
+
+    await revelada.check();
+
+    // ⚠️ A GARANTIA DESTA DIREÇÃO É A DA NOTA, não a do pagamento — correção do
+    // `contador` no fechamento do ticket. O texto vem da constante da tela.
+    const aviso = avisoDocumentoJaLigado(identificacao);
+    await expect(page.getByText(aviso)).toBeVisible();
+    expect(aviso).toContain("nunca conta a mesma nota duas vezes na soma do custo");
+    // E o texto da OUTRA direção não aparece aqui.
+    await expect(
+      page.getByText(/nunca conta o mesmo pagamento duas vezes/),
+    ).toHaveCount(0);
+
+    const rodape = page.getByText(/Custo confirmado se ligar agora/);
+    await expect(rodape).toContainText(
+      /Custo confirmado se ligar agora:\s*R\$\s*0,00/,
+    );
+    await expect(rodape).toContainText(VINCULO_SO_MUDA_A_PROVA);
+
+    await page
+      .getByRole("button", {
+        name: "Confirmar ligação também a este pagamento — R$ 3.000,00",
+      })
+      .click();
+
+    await expect(page).toHaveURL(new RegExp(`/pagamento/${segundoPix}$`));
+
+    // Os dois vínculos da nota A vivos: o PIX de 3.000 e o de 1.000.
+    const daNotaA = (await vinculos(db))
+      .filter((v) => v.documento_id === notaA)
+      .map((v) => v.pagamento_id)
+      .sort();
+    expect(daNotaA).toEqual([pix, segundoPix].sort());
+
+    // O teto do mínimo: Σ pagamentos = 4.000, Σ notas hábeis do componente =
+    // 3.000 (a nota A). O custo é 3.000 — a nota NÃO conta duas vezes.
+    //
+    // ⚠️ A asserção é no número do KPI, e não no cartão: R$ 4.000,00 aparece
+    // LEGITIMAMENTE logo abaixo, na linha "gasto real até agora" (que conta
+    // desembolso, não custo demonstrável). Era o falso negativo desta prova.
+    await page.goto("/");
+    await expect(custoConfirmadoDaHome(page)).toHaveText("R$ 3.000,00");
   });
 });

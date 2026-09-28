@@ -10,11 +10,10 @@ import {
   custoComprovadoDoAno,
   documentosCandidatos,
   documentosHabeisSemPagamento,
-  documentosOcultosPorCobertura,
   despesasComprovadas,
+  listarEmTexto,
   MOTIVO_OBRA_DIFERENTE,
   pagamentosCandidatos,
-  pagamentosOcultosPorCobertura,
   podeVincular,
   baseDocumentavel,
   notaCoberta,
@@ -474,15 +473,43 @@ describe("sugestão ordena e rotula; nunca vincula (critério 10)", () => {
     expect(candidatos[1].sugestao).toBe("Sugestão — mesmo favorecido, valor diferente");
     expect(candidatos[2].sugestao).toBeNull();
     // A estrutura do candidato não tem como dizer "marcado": vínculo só nasce
-    // de toque explícito, e o módulo puro não cria nenhum.
-    expect(Object.keys(candidatos[0])).toEqual(["item", "sugestao"]);
+    // de toque explícito, e o módulo puro não cria nenhum. `jaLigadoA` e
+    // `cobertoPorInteiro` (CONTAI-074) são INFORMAÇÃO sobre o que já existe, não
+    // pré-seleção.
+    expect(Object.keys(candidatos[0])).toEqual([
+      "item",
+      "sugestao",
+      "jaLigadoA",
+      "cobertoPorInteiro",
+    ]);
+    expect(candidatos.every((c) => c.jaLigadoA.length === 0)).toBe(true);
+    expect(candidatos.every((c) => c.cobertoPorInteiro === false)).toBe(true);
   });
 
-  it("pagamento já coberto por inteiro deixa de ser candidato", () => {
+  it("pagamento já coberto por inteiro CONTINUA candidato, com a flag ligada", () => {
+    // ⚠️ Era "deixa de ser candidato" até o CONTAI-074. O ADENDO de 2026-09-28
+    // do parecer inverteu: cobertura prévia por OUTRA nota é ruído de lista, não
+    // regra fiscal — quem esconde é a tela, num bloco revelável.
     const outraNota = doc({ id: "d2", valorCentavos: 300_000 });
     const jaLigado = pag({ id: "p1", documentoIds: ["d2"] });
     const a = alocar([documento, outraNota], [jaLigado]);
-    expect(pagamentosCandidatos(documento, [jaLigado], a)).toEqual([]);
+    const candidatos = pagamentosCandidatos(documento, [jaLigado], a);
+    expect(candidatos.map((c) => c.item.id)).toEqual(["p1"]);
+    expect(candidatos[0].cobertoPorInteiro).toBe(true);
+    // E ele diz nominalmente A QUEM já está ligado — "nunca sumiço mudo".
+    expect(candidatos[0].jaLigadoA.map((d) => d.id)).toEqual(["d2"]);
+  });
+
+  it("pagamento PARCIALMENTE absorvido por outra nota: jaLigadoA sem a flag", () => {
+    // O exemplo do próprio ticket: PIX de R$ 3.000 já ligado a uma NF de
+    // R$ 1.000. Ele já aparecia na lista antes do CONTAI-074 — o que muda é que
+    // agora ele carrega a quem está ligado, para a tela poder marcá-lo.
+    const outraNota = doc({ id: "d2", valorCentavos: 100_000 });
+    const parcial = pag({ id: "p1", documentoIds: ["d2"] });
+    const a = alocar([documento, outraNota], [parcial]);
+    const candidatos = pagamentosCandidatos(documento, [parcial], a);
+    expect(candidatos[0].cobertoPorInteiro).toBe(false);
+    expect(candidatos[0].jaLigadoA.map((d) => d.id)).toEqual(["d2"]);
   });
 
   it("pagamento ligado só a boleto continua candidato (crit. 9: a NF chega depois)", () => {
@@ -778,44 +805,162 @@ describe("o número do rodapé é a variação do TOTAL, não a fatia de um paga
 });
 
 /**
- * C4 do Gate 2: quem já está coberto por inteiro some do seletor, e o sumiço
- * mudo faz quem ligou o PIX à nota errada não o achar na nota certa.
+ * C4 do Gate 2, na forma que o CONTAI-074 lhe deu: quem já está coberto por
+ * inteiro **continua na lista**, marcado com `cobertoPorInteiro` e dizendo a
+ * quem já está ligado. Era isso que duas funções à parte
+ * (`pagamentosOcultosPorCobertura`/`documentosOcultosPorCobertura`, removidas)
+ * contavam de fora, e é a mesma doutrina: nunca sumiço mudo — só que agora com
+ * saída, porque o vínculo prévio deixou de implicar engano.
  */
-describe("candidatos escondidos por já estarem cobertos", () => {
-  it("conta o pagamento coberto por inteiro por OUTRA nota", () => {
+describe("candidato já coberto: flag na lista, não exclusão dela", () => {
+  it("marca o pagamento coberto por inteiro por OUTRA nota", () => {
     const alvo = doc({ id: "d2", valorCentavos: 300_000 });
     const painel = {
       documentos: [doc({ id: "d1" }), alvo],
       pagamentos: [pag({ id: "p1", documentoIds: ["d1"] })],
     };
     const a = alocarCusto(painel);
-    expect(pagamentosCandidatos(alvo, painel.pagamentos, a)).toHaveLength(0);
-    expect(
-      pagamentosOcultosPorCobertura(alvo, painel.pagamentos, a).map((p) => p.id),
-    ).toEqual(["p1"]);
+    const candidatos = pagamentosCandidatos(alvo, painel.pagamentos, a);
+    expect(candidatos.map((c) => c.item.id)).toEqual(["p1"]);
+    expect(candidatos[0].cobertoPorInteiro).toBe(true);
+    expect(candidatos[0].jaLigadoA.map((d) => d.id)).toEqual(["d1"]);
+    // O que a TELA esconde por padrão é exatamente este subconjunto — e nada
+    // mais (é o filtro que o fluxo de captura preserva, critério 12).
+    expect(candidatos.filter((c) => !c.cobertoPorInteiro)).toEqual([]);
   });
 
-  it("conta a nota coberta por inteiro por OUTRO pagamento", () => {
+  it("marca a nota coberta por inteiro por OUTRO pagamento", () => {
     const alvo = pag({ id: "p2" });
     const painel = {
       documentos: [doc({ id: "d1" })],
       pagamentos: [pag({ id: "p1", documentoIds: ["d1"] }), alvo],
     };
     const a = alocarCusto(painel);
-    expect(documentosCandidatos(alvo, painel.documentos, a)).toHaveLength(0);
-    expect(
-      documentosOcultosPorCobertura(alvo, painel.documentos, a).map((d) => d.id),
-    ).toEqual(["d1"]);
+    const candidatos = documentosCandidatos(alvo, painel.documentos, a);
+    expect(candidatos.map((c) => c.item.id)).toEqual(["d1"]);
+    expect(candidatos[0].cobertoPorInteiro).toBe(true);
+    // Na direção espelhada o `jaLigadoA` são PAGAMENTOS, e são eles que o aviso
+    // cita: dois pagamentos reais provando a mesma nota.
+    expect(candidatos[0].jaLigadoA.map((p) => p.id)).toEqual(["p1"]);
   });
 
-  it("o já ligado a ESTE registro não conta como escondido por cobertura", () => {
+  it("o já ligado a ESTE registro continua fora da lista (vínculo idêntico)", () => {
+    // A única exclusão que sobrou, e ela é a do ADENDO §2(a): vínculo idêntico
+    // repetido ao mesmo documento continua recusado.
     const alvo = doc({ id: "d1" });
     const painel = {
       documentos: [alvo],
       pagamentos: [pag({ id: "p1", documentoIds: ["d1"] })],
     };
     const a = alocarCusto(painel);
-    expect(pagamentosOcultosPorCobertura(alvo, painel.pagamentos, a)).toEqual([]);
+    expect(pagamentosCandidatos(alvo, painel.pagamentos, a)).toEqual([]);
+  });
+
+  it("a lista sem os cobertos é IDÊNTICA à de antes do CONTAI-074", () => {
+    // O que trava a regressão do critério 2: incluir os cobertos não pode ter
+    // mexido na ordenação nem no rótulo de quem já aparecia.
+    const alvo = doc({ id: "d9", valorCentavos: 300_000 });
+    const coberto = pag({
+      id: "p-coberto",
+      valorCentavos: 300_000,
+      documentoIds: ["d1"],
+    });
+    const mesmoTudo = pag({ id: "p-igual", valorCentavos: 300_000 });
+    const outroValor = pag({ id: "p-outro", valorCentavos: 50_000 });
+    const painel = {
+      documentos: [doc({ id: "d1" }), alvo],
+      pagamentos: [coberto, outroValor, mesmoTudo],
+    };
+    const a = alocarCusto(painel);
+    const candidatos = pagamentosCandidatos(alvo, painel.pagamentos, a);
+    const semCobertos = candidatos.filter((c) => !c.cobertoPorInteiro);
+    expect(semCobertos.map((c) => c.item.id)).toEqual(["p-igual", "p-outro"]);
+    expect(semCobertos[0].sugestao).toBe(
+      "Sugestão — mesmo favorecido e mesmo valor",
+    );
+    expect(semCobertos[1].sugestao).toBe(
+      "Sugestão — mesmo favorecido, valor diferente",
+    );
+  });
+});
+
+/**
+ * **Critério 13 do CONTAI-074** — a razão de a capacidade ser segura, e a única
+ * coisa que o Mateus tem de poder confiar aqui: ligar o MESMO pagamento a uma
+ * SEGUNDA nota não dobra custo nenhum.
+ *
+ * O fundamento é do ADENDO de 2026-09-28, §1: o pagamento é um **nó** do grafo,
+ * e entra UMA vez em `Σ pagamentos elegíveis` qualquer que seja o número de
+ * arestas que partem dele. A segunda ligação só **funde dois componentes num
+ * só**, e o teto `min(Σ pagamentos, Σ documentos hábeis)` do componente
+ * resultante é recalculado pela fórmula que já existia.
+ */
+describe("o mesmo pagamento ligado a DUAS notas (CONTAI-074, critério 13)", () => {
+  const P = 300_000;
+
+  it("não conta o pagamento duas vezes: o custo é o mínimo do componente", () => {
+    const nf1 = doc({ id: "d1", valorCentavos: P });
+    const nf2 = doc({ id: "d2", valorCentavos: P });
+    // Ligado a NF1 primeiro: 100% absorvido, `cobertoPorInteiro`.
+    const soNf1 = alocar([nf1, nf2], [pag({ id: "p1", documentoIds: ["d1"] })]);
+    expect(pagamentosCandidatos(nf2, [pag({ id: "p1", documentoIds: ["d1"] })], soNf1)[0]
+      .cobertoPorInteiro).toBe(true);
+    expect(soNf1.componentes.find((c) => c.pagamentos.length === 1)
+      ?.custoComprovadoCentavos).toBe(P);
+
+    // Agora TAMBÉM ligado a NF2 — o cenário novo do ticket.
+    const nasDuas = alocar(
+      [nf1, nf2],
+      [pag({ id: "p1", documentoIds: ["d1", "d2"] })],
+    );
+    // Um componente só (a ligação fundiu os dois), e o teto é o mínimo:
+    // Σ pagamentos = 3.000 (UMA vez), Σ documentos hábeis = 6.000.
+    expect(nasDuas.componentes).toHaveLength(1);
+    const componente = nasDuas.componentes[0];
+    expect(componente.somaPagamentosCentavos).toBe(P);
+    expect(componente.somaDocumentosHabeisCentavos).toBe(2 * P);
+    expect(componente.custoComprovadoCentavos).toBe(P);
+    // ⚠️ A soma ingênua dos dois vínculos daria 6.000 — o custo em dobro indo
+    // para a declaração, que é a direção do §4 do parecer.
+    expect(componente.custoComprovadoCentavos).not.toBe(2 * P);
+    expect(custoComprovadoDoAno(nasDuas, 2026)).toBe(P);
+    // E o pagamento aparece UMA vez em `porPagamento` — é isso que mantém a
+    // ficha Pagamentos Efetuados somando desembolso, não vínculo (ADENDO §4).
+    expect(nasDuas.porPagamento.size).toBe(1);
+    expect(nasDuas.porPagamento.get("p1")?.comprovadoCentavos).toBe(P);
+  });
+
+  it("a segunda ligação não some com a primeira: as duas notas ficam no componente", () => {
+    const nasDuas = alocar(
+      [doc({ id: "d1", valorCentavos: P }), doc({ id: "d2", valorCentavos: P })],
+      [pag({ id: "p1", documentoIds: ["d1", "d2"] })],
+    );
+    expect(
+      nasDuas.componentes[0].documentos.map((d) => d.id).sort(),
+    ).toEqual(["d1", "d2"]);
+    // A cobertura cai na primeira por ordem estável de id; a segunda fica com a
+    // falta genuína. Nenhuma das duas soma custo que o pagamento não sustenta.
+    expect(nasDuas.porDocumento.get("d1")?.cobertoCentavos).toBe(P);
+    expect(nasDuas.porDocumento.get("d2")?.cobertoCentavos).toBe(0);
+    expect(nasDuas.porDocumento.get("d2")?.faltaPagamentoCentavos).toBe(P);
+  });
+
+  it("nenhum dos dois é mais candidato do outro (vínculo idêntico repetido)", () => {
+    const nf1 = doc({ id: "d1", valorCentavos: P });
+    const nf2 = doc({ id: "d2", valorCentavos: P });
+    const p = pag({ id: "p1", documentoIds: ["d1", "d2"] });
+    const a = alocar([nf1, nf2], [p]);
+    expect(pagamentosCandidatos(nf2, [p], a)).toEqual([]);
+    expect(documentosCandidatos(p, [nf1, nf2], a)).toEqual([]);
+  });
+});
+
+describe("a lista de registros já vinculados dentro do aviso", () => {
+  it("junta com vírgula e 'e' no último", () => {
+    expect(listarEmTexto([])).toBe("");
+    expect(listarEmTexto(["A"])).toBe("A");
+    expect(listarEmTexto(["A", "B"])).toBe("A e B");
+    expect(listarEmTexto(["A", "B", "C"])).toBe("A, B e C");
   });
 });
 
@@ -1269,7 +1414,10 @@ describe("base documentável — o que ainda pode receber uma nota", () => {
     ).toBe(1_000_000);
   });
 
-  it("pagamento com encargo resolvido some do seletor quando já coberto", () => {
+  it("pagamento com encargo resolvido conta como coberto por inteiro no seletor", () => {
+    // A diferença classificada como `nao_compoe_custo` sai da base
+    // documentável, então NADA sobra a documentar — o candidato vem com
+    // `cobertoPorInteiro` (antes do CONTAI-074 ele era filtrado fora da lista).
     const documento = doc({ id: "d1", valorCentavos: 1_000_000 });
     const pagamento = pag({
       id: "p1",
@@ -1280,7 +1428,9 @@ describe("base documentável — o que ainda pode receber uma nota", () => {
     });
     const a = alocar([documento], [pagamento]);
     const outra = doc({ id: "d2", valorCentavos: 500_000 });
-    expect(pagamentosCandidatos(outra, [pagamento], a).map((c) => c.item.id)).toEqual([]);
+    const candidatos = pagamentosCandidatos(outra, [pagamento], a);
+    expect(candidatos.map((c) => c.item.id)).toEqual(["p1"]);
+    expect(candidatos[0].cobertoPorInteiro).toBe(true);
   });
 });
 
@@ -1331,10 +1481,14 @@ describe("pagamento sem comprovante (critérios 46-47)", () => {
     ).toEqual(["p1"]);
   });
 
-  it("pagamento conciliado COM encargo some do seletor, como qualquer coberto", () => {
+  it("pagamento conciliado COM encargo conta como coberto, não como saldo a documentar", () => {
     // A base do seletor é o valor cheio MENOS os encargos: juros e multa nunca
-    // terão documento (§F.1), e mantê-los aqui mandaria o Mateus procurar a
-    // nota de um juro para sempre.
+    // terão documento (§F.1), e tratá-los como saldo mandaria o Mateus procurar
+    // a nota de um juro para sempre.
+    //
+    // ⚠️ O que mudou no CONTAI-074 é só ONDE isso aparece: o pagamento continua
+    // "sem saldo a documentar", mas agora como `cobertoPorInteiro` DENTRO da
+    // lista — escondido por padrão pela tela, revelável por ela.
     const documento = doc({ id: "d1", valorCentavos: 1_000_000 });
     const pagamento = pag({
       id: "p1",
@@ -1344,10 +1498,12 @@ describe("pagamento sem comprovante (critérios 46-47)", () => {
     });
     const a = alocar([documento], [pagamento]);
     const outra = doc({ id: "d2", valorCentavos: 500_000 });
+    const candidatos = pagamentosCandidatos(outra, [pagamento], a);
     expect(
-      pagamentosCandidatos(outra, [pagamento], a).map((c) => c.item.id),
-      "pagamento coberto por inteiro não é candidato a nada (CONTAI-018, crit. 15)",
+      candidatos.filter((c) => !c.cobertoPorInteiro),
+      "o encargo não é saldo a documentar (CONTAI-018, crit. 15)",
     ).toEqual([]);
+    expect(candidatos[0].cobertoPorInteiro).toBe(true);
   });
 });
 

@@ -11,10 +11,12 @@ import {
 import { useSessao } from "@/app/_components/sessao";
 import {
   Banner,
+  Botao,
   BotaoLink,
   BotaoSalvar,
   Card,
   Carregando,
+  Chip,
   Consequencia,
   Dica,
   ErroDeGravacao,
@@ -31,18 +33,21 @@ import {
   type PainelDados,
 } from "@/lib/data";
 import { formatarDataBR } from "@/lib/fiscal/obra";
+import { NOME_TIPO_CURTO } from "@/lib/fiscal/resumo";
 import {
   alocarCusto,
   alocarSimulando,
+  avisoPagamentoJaLigado,
   CANDIDATO_OCULTO_PAGAMENTO,
   custoComprovadoAteOAno,
   custoComprovadoDoAno,
   DOCUMENTO_SEM_VALOR,
   ehDocumentoHabil,
+  listarEmTexto,
   pagamentosCandidatos,
-  pagamentosOcultosPorCobertura,
   VINCULO_BOLETO_NAO_GERA_CUSTO,
   VINCULO_QUARENTENA_NAO_GERA_CUSTO,
+  VINCULO_SO_MUDA_A_PROVA,
   type Candidato,
 } from "@/lib/fiscal/vinculo";
 import { hojeIso } from "@/lib/hoje";
@@ -56,13 +61,29 @@ type Estado =
       fase: "pronto";
       documento: Documento;
       painel: PainelDados;
-      candidatos: Candidato<Pagamento>[];
+      /**
+       * UMA lista, com os já cobertos dentro dela (CONTAI-074). Não são duas
+       * listas paralelas: cada candidato carrega o seu `cobertoPorInteiro` e o
+       * seu `jaLigadoA`, e a tela decide o que mostrar por padrão.
+       */
+      candidatos: Candidato<Pagamento, Documento>[];
       /** Pagamentos já ligados: entram na conta do saldo, não na lista. */
       jaLigados: Pagamento[];
-      /** C4: quantos sumiram da lista por já estarem cobertos por inteiro. */
-      ocultosPorCobertura: number;
       ano: number;
     };
+
+/**
+ * Como a nota já vinculada é citada na marca e no aviso — `NOME_TIPO_CURTO` +
+ * número, o mesmo formato do detalhe do documento e do seletor espelhado. Sem
+ * número (boleto, registro antigo) fica só o tipo: inventar "nº ?" seria pior
+ * que a ausência.
+ */
+function identificarNota(d: Documento): string {
+  const nome = d.numero
+    ? `${NOME_TIPO_CURTO[d.tipo]} nº ${d.numero}`
+    : NOME_TIPO_CURTO[d.tipo];
+  return `${nome} — ${formatarBRL(d.valorCentavos ?? 0)}`;
+}
 
 /**
  * O seletor de pagamentos candidatos (mock s2, s3, s3c, s3d, s3e) — a peça
@@ -83,6 +104,13 @@ export default function LigarPagamentos() {
   const [marcados, setMarcados] = useState<string[]>([]);
   const [salvando, setSalvando] = useState(false);
   const [erroSalvar, setErroSalvar] = useState<string | null>(null);
+  /**
+   * CONTAI-074 — o bloco dos já cobertos por inteiro começa colapsado e **não
+   * volta a colapsar**: revelar é sempre seguro (só amplia a lista, nunca liga
+   * nada), e esconder de novo não protege coisa nenhuma. Não persiste: recarregar
+   * a tela volta ao padrão, que é a lista curta.
+   */
+  const [revelarCobertos, setRevelarCobertos] = useState(false);
 
   useEffect(() => {
     let cancelado = false;
@@ -99,15 +127,10 @@ export default function LigarPagamentos() {
           fase: "pronto",
           documento,
           painel,
-          // Só pagamentos DESTA obra e ainda não cobertos por inteiro; a
+          // Só pagamentos DESTA obra e ainda não ligados a ESTA nota; a
           // filtragem e a ordenação são do módulo puro.
           candidatos: pagamentosCandidatos(documento, painel.pagamentos, alocacao),
           jaLigados: alocado?.pagamentos ?? [],
-          ocultosPorCobertura: pagamentosOcultosPorCobertura(
-            documento,
-            painel.pagamentos,
-            alocacao,
-          ).length,
           ano: Number(hojeIso().slice(0, 4)),
         });
       } catch (erro) {
@@ -144,6 +167,20 @@ export default function LigarPagamentos() {
   const somaMarcados = marcadosDeVerdade.reduce(
     (s, c) => s + c.item.valorCentavos,
     0,
+  );
+
+  /**
+   * A lista única partida em duas para a RENDERIZAÇÃO — e só para isso: a
+   * ordenação é a do módulo puro, e os cobertos entram anexados ao fim em vez de
+   * misturados, para a parte revelada se ler como parte revelada.
+   */
+  const visiveis = (pronto?.candidatos ?? []).filter((c) => !c.cobertoPorInteiro);
+  const cobertos = (pronto?.candidatos ?? []).filter((c) => c.cobertoPorInteiro);
+  const listaVisivel = revelarCobertos ? [...visiveis, ...cobertos] : visiveis;
+
+  /** Critério 9: o rótulo do botão troca de verbo quando há vínculo prévio. */
+  const algumComVinculoPrevio = marcadosDeVerdade.some(
+    (c) => c.jaLigadoA.length > 0,
   );
 
   /**
@@ -330,7 +367,7 @@ export default function LigarPagamentos() {
           </div>
         </Card>
 
-        {pronto.candidatos.length === 0 ? (
+        {listaVisivel.length === 0 ? (
           <>
             <Card>
               <div className="text-center text-[34px] leading-none">💸</div>
@@ -354,49 +391,84 @@ export default function LigarPagamentos() {
         ) : (
           <>
             <Passo>Pagamentos desta obra</Passo>
-            {pronto.candidatos.map((c) => {
+            {listaVisivel.map((c) => {
               const marcado = marcados.includes(c.item.id);
+              const jaLigado = listarEmTexto(c.jaLigadoA.map(identificarNota));
               return (
-                <label
-                  key={c.item.id}
-                  className={`flex min-h-[44px] cursor-pointer gap-3 rounded-[10px] border px-3 py-2.5 ${
-                    marcado ? "border-ink bg-soft" : "border-line bg-white"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={marcado}
-                    onChange={() => alternar(c.item.id)}
-                    className="mt-1 h-5 w-5 flex-none"
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-baseline justify-between gap-2">
-                      <span className="text-[14px] font-semibold break-words">
-                        {c.item.favorecidoNome ?? "Favorecido não informado"}
+                <div key={c.item.id}>
+                  <label
+                    className={`flex min-h-[44px] cursor-pointer gap-3 rounded-[10px] border px-3 py-2.5 ${
+                      marcado ? "border-ink bg-soft" : "border-line bg-white"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={marcado}
+                      onChange={() => alternar(c.item.id)}
+                      className="mt-1 h-5 w-5 flex-none"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-baseline justify-between gap-2">
+                        <span className="text-[14px] font-semibold break-words">
+                          {c.item.favorecidoNome ?? "Favorecido não informado"}
+                        </span>
+                        <span className="mono flex-none text-[15px] font-bold">
+                          {formatarBRL(c.item.valorCentavos)}
+                        </span>
                       </span>
-                      <span className="mono flex-none text-[15px] font-bold">
-                        {formatarBRL(c.item.valorCentavos)}
+                      <span className="mt-0.5 block text-[12px] text-mut">
+                        {c.item.meio.toUpperCase()} · pago em{" "}
+                        {formatarDataBR(c.item.dataPagamento)}
+                        {c.item.comprovantePath ? " · comprovante ✓" : ""}
                       </span>
+                      {c.sugestao ? (
+                        <span className="mt-1 block text-[11.5px] font-semibold text-mut">
+                          {c.sugestao}
+                        </span>
+                      ) : null}
+                      {/* ADENDO de 2026-09-28, §2(b) MARCAR: vínculo prévio
+                          aparece SEMPRE, revelado ou não, marcado ou não —
+                          "nunca sumiço mudo". O chip distingue os dois casos com
+                          uma palavra; o resto da explicação só aparece no aviso,
+                          quando o dedo toca. */}
+                      {c.jaLigadoA.length > 0 ? (
+                        <span className="mt-1 flex flex-wrap items-center gap-1.5 text-[11.5px] text-amb">
+                          <Chip cor="amb" vazado>
+                            {c.cobertoPorInteiro
+                              ? "Coberto por inteiro"
+                              : "Vínculo parcial"}
+                          </Chip>
+                          <span>já ligado a: {jaLigado}</span>
+                        </span>
+                      ) : null}
                     </span>
-                    <span className="mt-0.5 block text-[12px] text-mut">
-                      {c.item.meio.toUpperCase()} · pago em{" "}
-                      {formatarDataBR(c.item.dataPagamento)}
-                      {c.item.comprovantePath ? " · comprovante ✓" : ""}
-                    </span>
-                    {c.sugestao ? (
-                      <span className="mt-1 block text-[11.5px] font-semibold text-mut">
-                        {c.sugestao}
-                      </span>
-                    ) : null}
-                  </span>
-                </label>
+                  </label>
+                  {/* O aviso (b) COLADO no item: "este pagamento" só é
+                      inequívoco embaixo do pagamento de que fala. Um por item
+                      marcado, nunca um agregado no rodapé. */}
+                  {marcado && c.jaLigadoA.length > 0 ? (
+                    <Consequencia cor="amb">
+                      {avisoPagamentoJaLigado(jaLigado)}
+                    </Consequencia>
+                  ) : null}
+                </div>
               );
             })}
           </>
         )}
 
-        {pronto.ocultosPorCobertura > 0 ? (
-          <Dica>{CANDIDATO_OCULTO_PAGAMENTO}</Dica>
+        {/* O bloco revelável do CONTAI-074. Fica onde vivia a `Dica` estática de
+            hoje, e o texto é o mesmo `CANDIDATO_OCULTO_PAGAMENTO` — que deixou de
+            presumir que cobertura prévia é engano a desfazer. */}
+        {!revelarCobertos && cobertos.length > 0 ? (
+          <Card>
+            <Dica>{CANDIDATO_OCULTO_PAGAMENTO}</Dica>
+            <div className="mt-2.5">
+              <Botao variante="ghost" onClick={() => setRevelarCobertos(true)}>
+                {`Mostrar ${cobertos.length} ${cobertos.length === 1 ? "pagamento já coberto" : "pagamentos já cobertos"}`}
+              </Botao>
+            </div>
+          </Card>
         ) : null}
 
         <Dica>Não achou o pagamento? Ele pode ainda não estar registrado.</Dica>
@@ -419,6 +491,17 @@ export default function LigarPagamentos() {
             {formatarBRL(efeito?.acrescimo ?? 0)}
           </span>
           {habil ? null : " — a nota não é hábil"}
+          {/* Critério 8: R$ 0,00 por cobertura total NÃO é o R$ 0,00 da nota não
+              hábil, e dizer a mesma coisa nos dois faria o Mateus ler "não
+              serviu de nada" num vínculo que serviu. A frase só entra nesta
+              combinação exata: vínculo prévio marcado, acréscimo zero, nota
+              hábil. */}
+          {habil && algumComVinculoPrevio && (efeito?.acrescimo ?? 0) === 0 ? (
+            <>
+              <br />
+              {VINCULO_SO_MUDA_A_PROVA}
+            </>
+          ) : null}
           <br />
           {pronto.ano}:{" "}
           <span className="mono">
@@ -437,11 +520,17 @@ export default function LigarPagamentos() {
           onClick={ligar}
           disabled={marcadosDeVerdade.length === 0 || salvando}
         >
+          {/* Fricção deliberada (pre-mortem 2): com vínculo prévio marcado o
+              verbo deixa de ser "Ligar N" e passa a pedir CONFIRMAÇÃO. O
+              singular "esta nota" é a nota DA TELA — o alvo —, não os
+              candidatos; por isso não pluraliza com a contagem. */}
           {salvando
             ? "Ligando…"
             : marcadosDeVerdade.length === 0
               ? "Marque ao menos um pagamento"
-              : `Ligar ${marcadosDeVerdade.length} ${marcadosDeVerdade.length === 1 ? "pagamento" : "pagamentos"} — ${formatarBRL(somaMarcados)}`}
+              : algumComVinculoPrevio
+                ? `Confirmar ligação também a esta nota — ${formatarBRL(somaMarcados)}`
+                : `Ligar ${marcadosDeVerdade.length} ${marcadosDeVerdade.length === 1 ? "pagamento" : "pagamentos"} — ${formatarBRL(somaMarcados)}`}
         </BotaoSalvar>
         <BotaoLink href={`/documento/${d.id}`}>Cancelar</BotaoLink>
       </RodapeDeAcao>
