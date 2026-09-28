@@ -141,7 +141,7 @@ function AlocarPagamento() {
           ) : null}
           {estado.seguem.length > 0 ? (
             <Card className="border-dashed border-amb">
-              <Chip cor="amb" vazado>
+              <Chip cor="amb" peso="vazado">
                 Seguem agendamento aberto
               </Chip>
               {estado.seguem.map((c) => (

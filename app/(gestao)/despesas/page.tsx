@@ -581,12 +581,23 @@ function Linha({ linha }: { linha: LinhaDeDespesa }) {
 function Situacao({ situacao }: { situacao: SituacaoDaLinha }) {
   return (
     <div>
+      {/* **CONTAI-075** — `data-urgencia` nos DOIS ramos, porque o estado novo
+          cai no neutro: um agendamento que vence hoje continua sendo o terceiro
+          estado (nada saiu da conta), então ele NÃO ganha cor nem peso aqui — só
+          o texto do chip muda, e o atributo dá ao E2E como selecioná-lo. `null`
+          (toda anotação que não fala de agendamento) não escreve o atributo:
+          React omite `undefined`. */}
       {situacao.cor === "neutra" ? (
-        <span className="inline-block rounded-full bg-soft px-[9px] py-0.5 text-[11px] font-semibold text-mut">
+        <span
+          data-urgencia={situacao.urgencia ?? undefined}
+          className="inline-block rounded-full bg-soft px-[9px] py-0.5 text-[11px] font-semibold text-mut"
+        >
           {situacao.chip}
         </span>
       ) : (
-        <Chip cor={situacao.cor}>{situacao.chip}</Chip>
+        <Chip cor={situacao.cor} data-urgencia={situacao.urgencia ?? undefined}>
+          {situacao.chip}
+        </Chip>
       )}
       {situacao.valorCentavos !== null ? (
         <span className="mono ml-1.5 text-[11.5px] text-mut">

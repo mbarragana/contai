@@ -973,5 +973,80 @@ test.describe("CONTAI-072 — a nota com agendamento aberto na tabela", () => {
     await expect(
       tabela.getByRole("link", { name: "Abrir →" }),
     ).toHaveAttribute("href", `/documento/${documentoId}`);
+    // CONTAI-075 — anotação que não fala de agendamento não afirma urgência.
+    await expect(tabela.locator("[data-urgencia]")).toHaveCount(0);
+  });
+
+  /**
+   * **CONTAI-075 — `/despesas` herda os estados novos de graça.**
+   *
+   * ⚠️ É o pre-mortem do CONTAI-072 outra vez, agora para este ticket: *"a
+   * distinção foi implementada só na Home e `/despesas` ficou com o texto
+   * antigo"*. A defesa continua sendo uma função pura só
+   * (`agendamentosPorDocumento`) — a tabela não sabe que dia é hoje.
+   */
+  test("CONTAI-075 — 'Vence hoje' na tabela, e a linha continua NEUTRA", async ({
+    page,
+    db,
+  }) => {
+    const { wk, documentoId } = await notaHabilSemPagamento(db);
+    const compromissoId = await criarCompromisso(db, {
+      favorecido_id: wk,
+      valor_previsto: 3000,
+      data_prevista: hoje(),
+      origem: "cartao",
+      data_compra: maisDias(-30),
+      documento_origem_id: documentoId,
+    });
+
+    await page.goto("/despesas");
+    const tabela = page.locator(TABELA);
+    await expect(tabela).toBeVisible();
+
+    // ⚠️ A linha NÃO sai da tabela nem da contagem por ter agendamento.
+    await expect(page.locator(LINHAS)).toHaveCount(1);
+    await expect(page.locator('[data-contagem="despesas"]')).toHaveText(
+      `1 lançamento em ${ANO}`,
+    );
+
+    await expect(tabela.locator("[data-urgencia='vence_hoje']")).toHaveText(
+      "Vence hoje",
+    );
+    // ⚠️ **Nem âmbar nem vermelho** (critério 13/14): o terceiro estado continua
+    // neutro, porque nada saiu da conta e nada há a cobrar. O que `/despesas`
+    // ganha deste ticket é o TEXTO — decisão de cor e peso não muda aqui.
+    await expect(page.getByText(EXPLICACAO_NOTAS_SEM_PAGAMENTO)).toBeVisible();
+    await expect(page.getByText(VENCIDO_SEM_RESPOSTA)).toHaveCount(0);
+    await expect(
+      tabela.getByRole("link", { name: "Abrir →" }),
+    ).toHaveAttribute("href", `/compromisso/${compromissoId}`);
+
+    // Continua isolável como terceiro estado, e continua fora da pendência.
+    await page.getByLabel("Situação").selectOption("sem_pagamento");
+    await expect(page.locator(LINHAS)).toHaveCount(1);
+    await page.getByLabel("Situação").selectOption("pendencia");
+    await expect(page.locator(LINHAS)).toHaveCount(0);
+  });
+
+  test("CONTAI-075 — 'Vence amanhã' na tabela, e depois de amanhã volta a 'Agendado'", async ({
+    page,
+    db,
+  }) => {
+    const { wk, documentoId } = await notaHabilSemPagamento(db);
+    await criarCompromisso(db, {
+      favorecido_id: wk,
+      valor_previsto: 3000,
+      data_prevista: maisDias(1),
+      origem: "cartao",
+      data_compra: maisDias(-30),
+      documento_origem_id: documentoId,
+    });
+
+    await page.goto("/despesas");
+    const tabela = page.locator(TABELA);
+    await expect(tabela.locator("[data-urgencia='vence_amanha']")).toHaveText(
+      "Vence amanhã",
+    );
+    await expect(tabela.getByText("Agendado", { exact: true })).toHaveCount(0);
   });
 });

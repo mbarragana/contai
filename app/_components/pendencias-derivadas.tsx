@@ -198,7 +198,7 @@ export function CardAguardandoInforme({
 }) {
   return (
     <Card>
-      <Chip cor={COR_AGUARDANDO_INFORME} vazado>
+      <Chip cor={COR_AGUARDANDO_INFORME} peso="vazado">
         {comAnoNoChip ? `Aguardando informe de ${f.ano}` : "Aguardando informe"}
       </Chip>
       <Consequencia cor={COR_AGUARDANDO_INFORME}>{f.aviso}</Consequencia>

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-import { BlocoAgendados } from "@/app/_components/agendado";
+import { BlocoAgendados, pesoDoChip } from "@/app/_components/agendado";
 import { ItemDaFila, NadaAberto } from "@/app/_components/fila-pendencias";
 import { useGestao } from "@/app/_components/gestao";
 import {
@@ -237,10 +237,18 @@ export default function VisaoGeral() {
                 const agendado = agendamentos.get(n.documentoId);
                 return (
                   <div key={n.id} className="border-t border-line pt-3">
-                    {/* Vazado SÓ no agendado dentro do prazo: sem agendamento
-                        o chip continua preenchido, como sempre foi, e o vencido
-                        volta a preenchido para ganhar peso. */}
-                    <Chip cor="amb" vazado={agendado?.forte === false}>
+                    {/* **CONTAI-075** — o peso vem do MESMO `pesoDoChip` que
+                        `MarcasAgendado` usa na Agenda, a partir da MESMA
+                        `urgencia`: nenhuma tela recalcula "é hoje/é amanhã"
+                        (critério 5). Sem agendamento nenhum o chip continua
+                        preenchido, como sempre foi — e sem `data-urgencia`, que
+                        seria afirmar urgência sobre um agendamento que não
+                        existe. */}
+                    <Chip
+                      cor="amb"
+                      peso={agendado ? pesoDoChip[agendado.urgencia] : "preenchido"}
+                      data-urgencia={agendado?.urgencia}
+                    >
                       {agendado?.chip ?? "Sem pagamento ligado"}
                     </Chip>
                     <div className="mt-1.5 text-[13.5px] font-semibold">

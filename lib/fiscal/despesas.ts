@@ -87,7 +87,10 @@ import {
 // do CONTAI-041). Foi por isso que `VENCIDO_SEM_RESPOSTA` mudou de casa no
 // CONTAI-072: o texto tinha de sair de `app/_components/` para caber num módulo
 // puro, mesmo chegando aqui pela marca.
-import { agendamentosPorDocumento } from "./compromisso";
+import {
+  agendamentosPorDocumento,
+  type UrgenciaDoAgendamento,
+} from "./compromisso";
 import { anoCalendario, rotulosPagoSemNota } from "./pagamento";
 import {
   CHIP_QUITADO_POR_RETENCAO,
@@ -173,6 +176,23 @@ export interface SituacaoDaLinha {
   pendenciaId: string | null;
   chip: string;
   cor: CorDaSituacao;
+  /**
+   * **CONTAI-075** — a urgência do agendamento desta anotação, quando ela é a
+   * do terceiro estado com compromisso aberto. `null` em toda anotação que não
+   * fala de agendamento (pendência, nota sem arquivo, linha verde, retenção).
+   *
+   * ⚠️ **É gancho de LEITURA, não de estilo**: a tabela só o expõe como
+   * `data-urgencia` no chip (critério 12), e continua pintando a célula por
+   * `cor`. Nenhuma decisão de peso ou de matiz de `/despesas` passa a depender
+   * dele — o que `/despesas` ganha do CONTAI-075 é o TEXTO novo, que chega de
+   * graça por `chip`.
+   *
+   * ⚠️ **Obrigatório, e não opcional**, pela mesma razão de
+   * `EntradaLinhasDeDespesa.compromissos`: opcional faria o campo sumir em
+   * silêncio no primeiro `push` novo que esquecesse dele, e o E2E passaria a
+   * procurar um atributo que ninguém mais escreve.
+   */
+  urgencia: UrgenciaDoAgendamento | null;
   /**
    * O texto INTEGRAL da consequência — nunca truncado, nunca atrás de clique
    * (critério 6). `null` só na linha comprovada, que é compacta por decisão de
@@ -519,6 +539,7 @@ export function linhasDeDespesa(
       pendenciaId: null,
       chip: CHIP_CUSTO_COMPROVADO,
       cor: "grn",
+      urgencia: null,
       // Compacta: não há consequência fiscal a dizer sobre custo que se
       // sustenta (critério 6).
       consequencia: null,
@@ -555,6 +576,7 @@ export function linhasDeDespesa(
         id: `${linha.id}:retencao:${r.linha.id}`,
         pendenciaId: null,
         chip: CHIP_QUITADO_POR_RETENCAO,
+        urgencia: null,
         // VERDE: é custo que se sustenta, não pendência. O critério 4 do
         // CONTAI-056 pede texto e cor PRÓPRIOS justamente para esta fatia
         // deixar de ser lida como "nota ainda não paga".
@@ -571,6 +593,7 @@ export function linhasDeDespesa(
         pendenciaId: null,
         chip: CHIP_RETENCAO_SOBRECOBERTA,
         cor: "red",
+        urgencia: null,
         consequencia: RETENCAO_SOBRECOBERTA,
         nota: null,
         valorCentavos: r.naoAbsorvidoCentavos,
@@ -595,6 +618,7 @@ export function linhasDeDespesa(
           pendenciaId: pendencia.id,
           chip: pendencia.chip,
           cor: pendencia.gravidade,
+          urgencia: null,
           consequencia: pendencia.consequencia,
           nota: null,
           valorCentavos:
@@ -619,6 +643,7 @@ export function linhasDeDespesa(
         pendenciaId: pendencia.id,
         chip: pendencia.chip,
         cor: pendencia.gravidade,
+        urgencia: null,
         consequencia: pendencia.consequencia,
         // A segunda frase do boleto (`BOLETO_FORA_DO_TOTAL`): sem ela a saída
         // do boleto do total vira encolhimento silencioso.
@@ -648,6 +673,7 @@ export function linhasDeDespesa(
         pendenciaId: null,
         chip: CHIP_NOTA_SEM_ARQUIVO,
         cor: COR_NOTA_SEM_ARQUIVO,
+        urgencia: null,
         consequencia: `${NOTA_SEM_ARQUIVO_EFEITO} ${NOTA_SEM_ARQUIVO_ALAVANCA}`,
         nota: null,
         valorCentavos: null,
@@ -677,6 +703,14 @@ export function linhasDeDespesa(
         pendenciaId: null,
         // Sem agendamento aberto, é a aparência de sempre (critério 2).
         chip: agendado?.chip ?? CHIP_SEM_PAGAMENTO,
+        /**
+         * **CONTAI-075** — a urgência vem PRONTA da marca, e este é o único
+         * `push` do arquivo que a carrega. Nada é recalculado: `/despesas` não
+         * sabe e não pergunta que dia é hoje (critério 5), e o texto novo
+         * ("Vence hoje"/"Vence amanhã") chega pelo `chip` acima, da mesma
+         * fonte.
+         */
+        urgencia: agendado?.urgencia ?? null,
         // ⚠️ **Âmbar SÓ no vencido sem resposta** (critério 4): esse estado já
         // trava a geração de qualquer relatório anual
         // (`compromissosQueBloqueiam`), e o neutro o faria ler como "está tudo

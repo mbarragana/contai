@@ -898,17 +898,17 @@ describe("preposição de tempo — a 4ª marca (critério 8)", () => {
 });
 
 describe("chip — o eixo do critério 8b", () => {
-  it("aberto: 'Agendado', vazado", () => {
+  it("aberto e longe: 'Agendado', urgência comum", () => {
     expect(chipDoAgendado(comp({ id: "c1", dataPrevista: "2026-09-15" }), HOJE)).toEqual({
       texto: "Agendado",
-      forte: false,
+      urgencia: "comum",
     });
   });
 
-  it("vencido: nomeia o vencimento E o silêncio, preenchido", () => {
+  it("vencido: nomeia o vencimento E o silêncio", () => {
     expect(chipDoAgendado(comp({ id: "c1", dataPrevista: "2026-08-10" }), HOJE)).toEqual({
       texto: "Venceu em 10/08/2026 · 8 dias sem resposta",
-      forte: true,
+      urgencia: "vencido",
     });
   });
 
@@ -916,6 +916,129 @@ describe("chip — o eixo do critério 8b", () => {
     expect(
       chipDoAgendado(comp({ id: "c1", dataPrevista: "2026-08-17" }), HOJE).texto,
     ).toContain("1 dia sem resposta");
+  });
+});
+
+// ══ CONTAI-075 — o destaque ANTES de vencer ══════════════════════════════
+//
+// A dor: *"hoje o app só reage a agendamento DEPOIS que ele vence"*. O que
+// estes testes trancam são as FRONTEIRAS — é onde um `<=` trocado por `<`, ou
+// um `diasEntre` com os argumentos invertidos, produz o defeito mais caro
+// possível: apagar da tela o único estado que trava relatório anual.
+
+describe("CONTAI-075 — urgência do agendamento nas quatro fronteiras", () => {
+  /** `HOJE` é 2026-08-18. Vizinhos imediatos, um por estado. */
+  const ONTEM = "2026-08-17";
+  const AMANHA = "2026-08-19";
+  const DEPOIS_DE_AMANHA = "2026-08-20";
+
+  it("hoje − 1 → vencido, e o texto do vencimento continua intacto", () => {
+    // ⚠️ A fronteira que mais importa: o vencido é checado ANTES (critério 11).
+    expect(chipDoAgendado(comp({ id: "c1", dataPrevista: ONTEM }), HOJE)).toEqual({
+      texto: "Venceu em 17/08/2026 · 1 dia sem resposta",
+      urgencia: "vencido",
+    });
+  });
+
+  it("hoje → 'Vence hoje', e NÃO é vencido", () => {
+    expect(chipDoAgendado(comp({ id: "c1", dataPrevista: HOJE }), HOJE)).toEqual({
+      texto: "Vence hoje",
+      urgencia: "vence_hoje",
+    });
+    // O gate do bloqueio anual não se mexeu: hoje ainda dá tempo.
+    expect(ehVencidoSemResposta(comp({ id: "c1", dataPrevista: HOJE }), HOJE)).toBe(
+      false,
+    );
+    expect(compromissosQueBloqueiam([comp({ id: "c1", dataPrevista: HOJE })], HOJE)).toHaveLength(
+      0,
+    );
+  });
+
+  it("hoje + 1 → 'Vence amanhã'", () => {
+    expect(chipDoAgendado(comp({ id: "c1", dataPrevista: AMANHA }), HOJE)).toEqual({
+      texto: "Vence amanhã",
+      urgencia: "vence_amanha",
+    });
+  });
+
+  it("hoje + 2 → 'Agendado', igualzinho ao de 30 dias (critério 3)", () => {
+    // A janela fecha em dois graus. O terceiro dia é o comportamento de sempre,
+    // e é o que prova que não há regressão fora da janela.
+    expect(chipDoAgendado(comp({ id: "c1", dataPrevista: DEPOIS_DE_AMANHA }), HOJE)).toEqual({
+      texto: "Agendado",
+      urgencia: "comum",
+    });
+    expect(chipDoAgendado(comp({ id: "c1", dataPrevista: "2026-09-17" }), HOJE)).toEqual({
+      texto: "Agendado",
+      urgencia: "comum",
+    });
+  });
+
+  it("a virada de mês e de ano não muda nada — a conta é de DIAS, não de string", () => {
+    // `dataPrevista > hojeIso` lexicograficamente não diz "é amanhã": 01/09 é
+    // MENOR que 31/08 em nenhuma ordem útil, e é aqui que uma comparação de
+    // texto no lugar de `diasEntre` quebraria.
+    expect(chipDoAgendado(comp({ id: "c1", dataPrevista: "2026-09-01" }), "2026-08-31").urgencia).toBe(
+      "vence_amanha",
+    );
+    expect(chipDoAgendado(comp({ id: "c1", dataPrevista: "2027-01-01" }), "2026-12-31").urgencia).toBe(
+      "vence_amanha",
+    );
+    expect(chipDoAgendado(comp({ id: "c1", dataPrevista: "2026-12-31" }), "2026-12-31").urgencia).toBe(
+      "vence_hoje",
+    );
+  });
+
+  it("sem data prevista continua 'Agendado' — incerteza declarada não é urgência", () => {
+    expect(chipDoAgendado(comp({ id: "c1", dataPrevista: null }), HOJE)).toEqual({
+      texto: "Agendado",
+      urgencia: "comum",
+    });
+  });
+
+  it("⚠️ quitado/cancelado com data de HOJE não diz 'Vence hoje'", () => {
+    // `/compromisso/[id]` renderiza as mesmas marcas para compromisso já
+    // respondido. Dizer "Vence hoje" sobre dinheiro que já saiu seria o erro
+    // caro que o CONTAI-019 nomeia: o Mateus pagar o mesmo PIX duas vezes.
+    expect(
+      chipDoAgendado(comp({ id: "q", dataPrevista: HOJE, situacao: "quitado" }), HOJE)
+        .urgencia,
+    ).toBe("comum");
+    expect(
+      chipDoAgendado(
+        comp({
+          id: "x",
+          dataPrevista: HOJE,
+          situacao: "cancelado",
+          motivoCancelamento: "não vai ser pago",
+        }),
+        HOJE,
+      ).urgencia,
+    ).toBe("comum");
+  });
+
+  it("⚠️ nenhum estado novo promete consequência (critério 13 / Gate Fiscal)", () => {
+    // O texto dos dois estados novos é verbo + quando, e nada mais: quem fala
+    // de bloqueio de relatório anual é `VENCIDO_SEM_RESPOSTA`, e só ele.
+    for (const data of [HOJE, AMANHA]) {
+      const texto = chipDoAgendado(comp({ id: "c1", dataPrevista: data }), HOJE).texto;
+      expect(texto.toLowerCase()).not.toContain("relatório");
+      expect(texto.toLowerCase()).not.toContain("pendência");
+      expect(texto.toLowerCase()).not.toContain("risco");
+      expect(texto).not.toBe(VENCIDO_SEM_RESPOSTA);
+    }
+  });
+
+  it("os quatro estados da união são alcançáveis, e são exatamente quatro", () => {
+    const alcancados = [ONTEM, HOJE, AMANHA, DEPOIS_DE_AMANHA].map(
+      (d) => chipDoAgendado(comp({ id: "c1", dataPrevista: d }), HOJE).urgencia,
+    );
+    expect(alcancados).toEqual([
+      "vencido",
+      "vence_hoje",
+      "vence_amanha",
+      "comum",
+    ]);
   });
 });
 
@@ -1018,8 +1141,8 @@ describe("agendamentosPorDocumento (CONTAI-072, critérios 3 a 6)", () => {
 
     expect(marca.compromissoId).toBe("c1");
     expect(marca.chip).toBe("Agendado");
-    // Peso, nunca matiz: vazado é o de baixa urgência.
-    expect(marca.forte).toBe(false);
+    // Peso, nunca matiz: `comum` é o de baixa urgência.
+    expect(marca.urgencia).toBe("comum");
     expect(marca.vencidoSemResposta).toBe(false);
     expect(marca.resumo).toBe(resumoDoAgendamento(c));
     // Dentro do prazo não acrescenta consequência: a tela continua dizendo o
@@ -1040,7 +1163,7 @@ describe("agendamentosPorDocumento (CONTAI-072, critérios 3 a 6)", () => {
     // nova entrou neste ticket.
     expect(marca.chip).toBe(chipDoAgendado(c, HOJE).texto);
     expect(marca.chip).toBe("Venceu em 10/08/2026 · 8 dias sem resposta");
-    expect(marca.forte).toBe(true);
+    expect(marca.urgencia).toBe("vencido");
     expect(marca.vencidoSemResposta).toBe(true);
     // O texto NÃO suaviza: este estado já trava a geração de qualquer relatório
     // anual (`compromissosQueBloqueiam`), e quem diz isso é a constante.
@@ -1155,6 +1278,147 @@ describe("agendamentosPorDocumento (CONTAI-072, critérios 3 a 6)", () => {
       expect(mapa.get("doc-1")!.vencidoSemResposta).toBe(true);
       expect(mapa.get("doc-2")!.vencidoSemResposta).toBe(false);
       expect(mapa.size).toBe(2);
+    });
+  });
+
+  /**
+   * **CONTAI-075 — a marca da nota carrega a MESMA urgência**, e o invariante do
+   * critério 9 vale nos quatro estados.
+   */
+  describe("CONTAI-075 — a urgência do lado da nota", () => {
+    const marcaEm = (dataPrevista: string | null) =>
+      agendamentosPorDocumento(
+        [comp({ id: "c1", documentoOrigemId: "doc-1", dataPrevista })],
+        HOJE,
+      ).get("doc-1")!;
+
+    it("os quatro estados chegam à nota, com o texto de cada um", () => {
+      expect(marcaEm("2026-08-18")).toMatchObject({
+        chip: "Vence hoje",
+        urgencia: "vence_hoje",
+      });
+      expect(marcaEm("2026-08-19")).toMatchObject({
+        chip: "Vence amanhã",
+        urgencia: "vence_amanha",
+      });
+      expect(marcaEm("2026-08-20")).toMatchObject({
+        chip: "Agendado",
+        urgencia: "comum",
+      });
+      expect(marcaEm("2026-08-17")).toMatchObject({ urgencia: "vencido" });
+    });
+
+    it("⚠️ INVARIANTE do critério 9: `vencidoSemResposta === (urgencia === 'vencido')`", () => {
+      // Os dois campos convivem de propósito — um é o gate do bloqueio anual, o
+      // outro é hierarquia visual. Divergirem seria o pior dos mundos: uma tela
+      // destacando urgência que o bloqueio não reconhece, ou o contrário.
+      for (const data of ["2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", null]) {
+        const marca = marcaEm(data);
+        expect(
+          marca.vencidoSemResposta,
+          `data prevista ${data ?? "null"}`,
+        ).toBe(marca.urgencia === "vencido");
+      }
+    });
+
+    it("⚠️ só o vencido ganha consequência extra — hoje e amanhã não (critério 13)", () => {
+      expect(marcaEm("2026-08-18").consequenciaExtra).toBeNull();
+      expect(marcaEm("2026-08-19").consequenciaExtra).toBeNull();
+      expect(marcaEm("2026-08-17").consequenciaExtra).toBe(VENCIDO_SEM_RESPOSTA);
+    });
+
+    /**
+     * **Critério 4 — a ELEIÇÃO entre os três estados**, que sai de graça da
+     * ordenação por data crescente entre não-vencidos e é por isso que
+     * `porPrioridadeDoAgendamento` não mudou neste ticket. O teste existe para o
+     * "de graça" não deixar de valer em silêncio num refactor.
+     */
+    describe("eleição: vencido > vence hoje > vence amanhã > demais", () => {
+      const nota = (id: string, dataPrevista: string) =>
+        comp({ id, documentoOrigemId: "doc-1", dataPrevista });
+
+      const eleitoEntre = (...cs: ReturnType<typeof nota>[]) =>
+        agendamentosPorDocumento(cs, HOJE).get("doc-1")!;
+
+      it("vencido ganha de quem vence hoje", () => {
+        const eleito = eleitoEntre(
+          nota("hoje", "2026-08-18"),
+          nota("vencido", "2026-08-10"),
+        );
+        expect(eleito.compromissoId).toBe("vencido");
+        expect(eleito.urgencia).toBe("vencido");
+      });
+
+      it("quem vence hoje ganha de quem vence amanhã", () => {
+        const eleito = eleitoEntre(
+          nota("amanha", "2026-08-19"),
+          nota("hoje", "2026-08-18"),
+        );
+        expect(eleito.compromissoId).toBe("hoje");
+        expect(eleito.urgencia).toBe("vence_hoje");
+      });
+
+      it("quem vence amanhã ganha do que está longe", () => {
+        const eleito = eleitoEntre(
+          nota("longe", "2026-09-30"),
+          nota("amanha", "2026-08-19"),
+        );
+        expect(eleito.compromissoId).toBe("amanha");
+        expect(eleito.urgencia).toBe("vence_amanha");
+      });
+
+      it("os quatro juntos, em qualquer ordem de entrada, elegem o vencido", () => {
+        const cs = [
+          nota("longe", "2026-09-30"),
+          nota("amanha", "2026-08-19"),
+          nota("hoje", "2026-08-18"),
+          nota("vencido", "2026-08-10"),
+        ];
+        expect(eleitoEntre(...cs).compromissoId).toBe("vencido");
+        expect(eleitoEntre(...[...cs].reverse()).compromissoId).toBe("vencido");
+      });
+
+      it("sem nenhum vencido, os três restantes saem na ordem hoje < amanhã < longe", () => {
+        // A ordenação de `montarAgendaDaHome` é a MESMA `porDataPrevista`, e é
+        // dela que o critério 4 sai sem código novo.
+        const agenda = montarAgendaDaHome(
+          [
+            comp({ id: "longe", dataPrevista: "2026-09-30" }),
+            comp({ id: "amanha", dataPrevista: "2026-08-19" }),
+            comp({ id: "hoje", dataPrevista: "2026-08-18" }),
+          ],
+          HOJE,
+        );
+        expect(agenda.vencidos).toHaveLength(0);
+        expect(agenda.abertos.map((c) => c.id)).toEqual([
+          "hoje",
+          "amanha",
+          "longe",
+        ]);
+        expect(agenda.abertos.map((c) => chipDoAgendado(c, HOJE).urgencia)).toEqual([
+          "vence_hoje",
+          "vence_amanha",
+          "comum",
+        ]);
+      });
+
+      it("com vencido, ele vem no bloco de vencidos e os outros três atrás", () => {
+        const agenda = montarAgendaDaHome(
+          [
+            comp({ id: "longe", dataPrevista: "2026-09-30" }),
+            comp({ id: "vencido", dataPrevista: "2026-08-10" }),
+            comp({ id: "amanha", dataPrevista: "2026-08-19" }),
+            comp({ id: "hoje", dataPrevista: "2026-08-18" }),
+          ],
+          HOJE,
+        );
+        expect(agenda.vencidos.map((c) => c.id)).toEqual(["vencido"]);
+        expect(agenda.abertos.map((c) => c.id)).toEqual([
+          "hoje",
+          "amanha",
+          "longe",
+        ]);
+      });
     });
   });
 

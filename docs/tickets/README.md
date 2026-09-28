@@ -2,6 +2,37 @@
 
 ## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
 
+**2026-09-28, mais tarde ainda ainda ainda ainda ainda**: **`075` entregue** —
+Gate 4 (`po`), 14/14 critérios PASS. `Chip.vazado: boolean` e
+`AgendamentoDoDocumento.forte: boolean` somem, viram `peso: "vazado" |
+"vazado-forte" | "preenchido"` e `UrgenciaDoAgendamento` (4 valores),
+mapeados por `Record` exaustivo (`grep` confirma zero boolean sobrevivente).
+Vence hoje/vence amanhã compartilham 1 peso visual só, diferença é textual —
+decisão do `designer` para não abrir dois níveis quase indistinguíveis, com
+o Gate Fiscal confirmando que nenhum dos dois soa mais grave que o vencido.
+Guarda `situacao === "aberto"` impede compromisso já quitado dizer "Vence
+hoje" (achado do próprio lead-engineer, ratificado no Gate 2). Gate 2
+(`cto-obra`+`contador`) APPROVE de primeira, 2 ajustes não-bloqueantes no
+mesmo commit. Sem migration. 1236 unit + 400 E2E verdes. Detalhe:
+`docs/tickets/CONTAI-075.md`.
+
+**2026-09-28, mais tarde ainda ainda ainda ainda**: **`CONTAI-075` criado** —
+Mateus perguntou se compromissos/agendamentos notificam ou se destacam perto
+do vencimento; achado de código: `chipDoAgendado` só reage DEPOIS de vencer, e
+não existe notificação ativa nenhuma (push/e-mail/Google Calendar, item de
+stack nunca implementado). Mateus escolheu destaque progressivo dentro do
+próprio app e autorizou o time a decidir sozinho — as 3 perguntas do relato
+(`docs/backlog/92-...md`) foram resolvidas na própria rodada do
+`/tickets-req`: 2 graus textuais fixos (hoje/amanhã, sem "vence em N dias"
+configurável), aplicado a toda tela que já exibe o chip (Home, `/compromisso`,
+`/despesas`), 1 peso visual intermediário só — texto é o canal primário,
+não dois pesos indistinguíveis. `contador`: sem impacto fiscal, condição de
+hierarquia (peso sempre estritamente menor que o vencido). `cto-obra`:
+`forte`/`vazado` booleanos somem, viram união `UrgenciaDoAgendamento` (4
+valores) + `Record` exaustivo, sem migration. `designer`: nível 2,
+`design/mocks/CONTAI-075.md`. Cenário gestão, complexidade S. **Pronto para
+`/develop`.** Detalhe: `docs/tickets/CONTAI-075.md`.
+
 **2026-09-28, mais tarde ainda ainda ainda**: **`074` entregue** — Gate 4
 (`po`), critérios todos PASS. `Candidato<T, Outro>` unificado com
 `jaLigadoA`/`cobertoPorInteiro`; `pagamentosCandidatos`/`documentosCandidatos`

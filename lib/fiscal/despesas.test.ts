@@ -1776,6 +1776,7 @@ describe("CONTAI-072 — agendamento aberto na linha do terceiro estado", () => 
     expect(situacao.chip).toBe("Agendado");
     // Não é urgente: há plano, e nada saiu da conta.
     expect(situacao.cor).toBe("neutra");
+    expect(situacao.urgencia).toBe("comum");
     expect(situacao.consequencia).toBe(EXPLICACAO_NOTAS_SEM_PAGAMENTO);
     expect(situacao.nota).toBe(resumoDoAgendamento(noPrazo));
     expect(linha.href).toBe("/compromisso/c1");
@@ -1800,6 +1801,55 @@ describe("CONTAI-072 — agendamento aberto na linha do terceiro estado", () => 
     // ⚠️ Âmbar na anotação não promove a linha a pendência: `temPendencia` é o
     // que a fila e o filtro leem, e compromisso não entra lá (parecer §2).
     expect(linha.temPendencia).toBe(false);
+  });
+
+  /**
+   * **CONTAI-075 — o texto novo chega a `/despesas` de graça**, pela MESMA
+   * `agendamentosPorDocumento`. É a metade deste ticket que é ausência de
+   * código: nada aqui recalcula "é hoje/é amanhã" (critério 5), e a projeção só
+   * repassa o que a marca já trouxe.
+   */
+  describe("CONTAI-075 — vence hoje / vence amanhã na linha da tabela", () => {
+    const situacaoDe = (dataPrevista: string) =>
+      linhaDe(
+        projetar([doc({ id: "d1" })], [], {}, [comp({ id: "c1", dataPrevista })])
+          .linhas,
+        "documento:d1",
+      ).situacoes[0];
+
+    it("vence hoje: texto novo, e o pill continua NEUTRO", () => {
+      const situacao = situacaoDe(HOJE_AQUI);
+      expect(situacao.chip).toBe("Vence hoje");
+      expect(situacao.urgencia).toBe("vence_hoje");
+      // ⚠️ Nada saiu da conta: nem âmbar nem vermelho, e nenhuma consequência
+      // nova — a da nota sem pagamento é a de sempre (critério 13).
+      expect(situacao.cor).toBe("neutra");
+      expect(situacao.consequencia).toBe(EXPLICACAO_NOTAS_SEM_PAGAMENTO);
+    });
+
+    it("vence amanhã: mesmo tratamento, texto próprio", () => {
+      const situacao = situacaoDe(`${ANO}-06-16`);
+      expect(situacao.chip).toBe("Vence amanhã");
+      expect(situacao.urgencia).toBe("vence_amanha");
+      expect(situacao.cor).toBe("neutra");
+    });
+
+    it("depois de amanhã volta a 'Agendado' — a janela é de dois graus", () => {
+      const situacao = situacaoDe(`${ANO}-06-17`);
+      expect(situacao.chip).toBe("Agendado");
+      expect(situacao.urgencia).toBe("comum");
+    });
+
+    it("⚠️ anotação que não fala de agendamento tem `urgencia: null`", () => {
+      // Nota sem compromisso nenhum: o terceiro estado de sempre. Um `"comum"`
+      // aqui afirmaria urgência sobre um agendamento que não existe.
+      const situacao = linhaDe(
+        projetar([doc({ id: "d1" })], []).linhas,
+        "documento:d1",
+      ).situacoes[0];
+      expect(situacao.chip).toBe(CHIP_SEM_PAGAMENTO);
+      expect(situacao.urgencia).toBeNull();
+    });
   });
 
   it("quitado e cancelado deixam a linha exatamente como era (critério 5)", () => {

@@ -421,32 +421,83 @@ export function diasSemResposta(c: Compromisso, hojeIso: string): number {
 }
 
 /**
+ * A URGÊNCIA de um agendamento — CONTAI-075, critério 6.
+ *
+ * ⚠️ **Substituiu o `forte: boolean`, e não convive com ele.** O booleano tinha
+ * dois valores para o que hoje são quatro estados, e o app só reagia DEPOIS do
+ * vencimento: um pagamento que vence amanhã era pintado igual a um que vence em
+ * 30 dias. Trocar o tipo (em vez de acrescentar um campo ao lado) é o que faz o
+ * TypeScript recusar um consumidor que tenha ficado para trás — a mitigação do
+ * pre-mortem 1 do ticket.
+ *
+ * ⚠️ **Isto NÃO é escala de gravidade fiscal**, e o Gate Fiscal do CONTAI-075 é
+ * explícito: `vence_hoje`/`vence_amanha` existem só para `dataPrevista` hoje ou
+ * no futuro, nada saiu da conta e **nenhum dos dois promete consequência
+ * nenhuma**. O bloqueio de relatório anual continua sendo exclusivo do
+ * `"vencido"`, decidido por `ehVencidoSemResposta` e por mais ninguém.
+ *
+ * ⚠️ **Nenhum valor daqui carrega cor ou classe de CSS.** O mapa
+ * urgência→peso visual mora na camada de UI (`pesoDoChip`, em
+ * `app/_components/agendado.tsx`): lib fiscal não decide borda.
+ */
+export type UrgenciaDoAgendamento =
+  | "comum"
+  | "vence_amanha"
+  | "vence_hoje"
+  | "vencido";
+
+/**
  * O CHIP — a segunda das quatro marcas, e o eixo do critério 8b.
  *
  * ⚠️ **Vencido NÃO se distingue de aberto pela borda** (decisão 2 do
  * fechamento de 18/08): a tracejada fica nos DOIS. Distinguem três outras
  * coisas ao mesmo tempo, e esta função entrega duas delas:
- * 1. `forte` — chip âmbar **preenchido** contra âmbar **vazado**;
+ * 1. `urgencia` — o peso do chip, do âmbar vazado ao âmbar **preenchido**;
  * 2. o texto **nomeia o vencimento e o silêncio**, contra um "Agendado" mudo.
  * A terceira é estrutural e mora na tela: as três respostas existem DENTRO do
  * cartão do vencido e **não existem** no aberto.
  *
  * "Precisando de mais peso, engrossa-se a tracejada, nunca se troca o estilo."
+ *
+ * ⚠️ **A ORDEM DE CHECAGEM É REQUISITO** (CONTAI-075, critério 11): o vencido
+ * vem PRIMEIRO. Hoje `ehVencidoSemResposta` usa `<` estrito, então um
+ * `dataPrevista === hojeIso` jamais é vencido e os dois ramos não se cruzam —
+ * mas essa garantia é de OUTRA função, e um refactor lá dentro (um `<=` por
+ * descuido) faria o "Vence hoje" roubar a vez do vencido, apagando da tela o
+ * único estado que trava relatório anual. Perguntar pelo vencido antes torna a
+ * inversão impossível daqui.
+ *
+ * ⚠️ **`situacao === "aberto"` guarda os dois estados novos**, e não é
+ * redundância: `/compromisso/[id]` renderiza estas marcas para compromisso
+ * QUITADO e CANCELADO também, e um quitado cuja data prevista caía hoje diria
+ * "Vence hoje" sobre dinheiro que já saiu. `ehVencidoSemResposta` filtra
+ * situação por dentro; aqui a filtragem tem de ser explícita.
  */
 export function chipDoAgendado(
   c: Compromisso,
   hojeIso: string,
-): { texto: string; forte: boolean } {
-  if (!ehVencidoSemResposta(c, hojeIso)) {
-    return { texto: "Agendado", forte: false };
+): { texto: string; urgencia: UrgenciaDoAgendamento } {
+  // ── 1 · VENCIDO, antes de qualquer coisa (critério 11) ─────────────────
+  if (ehVencidoSemResposta(c, hojeIso)) {
+    const dias = diasSemResposta(c, hojeIso);
+    return {
+      texto:
+        `Venceu em ${dataBR(c.dataPrevista!)} · ` +
+        `${dias} ${dias === 1 ? "dia" : "dias"} sem resposta`,
+      urgencia: "vencido",
+    };
   }
-  const dias = diasSemResposta(c, hojeIso);
-  return {
-    texto:
-      `Venceu em ${dataBR(c.dataPrevista!)} · ` +
-      `${dias} ${dias === 1 ? "dia" : "dias"} sem resposta`,
-    forte: true,
-  };
+  // ── 2 · A janela de dois dias, do MESMO `hojeIso` (critério 10) ────────
+  // Nenhuma segunda derivação de data aqui dentro: um `new Date()` próprio
+  // divergiria do gate do vencido por fuso, e os dois estados passariam a
+  // discordar sobre que dia é hoje.
+  if (c.situacao === "aberto" && c.dataPrevista !== null) {
+    const faltam = diasEntre(hojeIso, c.dataPrevista);
+    if (faltam === 0) return { texto: "Vence hoje", urgencia: "vence_hoje" };
+    if (faltam === 1) return { texto: "Vence amanhã", urgencia: "vence_amanha" };
+  }
+  // ── 3 · Tudo o mais, inclusive `dataPrevista === null` ─────────────────
+  return { texto: "Agendado", urgencia: "comum" };
 }
 
 /**
@@ -572,13 +623,22 @@ export interface AgendamentoDoDocumento {
   /** `chipDoAgendado().texto` — reaproveitado, nunca redigido de novo. */
   chip: string;
   /**
-   * `chipDoAgendado().forte` — chip âmbar **preenchido** contra **vazado**.
+   * `chipDoAgendado().urgencia` — CONTAI-075, critério 6: substituiu o
+   * `forte: boolean`, que não sabia dizer "vence hoje".
    *
-   * ⚠️ É por PESO que o vencido escala, nunca por matiz: vermelho no app
-   * significa "o dinheiro saiu e não está no custo", e aqui nada saiu da conta
-   * (critério 4, mesma régua de `app/_components/agendado.tsx`).
+   * ⚠️ É por PESO que o chip escala, nunca por matiz: vermelho no app significa
+   * "o dinheiro saiu e não está no custo", e aqui nada saiu da conta (critério
+   * 4 do CONTAI-072, mesma régua de `app/_components/agendado.tsx`). Quem
+   * traduz urgência em peso é `pesoDoChip`, na UI — este campo é o estado, não
+   * o estilo.
    */
-  forte: boolean;
+  urgencia: UrgenciaDoAgendamento;
+  /**
+   * ⚠️ **Continua existindo separado de `urgencia`, de propósito** (CONTAI-075,
+   * critério 9): ele é o gate do bloqueio de relatório anual, e colapsá-lo num
+   * `urgencia === "vencido"` espalharia comparação de string pelo consumidor.
+   * O invariante `vencidoSemResposta === (urgencia === "vencido")` é testado.
+   */
   vencidoSemResposta: boolean;
   /** `resumoDoAgendamento()` — "{favorecido} — previsto R$X para DD/MM/AAAA". */
   resumo: string;
@@ -627,7 +687,7 @@ function marcaDoAgendamento(
     compromissoId: c.id,
     href: `/compromisso/${c.id}`,
     chip: chip.texto,
-    forte: chip.forte,
+    urgencia: chip.urgencia,
     vencidoSemResposta: vencido,
     resumo: resumoDoAgendamento(c),
     consequenciaExtra: vencido ? VENCIDO_SEM_RESPOSTA : null,

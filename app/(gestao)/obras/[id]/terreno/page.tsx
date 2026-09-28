@@ -362,7 +362,7 @@ export default function PainelDoTerreno() {
                       falta lançar
                     </Chip>
                   ) : (
-                    <Chip cor="amb" vazado>
+                    <Chip cor="amb" peso="vazado">
                       aguardando informe
                     </Chip>
                   )}
@@ -546,7 +546,7 @@ export default function PainelDoTerreno() {
 
         {previstos.length > 0 ? (
           <Card>
-            <Chip cor="amb" vazado>
+            <Chip cor="amb" peso="vazado">
               Previsto — ainda não pago
             </Chip>
             {previstos.map((d) => (

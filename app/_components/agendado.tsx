@@ -31,6 +31,7 @@ import {
   Consequencia,
   Dica,
   Passo,
+  type PesoChip,
 } from "@/app/_components/ui";
 import {
   CABECALHO_BLOCO_AGENDADOS,
@@ -39,6 +40,7 @@ import {
   preposicaoDeTempo,
   VENCIDO_SEM_RESPOSTA,
   type AgendaHome,
+  type UrgenciaDoAgendamento,
 } from "@/lib/fiscal/compromisso";
 import { formatarBRL } from "@/lib/money";
 import type { Compromisso } from "@/lib/types";
@@ -58,6 +60,30 @@ export function ValorPrevisto({ centavos }: { centavos: number }) {
 }
 
 /**
+ * **CONTAI-075 — urgência → peso visual, num `Record` EXAUSTIVO** (critério 7).
+ *
+ * ⚠️ **`Record`, e não uma cadeia de comparações de string**: um valor novo em
+ * `UrgenciaDoAgendamento` sem entrada aqui **não compila**. Com `urgencia ===
+ * "vencido" ? ... : ...` o valor novo cairia silenciosamente no ramo do
+ * `else` — o chip existiria e não destacaria nada, que é justamente o defeito
+ * que este ticket conserta.
+ *
+ * ⚠️ **Este mapa mora na UI, e não em `lib/fiscal/`**: peso de borda não é
+ * regra fiscal, e `chipDoAgendado` devolve ESTADO (`urgencia`), nunca estilo.
+ *
+ * ⚠️ **`vence_hoje` e `vence_amanha` apontam para o MESMO peso**, de propósito
+ * (decisão do `designer`): a régua do `contador` pede peso estritamente menor
+ * que o do vencido, não pede hoje mais grave que amanhã. Dois degraus tão
+ * próximos seriam indistinguíveis — quem separa os dois é o texto do chip.
+ */
+export const pesoDoChip: Record<UrgenciaDoAgendamento, PesoChip> = {
+  comum: "vazado",
+  vence_amanha: "vazado-forte",
+  vence_hoje: "vazado-forte",
+  vencido: "preenchido",
+};
+
+/**
  * As marcas 2, 3 e 4 numa linha só. A marca 1 (borda tracejada) é do
  * contêiner — ver `CartaoVencido` e `LinhaAberta`, que usam `border-dashed`
  * nos DOIS casos.
@@ -72,8 +98,16 @@ export function MarcasAgendado({
   const chip = chipDoAgendado(compromisso, hoje);
   return (
     <>
-      {/* Marca 2 — chip âmbar: PREENCHIDO no vencido, VAZADO no aberto. */}
-      <Chip cor="amb" vazado={!chip.forte}>
+      {/* Marca 2 — chip âmbar, em três pesos (CONTAI-075): VAZADO no que
+          ainda está longe, VAZADO-FORTE no que vence hoje ou amanhã,
+          PREENCHIDO no vencido. `data-urgencia` é o que o E2E seleciona, e
+          fica no chip (não no contêiner): `data-agendado`, no cartão/linha, só
+          distingue aberto de vencido e não mudou. */}
+      <Chip
+        cor="amb"
+        peso={pesoDoChip[chip.urgencia]}
+        data-urgencia={chip.urgencia}
+      >
         {chip.texto}
       </Chip>
       <div className="mt-1.5 font-semibold">

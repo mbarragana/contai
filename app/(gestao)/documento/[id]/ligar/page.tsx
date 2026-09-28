@@ -433,7 +433,7 @@ export default function LigarPagamentos() {
                           quando o dedo toca. */}
                       {c.jaLigadoA.length > 0 ? (
                         <span className="mt-1 flex flex-wrap items-center gap-1.5 text-[11.5px] text-amb">
-                          <Chip cor="amb" vazado>
+                          <Chip cor="amb" peso="vazado">
                             {c.cobertoPorInteiro
                               ? "Coberto por inteiro"
                               : "Vínculo parcial"}

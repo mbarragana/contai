@@ -411,7 +411,7 @@ export default function LigarDocumentos() {
                       ) : null}
                       {c.jaLigadoA.length > 0 ? (
                         <span className="mt-1 flex flex-wrap items-center gap-1.5 text-[11.5px] text-amb">
-                          <Chip cor="amb" vazado>
+                          <Chip cor="amb" peso="vazado">
                             {c.cobertoPorInteiro
                               ? "Coberta por inteiro"
                               : "Vínculo parcial"}

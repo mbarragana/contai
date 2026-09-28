@@ -1352,6 +1352,99 @@ test.describe("CONTAI-072 — nota com compromisso aberto vinculado", () => {
     ).toBeVisible();
     await expect(painel.getByText(VENCIDO_SEM_RESPOSTA)).toHaveCount(0);
   });
+
+  /**
+   * **CONTAI-075 — o painel da nota herda os estados novos da MESMA fonte.**
+   *
+   * ⚠️ O que estes dois testes trancam é o critério 5: o painel não recalcula
+   * "é hoje/é amanhã" — ele lê `agendamentosPorDocumento`, a função que a Agenda
+   * também lê. Duas derivações de "hoje" divergiriam por fuso, e o Mateus veria
+   * a mesma nota urgente num lugar e mansa no outro.
+   */
+  test("CONTAI-075 — nota cujo agendamento vence HOJE: 'Vence hoje', sem cobrança", async ({
+    page,
+    db,
+  }) => {
+    const { wk, documentoId } = await notaSemPagamento(db);
+    const compromissoId = await criarCompromisso(db, {
+      favorecido_id: wk,
+      valor_previsto: 3000,
+      data_prevista: hoje(),
+      origem: "cartao",
+      data_compra: maisDias(-30),
+      documento_origem_id: documentoId,
+    });
+
+    await page.goto("/");
+    const painel = page.locator(PAINEL);
+
+    // ⚠️ PRIMEIRO o número: o Gate Fiscal vale igual nos estados novos — a nota
+    // continua inteira na lista e na soma, porque compromisso não é pagamento.
+    await expect(painel).toContainText("R$ 3.000,00");
+
+    const chip = painel.locator("[data-urgencia='vence_hoje']");
+    await expect(chip).toHaveText("Vence hoje");
+    await expect(painel).toContainText(
+      `WK Construções LTDA — previsto R$ 3.000,00 para ${dataBR(hoje())}`,
+    );
+
+    // ⚠️ Critério 13 — nenhuma consequência nova, nenhuma promessa de bloqueio:
+    // isso é exclusivo do vencido, e nada saiu da conta aqui.
+    await expect(painel.getByText(VENCIDO_SEM_RESPOSTA)).toHaveCount(0);
+    await expect(
+      painel.getByRole("link", { name: "Ver agendamento" }),
+    ).toHaveAttribute("href", `/compromisso/${compromissoId}`);
+    await expect(
+      painel.getByRole("link", { name: "Responder agendamento" }),
+    ).toHaveCount(0);
+
+    // O peso fica ABAIXO do preenchido do vencido: borda de 2px, fundo
+    // transparente (condição de hierarquia do Gate Fiscal).
+    await expect(chip).toHaveCSS("border-top-width", "2px");
+    await expect(chip).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  });
+
+  test("CONTAI-075 — vence AMANHÃ: texto próprio, peso igual ao de hoje", async ({
+    page,
+    db,
+  }) => {
+    const { wk, documentoId } = await notaSemPagamento(db);
+    await criarCompromisso(db, {
+      favorecido_id: wk,
+      valor_previsto: 3000,
+      data_prevista: maisDias(1),
+      origem: "cartao",
+      data_compra: maisDias(-30),
+      documento_origem_id: documentoId,
+    });
+
+    await page.goto("/");
+    const chip = page.locator(PAINEL).locator("[data-urgencia='vence_amanha']");
+    await expect(chip).toHaveText("Vence amanhã");
+    // Um peso intermediário só: quem distingue amanhã de hoje é a palavra.
+    await expect(chip).toHaveCSS("border-top-width", "2px");
+  });
+
+  test("CONTAI-075 — daqui a 20 dias continua 'Agendado', vazado de 1px", async ({
+    page,
+    db,
+  }) => {
+    // Sem regressão fora da janela de dois graus (critério 3).
+    const { wk, documentoId } = await notaSemPagamento(db);
+    await criarCompromisso(db, {
+      favorecido_id: wk,
+      valor_previsto: 3000,
+      data_prevista: maisDias(20),
+      origem: "cartao",
+      data_compra: maisDias(-30),
+      documento_origem_id: documentoId,
+    });
+
+    await page.goto("/");
+    const chip = page.locator(PAINEL).locator("[data-urgencia='comum']");
+    await expect(chip).toHaveText("Agendado");
+    await expect(chip).toHaveCSS("border-top-width", "1px");
+  });
 });
 
 /**

@@ -170,29 +170,90 @@ const CORES_CHIP_VAZADO = {
   grn: "text-grn bg-transparent border border-grn",
 } as const;
 
+/**
+ * CONTAI-075 — o degrau INTERMEDIÁRIO, e ele é só `border-2`.
+ *
+ * ⚠️ **Mesma cor, mesmo fundo transparente, mesmo peso de fonte**: o que muda é
+ * a espessura da borda. É o mesmo dispositivo que o cartão do vencido já usa
+ * ("engrossa-se a borda, nunca se troca o estilo", decisão 2 do fechamento de
+ * 18/08) — e a razão de não existir um matiz novo é o Gate Fiscal: vermelho no
+ * app significa "o dinheiro saiu e não está no custo", e num agendamento que
+ * ainda nem venceu nada saiu da conta.
+ */
+const CORES_CHIP_VAZADO_FORTE = {
+  red: "text-red bg-transparent border-2 border-red",
+  amb: "text-amb bg-transparent border-2 border-amb",
+  grn: "text-grn bg-transparent border-2 border-grn",
+} as const;
+
+/**
+ * Os TRÊS pesos do chip — CONTAI-075, critério 8.
+ *
+ * Três, não quatro: `vence_hoje` e `vence_amanha` compartilham
+ * `vazado-forte`, porque dois degraus distintos entre o vazado puro e o
+ * preenchido seriam indistinguíveis a olho ("o destaque que não destaca"). Quem
+ * separa hoje de amanhã é o TEXTO do chip, que é o canal primário.
+ */
+export type PesoChip = "vazado" | "vazado-forte" | "preenchido";
+
+/**
+ * ⚠️ `Record<PesoChip, …>` **exaustivo**: peso novo sem entrada aqui não
+ * compila, e é essa a única razão de o mapa existir em vez de um ternário.
+ */
+const CLASSES_POR_PESO: Record<
+  PesoChip,
+  Record<keyof typeof CORES_CHIP, string>
+> = {
+  vazado: CORES_CHIP_VAZADO,
+  "vazado-forte": CORES_CHIP_VAZADO_FORTE,
+  preenchido: CORES_CHIP,
+};
+
 export function Chip({
   cor,
-  vazado = false,
+  peso = "preenchido",
   children,
+  ...resto
 }: {
   cor: keyof typeof CORES_CHIP;
   /**
-   * Chip VAZADO — CONTAI-019, critério 8b: agendado aberto usa âmbar vazado e
-   * o vencido usa âmbar PREENCHIDO.
+   * O PESO do chip — CONTAI-075, critério 8: substituiu o `vazado: boolean`,
+   * que só sabia contar até dois (CONTAI-019, critério 8b: agendado aberto em
+   * âmbar vazado, vencido em âmbar preenchido). Agora há um degrau no meio,
+   * para o agendamento que vence hoje ou amanhã.
    *
    * ⚠️ O preenchimento é o QUARTO canal de distinção, não o primeiro (decisão 2
    * do fechamento de 18/08): "sozinho é um canal só e falha no sol". O peso
    * está no texto do chip e em as três respostas existirem só no vencido. Aqui
    * ele é reforço.
+   *
+   * ⚠️ **O default é `preenchido`, e não `vazado`**: preenchido é o que os ~60
+   * chips que nunca passaram peso nenhum sempre desenharam (o antigo
+   * `vazado = false`). Inverter o default aqui repintaria toda pendência
+   * vermelha e todo chip verde do app em silêncio, sem uma linha de diff nas
+   * telas — regressão invisível, e o CONTAI-075 é explícito em não ter nenhuma.
    */
-  vazado?: boolean;
+  peso?: PesoChip;
   children: ReactNode;
-}) {
+  /**
+   * ⚠️ **`className` e `children` estão FORA do spread de propósito** (Gate 2 do
+   * CONTAI-075). `{...resto}` é escrito antes do `className` literal abaixo — a
+   * ordem é necessária, porque o contrário deixaria um chamador sobrescrever o
+   * peso e a cor que este componente acabou de decidir, e o `peso` deixaria de
+   * ser a única régua. Só que, com `className` dentro de `resto`, um
+   * `<Chip className="...">` compilaria e sumiria no runtime, sem erro e sem
+   * teste vermelho: exatamente o descarte silencioso que o comentário do `Card`
+   * descreve para os `data-*`, na direção inversa. Tirando-o do tipo, o
+   * TypeScript RECUSA em vez de engolir — e quem precisar de classe extra tem de
+   * decidir aqui dentro, com o peso, em vez de por cima dele.
+   *
+   * O que continua entrando por `resto`: `data-*`, `aria-*`, `role`, `title`.
+   */
+} & Omit<React.HTMLAttributes<HTMLSpanElement>, "className" | "children">) {
   return (
     <span
-      className={`inline-block rounded-full px-[9px] py-0.5 text-[11px] font-semibold ${
-        vazado ? CORES_CHIP_VAZADO[cor] : CORES_CHIP[cor]
-      }`}
+      {...resto}
+      className={`inline-block rounded-full px-[9px] py-0.5 text-[11px] font-semibold ${CLASSES_POR_PESO[peso][cor]}`}
     >
       {children}
     </span>

@@ -299,6 +299,182 @@ test.describe("o bloco de agendados na home", () => {
   });
 });
 
+// ══ CONTAI-075 — o destaque ANTES de vencer ═════════════════════════════
+//
+// A dor: *"hoje o app só reage a agendamento DEPOIS que ele vence"*. O que
+// estes testes provam contra o banco real é que os quatro estados coexistem na
+// MESMA lista, com quatro textos e três pesos — e que o degrau novo fica
+// estritamente abaixo do vencido, que é a condição do Gate Fiscal.
+
+test.describe("CONTAI-075 — vence hoje e vence amanhã na Agenda", () => {
+  /** Um agendamento por estado, todos do mesmo favorecido e todos abertos. */
+  async function osQuatroEstados(db: Db) {
+    const favorecidoId = await favorecidoWk(db);
+    for (const [valor, dias] of [
+      [2480, -8],
+      [3480, 0],
+      [4480, 1],
+      [5480, 28],
+    ] as const) {
+      await criarCompromisso(db, {
+        favorecido_id: favorecidoId,
+        valor_previsto: valor,
+        data_prevista: maisDias(dias),
+        origem: "boleto",
+      });
+    }
+  }
+
+  test("os quatro estados na mesma lista: quatro textos, três pesos", async ({
+    page,
+    db,
+  }) => {
+    await osQuatroEstados(db);
+    await page.goto("/");
+    const bloco = page.locator("[data-bloco='agendados']");
+    await expect(bloco).toBeVisible();
+
+    // Um chip por estado, e nenhum estado a mais.
+    for (const urgencia of ["vencido", "vence_hoje", "vence_amanha", "comum"]) {
+      await expect(
+        bloco.locator(`[data-urgencia='${urgencia}']`),
+        `um chip ${urgencia}`,
+      ).toHaveCount(1);
+    }
+
+    // O TEXTO é o canal primário (pre-mortem 2 do ticket): quem separa hoje de
+    // amanhã é a palavra, não a borda.
+    await expect(bloco.locator("[data-urgencia='vence_hoje']")).toHaveText(
+      "Vence hoje",
+    );
+    await expect(bloco.locator("[data-urgencia='vence_amanha']")).toHaveText(
+      "Vence amanhã",
+    );
+    await expect(bloco.locator("[data-urgencia='comum']")).toHaveText("Agendado");
+    await expect(bloco.locator("[data-urgencia='vencido']")).toContainText(
+      `Venceu em ${dataBR(maisDias(-8))}`,
+    );
+
+    // ⚠️ **HIERARQUIA VISUAL — a condição do Gate Fiscal**: o degrau novo é
+    // estritamente MENOR que o do vencido. Vencido é preenchido (fundo âmbar);
+    // hoje/amanhã são vazados com borda de 2px; o comum, vazado de 1px.
+    const borda = (urgencia: string) =>
+      bloco
+        .locator(`[data-urgencia='${urgencia}']`)
+        .evaluate((el) => getComputedStyle(el).borderTopWidth);
+    expect(await borda("comum")).toBe("1px");
+    expect(await borda("vence_hoje")).toBe("2px");
+    // ⚠️ **UM peso intermediário, não dois** (decisão do `designer`): hoje e
+    // amanhã compartilham o mesmo, porque dois degraus tão próximos seriam
+    // indistinguíveis a olho — "o destaque que não destaca".
+    expect(await borda("vence_amanha")).toBe(await borda("vence_hoje"));
+
+    // O vencido escala por PREENCHIMENTO, que é o degrau acima dos dois.
+    const fundoDoVencido = await bloco
+      .locator("[data-urgencia='vencido']")
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+    const fundoDeHoje = await bloco
+      .locator("[data-urgencia='vence_hoje']")
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(fundoDeHoje).toBe("rgba(0, 0, 0, 0)");
+    expect(fundoDoVencido).not.toBe(fundoDeHoje);
+
+    // ⚠️ **NENHUM MATIZ NOVO** (critério 14): a escala é só de peso. Vermelho no
+    // app significa "o dinheiro saiu e não está no custo", e aqui nada saiu.
+    expect(await bloco.locator("[class*='red']").count()).toBe(0);
+    expect(await bloco.locator("[class*='grn']").count()).toBe(0);
+  });
+
+  test("⚠️ os estados novos NÃO ganham consequência nem as três respostas", async ({
+    page,
+    db,
+  }) => {
+    // Critério 13 e Gate Fiscal: prometer bloqueio de relatório anual é
+    // exclusivo do vencido, e continua sendo. Um "Vence hoje" que cobrasse
+    // resposta transformaria previsão em obrigação — a espinha do parecer.
+    const favorecidoId = await favorecidoWk(db);
+    await criarCompromisso(db, {
+      favorecido_id: favorecidoId,
+      valor_previsto: 3480,
+      data_prevista: hoje(),
+      origem: "boleto",
+    });
+
+    await page.goto("/");
+    const bloco = page.locator("[data-bloco='agendados']");
+    await expect(bloco.locator("[data-urgencia='vence_hoje']")).toHaveText(
+      "Vence hoje",
+    );
+
+    // Continua sendo LINHA de aberto, não cartão de vencido: nenhuma das três
+    // respostas aparece, e o contêiner não mudou de `data-agendado`.
+    await expect(bloco.locator("[data-agendado='aberto']")).toHaveCount(1);
+    await expect(bloco.locator("[data-agendado='vencido']")).toHaveCount(0);
+    await expect(
+      bloco.getByRole("link", { name: /Foi pago|Não vai ser pago|Mudou a data/ }),
+    ).toHaveCount(0);
+    await expect(
+      bloco.getByText(/nenhum relatório anual pode ser gerado/),
+    ).toHaveCount(0);
+
+    // A preposição de tempo continua dizendo "para", nunca "era para".
+    await expect(bloco.locator("[data-marca='preposicao']")).toHaveText(
+      `para ${dataBR(hoje())}`,
+    );
+  });
+
+  test("a mesma urgência em /compromisso e no detalhe — nenhuma tela recalcula", async ({
+    page,
+    db,
+  }) => {
+    // Critério 5: um ponto de origem só (`chipDoAgendado`). Três telas, o mesmo
+    // atributo — e é isso que impede a Agenda e o detalhe de discordarem sobre
+    // que dia é hoje.
+    const favorecidoId = await favorecidoWk(db);
+    const id = await criarCompromisso(db, {
+      favorecido_id: favorecidoId,
+      valor_previsto: 4480,
+      data_prevista: maisDias(1),
+      origem: "boleto",
+    });
+
+    await page.goto("/compromisso");
+    await expect(page.locator("[data-urgencia='vence_amanha']")).toHaveText(
+      "Vence amanhã",
+    );
+
+    await page.goto(`/compromisso/${id}`);
+    await expect(page.locator("[data-urgencia='vence_amanha']")).toHaveText(
+      "Vence amanhã",
+    );
+    // O cabeçalho do detalhe também não promete nada, e não traz respostas.
+    await expect(
+      page.getByRole("link", { name: "Foi pago" }),
+    ).toHaveCount(0);
+  });
+
+  test("⚠️ agendamento JÁ QUITADO com data de hoje não diz 'Vence hoje'", async ({
+    page,
+    db,
+  }) => {
+    // `/compromisso/[id]` renderiza as mesmas marcas para o já respondido.
+    // "Vence hoje" sobre dinheiro que já saiu é o erro caro do CONTAI-019: o
+    // Mateus registrar o mesmo PIX duas vezes.
+    const favorecidoId = await favorecidoWk(db);
+    const id = await criarCompromisso(db, {
+      favorecido_id: favorecidoId,
+      valor_previsto: 3480,
+      data_prevista: hoje(),
+      origem: "boleto",
+      situacao: "quitado",
+    });
+
+    await page.goto(`/compromisso/${id}`);
+    await expect(page.locator("[data-urgencia='comum']")).toHaveText("Agendado");
+    await expect(page.locator("[data-urgencia='vence_hoje']")).toHaveCount(0);
+  });
+});
+
 // ══ Confirmar ═══════════════════════════════════════════════════════════
 
 test.describe("confirmar o pagamento de um agendamento", () => {

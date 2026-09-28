@@ -131,7 +131,7 @@ export function Escolha<T extends string>({
    * `docs/pareceres/2026-09-18-retencao-variavel-servico-pj.md`): cor âmbar +
    * o selo com a palavra "Sugerida" + o equivalente para leitor de tela. Cor
    * sozinha é um canal só e falha para quem não a distingue — o mesmo motivo
-   * que o `Chip vazado` de `ui.tsx` já documenta.
+   * que o `Chip peso` de `ui.tsx` já documenta.
    */
   sugerido?: T | null;
 }) {
