@@ -2,6 +2,76 @@
 
 ## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
 
+**2026-09-28, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda
+ainda ainda**: **`078` entregue** — Gate 4 (`po`), 12/12 critérios PASS.
+Campo de busca em `/documento/[id]/ligar` e `/pagamento/[id]/ligar`, só
+acima de 5 candidatos, filtrando por favorecido (normalizado) e valor (por
+dígitos) via `filtrarCandidatos` (nova, `lib/gestao/busca-candidatos.ts`).
+Nunca revela sozinho o bloco de cobertos; card de vazio-por-filtro novo e
+distinto do vazio-de-verdade, sem a `Consequencia` fiscal que este último
+mantém. Gate 2 (`cto-obra`) aprovou sem pendências bloqueantes. Rodou em
+paralelo com `076`/`077` na mesma árvore, zero arquivo em comum. Sem
+migration. Detalhe: `docs/tickets/CONTAI-078.md`.
+
+**2026-09-28, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda
+ainda**: **`077` entregue** — Gate 4 (`po`), 9/9 critérios PASS. `RodapeDeAcao`
+deixou de ser `sticky` dentro da área que rola (sobrepunha a lista por
+definição) e passou a renderizar por `createPortal` num slot publicado por
+`ShellDeGestao` como irmão de `<main>` — zero das 22 telas que usam o padrão
+foi tocada, a correção é só no componente compartilhado. Teste novo mede
+geometria real com contraprova (desligar o slot reproduz o sintoma
+original). Gate 2 (`cto-obra`) aprovou sem pendências bloqueantes. Sem
+migration. Dívida nomeada, não corrigida: o card `sticky top-0` de "Falta
+ligar" continua sobrepondo linhas no topo (fora de escopo). Detalhe:
+`docs/tickets/CONTAI-077.md`.
+
+**2026-09-28, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda**:
+**`076` entregue** — Gate 4 (`po`), 11/11 critérios PASS. `VIEWS_DE_GESTAO`
+ganha o 5º item ("Agenda", 4ª posição, `/compromisso`); a exceção que
+acendia "Visão geral" para `/compromisso` some de `VIEW_DA_ROTA_DE_DETALHE`
+(casamento por prefixo resolve sozinho). `RAIZES_DE_DETALHE.compromisso`
+perde `daRaiz` — Agenda vira view de primeira classe, crumb do detalhe
+passa a ser "‹ Agenda". Título/subtítulo (nome da obra, sem ano) migram de
+`CabecalhoDaTela` local para `tituloDaView`/`subtituloDaView`, mesmo padrão
+de `/obras`/`/despesas`/`/pendencias`. Gate 2 (`cto-obra`) já tinha aprovado
+sem pendências e nenhum arquivo mudou depois (conferido por `git diff
+--stat`). Sem Gate Fiscal (navegação pura, confirmado pelo `po` no Passo
+1). Suíte completa (`npm run quality`, rodada em paralelo com
+`CONTAI-077`/`CONTAI-078` na mesma árvore): 408/409 E2E, única falha é
+flake confirmado (re-executado isolado, passou) em
+`captura-retencao-desktop.spec.ts`, arquivo fora do escopo dos três. Sem
+migration. Detalhe: `docs/tickets/CONTAI-076.md`.
+
+**2026-09-28, mais tarde ainda ainda ainda ainda ainda ainda ainda**:
+**`CONTAI-077` e `CONTAI-078` criados** — Mateus reportou, testando o
+`CONTAI-074` em produção com uma nota real (Ilhamix, R$16.240,00 falta
+ligar), scroll quebrado e falta de busca na lista de candidatos de vínculo.
+Os dois confirmados ao vivo (reprodução real, não só relato); um terceiro
+sintoma ("agendamento não aparece") foi esclarecido como comportamento
+correto do regime de caixa, não virou ticket. `cto-obra` discordou do
+diagnóstico inicial do scroll (não é falta de padding — `RodapeDeAcao` é
+`sticky` dentro da área que rola, sobrepõe por definição) e decidiu separar
+em dois tickets (zero arquivo em comum). **`CONTAI-077`** (scroll): rodapé
+passa a renderizar por portal fora da área rolável, mesmo princípio da
+casca de 430px; afeta as 22 telas que usam o padrão `ColunaDeDetalhe` +
+`RodapeDeAcao`. Sem designer (correção técnica). **Pronto para `/develop`.**
+**`CONTAI-078`** (busca): favorecido+valor, substring client-side, só acima
+de 5 candidatos; aguardando mock do `designer` (estado de vazio-por-filtro
+é novo — o vazio de hoje afirma consequência fiscal que mentiria se fosse
+só o filtro sem resultado). Sem Gate Fiscal nos dois. Detalhe:
+`docs/tickets/CONTAI-077.md`, `docs/tickets/CONTAI-078.md`.
+
+**2026-09-28, mais tarde ainda ainda ainda ainda ainda ainda**: **`CONTAI-076`
+criado** — Mateus pediu Agenda/Compromissos e Faturas no menu lateral;
+achada discrepância (Faturas não tem tela de lista hoje) e resolvida com ele
+direto na conversa: só Agenda entra agora. `cto-obra` achou um conflito real
+— `/compromisso` estava mapeado para acender "Visão geral" no destaque do
+menu (`VIEW_DA_ROTA_DE_DETALHE`), então o item novo nunca acenderia sem essa
+remoção e sem tirar o `daRaiz` do breadcrumb. Rótulo "Agenda", 4ª posição.
+Sem Gate Fiscal, sem migration, complexidade S. `designer`: nível 3,
+`design/mocks/CONTAI-076.md`. **Pronto para `/develop`.** Detalhe:
+`docs/tickets/CONTAI-076.md`.
+
 **2026-09-28, mais tarde ainda ainda ainda ainda ainda**: **`075` entregue** —
 Gate 4 (`po`), 14/14 critérios PASS. `Chip.vazado: boolean` e
 `AgendamentoDoDocumento.forte: boolean` somem, viram `peso: "vazado" |
