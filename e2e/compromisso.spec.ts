@@ -292,9 +292,12 @@ test.describe("o bloco de agendados na home", () => {
     await expect(bloco.locator("[data-agendado='aberto']")).toHaveCount(3);
     await expect(bloco.getByRole("link", { name: "ver todos (5)" })).toBeVisible();
 
-    // E a tela do "ver todos" não corta de novo.
+    // E a tela do "ver todos" não corta de novo. ⚠️ O título dela é **"Agenda"**
+    // desde o CONTAI-076 (era "Agendados"): a tela virou view de primeira classe
+    // e o título passou a vir da rota. O link continua aqui — o item de menu é
+    // caminho adicional, não substituição (critério 4 do 076).
     await bloco.getByRole("link", { name: "ver todos (5)" }).click();
-    await expect(page.getByRole("heading", { name: "Agendados" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Agenda" })).toBeVisible();
     await expect(page.locator("[data-agendado='aberto']")).toHaveCount(5);
   });
 });

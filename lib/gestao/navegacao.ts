@@ -21,16 +21,31 @@ export interface ViewDeGestao {
 }
 
 /**
- * As quatro views de primeira classe, na ordem do desenho.
+ * As views de primeira classe, na ordem do desenho.
  *
  * ⚠️ `/despesas` existe de verdade desde este ticket e só ganha a TABELA no
  * `CONTAI-041` — o critério 1 exige o item no menu, e item de menu que não
  * abre nada é link morto.
+ *
+ * ⚠️ **CONTAI-076** promove `/compromisso` a **Agenda**, o quinto item, na 4ª
+ * posição — antes de "Obras". A tela já existia e era completa; o que faltava
+ * era a porta: até aqui só se chegava nela pelo "ver todos (N)" da Visão geral,
+ * 2+ cliques de qualquer outra tela do shell.
+ *
+ * A **posição** é desenho, não gosto: o badge de Pendências é o segundo item
+ * mais crítico e precisa continuar visível sem rolar na faixa de 375px, e
+ * "Obras" é cadastro/troca de obra (já com porta própria no bloco "Obra
+ * aberta"), então fica por último.
+ *
+ * O **rótulo** é "Agenda" e não "Agendados": o critério 8 do ticket manda o
+ * título da tela vir de `tituloDaView`, e um nome só por view é o que impede a
+ * D46 de nascer em copy de navegação.
  */
 export const VIEWS_DE_GESTAO: readonly ViewDeGestao[] = [
   { href: "/", rotulo: "Visão geral" },
   { href: "/despesas", rotulo: "Despesas" },
   { href: "/pendencias", rotulo: "Pendências" },
+  { href: "/compromisso", rotulo: "Agenda" },
   { href: "/obras", rotulo: "Obras" },
 ] as const;
 
@@ -94,18 +109,17 @@ export const OPCOES_DE_REGISTRO: readonly OpcaoDeRegistro[] = [
  * compra no cartão são a mesma despesa da meta 1, só com origem diferente
  * (`resumo.despesas[].href` já aponta para as duas desde o `CONTAI-041`).
  *
- * ⚠️ **CONTAI-045** acrescenta `/compromisso` → **Visão geral** (spec de
- * design, decisão 1: é lá que a Agenda vive hoje). O prefixo vem **sem barra
- * final** de propósito: a lista `/compromisso` é rota de verdade — o destino do
- * "ver todos (N)" — e ela pertence à mesma view que o detalhe dela.
- * `/pendencias/[id]` não precisa de linha nenhuma: a rota já começa pelo href
- * da view, e o casamento por prefixo resolve.
+ * ⚠️ **CONTAI-076 removeu a linha `["/compromisso", "/"]`** que o `CONTAI-045`
+ * tinha posto aqui (`/compromisso` → Visão geral, "é lá que a Agenda vive").
+ * A Agenda virou view de primeira classe: `/compromisso` e `/compromisso/[id]`
+ * casam por prefixo direto, exatamente como `/pendencias/[id]` e `/obras/[id]`
+ * — que também não precisam de linha nenhuma aqui. Manter a exceção faria o
+ * item novo NUNCA acender, porque o destaque continuaria em "Visão geral".
  */
 const VIEW_DA_ROTA_DE_DETALHE: readonly (readonly [string, string])[] = [
   ["/documento/", "/despesas"],
   ["/pagamento/", "/despesas"],
   ["/fatura/", "/despesas"],
-  ["/compromisso", "/"],
 ] as const;
 
 /** A view a que a rota pertence — ela mesma, ou a dona do detalhe aberto. */
@@ -161,22 +175,19 @@ export interface MigalhaDeRota {
  * ⚠️ **CONTAI-045** acrescenta `compromisso` e `pendencias`, e com eles a
  * lista-mãe deixa de ser sempre `/despesas`:
  * - `/compromisso/[id]` volta para a AGENDA (`/compromisso`), que é rota de
- *   verdade, e a agenda volta para a **Visão geral**, de onde se chega nela;
+ *   verdade;
  * - `/pendencias/[id]` volta para `/pendencias` — **nunca** para a home antiga,
  *   que deixou de existir no `CONTAI-040` (Pre-mortem 2 do ticket).
+ *
+ * ⚠️ **CONTAI-076** — a própria `/compromisso` deixou de ter crumb: ela era a
+ * única raiz que voltava para outra view (`daRaiz` → Visão geral) e virou view
+ * de primeira classe, então o topo da navegação não volta para lugar nenhum.
  */
 interface RaizDeDetalhe {
   /** O rótulo do próprio registro — é o que a SUBROTA mostra no crumb. */
   rotulo: string;
   /** A lista-mãe do detalhe: para onde `/<raiz>/<id>` volta. */
   mae: MigalhaDeRota;
-  /**
-   * Para onde a própria raiz volta, quando ela é rota de verdade e não é view
-   * de primeira classe. Só `/compromisso` hoje: `/pendencias` é view (o topo da
-   * navegação não tem para onde voltar) e `/documento`, `/pagamento` e
-   * `/fatura` não existem sem id.
-   */
-  daRaiz?: MigalhaDeRota;
   /**
    * ⚠️ **CONTAI-046 — o TERCEIRO nível, e só `/obras/[id]/terreno` tem um.**
    *
@@ -200,10 +211,15 @@ const RAIZES_DE_DETALHE: Readonly<Record<string, RaizDeDetalhe>> = {
   documento: { rotulo: "Documento", mae: DESPESAS },
   pagamento: { rotulo: "Pagamento", mae: DESPESAS },
   fatura: { rotulo: "Fatura", mae: DESPESAS },
+  /**
+   * ⚠️ **CONTAI-076** — o rótulo da mãe acompanha o nome novo da view
+   * (**Agenda**), e o `daRaiz` que mandava `/compromisso` de volta para a Visão
+   * geral **saiu**: a Agenda é topo de navegação agora, igual a `/obras` e
+   * `/pendencias`, e topo de navegação não volta para lugar nenhum.
+   */
   compromisso: {
     rotulo: "Agendamento",
-    mae: { href: "/compromisso", rotulo: "Agendados" },
-    daRaiz: { href: "/", rotulo: "Visão geral" },
+    mae: { href: "/compromisso", rotulo: "Agenda" },
   },
   pendencias: {
     rotulo: "Pendência",
@@ -231,7 +247,10 @@ export function migalhaDaRota(pathname: string): MigalhaDeRota | null {
   const raiz = partes[0];
   const entrada = raiz === undefined ? undefined : RAIZES_DE_DETALHE[raiz];
   if (!entrada) return null;
-  if (partes.length === 1) return entrada.daRaiz ?? null;
+  // A raiz sozinha nunca tem crumb: as que são view de primeira classe são o
+  // topo da navegação, e as outras (`/documento`, `/pagamento`, `/fatura`) não
+  // existem sem id.
+  if (partes.length === 1) return null;
   if (partes.length === 2) return entrada.mae;
   if (entrada.neta && partes[2] === entrada.neta.segmento && partes.length > 3) {
     return {
@@ -303,6 +322,12 @@ export function subtituloDaView(
     return `${contagem}as derivadas somem quando o fato muda; as de correção, só com um desfecho escolhido`;
   }
   if (ehViewAtiva(pathname, "/obras")) return "Escolha em qual você vai mexer";
+  // ⚠️ **CONTAI-076 — a Agenda nomeia a obra e PARA AÍ.** Sem esta cláusula ela
+  // cairia na genérica do fim e herdaria o `· {ano}`, afirmando um recorte por
+  // ano-calendário que a tela não faz: `montarAgendaDaHome` lista todo
+  // agendamento aberto, de qualquer data, e um agendamento nem é custo ainda —
+  // o ano só existe quando o dinheiro sai (regime de caixa).
+  if (ehViewAtiva(pathname, "/compromisso")) return ctx.nomeDaObra;
   // Visão geral e Despesas são recortadas por ano-calendário: as duas nomeiam
   // a obra e o ano, porque todo número delas é daquela obra naquele ano.
   if (ctx.nomeDaObra === null) return null;

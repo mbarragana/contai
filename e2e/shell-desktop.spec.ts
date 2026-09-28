@@ -169,11 +169,15 @@ test.describe("shell de gestão no desktop", () => {
 
     const nav = sidebar.getByRole("navigation", { name: "Navegação principal" });
     const itens = nav.getByRole("link");
-    await expect(itens).toHaveCount(4);
+    // ⚠️ **CONTAI-076: cinco, e a ORDEM é critério.** "Agenda" entra na 4ª
+    // posição, antes de "Obras" — o badge de Pendências continua visível sem
+    // rolar, e "Obras" (cadastro/troca) fica por último.
+    await expect(itens).toHaveCount(5);
     for (const [i, rotulo] of [
       "Visão geral",
       "Despesas",
       "Pendências",
+      "Agenda",
       "Obras",
     ].entries()) {
       await expect(itens.nth(i)).toContainText(rotulo);
@@ -820,31 +824,48 @@ test.describe("compromisso e pendência no shell de gestão", () => {
     });
   }
 
-  test("a agenda abre no shell, com Visão geral acesa e crumb para ela", async ({
+  /**
+   * ⚠️ **Reescrito pelo CONTAI-076.** Era *"com Visão geral acesa e crumb para
+   * ela"*: a Agenda virou **view de primeira classe** (5º item do menu, 4ª
+   * posição), e com isso três coisas mudam de uma vez — o item aceso é
+   * **Agenda**, o título vem da rota (`tituloDaView` → "Agenda", não mais o
+   * `CabecalhoDaTela titulo="Agendados"` da tela) e o **crumb desaparece**,
+   * porque topo de navegação não volta para lugar nenhum.
+   */
+  test("a agenda abre no shell como view de primeira classe: Agenda acesa, sem crumb", async ({
     page,
     db,
   }) => {
     await umAgendamentoVencido(db);
 
     await page.goto("/compromisso");
-    await expect(page.getByRole("heading", { name: "Agendados" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Agenda" })).toBeVisible();
+    // Um nome só por view: o título antigo da tela não sobreviveu em lugar
+    // nenhum do cabeçalho.
+    await expect(page.getByRole("banner")).not.toContainText("Agendados");
+    // E o subtítulo é o da obra aberta, SEM ano: a agenda não é recortada por
+    // ano-calendário (critério 9).
+    const barra = page.getByRole("banner");
+    await expect(barra).toContainText("Casa Cachoeira");
+    await expect(barra).not.toContainText(`Casa Cachoeira · ${ANO}`);
 
     const sidebar = page.locator('[data-shell="sidebar"]');
     await expect(sidebar).toBeVisible();
     const nav = sidebar.getByRole("navigation", { name: "Navegação principal" });
-    await expect(nav.getByRole("link", { name: "Visão geral" })).toHaveAttribute(
+    await expect(nav.getByRole("link", { name: "Agenda" })).toHaveAttribute(
       "aria-current",
       "page",
     );
-    // Um item aceso, não dois.
+    // Um item aceso, não dois — e o Pre-mortem 1 do ticket: se a exceção
+    // `/compromisso → "/"` voltar, é a Visão geral que acende aqui.
     await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
 
     const coluna = page.locator('[data-coluna="detalhe"]');
     expect(Math.round((await coluna.boundingBox())!.width)).toBe(640);
 
-    const crumb = page.locator('[data-crumb="voltar"]');
-    await expect(crumb).toHaveText("‹ Visão geral");
-    await expect(crumb).toHaveAttribute("href", "/");
+    // Nenhum crumb: a Agenda é o topo, como `/despesas`, `/pendencias` e
+    // `/obras`.
+    await expect(page.locator('[data-crumb="voltar"]')).toHaveCount(0);
     // O "Voltar ao início" fixo do rodapé de 430px não sobreviveu: ele mudou
     // de lugar, não se duplicou.
     await expect(page.getByRole("link", { name: "Voltar ao início" })).toHaveCount(
@@ -852,6 +873,35 @@ test.describe("compromisso e pendência no shell de gestão", () => {
     );
     // Lista, não formulário: nenhuma ação de página, nenhum rodapé.
     await expect(page.locator('[data-rodape="acao"]')).toHaveCount(0);
+  });
+
+  /**
+   * **Critério 3 — o caminho que o ticket comprou**: de qualquer tela do grupo
+   * `(gestao)` até a Agenda em UM clique, sem passar pela Home. Era 2+ cliques
+   * (Visão geral → "ver todos (N)").
+   *
+   * ⚠️ O critério 4 — o "ver todos (N)" da Home continua existindo, porque o
+   * item de menu é caminho ADICIONAL e não substituição — já é provado em
+   * `compromisso.spec.ts` ("o teto de 3 é da home"), com o fixture que faz o
+   * corte acontecer. Repetir aqui seria uma segunda cópia da mesma prova.
+   */
+  test("um clique de /despesas até a Agenda, sem passar pela Home", async ({
+    page,
+    db,
+  }) => {
+    await umAgendamentoVencido(db);
+
+    await page.goto("/despesas");
+    const nav = page
+      .locator('[data-shell="sidebar"]')
+      .getByRole("navigation", { name: "Navegação principal" });
+    await expect(nav.getByRole("link", { name: "Despesas" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await nav.getByRole("link", { name: "Agenda" }).click();
+    await expect(page).toHaveURL("/compromisso");
+    await expect(page.getByRole("heading", { name: "Agenda" })).toBeVisible();
   });
 
   test("o agendamento é leitura: as três respostas no card, sem rodapé fixo", async ({
@@ -865,8 +915,11 @@ test.describe("compromisso e pendência no shell de gestão", () => {
       page.getByRole("heading", { name: "Agendamento" }),
     ).toBeVisible();
 
+    // ⚠️ **CONTAI-076**: "‹ Agenda", não mais "‹ Agendados" — o rótulo da mãe
+    // acompanha o nome da view, e nenhuma linha de `compromisso/[id]` mudou
+    // para isso (ele mora em `RAIZES_DE_DETALHE`).
     const crumb = page.locator('[data-crumb="voltar"]');
-    await expect(crumb).toHaveText("‹ Agendados");
+    await expect(crumb).toHaveText("‹ Agenda");
     await expect(crumb).toHaveAttribute("href", "/compromisso");
 
     expect(
@@ -897,7 +950,8 @@ test.describe("compromisso e pendência no shell de gestão", () => {
     );
 
     await crumb.click();
-    await expect(page.getByRole("heading", { name: "Agendados" })).toBeVisible();
+    await expect(page).toHaveURL("/compromisso");
+    await expect(page.getByRole("heading", { name: "Agenda" })).toBeVisible();
   });
 
   /**

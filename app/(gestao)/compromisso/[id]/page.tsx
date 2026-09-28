@@ -12,7 +12,9 @@
  * várias ações — logo, **sem rodapé fixo** (decisão 4 do `detalhe-no-shell-v1`):
  * as três respostas ficam no fim do card a que pertencem, que é o que a doutrina
  * "consequência nunca atrás de clique" já pede. O "Voltar ao início" virou o
- * breadcrumb "‹ Agendados" do topbar — muda de lugar, não se duplica.
+ * breadcrumb do topbar — muda de lugar, não se duplica. Ele diz **"‹ Agenda"**
+ * desde o `CONTAI-076`, e nenhuma linha deste arquivo mudou para isso: o rótulo
+ * mora em `RAIZES_DE_DETALHE.compromisso.mae`, e quem desenha é o shell.
  */
 
 import { useParams } from "next/navigation";

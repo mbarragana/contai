@@ -18,12 +18,20 @@ import {
  * **nenhum item é morto**. As duas são afirmações sobre uma lista, e lista se
  * testa.
  */
-describe("as quatro views do shell de gestão", () => {
-  it("são exatamente quatro, na ordem do desenho, e nenhuma aponta para o vazio", () => {
+describe("as views do shell de gestão", () => {
+  /**
+   * ⚠️ **CONTAI-076 — cinco, e a ORDEM é critério.** "Agenda" entra na 4ª
+   * posição, antes de "Obras": o badge de Pendências precisa continuar visível
+   * sem rolar na faixa de 375px, e "Obras" é cadastro/troca de obra, com porta
+   * própria no bloco "Obra aberta". Trocar a ordem aqui é decisão de desenho,
+   * não arrumação de lista — por isso o teste compara o array inteiro.
+   */
+  it("são exatamente cinco, na ordem do desenho, e nenhuma aponta para o vazio", () => {
     expect(VIEWS_DE_GESTAO.map((v) => v.rotulo)).toEqual([
       "Visão geral",
       "Despesas",
       "Pendências",
+      "Agenda",
       "Obras",
     ]);
     // ⚠️ `/despesas` incluída: o item existe no menu desde este ticket, e a
@@ -32,6 +40,7 @@ describe("as quatro views do shell de gestão", () => {
       "/",
       "/despesas",
       "/pendencias",
+      "/compromisso",
       "/obras",
     ]);
     for (const v of VIEWS_DE_GESTAO) {
@@ -193,24 +202,36 @@ describe("qual item fica marcado", () => {
   });
 
   /**
-   * **CONTAI-045** — a agenda e o agendamento acendem **Visão geral**, que é
-   * onde o bloco de agendados vive (spec `detalhe-no-shell-v1`, decisão 1). A
-   * lista `/compromisso` entra junto com o detalhe: ela é o destino do "ver
-   * todos (N)" do dashboard, não uma view de primeira classe.
+   * **CONTAI-076 — a agenda e o agendamento acendem AGENDA, e só ela.**
+   *
+   * Até o `CONTAI-045` a família acendia **Visão geral**, por uma linha de
+   * exceção em `VIEW_DA_ROTA_DE_DETALHE` (`["/compromisso", "/"]`). A linha
+   * saiu junto com a promoção da Agenda a view de primeira classe, e este teste
+   * é o que trava o Pre-mortem 1 do ticket: com a exceção de volta, o item novo
+   * nunca acenderia e o destaque continuaria em "Visão geral" — sem nada
+   * vermelho para avisar.
+   *
+   * O casamento por prefixo resolve as subrotas sozinho, exatamente como já
+   * resolve `/pendencias/[id]` e `/obras/[id]`.
    */
-  it("a agenda e o agendamento marcam Visão geral", () => {
+  it("a agenda e o agendamento marcam Agenda — não mais a Visão geral", () => {
     for (const rota of [
       "/compromisso",
       "/compromisso/abc-123",
       "/compromisso/abc-123/confirmar",
       "/compromisso/abc-123/cancelar",
       "/compromisso/abc-123/data",
+      "/compromisso/abc-123/valor",
     ]) {
-      expect(ehViewAtiva(rota, "/")).toBe(true);
+      expect(ehViewAtiva(rota, "/compromisso"), rota).toBe(true);
+      expect(ehViewAtiva(rota, "/"), `${rota} não pode acender a Visão geral`).toBe(
+        false,
+      );
       for (const v of VIEWS_DE_GESTAO) {
-        if (v.href === "/") continue;
+        if (v.href === "/compromisso") continue;
         expect(ehViewAtiva(rota, v.href), `${rota} × ${v.href}`).toBe(false);
       }
+      expect(tituloDaView(rota)).toBe("Agenda");
     }
   });
 
@@ -294,23 +315,22 @@ describe("o breadcrumb das telas de detalhe", () => {
   });
 
   /**
-   * **CONTAI-045** — aqui a lista-mãe deixa de ser sempre `/despesas`, e é o
-   * ponto onde os dois riscos do Pre-mortem do ticket se travam:
-   * - `/pendencias/[id]` volta para **`/pendencias`** (a fila unificada do
-   *   `CONTAI-042`), nunca para a home antiga, que não existe desde o `040`;
-   * - `/compromisso/[id]` volta para a **agenda**, que é rota de verdade, e a
-   *   agenda volta para a **Visão geral**, de onde se chega nela.
+   * **CONTAI-045** — aqui a lista-mãe deixa de ser sempre `/despesas`:
+   * `/pendencias/[id]` volta para **`/pendencias`** (a fila unificada do
+   * `CONTAI-042`), nunca para a home antiga, que não existe desde o `040`.
+   *
+   * **CONTAI-076** — e o rótulo da mãe do agendamento é **"Agenda"**, o mesmo
+   * nome que o item de menu e o título da view usam: um nome só por view. A
+   * própria `/compromisso` deixou de ter crumb (caso no bloco das views de
+   * primeira classe, abaixo) — ela era a única raiz com `daRaiz`, e virou topo
+   * de navegação.
    */
-  it("do agendamento volta para a agenda, e a agenda para a Visão geral", () => {
-    expect(migalhaDaRota("/compromisso")).toEqual({
-      href: "/",
-      rotulo: "Visão geral",
-    });
+  it("do agendamento volta para a agenda, com o rótulo da view", () => {
     expect(migalhaDaRota("/compromisso/abc-123")).toEqual({
       href: "/compromisso",
-      rotulo: "Agendados",
+      rotulo: "Agenda",
     });
-    for (const sub of ["cancelar", "confirmar", "data"]) {
+    for (const sub of ["cancelar", "confirmar", "data", "valor"]) {
       expect(migalhaDaRota(`/compromisso/abc-123/${sub}`)).toEqual({
         href: "/compromisso/abc-123",
         rotulo: "Agendamento",
@@ -368,6 +388,10 @@ describe("o breadcrumb das telas de detalhe", () => {
     expect(migalhaDaRota("/")).toBeNull();
     expect(migalhaDaRota("/despesas")).toBeNull();
     expect(migalhaDaRota("/pendencias")).toBeNull();
+    // ⚠️ **CONTAI-076** — `/compromisso` entrou nesta lista. Ela voltava para a
+    // Visão geral pelo `daRaiz`; virou view, e topo de navegação não volta para
+    // lugar nenhum.
+    expect(migalhaDaRota("/compromisso")).toBeNull();
     expect(migalhaDaRota("/obras")).toBeNull();
     // Nem em rota fora do shell: `/adicionar` tem casca própria, sem topbar.
     expect(migalhaDaRota("/adicionar/documento")).toBeNull();
@@ -378,6 +402,11 @@ describe("o breadcrumb das telas de detalhe", () => {
     expect(tituloDaView("/despesas")).toBe("Despesas");
     expect(tituloDaView("/pendencias")).toBe("Pendências");
     expect(tituloDaView("/pendencias/abc")).toBe("Pendências");
+    // ⚠️ **CONTAI-076, critério 8** — o título da Agenda vem da ROTA agora, e é
+    // "Agenda": a tela deixou de publicar `CabecalhoDaTela titulo="Agendados"`,
+    // que era um segundo nome para a mesma view.
+    expect(tituloDaView("/compromisso")).toBe("Agenda");
+    expect(tituloDaView("/compromisso/abc-123")).toBe("Agenda");
     expect(tituloDaView("/obras")).toBe("Obras");
   });
 });
@@ -423,5 +452,20 @@ describe("o subtítulo", () => {
 
   it("em Obras não há ano: a lista não é recortada por ano-calendário", () => {
     expect(subtituloDaView("/obras", obra)).toBe("Escolha em qual você vai mexer");
+  });
+
+  /**
+   * **CONTAI-076, critério 9** — a Agenda nomeia a obra e para aí. Sem a
+   * cláusula própria ela cairia na genérica do fim e herdaria o `· {ano}`,
+   * afirmando um recorte por ano-calendário que a tela não faz: a lista traz
+   * todo agendamento aberto, de qualquer data, e agendamento não é custo — o
+   * ano só nasce quando o dinheiro sai (regime de caixa).
+   */
+  it("na Agenda nomeia a obra, e nunca o ano", () => {
+    expect(subtituloDaView("/compromisso", obra)).toBe("Casa Cachoeira");
+    expect(subtituloDaView("/compromisso", obra)).not.toContain("2026");
+    expect(
+      subtituloDaView("/compromisso", { ...obra, nomeDaObra: null }),
+    ).toBeNull();
   });
 });
