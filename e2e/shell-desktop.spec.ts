@@ -9,6 +9,7 @@ import {
   criarFavorecido,
   criarObra,
   criarPagamento,
+  criarVinculo,
   obras,
   pendencias,
 } from "./banco";
@@ -1713,4 +1714,215 @@ test.describe("a escolha de obra no shell de gestão", () => {
     await botao.click();
     await expect(page.getByRole("heading", { name: "Nova obra" })).toBeVisible();
   });
+});
+
+/**
+ * **CONTAI-077 — o rodapé de ação não cobre mais a lista que rola.**
+ *
+ * O relato (`docs/backlog/94-2026-09-28-scroll-e-busca-nas-telas-de-ligar.md`)
+ * foi *"o scroll tá quebrado"*: em `/documento/[id]/ligar` com 24 candidatos
+ * reais, as linhas do fim da vista ficavam escondidas atrás do `RodapeDeAcao`
+ * durante TODO o scroll intermediário, e só "soltavam" no fim de verdade da
+ * lista. A causa era `sticky bottom-0` DENTRO do `<main overflow-y-auto>`:
+ * sticky em fluxo sobrepõe o que rola por baixo, por definição.
+ *
+ * ⚠️ **A asserção é de GEOMETRIA, e ela mede o que o `main` de fato MOSTRA.**
+ * Item que está abaixo da vista do `main` é RECORTADO pelo `overflow`, não
+ * coberto pelo rodapé — contá-lo como sobreposição faria o teste falhar com o
+ * bug corrigido. O que não pode existir é item **visível dentro do `main`** com
+ * a caixa do rodapé em cima. Um `toBeVisible()` ou um `click()` não pegariam
+ * nada disso: o Playwright considera visível o que está coberto, e o `click`
+ * rola o alvo para dentro da vista sozinho.
+ */
+test.describe("rodapé de ação fora da área rolável (CONTAI-077)", () => {
+  const CNPJ_ILHAMIX = "11222333000181";
+
+  /**
+   * Uma NF de serviço com MUITOS pagamentos candidatos — é o cenário do relato
+   * (24 candidatos). Catorze bastam para a lista passar de 800px de janela em
+   * 1280×800; menos que isso cabe na vista e o teste não exercitaria scroll
+   * nenhum.
+   */
+  async function notaComMuitosCandidatos(db: Parameters<typeof criarFavorecido>[0]) {
+    const ilhamix = await criarFavorecido(db, {
+      nome: "Ilhamix Concreto",
+      documento: CNPJ_ILHAMIX,
+      tipo: "pj",
+    });
+    const documentoId = await criarDocumento(db, {
+      favorecido_id: ilhamix,
+      tipo: "nf_servico",
+      classificacao: "mao_obra",
+      valor: 16240,
+      numero: "1543",
+      serie: "1",
+      data_emissao: `${ANO}-03-12`,
+      retencao_na_nota: "nenhuma",
+      nota_traz_cno: false,
+      destinatario_cpf_ok: true,
+      status: "registrado",
+    });
+    for (let i = 0; i < 14; i += 1) {
+      await criarPagamento(db, {
+        favorecido_id: ilhamix,
+        valor: 1200 + i * 100,
+        // Dias distintos: a ordenação dos candidatos é do módulo puro e não
+        // muda nada aqui, mas linhas idênticas dificultariam ler a falha.
+        data_pagamento: `${ANO}-05-${String(i + 1).padStart(2, "0")}`,
+        meio: "pix",
+        status: "aguardando_nf",
+        comprovante_path: `${USER_ID_SEED}/comprovante/pix-ilhamix-${i}.png`,
+      });
+    }
+    return documentoId;
+  }
+
+  test("com a lista longa e o main a meio caminho, o rodapé não cobre nenhum candidato", async ({
+    page,
+    db,
+  }) => {
+    const documentoId = await notaComMuitosCandidatos(db);
+    await page.goto(`/documento/${documentoId}/ligar`);
+    await expect(
+      page.getByRole("heading", { name: "Ligar pagamentos a esta nota" }),
+    ).toBeVisible();
+
+    // Cada candidato é um `label` com a caixa de marcação dentro — o `:has`
+    // protege a contagem de qualquer outro `label` que a tela venha a ganhar.
+    const itens = page.locator('main label:has(input[type="checkbox"])');
+    await expect(itens).toHaveCount(14);
+    const rodape = page.locator('[data-rodape="acao"]');
+    await expect(rodape).toBeVisible();
+
+    // ── a largura e o alinhamento da coluna continuam (critérios 5 e 8) ───
+    const caixaRodape = (await rodape.boundingBox())!;
+    const caixaColuna = (await page
+      .locator('[data-coluna="detalhe"]')
+      .boundingBox())!;
+    expect(Math.round(caixaRodape.width)).toBe(640);
+    expect(Math.round(caixaRodape.x)).toBe(Math.round(caixaColuna.x));
+
+    const medida = await page.evaluate(async () => {
+      const main = document.querySelector("main")!;
+      // A METADE do scroll: é exatamente onde o bug vivia. No fim da lista o
+      // sticky "soltava" e o teste passaria com o defeito de pé.
+      main.scrollTop = Math.round((main.scrollHeight - main.clientHeight) / 2);
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+
+      const rodape = document.querySelector('[data-rodape="acao"]')!;
+      const r = rodape.getBoundingClientRect();
+      const m = main.getBoundingClientRect();
+
+      const cobertos: string[] = [];
+      for (const el of document.querySelectorAll(
+        'main label:has(input[type="checkbox"])',
+      )) {
+        const c = el.getBoundingClientRect();
+        // A fatia do item que o `main` realmente mostra. O resto está
+        // RECORTADO pelo `overflow-y-auto`, e recorte não é sobreposição.
+        const topoVisivel = Math.max(c.top, m.top);
+        const baseVisivel = Math.min(c.bottom, m.bottom);
+        if (baseVisivel - topoVisivel < 1) continue;
+
+        const sobreposicaoY =
+          Math.min(baseVisivel, r.bottom) - Math.max(topoVisivel, r.top);
+        const sobreposicaoX = Math.min(c.right, r.right) - Math.max(c.left, r.left);
+        if (sobreposicaoY > 1 && sobreposicaoX > 1) {
+          cobertos.push(
+            `${(el.textContent ?? "").replace(/\s+/g, " ").slice(0, 50)} — ${Math.round(sobreposicaoY)}px sob o rodapé`,
+          );
+        }
+      }
+      return {
+        cobertos,
+        mainRola: main.scrollHeight > main.clientHeight + 1,
+        scrollTop: Math.round(main.scrollTop),
+        scrollMaximo: Math.round(main.scrollHeight - main.clientHeight),
+        baseDoMain: Math.round(m.bottom),
+        topoDoRodape: Math.round(r.top),
+      };
+    });
+
+    // O cenário é real: sem scroll de verdade, e a meio caminho dele, o teste
+    // passaria vazio.
+    expect(medida.mainRola, "a lista tem de exigir scroll").toBe(true);
+    expect(medida.scrollTop).toBeGreaterThan(0);
+    expect(medida.scrollTop).toBeLessThan(medida.scrollMaximo);
+
+    // ── critério 9, a asserção do ticket ─────────────────────────────────
+    expect(medida.cobertos).toEqual([]);
+    // E as duas razões estruturais disso, nesta ordem: a vista do `main`
+    // termina onde o rodapé começa, e o rodapé não é descendente do scroller.
+    expect(medida.baseDoMain).toBeLessThanOrEqual(medida.topoDoRodape + 1);
+    expect(
+      await rodape.evaluate((el) => el.closest("main") !== null),
+      "o rodapé de ação não pode viver dentro do <main> rolável",
+    ).toBe(false);
+  });
+
+  /**
+   * O contrapeso do critério 7: em tela CURTA o rodapé fica no pé da viewport
+   * com espaço vazio acima — comportamento já aceito na casca de 430px, e o que
+   * não pode acontecer é ele sair da janela ou a página passar a rolar.
+   */
+  test("em tela curta o rodapé fica no pé da janela, e a página não rola", async ({
+    page,
+    db,
+  }) => {
+    const { documentoId, pagamentoId } = await umaNotaComPagamentoLigado(db);
+    await page.goto(
+      `/documento/${documentoId}/desligar?pagamento=${pagamentoId}`,
+    );
+    await expect(page.locator('[data-rodape="acao"]')).toBeVisible();
+
+    const g = await page.evaluate(() => {
+      const de = document.documentElement;
+      const r = document
+        .querySelector('[data-rodape="acao"]')!
+        .getBoundingClientRect();
+      return {
+        paginaRola: de.scrollHeight > de.clientHeight + 1,
+        janela: de.clientHeight,
+        base: Math.round(r.bottom),
+      };
+    });
+    expect(g.paginaRola, "a página (html) não pode rolar dentro do shell").toBe(
+      false,
+    );
+    expect(g.base).toBeLessThanOrEqual(g.janela + 1);
+  });
+
+  /** Uma NF com um pagamento JÁ ligado: a tela de desligar é das mais curtas. */
+  async function umaNotaComPagamentoLigado(
+    db: Parameters<typeof criarFavorecido>[0],
+  ) {
+    const ilhamix = await criarFavorecido(db, {
+      nome: "Ilhamix Concreto",
+      documento: CNPJ_ILHAMIX,
+      tipo: "pj",
+    });
+    const documentoId = await criarDocumento(db, {
+      favorecido_id: ilhamix,
+      tipo: "nf_servico",
+      classificacao: "mao_obra",
+      valor: 16240,
+      numero: "1543",
+      serie: "1",
+      data_emissao: `${ANO}-03-12`,
+      retencao_na_nota: "nenhuma",
+      nota_traz_cno: false,
+      destinatario_cpf_ok: true,
+      status: "registrado",
+    });
+    const pagamentoId = await criarPagamento(db, {
+      favorecido_id: ilhamix,
+      valor: 16240,
+      data_pagamento: `${ANO}-05-02`,
+      meio: "pix",
+      status: "aguardando_nf",
+      comprovante_path: `${USER_ID_SEED}/comprovante/pix-ilhamix.png`,
+    });
+    await criarVinculo(db, pagamentoId, documentoId);
+    return { documentoId, pagamentoId };
+  }
 });

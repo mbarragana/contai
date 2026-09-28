@@ -21,6 +21,7 @@
  */
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 /** O que uma tela de detalhe empresta ao topbar do shell. */
 export interface CabecalhoDaTelaAtual {
@@ -31,11 +32,20 @@ export interface CabecalhoDaTelaAtual {
 interface ContextoDeCabecalho {
   cabecalho: CabecalhoDaTelaAtual | null;
   definir: (c: CabecalhoDaTelaAtual | null) => void;
+  /**
+   * **CONTAI-077 — onde o `RodapeDeAcao` vai morar: fora do `<main>` rolável.**
+   * O shell publica o nó aqui (ref callback); `null` = fora do shell, e o
+   * rodapé volta a renderizar inline.
+   */
+  slotDoRodape: HTMLElement | null;
+  publicarSlotDoRodape: (no: HTMLElement | null) => void;
 }
 
 const Contexto = createContext<ContextoDeCabecalho>({
   cabecalho: null,
   definir: () => {},
+  slotDoRodape: null,
+  publicarSlotDoRodape: () => {},
 });
 
 /** Lido SÓ pelo `ShellDeGestao` — é ele que desenha o topbar. */
@@ -43,10 +53,25 @@ export function useCabecalhoDaTela(): CabecalhoDaTelaAtual | null {
   return useContext(Contexto).cabecalho;
 }
 
+/**
+ * Usado SÓ pelo `ShellDeGestao`, como `ref` do slot irmão do `<main>`
+ * (CONTAI-077). É o setter de `useState`, logo tem identidade estável: ref
+ * callback que muda de identidade a cada render seria desmontado e remontado
+ * sem parar.
+ */
+export function usePublicarSlotDoRodape(): (no: HTMLElement | null) => void {
+  return useContext(Contexto).publicarSlotDoRodape;
+}
+
 export function ProvedorDeCabecalho({ children }: { children: ReactNode }) {
   const [cabecalho, definir] = useState<CabecalhoDaTelaAtual | null>(null);
+  const [slotDoRodape, publicarSlotDoRodape] = useState<HTMLElement | null>(
+    null,
+  );
   return (
-    <Contexto.Provider value={{ cabecalho, definir }}>
+    <Contexto.Provider
+      value={{ cabecalho, definir, slotDoRodape, publicarSlotDoRodape }}
+    >
       {children}
     </Contexto.Provider>
   );
@@ -109,7 +134,8 @@ export function ColunaDeDetalhe({
 }
 
 /**
- * **O rodapé da ação principal — sticky, e escopado à coluna de 640px.**
+ * **O rodapé da ação principal — fora da área rolável, e escopado à coluna de
+ * 640px.**
  *
  * ⚠️ **Só existe onde a tela tem UMA ação de PÁGINA** (decisão 4 do spec):
  * gravar a correção, ligar os pagamentos, desligar o pagamento, confirmar o
@@ -124,18 +150,55 @@ export function ColunaDeDetalhe({
  * duplica*. O que continua no rodapé é "Cancelar"/"Voltar sem gravar" ao lado
  * do Salvar, porque desistir é parte do formulário, não navegação do shell.
  *
- * Sticky, e não fixo no fim do fluxo, porque o formulário cresce com as
- * pendências acima dele e o botão precisa continuar alcançável sem rolar até o
- * fim. `max-w` repetido aqui (o mock faz o mesmo) mantém o rodapé na largura da
- * coluna mesmo quando ele é irmão dela, e nunca sob a sidebar.
+ * Alcançável sem rolar até o fim, porque o formulário cresce com as pendências
+ * acima dele. `max-w` repetido aqui (o mock faz o mesmo) mantém o rodapé na
+ * largura da coluna mesmo quando ele é irmão dela, e nunca sob a sidebar.
+ *
+ * ══ CONTAI-077 — ele deixou de ser `sticky` DENTRO do `<main>` ═════════════
+ *
+ * Era `sticky bottom-0` dentro do `<main overflow-y-auto>` do shell, e sticky
+ * em fluxo **sobrepõe** o conteúdo que rola por baixo: numa lista longa
+ * (`/documento/[id]/ligar` com 24 candidatos) as últimas linhas visíveis
+ * ficavam escondidas atrás dele durante todo o scroll intermediário, e só
+ * "soltavam" no fim de verdade da lista. O Mateus reportou como *"o scroll tá
+ * quebrado"*.
+ *
+ * Agora ele renderiza por **portal** num slot que o `ShellDeGestao` publica
+ * como IRMÃO do `<main>` — o mesmo princípio que a casca de 430px
+ * (`(captura)/layout.tsx` + `Rodape` de `ui.tsx`) sempre usou: quem rola é o
+ * corpo, não a página, e o rodapé está fora da área que rola, logo não pode
+ * cobrir nada por construção. `padding-bottom` no `main` não resolveria: criaria
+ * um buraco da altura do rodapé no fim das 22 telas e deixaria o meio do scroll
+ * como está.
+ *
+ * ⚠️ **O slot dá a goteira (`px-[18px] lg:px-9`), o rodapé dá o teto
+ * (`max-w-[640px]`)** — exatamente a divisão que `main` + `ColunaDeDetalhe` já
+ * fazem, e é ela que mantém rodapé e coluna com a MESMA largura e o MESMO `x`.
+ * Repetir o `max-w` no slot capá-lo-ia a 604px (goteira dentro da caixa).
+ *
+ * ⚠️ **Sem slot no contexto → inline, `sticky`, como antes.** Vale no SSR (o
+ * nó ainda não existe) e fora do shell. Nenhuma tela depende disso hoje, mas o
+ * componente não pode quebrar se usado assim.
+ *
+ * **Efeito colateral aceito, não regressão** (critério 7): em tela com pouco
+ * conteúdo sobra espaço vazio entre o último card e o rodapé, que fica no pé da
+ * viewport — é o que a casca de 430px faz desde sempre.
  */
 export function RodapeDeAcao({ children }: { children: ReactNode }) {
-  return (
+  const { slotDoRodape } = useContext(Contexto);
+
+  const caixa = (
     <div
       data-rodape="acao"
-      className="sticky bottom-0 z-10 flex w-full max-w-[640px] flex-none flex-col gap-2 border-t border-line bg-paper pt-3.5 pb-[calc(10px+env(safe-area-inset-bottom))] shadow-[0_-8px_16px_-8px_rgba(35,34,29,.08)]"
+      className={`flex w-full max-w-[640px] flex-none flex-col gap-2 border-t border-line bg-paper pt-3.5 pb-[calc(10px+env(safe-area-inset-bottom))] shadow-[0_-8px_16px_-8px_rgba(35,34,29,.08)] ${
+        // Fora do slot ele volta a ser sticky no próprio fluxo: é a única forma
+        // de continuar alcançável quando não há slot para habitar.
+        slotDoRodape === null ? "sticky bottom-0 z-10" : ""
+      }`}
     >
       {children}
     </div>
   );
+
+  return slotDoRodape === null ? caixa : createPortal(caixa, slotDoRodape);
 }

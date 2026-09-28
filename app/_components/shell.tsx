@@ -32,6 +32,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ProvedorDeCabecalho,
   useCabecalhoDaTela,
+  usePublicarSlotDoRodape,
 } from "@/app/_components/detalhe";
 import { useGestao } from "@/app/_components/gestao";
 import { useSessao } from "@/app/_components/sessao";
@@ -49,7 +50,9 @@ import {
 /**
  * O provedor de cabeçalho fica FORA da moldura pela mesma razão que o
  * `ProvedorDeGestao` fica fora do shell: quem consome o título é o topbar, que
- * é irmão do conteúdo — não descendente dele (CONTAI-043).
+ * é irmão do conteúdo — não descendente dele (CONTAI-043). Desde o CONTAI-077
+ * ele carrega também o slot do rodapé de ação, que é irmão do `<main>` pelo
+ * mesmo motivo.
  */
 export function ShellDeGestao({ children }: { children: React.ReactNode }) {
   return (
@@ -78,6 +81,11 @@ function MolduraDeGestao({ children }: { children: React.ReactNode }) {
    * documento, e o shell não a reescreve.
    */
   const daTela = useCabecalhoDaTela();
+  /**
+   * CONTAI-077 — o `ref` do slot onde o `RodapeDeAcao` da tela se planta por
+   * portal. Setter de `useState` do provedor, logo identidade estável.
+   */
+  const publicarSlotDoRodape = usePublicarSlotDoRodape();
   const titulo = daTela?.titulo ?? tituloDaView(pathname);
   /**
    * **CONTAI-060 — o seletor de ano ocupa o lugar do fragmento `· {ano}`**, e só
@@ -258,6 +266,27 @@ function MolduraDeGestao({ children }: { children: React.ReactNode }) {
         <main className="flex flex-1 flex-col gap-3 overflow-y-auto px-[18px] py-4 lg:px-9 lg:py-7">
           {children}
         </main>
+
+        {/* ⚠️ **CONTAI-077 — o slot do rodapé de ação, IRMÃO do `<main>`.**
+            `RodapeDeAcao` era `sticky bottom-0` DENTRO do `main` rolável e por
+            isso cobria as linhas que rolavam por baixo dele — em
+            `/documento/[id]/ligar` com 24 candidatos, boa parte da lista ficava
+            escondida durante todo o scroll intermediário. Fora do scroller ele
+            não pode cobrir nada por construção, que é o que a casca de 430px
+            (`(captura)/layout.tsx`) faz desde sempre.
+
+            Só a GOTEIRA vive aqui — idêntica à do `main`, é ela que alinha o
+            rodapé com a `ColunaDeDetalhe`. O teto de 640px é do próprio rodapé:
+            repetir `max-w-[640px]` neste div o capá-lo-ia a 604px, porque a
+            goteira entra na caixa.
+
+            Vazio ele mede ZERO (sem borda, sem padding vertical): tela sem
+            `RodapeDeAcao` continua exatamente como era. */}
+        <div
+          ref={publicarSlotDoRodape}
+          data-shell="slot-rodape"
+          className="flex flex-none flex-col px-[18px] lg:px-9"
+        />
       </div>
     </div>
   );
