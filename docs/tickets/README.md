@@ -2,6 +2,81 @@
 
 ## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
 
+**2026-09-28, mais tarde ainda ainda ainda**: **`074` entregue** — Gate 4
+(`po`), critérios todos PASS. `Candidato<T, Outro>` unificado com
+`jaLigadoA`/`cobertoPorInteiro`; `pagamentosCandidatos`/`documentosCandidatos`
+pararam de filtrar candidato já 100% coberto — a flag substitui a exclusão.
+Textos espelhados por direção do vínculo ("mesmo pagamento não conta duas
+vezes" vs. "mesma nota não duplica no custo"). Gate 2 (`cto-obra`+`contador`)
+APPROVE condicionado a 1 pendência documental (textos literais no parecer),
+fechada com ADENDO em `docs/pareceres/2026-08-17-vinculo-pagamento-documento.md`
+— nenhuma mudança de código depois do APPROVE. 1214/1214 Vitest,
+`e2e/vinculo.spec.ts` (25/25). Sem migration. Detalhe: `docs/tickets/CONTAI-074.md`.
+
+**2026-09-28, mais tarde ainda ainda**: **`073` entregue** — Gate 4 (`po`),
+critérios todos PASS. Migration `0022` (`compromisso_valor_historico`
+append-only + RPC `corrigir_valor_compromisso`, SQLSTATE `CT073` para saldo
+já quitado). Gate 2 (`cto-obra`) achou, por teste direto via `psql`, um
+arredondamento que furava a guarda de saldo (`6000.004` passava e gravava
+`6000.00`, saldo zero); corrigido normalizando `v_novo := round(p_valor_novo,
+2)` antes de qualquer comparação. Reverificado, APPROVE. 1214/1214 Vitest,
+72/72 E2E escopados. ⚠️ **`npx supabase db push` ainda não rodou** — obrigatório
+ANTES do `git push`. Detalhe: `docs/tickets/CONTAI-073.md`.
+
+**2026-09-28, mais tarde ainda**: **`CONTAI-074` criado** — Mateus, registrando
+um fornecedor de concreto usinado com 3 notas pagas por 7 parcelas (PIX + 2
+cartões em 3x, sem correspondência 1-para-1), tentou ligar uma parcela já
+ligada à Nota A também à Nota B: `pagamentosCandidatos`/`documentosCandidatos`
+(`lib/fiscal/vinculo.ts`) escondiam qualquer candidato já 100% absorvido por
+outro documento, embora o teto `min(Σ pagamentos elegíveis, Σ documentos
+hábeis)` por componente conexo (`alocarCusto`) já torne a segunda ligação
+matematicamente segura (o pagamento entra uma única vez na soma, qualquer que
+seja o número de vínculos). `/tickets-req` completo: `contador` aprova sem
+restrição de valor — ADENDO novo em
+`docs/pareceres/2026-08-17-vinculo-pagamento-documento.md` — e corrige, no
+fechamento, a cláusula final do aviso espelhado para `/pagamento/[id]/ligar`
+(nessa direção a garantia é "a mesma nota não duplica no custo", não "o mesmo
+pagamento" — são dois pagamentos reais e distintos provando a mesma nota).
+`cto-obra` discorda do enquadramento inicial (o aviso vale para QUALQUER
+candidato com vínculo prévio, não só os ocultos por cobertura total) e
+redesenha `Candidato<T, Outro>` com `jaLigadoA`/`cobertoPorInteiro` como
+flags dentro de uma lista só, sem migration (`pagamento_documento` já é N:M
+desde a `0001_init.sql`). `designer`: nível 2, `design/mocks/CONTAI-074.md`
+(bloco colapsado revelável, `Chip` âmbar sempre visível em candidato com
+vínculo prévio, aviso `Consequencia` inline por item marcado, frase
+explicando o acréscimo R$ 0,00 quando o vínculo é de cobertura total). O
+terceiro consumidor de `pagamentosCandidatos` (`adicionar/documento`,
+fluxo de captura) fica fora de escopo — comportamento preservado. Dívida
+nomeada para quando a ficha Pagamentos Efetuados ganhar gerador dedicado
+(somar por `pagamento.id`, nunca por linha de `pagamento_documento`).
+Cenário gestão, complexidade M. **Pronto para `/develop`.** Detalhe:
+`docs/tickets/CONTAI-074.md`.
+
+**2026-09-28, mais tarde**: **`CONTAI-073` criado** — não existe NENHUMA
+forma de corrigir `compromisso.valor_previsto` depois de criado (`grep` em
+`lib/data.ts`: só há correção de DATA — `mudarDataPrevista`/
+`mudarDataCompraCartao` — e correção de valor da NOTA —
+`corrigirValorDoDocumento`, entidade `documento`). Relato: Mateus digitou o
+valor errado numa parcela de compra no cartão (cada parcela é um lançamento
+"à vista" separado) e não achou como editar. `/tickets-req` completo:
+`contador` fecha Gate Fiscal sem impacto (`compromisso.valor_previsto` é
+previsão pura, zero para custo de aquisição e para aferição INSS — parecer
+`docs/pareceres/2026-08-18-compromisso-versus-pagamento.md` §1/§3, inclusive
+no cenário de quitação parcial). `cto-obra` acha uma invariante que o escopo
+original não cobria: se o valor novo ficar ≤ à soma já paga em quitação
+parcial, `saldoDoCompromisso` zeraria em silêncio — vira guarda dura na RPC
+nova `corrigir_valor_compromisso` (recusa `situacao` ≠ aberto, valor igual,
+valor ≤ 0, valor ≤ Σ pago). Tabela nova `compromisso_valor_historico`
+(NÃO reaproveita `compromisso_data_historico`, para não inflar o contador de
+"adiamentos"), motivo em `text` livre (sem enum, zero fiscal). Rota nova
+`/compromisso/[id]/valor`, não unificada com `/data` (decisão do `cto-obra`:
+uma ação por rota, mesmo padrão já em uso na entidade). `designer`: nível 2
+(spec + ASCII, `design/mocks/CONTAI-073.md`) — recombinação de três padrões
+já em produção (`data/`/`cancelar/page.tsx`, confirmação sem modal de
+`/documento/[id]/corrigir/valor`, campo de valor de `/compromisso/[id]/confirmar`).
+Cenário gestão. Complexidade M (migration + grants + regen de tipos + 2
+specs E2E). **Pronto para `/develop`.** Detalhe: `docs/tickets/CONTAI-073.md`.
+
 **2026-09-28**: **`072` entregue** — Gate 4 (`po`), 14/14 critérios PASS. Sem
 migration, sem UI nova, Gate Fiscal já fechado pelo parecer de 18/08 (sem
 nova rodada do `contador`). `agendamentosPorDocumento` (nova, em
