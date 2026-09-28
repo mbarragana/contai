@@ -49,9 +49,17 @@ import {
   VINCULO_SO_MUDA_A_PROVA,
   type Candidato,
 } from "@/lib/fiscal/vinculo";
+import { filtrarCandidatos } from "@/lib/gestao/busca-candidatos";
 import { hojeIso } from "@/lib/hoje";
 import { formatarBRL } from "@/lib/money";
 import type { Documento, Pagamento } from "@/lib/types";
+
+/** CONTAI-078 — ver o gêmeo em `documento/[id]/ligar`. */
+const CAMPO_BUSCA =
+  "min-h-[44px] w-full rounded-[9px] border border-line bg-white px-2.5 text-[16px] lg:min-h-[36px] lg:text-[13px]";
+
+/** CONTAI-078 — total de candidatos a partir do qual o campo aparece. */
+const MINIMO_PARA_BUSCAR = 5;
 
 const NOME_TIPO: Record<Documento["tipo"], string> = {
   nf_material: "NF de material",
@@ -101,6 +109,8 @@ export default function LigarDocumentos() {
   const [erroSalvar, setErroSalvar] = useState<string | null>(null);
   /** CONTAI-074 — ver o comentário gêmeo em `documento/[id]/ligar`. */
   const [revelarCobertos, setRevelarCobertos] = useState(false);
+  /** CONTAI-078 — idem: texto livre, não é campo fiscal, não persiste. */
+  const [termoBusca, setTermoBusca] = useState("");
 
   useEffect(() => {
     let cancelado = false;
@@ -152,8 +162,31 @@ export default function LigarDocumentos() {
   );
 
   /** Partição só de RENDERIZAÇÃO — a ordenação continua sendo a do módulo puro. */
-  const visiveis = (pronto?.candidatos ?? []).filter((c) => !c.cobertoPorInteiro);
-  const cobertos = (pronto?.candidatos ?? []).filter((c) => c.cobertoPorInteiro);
+  const visiveisBase = (pronto?.candidatos ?? []).filter(
+    (c) => !c.cobertoPorInteiro,
+  );
+  const cobertosBase = (pronto?.candidatos ?? []).filter(
+    (c) => c.cobertoPorInteiro,
+  );
+
+  /** CONTAI-078 — a busca, espelhada. Ver `documento/[id]/ligar` para o porquê
+   *  de cada corte; aqui o índice ganha o `numero` da nota, que o candidato
+   *  `Documento` tem e o `Pagamento` não. */
+  const buscaDisponivel =
+    (pronto?.candidatos.length ?? 0) > MINIMO_PARA_BUSCAR;
+  const termo = termoBusca.trim();
+  const buscaAtiva = buscaDisponivel && termo !== "";
+  const visiveis = buscaAtiva
+    ? filtrarCandidatos(visiveisBase, termo)
+    : visiveisBase;
+  const cobertos = buscaAtiva
+    ? filtrarCandidatos(cobertosBase, termo)
+    : cobertosBase;
+
+  /** SEM filtro: é ela que decide o vazio-de-verdade (critério 10). */
+  const listaBase = revelarCobertos
+    ? [...visiveisBase, ...cobertosBase]
+    : visiveisBase;
   const listaVisivel = revelarCobertos ? [...visiveis, ...cobertos] : visiveis;
 
   const algumComVinculoPrevio = marcadosDeVerdade.some(
@@ -353,7 +386,20 @@ export default function LigarDocumentos() {
           </div>
         </Card>
 
-        {listaVisivel.length === 0 ? (
+        {/* CONTAI-078: o placeholder anuncia o índice desta direção — aqui o
+            número da nota entra, na outra tela não existe. */}
+        {buscaDisponivel ? (
+          <input
+            type="text"
+            aria-label="Buscar notas"
+            placeholder="Buscar por favorecido, valor ou número da nota…"
+            className={CAMPO_BUSCA}
+            value={termoBusca}
+            onChange={(e) => setTermoBusca(e.target.value)}
+          />
+        ) : null}
+
+        {listaBase.length === 0 ? (
           <Card>
             <div className="text-center text-[34px] leading-none">📄</div>
             <div className="mt-2 text-center font-semibold">
@@ -367,6 +413,32 @@ export default function LigarDocumentos() {
               <BotaoLink href="/adicionar/documento">
                 Registrar o documento agora
               </BotaoLink>
+            </div>
+          </Card>
+        ) : listaVisivel.length === 0 ? (
+          /* CONTAI-078 — vazio POR FILTRO: estado novo, e sem o texto de
+             consequência do card acima. A nota existe; a busca é que não a
+             achou. */
+          <Card>
+            <div className="text-center text-[34px] leading-none">🔎</div>
+            <div className="mt-2 text-center font-semibold">
+              {cobertos.length > 0
+                ? `Nada encontrado para "${termo}" nas notas livres`
+                : `Nada encontrado para "${termo}"`}
+            </div>
+            <Dica>
+              {cobertos.length === 0
+                ? "Nenhuma nota desta obra combina com esse texto. Confira a grafia ou tente um valor diferente."
+                : cobertos.length === 1
+                  ? // Ver o gêmeo em `documento/[id]/ligar`: o spec traz o
+                    // plural, e "entre as 1 já ligadas" não se escreve.
+                    'Pode estar na que já está ligada a outro pagamento — abra "Mostrar 1…" logo abaixo para conferir.'
+                  : `Pode estar entre as ${cobertos.length} já ligadas a outro pagamento — abra "Mostrar ${cobertos.length}…" logo abaixo para conferir.`}
+            </Dica>
+            <div className="mt-2.5">
+              <Botao variante="ghost" onClick={() => setTermoBusca("")}>
+                Limpar busca
+              </Botao>
             </div>
           </Card>
         ) : (
@@ -435,6 +507,8 @@ export default function LigarDocumentos() {
             })}
           </>
         )}
+        {/* CONTAI-078, critérios 7 e 8: o N vem do subconjunto FILTRADO; a
+            visibilidade não reage à busca, só ao clique. */}
         {!revelarCobertos && cobertos.length > 0 ? (
           <Card>
             <Dica>{CANDIDATO_OCULTO_DOCUMENTO}</Dica>

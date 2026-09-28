@@ -1674,3 +1674,442 @@ test.describe("segundo vínculo de um registro já coberto (CONTAI-074)", () => 
     await expect(custoConfirmadoDaHome(page)).toHaveText("R$ 3.000,00");
   });
 });
+
+test.describe("busca na lista de candidatos (CONTAI-078)", () => {
+  const CNPJ_ILHAMIX = "22333444000195";
+  const CNPJ_ELETRICA = "33444555000176";
+  const CPF_JOSE = "52998224725";
+
+  /**
+   * A lista LONGA do relato, em miniatura: 7 candidatos a pagamento — 5 livres
+   * e 2 já cobertos por inteiro. Sete porque o campo só existe acima de 5
+   * (critério 4), e os 2 cobertos porque o N do "Mostrar N…" tem de reagir ao
+   * filtro sem o bloco se abrir sozinho (critérios 7 e 8).
+   */
+  async function seteCandidatosDePagamento(db: Db) {
+    const ilhamix = await criarFavorecido(db, {
+      nome: "Ilhamix Concreto LTDA",
+      documento: CNPJ_ILHAMIX,
+      tipo: "pj",
+    });
+    const wk = await criarFavorecido(db, {
+      nome: "WK Construções LTDA",
+      documento: CNPJ_WK_DIGITOS,
+      tipo: "pj",
+    });
+    const deposito = await criarFavorecido(db, {
+      nome: "Depósito Santa Rita",
+      documento: CNPJ_DEPOSITO_DIGITOS,
+      tipo: "pj",
+    });
+    // Nome COM diacrítico de propósito: quem digita no celular digita "jose".
+    const jose = await criarFavorecido(db, {
+      nome: "José Peçanha",
+      documento: CPF_JOSE,
+      tipo: "pf",
+    });
+    const eletrica = await criarFavorecido(db, {
+      nome: "Elétrica Bom Jesus LTDA",
+      documento: CNPJ_ELETRICA,
+      tipo: "pj",
+    });
+
+    /** A nota da tela: mesmo favorecido e mesmo valor do primeiro candidato. */
+    const alvo = await criarDocumento(db, {
+      favorecido_id: ilhamix,
+      tipo: "nf_material",
+      classificacao: "material",
+      numero: "1042",
+      valor: 16240,
+      destinatario_cpf_ok: true,
+      status: "registrado",
+    });
+
+    const pagar = (favorecido: string, valor: number, dia: string) =>
+      criarPagamento(db, {
+        favorecido_id: favorecido,
+        valor,
+        data_pagamento: `${ANO}-08-${dia}`,
+        meio: "pix",
+        status: "aguardando_nf",
+        // Comprovante em TODOS: pagamento sem comprovante tem elegível zero, e
+        // aí ele nasceria "coberto por inteiro" por outro motivo — o cenário
+        // deixaria de provar o que quer provar.
+        comprovante_path: `${USER_ID_SEED}/comprovante/p-${favorecido}-${valor}.png`,
+      });
+
+    // Os 5 livres.
+    await pagar(ilhamix, 16240, "02");
+    await pagar(ilhamix, 500, "03");
+    await pagar(wk, 3000, "04");
+    await pagar(deposito, 1200, "05");
+    await pagar(jose, 700, "06");
+
+    // Os 2 já cobertos por inteiro, os dois da Elétrica.
+    for (const [numero, valor] of [
+      ["3312", 9100],
+      ["3313", 8200],
+    ] as const) {
+      const nota = await criarDocumento(db, {
+        favorecido_id: eletrica,
+        tipo: "nf_servico",
+        classificacao: "mao_obra",
+        numero,
+        valor,
+        retencao_na_nota: "nenhuma",
+        destinatario_cpf_ok: true,
+        status: "registrado",
+      });
+      await criarVinculo(db, await pagar(eletrica, valor, "07"), nota);
+    }
+
+    return { alvo };
+  }
+
+  const buscaDePagamentos = (page: Page) =>
+    page.getByRole("textbox", { name: "Buscar pagamentos" });
+
+  test("filtra por favorecido e por valor, sem reordenar e sem tocar no marcado", async ({
+    page,
+    db,
+  }) => {
+    const { alvo } = await seteCandidatosDePagamento(db);
+    await page.goto(`/documento/${alvo}/ligar`);
+
+    const busca = buscaDePagamentos(page);
+    await expect(busca).toBeVisible();
+    await expect(busca).toHaveAttribute(
+      "placeholder",
+      "Buscar por favorecido ou valor…",
+    );
+    // Nasce vazio: nenhum filtro presumido (e nenhum candidato escondido).
+    await expect(busca).toHaveValue("");
+    await expect(page.getByRole("checkbox")).toHaveCount(5);
+
+    // ── Favorecido, substring, sem caixa ──
+    await busca.fill("ilhamix");
+    await expect(page.getByRole("checkbox")).toHaveCount(2);
+    // ⚠️ Critério 6: a ORDEM dentro do filtrado é a de sempre — o de mesmo
+    // valor primeiro, como vinha da ordenação do módulo puro.
+    const itens = page.locator("label");
+    await expect(itens.nth(0)).toContainText("R$ 16.240,00");
+    await expect(itens.nth(1)).toContainText("R$ 500,00");
+
+    // ── Valor, pelos dígitos, nas duas formas que ele digita ──
+    await busca.fill("16240");
+    await expect(page.getByRole("checkbox")).toHaveCount(1);
+    await expect(page.locator("label").first()).toContainText("R$ 16.240,00");
+    await busca.fill("16.240,00");
+    await expect(page.getByRole("checkbox")).toHaveCount(1);
+
+    // ── Sem diacrítico: "jose pecanha" acha "José Peçanha" ──
+    await busca.fill("jose pecanha");
+    await expect(page.getByRole("checkbox")).toHaveCount(1);
+    await expect(page.locator("label").first()).toContainText("José Peçanha");
+
+    // Marcar com o filtro ligado continua valendo: é o fluxo do relato (achar o
+    // pagamento numa lista longa e ligá-lo).
+    await page.getByRole("checkbox").check();
+    await expect(
+      page.getByRole("button", { name: "Ligar 1 pagamento — R$ 700,00" }),
+    ).toBeVisible();
+
+    // Limpar devolve os 5, e nada foi gravado por filtrar.
+    await busca.fill("");
+    await expect(page.getByRole("checkbox")).toHaveCount(5);
+    expect(await vinculos(db)).toHaveLength(2);
+  });
+
+  test("com 5 candidatos ou menos o campo não existe (critério 4)", async ({
+    page,
+    db,
+  }) => {
+    const ilhamix = await criarFavorecido(db, {
+      nome: "Ilhamix Concreto LTDA",
+      documento: CNPJ_ILHAMIX,
+      tipo: "pj",
+    });
+    const alvo = await criarDocumento(db, {
+      favorecido_id: ilhamix,
+      tipo: "nf_material",
+      classificacao: "material",
+      numero: "1042",
+      valor: 16240,
+      destinatario_cpf_ok: true,
+      status: "registrado",
+    });
+    for (let i = 1; i <= 5; i += 1) {
+      await criarPagamento(db, {
+        favorecido_id: ilhamix,
+        valor: 100 * i,
+        data_pagamento: `${ANO}-08-0${i}`,
+        meio: "pix",
+        status: "aguardando_nf",
+        comprovante_path: `${USER_ID_SEED}/comprovante/p${i}.png`,
+      });
+    }
+
+    await page.goto(`/documento/${alvo}/ligar`);
+    await expect(page.getByRole("checkbox")).toHaveCount(5);
+    // Cinco linhas se leem de uma vez; um campo de busca aqui seria só ruído.
+    await expect(buscaDePagamentos(page)).toHaveCount(0);
+  });
+
+  test("vazio-por-filtro é OUTRO estado: sem a consequência fiscal do vazio-de-verdade", async ({
+    page,
+    db,
+  }) => {
+    const { alvo } = await seteCandidatosDePagamento(db);
+    await page.goto(`/documento/${alvo}/ligar`);
+
+    await buscaDePagamentos(page).fill("zzz");
+
+    // (a) Nada bate em lugar nenhum.
+    await expect(page.getByText('Nada encontrado para "zzz"')).toBeVisible();
+    await expect(
+      page.getByText(
+        "Nenhum pagamento desta obra combina com esse texto. Confira a grafia ou tente um valor diferente.",
+      ),
+    ).toBeVisible();
+    await expect(page.getByRole("checkbox")).toHaveCount(0);
+    // A lista nem se anuncia: não há "Pagamentos desta obra" vazio embaixo.
+    await expect(page.getByText("Pagamentos desta obra")).toHaveCount(0);
+
+    // ⚠️ O CORAÇÃO DO CRITÉRIO 10: o card de vazio-de-VERDADE, com a frase de
+    // custo fora do Custo confirmado, NÃO aparece. Ele afirma que não existe
+    // pagamento a ligar nesta obra — e existem cinco; quem não achou foi a
+    // busca.
+    await expect(page.getByText("Nenhum pagamento para ligar")).toHaveCount(0);
+    await expect(
+      page.getByText(/ficam fora do\s*Custo confirmado/),
+    ).toHaveCount(0);
+
+    // "Limpar busca" devolve a lista e não revela os cobertos.
+    await page.getByRole("button", { name: "Limpar busca" }).click();
+    await expect(buscaDePagamentos(page)).toHaveValue("");
+    await expect(page.getByRole("checkbox")).toHaveCount(5);
+    await expect(
+      page.getByRole("button", { name: "Mostrar 2 pagamentos já cobertos" }),
+    ).toBeVisible();
+  });
+
+  test("o vazio-de-VERDADE continua aparecendo, com a consequência, e a busca não o move", async ({
+    page,
+    db,
+  }) => {
+    // Obra em que TODO candidato está coberto por inteiro: a lista visível nasce
+    // vazia por um fato da obra, não por filtro.
+    const eletrica = await criarFavorecido(db, {
+      nome: "Elétrica Bom Jesus LTDA",
+      documento: CNPJ_ELETRICA,
+      tipo: "pj",
+    });
+    const alvo = await criarDocumento(db, {
+      favorecido_id: eletrica,
+      tipo: "nf_servico",
+      classificacao: "mao_obra",
+      numero: "4000",
+      valor: 1000,
+      retencao_na_nota: "nenhuma",
+      destinatario_cpf_ok: true,
+      status: "registrado",
+    });
+    for (let i = 1; i <= 6; i += 1) {
+      const nota = await criarDocumento(db, {
+        favorecido_id: eletrica,
+        tipo: "nf_servico",
+        classificacao: "mao_obra",
+        numero: `50${i}`,
+        valor: 100 * i,
+        retencao_na_nota: "nenhuma",
+        destinatario_cpf_ok: true,
+        status: "registrado",
+      });
+      const pago = await criarPagamento(db, {
+        favorecido_id: eletrica,
+        valor: 100 * i,
+        data_pagamento: `${ANO}-08-0${i}`,
+        meio: "pix",
+        status: "aguardando_nf",
+        comprovante_path: `${USER_ID_SEED}/comprovante/c${i}.png`,
+      });
+      await criarVinculo(db, pago, nota);
+    }
+
+    await page.goto(`/documento/${alvo}/ligar`);
+
+    // O card estrutural, com a consequência fiscal — é o de hoje, intacto.
+    await expect(page.getByText("Nenhum pagamento para ligar")).toBeVisible();
+    await expect(page.getByText(/ficam fora do\s*Custo confirmado/)).toBeVisible();
+
+    // Com termo digitado ele NÃO troca pelo card de filtro: a ausência de
+    // candidato livre é verdade da obra, e continua sendo dita do mesmo jeito.
+    await buscaDePagamentos(page).fill("zzz");
+    await expect(page.getByText("Nenhum pagamento para ligar")).toBeVisible();
+    await expect(page.getByText('Nada encontrado para "zzz"')).toHaveCount(0);
+    // E o bloco de cobertos some por completo — nunca "Mostrar 0…".
+    await expect(page.getByRole("button", { name: /^Mostrar / })).toHaveCount(0);
+  });
+
+  test("o N de 'Mostrar N já cobertos' reage ao filtro, e o bloco continua colapsado", async ({
+    page,
+    db,
+  }) => {
+    const { alvo } = await seteCandidatosDePagamento(db);
+    await page.goto(`/documento/${alvo}/ligar`);
+
+    const busca = buscaDePagamentos(page);
+    await expect(
+      page.getByRole("button", { name: "Mostrar 2 pagamentos já cobertos" }),
+    ).toBeVisible();
+
+    // ── Filtro que só bate entre os COBERTOS: o bloco NÃO se abre sozinho ──
+    await busca.fill("eletrica");
+    await expect(page.getByRole("checkbox")).toHaveCount(0);
+    await expect(
+      page.getByText('Nada encontrado para "eletrica" nos pagamentos livres'),
+    ).toBeVisible();
+    // O texto manda abrir o bloco — não abre por ele.
+    await expect(
+      page.getByText(/Pode estar entre os 2 já ligados a outra nota/),
+    ).toBeVisible();
+    const doisCobertos = page.getByRole("button", {
+      name: "Mostrar 2 pagamentos já cobertos",
+    });
+    await expect(doisCobertos).toBeVisible();
+    await expect(page.getByText(CANDIDATO_OCULTO_PAGAMENTO)).toBeVisible();
+
+    // ── O N vem do subconjunto filtrado: 2 → 1, no singular ──
+    await busca.fill("9100");
+    await expect(page.getByRole("checkbox")).toHaveCount(0);
+    const umCoberto = page.getByRole("button", {
+      name: "Mostrar 1 pagamento já coberto",
+    });
+    await expect(umCoberto).toBeVisible();
+    await expect(doisCobertos).toHaveCount(0);
+    // O corpo do card cita o MESMO número do botão, no singular.
+    await expect(
+      page.getByText(/Pode estar no que já está ligado a outra nota/),
+    ).toBeVisible();
+
+    // ── Filtro que zera os cobertos: o bloco desaparece, não vira "Mostrar 0" ──
+    await busca.fill("ilhamix");
+    await expect(page.getByRole("checkbox")).toHaveCount(2);
+    await expect(page.getByRole("button", { name: /^Mostrar /})).toHaveCount(0);
+
+    // ── Revelado COM filtro: a lista mostra os cobertos filtrados, não os 2 ──
+    await busca.fill("9100");
+    await umCoberto.click();
+    await expect(page.getByRole("checkbox")).toHaveCount(1);
+    await expect(page.locator("label").first()).toContainText("R$ 9.100,00");
+    // Revelar é irreversível (CONTAI-074) e limpar a busca não o desfaz: agora
+    // os 7 candidatos estão na lista.
+    await busca.fill("");
+    await expect(page.getByRole("checkbox")).toHaveCount(7);
+  });
+
+  test("espelhado em /pagamento/[id]/ligar: busca por número da nota", async ({
+    page,
+    db,
+  }) => {
+    const ilhamix = await criarFavorecido(db, {
+      nome: "Ilhamix Concreto LTDA",
+      documento: CNPJ_ILHAMIX,
+      tipo: "pj",
+    });
+    const wk = await criarFavorecido(db, {
+      nome: "WK Construções LTDA",
+      documento: CNPJ_WK_DIGITOS,
+      tipo: "pj",
+    });
+    const eletrica = await criarFavorecido(db, {
+      nome: "Elétrica Bom Jesus LTDA",
+      documento: CNPJ_ELETRICA,
+      tipo: "pj",
+    });
+
+    const nota = (favorecido: string, numero: string, valor: number) =>
+      criarDocumento(db, {
+        favorecido_id: favorecido,
+        tipo: "nf_material",
+        classificacao: "material",
+        numero,
+        valor,
+        destinatario_cpf_ok: true,
+        status: "registrado",
+      });
+
+    // 5 notas livres…
+    await nota(ilhamix, "1042", 16240);
+    await nota(ilhamix, "1043", 500);
+    await nota(wk, "9901", 3000);
+    await nota(wk, "7788", 1200);
+    await nota(wk, "7789", 4500);
+    // …e 1 já coberta por inteiro por outro pagamento (total 6 > 5).
+    const coberta = await nota(eletrica, "3312", 9100);
+    await criarVinculo(
+      db,
+      await criarPagamento(db, {
+        favorecido_id: eletrica,
+        valor: 9100,
+        data_pagamento: `${ANO}-08-07`,
+        meio: "pix",
+        status: "aguardando_nf",
+        comprovante_path: `${USER_ID_SEED}/comprovante/eletrica.png`,
+      }),
+      coberta,
+    );
+
+    const alvo = await criarPagamento(db, {
+      favorecido_id: ilhamix,
+      valor: 16240,
+      data_pagamento: `${ANO}-08-02`,
+      meio: "pix",
+      status: "aguardando_nf",
+      comprovante_path: `${USER_ID_SEED}/comprovante/alvo.png`,
+    });
+
+    await page.goto(`/pagamento/${alvo}/ligar`);
+
+    const busca = page.getByRole("textbox", { name: "Buscar notas" });
+    await expect(busca).toBeVisible();
+    // O placeholder desta direção anuncia o índice a mais: o número da nota.
+    await expect(busca).toHaveAttribute(
+      "placeholder",
+      "Buscar por favorecido, valor ou número da nota…",
+    );
+    await expect(page.getByRole("checkbox")).toHaveCount(5);
+
+    // ── O número impresso na nota, que é como o Mateus a identifica no papel ──
+    await busca.fill("9901");
+    await expect(page.getByRole("checkbox")).toHaveCount(1);
+    await expect(page.locator("label").first()).toContainText("R$ 3.000,00");
+    await busca.fill("7788");
+    await expect(page.getByRole("checkbox")).toHaveCount(1);
+    await expect(page.locator("label").first()).toContainText("R$ 1.200,00");
+
+    // ── Só bate na já coberta: card (b), no feminino, e bloco ainda colapsado ──
+    await busca.fill("3312");
+    await expect(page.getByRole("checkbox")).toHaveCount(0);
+    await expect(
+      page.getByText('Nada encontrado para "3312" nas notas livres'),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Mostrar 1 nota já coberta" }),
+    ).toBeVisible();
+
+    // ── Nada em lugar nenhum: card (a), e NUNCA o vazio-de-verdade ──
+    await busca.fill("zzz");
+    await expect(page.getByText('Nada encontrado para "zzz"')).toBeVisible();
+    await expect(
+      page.getByText(
+        "Nenhuma nota desta obra combina com esse texto. Confira a grafia ou tente um valor diferente.",
+      ),
+    ).toBeVisible();
+    await expect(page.getByText("Nenhum documento para ligar")).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Limpar busca" }).click();
+    await expect(page.getByRole("checkbox")).toHaveCount(5);
+    expect(await vinculos(db)).toHaveLength(1);
+  });
+});

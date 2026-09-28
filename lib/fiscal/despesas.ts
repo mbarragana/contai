@@ -109,6 +109,9 @@ import {
   documentosHabeisSemPagamento,
   EXPLICACAO_NOTAS_SEM_PAGAMENTO,
 } from "./vinculo";
+// CONTAI-078: a normalização de busca mora em `lib/texto.ts` — havia uma cópia
+// privada aqui, e duas implementações da mesma função divergem com o tempo.
+import { normalizar } from "@/lib/texto";
 import type {
   Compromisso,
   Documento,
@@ -811,14 +814,6 @@ export const FILTROS_PADRAO: FiltrosDaTabela = {
   tipo: FILTRO_TIPO_PADRAO,
   busca: "",
 };
-
-function normalizar(texto: string): string {
-  return texto
-    .trim()
-    .toLocaleLowerCase("pt-BR")
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "");
-}
 
 function casaSituacao(linha: LinhaDeDespesa, filtro: FiltroSituacao): boolean {
   if (filtro === "comprovadas") return linha.comprovada;

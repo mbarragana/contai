@@ -50,9 +50,25 @@ import {
   VINCULO_SO_MUDA_A_PROVA,
   type Candidato,
 } from "@/lib/fiscal/vinculo";
+import { filtrarCandidatos } from "@/lib/gestao/busca-candidatos";
 import { hojeIso } from "@/lib/hoje";
 import { formatarBRL } from "@/lib/money";
 import type { Documento, Pagamento } from "@/lib/types";
+
+/**
+ * CONTAI-078 — o campo de busca usa a mesma caixa dos filtros de `/despesas`
+ * (nada de componente novo): 44px de alvo e 16px de fonte no celular, para o
+ * iOS não dar zoom ao focar; mais compacto em tela larga.
+ */
+const CAMPO_BUSCA =
+  "min-h-[44px] w-full rounded-[9px] border border-line bg-white px-2.5 text-[16px] lg:min-h-[36px] lg:text-[13px]";
+
+/**
+ * CONTAI-078 — abaixo de 6 candidatos a ordenação já resolve, e um campo de
+ * busca sobre 4 linhas é ruído. Conta o TOTAL (visíveis + já cobertos), antes
+ * de qualquer filtro: o total é que diz se a lista é longa.
+ */
+const MINIMO_PARA_BUSCAR = 5;
 
 type Estado =
   | { fase: "carregando" }
@@ -111,6 +127,12 @@ export default function LigarPagamentos() {
    * a tela volta ao padrão, que é a lista curta.
    */
   const [revelarCobertos, setRevelarCobertos] = useState(false);
+  /**
+   * CONTAI-078 — texto livre, **não é campo fiscal**: nasce `""` e não persiste
+   * (recarregar zera, mesmo padrão de `revelarCobertos`). A disciplina de "sem
+   * default" protege afirmação fiscal; busca não afirma nada, só filtra.
+   */
+  const [termoBusca, setTermoBusca] = useState("");
 
   useEffect(() => {
     let cancelado = false;
@@ -174,8 +196,40 @@ export default function LigarPagamentos() {
    * ordenação é a do módulo puro, e os cobertos entram anexados ao fim em vez de
    * misturados, para a parte revelada se ler como parte revelada.
    */
-  const visiveis = (pronto?.candidatos ?? []).filter((c) => !c.cobertoPorInteiro);
-  const cobertos = (pronto?.candidatos ?? []).filter((c) => c.cobertoPorInteiro);
+  const visiveisBase = (pronto?.candidatos ?? []).filter(
+    (c) => !c.cobertoPorInteiro,
+  );
+  const cobertosBase = (pronto?.candidatos ?? []).filter(
+    (c) => c.cobertoPorInteiro,
+  );
+
+  /**
+   * CONTAI-078 — a busca. Com 5 candidatos ou menos o campo não existe, e então
+   * NENHUMA regra deste ticket entra em vigor: `buscaAtiva` é falso, os
+   * subconjuntos filtrados são os de sempre e a tela se comporta como antes.
+   */
+  const buscaDisponivel =
+    (pronto?.candidatos.length ?? 0) > MINIMO_PARA_BUSCAR;
+  const termo = termoBusca.trim();
+  const buscaAtiva = buscaDisponivel && termo !== "";
+  const visiveis = buscaAtiva
+    ? filtrarCandidatos(visiveisBase, termo)
+    : visiveisBase;
+  /** Os já cobertos também filtram — é daqui que sai o N do "Mostrar N…". */
+  const cobertos = buscaAtiva
+    ? filtrarCandidatos(cobertosBase, termo)
+    : cobertosBase;
+
+  /**
+   * A lista SEM filtro — é ela, e só ela, que decide o card de vazio-de-verdade
+   * (critério 10): "não há pagamento nesta obra para ligar" é verdade
+   * estrutural, e a busca não pode fazer a tela afirmá-la. Mantém a condição de
+   * hoje (`revelarCobertos` inclui os cobertos), para que revelar continue
+   * tirando a tela do vazio como tira desde o CONTAI-074.
+   */
+  const listaBase = revelarCobertos
+    ? [...visiveisBase, ...cobertosBase]
+    : visiveisBase;
   const listaVisivel = revelarCobertos ? [...visiveis, ...cobertos] : visiveis;
 
   /** Critério 9: o rótulo do botão troca de verbo quando há vínculo prévio. */
@@ -367,7 +421,19 @@ export default function LigarPagamentos() {
           </div>
         </Card>
 
-        {listaVisivel.length === 0 ? (
+        {/* CONTAI-078: só com lista longa, e logo acima da lista que ele filtra. */}
+        {buscaDisponivel ? (
+          <input
+            type="text"
+            aria-label="Buscar pagamentos"
+            placeholder="Buscar por favorecido ou valor…"
+            className={CAMPO_BUSCA}
+            value={termoBusca}
+            onChange={(e) => setTermoBusca(e.target.value)}
+          />
+        ) : null}
+
+        {listaBase.length === 0 ? (
           <>
             <Card>
               <div className="text-center text-[34px] leading-none">💸</div>
@@ -388,6 +454,37 @@ export default function LigarPagamentos() {
               </Consequencia>
             ) : null}
           </>
+        ) : listaVisivel.length === 0 ? (
+          /* CONTAI-078 — vazio POR FILTRO, e ele é outro estado: **sem
+             `Consequencia`**. O card de cima anuncia custo fora do Custo
+             confirmado porque não existe pagamento nenhum a ligar; aqui existe,
+             o filtro só não o achou — repetir a frase fiscal seria afirmar um
+             risco que o texto digitado não criou. */
+          <Card>
+            <div className="text-center text-[34px] leading-none">🔎</div>
+            <div className="mt-2 text-center font-semibold">
+              {cobertos.length > 0
+                ? `Nada encontrado para "${termo}" nos pagamentos livres`
+                : `Nada encontrado para "${termo}"`}
+            </div>
+            <Dica>
+              {cobertos.length === 0
+                ? "Nenhum pagamento desta obra combina com esse texto. Confira a grafia ou tente um valor diferente."
+                : cobertos.length === 1
+                  ? // O texto do spec está no plural; no singular ele viraria
+                    // "entre os 1 já ligados", e o rótulo citado tem de bater
+                    // com o botão logo abaixo, que também singulariza.
+                    'Pode estar no que já está ligado a outra nota — abra "Mostrar 1…" logo abaixo para conferir.'
+                  : `Pode estar entre os ${cobertos.length} já ligados a outra nota — abra "Mostrar ${cobertos.length}…" logo abaixo para conferir.`}
+            </Dica>
+            <div className="mt-2.5">
+              {/* Limpa só a busca: revelar os cobertos continua sendo decisão
+                  do Mateus, e um botão de busca não a toma por ele. */}
+              <Botao variante="ghost" onClick={() => setTermoBusca("")}>
+                Limpar busca
+              </Botao>
+            </div>
+          </Card>
         ) : (
           <>
             <Passo>Pagamentos desta obra</Passo>
@@ -459,7 +556,11 @@ export default function LigarPagamentos() {
 
         {/* O bloco revelável do CONTAI-074. Fica onde vivia a `Dica` estática de
             hoje, e o texto é o mesmo `CANDIDATO_OCULTO_PAGAMENTO` — que deixou de
-            presumir que cobertura prévia é engano a desfazer. */}
+            presumir que cobertura prévia é engano a desfazer.
+            ⚠️ CONTAI-078, critérios 7 e 8: `cobertos` aqui é o subconjunto
+            FILTRADO, então o N do rótulo reage à busca e o bloco desaparece
+            quando o filtro zera os cobertos. O que NÃO reage é a visibilidade:
+            `revelarCobertos` só muda por clique, nunca por tecla digitada. */}
         {!revelarCobertos && cobertos.length > 0 ? (
           <Card>
             <Dica>{CANDIDATO_OCULTO_PAGAMENTO}</Dica>
