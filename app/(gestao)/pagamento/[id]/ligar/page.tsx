@@ -7,6 +7,7 @@ import {
   CabecalhoDaTela,
   ColunaDeDetalhe,
   RodapeDeAcao,
+  TopoFixo,
 } from "@/app/_components/detalhe";
 import { useSessao } from "@/app/_components/sessao";
 import {
@@ -341,25 +342,31 @@ export default function LigarDocumentos() {
           />
         ) : null}
 
-        <Card className="sticky top-0 z-10 bg-soft">
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="text-[11.5px] text-mut">
-              Falta cobrir deste pagamento
-            </span>
-            <span className="mono text-[22px] font-bold tracking-tight">
-              {formatarBRL(efeito?.faltaCobrirDepois ?? p.valorCentavos)}
-            </span>
-          </div>
-          {/* O cartão fala só DESTE pagamento; o efeito na obra é o do rodapé.
-              Misturar as duas grandezas na mesma frase foi o defeito do Gate 2:
-              a fatia de um pagamento pode subir 3.000 enquanto o custo da obra
-              sobe 1.000. */}
-          <Dica>
-            {marcadosDeVerdade.length === 0
-              ? "Nada marcado ainda — o pagamento continua sem nota."
-              : `Com o que está marcado, ${formatarBRL(efeito?.comprovadoDepois ?? 0)} deste pagamento ficam cobertos por documento hábil. Essa é a fatia dele — o efeito no custo da obra é o do rodapé.`}
-          </Dica>
-        </Card>
+        {/* ⚠️ **CONTAI-079 — `TopoFixo` e não `sticky top-0` no próprio
+            fluxo**, pela mesma razão da tela irmã: sticky dentro do `<main>`
+            rolável cobre a lista que rola por baixo. Nenhuma palavra do card
+            mudou. */}
+        <TopoFixo>
+          <Card className="bg-soft">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-[11.5px] text-mut">
+                Falta cobrir deste pagamento
+              </span>
+              <span className="mono text-[22px] font-bold tracking-tight">
+                {formatarBRL(efeito?.faltaCobrirDepois ?? p.valorCentavos)}
+              </span>
+            </div>
+            {/* O cartão fala só DESTE pagamento; o efeito na obra é o do rodapé.
+                Misturar as duas grandezas na mesma frase foi o defeito do Gate 2:
+                a fatia de um pagamento pode subir 3.000 enquanto o custo da obra
+                sobe 1.000. */}
+            <Dica>
+              {marcadosDeVerdade.length === 0
+                ? "Nada marcado ainda — o pagamento continua sem nota."
+                : `Com o que está marcado, ${formatarBRL(efeito?.comprovadoDepois ?? 0)} deste pagamento ficam cobertos por documento hábil. Essa é a fatia dele — o efeito no custo da obra é o do rodapé.`}
+            </Dica>
+          </Card>
+        </TopoFixo>
 
         {marcouSemValor ? (
           <Banner cor="red" role="alert">

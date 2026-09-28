@@ -3,6 +3,30 @@
 ## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
 
 **2026-09-28, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda
+ainda ainda ainda ainda**: **`079` entregue** — Gate 4 (`po`), 10/10
+critérios PASS. `TopoFixo` (espelho de `RodapeDeAcao`, `slotDoTopo`/
+`publicarSlotDoTopo`) tira o card "Falta ligar desta nota"/"deste
+pagamento" da área rolável em `/documento/[id]/ligar` e
+`/pagamento/[id]/ligar` — mesma causa raiz e mesmo padrão do `CONTAI-077`,
+sem extrair o conteúdo interno num componente compartilhado. Gate 2
+(`cto-obra`) aprovou sem pendências bloqueantes; aceitou o `ErroDeGravacao`
+passar a aparecer abaixo do card (inevitável, `role="alert"` não depende
+de ordem linear) e sugeriu ticket futuro separado (focar/rolar até o erro
+ao aparecer), não aplicado aqui. 412/412 E2E, incluindo os 2 testes do
+`077` intactos. Sem migration. Detalhe: `docs/tickets/CONTAI-079.md`.
+
+**2026-09-28, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda
+ainda ainda ainda**: **`CONTAI-079` criado** — Mateus testou o `CONTAI-077`
+em produção: o rodapé foi resolvido, mas o card fixo do TOPO ("Falta ligar
+desta nota") tem o mesmo problema — dívida que o `077` já tinha nomeado e
+deixado de fora, agora revogada. "Agendamentos não aparecem" reconfirmado
+(2ª vez) como comportamento correto (regime de caixa) — não virou ticket.
+`cto-obra` decidiu por `slotDoTopo`, espelho do `slotDoRodape` do `077`
+(mesmo plumbing, sem generalização prematura do conteúdo do card). Sem
+Gate Fiscal, sem designer, sem migration, complexidade S. **Pronto para
+`/develop`.** Detalhe: `docs/tickets/CONTAI-079.md`.
+
+**2026-09-28, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda
 ainda ainda**: **`078` entregue** — Gate 4 (`po`), 12/12 critérios PASS.
 Campo de busca em `/documento/[id]/ligar` e `/pagamento/[id]/ligar`, só
 acima de 5 candidatos, filtrando por favorecido (normalizado) e valor (por

@@ -39,6 +39,14 @@ interface ContextoDeCabecalho {
    */
   slotDoRodape: HTMLElement | null;
   publicarSlotDoRodape: (no: HTMLElement | null) => void;
+  /**
+   * **CONTAI-079 — o par simétrico do de cima, para o `TopoFixo`.** Mesmo
+   * mecanismo, mesma razão: o card fixo do topo das telas de ligar era `sticky
+   * top-0` DENTRO do `<main>` rolável e cobria as primeiras linhas visíveis da
+   * lista durante todo o scroll intermediário.
+   */
+  slotDoTopo: HTMLElement | null;
+  publicarSlotDoTopo: (no: HTMLElement | null) => void;
 }
 
 const Contexto = createContext<ContextoDeCabecalho>({
@@ -46,6 +54,8 @@ const Contexto = createContext<ContextoDeCabecalho>({
   definir: () => {},
   slotDoRodape: null,
   publicarSlotDoRodape: () => {},
+  slotDoTopo: null,
+  publicarSlotDoTopo: () => {},
 });
 
 /** Lido SÓ pelo `ShellDeGestao` — é ele que desenha o topbar. */
@@ -63,14 +73,31 @@ export function usePublicarSlotDoRodape(): (no: HTMLElement | null) => void {
   return useContext(Contexto).publicarSlotDoRodape;
 }
 
+/**
+ * O irmão de `usePublicarSlotDoRodape`, para o slot ACIMA do `<main>`
+ * (CONTAI-079). Mesmas propriedades: lido só pelo `ShellDeGestao`, e setter de
+ * `useState`, logo de identidade estável.
+ */
+export function usePublicarSlotDoTopo(): (no: HTMLElement | null) => void {
+  return useContext(Contexto).publicarSlotDoTopo;
+}
+
 export function ProvedorDeCabecalho({ children }: { children: ReactNode }) {
   const [cabecalho, definir] = useState<CabecalhoDaTelaAtual | null>(null);
   const [slotDoRodape, publicarSlotDoRodape] = useState<HTMLElement | null>(
     null,
   );
+  const [slotDoTopo, publicarSlotDoTopo] = useState<HTMLElement | null>(null);
   return (
     <Contexto.Provider
-      value={{ cabecalho, definir, slotDoRodape, publicarSlotDoRodape }}
+      value={{
+        cabecalho,
+        definir,
+        slotDoRodape,
+        publicarSlotDoRodape,
+        slotDoTopo,
+        publicarSlotDoTopo,
+      }}
     >
       {children}
     </Contexto.Provider>
@@ -201,4 +228,60 @@ export function RodapeDeAcao({ children }: { children: ReactNode }) {
   );
 
   return slotDoRodape === null ? caixa : createPortal(caixa, slotDoRodape);
+}
+
+/**
+ * **O card fixo do topo — fora da área rolável, e escopado à coluna de 640px.**
+ *
+ * ══ CONTAI-079 — espelho exato do `RodapeDeAcao`, com `top` em vez de `bottom`
+ *
+ * Mesma causa, mesma correção, um ticket depois. As duas telas de ligar
+ * (`/documento/[id]/ligar`, `/pagamento/[id]/ligar`) abrem com um card de saldo
+ * que era `sticky top-0 z-10` DENTRO do `<main overflow-y-auto>` do shell — e
+ * sticky em fluxo **sobrepõe** o que rola por baixo. Com a lista longa (a nota
+ * Ilhamix nº 1543, 24 candidatos) as primeiras linhas visíveis ficavam
+ * escondidas atrás dele durante todo o scroll intermediário. O CONTAI-077
+ * tratou o rodapé; o Mateus reportou o mesmo *"em cima"*.
+ *
+ * Renderiza por **portal** no slot que o `ShellDeGestao` publica como IRMÃO do
+ * `<main>`, entre `</header>` e ele. Fora do scroller não pode cobrir nada por
+ * construção — e há um ganho funcional além do visual: focar um item da lista
+ * pousa o alvo VISÍVEL, porque a borda de cima do scrollport deixou de ter um
+ * card colado nela.
+ *
+ * ⚠️ **O slot dá a goteira (`px-[18px] lg:px-9`), o TopoFixo dá o teto
+ * (`max-w-[640px]`)** — a mesma divisão de `main` + `ColunaDeDetalhe`, e é ela
+ * que mantém este card com a MESMA largura e o MESMO `x` da coluna. Repetir o
+ * `max-w` no slot o capá-lo-ia a 604px.
+ *
+ * ⚠️ **O respiro de cima é daqui** (`pt-4 lg:pt-7`, o mesmo `py` do `main`):
+ * quem era o primeiro filho do `main` ganhava esse respiro do padding dele.
+ * Fora do `main`, sem isto o card encostaria na borda do cabeçalho.
+ *
+ * ⚠️ **Sem slot no contexto → inline, `sticky top-0 z-10`, como antes.** Vale
+ * no SSR (o nó ainda não existe) e fora do shell: caminho defensivo, nenhuma
+ * tela depende dele hoje.
+ *
+ * **Efeito aceito, não regressão**: o que a tela renderizar ANTES do `TopoFixo`
+ * (o `ErroDeGravacao` das duas telas de ligar) passa a aparecer ABAIXO dele, já
+ * que o card sai do fluxo da coluna. O erro continua no topo do `main`, visível
+ * sem rolar, e continua sendo `role="alert"`.
+ */
+export function TopoFixo({ children }: { children: ReactNode }) {
+  const { slotDoTopo } = useContext(Contexto);
+
+  const caixa = (
+    <div
+      data-topo="fixo"
+      className={`w-full max-w-[640px] flex-none pt-4 lg:pt-7 ${
+        // Fora do slot ele volta a ser sticky no próprio fluxo — é a única forma
+        // de continuar fixo quando não há slot para habitar.
+        slotDoTopo === null ? "sticky top-0 z-10" : ""
+      }`}
+    >
+      {children}
+    </div>
+  );
+
+  return slotDoTopo === null ? caixa : createPortal(caixa, slotDoTopo);
 }

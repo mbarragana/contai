@@ -33,6 +33,7 @@ import {
   ProvedorDeCabecalho,
   useCabecalhoDaTela,
   usePublicarSlotDoRodape,
+  usePublicarSlotDoTopo,
 } from "@/app/_components/detalhe";
 import { useGestao } from "@/app/_components/gestao";
 import { useSessao } from "@/app/_components/sessao";
@@ -86,6 +87,11 @@ function MolduraDeGestao({ children }: { children: React.ReactNode }) {
    * portal. Setter de `useState` do provedor, logo identidade estável.
    */
   const publicarSlotDoRodape = usePublicarSlotDoRodape();
+  /**
+   * CONTAI-079 — o irmão de cima: onde o `TopoFixo` da tela se planta por
+   * portal. Mesmas propriedades do de baixo.
+   */
+  const publicarSlotDoTopo = usePublicarSlotDoTopo();
   const titulo = daTela?.titulo ?? tituloDaView(pathname);
   /**
    * **CONTAI-060 — o seletor de ano ocupa o lugar do fragmento `· {ano}`**, e só
@@ -262,6 +268,21 @@ function MolduraDeGestao({ children }: { children: React.ReactNode }) {
             <MenuNovoRegistro />
           </div>
         </header>
+
+        {/* ⚠️ **CONTAI-079 — o slot do card fixo do topo, IRMÃO do `<main>`.**
+            Simétrico ao slot do rodapé, pela mesma razão e com a mesma
+            divisão de responsabilidade: só a GOTEIRA vive aqui (idêntica à do
+            `main`, é ela que alinha o card com a `ColunaDeDetalhe`), e o teto de
+            640px é do próprio `TopoFixo`.
+
+            Vazio ele mede ZERO (sem borda, sem padding vertical): as 21 telas
+            sem `TopoFixo` continuam exatamente como eram — inclusive o respiro
+            de cima, que nelas continua vindo do `py-4 lg:py-7` do `main`. */}
+        <div
+          ref={publicarSlotDoTopo}
+          data-shell="slot-topo"
+          className="flex flex-none flex-col px-[18px] lg:px-9"
+        />
 
         <main className="flex flex-1 flex-col gap-3 overflow-y-auto px-[18px] py-4 lg:px-9 lg:py-7">
           {children}

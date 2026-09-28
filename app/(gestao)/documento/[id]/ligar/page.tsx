@@ -7,6 +7,7 @@ import {
   CabecalhoDaTela,
   ColunaDeDetalhe,
   RodapeDeAcao,
+  TopoFixo,
 } from "@/app/_components/detalhe";
 import { useSessao } from "@/app/_components/sessao";
 import {
@@ -376,26 +377,34 @@ export default function LigarPagamentos() {
           />
         ) : null}
 
-        {/* Saldo restante da nota, atualizando a cada marcação. */}
-        <Card className="sticky top-0 z-10 bg-soft">
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="text-[11.5px] text-mut">
-              Falta ligar desta nota
-            </span>
-            <span className="mono text-[22px] font-bold tracking-tight">
-              {formatarBRL(efeito?.faltaDepois ?? 0)}
-            </span>
-          </div>
-          <Dica>
-            {marcadosDeVerdade.length === 0
-              ? "Nada marcado ainda — a nota continua sem cobertura."
-              : efeito && efeito.faltaDepois === 0
-                ? efeito.excedenteMarcados > 0
-                  ? `Nota coberta por inteiro. Excedente ${formatarBRL(efeito.excedenteMarcados)} destes pagamentos continua como pago sem nota.`
-                  : "Nota coberta por inteiro."
-                : `Marcado ${formatarBRL(somaMarcados)} — ainda faltam ${formatarBRL(efeito?.faltaDepois ?? 0)} desta nota, que não viram custo enquanto não forem pagos.`}
-          </Dica>
-        </Card>
+        {/* Saldo restante da nota, atualizando a cada marcação.
+
+            ⚠️ **CONTAI-079 — `TopoFixo` e não `sticky top-0` no próprio
+            fluxo.** Sticky dentro do `<main>` rolável cobria as primeiras
+            linhas visíveis da lista durante todo o scroll intermediário, o
+            mesmo defeito que o CONTAI-077 corrigiu no rodapé. O conteúdo do
+            card não mudou nenhuma palavra. */}
+        <TopoFixo>
+          <Card className="bg-soft">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-[11.5px] text-mut">
+                Falta ligar desta nota
+              </span>
+              <span className="mono text-[22px] font-bold tracking-tight">
+                {formatarBRL(efeito?.faltaDepois ?? 0)}
+              </span>
+            </div>
+            <Dica>
+              {marcadosDeVerdade.length === 0
+                ? "Nada marcado ainda — a nota continua sem cobertura."
+                : efeito && efeito.faltaDepois === 0
+                  ? efeito.excedenteMarcados > 0
+                    ? `Nota coberta por inteiro. Excedente ${formatarBRL(efeito.excedenteMarcados)} destes pagamentos continua como pago sem nota.`
+                    : "Nota coberta por inteiro."
+                  : `Marcado ${formatarBRL(somaMarcados)} — ainda faltam ${formatarBRL(efeito?.faltaDepois ?? 0)} desta nota, que não viram custo enquanto não forem pagos.`}
+            </Dica>
+          </Card>
+        </TopoFixo>
 
         {/* C5: nota hábil sem valor informado comprova ZERO, e em silêncio ela
             empurraria o pagamento inteiro para "pago sem nota". */}

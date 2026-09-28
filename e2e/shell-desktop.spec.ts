@@ -1926,3 +1926,242 @@ test.describe("rodapé de ação fora da área rolável (CONTAI-077)", () => {
     return { documentoId, pagamentoId };
   }
 });
+
+/**
+ * **CONTAI-079 — o card fixo do TOPO também não cobre mais a lista que rola.**
+ *
+ * O relato (`docs/backlog/95-2026-09-28-contai-077-topo-ainda-sobrepoe.md`) foi
+ * *"o problema do scroll foi resolvido em baixo, mas não em cima"*, sobre a
+ * mesma nota real do 077 (Ilhamix, NF de serviço nº 1543): o card "Falta ligar
+ * desta nota" era `sticky top-0 z-10` DENTRO do `<main overflow-y-auto>`, e
+ * sticky em fluxo sobrepõe o que rola por baixo — por definição, não por
+ * acidente.
+ *
+ * ⚠️ **Mesma técnica de medição do 077, e pela mesma razão**: item abaixo (ou
+ * acima) da vista do `main` é RECORTADO pelo `overflow`, e recorte não é
+ * sobreposição — contá-lo faria o teste falhar com o bug corrigido. O que não
+ * pode existir é item **visível dentro do `main`** com a caixa do card em cima.
+ * `toBeVisible()` não pega nada disso: o Playwright considera visível o que
+ * está coberto.
+ */
+test.describe("card fixo do topo fora da área rolável (CONTAI-079)", () => {
+  const CNPJ_ILHAMIX = "11222333000181";
+
+  /**
+   * A geometria que os critérios 1, 2 e 10 pedem, igual nas duas telas — a
+   * diferença entre elas é só o cenário e o rótulo do card, e o critério 8
+   * proíbe extrair o conteúdo para um componente comum.
+   */
+  async function oTopoNaoCobreNenhumCandidato(page: Page) {
+    const itens = page.locator('main label:has(input[type="checkbox"])');
+    await expect(itens).toHaveCount(14);
+    const topo = page.locator('[data-topo="fixo"]');
+    await expect(topo).toBeVisible();
+
+    // ── critério 4: no repouso, largura e `x` da coluna de 640px ──────────
+    const caixaTopo = (await topo.boundingBox())!;
+    const caixaColuna = (await page
+      .locator('[data-coluna="detalhe"]')
+      .boundingBox())!;
+    expect(Math.round(caixaTopo.width)).toBe(640);
+    expect(Math.round(caixaTopo.x)).toBe(Math.round(caixaColuna.x));
+
+    const medida = await page.evaluate(async () => {
+      const main = document.querySelector("main")!;
+      // A METADE do scroll: é exatamente onde o bug vivia. No topo do scroll
+      // não há nada por baixo do card, e o teste passaria com o defeito de pé.
+      main.scrollTop = Math.round((main.scrollHeight - main.clientHeight) / 2);
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+
+      const topo = document.querySelector('[data-topo="fixo"]')!;
+      const t = topo.getBoundingClientRect();
+      const m = main.getBoundingClientRect();
+
+      const cobertos: string[] = [];
+      for (const el of document.querySelectorAll(
+        'main label:has(input[type="checkbox"])',
+      )) {
+        const c = el.getBoundingClientRect();
+        // A fatia do item que o `main` realmente mostra. O resto está
+        // RECORTADO pelo `overflow-y-auto`, e recorte não é sobreposição.
+        const topoVisivel = Math.max(c.top, m.top);
+        const baseVisivel = Math.min(c.bottom, m.bottom);
+        if (baseVisivel - topoVisivel < 1) continue;
+
+        const sobreposicaoY =
+          Math.min(baseVisivel, t.bottom) - Math.max(topoVisivel, t.top);
+        const sobreposicaoX = Math.min(c.right, t.right) - Math.max(c.left, t.left);
+        if (sobreposicaoY > 1 && sobreposicaoX > 1) {
+          cobertos.push(
+            `${(el.textContent ?? "").replace(/\s+/g, " ").slice(0, 50)} — ${Math.round(sobreposicaoY)}px sob o card do topo`,
+          );
+        }
+      }
+      return {
+        cobertos,
+        mainRola: main.scrollHeight > main.clientHeight + 1,
+        scrollTop: Math.round(main.scrollTop),
+        scrollMaximo: Math.round(main.scrollHeight - main.clientHeight),
+        topoDoMain: Math.round(m.top),
+        baseDoCard: Math.round(t.bottom),
+      };
+    });
+
+    // O cenário é real: sem scroll de verdade, e a meio caminho dele, o teste
+    // passaria vazio.
+    expect(medida.mainRola, "a lista tem de exigir scroll").toBe(true);
+    expect(medida.scrollTop).toBeGreaterThan(0);
+    expect(medida.scrollTop).toBeLessThan(medida.scrollMaximo);
+
+    // ── critério 10, a asserção do ticket ────────────────────────────────
+    expect(medida.cobertos).toEqual([]);
+    // E as duas razões estruturais disso, nesta ordem: a vista do `main` começa
+    // onde o card termina, e o card não é descendente do scroller.
+    expect(medida.topoDoMain).toBeGreaterThanOrEqual(medida.baseDoCard - 1);
+    expect(
+      await topo.evaluate((el) => el.closest("main") !== null),
+      "o card fixo do topo não pode viver dentro do <main> rolável",
+    ).toBe(false);
+  }
+
+  /** A nota do relato, com candidatos suficientes para a lista passar de 800px. */
+  async function notaComMuitosCandidatos(db: Parameters<typeof criarFavorecido>[0]) {
+    const ilhamix = await criarFavorecido(db, {
+      nome: "Ilhamix Concreto",
+      documento: CNPJ_ILHAMIX,
+      tipo: "pj",
+    });
+    const documentoId = await criarDocumento(db, {
+      favorecido_id: ilhamix,
+      tipo: "nf_servico",
+      classificacao: "mao_obra",
+      valor: 16240,
+      numero: "1543",
+      serie: "1",
+      data_emissao: `${ANO}-03-12`,
+      retencao_na_nota: "nenhuma",
+      nota_traz_cno: false,
+      destinatario_cpf_ok: true,
+      status: "registrado",
+    });
+    for (let i = 0; i < 14; i += 1) {
+      await criarPagamento(db, {
+        favorecido_id: ilhamix,
+        valor: 1200 + i * 100,
+        data_pagamento: `${ANO}-05-${String(i + 1).padStart(2, "0")}`,
+        meio: "pix",
+        status: "aguardando_nf",
+        comprovante_path: `${USER_ID_SEED}/comprovante/pix-ilhamix-${i}.png`,
+      });
+    }
+    return documentoId;
+  }
+
+  /** O espelho na outra direção: um PIX com 14 notas candidatas. */
+  async function pagamentoComMuitosCandidatos(
+    db: Parameters<typeof criarFavorecido>[0],
+  ) {
+    const ilhamix = await criarFavorecido(db, {
+      nome: "Ilhamix Concreto",
+      documento: CNPJ_ILHAMIX,
+      tipo: "pj",
+    });
+    const pagamentoId = await criarPagamento(db, {
+      favorecido_id: ilhamix,
+      valor: 16240,
+      data_pagamento: `${ANO}-05-02`,
+      meio: "pix",
+      status: "aguardando_nf",
+      comprovante_path: `${USER_ID_SEED}/comprovante/pix-ilhamix.png`,
+    });
+    for (let i = 0; i < 14; i += 1) {
+      await criarDocumento(db, {
+        favorecido_id: ilhamix,
+        tipo: "nf_material",
+        classificacao: "material",
+        valor: 1200 + i * 100,
+        numero: String(2000 + i),
+        serie: "1",
+        data_emissao: `${ANO}-04-${String(i + 1).padStart(2, "0")}`,
+        destinatario_cpf_ok: true,
+        status: "registrado",
+      });
+    }
+    return pagamentoId;
+  }
+
+  test("documento/[id]/ligar: com o main a meio caminho, o card do topo não cobre nenhum candidato", async ({
+    page,
+    db,
+  }) => {
+    const documentoId = await notaComMuitosCandidatos(db);
+    await page.goto(`/documento/${documentoId}/ligar`);
+    await expect(
+      page.getByRole("heading", { name: "Ligar pagamentos a esta nota" }),
+    ).toBeVisible();
+    // Critério 4: o card continua dizendo o que dizia, e o número continua nele.
+    await expect(page.locator('[data-topo="fixo"]')).toContainText(
+      "Falta ligar desta nota",
+    );
+
+    await oTopoNaoCobreNenhumCandidato(page);
+  });
+
+  /** Critérios 2 e 3: a outra tela, sem exceção — não se fecha com uma só. */
+  test("pagamento/[id]/ligar: mesma geometria, mesma prova", async ({
+    page,
+    db,
+  }) => {
+    const pagamentoId = await pagamentoComMuitosCandidatos(db);
+    await page.goto(`/pagamento/${pagamentoId}/ligar`);
+    await expect(
+      page.getByRole("heading", { name: "Ligar este pagamento a uma nota" }),
+    ).toBeVisible();
+    await expect(page.locator('[data-topo="fixo"]')).toContainText(
+      "Falta cobrir deste pagamento",
+    );
+
+    await oTopoNaoCobreNenhumCandidato(page);
+  });
+
+  /**
+   * O contrapeso: o slot vazio não pode custar nada às outras telas. Numa tela
+   * sem `TopoFixo` ele mede ZERO e o respiro de cima do conteúdo continua sendo
+   * o `py-4 lg:py-7` do `main`.
+   */
+  test("sem TopoFixo o slot mede zero, e a página não rola", async ({
+    page,
+    db,
+  }) => {
+    const favorecidoId = await criarFavorecido(db, {
+      nome: "Ilhamix Concreto",
+      documento: CNPJ_ILHAMIX,
+      tipo: "pj",
+    });
+    await criarPagamento(db, {
+      favorecido_id: favorecidoId,
+      valor: 950,
+      data_pagamento: `${ANO}-08-12`,
+      meio: "pix",
+      status: "aguardando_nf",
+      comprovante_path: `${USER_ID_SEED}/comprovante/pix.png`,
+    });
+
+    await page.goto("/despesas");
+    await expect(page.locator('[data-tabela="despesas"]')).toBeVisible();
+    await expect(page.locator('[data-topo="fixo"]')).toHaveCount(0);
+
+    const g = await page.evaluate(() => {
+      const de = document.documentElement;
+      const slot = document.querySelector('[data-shell="slot-topo"]')!;
+      return {
+        alturaDoSlot: Math.round(slot.getBoundingClientRect().height),
+        paginaRola: de.scrollHeight > de.clientHeight + 1,
+      };
+    });
+    expect(g.alturaDoSlot).toBe(0);
+    expect(g.paginaRola, "a página (html) não pode rolar dentro do shell").toBe(
+      false,
+    );
+  });
+});
