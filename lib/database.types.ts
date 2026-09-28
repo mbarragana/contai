@@ -133,6 +133,39 @@ export type Database = {
           },
         ]
       }
+      compromisso_documento_previsto: {
+        Row: {
+          compromisso_id: string
+          criado_em: string
+          documento_id: string
+        }
+        Insert: {
+          compromisso_id: string
+          criado_em?: string
+          documento_id: string
+        }
+        Update: {
+          compromisso_id?: string
+          criado_em?: string
+          documento_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compromisso_documento_previsto_compromisso_id_fkey"
+            columns: ["compromisso_id"]
+            isOneToOne: false
+            referencedRelation: "compromisso"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compromisso_documento_previsto_documento_id_fkey"
+            columns: ["documento_id"]
+            isOneToOne: false
+            referencedRelation: "documento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       compromisso_pagamento: {
         Row: {
           compromisso_id: string

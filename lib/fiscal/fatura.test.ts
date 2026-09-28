@@ -94,6 +94,7 @@ function compromisso(over: Partial<Compromisso> & { id: string }): Compromisso {
     favorecidoId: "fav-1",
     favorecidoNome: "Leroy Merlin",
     valorPrevistoCentavos: 120_000,
+    documentoPrevistoIds: [],
     dataPrevista: "2026-10-10",
     origem: "cartao",
     documentoOrigemId: null,

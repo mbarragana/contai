@@ -6,6 +6,21 @@ import {
   agendamentosPorDocumento,
   CABECALHO_AGENDA_COMPROMISSOS,
   chipDoAgendado,
+  CHIP_LIGADO_AO_CONFIRMAR,
+  CHIP_PRE_VINCULO,
+  compromissosQuePreLigam,
+  documentosResolvidosNaConfirmacao,
+  identificarDocumentoPreLigado,
+  idsDaUniaoDoPreVinculo,
+  LIGADO_AO_CONFIRMAR_PORQUE,
+  perguntaConfirmarPreVinculos,
+  podePreVincular,
+  PRE_VINCULO_CONFIRMAR,
+  PRE_VINCULO_REVISAR,
+  PRE_VINCULO_SEM_CARTAO,
+  PRE_VINCULO_SO_EM_ABERTO,
+  textoPreVinculoDaNota,
+  textoPreVinculoDoCompromisso,
   compromissosElegiveisParaQuitacao,
   compromissosQueBloqueiam,
   decidirRegistro,
@@ -28,6 +43,7 @@ import {
   saldoDoCompromisso,
   VENCIDO_SEM_RESPOSTA,
 } from "@/lib/fiscal/compromisso";
+import { MOTIVO_OBRA_DIFERENTE } from "@/lib/fiscal/vinculo";
 import { formatarBRL } from "@/lib/money";
 import type {
   Compromisso,
@@ -75,11 +91,38 @@ function comp(over: Partial<Compromisso> & { id: string }): Compromisso {
     dataPrevista: "2026-09-15",
     origem: "boleto",
     documentoOrigemId: null,
+    documentoPrevistoIds: [],
     situacao: "aberto",
     motivoCancelamento: null,
     dataCompra: null,
     pagamentoIds: [],
     adiamentos: 0,
+    ...over,
+  };
+}
+
+/** CONTAI-080 — a nota do lado do pré-vínculo. Espelha o `doc` de `vinculo.test.ts`. */
+function doc(over: Partial<Documento> & { id: string }): Documento {
+  return {
+    obraId: OBRA,
+    tipo: "nf_material",
+    status: "registrado",
+    valorCentavos: 485_000, // R$ 4.850,00 — a nota do concreto do relato
+    numero: "1042",
+    serie: null,
+    dataEmissao: "2026-03-20",
+    vencimento: null,
+    classificacao: "material",
+    destinatarioCpfOk: true,
+    retencaoNaNota: null,
+    retencoes: [],
+    cnoReferenciado: null,
+    notaTrazCno: null,
+    motivoQuarentena: null,
+    favorecidoId: "fav-superbeton",
+    favorecidoNome: "Superbeton",
+    favorecidoDocumento: "11222333000181",
+    arquivoPath: "u/documento/nf.pdf",
     ...over,
   };
 }
@@ -1431,5 +1474,397 @@ describe("agendamentosPorDocumento (CONTAI-072, critérios 3 a 6)", () => {
     // não há `...Centavos` a somar com o número do card de notas sem pagamento.
     expect(Object.keys(marca).filter((k) => /Centavos/i.test(k))).toEqual([]);
     expect(marca.resumo).toContain("previsto");
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// CONTAI-080 · PRÉ-VÍNCULO — a resolução do N, as guardas e os textos literais
+// ══════════════════════════════════════════════════════════════════════════
+//
+// Fonte normativa: ADENDO 6 (§J.0-J.5), ADENDO 7 (§K.1-K.5) e ADENDO 8
+// (§L.1-L.4) de `docs/pareceres/2026-08-18-compromisso-versus-pagamento.md`.
+
+describe("documentosResolvidosNaConfirmacao — o N do critério 10", () => {
+  const notaA = doc({ id: "doc-a", numero: "1042", valorCentavos: 485_000 });
+  const notaB = doc({ id: "doc-b", numero: "1043", valorCentavos: 210_000 });
+
+  it("N=0 · sem origem e sem pré-vínculo: nada resolve", () => {
+    const c = comp({ id: "c1" });
+    expect(documentosResolvidosNaConfirmacao(c, [notaA, notaB])).toEqual([]);
+  });
+
+  it("N=1 · só a nota de origem (o caminho do CONTAI-065, intacto)", () => {
+    const c = comp({ id: "c1", documentoOrigemId: "doc-a" });
+    const r = documentosResolvidosNaConfirmacao(c, [notaA, notaB]);
+    expect(r.map((d) => d.id)).toEqual(["doc-a"]);
+  });
+
+  it("N=1 · só pré-vínculo, sem nota de origem", () => {
+    const c = comp({ id: "c1", documentoPrevistoIds: ["doc-b"] });
+    expect(
+      documentosResolvidosNaConfirmacao(c, [notaA, notaB]).map((d) => d.id),
+    ).toEqual(["doc-b"]);
+  });
+
+  it("N≥2 · origem + pré-vínculo de OUTRA nota — e a origem vem primeiro", () => {
+    const c = comp({
+      id: "c1",
+      documentoOrigemId: "doc-a",
+      documentoPrevistoIds: ["doc-b"],
+    });
+    // ⚠️ É ESTE o caso do pre-mortem 1: contar N só sobre a tabela nova daria
+    // N=1 e a conversão automática do §K.2 ligaria `doc-b` sozinha, enquanto o
+    // `propagar_vinculo_de_origem` ligaria `doc-a` — dois automatismos
+    // independentes competindo pela mesma guarda.
+    expect(
+      documentosResolvidosNaConfirmacao(c, [notaA, notaB]).map((d) => d.id),
+    ).toEqual(["doc-a", "doc-b"]);
+  });
+
+  it("⚠️ DEDUPLICAÇÃO · a mesma nota como origem E como pré-vínculo é N=1", () => {
+    const c = comp({
+      id: "c1",
+      documentoOrigemId: "doc-a",
+      documentoPrevistoIds: ["doc-a"],
+    });
+    const r = documentosResolvidosNaConfirmacao(c, [notaA, notaB]);
+    // Sem a dedup, o caso mais provável do relato — ele reafirma, pela tela
+    // nova, a nota que já era a de origem — cairia em N≥2 e a tela pediria
+    // confirmação de um conjunto com uma nota só.
+    expect(r.map((d) => d.id)).toEqual(["doc-a"]);
+    expect(r).toHaveLength(1);
+  });
+
+  it("deduplica também pré-vínculo repetido na própria lista", () => {
+    const c = comp({ id: "c1", documentoPrevistoIds: ["doc-b", "doc-b"] });
+    expect(
+      documentosResolvidosNaConfirmacao(c, [notaA, notaB]),
+    ).toHaveLength(1);
+  });
+
+  it("nota de OUTRA OBRA não resolve — nada é somado entre matrículas", () => {
+    const alheia = doc({ id: "doc-x", obraId: "outra-obra" });
+    const c = comp({
+      id: "c1",
+      documentoOrigemId: "doc-x",
+      documentoPrevistoIds: ["doc-b"],
+    });
+    expect(
+      documentosResolvidosNaConfirmacao(c, [alheia, notaB]).map((d) => d.id),
+    ).toEqual(["doc-b"]);
+  });
+
+  it("id que não está na lista carregada degrada em silêncio, sem estourar", () => {
+    const c = comp({ id: "c1", documentoPrevistoIds: ["doc-que-nao-existe"] });
+    expect(documentosResolvidosNaConfirmacao(c, [notaA])).toEqual([]);
+  });
+
+  it("⚠️ NÃO filtra por situação — a pré-marcação roda com o agendamento já quitado", () => {
+    // Critério 13: em `/pagamento/[id]/ligar` o compromisso de origem já está
+    // `quitado`. Um filtro de situação aqui apagaria a marca justamente na tela
+    // que o botão "Revisar antes de confirmar" abre.
+    const c = comp({
+      id: "c1",
+      situacao: "quitado",
+      documentoPrevistoIds: ["doc-a"],
+    });
+    expect(
+      documentosResolvidosNaConfirmacao(c, [notaA]).map((d) => d.id),
+    ).toEqual(["doc-a"]);
+  });
+
+  it("⚠️ não devolve nada somável: a saída é Documento, sem total nenhum", () => {
+    const c = comp({ id: "c1", documentoPrevistoIds: ["doc-a", "doc-b"] });
+    const r = documentosResolvidosNaConfirmacao(c, [notaA, notaB]);
+    expect(Array.isArray(r)).toBe(true);
+    expect(r.every((d) => "valorCentavos" in d)).toBe(true);
+  });
+});
+
+describe("podePreVincular — a guarda de escrita", () => {
+  it("agendamento aberto + nota da mesma obra: pode", () => {
+    expect(podePreVincular(comp({ id: "c1" }), { obraId: OBRA }).ok).toBe(true);
+  });
+
+  it("nota de outra obra: recusa com o MESMO motivo do vínculo formal", () => {
+    const p = podePreVincular(comp({ id: "c1" }), { obraId: "outra-obra" });
+    expect(p.ok).toBe(false);
+    // ⚠️ O texto é o de `vinculo.ts`, reaproveitado — não uma segunda redação.
+    expect(p.ok === false && p.motivo).toBe(MOTIVO_OBRA_DIFERENTE);
+  });
+
+  for (const situacao of ["quitado", "cancelado"] as const) {
+    it(`agendamento ${situacao}: recusa — a vida do pré-vínculo é a do compromisso`, () => {
+      const p = podePreVincular(comp({ id: "c1", situacao }), { obraId: OBRA });
+      expect(p.ok).toBe(false);
+      expect(p.ok === false && p.motivo).toBe(PRE_VINCULO_SO_EM_ABERTO);
+    });
+  }
+
+  /**
+   * **D2 do Gate 2** — a quitação de compra no cartão acontece pela fatura, por
+   * RPC que não conta N e não pergunta nada. Oferecer pré-vínculo ali faria o
+   * texto do ADENDO 8 §L.2 prometer os dois comportamentos que aquele caminho
+   * não tem. Cartão é o CONTAI-081, inteiro.
+   */
+  it("⚠️ compra no CARTÃO: recusa, mesmo aberta e na mesma obra", () => {
+    const p = podePreVincular(comp({ id: "c1", origem: "cartao" }), {
+      obraId: OBRA,
+    });
+    expect(p.ok).toBe(false);
+    expect(p.ok === false && p.motivo).toBe(PRE_VINCULO_SEM_CARTAO);
+  });
+
+  it("o cartão é a recusa mais forte — vence a de situação", () => {
+    // Um agendamento de cartão já quitado tem duas razões para recusar, e a que
+    // explica o produto é "isto não existe para cartão", não "já foi respondido".
+    const p = podePreVincular(
+      comp({ id: "c1", origem: "cartao", situacao: "quitado" }),
+      { obraId: OBRA },
+    );
+    expect(p.ok === false && p.motivo).toBe(PRE_VINCULO_SEM_CARTAO);
+  });
+
+  it("pix e boleto continuam podendo", () => {
+    for (const origem of ["pix", "boleto"] as const) {
+      expect(podePreVincular(comp({ id: "c1", origem }), { obraId: OBRA }).ok).toBe(
+        true,
+      );
+    }
+  });
+});
+
+/**
+ * **D1 do Gate 2 — a união em IDS, que é a mesma união, num grau de resolução
+ * mais grosseiro.** Ela existe porque a sugestão de quitação decide
+ * `propagarOrigem` sem ter `Documento[]` em mão.
+ */
+describe("idsDaUniaoDoPreVinculo — o limite superior do N", () => {
+  it("origem + pré-vínculos, deduplicado, com a origem primeiro", () => {
+    expect(
+      idsDaUniaoDoPreVinculo({
+        documentoOrigemId: "doc-a",
+        documentoPrevistoIds: ["doc-b", "doc-a"],
+      }),
+    ).toEqual(["doc-a", "doc-b"]);
+  });
+
+  it("sem origem e sem pré-vínculo: vazio (N=0, nada a propagar)", () => {
+    expect(
+      idsDaUniaoDoPreVinculo({
+        documentoOrigemId: null,
+        documentoPrevistoIds: [],
+      }),
+    ).toEqual([]);
+  });
+
+  it("origem reafirmada como pré-vínculo é UM id — o caso que decide N=1", () => {
+    const ids = idsDaUniaoDoPreVinculo({
+      documentoOrigemId: "doc-a",
+      documentoPrevistoIds: ["doc-a"],
+    });
+    expect(ids).toHaveLength(1);
+    // É o que faz a sugestão de quitação continuar propagando sozinha neste
+    // caso, exatamente como o CONTAI-065 fazia antes deste ticket.
+    expect(ids.length < 2).toBe(true);
+  });
+
+  /**
+   * ⚠️ **A propriedade que sustenta a conservadoria do D1**: resolver só
+   * ENCOLHE o conjunto, então a contagem sobre ids nunca é MENOR que a contagem
+   * resolvida. Quem decide "posso propagar sozinho?" pelo limite superior erra,
+   * no máximo, deixando de automatizar — nunca convertendo parte de um conjunto.
+   */
+  it("⚠️ a contagem por ids é sempre ≥ a contagem resolvida", () => {
+    const daObra = doc({ id: "doc-a" });
+    const deOutraObra = doc({ id: "doc-x", obraId: "outra-obra" });
+    const c = comp({
+      id: "c1",
+      documentoOrigemId: "doc-a",
+      documentoPrevistoIds: ["doc-x", "doc-inexistente"],
+    });
+    const porIds = idsDaUniaoDoPreVinculo(c).length;
+    const resolvido = documentosResolvidosNaConfirmacao(c, [
+      daObra,
+      deOutraObra,
+    ]).length;
+    expect(porIds).toBe(3);
+    expect(resolvido).toBe(1);
+    expect(porIds).toBeGreaterThanOrEqual(resolvido);
+  });
+});
+
+describe("os textos literais do pré-vínculo", () => {
+  const notaA = doc({ id: "doc-a", numero: "1042", valorCentavos: 485_000 });
+  const notaB = doc({ id: "doc-b", numero: "1043", valorCentavos: 210_000 });
+
+  it("o chip é o do §J.2 — e a cor fica na tela, não aqui", () => {
+    expect(CHIP_PRE_VINCULO).toBe("Pré-vínculo — ainda não é custo");
+  });
+
+  /**
+   * Não-bloqueante 1 do Gate 2: depois da correção do D1, "automaticamente" é
+   * verdade só para N=1 — o N≥2 nasce do clique em "Sim". A tela do seletor não
+   * distingue os dois, e o que é verdade nos dois é "ligado ao confirmar".
+   */
+  it('⚠️ o chip do "já ligado" não diz "automaticamente"', () => {
+    expect(CHIP_LIGADO_AO_CONFIRMAR).toBe("Ligado ao confirmar o agendamento");
+    expect(LIGADO_AO_CONFIRMAR_PORQUE).toBe(
+      "Ligado ao confirmar o agendamento — você já tinha indicado isso antes de pagar.",
+    );
+    for (const texto of [CHIP_LIGADO_AO_CONFIRMAR, LIGADO_AO_CONFIRMAR_PORQUE]) {
+      expect(texto).not.toContain("automaticamente");
+    }
+  });
+
+  it("identificação de cada nota: número + valor", () => {
+    expect(identificarDocumentoPreLigado(notaA)).toBe(`Nota nº 1042 — ${formatarBRL(485_000)}`);
+  });
+
+  it("sem número (boleto), o tipo identifica; sem valor, a frase diz isso", () => {
+    expect(
+      identificarDocumentoPreLigado(doc({ id: "b", tipo: "boleto", numero: null })),
+    ).toBe(`Boleto — ${formatarBRL(485_000)}`);
+    expect(
+      identificarDocumentoPreLigado(doc({ id: "s", valorCentavos: null })),
+    ).toBe("Nota nº 1042 — sem valor informado");
+  });
+
+  it("⚠️ VARIANTE N=1 do ADENDO 8 §L.2, palavra por palavra", () => {
+    expect(textoPreVinculoDoCompromisso([notaA])).toBe(
+      `Você ligou este agendamento a Nota nº 1042 — ${formatarBRL(485_000)} antes de ` +
+        "pagar. Isso é só uma intenção registrada: enquanto o pagamento não " +
+        "for confirmado, esse valor não entra no custo de aquisição, não abate " +
+        "a base do INSS e não aparece em nenhum relatório da declaração. " +
+        "Quando você confirmar o pagamento, o sistema vai vincular esta nota " +
+        "automaticamente — sem perguntar de novo.",
+    );
+  });
+
+  it("⚠️ VARIANTE N≥2 do ADENDO 8 §L.2, palavra por palavra", () => {
+    expect(textoPreVinculoDoCompromisso([notaA, notaB])).toBe(
+      `Você ligou este agendamento a Nota nº 1042 — ${formatarBRL(485_000)}, Nota nº 1043 ` +
+        `— ${formatarBRL(210_000)} antes de pagar. Isso é só uma intenção registrada: ` +
+        "enquanto o pagamento não for confirmado, esse valor não entra no " +
+        "custo de aquisição, não abate a base do INSS e não aparece em nenhum " +
+        "relatório da declaração. Quando você confirmar o pagamento, o sistema " +
+        "vai te perguntar se este pré-vínculo ainda vale.",
+    );
+  });
+
+  it("as três primeiras frases NÃO mudam com N; só a última se bifurca (§L.2)", () => {
+    const ate = (t: string) => t.slice(0, t.lastIndexOf("Quando você"));
+    expect(ate(textoPreVinculoDoCompromisso([notaA]))).toBe(
+      ate(textoPreVinculoDoCompromisso([notaA])),
+    );
+    const n1 = textoPreVinculoDoCompromisso([notaA]);
+    const n2 = textoPreVinculoDoCompromisso([notaA, notaB]);
+    // A promessa é OPOSTA nas duas, e é esse o ponto do ADENDO 8: o texto do
+    // §J.2 original prometia pergunta sempre, e ficou falso para N=1.
+    expect(n1).toContain("sem perguntar de novo");
+    expect(n2).toContain("vai te perguntar");
+    expect(n1).not.toContain("vai te perguntar");
+    expect(n2).not.toContain("sem perguntar de novo");
+  });
+
+  it('⚠️ a última frase diz "pré-vínculo", nunca "vínculo" sozinho (§L.2)', () => {
+    const n2 = textoPreVinculoDoCompromisso([notaA, notaB]);
+    expect(n2).toContain("este pré-vínculo ainda vale");
+    expect(n2).not.toContain("este vínculo ainda vale");
+  });
+
+  it("⚠️ a pergunta do bloco N≥2 é a do §J.3, palavra por palavra", () => {
+    expect(perguntaConfirmarPreVinculos([notaA, notaB])).toBe(
+      "Confirmar este pagamento também confirma o vínculo com Nota nº 1042 — " +
+        `${formatarBRL(485_000)}, Nota nº 1043 — ${formatarBRL(210_000)}, ` +
+        "como você já tinha indicado?",
+    );
+    expect(PRE_VINCULO_CONFIRMAR).toBe("Sim, confirmar os vínculos");
+    expect(PRE_VINCULO_REVISAR).toBe("Revisar antes de confirmar");
+  });
+
+  it("⚠️ TEXTO DA NOTA (§J.2, bloco da NOTA) com um agendamento só", () => {
+    const c = comp({
+      id: "c1",
+      documentoPrevistoIds: ["doc-a"],
+      valorPrevistoCentavos: 320_000,
+      dataPrevista: "2026-10-05",
+    });
+    expect(textoPreVinculoDaNota([c])).toBe(
+      `WK Construções LTDA — previsto ${formatarBRL(320_000)} para 05/10/2026 está ` +
+        "pré-ligado a esta nota, mas nenhum pagamento aconteceu ainda. Esta " +
+        "nota continua sem pagamento vinculado até que um pagamento de verdade " +
+        "seja confirmado e ligado a ela — ela segue contando em " +
+        '"Notas hábeis sem pagamento vinculado".',
+    );
+  });
+
+  it("com 2+ agendamentos, a concordância vira plural e a lista cresce", () => {
+    const c1 = comp({
+      id: "c1",
+      valorPrevistoCentavos: 320_000,
+      dataPrevista: "2026-10-05",
+    });
+    const c2 = comp({
+      id: "c2",
+      favorecidoNome: "Superbeton",
+      valorPrevistoCentavos: 210_000,
+      dataPrevista: "2026-11-05",
+    });
+    const texto = textoPreVinculoDaNota([c1, c2]);
+    expect(texto).toContain(
+      `WK Construções LTDA — previsto ${formatarBRL(320_000)} para 05/10/2026, ` +
+        `Superbeton — previsto ${formatarBRL(210_000)} para 05/11/2026 estão pré-ligados a esta nota`,
+    );
+    // ⚠️ A frase do lado da NOTA não muda por N (ADENDO 8): ela nunca prometeu
+    // pergunta nenhuma.
+    expect(texto).toContain('segue contando em "Notas hábeis sem pagamento vinculado"');
+    expect(texto).not.toContain("perguntar");
+  });
+});
+
+describe("compromissosQuePreLigam — lista TODOS, sem eleição (critério 6)", () => {
+  it("dois agendamentos abertos na mesma nota: os DOIS voltam", () => {
+    const a = comp({ id: "c1", documentoPrevistoIds: ["doc-a"] });
+    const b = comp({ id: "c2", documentoOrigemId: "doc-a" });
+    // ⚠️ O contraste com `agendamentosPorDocumento`, que ELEGE um: a Home
+    // mostra 1 aviso por nota de propósito; o detalhe da nota precisa da
+    // situação completa (o caso do concreto tem 3 parcelas na mesma nota).
+    expect(compromissosQuePreLigam("doc-a", [a, b]).map((c) => c.id)).toEqual([
+      "c1",
+      "c2",
+    ]);
+    expect(agendamentosPorDocumento([a, b], HOJE).size).toBe(1);
+  });
+
+  it("conta as DUAS fontes: origem e pré-vínculo", () => {
+    const so_origem = comp({ id: "c1", documentoOrigemId: "doc-a" });
+    const so_previsto = comp({ id: "c2", documentoPrevistoIds: ["doc-a"] });
+    const outra = comp({ id: "c3", documentoPrevistoIds: ["doc-z"] });
+    expect(
+      compromissosQuePreLigam("doc-a", [so_origem, so_previsto, outra]).map(
+        (c) => c.id,
+      ),
+    ).toEqual(["c1", "c2"]);
+  });
+
+  it("a mesma nota como origem E pré-vínculo do MESMO agendamento: uma linha só", () => {
+    const c = comp({
+      id: "c1",
+      documentoOrigemId: "doc-a",
+      documentoPrevistoIds: ["doc-a"],
+    });
+    expect(compromissosQuePreLigam("doc-a", [c])).toHaveLength(1);
+  });
+
+  for (const situacao of ["quitado", "cancelado"] as const) {
+    it(`agendamento ${situacao} não pré-liga nada`, () => {
+      const c = comp({ id: "c1", situacao, documentoPrevistoIds: ["doc-a"] });
+      expect(compromissosQuePreLigam("doc-a", [c])).toEqual([]);
+    });
+  }
+
+  it("nota sem agendamento nenhum: lista vazia", () => {
+    expect(compromissosQuePreLigam("doc-a", [comp({ id: "c1" })])).toEqual([]);
   });
 });

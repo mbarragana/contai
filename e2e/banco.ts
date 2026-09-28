@@ -266,6 +266,11 @@ const SQL_LIMPAR = [
   // `on delete cascade` já daria conta, mas apagar explícito deixa o erro no
   // lugar certo se uma FK mudar.
   "delete from quitacao_recusada;",
+  // CONTAI-080 — o pré-vínculo cai antes do `compromisso` E do `documento` que
+  // ele referencia. Aqui o DELETE **não** é exceção de andaime: o papel
+  // `authenticated` tem DELETE nesta tabela (migration 0023), porque a linha é
+  // AFIRMAÇÃO sobre correspondência, não acervo com objeto no bucket.
+  "delete from compromisso_documento_previsto;",
   // CONTAI-073 — o rastro do valor cai antes do `compromisso` que ele
   // referencia. Ela nasce SEM DELETE para `authenticated` (migration 0022: é o
   // rastro), então limpá-la só pode ser andaime de ambiente — é a exceção
@@ -524,6 +529,33 @@ export async function criarCompromisso(
     .single();
   conferir("criar compromisso", error);
   return data!.id;
+}
+
+/**
+ * CONTAI-080 — um PRÉ-VÍNCULO montado direto no banco, pelo MESMO client
+ * autenticado do app: é a policy `dono_compromisso_documento_previsto` (RLS
+ * DERIVADA do pai) que autoriza, como no browser. Serve ao cenário "isto já
+ * estava declarado quando o Mateus abriu a tela".
+ */
+export async function criarPreVinculo(
+  db: Db,
+  compromissoId: string,
+  documentoId: string,
+): Promise<void> {
+  const { error } = await db
+    .from("compromisso_documento_previsto")
+    .insert({ compromisso_id: compromissoId, documento_id: documentoId });
+  conferir("criar pré-vínculo", error);
+}
+
+/** As linhas de pré-vínculo, pelo MESMO client autenticado (mesma RLS do app). */
+export async function preVinculos(db: Db) {
+  const { data, error } = await db
+    .from("compromisso_documento_previsto")
+    .select("*")
+    .order("criado_em", { ascending: true });
+  conferir("ler pré-vínculo", error);
+  return data!;
 }
 
 // ── Leituras de verificação ──────────────────────────────────────────────

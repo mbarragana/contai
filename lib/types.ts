@@ -327,6 +327,23 @@ export interface Compromisso {
   dataPrevista: string | null;
   origem: OrigemCompromisso;
   documentoOrigemId: string | null;
+  /**
+   * **CONTAI-080 — os PRÉ-VÍNCULOS**, N:M, editáveis a qualquer momento antes
+   * da confirmação do pagamento (tabela `compromisso_documento_previsto`).
+   *
+   * ⚠️ **Não substitui nem estende `documentoOrigemId`** (parecer de
+   * 2026-08-18, ADENDO 6 §J.0): aquele é UM documento, gravado na criação e
+   * imutável (CONTAI-064/065); este é um conjunto editável. Os dois convivem, e
+   * quem decide a bifurcação da conversão é a UNIÃO deduplicada dos dois —
+   * `documentosResolvidosNaConfirmacao`, em `lib/fiscal/compromisso.ts`. Contar
+   * N só sobre este campo faria o mecanismo novo e o
+   * `propagar_vinculo_de_origem` competirem pela mesma guarda.
+   *
+   * ⚠️ **É INTENÇÃO, não prova** (§J.1): não entra em soma nenhuma, não é nó de
+   * `alocarCusto` e não tira a nota de "Notas hábeis sem pagamento vinculado".
+   * Por isso não há valor por par — pré-vínculo não tem quantia (§J.4).
+   */
+  documentoPrevistoIds: string[];
   situacao: SituacaoCompromisso;
   motivoCancelamento: string | null;
   /** Cartão: data da compra. Dado probatório — **não decide ano nenhum**. */

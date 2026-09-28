@@ -343,10 +343,19 @@ export function paraAnoAfetado(row: RevisaoAnoAfetadoRow): AnoAfetado {
   };
 }
 
+/**
+ * ⚠️ `documentoPrevistoIds` é PARÂMETRO OBRIGATÓRIO, sem default (CONTAI-080).
+ * Um `= []` faria um carregador que esquecesse a query nova devolver
+ * "nenhum pré-vínculo" — indistinguível, na tela, de um compromisso que de fato
+ * não tem nenhum: o chip/texto do ADENDO 8 §L.2 simplesmente não apareceria, e a
+ * conversão do critério 11 cairia no ramo N=0. Esquecer tem de ser erro de
+ * compilação.
+ */
 export function paraCompromisso(
   row: CompromissoRow & ComFavorecidoSimples,
   pagamentoIds: string[],
   adiamentos: number,
+  documentoPrevistoIds: string[],
 ): Compromisso {
   return {
     id: row.id,
@@ -357,6 +366,7 @@ export function paraCompromisso(
     dataPrevista: row.data_prevista,
     origem: row.origem,
     documentoOrigemId: row.documento_origem_id,
+    documentoPrevistoIds,
     situacao: row.situacao,
     motivoCancelamento: row.motivo_cancelamento,
     dataCompra: row.data_compra,

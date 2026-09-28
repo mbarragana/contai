@@ -1732,6 +1732,7 @@ describe("CONTAI-072 — agendamento aberto na linha do terceiro estado", () => 
       favorecidoNome: "Casa do Construtor",
       valorPrevistoCentavos: 500_000,
       dataPrevista: `${ANO}-07-10`, // depois de HOJE
+      documentoPrevistoIds: [],
       origem: "cartao",
       documentoOrigemId: "d1",
       situacao: "aberto",

@@ -25,6 +25,7 @@ import {
   Passo,
 } from "@/app/_components/ui";
 import {
+  carregarCompromissos,
   carregarPagamento,
   carregarPainel,
   classificarErro,
@@ -33,6 +34,12 @@ import {
   type ErroDeTela,
   type PainelDados,
 } from "@/lib/data";
+import {
+  CHIP_LIGADO_AO_CONFIRMAR,
+  CHIP_PRE_VINCULO,
+  documentosResolvidosNaConfirmacao,
+  LIGADO_AO_CONFIRMAR_PORQUE,
+} from "@/lib/fiscal/compromisso";
 import { formatarDataBR } from "@/lib/fiscal/obra";
 import {
   alocarCusto,
@@ -87,6 +94,14 @@ type Estado =
       /** UMA lista, com as já cobertas dentro dela (CONTAI-074). */
       candidatos: Candidato<Documento, Pagamento>[];
       jaLigados: Documento[];
+      /**
+       * **CONTAI-080** — os ids da UNIÃO deduplicada (pré-vínculos ∪ nota de
+       * origem) dos agendamentos que este pagamento quitou. É este conjunto que
+       * decide as duas coisas novas desta tela: quais candidatos nascem MARCADOS
+       * (critério 13) e quais já-ligados ganham a explicação de automação
+       * (critério 14).
+       */
+      preVinculoIds: Set<string>;
       ano: number;
     };
 
@@ -119,8 +134,28 @@ export default function LigarDocumentos() {
       try {
         const pagamento = await carregarPagamento(id);
         const painel = await carregarPainel(pagamento.obraId);
+        /**
+         * **CONTAI-080** — a agenda entra nesta tela, e por carregador PRÓPRIO
+         * (`carregarCompromissos`), nunca pelo painel: o compromisso e os números
+         * da declaração não chegam juntos na mesma variável (parecer §2). O que
+         * sai daqui é um CONJUNTO DE IDS — nenhum valor previsto atravessa.
+         *
+         * Sem query param, de propósito (design §5): a tela deriva tudo do estado
+         * gravado e funciona igual se o Mateus chegar aqui direto, não só pelo
+         * botão "Revisar antes de confirmar".
+         */
+        const compromissos = await carregarCompromissos(pagamento.obraId);
         if (cancelado) return;
         const alocacao = alocarCusto(painel);
+        // `filter`, e não `find`: `compromisso_pagamento` é N:M, e um pagamento
+        // que quitou dois agendamentos tem a união dos dois. Com um só, é
+        // idêntico ao `find`.
+        const preVinculoIds = new Set(
+          compromissos
+            .filter((c) => c.pagamentoIds.includes(pagamento.id))
+            .flatMap((c) => documentosResolvidosNaConfirmacao(c, painel.documentos))
+            .map((d) => d.id),
+        );
         setEstado({
           fase: "pronto",
           pagamento,
@@ -129,8 +164,29 @@ export default function LigarDocumentos() {
           jaLigados: painel.documentos.filter((d) =>
             pagamento.documentoIds.includes(d.id),
           ),
+          preVinculoIds,
           ano: Number(hojeIso().slice(0, 4)),
         });
+        /**
+         * ⚠️ **A ÚNICA EXCEÇÃO À DOUTRINA "NADA NASCE MARCADO", e ela é nomeada**
+         * (critério 13; ADENDO 7 §K.2 / §K.3): o que nasce marcado aqui é
+         * **declaração do próprio Mateus**, feita com o dedo antes do pagamento —
+         * a mesma classe de `documento_origem_id`, que desde o CONTAI-065 converte
+         * sozinho. Não é heurística do app, que é o que o §5.5 de 17/08 proíbe.
+         *
+         * O que a exceção NÃO afrouxa: o checkbox continua destravado (revalidar,
+         * não confirmar), a marca é sempre visível e nominal por linha, e nada
+         * nasce marcado por SEMELHANÇA — `sugestao` continua sendo só ordenação.
+         *
+         * Só os que ainda NÃO estão ligados de verdade: quem já está em
+         * `pagamento.documentoIds` não é candidato (e aparece no card do critério
+         * 14).
+         */
+        setMarcados(
+          [...preVinculoIds].filter(
+            (documentoId) => !pagamento.documentoIds.includes(documentoId),
+          ),
+        );
       } catch (erro) {
         if (!cancelado) setEstado({ fase: "erro", erro: classificarErro(erro) });
       }
@@ -143,6 +199,9 @@ export default function LigarDocumentos() {
   const tentarDeNovo = useCallback(() => {
     setEstado({ fase: "carregando" });
     setErroSalvar(null);
+    // CONTAI-080: as marcas voltam a sair do estado GRAVADO, e não do que
+    // sobrou de antes da falha.
+    setMarcados([]);
     setTentativa((t) => t + 1);
   }, []);
 
@@ -387,11 +446,79 @@ export default function LigarDocumentos() {
 
         <Card>
           <div className="text-[12.5px]">
-            <strong>Sugestão é ordenação, não vínculo.</strong> Nada vem
-            marcado, e nenhum vínculo nasce sem você tocar. Só aparecem
-            documentos da obra <strong>{pronto.painel.obra.nome}</strong>.
+            {/* ⚠️ **CONTAI-080** — a frase muda quando existe pré-vínculo, e tem
+                de mudar: "nada vem marcado" ficaria FALSO na tela em que algo
+                vem marcado, e texto de tela que mente sobre o que a tela fez é o
+                pre-mortem 4 do ticket com outro rosto. A autorização da exceção
+                é o ADENDO 7 §K.2, e a frase nomeia de onde a marca vem. */}
+            {pronto.preVinculoIds.size > 0 ? (
+              <>
+                <strong>Sugestão é ordenação, não vínculo.</strong> O que já vem
+                marcado aqui é o <strong>pré-vínculo que você declarou</strong> no
+                agendamento, antes de pagar — nada foi marcado por semelhança, e
+                você pode desmarcar. Só aparecem documentos da obra{" "}
+                <strong>{pronto.painel.obra.nome}</strong>.
+              </>
+            ) : (
+              <>
+                <strong>Sugestão é ordenação, não vínculo.</strong> Nada vem
+                marcado, e nenhum vínculo nasce sem você tocar. Só aparecem
+                documentos da obra <strong>{pronto.painel.obra.nome}</strong>.
+              </>
+            )}
           </div>
         </Card>
+
+        {/* ⚠️ **CONTAI-080, critério 14 — "JÁ LIGADOS A ESTE PAGAMENTO".**
+            `jaLigados` já era carregado nesta tela e NUNCA era renderizado. Sem
+            este card, a nota que a automação de N=1 (ADENDO 7 §K.2) acabou de
+            ligar simplesmente SOME da lista — `documentosCandidatos` filtra o
+            que já está ligado —, e o Mateus não teria como saber que ela não
+            sumiu por engano. É a mesma regra "nunca sumiço mudo" do ADENDO de
+            2026-09-28 do parecer de 17/08.
+
+            Os que NÃO pertencem à união aparecem no mesmo card sem o chip e sem
+            a explicação: o fato ("já ligado") vale para eles, a automação não. */}
+        {pronto.jaLigados.length > 0 ? (
+          <Card data-ja-ligados="pagamento">
+            <Passo>Já ligados a este pagamento</Passo>
+            {pronto.jaLigados.map((d) => {
+              const daUniao = pronto.preVinculoIds.has(d.id);
+              return (
+                <div key={d.id} className="mt-2 border-t border-line pt-2">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-[13.5px] font-semibold break-words">
+                      {d.favorecidoNome ?? "Emitente não informado"}
+                    </span>
+                    <span className="mono flex-none text-[13.5px]">
+                      {formatarBRL(d.valorCentavos ?? 0)}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 text-[12px] text-mut">
+                    {NOME_TIPO[d.tipo]}
+                    {d.numero ? ` · nº ${d.numero}` : ""}
+                  </div>
+                  {daUniao ? (
+                    <div className="mt-1">
+                      {/* ⚠️ ÂMBAR VAZADO, não verde (não-bloqueante 1 do Gate
+                          2): verde é a cor de "Custo comprovado", e o que está
+                          ligado aqui pode ser boleto ou quarentena. O chip fala
+                          da PROCEDÊNCIA do vínculo, nunca do efeito fiscal
+                          dele. E não diz "automaticamente": com N=1 ele nasceu
+                          sozinho, com N≥2 nasceu do clique em "Sim", e esta
+                          tela não distingue os dois — o que é verdade nos dois
+                          casos é "ligado ao confirmar o agendamento". */}
+                      <Chip cor="amb" peso="vazado">
+                        {CHIP_LIGADO_AO_CONFIRMAR}
+                      </Chip>
+                      <Dica>{LIGADO_AO_CONFIRMAR_PORQUE}</Dica>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </Card>
+        ) : null}
 
         {/* CONTAI-078: o placeholder anuncia o índice desta direção — aqui o
             número da nota entra, na outra tela não existe. */}
@@ -483,6 +610,18 @@ export default function LigarDocumentos() {
                         {NOME_TIPO[c.item.tipo]}
                         {habil ? "" : " · não gera custo confirmado"}
                       </span>
+                      {/* ⚠️ **CONTAI-080** — a marca da exceção, ÂMBAR VAZADA
+                          (§J.2: nunca vermelho, nunca verde). Ela vem ANTES da
+                          sugestão de propósito: é a razão de a linha estar
+                          marcada, e ler "Sugestão — mesmo favorecido" primeiro
+                          faria parecer que foi a heurística que marcou. */}
+                      {pronto.preVinculoIds.has(c.item.id) ? (
+                        <span className="mt-1 block">
+                          <Chip cor="amb" peso="vazado">
+                            {CHIP_PRE_VINCULO}
+                          </Chip>
+                        </span>
+                      ) : null}
                       {c.sugestao ? (
                         <span className="mt-1 block text-[11.5px] font-semibold text-mut">
                           {c.sugestao}

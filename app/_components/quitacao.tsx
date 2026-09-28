@@ -49,6 +49,7 @@ import {
 } from "@/lib/data";
 import {
   compromissosElegiveisParaQuitacao,
+  idsDaUniaoDoPreVinculo,
   perguntaQuitacao,
   QUITACAO_CONSEQUENCIA_DO_NAO,
   QUITACAO_NAO,
@@ -115,6 +116,24 @@ export function SugestaoQuitacao({
             // ⚠️ DECISÃO HUMANA, nunca cálculo (§D): "nenhum dos dois erros é
             // mais barato, então não há default seguro para onde cair".
             quitaIntegralmente: escolha.tipo === "quita",
+            /**
+             * ⚠️ **CONTAI-080, D1 do Gate 2 — a MESMA união, no grau de
+             * resolução que este componente tem.** Ele carrega a AGENDA, não o
+             * painel, então não tem `Documento[]` para resolver: conta sobre os
+             * ids (`idsDaUniaoDoPreVinculo`), que é um **limite superior** do N
+             * resolvido — resolver só encolhe o conjunto.
+             *
+             * Errar para cima aqui é errar para o lado conservador: no máximo
+             * deixa de propagar sozinho um conjunto que resolveria para 1, e
+             * nesse caso a nota continua pré-marcada em `/pagamento/[id]/ligar`
+             * (critério 13), a um clique. O que ele NUNCA faz é o dano do D1 —
+             * converter parte de um conjunto de 2+ sem toque humano.
+             *
+             * Esta tela não tem bloco de revalidação (ela é a sugestão de
+             * quitação, §C), e é por isso que ela não pode propagar meio
+             * conjunto: não há onde perguntar o resto.
+             */
+            propagarOrigem: idsDaUniaoDoPreVinculo(compromisso).length < 2,
             ...(escolha.tipo === "falta"
               ? { novaDataPrevista: escolha.novaDataPrevista }
               : {}),

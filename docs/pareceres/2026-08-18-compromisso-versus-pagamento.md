@@ -1095,3 +1095,443 @@ por `parc` informado, nunca por heurística; recusar a gravação quando
 
 **Nada aqui exige CRC.** É texto de tela e escopo de refusal, não
 tributação nova.
+
+# ADENDO 6 — 2026-09-28 · pré-vínculo compromisso↔documento N:M, antes do pagamento
+
+- **Origem**: Gate Fiscal do `/relato` — caso real do fornecedor de concreto
+  usinado (Superbeton/Ilhamix): 3 notas pagas por 7 parcelas, sem
+  correspondência 1:1, o mesmo caso de fundo do `CONTAI-074`. O Mateus quer um
+  passo **anterior** ao vínculo formal: ligar uma **parcela ainda não paga**
+  (compromisso em aberto) a uma ou mais notas, antecipando a intenção.
+- **Consome**: §1 e §2 deste parecer (compromisso nunca é custo, nunca é nó do
+  grafo de `alocarCusto`); §C deste parecer (sugestão de quitação — precedente
+  direto para "nenhum vínculo sem ato humano explícito"); §3 e §F deste
+  parecer (executado pode divergir do previsto: desconto, parcial, encargo,
+  diferença não explicada); `2026-08-17-vinculo-pagamento-documento.md` §1
+  (condição 3 — correspondência), §2 ("o clique não é fiscal, é como o app
+  toma conhecimento de uma correspondência que já existe no mundo"), §3 (teto
+  do mínimo) e o ADENDO de 2026-09-28 do mesmo arquivo (correspondência por
+  **conjunto conexo**, não por par isolado — `CONTAI-074`).
+- **Normativo para**: o novo relacionamento N:M entre `compromisso` (não pago)
+  e `documento`, distinto de `compromisso.documento_origem_id` (CONTAI-065:
+  único, imutável, fixado só na criação). Schema e tela ficam com `cto-obra` e
+  `designer`; este ADENDO fixa só a regra fiscal.
+
+## J.0 Isto é capacidade nova, não extensão do campo existente
+
+`[Certain]` `documento_origem_id` é 1 documento, gravado uma vez, não
+editável — herança de nota no nascimento do compromisso (CONTAI-064). O
+pré-vínculo aqui é outra coisa: **N:M, criável e editável a qualquer momento
+antes da confirmação do pagamento**. Os dois convivem; não se confundem nem se
+substituem. Onde este ADENDO fala "pré-vínculo", é sempre desta capacidade
+nova.
+
+## J.1 O pré-vínculo é compromisso, e compromisso nunca é custo — sem exceção pelo N:M
+
+`[Certain]` Nada no fato de o vínculo agora ser N:M muda o §1/§2 deste
+parecer. O pré-vínculo **não é pagamento nem documento hábil de correspondência
+comprovada** — é uma **anotação estruturada de intenção**, gravada no banco,
+sobre um fato que ainda não aconteceu. Ele:
+
+- **não entra em nenhuma soma**, sob nenhum rótulo (§2, itens 1-8, todos
+  aplicáveis sem exceção);
+- **não é nó de `alocarCusto`** (§2, item 7) — nem quando aponta para várias
+  notas, nem quando várias notas apontam para o mesmo compromisso;
+- **não tira a nota da lista "Notas hábeis sem pagamento vinculado"** — mesma
+  conclusão já fechada para `documento_origem_id` no Gate Fiscal do
+  `CONTAI-072` (`docs/backlog/89-2026-09-27-contai-072-nota-com-compromisso-
+  aberto.md`): o pré-vínculo é sinal de intenção, não fato de pagamento; só o
+  **texto/CTA** pode refletir que já existe uma intenção declarada, nunca o
+  número.
+
+## J.2 (a) Texto que evita a leitura de "custo comprovado" — literal
+
+**Chip curto**, para as duas telas (detalhe do compromisso e detalhe da
+nota), no mesmo peso visual do chip "Agendado" (nunca vermelho, nunca verde —
+não é pendência de risco nem confirmação de custo):
+
+> **Pré-vínculo — ainda não é custo**
+
+**Texto expandido, no detalhe do COMPROMISSO** (listando a(s) nota(s)
+pré-ligada(s)):
+
+> Você ligou este agendamento a [Nota nº X — R$ valor][, Nota nº Y — R$
+> valor] antes de pagar. Isso é só uma intenção registrada: enquanto o
+> pagamento não for confirmado, esse valor não entra no custo de aquisição,
+> não abate a base do INSS e não aparece em nenhum relatório da declaração.
+> Quando você confirmar o pagamento, o sistema vai te perguntar se este
+> vínculo ainda vale.
+
+> ⚠️ **REVISTO pelo ADENDO 8 (2026-09-28).** A última frase acima ("o
+> sistema vai te perguntar se este vínculo ainda vale") ficou **falsa para
+> N=1** depois do ADENDO 7 §K.2 — para N=1 o sistema não pergunta nada, marca
+> sozinho. O ADENDO 8 §L substitui essa frase por duas variantes, escolhidas
+> pelo N **atual** no momento da renderização (a tela de pré-vínculo é
+> editável — o texto não pode ficar preso ao N de quando o chip foi montado).
+> O resto do texto (as três primeiras frases) não muda para nenhum N. Ver
+> ADENDO 8 para o texto literal das duas variantes.
+
+**Texto expandido, no detalhe da NOTA** (listando o(s) compromisso(s) que a
+pré-vincularam):
+
+> [Favorecido] — previsto R$ valor para DD/MM/AAAA está pré-ligado a esta
+> nota, mas nenhum pagamento aconteceu ainda. Esta nota continua sem
+> pagamento vinculado até que um pagamento de verdade seja confirmado e
+> ligado a ela — ela segue contando em "Notas hábeis sem pagamento
+> vinculado".
+
+**Por que este texto e não outro** `[Certain]`: (i) nomeia o fato (existe uma
+intenção, gravada) sem prometer o efeito que ele não tem (não é custo, não
+abate INSS, não vai à declaração) — mesma disciplina do §5.1 de 17/08 ("o
+zero nunca aparece sozinho", aqui invertido: "a intenção nunca aparece
+disfarçada de fato"); (ii) diz explicitamente **o que muda isso** (confirmar
+o pagamento), mesma régua do §F.4 deste parecer; (iii) evita a palavra
+"vínculo" sozinha na tela — é a mesma palavra usada para o vínculo formal
+`pagamento_documento`, e usá-la sem qualificador seria o § inteiro do
+CONTAI-074 (vínculo real, fiscal) colapsado com uma intenção. **"Pré-vínculo"
+é termo de produto, não de schema** — mesma nota do ADENDO 3 §G.1 sobre
+"compromisso"/"agendamento" não precisar coincidir com o nome da tabela.
+
+## J.3 (b) O verbo da conversão — **revalidar e confirmar**, nunca automática, nunca silenciosa
+
+> ⚠️ **REVISTO pelo ADENDO 7 (2026-09-28).** Esta seção, como escrita
+> originalmente, tratava **todo** N (inclusive N=1) como exigindo o clique de
+> confirmação abaixo. O ADENDO 7 restringe essa exigência a **N ≥ 2**: quando
+> o pré-vínculo resolve para exatamente 1 documento no momento da
+> confirmação, a conversão é **automática e silenciosa**, no mesmo padrão já
+> em produção do `CONTAI-065`/`propagar_vinculo_de_origem`. O raciocínio
+> abaixo (pontos 1-3) permanece válido **como justificativa do caso N ≥ 2**;
+> o ADENDO 7 §K.1 mostra por que os pontos 1 e 2, isolados, não sustentam a
+> exigência para N=1. Não apague este parágrafo nem os pontos abaixo — a
+> revisão é aditiva e nomeada, não uma reescrita silenciosa.
+
+`[Certain]` Aplicando "na dúvida, o mais duro" entre revalidar/avisar/
+marcar/recusar: a resposta é **revalidar + avisar + exigir confirmação
+explícita** — nunca **recusar** (isso violaria "nunca recuse o registro de
+um fato consumado", §4 deste parecer) e nunca **silenciar** (conversão
+automática sem toque humano). **Isto vale para N ≥ 2 — ver ADENDO 7 para
+N=1.**
+
+**Por que não basta herdar a intenção já declarada, mesmo sendo explícita**:
+
+1. **O pré-vínculo foi declarado contra o PREVISTO; a confirmação acontece
+   sobre o EXECUTADO.** §3 e §F deste parecer já mostram, para o par
+   compromisso↔pagamento, que o valor executado rotineiramente diverge do
+   previsto — desconto, pagamento parcial, encargo, diferença não explicada.
+   O mesmo risco existe aqui: o Mateus pode ter pré-ligado o compromisso de
+   R$ 25.000 à Nota X, e na hora de pagar descobrir que pagou menos, ou que
+   o valor bate melhor com a Nota Y também aberta. Herdar o pré-vínculo sem
+   reconferir é tratar uma intenção antiga como fato atual — exatamente o
+   risco que a proibição de "inferir vínculo por heurística" (§5.5 de 17/08,
+   ADENDO §5 item 4 deste parecer) já nomeia, com a diferença de que aqui a
+   inferência viria de uma declaração do próprio usuário no passado, não de
+   um algoritmo — **e isso não muda o risco fiscal**, porque a condição 3
+   (correspondência, §1 de 17/08) tem de valer para o desembolso **real**,
+   não para a previsão dele.
+2. **Precedente direto e mais forte já existe**: §C.d deste parecer, sobre a
+   sugestão de quitação (compromisso↔pagamento) — *"a sugestão nunca cria
+   vínculo sozinha. Não pode existir caminho de código que grave a quitação
+   sem ato humano explícito."* Ali a correspondência nem foi declarada antes
+   pelo usuário — é heurística do app — e mesmo assim exige toque. Aqui a
+   correspondência **foi** declarada antes, o que é motivo para **revalidar
+   com menos atrito** (pré-selecionar as notas já pré-ligadas, valores já
+   preenchidos), nunca motivo para **dispensar** o toque — dispensar seria
+   dar ao pré-vínculo **mais** força probatória do que a sugestão heurística
+   tem, quando na verdade nenhum dos dois é fato consumado até a confirmação.
+3. **N:M multiplica o que pode ter mudado.** Com várias notas pré-ligadas a
+   um compromisso (ou várias parcelas pré-ligadas à mesma nota), o valor
+   pago pode não bater 1:1 com nenhuma pré-ligação isolada — é exatamente o
+   caso do concreto que motivou o pedido. Confirmação automática teria de
+   *decidir sozinha* como ratear o valor pago entre as pré-ligações, o que é
+   vínculo por heurística disfarçado de execução de plano.
+
+**A revalidação certa não é atrito por atrito** — ela pré-preenche a tela de
+confirmação com o(s) documento(s) já pré-ligado(s) como candidatos já
+marcados, valores já visíveis, e pede **um clique** de confirmação (ou de
+ajuste, se o valor pago não bater). O texto:
+
+> **Confirmar este pagamento também confirma o vínculo com [Nota nº X — R$
+> valor][, Nota nº Y — R$ valor], como você já tinha indicado?**
+> [ Sim, confirmar os vínculos ]  [ Revisar antes de confirmar ]
+
+Escolher "Revisar antes de confirmar" leva à tela normal de seleção de
+candidatos (`documentosCandidatos`), sem perder o que já estava pré-ligado.
+
+## J.4 (c) Soma antes da conversão — livre; o teto é só no ato da conversão
+
+`[Certain]` **Não há restrição de soma no pré-vínculo, em nenhuma direção**:
+um compromisso pode ser pré-ligado a quantas notas o Mateus quiser, e uma
+nota pode ser pré-ligada por quantos compromissos futuros ele quiser, mesmo
+que a soma prevista ultrapasse o valor da nota, do compromisso, ou dos dois.
+A razão é a mesma do §J.1: **nenhum dos dois lados é custo ainda**, então não
+há o que exceder — a condição 3 (correspondência que sustenta custo) só se
+aplica a desembolso real, e desembolso real ainda não existe neste estado.
+
+**A restrição real nasce só na conversão**, e é a **mesma** já em produção:
+`min(Σ pagamentos elegíveis, Σ documentos hábeis)` por **conjunto conexo**
+(§3 de 17/08, ADENDO de 08/08 — repartição cronológica — e o ADENDO de
+2026-09-28 do CONTAI-074, "correspondência por conjunto conexo, não por par
+isolado"). Quando um pagamento confirma um pré-vínculo e o `pagamento_
+documento` formal é criado, o pagamento novo entra como nó no grafo, os
+pré-vínculos confirmados viram arestas reais, e `alocarCusto` recalcula o
+teto do componente resultante exatamente como já faz hoje para qualquer
+vínculo novo — nenhuma trava adicional, nenhuma fórmula nova.
+
+**Consequência de produto** (registrada aqui porque decorre direto da regra
+fiscal, não porque este parecer decida telas): a tela pode e deve avisar
+quando a soma dos pré-vínculos de um compromisso ultrapassa muito o valor
+previsto dele, ou quando a soma das pré-ligações de uma nota ultrapassa seu
+valor — não como bloqueio, e sim como o mesmo tipo de aviso não-bloqueante já
+usado em §2(b) do ADENDO de 2026-09-28 do parecer de 17/08 ("Este pagamento
+já está ligado a..."). Desenho exato é do `designer`.
+
+## J.5 Automático × humano (deste adendo)
+
+**Sistema sozinho** `[Certain]`: gravar o pré-vínculo sem exigir anexo (é
+compromisso, §4 deste parecer); manter o pré-vínculo fora de toda soma e fora
+do grafo de `alocarCusto`; manter a nota em "sem pagamento vinculado" com
+texto/CTA que reflita a intenção; pré-preencher a tela de confirmação do
+pagamento com os documentos pré-ligados; recalcular o teto do componente
+conexo quando a conversão acontecer.
+
+**Só o Mateus**: confirmar, no ato do pagamento, que o pré-vínculo declarado
+antes ainda corresponde ao desembolso real — o clique de §J.3 nunca é
+dispensável, mesmo tendo declarado a intenção antes.
+
+> ⚠️ **REVISTO pelo ADENDO 7 (2026-09-28).** A frase acima vale só para
+> **N ≥ 2**. Quando o pré-vínculo resolve para N=1 no momento da
+> confirmação, o clique **é** dispensável — a conversão é automática, no
+> mesmo desenho do `CONTAI-065`. Ver ADENDO 7 §K.2 para a condição exata.
+
+**Nada aqui exige CRC.** É extensão de uma capacidade de vínculo (N:M,
+antecipada no tempo) dentro do arcabouço fiscal que os pareceres de 17/08,
+18/08 e o ADENDO de 2026-09-28 (CONTAI-074) já fixaram — nenhum número ou
+tese de legislação nova foi usado.
+
+---
+
+# ADENDO 7 — 2026-09-28 · N=1 converte automático, como o `CONTAI-065` — revisão do §J.3
+
+- **Origem**: pergunta direta do Mateus, com um fato de produto que ele trouxe
+  e o orquestrador confirmou no código: `compromisso.documento_origem_id`
+  (`CONTAI-065`, migration `0020_propagar_vinculo_de_origem.sql`) já converte
+  **sozinho, sem clique de confirmação**, no momento em que a quitação
+  acontece (`quitarCompromisso`, `lib/data.ts:2180-2186`, chamando a RPC
+  `propagar_vinculo_de_origem`). O §J.3 do ADENDO 6, como escrito em
+  2026-09-28 mais cedo no mesmo dia, não tinha contrastado esse fato contra o
+  pré-vínculo N:M novo — só citou a sugestão de quitação heurística (§C.d)
+  como precedente. Este ADENDO fecha essa lacuna.
+- **Consome**: ADENDO 6 (§J.0-J.5) do mesmo arquivo; a migration `0020` e seu
+  comentário de cabeçalho; o parecer curto
+  `docs/pareceres/2026-09-26-replicar-vinculo-documento-quitacao.md`
+  (as 5 condições, e a condição 5 em especial); `lib/data.ts` (`quitarCompromisso`,
+  linhas 2137-2186).
+- **Normativo para**: o ticket que implementa o pré-vínculo N:M do ADENDO 6 —
+  a tela e o RPC de conversão devem ramificar por N, não tratar N=1 e N≥2 do
+  mesmo jeito.
+
+## K.1 As três razões do §J.3 original, testadas contra N=1 — duas não resistem
+
+`[Certain]` A pergunta do Mateus está certa em apontar a assimetria. Revisitando
+os três argumentos do §J.3 original, isolando o caso em que o pré-vínculo
+resolve para **exatamente 1 documento** no momento da confirmação:
+
+1. **"Valor executado diverge do previsto" — não distingue nada, e contradiz o
+   próprio `CONTAI-065`.** O parecer de 2026-09-26, condição 5 (citada na
+   migration `0020`, linha 147-150): *"diferença de valor não bloqueia — nada
+   compara `valor_previsto` com o valor pago"*. Isso já é a regra em produção
+   para `documento_origem_id`, que é o mesmíssimo risco (compromisso previsto
+   em R$ 25.000, pago com desconto ou a mais). Se a divergência de valor não
+   impede a propagação silenciosa de 1 documento hoje, ela não pode virar
+   motivo para exigir clique quando a mesma situação (1 documento, declarado
+   antes) nasce de um pré-vínculo em vez de `documento_origem_id`. Quem
+   absorve a divergência é o `min()` de `alocarCusto` no momento da conversão
+   (§J.4 do ADENDO 6) — isso não muda com N, e já vale hoje.
+2. **"Precedente da sugestão de quitação (§C.d)" — precedente errado para o
+   caso N=1.** §C.d é heurística do **app** (mesmo favorecido, valor e data
+   parecidos — o app adivinhando). O pré-vínculo, como o `documento_origem_id`,
+   é **declaração do próprio Mateus**, feita com o dedo, antes do pagamento —
+   é exatamente o caso que o parecer de 2026-09-26 já resolveu ("replicar não
+   é inferência nova — é o app tomar conhecimento de um fato já afirmado").
+   Citar §C.d para justificar clique no caso N=1 compara a coisa errada: o
+   precedente que bate é o `CONTAI-065`, que aponta para o **automático**, não
+   para o clique.
+3. **"N:M multiplica o que pode ter mudado" — este é o único que sobra, e só
+   vale quando há de fato mais de um destino.** Rateio (quanto vai para qual
+   documento) só existe como decisão quando **há mais de um documento** para
+   dividir. Com N=1 não há "como dividir" — todo o valor elegível do
+   pagamento aponta para o único documento pré-ligado, do mesmo jeito que
+   `documento_origem_id` aponta para um único documento hoje. Este argumento
+   justifica o clique para **N ≥ 2**; não tem o que justificar quando N=1.
+
+**Conclusão**: não existe diferença fiscal real entre "pré-vínculo declarado a
+1 nota, sem toque no momento de pagar" e "`documento_origem_id` setado na
+criação, sem toque no momento de pagar". São o mesmo fato — uma
+correspondência declarada pelo próprio Mateus, antes do pagamento, resolvendo
+sem ambiguidade para um único documento — só muda **quando** e **por qual
+tela** ela foi declarada (na criação do compromisso vs. editável depois, antes
+da confirmação). Nenhuma das duas coisas é o dado que os três argumentos do
+§J.3 tentam proteger.
+
+## K.2 A regra corrigida — "se X e Y → Z"
+
+`[Certain]` **Isto substitui, para o caso N=1, a exigência geral do §J.3** (que
+segue valendo integralmente para N ≥ 2, sem nenhuma mudança):
+
+> **Se**, no momento da confirmação do pagamento (quitação do compromisso), o
+> conjunto de documentos pré-vinculados a ele resolver para **exatamente 1
+> documento** (N=1), **e** nenhum vínculo já existir para esse pagamento em
+> `pagamento_documento` (mesma condição 3 já aplicada pelo `CONTAI-065`) →
+> o sistema **marca automaticamente** o vínculo formal, sem clique adicional
+> de confirmação, no mesmo padrão de `propagar_vinculo_de_origem`.
+>
+> **Se** o conjunto resolver para **2 ou mais documentos** (N ≥ 2) → o
+> sistema **exige confirmação explícita** (revalidar + avisar, texto do
+> §J.3), pré-preenchida com os candidatos e valores — porque existe, aí sim,
+> uma decisão de rateio que só o Mateus pode fazer.
+>
+> **Se** o conjunto resolver para **0 documentos** (nenhum pré-vínculo
+> declarado) → nada muda: segue o fluxo padrão de "Ligar a uma nota"
+> (`documentosCandidatos`), sem pré-preenchimento nem automação, exatamente
+> como hoje para um compromisso sem `documento_origem_id`.
+
+O verbo, então, não é mais um só para todo N: é **marcar automaticamente**
+para N=1 e **revalidar/confirmar** para N≥2 — a mesma bifurcação que o produto
+já faz, hoje, entre um compromisso com `documento_origem_id` preenchido (marca
+sozinho) e um sem nenhum vínculo prévio (pede o toque na tela de "Ligar a uma
+nota").
+
+## K.3 Por que isto não é enfraquecer a doutrina — é aplicá-la de forma consistente
+
+`[Certain]` "Campo preenchido afirma" (`CLAUDE.md`) não distingue **onde** o
+campo foi preenchido — na criação do compromisso (`documento_origem_id`) ou
+numa tela de pré-vínculo editável depois, contanto que a leitura seja feita
+**no momento certo** (a confirmação, não a declaração). Recusar automatizar
+N=1 só porque o campo é tecnicamente outro (pré-vínculo N:M em vez de
+`documento_origem_id`) daria **menos** força a uma afirmação explícita do
+Mateus do que o produto já dá hoje a uma afirmação equivalente — é o oposto
+do espírito da doutrina, que é justamente parar de pedir de novo o que já foi
+dito uma vez sem ambiguidade.
+
+A distinção que continua de pé, e que é a única que importa, é **ambiguidade
+de rateio**, não **qual tela gravou a intenção primeiro**. É por isso que a
+régua certa é N (quantidade de documentos que sobra no momento da
+confirmação), não a origem do campo.
+
+## K.4 O que NÃO muda
+
+`[Certain]`:
+
+- A soma livre do §J.4 do ADENDO 6 (pré-vínculo pode exceder o valor do
+  compromisso ou da nota, sem trava) — intacta, para qualquer N.
+- O teto por `min(Σ pagamentos elegíveis, Σ documentos hábeis)` no momento da
+  conversão — intacto, roda igual para N=1, N≥2 e para `documento_origem_id`.
+- A condição 3 do `CONTAI-065` (nunca sobrescrever vínculo já existente em
+  `pagamento_documento`) — vale sem alteração para a conversão automática de
+  N=1 do pré-vínculo: se o pagamento já tem vínculo por outro caminho, a
+  automação de N=1 não sobrescreve, só não faz nada (mesmo `return false`
+  silencioso da RPC).
+- O texto do chip/tela do §J.2 (ADENDO 6) para o **estado de pré-vínculo
+  ainda não confirmado** — ele não muda; o que muda é só o que acontece
+  quando o pagamento é confirmado e N=1.
+- Para N ≥ 2, nada do §J.3 original muda — nem o texto, nem o verbo, nem a
+  exigência de clique.
+
+## K.5 Automático × humano (deste adendo)
+
+**Sistema sozinho** `[Certain]`: quando N=1 no momento da confirmação e não
+existe vínculo prévio para o pagamento, criar a linha em `pagamento_documento`
+sem pedir clique adicional; aplicar o `min()` de `alocarCusto` por cima, sem
+exceção; manter a linha visível e editável depois (mesma condição 4 do
+`CONTAI-065` — automação não é trava).
+
+**Só o Mateus**: quando N ≥ 2, confirmar (ou revisar/ajustar) qual dos
+documentos pré-ligados de fato corresponde ao pagamento — isso não muda em
+nada com este ADENDO.
+
+**Nada aqui exige CRC.** É a mesma extensão do ADENDO 6, agora bifurcada por
+N em vez de tratada como um único caso — nenhum número ou tese de legislação
+nova foi usado; o `CONTAI-065` já está em produção com este exato padrão para
+N=1 via `documento_origem_id`.
+
+---
+
+# ADENDO 8 — 2026-09-28 · o texto do §J.2 mentia para N=1 — duas variantes, escolhidas pelo N atual
+
+- **Origem**: o `cto-obra`, desenhando em cima do ADENDO 7, achou que a
+  última frase do texto expandido do §J.2 ("Quando você confirmar o
+  pagamento, o sistema vai te perguntar se este vínculo ainda vale") afirma
+  exatamente o que o ADENDO 7 §K.2 diz que **não acontece** quando N=1.
+- **Consome**: ADENDO 6 §J.2 (texto original); ADENDO 7 §K.2 (a regra "se X e
+  Y → Z" que este ADENDO só está pondo em palavras de tela).
+- **Normativo para**: o texto do detalhe do COMPROMISSO quando há pré-vínculo
+  em aberto — o texto do detalhe da NOTA (§J.2, segundo bloco) **não muda**:
+  ele nunca prometeu pergunta nenhuma, só descreve o estado da nota.
+
+## L.1 Decisão — (a), duas variantes, não uma frase neutra
+
+`[Certain]` Opção (b) (frase neutra única) foi descartada: qualquer frase
+neutra o bastante para não errar em nenhum dos dois casos ("o sistema vai
+processar o vínculo quando você confirmar", por exemplo) apaga exatamente a
+informação que o texto existe para dar — se o Mateus vai ou não ser
+perguntado de novo. Isso é regressão da mesma disciplina do §F.4 deste
+parecer ("diz explicitamente o que muda isso"). A tela já sabe o N no momento
+da renderização (é a mesma lista de notas que o próprio texto imprime em
+"[Nota nº X — R$ valor][, Nota nº Y — R$ valor]"), então não há razão para
+descer ao mínimo denominador comum.
+
+## L.2 Texto literal — duas variantes
+
+As três primeiras frases são **idênticas** nas duas variantes (não mudam com
+N); só a última frase se bifurca. Reproduzido por inteiro, para colar sem
+montar por partes:
+
+**Variante N=1** (exatamente 1 nota pré-ligada no momento da renderização):
+
+> Você ligou este agendamento a [Nota nº X — R$ valor] antes de pagar. Isso é
+> só uma intenção registrada: enquanto o pagamento não for confirmado, esse
+> valor não entra no custo de aquisição, não abate a base do INSS e não
+> aparece em nenhum relatório da declaração. Quando você confirmar o
+> pagamento, o sistema vai vincular esta nota automaticamente — sem
+> perguntar de novo.
+
+**Variante N≥2** (2 ou mais notas pré-ligadas no momento da renderização):
+
+> Você ligou este agendamento a [Nota nº X — R$ valor], [Nota nº Y — R$
+> valor] antes de pagar. Isso é só uma intenção registrada: enquanto o
+> pagamento não for confirmado, esse valor não entra no custo de aquisição,
+> não abate a base do INSS e não aparece em nenhum relatório da declaração.
+> Quando você confirmar o pagamento, o sistema vai te perguntar se este
+> pré-vínculo ainda vale.
+
+**Correção adicional, nas duas variantes**: a última frase passou a dizer
+**"pré-vínculo"**, não **"vínculo"** sozinho. O texto original do ADENDO 6
+(linha "se este vínculo ainda vale") já contradizia a própria razão (iii)
+listada logo abaixo dele nesse mesmo ADENDO — "evita a palavra 'vínculo'
+sozinha na tela". Isso não é mudança de regra fiscal, é a mesma regra de
+nomenclatura do ADENDO 6 aplicada ao texto que ela mesma deveria ter
+governado desde o início. Fica registrado aqui, e não como reescrita
+silenciosa, porque altera texto literal já publicado.
+
+## L.3 Quando reavaliar — a cada renderização, nunca uma vez só
+
+`[Certain]` Consequência de produto, decorrendo direto da regra (registrado
+aqui, não decidido aqui — desenho de tela é do `designer`/`cto-obra`): como o
+pré-vínculo é editável a qualquer momento antes da confirmação (ADENDO 6,
+critério (e)), o N que decide a variante **não pode ser calculado uma vez e
+guardado** junto do chip — ele precisa ser recalculado toda vez que a tela do
+detalhe do compromisso renderiza, a partir da contagem atual de documentos
+pré-ligados. Um Mateus que pré-liga 1 nota, depois adiciona uma segunda, tem
+de ver a variante N≥2 na próxima renderização — e o inverso, se ele remover
+até sobrar 1.
+
+## L.4 Automático × humano (deste adendo)
+
+**Sistema sozinho** `[Certain]`: contar N no momento da renderização; escolher
+a variante certa do texto; trocar a variante exibida sempre que N mudar.
+
+**Não automatizável**: nada — isto é texto de tela reagindo a um fato já
+gravado (quantas notas estão pré-ligadas agora), não decisão fiscal nova.
+
+**Nada aqui exige CRC.** É correção de texto para bater com o ADENDO 7 — a
+mesma regra fiscal, sem número ou tese de legislação nova.

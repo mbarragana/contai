@@ -915,48 +915,66 @@ describe("compromisso a pagar", () => {
   });
 
   it("o valor previsto chega em centavos, nos dois formatos do banco", () => {
-    expect(paraCompromisso(row({ valor_previsto: 4850 }), [], 0).valorPrevistoCentavos).toBe(485000);
-    expect(paraCompromisso(row({ valor_previsto: "4850.00" as unknown as number }), [], 0).valorPrevistoCentavos).toBe(485000);
+    expect(paraCompromisso(row({ valor_previsto: 4850 }), [], 0, []).valorPrevistoCentavos).toBe(485000);
+    expect(paraCompromisso(row({ valor_previsto: "4850.00" as unknown as number }), [], 0, []).valorPrevistoCentavos).toBe(485000);
   });
 
   it("a identidade do favorecido é o id: o nome vai junto só para a agenda", () => {
-    const com = paraCompromisso(row(), [], 0);
+    const com = paraCompromisso(row(), [], 0, []);
     expect(com.favorecidoId).toBe("fav-1");
     expect(com.favorecidoNome).toBe("Depósito Cachoeira");
   });
 
   it("compromisso sem favorecido ligado não inventa nome na agenda", () => {
-    const com = paraCompromisso(row({ favorecido_id: null, favorecido: null }), [], 0);
+    const com = paraCompromisso(row({ favorecido_id: null, favorecido: null }), [], 0, []);
     expect(com.favorecidoId).toBeNull();
     expect(com.favorecidoNome).toBeNull();
   });
 
   it("quitação parcial mostra os pagamentos que já entraram, sem inferir que está quitado", () => {
-    const com = paraCompromisso(row({ situacao: "aberto" }), ["pag-1", "pag-2"], 0);
+    const com = paraCompromisso(row({ situacao: "aberto" }), ["pag-1", "pag-2"], 0, []);
     expect(com.pagamentoIds).toEqual(["pag-1", "pag-2"]);
     expect(com.situacao).toBe("aberto");
   });
 
   it("compromisso sem data prevista fica sem data — 'sem data definida' é resposta, não default", () => {
-    expect(paraCompromisso(row({ data_prevista: null }), [], 0).dataPrevista).toBeNull();
+    expect(paraCompromisso(row({ data_prevista: null }), [], 0, []).dataPrevista).toBeNull();
   });
 
   it("compromisso cancelado carrega o motivo, porque some da agenda e precisa de rastro", () => {
-    const com = paraCompromisso(row({ situacao: "cancelado", motivo_cancelamento: "compra desfeita" }), [], 0);
+    const com = paraCompromisso(row({ situacao: "cancelado", motivo_cancelamento: "compra desfeita" }), [], 0, []);
     expect(com.situacao).toBe("cancelado");
     expect(com.motivoCancelamento).toBe("compra desfeita");
   });
 
   it("a nota que originou o compromisso continua apontada — é o elo do rastro", () => {
-    expect(paraCompromisso(row({ documento_origem_id: "doc-9", origem: "boleto" }), [], 0).documentoOrigemId).toBe("doc-9");
+    expect(paraCompromisso(row({ documento_origem_id: "doc-9", origem: "boleto" }), [], 0, []).documentoOrigemId).toBe("doc-9");
+  });
+
+  /**
+   * CONTAI-080 — os dois campos convivem e NÃO se misturam (ADENDO 6 §J.0):
+   * `documentoOrigemId` é um, gravado na criação e imutável;
+   * `documentoPrevistoIds` é um conjunto editável. A projeção não deduplica nem
+   * funde os dois — quem faz isso, uma vez só, é
+   * `documentosResolvidosNaConfirmacao`.
+   */
+  it("os pré-vínculos chegam à tela na ordem que vieram, ao lado da nota de origem", () => {
+    const com = paraCompromisso(
+      row({ documento_origem_id: "doc-9", origem: "boleto" }),
+      [],
+      0,
+      ["doc-1", "doc-9"],
+    );
+    expect(com.documentoPrevistoIds).toEqual(["doc-1", "doc-9"]);
+    expect(com.documentoOrigemId).toBe("doc-9");
   });
 
   it("os adiamentos contados chegam à tela, porque adiar demais é sinal de problema", () => {
-    expect(paraCompromisso(row(), [], 3).adiamentos).toBe(3);
+    expect(paraCompromisso(row(), [], 3, []).adiamentos).toBe(3);
   });
 
   it("a data da compra não se confunde com a data prevista de pagamento", () => {
-    const com = paraCompromisso(row({ data_compra: "2026-03-01", data_prevista: "2026-04-10" }), [], 0);
+    const com = paraCompromisso(row({ data_compra: "2026-03-01", data_prevista: "2026-04-10" }), [], 0, []);
     expect(com.dataCompra).toBe("2026-03-01");
     expect(com.dataPrevista).toBe("2026-04-10");
   });

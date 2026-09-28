@@ -33,7 +33,7 @@ import type {
   FaturaComDesembolsos,
   TerrenoDesembolsoComAnexos,
 } from "@/lib/dados/comum";
-import { podeQuitar } from "@/lib/fiscal/compromisso";
+import { podePreVincular, podeQuitar } from "@/lib/fiscal/compromisso";
 import type {
   EscolhaDeDocumento,
   EscolhaDePagamento,
@@ -1666,7 +1666,7 @@ export async function carregarCompromissos(
   await getUsuarioId();
   const supabase = getSupabase();
 
-  const [compromissos, vinculos, historico] = await Promise.all([
+  const [compromissos, vinculos, historico, previstos] = await Promise.all([
     supabase
       .from("compromisso")
       .select("*, favorecido(nome)")
@@ -1674,10 +1674,19 @@ export async function carregarCompromissos(
       .order("data_prevista", { ascending: true, nullsFirst: false }),
     supabase.from("compromisso_pagamento").select("*"),
     supabase.from("compromisso_data_historico").select("*"),
+    // CONTAI-080 — os pré-vínculos, na MESMA ida que o resto da agenda. Sem
+    // filtro de obra (como as duas irmãs acima): a RLS já recorta por dono, e a
+    // indexação abaixo é por `compromisso_id`, então linha de outra obra
+    // simplesmente não encontra compromisso nesta lista.
+    supabase
+      .from("compromisso_documento_previsto")
+      .select("*")
+      .order("criado_em", { ascending: true }),
   ]);
   if (compromissos.error) throw compromissos.error;
   if (vinculos.error) throw vinculos.error;
   if (historico.error) throw historico.error;
+  if (previstos.error) throw previstos.error;
 
   const pagamentosPorCompromisso = new Map<string, string[]>();
   for (const v of (vinculos.data ?? []) as CompromissoPagamentoRow[]) {
@@ -1693,12 +1702,24 @@ export async function carregarCompromissos(
     adiamentos.set(h.compromisso_id, (adiamentos.get(h.compromisso_id) ?? 0) + 1);
   }
 
+  // ⚠️ A ORDEM DE CHEGADA é preservada (o `order` por `criado_em` acima), e não
+  // é detalhe: o texto do ADENDO 8 §L.2 lista as notas "na ordem em que os
+  // pré-vínculos foram criados", e uma lista que dança entre dois
+  // carregamentos faria o mesmo estado ler como dois.
+  const previstosPorCompromisso = new Map<string, string[]>();
+  for (const p of previstos.data ?? []) {
+    const lista = previstosPorCompromisso.get(p.compromisso_id) ?? [];
+    lista.push(p.documento_id);
+    previstosPorCompromisso.set(p.compromisso_id, lista);
+  }
+
   return ((compromissos.data ?? []) as (CompromissoRow & ComFavorecidoSimples)[]).map(
     (row) =>
       paraCompromisso(
         row,
         pagamentosPorCompromisso.get(row.id) ?? [],
         adiamentos.get(row.id) ?? 0,
+        previstosPorCompromisso.get(row.id) ?? [],
       ),
   );
 }
@@ -1706,14 +1727,21 @@ export async function carregarCompromissos(
 export async function carregarCompromisso(id: string): Promise<Compromisso> {
   await getUsuarioId();
   const supabase = getSupabase();
-  const [compromisso, vinculos, historico] = await Promise.all([
+  const [compromisso, vinculos, historico, previstos] = await Promise.all([
     supabase.from("compromisso").select("*, favorecido(nome)").eq("id", id).limit(1),
     supabase.from("compromisso_pagamento").select("*").eq("compromisso_id", id),
     supabase.from("compromisso_data_historico").select("*").eq("compromisso_id", id),
+    // CONTAI-080 — ver a nota de ordem em `carregarCompromissos`.
+    supabase
+      .from("compromisso_documento_previsto")
+      .select("*")
+      .eq("compromisso_id", id)
+      .order("criado_em", { ascending: true }),
   ]);
   if (compromisso.error) throw compromisso.error;
   if (vinculos.error) throw vinculos.error;
   if (historico.error) throw historico.error;
+  if (previstos.error) throw previstos.error;
 
   const row = (compromisso.data as (CompromissoRow & ComFavorecidoSimples)[] | null)?.[0];
   if (!row) throw new Error("Agendamento não encontrado.");
@@ -1721,7 +1749,77 @@ export async function carregarCompromisso(id: string): Promise<Compromisso> {
     row,
     ((vinculos.data ?? []) as CompromissoPagamentoRow[]).map((v) => v.pagamento_id),
     ((historico.data ?? []) as CompromissoDataHistoricoRow[]).length,
+    (previstos.data ?? []).map((p) => p.documento_id),
   );
+}
+
+/**
+ * **CONTAI-080 — grava o DIFF do conjunto de pré-vínculos** de um compromisso:
+ * insere os que entraram, remove os que saíram. Duas statements, e a assimetria
+ * entre elas é deliberada.
+ *
+ * ⚠️ **NÃO é RPC atômica, e a decisão é do `cto-obra`** (ver o cabeçalho da
+ * migration 0023): o pior caso de uma corrida entre duas abas é uma linha a mais
+ * ou a menos numa lista de INTENÇÃO, que a própria tela reexibe e deixa
+ * corrigir. Não há guarda que dependa de outra tabela na mesma transação —
+ * diferente do CONTAI-073, em que "o valor novo tem de ser maior que o já pago"
+ * exigia ler `compromisso_pagamento` e escrever num ato só. O pré-vínculo não
+ * entra em soma nenhuma (parecer de 2026-08-18, ADENDO 6 §J.1), então nenhuma
+ * ordem de execução aqui produz número errado.
+ *
+ * ⚠️ **A INSERÇÃO VEM ANTES DA REMOÇÃO**, de propósito: se a segunda falhar, o
+ * estado que sobra é "pré-ligado a mais do que ele quis", que a tela mostra e
+ * ele corrige com outro Salvar. Na ordem inversa, a falha deixaria "pré-ligado a
+ * menos", que é a perda silenciosa de uma afirmação já feita.
+ *
+ * ⚠️ **`documentoOrigemId` NÃO passa por aqui** (critério 15): ele é único e
+ * imutável desde a criação (CONTAI-064/065). A tela o exibe fixo e não
+ * desmarcável, e nenhuma linha desta função o toca.
+ *
+ * `upsert` com `ignoreDuplicates` pelo mesmo motivo de `criarVinculos`: a linha
+ * que já existe (outra aba, retry do mesmo botão) é ignorada em vez de abortar a
+ * statement inteira com 23505 — e sem exigir o privilégio de UPDATE, que a
+ * migration 0023 não concede.
+ */
+export async function salvarDocumentosPrevistos(entrada: {
+  compromisso: Pick<Compromisso, "id" | "obraId" | "situacao" | "origem">;
+  /**
+   * Os documentos a ADICIONAR — com a obra de cada um, porque a guarda é do
+   * CÓDIGO: a policy `dono_compromisso_documento_previsto` só exige mesmo DONO,
+   * e ela deixaria passar uma nota de outra obra do próprio Mateus.
+   */
+  adicionar: readonly Pick<Documento, "id" | "obraId">[];
+  /** Só os ids: remover é sempre permitido, inclusive de linha já irregular. */
+  remover: readonly string[];
+}): Promise<void> {
+  for (const documento of entrada.adicionar) {
+    const permissao = podePreVincular(entrada.compromisso, documento);
+    if (!permissao.ok) throw new VinculoEntreObrasError(permissao.motivo);
+  }
+
+  const supabase = getSupabase();
+
+  if (entrada.adicionar.length > 0) {
+    const { error } = await supabase
+      .from("compromisso_documento_previsto")
+      .upsert(
+        entrada.adicionar.map((documento) => ({
+          compromisso_id: entrada.compromisso.id,
+          documento_id: documento.id,
+        })),
+        { onConflict: "compromisso_id,documento_id", ignoreDuplicates: true },
+      );
+    if (error) throw error;
+  }
+
+  if (entrada.remover.length > 0) {
+    const { error } = await supabase
+      .from("compromisso_documento_previsto")
+      .delete()
+      .eq("compromisso_id", entrada.compromisso.id)
+      .in("documento_id", [...entrada.remover]);
+    if (error) throw error;
+  }
 }
 
 /**
@@ -2143,6 +2241,26 @@ export async function corrigirValorPrevisto(entrada: {
  * documento do próprio dono, diferença de valor irrelevante — moram todas na
  * RPC `propagar_vinculo_de_origem` (migration 0020), e não aqui: o caminho do
  * cartão precisa da mesma regra, e duas cópias dela divergiriam.
+ *
+ * ⚠️ **CONTAI-080, D1 do Gate 2 — `propagarOrigem` é OBRIGATÓRIO e sem
+ * default.** Até a correção, esta função propagava a nota de origem sempre que
+ * ela existia, e isso quebrava a garantia do ADENDO 7 §K.2 pelo lado de dentro:
+ * num conjunto de N≥2 (origem + pré-vínculo de outra nota), a origem era gravada
+ * em `pagamento_documento` ANTES de qualquer clique, e a revalidação que o §J.3
+ * exige passava a cobrir só o que tinha sobrado. Ou seja: **parte do conjunto
+ * convertia sozinha** — exatamente o dano que o pre-mortem 1 do ticket nomeia,
+ * e que o §K.4 não autoriza (ele preserva a condição 3 do CONTAI-065, que é
+ * "não sobrescrever vínculo existente", não "propagar dentro de um fluxo que
+ * deveria ser inteiro revalidado").
+ *
+ * Sem default de propósito, pela mesma disciplina de `documentoPrevistoIds` em
+ * `paraCompromisso`: um `= true` faria todo chamador novo herdar a propagação
+ * silenciosa sem decidir nada, e a decisão aqui é fiscal. Quem chama diz, com o
+ * N em mão:
+ * - `resolvidos.length < 2` → N=0 (nada a propagar, a RPC não é chamada) ou N=1
+ *   (propaga sozinho, comportamento do CONTAI-065 intacto);
+ * - `false` para N≥2 → a origem NÃO é gravada aqui; ela entra na lista
+ *   pré-marcada da revalidação e só vira linha no clique do Mateus.
  */
 export async function quitarCompromisso(entrada: {
   compromisso: Pick<
@@ -2151,6 +2269,12 @@ export async function quitarCompromisso(entrada: {
   >;
   pagamento: Pick<Pagamento, "id" | "obraId">;
   quitaIntegralmente: boolean;
+  /**
+   * ⚠️ **Obrigatório, sem default** (CONTAI-080, D1 do Gate 2). `false` quando o
+   * conjunto resolvido do pré-vínculo tem 2+ documentos: aí NADA converte antes
+   * do toque humano. Ver o cabeçalho.
+   */
+  propagarOrigem: boolean;
   /** Quando fica saldo: a nova data prevista, ou `null` = "sem data definida". */
   novaDataPrevista?: string | null;
 }): Promise<void> {
@@ -2177,7 +2301,12 @@ export async function quitarCompromisso(entrada: {
   // `mudarDataPrevista`, uma falha nesta chamada faria o retry gravar uma
   // SEGUNDA linha de histórico de data — rastro duplicado de um adiamento que
   // aconteceu uma vez.
-  if (entrada.compromisso.documentoOrigemId !== null) {
+  //
+  // ⚠️ **`propagarOrigem === false` PULA a RPC** (CONTAI-080, D1): num conjunto
+  // N≥2 a nota de origem é só mais um item do que vai ser revalidado, e gravá-la
+  // aqui converteria parte do conjunto sem toque nenhum. A quitação em si
+  // acontece do mesmo jeito — o que muda é só quando o vínculo nasce.
+  if (entrada.propagarOrigem && entrada.compromisso.documentoOrigemId !== null) {
     const { error } = await supabase.rpc("propagar_vinculo_de_origem", {
       p_compromisso_id: entrada.compromisso.id,
       p_pagamento_id: entrada.pagamento.id,

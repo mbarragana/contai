@@ -28,6 +28,7 @@ import { BlocoRetencao } from "@/app/_components/retencao";
 import { useSessao } from "@/app/_components/sessao";
 import {
   carregarAnexosDoDocumento,
+  carregarCompromissos,
   carregarCorrecoesDoDocumento,
   carregarDocumento,
   carregarObras,
@@ -36,6 +37,11 @@ import {
   type ErroDeTela,
   type PainelDados,
 } from "@/lib/data";
+import {
+  CHIP_PRE_VINCULO,
+  compromissosQuePreLigam,
+  textoPreVinculoDaNota,
+} from "@/lib/fiscal/compromisso";
 import { formatarDocumento } from "@/lib/fiscal/identificacao";
 import {
   CHIP_NOTA_SEM_ARQUIVO,
@@ -70,6 +76,7 @@ import { hojeIso } from "@/lib/hoje";
 import { formatarBRL } from "@/lib/money";
 import type {
   Classificacao,
+  Compromisso,
   Documento,
   Revisao,
   TipoDocumento,
@@ -105,6 +112,16 @@ type Estado =
       anexos: string[];
       /** Nome de cada obra: o rastro grava id, e id não se lê em 2034. */
       obras: Map<string, string>;
+      /**
+       * **CONTAI-080** — a agenda da obra, só para saber quais agendamentos
+       * ABERTOS pré-ligam esta nota (critério 6).
+       *
+       * ⚠️ Vem de `carregarCompromissos`, que é carregador PRÓPRIO e **não** do
+       * painel: o compromisso e os números da declaração nunca chegam juntos na
+       * mesma variável (parecer §2, critério 3 do CONTAI-019). Aqui ele só vira
+       * TEXTO — nenhum valor previsto entra em soma nesta tela.
+       */
+      compromissos: Compromisso[];
     };
 
 /**
@@ -118,11 +135,17 @@ function PagamentosDesteDocumento({
   alocado,
   ano,
   ligado,
+  preLigadoPor,
 }: {
   documento: Documento;
   alocado: DocumentoAlocado | undefined;
   ano: number;
   ligado: boolean;
+  /**
+   * **CONTAI-080** — os agendamentos ABERTOS que pré-ligam esta nota, TODOS,
+   * sem eleição (critério 6). Vazio na esmagadora maioria das notas.
+   */
+  preLigadoPor: Compromisso[];
 }) {
   const pagamentos = alocado?.pagamentos ?? [];
   const habil = alocado?.habil ?? true;
@@ -142,6 +165,36 @@ function PagamentosDesteDocumento({
       : documento.status === "quarentena"
         ? VINCULO_QUARENTENA_NAO_GERA_CUSTO
         : VINCULO_SEM_ARQUIVO_NAO_GERA_CUSTO;
+
+  /**
+   * ⚠️ **CONTAI-080 — o bloco do pré-vínculo, e ele é ADITIVO**, como
+   * `blocoSemArquivo`/`blocoRetencao` deste mesmo arquivo: entra nos DOIS ramos
+   * de render, nunca como um `return` a mais. Uma nota pode ter 1 parcela já
+   * paga e 2 agendamentos abertos pré-ligados para as parcelas seguintes — é o
+   * caso do concreto que originou o ticket —, então ele não depende de a nota ter
+   * ou não pagamento real.
+   *
+   * ⚠️ **Chip ÂMBAR VAZADO, nunca vermelho nem verde** (§J.2): não é pendência
+   * de risco nem confirmação de custo.
+   *
+   * ⚠️ **O texto NÃO muda por N** (ADENDO 8, "Normativo para"): o bloco da NOTA
+   * *"nunca prometeu pergunta nenhuma, só descreve o estado da nota"*. O que
+   * muda com N≥2 é a lista e a concordância verbal — e a última frase é a que
+   * fecha o critério 8: esta nota **continua** contando em "Notas hábeis sem
+   * pagamento vinculado", porque pré-vínculo não tira nota de lista nenhuma
+   * (§J.1).
+   */
+  const preVinculo =
+    preLigadoPor.length === 0 ? null : (
+      <div data-pre-vinculo="documento">
+        <Chip cor="amb" peso="vazado">
+          {CHIP_PRE_VINCULO}
+        </Chip>
+        <p className="mt-1.5 text-[13.5px]">
+          {textoPreVinculoDaNota(preLigadoPor)}
+        </p>
+      </div>
+    );
 
   const acoes = (
     <>
@@ -173,6 +226,10 @@ function PagamentosDesteDocumento({
         ) : (
           <Consequencia cor="red">{motivoNaoGeraCusto}</Consequencia>
         )}
+        {/* Dentro do Card existente, logo depois da consequência e ANTES das
+            ações: o pré-vínculo qualifica o estado "sem pagamento ligado" que a
+            frase acima acabou de nomear. */}
+        {preVinculo ? <div className="mt-2.5">{preVinculo}</div> : null}
         {acoes}
       </Card>
     );
@@ -262,6 +319,11 @@ function PagamentosDesteDocumento({
         ) : null}
       </Card>
 
+      {/* Card PRÓPRIO no ramo normal: entre o status (Custo comprovado / Não
+          gera custo confirmado) e a lista de pagamentos reais — a intenção fica
+          visualmente separada do fato, que é o ponto inteiro do §J.2. */}
+      {preVinculo ? <Card className="border-amb">{preVinculo}</Card> : null}
+
       <Card>
         <div className="font-semibold">Pagamentos desta nota</div>
         {pagamentos.map((p) => (
@@ -323,10 +385,11 @@ function DetalheDocumento() {
         // O painel da obra inteira: é dele que saem os pagamentos ligados e o
         // cálculo do custo comprovado deste conjunto.
         const painel = await carregarPainel(documento.obraId);
-        const [correcoes, obras, anexos] = await Promise.all([
+        const [correcoes, obras, anexos, compromissos] = await Promise.all([
           carregarCorrecoesDoDocumento(documento.id, documento.favorecidoId),
           carregarObras(),
           carregarAnexosDoDocumento(documento.id),
+          carregarCompromissos(documento.obraId),
         ]);
         if (cancelado) return;
         setEstado({
@@ -336,6 +399,7 @@ function DetalheDocumento() {
           correcoes,
           obras: new Map(obras.map((o) => [o.id, o.nome])),
           anexos,
+          compromissos,
         });
       } catch (erro) {
         if (!cancelado) {
@@ -382,6 +446,7 @@ function DetalheDocumento() {
       alocado={alocado}
       ano={ano}
       ligado={ligado}
+      preLigadoPor={compromissosQuePreLigam(d.id, estado.compromissos)}
     />
   );
 

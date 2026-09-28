@@ -1,6 +1,35 @@
 # Índice de tickets — por ordem de execução
 
 ## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
+(`CONTAI-081`, fluxo de cartão do pré-vínculo, ainda sem ticket escrito —
+não contado)
+
+**2026-09-28, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda
+ainda ainda ainda ainda ainda ainda**: **`080` entregue** — Gate 4 (`po`),
+18/18 critérios PASS. Tabela nova `compromisso_documento_previsto`
+(migration `0023`, N:M, sem valor/situação própria). Tela
+`/compromisso/[id]/pre-vincular` + chip "Pré-vínculo — ainda não é custo"
+nas duas telas (compromisso/nota), textos verbatim dos ADENDOS 6/7/8. N
+contado sobre a união pré-vínculo+origem decide a conversão: N=0 sem
+mudança, N=1 automático, N≥2 exige clique. Gate 2 achou e corrigiu 2
+bloqueantes reais: origem propagando antes do clique em N≥2 (D1), e o CTA
+aparecendo indevidamente para cartão (D2, que é CONTAI-081). `npm run
+quality`: 1291 unit + 430 E2E. Migration `0023` ainda não publicada.
+Detalhe: `docs/tickets/CONTAI-080.md`.
+
+**2026-09-28, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda
+ainda ainda ainda ainda ainda**: **`CONTAI-080` criado** (fluxo PIX/boleto
+do pré-vínculo compromisso↔nota; `CONTAI-081` reservado pro cartão) —
+Mateus quer vincular uma parcela ainda não paga a uma ou mais notas antes
+do pagamento. Gate Fiscal em 3 rodadas: **ADENDO 6** (chip neutro, nunca
+custo), **ADENDO 7** (Mateus contestou "sempre clique" citando que
+`documento_origem_id`/CONTAI-065 já converte sozinho pra 1 nota — contador
+concordou: N=1 automático, N≥2 exige clique, contado sobre a união
+pré-vínculo+origem), **ADENDO 8** (corrigiu texto que ficara falso pra N=1).
+`cto-obra` separou o cartão pro `081` (RPC diferente). Migration nova,
+tela nova `/compromisso/[id]/pre-vincular` + 4 telas existentes tocadas,
+complexidade L. **Pronto para `/develop`.** Detalhe:
+`docs/tickets/CONTAI-080.md`.
 
 **2026-09-28, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda
 ainda ainda ainda ainda**: **`079` entregue** — Gate 4 (`po`), 10/10

@@ -28,6 +28,7 @@ import {
   BotaoLink,
   Card,
   Carregando,
+  Chip,
   Dica,
   EstadoErro,
   Linha,
@@ -42,7 +43,12 @@ import {
   classificarErro,
   type ErroDeTela,
 } from "@/lib/data";
-import { saldoDoCompromisso } from "@/lib/fiscal/compromisso";
+import {
+  CHIP_PRE_VINCULO,
+  documentosResolvidosNaConfirmacao,
+  saldoDoCompromisso,
+  textoPreVinculoDoCompromisso,
+} from "@/lib/fiscal/compromisso";
 import { formatarDataBR } from "@/lib/fiscal/obra";
 import { hojeIso } from "@/lib/hoje";
 import { formatarBRL, numericParaCentavos } from "@/lib/money";
@@ -50,6 +56,7 @@ import type {
   Compromisso,
   CompromissoDataHistoricoRow,
   CompromissoValorHistoricoRow,
+  Documento,
   Pagamento,
 } from "@/lib/types";
 
@@ -60,6 +67,13 @@ type Estado =
       fase: "pronto";
       compromisso: Compromisso;
       pagamentos: Pagamento[];
+      /**
+       * CONTAI-080 — as notas da obra, só para RESOLVER os ids do pré-vínculo
+       * em texto (`documentosResolvidosNaConfirmacao`). Nenhum número desta
+       * lista é somado aqui: o card "O que isso muda hoje" continua com os três
+       * zeros literais que o parecer §1 exige.
+       */
+      documentos: Documento[];
       historico: CompromissoDataHistoricoRow[];
       /** CONTAI-073 — tabela SEPARADA da de data (critério 20). */
       historicoDeValor: CompromissoValorHistoricoRow[];
@@ -105,6 +119,7 @@ export default function DetalheAgendamento() {
           pagamentos: painel.pagamentos.filter((p) =>
             compromisso.pagamentoIds.includes(p.id),
           ),
+          documentos: painel.documentos,
           historico,
           historicoDeValor,
           obraNome: painel.obra.nome,
@@ -142,6 +157,33 @@ export default function DetalheAgendamento() {
   const c = estado.compromisso;
   const saldo = saldoDoCompromisso(c, estado.pagamentos);
   const aberto = c.situacao === "aberto";
+
+  /**
+   * **CONTAI-080 — o N, RECALCULADO A CADA RENDER** (ADENDO 8 §L.3, `[Certain]`):
+   * *"o N que decide a variante não pode ser calculado uma vez e guardado junto
+   * do chip — ele precisa ser recalculado toda vez que a tela do detalhe
+   * renderiza"*. A lista é editável até a confirmação: quem pré-liga 1 nota e
+   * depois acrescenta a segunda tem de ver a variante N≥2 na renderização
+   * seguinte, e o inverso ao remover.
+   *
+   * É a UNIÃO deduplicada (pré-vínculos ∪ nota de origem), pela mesma função que
+   * a confirmação usa — nunca uma segunda contagem (critério 10).
+   */
+  const resolvidos = documentosResolvidosNaConfirmacao(c, estado.documentos);
+
+  /**
+   * ⚠️ **D2 do Gate 2 — cartão não tem pré-vínculo, e por isso não tem CTA nem
+   * texto.** A quitação de uma compra de cartão acontece pela fatura, por RPC
+   * que não conta N e não pergunta nada: as duas variantes do ADENDO 8 §L.2
+   * ("vai vincular automaticamente" / "vai te perguntar") seriam falsas nas
+   * duas pontas. O fluxo de cartão é o CONTAI-081.
+   *
+   * A régua é a MESMA de `podePreVincular` (a guarda de escrita) — não uma
+   * segunda condição escrita à mão: o que muda é só que aqui não há documento
+   * para checar obra, então a tela lê a única condição que depende do
+   * compromisso.
+   */
+  const preVinculoDisponivel = c.origem !== "cartao";
 
   return (
     <>
@@ -195,6 +237,24 @@ export default function DetalheAgendamento() {
             <span className="mono text-mut">~ {formatarBRL(saldo)}</span>
           </Linha>
 
+          {/* ⚠️ **CONTAI-080 — o pré-vínculo, e ele NÃO é confirmação de custo.**
+              Chip ÂMBAR VAZADO, o mesmo peso do chip "Agendado": §J.2 é
+              explícito — *"nunca vermelho, nunca verde: não é pendência de risco
+              nem confirmação de custo"*. O texto é literal do ADENDO 8 §L.2, na
+              variante do N atual, e está aqui (dentro do card do FATO) e não
+              atrás de clique, pela mesma doutrina de "consequência nunca atrás
+              de clique". */}
+          {aberto && preVinculoDisponivel && resolvidos.length > 0 ? (
+            <div className="mt-2" data-pre-vinculo="compromisso">
+              <Chip cor="amb" peso="vazado">
+                {CHIP_PRE_VINCULO}
+              </Chip>
+              <p className="mt-1.5 text-[13px]">
+                {textoPreVinculoDoCompromisso(resolvidos)}
+              </p>
+            </div>
+          ) : null}
+
           {/* ⚠️ **As três respostas, no fim do card do FATO que elas respondem**
               (CONTAI-045, decisão 4 do `detalhe-no-shell-v1`): esta é tela de
               leitura com várias ações, e no shell ela não ganha rodapé fixo. Os
@@ -225,6 +285,29 @@ export default function DetalheAgendamento() {
                   Registrar o pagamento
                 </BotaoLink>
               )}
+              {/* ⚠️ **CONTAI-080 — logo DEPOIS da ação primária e ANTES das duas
+                  correções**: agrupa "preparar o pagamento" antes de "corrigir o
+                  agendamento", pela mesma lógica que juntou "Mudou a data" e
+                  "Corrigir o valor previsto" no CONTAI-073. A guarda de
+                  `situacao === 'aberto'` é a do bloco inteiro — o pré-vínculo não
+                  tem guarda própria (critério 4).
+
+                  ⚠️ **NÃO aparece para `origem === "cartao"`** — D2 do Gate 2.
+                  O parecer não restringe por origem, e uma compra de cartão pode
+                  de fato corresponder a mais de uma nota; o que não existe para
+                  cartão é a CONVERSÃO (a fatura quita por RPC, sem contar N e
+                  sem perguntar). Oferecer a declaração sem a conversão faria o
+                  texto do §L.2 prometer os dois comportamentos que o caminho da
+                  fatura não tem. Cartão é o CONTAI-081, inteiro. */}
+              {/* ⚠️ **NÃO aparece para origem cartão** (D2 do Gate 2): ver
+                  `preVinculoDisponivel` acima. Antes ele aparecia, e levava a
+                  uma tela que prometia um automatismo que o caminho da fatura
+                  não tem. */}
+              {preVinculoDisponivel ? (
+                <BotaoLink href={`/compromisso/${c.id}/pre-vincular`}>
+                  Ligar notas a este agendamento
+                </BotaoLink>
+              ) : null}
               {/* "Mudou a data" de compra no cartão re-aloca a fatura — mesma
                   tela, RPC diferente (ver
                   `app/(gestao)/compromisso/[id]/data/page.tsx`). */}

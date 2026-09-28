@@ -64,13 +64,23 @@ import {
   carregarPainel,
   classificarErro,
   criarPagamento,
+  criarVinculos,
   mensagemDeErroDeGravacao,
   quitarCompromisso,
   registrarDiferenca,
   subirParaAcervo,
   type ErroDeTela,
 } from "@/lib/data";
-import { preposicaoDeTempo, saldoDoCompromisso } from "@/lib/fiscal/compromisso";
+import {
+  documentosResolvidosNaConfirmacao,
+  identificarDocumentoPreLigado,
+  perguntaConfirmarPreVinculos,
+  PRE_VINCULO_CONFIRMAR,
+  PRE_VINCULO_REVISAR,
+  preposicaoDeTempo,
+  saldoDoCompromisso,
+} from "@/lib/fiscal/compromisso";
+import { ehDocumentoHabil } from "@/lib/fiscal/vinculo";
 import { formatarDataBR } from "@/lib/fiscal/obra";
 import {
   DATA_QUE_VALE_PARA_O_CUSTO,
@@ -81,7 +91,12 @@ import {
 } from "@/lib/fiscal/pagamento";
 import { hojeIso } from "@/lib/hoje";
 import { formatarBRL, parseValorInput } from "@/lib/money";
-import type { Compromisso, Pagamento, TipoFavorecido } from "@/lib/types";
+import type {
+  Compromisso,
+  Documento,
+  Pagamento,
+  TipoFavorecido,
+} from "@/lib/types";
 
 /**
  * ⚠️ **Sem default e sem pré-seleção** (critério 13, adendo §D). `null` é o
@@ -99,6 +114,17 @@ export default function ConfirmarPagamento() {
 
   const [compromisso, setCompromisso] = useState<Compromisso | null>(null);
   const [pagamentos, setPagamentos] = useState<Pagamento[]>([]);
+  /**
+   * **CONTAI-080** — as notas da obra, carregadas junto com o resto: é sobre
+   * elas que a UNIÃO deduplicada do critério 10 resolve. Ler no momento da
+   * CONFIRMAÇÃO, e não no da declaração, é o que o ADENDO 7 §K.3 exige.
+   */
+  const [documentos, setDocumentos] = useState<Documento[]>([]);
+  /**
+   * **CONTAI-080, ramo N≥2** — o pagamento JÁ está salvo quando isto vira
+   * `true`; o que falta é só a decisão sobre os vínculos (ADENDO 6 §J.3).
+   */
+  const [revisarPreVinculos, setRevisarPreVinculos] = useState(false);
   const [tipoFavorecido, setTipoFavorecido] = useState<TipoFavorecido | null>(null);
   const [erroCarregar, setErroCarregar] = useState<ErroDeTela | null>(null);
 
@@ -133,11 +159,19 @@ export default function ConfirmarPagamento() {
     comprovantePath: string | null;
     pagamentoId: string | null;
     diferencaGravada: boolean;
+    /**
+     * **CONTAI-080, PASSO 5** — o vínculo do pré-vínculo resolvido. Rastreado
+     * como os outros quatro: a gravação é `upsert` com `ignoreDuplicates`, logo
+     * idempotente por construção, mas o `feito` evita a ida de rede à toa no
+     * retry e mantém a leitura do progresso honesta.
+     */
+    vinculosCriados: boolean;
   }>({
     comprovanteEnviado: false,
     comprovantePath: null,
     pagamentoId: null,
     diferencaGravada: false,
+    vinculosCriados: false,
   });
 
   useEffect(() => {
@@ -149,6 +183,7 @@ export default function ConfirmarPagamento() {
         if (cancelado) return;
         setCompromisso(c);
         setPagamentos(painel.pagamentos.filter((p) => c.pagamentoIds.includes(p.id)));
+        setDocumentos(painel.documentos);
         // ⚠️ O tipo vem da TABELA `favorecido`, não de outros pagamentos dele.
         // Derivar de pagamentos errava exatamente no PRIMEIRO pagamento a um
         // PJ: caía em `null` e a tela saía VERMELHA pedindo um CNPJ que já
@@ -282,6 +317,22 @@ export default function ConfirmarPagamento() {
         avancar({ diferencaGravada: true });
       }
 
+      // ══ O N, CONTADO ANTES DO PASSO 4 — correção do D1 do Gate 2 ═══════════
+      //
+      // Fonte: ADENDO 7 §K.2 de
+      // `docs/pareceres/2026-08-18-compromisso-versus-pagamento.md`, `[Certain]`.
+      // O N é a UNIÃO deduplicada (pré-vínculos ∪ nota de origem), por UMA função
+      // pura só.
+      //
+      // ⚠️ **A ORDEM É O CONSERTO.** Antes, isto era calculado DEPOIS do PASSO 4 —
+      // e o PASSO 4 propagava a nota de origem incondicionalmente pela RPC do
+      // CONTAI-065. Num conjunto N≥2 (origem + outra nota), a origem já estava em
+      // `pagamento_documento` quando o bloco de revisão aparecia: **parte do
+      // conjunto convertia sozinha**, e a revalidação do §J.3 cobria só o resto.
+      // Contar antes e passar `propagarOrigem` é o que faz o fluxo N≥2 ser 100%
+      // revalidado, como o parecer exige.
+      const resolvidos = documentosResolvidosNaConfirmacao(compromisso, documentos);
+
       // PASSO 4 · ⚠️ `quitaIntegralmente` é DECISÃO HUMANA, nunca cálculo.
       // Pagou igual ou mais: quita. Pagou menos: é o que ele escolheu, sem
       // default. É idempotente por construção — o vínculo é upsert com
@@ -290,14 +341,87 @@ export default function ConfirmarPagamento() {
         compromisso,
         pagamento: { id: feito.pagamentoId!, obraId: compromisso.obraId },
         quitaIntegralmente: !pagouMenos || escolhaMenor === "quita",
+        // N=0 (nada a propagar) e N=1 (propaga sozinho, CONTAI-065 intacto) →
+        // `true`. N≥2 → `false`: a origem espera o clique, junto com as outras.
+        propagarOrigem: resolvidos.length < 2,
         ...(pagouMenos && escolhaMenor === "falta"
           ? { novaDataPrevista: saldoSemData ? null : dataSaldo }
           : {}),
       });
 
+      // ══ PASSO 5 · CONTAI-080 — a CONVERSÃO do pré-vínculo, bifurcada por N ══
+
+      // **N≥2 → confirmação explícita, sempre** (§J.3, mantido integralmente
+      // pelo §K.4): *"existe, aí sim, uma decisão de rateio que só o Mateus pode
+      // fazer"*. O pagamento já está salvo — o que falta é a decisão sobre os
+      // vínculos, e nenhuma das duas saídas recusa ou silencia o pagamento.
+      if (resolvidos.length >= 2) {
+        setSalvando(false);
+        setRevisarPreVinculos(true);
+        return;
+      }
+
+      // **N=1 → automático, sem clique adicional** (§K.2), no MESMO padrão do
+      // CONTAI-065. §K.1 derruba as duas razões que o §J.3 dava para exigir o
+      // toque aqui: *"se a divergência de valor não impede a propagação
+      // silenciosa de 1 documento hoje, ela não pode virar motivo para exigir
+      // clique quando a mesma situação nasce de um pré-vínculo"*, e o precedente
+      // da sugestão heurística (§C.d) *"compara a coisa errada"*.
+      //
+      // ⚠️ Quando esse único documento É a nota de origem, o PASSO 4 já criou a
+      // linha pela RPC (`propagarOrigem` foi `true`, porque N=1) — e aqui a
+      // duplicata é IGNORADA (`upsert` com `ignoreDuplicates` dentro de
+      // `criarVinculos`). Os dois caminhos convergem na mesma linha de
+      // `pagamento_documento`, sem RPC nova e sem 23505. **N=0 não passa por
+      // aqui**: fluxo idêntico ao de antes deste ticket.
+      if (resolvidos.length === 1 && !feito.vinculosCriados) {
+        await criarVinculos(
+          resolvidos.map((d) => ({
+            pagamentoId: feito.pagamentoId!,
+            documentoId: d.id,
+            obraDoPagamentoId: compromisso.obraId,
+            obraDoDocumentoId: d.obraId,
+            documentoHabil: ehDocumentoHabil(d),
+          })),
+        );
+        avancar({ vinculosCriados: true });
+      }
+
       router.push(`/pagamento/${feito.pagamentoId!}`);
     } catch (e) {
       setErro(mensagemDeErroDeGravacao(e, "na lista de pagamentos desta obra"));
+      setSalvando(false);
+    }
+  }
+
+  /**
+   * O "Sim, confirmar os vínculos" do bloco N≥2 — grava TODOS os resolvidos de
+   * uma vez (§J.3: a revalidação cobre o conjunto, não par por par).
+   *
+   * Erro aqui **não navega e não desfaz nada**: o pagamento continua salvo e os
+   * pré-vínculos continuam gravados, então repetir o clique é seguro — é a mesma
+   * garantia de retry do B4, aplicada a um passo que não cria dinheiro.
+   */
+  async function confirmarPreVinculos(resolvidos: readonly Documento[]) {
+    if (!compromisso || progresso.pagamentoId === null) return;
+    setSalvando(true);
+    setErro(null);
+    try {
+      await criarVinculos(
+        resolvidos.map((d) => ({
+          pagamentoId: progresso.pagamentoId!,
+          documentoId: d.id,
+          obraDoPagamentoId: compromisso.obraId,
+          obraDoDocumentoId: d.obraId,
+          documentoHabil: ehDocumentoHabil(d),
+        })),
+      );
+      setProgresso((p) => ({ ...p, vinculosCriados: true }));
+      router.push(`/pagamento/${progresso.pagamentoId}`);
+    } catch (e) {
+      setErro(
+        mensagemDeErroDeGravacao(e, "no detalhe do pagamento, se as notas já aparecem ligadas"),
+      );
       setSalvando(false);
     }
   }
@@ -316,6 +440,87 @@ export default function ConfirmarPagamento() {
   }
 
   const rotulosComprovante = rotulosPagoSemComprovante(tipoFavorecido);
+
+  /**
+   * **CONTAI-080, ramo N≥2 — a revalidação do §J.3, em tela cheia.**
+   *
+   * Substitui a `ColunaDeDetalhe` inteira (mesmo padrão dos outros estados
+   * terminais desta página): o formulário já cumpriu seu papel, o pagamento está
+   * salvo, e a única decisão que resta é a dos vínculos.
+   *
+   * ⚠️ **NENHUMA das duas saídas recusa ou silencia o pagamento** — ele já está
+   * no banco, e é isso que o texto diz antes dos botões. *"Nunca recuse o
+   * registro de um fato consumado"* (§4 do parecer).
+   *
+   * ⚠️ **Nada de rateio automático** (§J.3, recusado pelo `contador`): os dois
+   * botões gravam vínculo, nunca dividem valor. Quem reparte é o `min()` por
+   * conjunto conexo de `alocarCusto`, depois, como em qualquer vínculo.
+   */
+  if (revisarPreVinculos) {
+    const resolvidos = documentosResolvidosNaConfirmacao(compromisso, documentos);
+    return (
+      <>
+        <CabecalhoDaTela
+          titulo="Confirmar os vínculos"
+          sub={`${compromisso.favorecidoNome ?? "favorecido"} · pagamento já salvo`}
+        />
+        <ColunaDeDetalhe>
+          {erro ? (
+            <Banner cor="red" role="alert">
+              {erro}{" "}
+              <strong>
+                O pagamento já está salvo — tocar de novo NÃO grava um segundo.
+              </strong>{" "}
+              Falta só ligar as notas, e é isso que o botão faz agora.
+            </Banner>
+          ) : null}
+
+          <Banner cor="grn" role="status">
+            <strong>O pagamento está salvo.</strong> O que falta decidir é só a
+            quais notas ele se liga — nenhuma das duas saídas abaixo desfaz o
+            pagamento.
+          </Banner>
+
+          <Card className="border-ink" data-pre-vinculo="revisar">
+            {/* Texto LITERAL do ADENDO 6 §J.3, montado por
+                `perguntaConfirmarPreVinculos` — a tela não redige nem reordena. */}
+            <p className="text-[14.5px] font-semibold">
+              {perguntaConfirmarPreVinculos(resolvidos)}
+            </p>
+            {resolvidos.map((d) => (
+              <Linha key={d.id} rotulo={identificarDocumentoPreLigado(d)}>
+                <span className="text-mut">
+                  {d.favorecidoNome ?? "emitente não informado"}
+                </span>
+              </Linha>
+            ))}
+            <div className="mt-3 flex flex-col gap-2">
+              <BotaoSalvar
+                ocupado={salvando}
+                variante="primary"
+                onClick={() => void confirmarPreVinculos(resolvidos)}
+                disabled={salvando}
+              >
+                {PRE_VINCULO_CONFIRMAR}
+              </BotaoSalvar>
+              {/* Sem query param: a tela de destino deriva do estado GRAVADO o
+                  que pré-marcar (critério 12/13). Nada foi apagado — só não foi
+                  confirmado ainda. */}
+              <BotaoLink href={`/pagamento/${progresso.pagamentoId}/ligar`}>
+                {PRE_VINCULO_REVISAR}
+              </BotaoLink>
+            </div>
+            <Dica>
+              Você pode revisar: o valor pago pode não bater com o que estava
+              previsto, e a nota certa pode ser outra. <strong>Nada é
+              rateado automaticamente</strong> — quem divide é a regra do mínimo,
+              depois de o vínculo existir.
+            </Dica>
+          </Card>
+        </ColunaDeDetalhe>
+      </>
+    );
+  }
 
   return (
     <>

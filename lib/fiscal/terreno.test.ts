@@ -1468,6 +1468,7 @@ describe("CONTAI-036 · o veto é por saída, e a porta continua única", () => 
     favorecidoId: null,
     favorecidoNome: "AJE",
     valorPrevistoCentavos: 15_000_00,
+    documentoPrevistoIds: [],
     dataPrevista: "2026-08-10",
     origem: "boleto",
     documentoOrigemId: null,

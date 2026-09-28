@@ -1139,6 +1139,31 @@ export interface Candidato<T, Outro> {
    * Rótulo de sugestão, ou `null`. É ORDENAÇÃO E RÓTULO — parecer §5.5:
    * "sugere, nunca vincula sozinho". Nenhum candidato nasce marcado, e não
    * existe ação em lote que ligue sem conferência item a item (critério 10).
+   *
+   * ⚠️ **A doutrina "nenhum candidato nasce marcado" tem UMA exceção, e ela é
+   * NOMEADA, autorizada e testada: o CONTAI-080** (critério 13), pelo ADENDO 7
+   * §K.2 de `docs/pareceres/2026-08-18-compromisso-versus-pagamento.md`. Em
+   * `/pagamento/[id]/ligar`, os documentos que o Mateus **já declarou** como
+   * pré-vínculo do agendamento que originou este pagamento — e que ainda não
+   * foram ligados formalmente — nascem MARCADOS, com o chip "Pré-vínculo —
+   * ainda não é custo".
+   *
+   * O que autoriza a exceção, `[Certain]` §K.1/§K.3: a marca não vem de
+   * heurística do app (o que §5.5 proíbe), vem de *"uma declaração do próprio
+   * Mateus, feita com o dedo, antes do pagamento"* — a mesma classe de
+   * `documento_origem_id`, que desde o CONTAI-065 converte sozinho, sem clique
+   * nenhum. *"Recusar automatizar N=1 só porque o campo é tecnicamente outro
+   * daria MENOS força a uma afirmação explícita do Mateus do que o produto já dá
+   * hoje a uma afirmação equivalente."*
+   *
+   * O que a exceção **não** afrouxa: o checkbox continua destravado (revalidar,
+   * não confirmar automaticamente), a marca é sempre visível e nominal, e
+   * **nada nesta interface nasce marcado por semelhança** — `sugestao` continua
+   * sendo só ordenação e rótulo. Quem decide o que nasce marcado é a TELA, a
+   * partir de `documentosResolvidosNaConfirmacao` (`lib/fiscal/compromisso.ts`);
+   * este módulo continua sem conhecer o tipo do agendamento e sem conhecer a
+   * tabela de pré-vínculos — a barreira de tipo do CONTAI-072/080, travada por
+   * grep em `lib/fiscal/resumo.test.ts`.
    */
   sugestao: string | null;
   /**

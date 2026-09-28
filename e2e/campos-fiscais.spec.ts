@@ -317,10 +317,29 @@ const MAPA: Record<string, Classificacao> = {
     foraDaVisita:
       "tela de leitura; o único campo é o `cSaldoData` da sugestão de quitação, que só aparece com agendamento parecido",
   },
+  /**
+   * ⚠️ **CONTAI-080** acrescenta o segundo spec, e com ele a ÚNICA exceção
+   * declarada à doutrina "nada nasce marcado" (`documentosCandidatos`,
+   * DEFAULT DECLARADO — ADENDO 7 §K.2). Ela fica fora da visita pelo mesmo
+   * motivo de antes; o comportamento dela é provado por `e2e/pre-vinculo.spec.ts`,
+   * que é onde a marca inicial tem cenário para existir.
+   */
   "/pagamento/[id]/ligar": {
-    specs: ["CONTAI-018"],
+    specs: ["CONTAI-018", "CONTAI-080"],
     iniciais: [],
     foraDaVisita: "espelho de `/documento/[id]/ligar`",
+  },
+  /**
+   * CONTAI-080 — o editor de pré-vínculo. Fora da visita porque a lista exige
+   * notas já gravadas na mesma obra **e** um agendamento aberto; o comportamento
+   * (inclusive "o que vem marcado é o gravado") é provado por
+   * `e2e/pre-vinculo.spec.ts`.
+   */
+  "/compromisso/[id]/pre-vincular": {
+    specs: ["CONTAI-080"],
+    iniciais: [],
+    foraDaVisita:
+      "a lista exige notas já gravadas na mesma obra e um agendamento em aberto",
   },
   "/fatura/[id]/alocar": {
     specs: ["CONTAI-022"],

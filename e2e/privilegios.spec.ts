@@ -158,6 +158,19 @@ const ESPERADO: Record<string, string> = {
   // daquela é o "adiado N×" que a home e o detalhe exibem, e correção de valor
   // gravada lá viraria um adiamento que nunca aconteceu.
   compromisso_valor_historico: "INSERT,SELECT",
+
+  // ── CONTAI-080 (migration 0023) ─────────────────────────────────────────
+  // O PRÉ-VÍNCULO N:M compromisso↔documento, antes do pagamento.
+  //
+  // ⚠️ **DELETE, e ele é a EXCEÇÃO NOMEADA da 0006 aplicada de novo** — não uma
+  // exceção nova. A régua é a de `pagamento_documento`: a linha é uma
+  // **AFIRMAÇÃO** do Mateus sobre correspondência (aqui, ainda pretendida), não
+  // **ACERVO** com objeto no bucket — e o critério 15 do ticket exige que o
+  // pré-vínculo seja editável até a conversão, o que significa sair do conjunto.
+  //
+  // SEM UPDATE: a linha É o par (PK composta), não há coluna a corrigir. Trocar
+  // de nota é remover um par e inserir outro.
+  compromisso_documento_previsto: "DELETE,INSERT,SELECT",
 };
 
 /**

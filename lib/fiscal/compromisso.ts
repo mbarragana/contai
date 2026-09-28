@@ -42,12 +42,16 @@ import type {
 import { centavosParaInput, formatarBRL, parseValorInput } from "@/lib/money";
 // ⚠️ ÚNICA dependência deste arquivo em `documento.ts`, e ela é de PREDICADO:
 // "sem arquivo" tem uma definição só no sistema (pre-mortem 1 do CONTAI-033).
-import { faltaOArquivo } from "./documento";
+import { faltaOArquivo, ROTULO_DO_TIPO } from "./documento";
 import {
   pagosSemComprovante,
   totalPagoSemComprovanteCentavos,
 } from "./terreno";
-import type { Permissao } from "./vinculo";
+// ⚠️ CONTAI-080 — `podeVincular` entra aqui como VALOR, e não só como tipo: a
+// guarda de obra do pré-vínculo é a MESMA do vínculo formal, reaproveitada
+// (`podePreVincular`). A direção continua de mão única — `vinculo.ts` não
+// importa nada daqui, e o teste-trava de `resumo.test.ts` afirma isso.
+import { podeVincular, type Permissao } from "./vinculo";
 
 // ── Data: utilitários locais (ISO yyyy-mm-dd compara lexicograficamente) ──
 
@@ -1173,3 +1177,342 @@ export const QUITACAO_NAO = "Não, é outro pagamento";
  */
 export const QUITACAO_CONSEQUENCIA_DO_NAO =
   "Se não quitar, o agendamento continua em aberto e este pagamento fica registrado sozinho.";
+
+// ══════════════════════════════════════════════════════════════════════════
+// CONTAI-080 · PRÉ-VÍNCULO compromisso↔nota, antes do pagamento
+// ══════════════════════════════════════════════════════════════════════════
+//
+// Fonte normativa, e nada aqui é redigido: ADENDO 6 (§J.0-J.5), ADENDO 7
+// (§K.1-K.5) e ADENDO 8 (§L.1-L.4) de
+// `docs/pareceres/2026-08-18-compromisso-versus-pagamento.md`.
+//
+// ⚠️ **Nada deste bloco devolve dinheiro somável** — a regra 2 do cabeçalho
+// deste arquivo vale aqui sem exceção. O valor de cada nota aparece só DENTRO de
+// texto já qualificado, e `documentosResolvidosNaConfirmacao` devolve
+// `Documento[]` (registros que a esteira de `vinculo.ts` já conhece), nunca um
+// total. O pré-vínculo **não entra em soma nenhuma e não é nó de `alocarCusto`**
+// (§J.1): quem o converte em custo é a criação da linha em `pagamento_documento`,
+// e só ela.
+
+/**
+ * O chip curto das três telas (detalhe do compromisso, detalhe da nota e a
+ * linha pré-marcada do seletor) — literal, ADENDO 6 §J.2.
+ *
+ * ⚠️ **Nunca vermelho, nunca verde** (§J.2): *"não é pendência de risco nem
+ * confirmação de custo"*. O peso visual é o do chip "Agendado" — `cor="amb"`,
+ * `peso="vazado"`.
+ */
+export const CHIP_PRE_VINCULO = "Pré-vínculo — ainda não é custo";
+
+/**
+ * O que a tela de edição diz quando o agendamento já foi respondido.
+ *
+ * ⚠️ Texto de PRODUTO, não de consequência fiscal — e por isso não sai de
+ * parecer nenhum: a vida do pré-vínculo é a do compromisso (critério 2), então
+ * quitado ou cancelado não tem conjunto a editar. Nada de fiscal acontece nem
+ * deixa de acontecer aqui.
+ */
+export const PRE_VINCULO_SO_EM_ABERTO =
+  "Este agendamento já foi respondido. Ligar notas antecipadamente só existe " +
+  "enquanto ele está em aberto — nada foi alterado.";
+
+/**
+ * **D2 do Gate 2 — o pré-vínculo NÃO existe para compra no cartão, e o texto
+ * não pode prometer o que o caminho não faz.**
+ *
+ * A quitação de uma compra de cartão acontece pela fatura (RPCs
+ * `fatura_desembolso_gravar`/`fatura_alocar`, migration 0013 + 0020): ela **não
+ * conta N e não pergunta nada**. Deixar o CTA e o texto do ADENDO 8 §L.2
+ * aparecerem aqui faria a tela afirmar "o sistema vai vincular esta nota
+ * automaticamente" / "o sistema vai te perguntar" sobre um fluxo que hoje não
+ * faz nem um nem outro — o pre-mortem 4 do ticket ("texto de tela promete o que
+ * a regra não faz") acontecendo pela segunda vez no mesmo ticket.
+ *
+ * O cartão é o **CONTAI-081**, ticket separado, ainda sem critérios escritos. O
+ * que o CONTAI-080 já dá a um pagamento nascido de fatura é só a pré-marcação
+ * PASSIVA do critério 13 em `/pagamento/[id]/ligar` — que não depende desta
+ * tela nem promete nada.
+ *
+ * ⚠️ Texto de PRODUTO, não de consequência fiscal: ele não afirma nem nega
+ * efeito nenhum sobre custo, INSS ou declaração — diz que a capacidade não
+ * existe ainda. Nenhum parecer é citado porque nenhum é consumido.
+ */
+export const PRE_VINCULO_SEM_CARTAO =
+  "Ligar notas antecipadamente ainda não está disponível para compras no " +
+  "cartão. Nesta compra, a nota se liga ao pagamento depois — quando a fatura " +
+  "for paga, pelo caminho da fatura.";
+
+/**
+ * Guarda de escrita do pré-vínculo: compromisso ABERTO e nota da MESMA obra.
+ *
+ * ⚠️ **A guarda de obra é a `podeVincular` de `vinculo.ts`, reaproveitada, e não
+ * uma segunda cópia** (Viabilidade do ticket): a condição é a mesma do vínculo
+ * formal — *"nada é somado entre obras; cada matrícula é um item da
+ * declaração"* —, e duas redações dela divergiriam na primeira correção. O
+ * pré-vínculo não soma nada hoje, mas ele existe para VIRAR vínculo formal no
+ * ato da confirmação (§K.2): deixar entrar aqui uma nota de outra obra seria
+ * plantar, numa lista de intenção, a linha que o critério 11 do CONTAI-018
+ * proíbe do outro lado.
+ *
+ * ⚠️ **Ela mora no app, não em trigger** (mesma disciplina de
+ * `pagamento_documento`/`criarVinculos`): a policy
+ * `dono_compromisso_documento_previsto` da migration 0023 só exige mesmo DONO, e
+ * deixaria passar uma nota de outra obra do próprio Mateus.
+ */
+export function podePreVincular(
+  compromisso: Pick<Compromisso, "obraId" | "situacao" | "origem">,
+  documento: Pick<Documento, "obraId">,
+): Permissao {
+  // ⚠️ **PRIMEIRO o cartão** (D2 do Gate 2): é a condição mais forte das três —
+  // não é "ainda não" por estado do agendamento, é capacidade que não existe
+  // para essa origem (CONTAI-081). Um agendamento de cartão já quitado tem duas
+  // razões para recusar, e esta é a que explica o produto.
+  if (compromisso.origem === "cartao") {
+    return { ok: false, motivo: PRE_VINCULO_SEM_CARTAO };
+  }
+  if (compromisso.situacao !== "aberto") {
+    return { ok: false, motivo: PRE_VINCULO_SO_EM_ABERTO };
+  }
+  return podeVincular({ obraId: compromisso.obraId }, documento);
+}
+
+/**
+ * **Os ids da UNIÃO `documentoPrevistoIds ∪ {documentoOrigemId}`, deduplicados
+ * e na ordem canônica** (origem primeiro) — SEM resolver em documentos.
+ *
+ * ⚠️ **É a definição ÚNICA da união**, e `documentosResolvidosNaConfirmacao` é
+ * ela mais o filtro de obra: extrair isto foi a correção do D1 do Gate 2, e não
+ * a criação de uma segunda contagem. O pre-mortem 1 do ticket é sobre existir
+ * mais de uma REGRA de N; aqui há uma regra e dois graus de resolução, com o
+ * mais grosseiro definido em função do outro.
+ *
+ * Existe porque há um chamador que precisa decidir sobre o conjunto **sem ter a
+ * lista de documentos em mão**: a sugestão de quitação
+ * (`app/_components/quitacao.tsx`) carrega a agenda, não o painel. Lá, a
+ * contagem sobre ids é um **limite superior** do N resolvido — resolver só
+ * ENCOLHE o conjunto (nota de outra obra ou de outro dono cai fora). Usar o
+ * limite superior para decidir "posso propagar sozinho?" erra sempre para o lado
+ * conservador: no máximo deixa de automatizar um N=1, nunca converte parte de um
+ * conjunto N≥2 em silêncio — que é exatamente o dano que o D1 nomeia.
+ */
+export function idsDaUniaoDoPreVinculo(
+  compromisso: Pick<Compromisso, "documentoOrigemId" | "documentoPrevistoIds">,
+): string[] {
+  return [
+    ...new Set([
+      ...(compromisso.documentoOrigemId === null
+        ? []
+        : [compromisso.documentoOrigemId]),
+      ...compromisso.documentoPrevistoIds,
+    ]),
+  ];
+}
+
+/**
+ * **O N do critério 10 — a UNIÃO DEDUPLICADA `documentoPrevistoIds ∪
+ * {documentoOrigemId}`, resolvida em documentos da mesma obra.**
+ *
+ * ⚠️ **É a ÚNICA contagem de N do produto, e a unicidade é o ponto** (achado do
+ * `cto-obra`): contar N só sobre a tabela nova faria o mecanismo deste ticket e
+ * o `propagar_vinculo_de_origem` (CONTAI-065, migration 0020) rodarem como dois
+ * automatismos independentes competindo pela MESMA guarda ("nenhuma linha em
+ * `pagamento_documento` para este pagamento"), com resultado dependente da ordem
+ * de execução. Um compromisso com nota de origem + 1 pré-vínculo tem N=2 e exige
+ * confirmação explícita (§K.2) — se o N fosse contado só aqui dentro, ele
+ * pareceria N=1 e converteria sozinho metade do conjunto.
+ *
+ * ⚠️ **A NOTA DE ORIGEM VEM PRIMEIRO, e os pré-vínculos na ordem de criação.**
+ * O texto do ADENDO 8 §L.2 lista as notas, e lista ordenada por conveniência de
+ * `Map` faria o mesmo estado ler como dois entre dois carregamentos. A origem
+ * abre a lista porque é ela que a tela de edição mostra fixa no topo.
+ *
+ * ⚠️ **NÃO filtra por `situacao`**, e a ausência é deliberada: esta função é lida
+ * no momento da CONFIRMAÇÃO e depois dela (a pré-marcação do critério 13 em
+ * `/pagamento/[id]/ligar` roda com o compromisso já `quitado`). Quem exige
+ * `aberto` é `podePreVincular`, que governa a EDIÇÃO, e `compromissosQuePreLigam`,
+ * que governa o aviso do lado da nota.
+ *
+ * Documento que não está na lista de entrada (outra obra, outro dono, apagado)
+ * simplesmente não resolve — mesma degradação silenciosa da RPC 0020, e pelo
+ * mesmo motivo: a quitação é fato consumado e não se recusa por causa da nota.
+ */
+export function documentosResolvidosNaConfirmacao(
+  compromisso: Pick<
+    Compromisso,
+    "obraId" | "documentoOrigemId" | "documentoPrevistoIds"
+  >,
+  documentos: readonly Documento[],
+): Documento[] {
+  const porId = new Map(documentos.map((d) => [d.id, d]));
+  const resolvidos: Documento[] = [];
+
+  // A DEDUPLICAÇÃO mora em `idsDaUniaoDoPreVinculo`, uma vez só: origem e
+  // pré-vínculo apontando para a MESMA nota são um documento, não dois. Sem
+  // isto, o caso mais provável do relato (ele pré-liga de novo, pela tela nova,
+  // a nota que já era a de origem) cairia em N=2 e pediria confirmação de um
+  // conjunto com uma nota só.
+  for (const id of idsDaUniaoDoPreVinculo(compromisso)) {
+    const documento = porId.get(id);
+    if (documento === undefined) continue;
+    if (!podeVincular({ obraId: compromisso.obraId }, documento).ok) continue;
+    resolvidos.push(documento);
+  }
+
+  return resolvidos;
+}
+
+/**
+ * Como cada nota é citada nos textos do parecer — `[Nota nº X — R$ valor]`.
+ *
+ * Sem número (boleto, nota registrada antes do CONTAI-004) cai no rótulo do
+ * tipo: o parecer pede que a nota seja IDENTIFICÁVEL na frase, e "Nota nº —" não
+ * identifica nada. Sem valor informado a frase DIZ isso, em vez de imprimir
+ * R$ 0,00 — que afirmaria um valor que o registro não tem.
+ */
+export function identificarDocumentoPreLigado(d: Documento): string {
+  const quem = d.numero ? `Nota nº ${d.numero}` : ROTULO_DO_TIPO[d.tipo];
+  const quanto =
+    d.valorCentavos === null
+      ? "sem valor informado"
+      : formatarBRL(d.valorCentavos);
+  return `${quem} — ${quanto}`;
+}
+
+/**
+ * **O texto expandido do detalhe do COMPROMISSO — literal, ADENDO 8 §L.2.**
+ *
+ * As três primeiras frases são idênticas nas duas variantes; só a última se
+ * bifurca pelo N. `[Certain]` §L.1: a variante neutra única foi descartada pelo
+ * `contador` porque *"apaga exatamente a informação que o texto existe para dar
+ * — se o Mateus vai ou não ser perguntado de novo"*.
+ *
+ * ⚠️ **O N é o ATUAL, recalculado a cada render** (§L.3): a lista é editável até
+ * a confirmação, e o texto não pode ficar presa ao N de quando o chip foi
+ * montado. Por isso esta função recebe os documentos resolvidos e não um número
+ * guardado — quem a chama já passou por
+ * `documentosResolvidosNaConfirmacao` no mesmo render.
+ *
+ * ⚠️ **"pré-vínculo", não "vínculo" sozinho**, na última frase da variante N≥2 —
+ * correção nomeada do §L.2, aplicando a razão (iii) do §J.2 ao texto que ela
+ * mesma deveria ter governado.
+ */
+export function textoPreVinculoDoCompromisso(
+  resolvidos: readonly Documento[],
+): string {
+  const lista = resolvidos.map(identificarDocumentoPreLigado).join(", ");
+  const comum =
+    `Você ligou este agendamento a ${lista} antes de pagar. Isso é só uma ` +
+    "intenção registrada: enquanto o pagamento não for confirmado, esse valor " +
+    "não entra no custo de aquisição, não abate a base do INSS e não aparece " +
+    "em nenhum relatório da declaração. Quando você confirmar o pagamento, o " +
+    "sistema vai ";
+  return resolvidos.length === 1
+    ? `${comum}vincular esta nota automaticamente — sem perguntar de novo.`
+    : `${comum}te perguntar se este pré-vínculo ainda vale.`;
+}
+
+/**
+ * **A pergunta do bloco N≥2 da confirmação — literal, ADENDO 6 §J.3.**
+ *
+ * Só existe para N≥2: *"com N=1 não há 'como dividir'"* (§K.1, razão 3), e o
+ * caminho N=1 não tem UI nenhuma (§K.2).
+ */
+export function perguntaConfirmarPreVinculos(
+  resolvidos: readonly Documento[],
+): string {
+  return (
+    "Confirmar este pagamento também confirma o vínculo com " +
+    `${resolvidos.map(identificarDocumentoPreLigado).join(", ")}, ` +
+    "como você já tinha indicado?"
+  );
+}
+
+/** Os dois botões do bloco acima — literais, ADENDO 6 §J.3. */
+export const PRE_VINCULO_CONFIRMAR = "Sim, confirmar os vínculos";
+export const PRE_VINCULO_REVISAR = "Revisar antes de confirmar";
+
+/**
+ * **Os agendamentos ABERTOS que pré-ligam esta nota — TODOS, sem eleição.**
+ *
+ * ⚠️ **Função diferente de `agendamentosPorDocumento`, e a diferença é o
+ * requisito** (critério 6): aquela ELEGE um compromisso por documento, de
+ * propósito, porque a Home e `/despesas` mostram "1 aviso por nota"
+ * (CONTAI-072). O detalhe da nota precisa da situação COMPLETA — o caso do
+ * concreto é uma nota com 3 parcelas futuras pré-ligadas, e mostrar uma só
+ * esconderia duas intenções já declaradas.
+ *
+ * ⚠️ `situacao === "aberto"` e só: quitado ou cancelado não pré-liga nada. O
+ * pré-vínculo de um compromisso quitado já cumpriu seu papel (virou, ou não,
+ * linha em `pagamento_documento`), e um cancelado deixa a nota exatamente como
+ * uma nota sem rastro nenhum — que é a verdade.
+ *
+ * ⚠️ Conta as DUAS fontes (`documentoOrigemId` e `documentoPrevistoIds`), pela
+ * mesma razão do critério 10: são um conjunto só, e um aviso que ignorasse a
+ * origem mentiria por omissão na nota mais comum do produto.
+ */
+export function compromissosQuePreLigam(
+  documentoId: string,
+  compromissos: readonly Compromisso[],
+): Compromisso[] {
+  return compromissos.filter(
+    (c) =>
+      c.situacao === "aberto" &&
+      (c.documentoOrigemId === documentoId ||
+        c.documentoPrevistoIds.includes(documentoId)),
+  );
+}
+
+/**
+ * **O texto expandido do detalhe da NOTA — literal, ADENDO 6 §J.2 (bloco da
+ * NOTA).**
+ *
+ * ⚠️ **Este texto NÃO muda por N** (ADENDO 8, "Normativo para"): *"ele nunca
+ * prometeu pergunta nenhuma, só descreve o estado da nota"*. O que muda com N≥2
+ * é a LISTA e a concordância verbal, pela mesma convenção de colchetes que o
+ * parecer usa no bloco irmão do compromisso — não é texto fiscal novo.
+ *
+ * ⚠️ A última frase é a que fecha o critério 8: a nota **continua** em "Notas
+ * hábeis sem pagamento vinculado". Pré-vínculo não tira nota de lista nenhuma
+ * (§J.1), e o texto diz isso em vez de deixar o Mateus supor.
+ */
+export function textoPreVinculoDaNota(
+  compromissos: readonly Compromisso[],
+): string {
+  const lista = compromissos.map(resumoDoAgendamento).join(", ");
+  const verbo =
+    compromissos.length === 1 ? "está pré-ligado" : "estão pré-ligados";
+  return (
+    `${lista} ${verbo} a esta nota, mas nenhum pagamento aconteceu ainda. ` +
+    "Esta nota continua sem pagamento vinculado até que um pagamento de " +
+    "verdade seja confirmado e ligado a ela — ela segue contando em " +
+    '"Notas hábeis sem pagamento vinculado".'
+  );
+}
+
+/**
+ * O chip e a explicação do card "Já ligados a este pagamento" (critério 14) —
+ * o documento da união que a confirmação do agendamento JÁ converteu em vínculo
+ * formal.
+ *
+ * ⚠️ **NEUTRO (âmbar vazado) e sem a palavra "automaticamente"** — correção do
+ * não-bloqueante 1 do Gate 2, por duas razões independentes:
+ * 1. **"automaticamente" ficou falso para metade dos casos** depois da correção
+ *    do D1: com N=1 o vínculo nasce sozinho, com N≥2 ele nasce do clique em
+ *    "Sim, confirmar os vínculos". Esta tela não sabe qual dos dois foi, e o
+ *    card não tem por que adivinhar — o fato comum aos dois é "ligado ao
+ *    confirmar o agendamento", e é esse o que se afirma.
+ * 2. **VERDE era a cor errada.** No app, verde é a cor de "Custo comprovado"
+ *    (`/documento/[id]`), e o documento ligado aqui pode ser boleto ou estar em
+ *    quarentena — vínculo existe, custo confirmado não. O chip descreve a
+ *    PROCEDÊNCIA do vínculo, nunca o efeito fiscal dele; quem decide o efeito é
+ *    `alocarCusto`, e ele não olha este chip.
+ *
+ * O card existe porque, sem ele, a nota "sumiria" da lista de candidatos
+ * (`documentosCandidatos` filtra o que já está ligado) e o Mateus não teria como
+ * saber que ela não sumiu por engano — a mesma regra "nunca sumiço mudo" do
+ * ADENDO de 2026-09-28 do parecer de 17/08.
+ */
+export const CHIP_LIGADO_AO_CONFIRMAR = "Ligado ao confirmar o agendamento";
+export const LIGADO_AO_CONFIRMAR_PORQUE =
+  "Ligado ao confirmar o agendamento — você já tinha indicado isso antes de " +
+  "pagar.";

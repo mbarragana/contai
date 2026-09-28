@@ -1376,15 +1376,43 @@ describe("os oito lugares (parecer §2, itens 1 a 8)", () => {
         /\bCompromisso\b/.test(fonte),
         `${arquivo} passou a conhecer o tipo Compromisso — parecer §2, itens 2, 3 e 4`,
       ).toBe(false);
+      // ⚠️ **CONTAI-080, critério 16 — a barreira estendida ao DADO NOVO.**
+      // O pré-vínculo N:M (`compromisso_documento_previsto` /
+      // `documentoPrevistoIds`) é *"anotação estruturada de INTENÇÃO, sobre um
+      // fato que ainda não aconteceu"* (ADENDO 6 §J.1 do parecer de 18/08): não
+      // entra em soma nenhuma, não é nó de `alocarCusto` e não tira a nota de
+      // "Notas hábeis sem pagamento vinculado". Não nomear `Compromisso` não
+      // bastaria para travar isso — os ids são `string[]`, e um módulo de
+      // cálculo poderia recebê-los soltos sem tocar no tipo. Por isso os dois
+      // nomes entram no grep: quem quiser ler pré-vínculo dentro de um módulo de
+      // custo deixa este teste vermelho com o nome do arquivo.
+      for (const nome of ["compromisso_documento_previsto", "documentoPrevistoIds"]) {
+        expect(
+          fonte.includes(nome),
+          `${arquivo} passou a ler ${nome} — pré-vínculo é intenção, não custo (ADENDO 6 §J.1)`,
+        ).toBe(false);
+      }
     }
 
     // A exceção do CONTAI-072, fechada pelo lado do DINHEIRO: a projeção de
     // linhas lê do compromisso chip, resumo e href — e nada que se possa somar.
     const despesas = readFileSync(`${dir}/despesas.ts`, "utf-8");
-    for (const proibido of ["valorPrevistoCentavos", "saldoDoCompromisso"]) {
+    for (const proibido of [
+      "valorPrevistoCentavos",
+      "saldoDoCompromisso",
+      // ⚠️ **CONTAI-080, não-bloqueante 2 do Gate 2.** `despesas.ts` é a exceção
+      // que PODE ler compromisso — e é justamente ele que monta as linhas do
+      // terceiro estado ("Notas hábeis sem pagamento vinculado"). O ADENDO 6
+      // §J.1 e o critério 8 dizem que o pré-vínculo **não tira a nota dessa
+      // lista**: só o texto/CTA pode refletir a intenção, nunca o número nem a
+      // presença. Ler pré-vínculo aqui dentro é como essa regra cairia, e o dia
+      // em que alguém tentar este teste fica vermelho com o nome do arquivo.
+      "documentoPrevistoIds",
+      "compromisso_documento_previsto",
+    ]) {
       expect(
         despesas.includes(proibido),
-        `despesas.ts passou a ler ${proibido} — valor PREVISTO dentro da projeção de custo é a soma mista do parecer §2, item 8`,
+        `despesas.ts passou a ler ${proibido} — valor PREVISTO ou pré-vínculo dentro da projeção de custo é a soma mista do parecer §2, item 8 (e, no pré-vínculo, o §J.1/critério 8 do CONTAI-080)`,
       ).toBe(false);
     }
   });
