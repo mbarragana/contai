@@ -1,6 +1,71 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-09-27, mais tarde ainda ainda ainda ainda**: **`071` entregue** — Gate 4
+(`po`), 7/7 critérios PASS. Sem migration, sem Gate Fiscal (bug de navegação
+pura). `Pagina` guarda `const [rodada, setRodada] = useState(0)` e renderiza
+`<RegistrarCompraCartao key={rodada} .../>`: o botão "Registrar outra compra"
+vira `<Botao variante="ghost">` (nunca mais `BotaoLink` para
+`/adicionar/compra-cartao` — a MESMA URL onde o usuário já está, que o Next
+não remonta por `createRouterCacheKey` ignorar a query string,
+`layout-router.js:549`) e o `onClick` faz `router.replace("/adicionar/compra-cartao",
+{ scroll: false })` seguido de `aoRegistrarOutra()` (incrementa `rodada`).
+Remount zera os 14 `useState` de uma vez — inclusive `parcelado`, que continua
+nascendo sem default (disciplina fiscal intocada). Duas portas da herança de
+nota (CONTAI-064) fechadas juntas: sessão corrente via prop
+`herdarDaUrl={rodada === 0}` (`useState(herdarDaUrl ? documentoNaUrl : null)`,
+determinístico mesmo com a navegação assíncrona) e F5 subsequente via o
+`router.replace` já ter limpado `?documento=` da URL antes do reload. 2 E2E
+novos em `e2e/cartao.spec.ts` (`getByRole("button", …)`, não mais `link`):
+cobrem reset sem resíduo (sentinela em `window` prova que não houve reload de
+documento) e a herança não vazando nem no clique nem num `page.reload()`
+depois. `/fatura/[id]:310` — mesmo rótulo, rota e navegação diferentes —
+confirmado intocado (`git diff` vazio no arquivo). **1202 Vitest / 375
+Playwright** no `npm run quality` completo — as 7 falhas de Playwright
+remanescentes são do `CONTAI-072`, em desenvolvimento paralelo na mesma
+árvore (`despesas.spec.ts`, `vinculo.spec.ts`), fora do escopo deste ticket;
+`cartao.spec.ts` fecha 26/26. Nenhum arquivo mudou depois do Gate 2. Detalhe:
+`docs/tickets/CONTAI-071.md`.
+
+**2026-09-27, mais tarde ainda ainda ainda**: **`CONTAI-072` criado** —
+apresentação, não bug de cálculo: o card "Notas hábeis sem pagamento
+vinculado" (Home) e a mesma coluna em `/despesas` mostravam um documento
+hábil sem pagamento como órfão mesmo quando já tinha um `compromisso` aberto
+(compra de cartão agendada) vinculado via `documento_origem_id` — achado do
+Mateus por consulta direta ao banco de produção (read-only), 3 casos reais
+batendo com "Agenda — próximos compromissos". Causa: `documentosHabeisSemPagamento`
+(`lib/fiscal/vinculo.ts:981-987`) nunca olha `compromisso` nenhum; é a mesma
+fonte para as duas telas. `/tickets-req` completo: `contador` confirma que o
+parecer `docs/pareceres/2026-08-18-compromisso-versus-pagamento.md` já fecha
+o caso, sem parecer novo — a nota **nunca sai** da lista/soma, só o
+**texto/CTA** muda, em dois sub-estados (dentro do prazo vs. vencido sem
+resposta, este último já ligado ao bloqueio de relatório anual do ADENDO §A
+do mesmo parecer). `cto-obra`: zero migration, função pura nova
+`agendamentosPorDocumento` em `lib/fiscal/compromisso.ts` (compromisso não
+pode entrar em `vinculo.ts`/`resumo.ts` — barreira de tipo já existente),
+complexidade S/M. `designer`: nível 3 (tabela antes/depois, sem mock
+separado), 100% reuso de texto já existente, confirma que nenhum sub-estado
+usa vermelho. Detalhe: `docs/tickets/CONTAI-072.md`,
+`docs/backlog/89-2026-09-27-contai-072-nota-com-compromisso-aberto.md`.
+**Pronto para `/develop`, sem Gate 0** (nível 3 dispensa mock em arquivo
+separado).
+
+**2026-09-27, mais tarde ainda ainda**: **`CONTAI-071` criado** — bugfix puro
+de navegação, sem Gate Fiscal (Passo 2 do `/tickets-req` dispensado), relatado
+e reproduzido ao vivo pelo Mateus: em `/adicionar/compra-cartao`, o botão
+"Registrar outra compra" da tela "Agendado" é um `BotaoLink` para a MESMA URL
+onde o usuário já está, e o Next não navega para uma URL idêntica — o clique
+não faz nada e o estado da compra anterior fica preso na tela.
+`app/(captura)/adicionar/compra-cartao/page.tsx:393-395`. `cto-obra` confirmou
+a causa-raiz em código (`createRouterCacheKey` ignora a query string,
+`layout-router.js:549` do Next) e **discordou do reset manual campo a campo**
+sugerido no relato: recomendou remount por `key` em `Pagina` (zera todo o
+estado, inclusive o que um ticket futuro venha a adicionar) + `router.replace`
+para limpar a URL, cobrindo também o vazamento da herança de nota (CONTAI-064)
+num F5 subsequente. Complexidade S, sem migration, sem UI nova — Gate 0
+dispensado. Detalhe: `docs/tickets/CONTAI-071.md`,
+`docs/backlog/88-2026-09-27-contai-071-registrar-outra-compra-nao-reseta.md`.
 
 **2026-09-27, mais tarde ainda**: **`070` entregue** — Gate 4 (`po`), 12/12
 critérios PASS. Sem migration. `sugerirTributoDoRotulo` (novo,
@@ -1537,6 +1602,11 @@ revisão descreveu.
 
 | Ordem | # | Ticket | P | Status | O que trava |
 |---|---|---|---|---|---|
+
+**`071` saiu desta tabela em 2026-09-27** — entregue, Gate 4 PASS (ver a nota
+no topo do arquivo). **Fila de implementação vazia** — o `CONTAI-072` está em
+desenvolvimento paralelo na mesma árvore, mas ainda não fechou Gate 4.
+
 ⚠️ **`027`, `025` e `036` saíram desta tabela em 24/08** — os três estão
 entregues e commitados; ver "Em produção" acima. `004` também saiu (entregue,
 commit `05cb1e7`). **`032` e `022` saíram em 2026-09-19** (entregues,

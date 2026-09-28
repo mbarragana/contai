@@ -15,7 +15,7 @@
  * relatório anual).
  */
 
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 import { CampoTexto, Escolha } from "@/app/_components/campos";
@@ -37,6 +37,7 @@ import { useObraDoRegistro } from "@/app/_components/usar-obra-do-registro";
 import {
   AppBar,
   Banner,
+  Botao,
   BotaoLink,
   BotaoSalvar,
   Card,
@@ -96,7 +97,22 @@ type Fase =
       notaDeOrigem: Documento | null;
     };
 
-function RegistrarCompraCartao() {
+function RegistrarCompraCartao({
+  herdarDaUrl,
+  aoRegistrarOutra,
+}: {
+  /**
+   * CONTAI-071 — se a herança de nota da query string vale para ESTA rodada.
+   * Só a primeira herda: depois de "Registrar outra compra" o componente
+   * remonta e a próxima compra nasce sem vínculo nenhum, sem depender de o
+   * `router.replace` já ter chegado ao `useSearchParams` (a navegação é
+   * assíncrona e o primeiro render da rodada nova ainda veria o id antigo).
+   */
+  herdarDaUrl: boolean;
+  /** Avisa `Pagina` para trocar a `key` e remontar esta tela do zero. */
+  aoRegistrarOutra: () => void;
+}) {
+  const router = useRouter();
   const registro = useObraDoRegistro();
   const { pedirReautenticacao } = useSessao();
   const obra = registro.obra;
@@ -116,7 +132,7 @@ function RegistrarCompraCartao() {
    */
   const documentoNaUrl = useSearchParams().get("documento");
   const [documentoDeOrigemId, setDocumentoDeOrigemId] = useState<string | null>(
-    documentoNaUrl,
+    herdarDaUrl ? documentoNaUrl : null,
   );
   const [documentoDeOrigem, setDocumentoDeOrigem] = useState<Documento | null>(
     null,
@@ -390,9 +406,27 @@ function RegistrarCompraCartao() {
               Ver a fatura
             </BotaoLink>
           )}
-          <BotaoLink href="/adicionar/compra-cartao">
+          {/* ⚠️ CONTAI-071 — BOTÃO, e nunca mais um `BotaoLink` para
+              `/adicionar/compra-cartao`: o Next dá ao segmento uma chave de
+              cache de roteador que IGNORA a query string
+              (`createRouterCacheKey`), então navegar para a URL onde já
+              estamos não remonta nada e o clique não fazia efeito nenhum.
+              As duas linhas fecham as duas portas: o `replace` limpa o
+              `?documento=` da barra (senão um F5 ressuscitaria a herança da
+              nota da compra anterior) e `aoRegistrarOutra` troca a `key`, que
+              remonta a tela e zera TODO o estado — inclusive o que um ticket
+              futuro acrescentar aqui. `variante="ghost"` explícita: o default
+              de `Botao` é `"primary"`, e o `BotaoLink` trocado tinha `ghost`
+              de graça. */}
+          <Botao
+            variante="ghost"
+            onClick={() => {
+              router.replace("/adicionar/compra-cartao", { scroll: false });
+              aoRegistrarOutra();
+            }}
+          >
             Registrar outra compra
-          </BotaoLink>
+          </Botao>
           <BotaoLink href="/">Voltar ao início</BotaoLink>
         </Rodape>
       </>
@@ -645,11 +679,25 @@ function RegistrarCompraCartao() {
   );
 }
 
-/** A fronteira que `useSearchParams` exige (Next 16). */
+/**
+ * A fronteira que `useSearchParams` exige (Next 16) — e, desde o CONTAI-071, o
+ * dono da `key` que remonta o formulário.
+ *
+ * ⚠️ Este componente não guarda NENHUM estado do formulário de propósito: os 14
+ * `useState` moram todos em `RegistrarCompraCartao`, e é isso que faz o
+ * incremento de `rodada` zerar a tela inteira de uma vez. Estado novo desta
+ * tela entra LÁ — subir um único `useState` para cá é reabrir o vazamento que
+ * este ticket fechou, em silêncio.
+ */
 export default function Pagina() {
+  const [rodada, setRodada] = useState(0);
   return (
     <Suspense fallback={<Carregando rotulo="Carregando a obra" />}>
-      <RegistrarCompraCartao />
+      <RegistrarCompraCartao
+        key={rodada}
+        herdarDaUrl={rodada === 0}
+        aoRegistrarOutra={() => setRodada((r) => r + 1)}
+      />
     </Suspense>
   );
 }

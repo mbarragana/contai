@@ -703,6 +703,161 @@ test.describe("herança da nota de origem (CONTAI-064)", () => {
   });
 });
 
+/**
+ * CONTAI-071 — "Registrar outra compra" tem de VOLTAR para o formulário vazio.
+ *
+ * O bug que estes dois testes travam não era de estado, era de roteamento: o
+ * botão era um `BotaoLink` para `/adicionar/compra-cartao`, a MESMA URL onde o
+ * usuário já estava, e o Next não remonta um segmento cuja chave de cache não
+ * mudou (a chave ignora a query string). O clique não fazia nada.
+ */
+test.describe("registrar outra compra volta ao formulário vazio", () => {
+  /** A mesma nota do bloco de herança, com CNPJ que passa na validação real. */
+  async function notaDoDeposito(db: Db) {
+    const loja = await criarFavorecido(db, {
+      tipo: "pj",
+      nome: "Depósito Bom Jesus",
+      documento: "11222333000181",
+    });
+    return criarDocumento(db, {
+      favorecido_id: loja,
+      tipo: "nf_material",
+      classificacao: "material",
+      valor: 950,
+      destinatario_cpf_ok: true,
+      status: "registrado",
+    });
+  }
+
+  /** Preenche e agenda uma compra avulsa, do zero. */
+  async function agendarCompraAvulsa(page: Page, vencimento: string) {
+    await escolher(page, "Parcelado?", "À vista");
+    await page
+      .getByLabel("Favorecido", { exact: true })
+      .fill("Depósito Bom Jesus");
+    await page.getByLabel("CNPJ / CPF do favorecido").fill(CNPJ_LOJA);
+    await page.getByLabel("Valor da compra").fill("950,00");
+    await page.getByLabel("Data da compra").fill("2026-10-20");
+    await page.getByLabel("Vencimento da fatura").fill(vencimento);
+    await page.getByRole("button", { name: /^Agendar/ }).click();
+    await expect(page.getByRole("heading", { name: "Agendado" })).toBeVisible();
+  }
+
+  test("o clique volta ao Passo 2 sem reload e sem resíduo da compra anterior", async ({
+    page,
+    db,
+  }) => {
+    await page.goto("/adicionar/compra-cartao");
+    await agendarCompraAvulsa(page, "2026-11-10");
+
+    // Sentinela de RELOAD: uma propriedade em `window` não sobrevive a um
+    // carregamento novo do documento. Se ela continuar lá depois do clique, a
+    // volta ao formulário foi client-side — que é o critério 1 ("sem depender
+    // de `window.location` nem de recarregar a página").
+    await page.evaluate(() => {
+      (window as unknown as Record<string, boolean>).__semReload = true;
+    });
+
+    // ⚠️ `button`, não `link`: o elemento deixou de ser um `BotaoLink`.
+    await page
+      .getByRole("button", { name: "Registrar outra compra" })
+      .click();
+
+    await expect(
+      page.getByRole("heading", { name: "Nova compra no cartão" }),
+    ).toBeVisible();
+    await expect(page.getByText("Passo 2 de 2 ↓")).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => (window as unknown as Record<string, boolean>).__semReload,
+      ),
+    ).toBe(true);
+
+    // Campo fiscal volta SEM resposta nenhuma marcada — não há default aqui, e
+    // muito menos herdado da compra anterior.
+    await expect(page.getByRole("radio", { name: "À vista" })).not.toBeChecked();
+    await expect(
+      page.getByRole("radio", { name: "Parcelado" }),
+    ).not.toBeChecked();
+
+    await escolher(page, "Parcelado?", "À vista");
+    await expect(page.getByLabel("Favorecido", { exact: true })).toHaveValue("");
+    await expect(page.getByLabel("CNPJ / CPF do favorecido")).toHaveValue("");
+    await expect(page.getByLabel("Valor da compra")).toHaveValue("");
+    await expect(page.getByLabel("Data da compra")).toHaveValue("");
+    await expect(page.getByLabel("Vencimento da fatura")).toHaveValue("");
+
+    // A tela voltou, mas nada foi gravado de novo pelo caminho de volta.
+    expect(await compromissos(db)).toHaveLength(1);
+  });
+
+  test("a herança da nota não vaza para a próxima compra — nem no clique, nem no F5", async ({
+    page,
+    db,
+  }) => {
+    const documentoId = await notaDoDeposito(db);
+
+    await page.goto(`/adicionar/compra-cartao?documento=${documentoId}`);
+    await expect(page.getByText("Ligado a:")).toBeVisible();
+    await escolher(page, "Parcelado?", "À vista");
+    await expect(page.getByLabel("Valor da compra")).toHaveValue("950,00");
+    await page.getByLabel("Data da compra").fill("2026-10-20");
+    await page.getByLabel("Vencimento da fatura").fill("2026-11-10");
+    await page.getByRole("button", { name: /^Agendar/ }).click();
+    await expect(page.getByRole("heading", { name: "Agendado" })).toBeVisible();
+    await expect(page.getByText("Nota de origem:")).toBeVisible();
+
+    await page
+      .getByRole("button", { name: "Registrar outra compra" })
+      .click();
+
+    await expect(
+      page.getByRole("heading", { name: "Nova compra no cartão" }),
+    ).toBeVisible();
+    // Critério 4: a query string sai da barra, senão o F5 abaixo ressuscitaria
+    // a herança.
+    await expect(page).toHaveURL("/adicionar/compra-cartao");
+    // Critério 3: nada de vínculo na tela — nem o bloco, nem o subtítulo.
+    await expect(page.getByText("Ligado a:")).toHaveCount(0);
+    await expect(page.getByText("Já nasce ligado a R$ 950,00")).toHaveCount(0);
+
+    // E o F5, que é o contorno que o Mateus fazia à mão, também vem limpo.
+    await page.reload();
+    await expect(
+      page.getByRole("heading", { name: "Nova compra no cartão" }),
+    ).toBeVisible();
+    await expect(page).toHaveURL("/adicionar/compra-cartao");
+    await expect(page.getByText("Ligado a:")).toHaveCount(0);
+
+    // O favorecido volta DIGITÁVEL (sem o bloco herdado da nota) e a segunda
+    // compra grava sem vínculo nenhum — vencimento diferente para o teste
+    // achar cada uma sem depender da ordem de `created_at`.
+    await escolher(page, "Parcelado?", "À vista");
+    await expect(
+      page.getByRole("group", { name: "Favorecido da nota" }),
+    ).toHaveCount(0);
+    await expect(page.getByLabel("Valor da compra")).toHaveValue("");
+    await page
+      .getByLabel("Favorecido", { exact: true })
+      .fill("Depósito Bom Jesus");
+    await page.getByLabel("CNPJ / CPF do favorecido").fill(CNPJ_LOJA);
+    await page.getByLabel("Valor da compra").fill("120,00");
+    await page.getByLabel("Data da compra").fill("2026-11-03");
+    await page.getByLabel("Vencimento da fatura").fill("2026-12-10");
+    await page.getByRole("button", { name: /^Agendar/ }).click();
+    await expect(page.getByRole("heading", { name: "Agendado" })).toBeVisible();
+    // A confirmação da SEGUNDA compra não fala de nota nenhuma.
+    await expect(page.getByText("Nota de origem:")).toHaveCount(0);
+
+    const cs = await compromissos(db);
+    expect(cs).toHaveLength(2);
+    const primeira = cs.find((c) => c.data_prevista === "2026-11-10");
+    const segunda = cs.find((c) => c.data_prevista === "2026-12-10");
+    expect(primeira!.documento_origem_id).toBe(documentoId);
+    expect(segunda!.documento_origem_id).toBeNull();
+  });
+});
+
 test.describe("compra no cartão nunca vai para o pagamento avulso", () => {
   test("'Registrar o pagamento' de um compromisso cartao leva para a fatura, nunca para /confirmar", async ({
     page,
