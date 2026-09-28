@@ -163,6 +163,41 @@ export type Database = {
           },
         ]
       }
+      compromisso_valor_historico: {
+        Row: {
+          compromisso_id: string
+          id: string
+          motivo: string
+          registrado_em: string
+          valor_anterior: number
+          valor_novo: number
+        }
+        Insert: {
+          compromisso_id: string
+          id?: string
+          motivo: string
+          registrado_em?: string
+          valor_anterior: number
+          valor_novo: number
+        }
+        Update: {
+          compromisso_id?: string
+          id?: string
+          motivo?: string
+          registrado_em?: string
+          valor_anterior?: number
+          valor_novo?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compromisso_valor_historico_compromisso_id_fkey"
+            columns: ["compromisso_id"]
+            isOneToOne: false
+            referencedRelation: "compromisso"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documento: {
         Row: {
           arquivo_path: string | null
@@ -1099,6 +1134,14 @@ export type Database = {
           p_nome: string
         }
         Returns: string
+      }
+      corrigir_valor_compromisso: {
+        Args: {
+          p_compromisso_id: string
+          p_motivo: string
+          p_valor_novo: number
+        }
+        Returns: undefined
       }
       fatura_alocar: {
         Args: { p_compromisso_ids: string[]; p_desembolso_id: string }

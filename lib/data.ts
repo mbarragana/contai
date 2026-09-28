@@ -60,6 +60,7 @@ import type {
   CompromissoInsert,
   CompromissoPagamentoRow,
   CompromissoRow,
+  CompromissoValorHistoricoRow,
   Documento,
   DocumentoInsert,
   DocumentoRow,
@@ -1723,6 +1724,26 @@ export async function carregarCompromisso(id: string): Promise<Compromisso> {
   );
 }
 
+/**
+ * O histórico completo do VALOR previsto, do mais antigo ao mais novo
+ * (CONTAI-073, critério 19) — espelha `carregarHistoricoDeData`.
+ *
+ * ⚠️ Tabela SEPARADA da de data, e a separação é o critério 20: o "adiado N×"
+ * que a home e o detalhe exibem conta LINHAS de `compromisso_data_historico`.
+ * Uma correção de valor gravada lá viraria um adiamento que nunca aconteceu.
+ */
+export async function carregarHistoricoDeValorPrevisto(
+  compromissoId: string,
+): Promise<CompromissoValorHistoricoRow[]> {
+  const { data, error } = await getSupabase()
+    .from("compromisso_valor_historico")
+    .select("*")
+    .eq("compromisso_id", compromissoId)
+    .order("registrado_em", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as CompromissoValorHistoricoRow[];
+}
+
 /** O histórico completo da data prevista, do mais antigo ao mais novo. */
 export async function carregarHistoricoDeData(
   compromissoId: string,
@@ -2048,6 +2069,54 @@ export async function mudarDataPrevista(
     .from("compromisso")
     .update({ data_prevista: dataNova })
     .eq("id", id);
+  if (error) throw error;
+}
+
+/**
+ * **CONTAI-073 — o SQLSTATE customizado da guarda de saldo** (migration 0022).
+ *
+ * Existe para a tela distinguir ESTA recusa ("um pagamento pode ter sido
+ * registrado enquanto você editava") de qualquer outra falha de gravação. Casar
+ * por texto de mensagem seria promessa que a primeira reescrita de copy quebra.
+ */
+const ERRO_SALDO_JA_PAGO = "CT073";
+
+export function ehErroDeSaldoJaPago(erro: unknown): boolean {
+  return (
+    typeof erro === "object" &&
+    erro !== null &&
+    "code" in erro &&
+    (erro as { code?: unknown }).code === ERRO_SALDO_JA_PAGO
+  );
+}
+
+/**
+ * Corrigir o VALOR PREVISTO de um agendamento aberto — CONTAI-073.
+ *
+ * ⚠️ **RPC, e não o par insert+update que `mudarDataPrevista` faz.** A guarda
+ * central — "o valor novo tem de ser MAIOR que o que já foi pago" — depende de
+ * outra tabela (`compromisso_pagamento` → `pagamento`), e duas idas de rede
+ * deixariam aberta a janela do pre-mortem 1: uma quitação parcial gravada por
+ * outra aba entre a leitura e a escrita passaria por baixo da validação do
+ * client, e `saldoDoCompromisso` zeraria em silêncio. A função reconfere tudo
+ * DENTRO da transação, com `for update` no compromisso.
+ *
+ * ⚠️ **Sem impacto fiscal** (Gate Fiscal do ticket): nenhuma linha em `revisao`,
+ * nenhuma `pendencia`, nenhum ano afetado — é previsão, e previsão não é custo
+ * de ano nenhum. O `valorAnterior` **não é parâmetro**: quem o lê é o banco, na
+ * mesma transação. Mandá-lo daqui seria deixar o rastro afirmar um "antes" que
+ * pode já não ser o atual.
+ */
+export async function corrigirValorPrevisto(entrada: {
+  compromissoId: string;
+  valorNovoCentavos: number;
+  motivo: string;
+}): Promise<void> {
+  const { error } = await getSupabase().rpc("corrigir_valor_compromisso", {
+    p_compromisso_id: entrada.compromissoId,
+    p_valor_novo: centavosParaNumeric(entrada.valorNovoCentavos),
+    p_motivo: entrada.motivo.trim(),
+  });
   if (error) throw error;
 }
 

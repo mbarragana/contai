@@ -53,6 +53,9 @@ export type PagamentoDocumentoRow = Tables<"pagamento_documento">;
 export type CompromissoRow = Tables<"compromisso">;
 export type CompromissoPagamentoRow = Tables<"compromisso_pagamento">;
 export type CompromissoDataHistoricoRow = Tables<"compromisso_data_historico">;
+// CONTAI-073 — tabela SEPARADA da de data, de propósito: a contagem de linhas
+// daquela é o "adiado N×" exibido na home e no detalhe (critério 20).
+export type CompromissoValorHistoricoRow = Tables<"compromisso_valor_historico">;
 export type PagamentoDiferencaRow = Tables<"pagamento_diferenca">;
 export type QuitacaoRecusadaRow = Tables<"quitacao_recusada">;
 export type TerrenoDesembolsoRow = Tables<"terreno_desembolso">;

@@ -157,6 +157,14 @@ const MAPA: Record<string, Classificacao> = {
     iniciais: ["fNovaData"],
     abrir: async (db) => `/compromisso/${await umCompromisso(db)}/data`,
   },
+  // CONTAI-073 — corrigir o valor previsto. Os dois campos nascem vazios e
+  // NENHUM é campo fiscal (valor previsto é previsão, não custo) — a trava aqui
+  // é a de não-default, que vale em qualquer campo.
+  "/compromisso/[id]/valor": {
+    specs: ["CONTAI-073"],
+    iniciais: ["fValorNovo", "fMotivo"],
+    abrir: async (db) => `/compromisso/${await umCompromisso(db)}/valor`,
+  },
 
   // ── Obra e terreno ────────────────────────────────────────────────────
   "/obras/nova": {

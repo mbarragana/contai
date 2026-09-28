@@ -35,6 +35,7 @@ import {
   buscarFaturaDoCompromisso,
   carregarCompromisso,
   carregarHistoricoDeData,
+  carregarHistoricoDeValorPrevisto,
   carregarPainel,
   classificarErro,
   type ErroDeTela,
@@ -42,10 +43,11 @@ import {
 import { saldoDoCompromisso } from "@/lib/fiscal/compromisso";
 import { formatarDataBR } from "@/lib/fiscal/obra";
 import { hojeIso } from "@/lib/hoje";
-import { formatarBRL } from "@/lib/money";
+import { formatarBRL, numericParaCentavos } from "@/lib/money";
 import type {
   Compromisso,
   CompromissoDataHistoricoRow,
+  CompromissoValorHistoricoRow,
   Pagamento,
 } from "@/lib/types";
 
@@ -57,6 +59,8 @@ type Estado =
       compromisso: Compromisso;
       pagamentos: Pagamento[];
       historico: CompromissoDataHistoricoRow[];
+      /** CONTAI-073 — tabela SEPARADA da de data (critério 20). */
+      historicoDeValor: CompromissoValorHistoricoRow[];
       obraNome: string;
       /**
        * CONTAI-022 — só para `origem === "cartao"`. `null` enquanto a busca
@@ -82,9 +86,10 @@ export default function DetalheAgendamento() {
     void (async () => {
       try {
         const compromisso = await carregarCompromisso(id);
-        const [painel, historico, faturaId] = await Promise.all([
+        const [painel, historico, historicoDeValor, faturaId] = await Promise.all([
           carregarPainel(compromisso.obraId),
           carregarHistoricoDeData(compromisso.id),
+          carregarHistoricoDeValorPrevisto(compromisso.id),
           compromisso.origem === "cartao"
             ? buscarFaturaDoCompromisso(compromisso.id)
             : Promise.resolve(null),
@@ -99,6 +104,7 @@ export default function DetalheAgendamento() {
             compromisso.pagamentoIds.includes(p.id),
           ),
           historico,
+          historicoDeValor,
           obraNome: painel.obra.nome,
           faturaId,
         });
@@ -221,6 +227,13 @@ export default function DetalheAgendamento() {
                   tela, RPC diferente (ver
                   `app/(gestao)/compromisso/[id]/data/page.tsx`). */}
               <BotaoLink href={`/compromisso/${c.id}/data`}>Mudou a data</BotaoLink>
+              {/* CONTAI-073, critério 12 — entre as duas correções e ANTES da
+                  ação mais drástica: agrupa "consertar o que digitei errado" e
+                  deixa "não vai ser pago" isolada no fim. A guarda de
+                  `situacao === 'aberto'` é a do bloco inteiro. */}
+              <BotaoLink href={`/compromisso/${c.id}/valor`}>
+                Corrigir o valor previsto
+              </BotaoLink>
               {/* ⚠️ SÓ AQUI (critério 22 do CONTAI-019). */}
               <BotaoLink href={`/compromisso/${c.id}/cancelar`}>
                 Marcar que não vai ser pago
@@ -290,6 +303,37 @@ export default function DetalheAgendamento() {
               A data anterior fica registrada. <strong>Nenhuma das duas vira
               data de pagamento</strong> — a que vale é a do dia em que o
               dinheiro sair.
+            </Dica>
+          </Card>
+        ) : null}
+
+        {/* CONTAI-073, critério 19 — o histórico do VALOR, em card próprio ao
+            lado do de data. As duas tabelas são independentes de propósito: o
+            "adiado N×" conta linhas da de DATA, e uma correção de valor ali
+            viraria um adiamento que nunca aconteceu (critério 20). Este é o
+            único dos dois históricos com MOTIVO, e por isso ele aparece. */}
+        {estado.historicoDeValor.length > 0 ? (
+          <Card>
+            <Passo>Histórico do valor previsto</Passo>
+            {estado.historicoDeValor.map((h) => (
+              <div key={h.id} className="border-b border-line py-[9px] last:border-b-0">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="flex-none text-[12px] text-mut">
+                    {formatarDataBR(h.registrado_em.slice(0, 10))}
+                  </span>
+                  <span className="mono text-right text-[13.5px]">
+                    {formatarBRL(numericParaCentavos(h.valor_anterior) ?? 0)} →{" "}
+                    <strong>
+                      {formatarBRL(numericParaCentavos(h.valor_novo) ?? 0)}
+                    </strong>
+                  </span>
+                </div>
+                <Dica>motivo: {h.motivo}</Dica>
+              </div>
+            ))}
+            <Dica>
+              O valor anterior fica registrado. Corrigir o previsto{" "}
+              <strong>não muda nenhum pagamento já feito</strong>.
             </Dica>
           </Card>
         ) : null}

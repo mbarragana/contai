@@ -147,6 +147,17 @@ const ESPERADO: Record<string, string> = {
   // UPDATE serve a UM ato só: responder/corrigir `quem_recolhe`. Rótulo, valor
   // e composição não têm edição nesta rodada (dívida declarada no ticket).
   documento_retencao: "DELETE,INSERT,SELECT,UPDATE",
+
+  // ── CONTAI-073 (migration 0022) ─────────────────────────────────────────
+  // O rastro de "corrigir o valor previsto". Sem UPDATE e sem DELETE, como
+  // `compromisso_data_historico` — apagar rastro é o oposto do que ele existe
+  // para fazer. O INSERT é o que a RPC `security invoker` precisa para gravar
+  // com o papel do app; o SELECT é o card "Histórico do valor previsto".
+  //
+  // ⚠️ Tabela NOVA, e não a irmã de DATA reaproveitada: a contagem de linhas
+  // daquela é o "adiado N×" que a home e o detalhe exibem, e correção de valor
+  // gravada lá viraria um adiamento que nunca aconteceu.
+  compromisso_valor_historico: "INSERT,SELECT",
 };
 
 /**
@@ -324,6 +335,18 @@ const FUNCOES_ESPERADAS: Record<string, string> = {
   // outras funções de trigger acima: `returns trigger`, o Postgres recusa chamada
   // direta, e o privilégio é inofensivo — declarado, não silenciado.
   fatura_extrato_path_imutavel: "PUBLIC,anon,authenticated",
+
+  // ── CONTAI-073 (migration 0022) ────────────────────────────────────────
+  // A correção do VALOR PREVISTO de um agendamento aberto. É RPC, e não o par
+  // insert+update de `mudarDataPrevista`, porque a guarda "valor novo > soma já
+  // paga" depende de OUTRA tabela (`compromisso_pagamento` → `pagamento`) e
+  // exige leitura+escrita na mesma transação — sem isso o saldo zeraria em
+  // silêncio numa corrida com quitação parcial.
+  //
+  // ⚠️ Função nasce com `execute` para `public` (que inclui `anon`) em qualquer
+  // Postgres. Sem o revoke da 0022, o anônimo poderia reescrever o valor
+  // previsto de agendamento no acervo de outra pessoa.
+  corrigir_valor_compromisso: "authenticated",
 
   // ⚠️ `fatura_desembolso_gravar` (acima, CONTAI-022) foi **recriada** pela 0021
   // com `p_extrato_path text default null` no fim: aridade nova, logo `drop` +

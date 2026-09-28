@@ -266,6 +266,11 @@ const SQL_LIMPAR = [
   // `on delete cascade` já daria conta, mas apagar explícito deixa o erro no
   // lugar certo se uma FK mudar.
   "delete from quitacao_recusada;",
+  // CONTAI-073 — o rastro do valor cai antes do `compromisso` que ele
+  // referencia. Ela nasce SEM DELETE para `authenticated` (migration 0022: é o
+  // rastro), então limpá-la só pode ser andaime de ambiente — é a exceção
+  // nomeada do CLAUDE.md, e não um privilégio que a produção tenha.
+  "delete from compromisso_valor_historico;",
   "delete from compromisso_data_historico;",
   "delete from compromisso_pagamento;",
   "delete from compromisso;",
@@ -669,6 +674,21 @@ export async function historicoDeData(db: Db) {
     .select("*")
     .order("registrado_em", { ascending: true });
   conferir("ler histórico de data", error);
+  return data!;
+}
+
+/**
+ * CONTAI-073 — o rastro das correções de VALOR previsto, pelo MESMO client
+ * autenticado do app: a policy `dono_compromisso_valor_historico` tem de valer
+ * para o teste também. Se ela barrasse, a lista voltaria vazia e o teste
+ * acusaria.
+ */
+export async function historicoDeValor(db: Db) {
+  const { data, error } = await db
+    .from("compromisso_valor_historico")
+    .select("*")
+    .order("registrado_em", { ascending: true });
+  conferir("ler histórico de valor previsto", error);
   return data!;
 }
 

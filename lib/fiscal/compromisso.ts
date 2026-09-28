@@ -36,9 +36,10 @@ import type {
   Documento,
   MeioPagamento,
   Pagamento,
+  SituacaoCompromisso,
   TerrenoDesembolso,
 } from "@/lib/types";
-import { centavosParaInput, formatarBRL } from "@/lib/money";
+import { centavosParaInput, formatarBRL, parseValorInput } from "@/lib/money";
 // ⚠️ ÚNICA dependência deste arquivo em `documento.ts`, e ela é de PREDICADO:
 // "sem arquivo" tem uma definição só no sistema (pre-mortem 1 do CONTAI-033).
 import { faltaOArquivo } from "./documento";
@@ -710,6 +711,136 @@ export function saldoDoCompromisso(
     .filter((p) => c.pagamentoIds.includes(p.id))
     .reduce((s, p) => s + p.valorCentavos, 0);
   return Math.max(0, c.valorPrevistoCentavos - pago);
+}
+
+/** Quanto já saiu da conta contra este compromisso — a base da guarda abaixo. */
+export function pagoDoCompromisso(
+  c: Pick<Compromisso, "pagamentoIds">,
+  pagamentos: readonly Pagamento[],
+): number {
+  return pagamentos
+    .filter((p) => c.pagamentoIds.includes(p.id))
+    .reduce((s, p) => s + p.valorCentavos, 0);
+}
+
+// ── Corrigir o valor previsto (CONTAI-073) ────────────────────────────────
+
+/**
+ * ⚠️ **SEM IMPACTO FISCAL, e é o `contador` quem afirma** (Gate Fiscal do
+ * CONTAI-073; parecer §1: *"compromisso não é custo, e não é custo 'ainda
+ * pequeno' — é zero"*). Corrigir `valor_previsto` não mexe em custo de
+ * aquisição (regime de caixa — a chave é `pagamento.data_pagamento`) nem na
+ * base de aferição INSS. Nada aqui abre pendência, e nada aqui entra em soma.
+ *
+ * O que estas guardas protegem é ESTRUTURAL, não fiscal: um valor previsto
+ * menor ou igual ao que já foi pago faria `saldoDoCompromisso`
+ * (`max(0, previsto − pago)`) zerar em SILÊNCIO, deixando um agendamento
+ * `aberto` com saldo zero — estado que nenhuma tela do app sabe ler hoje.
+ *
+ * ⚠️ **Este módulo é a validação da TELA, nunca a garantia.** Quem garante é a
+ * RPC `corrigir_valor_compromisso` (migration 0022), que reconfere tudo DENTRO
+ * da transação: aqui não há como saber se uma quitação parcial foi gravada por
+ * outra aba entre o carregamento e o clique em Salvar (pre-mortem 1 do ticket).
+ * Os textos abaixo são os do spec `design/mocks/CONTAI-073.md` §5 — copiados,
+ * não reescritos.
+ */
+export type RecusaDeCorrecaoDeValor =
+  | "situacao_respondida"
+  | "vazio"
+  | "nao_numerico"
+  | "igual_ao_atual"
+  | "zero"
+  | "menor_ou_igual_ao_pago"
+  | "sem_motivo";
+
+export type PermissaoCorrecaoDeValor =
+  | { ok: true; valorNovoCentavos: number }
+  | { ok: false; recusa: RecusaDeCorrecaoDeValor; motivo: string | null };
+
+export const MOTIVO_VALOR_NAO_NUMERICO =
+  "Não consigo ler isto como um valor em reais. Digite só números, com vírgula nos centavos.";
+
+export const MOTIVO_VALOR_IGUAL_AO_ATUAL =
+  "Igual ao valor previsto atual — não há o que corrigir.";
+
+export const MOTIVO_VALOR_ZERO =
+  'O valor previsto não pode ser zero. Se este agendamento deixou de ser real, use "Marcar que não vai ser pago" em vez de zerar o valor.';
+
+export function motivoValorMenorOuIgualAoPago(pagoCentavos: number): string {
+  return (
+    `Já foi pago ${formatarBRL(pagoCentavos)} contra este agendamento. O valor ` +
+    "novo tem que ser maior que isso — do contrário o saldo zeraria sem " +
+    "explicação nenhuma."
+  );
+}
+
+/** O mesmo texto de `cancelar/page.tsx`: motivo é campo obrigatório. */
+export const MOTIVO_CORRECAO_SEM_MOTIVO =
+  "Escreva o motivo — campo obrigatório.";
+
+/**
+ * A precedência do spec §5, na ordem exata: a primeira que bater é a que a tela
+ * mostra. `recusa: "vazio"` devolve `motivo: null` de propósito — campo que
+ * ainda não foi digitado não é erro, é a `Dica` inicial.
+ *
+ * ⚠️ `pagoCentavos === 0` (o caso comum, sem quitação parcial) **não restringe
+ * a direção**: o valor previsto pode subir ou descer, é previsão.
+ */
+export function podeCorrigirValor(entrada: {
+  situacao: SituacaoCompromisso;
+  atualCentavos: number;
+  pagoCentavos: number;
+  /** O texto cru do campo, como saiu do dedo do Mateus. */
+  texto: string;
+  motivo: string;
+}): PermissaoCorrecaoDeValor {
+  // Fato consumado não se reescreve. Vem primeiro porque, quando bate, nenhum
+  // dos outros cinco importa — a tela nem mostra formulário.
+  if (entrada.situacao !== "aberto") {
+    return {
+      ok: false,
+      recusa: "situacao_respondida",
+      motivo:
+        entrada.situacao === "quitado"
+          ? "Este agendamento já foi respondido — ele foi pago."
+          : "Este agendamento já foi respondido — foi marcado como não vai ser pago.",
+    };
+  }
+
+  if (entrada.texto.trim() === "") {
+    return { ok: false, recusa: "vazio", motivo: null };
+  }
+
+  // `parseValorInput` já recusa negativo (`n < 0` → null), então "não numérico"
+  // e "negativo" são o mesmo ramo e a mesma mensagem.
+  const centavos = parseValorInput(entrada.texto);
+  if (centavos === null) {
+    return { ok: false, recusa: "nao_numerico", motivo: MOTIVO_VALOR_NAO_NUMERICO };
+  }
+
+  if (centavos === entrada.atualCentavos) {
+    return { ok: false, recusa: "igual_ao_atual", motivo: MOTIVO_VALOR_IGUAL_AO_ATUAL };
+  }
+
+  if (centavos === 0) {
+    return { ok: false, recusa: "zero", motivo: MOTIVO_VALOR_ZERO };
+  }
+
+  if (entrada.pagoCentavos > 0 && centavos <= entrada.pagoCentavos) {
+    return {
+      ok: false,
+      recusa: "menor_ou_igual_ao_pago",
+      motivo: motivoValorMenorOuIgualAoPago(entrada.pagoCentavos),
+    };
+  }
+
+  // O motivo vem por último: ele não muda nada sobre o VALOR, e mostrar o erro
+  // dele enquanto o valor ainda está inválido esconderia o erro que importa.
+  if (entrada.motivo.trim().length < 3) {
+    return { ok: false, recusa: "sem_motivo", motivo: MOTIVO_CORRECAO_SEM_MOTIVO };
+  }
+
+  return { ok: true, valorNovoCentavos: centavos };
 }
 
 // ── Exportação em ARQUIVO SEPARADO (critério 23, Gate Fiscal 6.5) ─────────

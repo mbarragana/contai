@@ -5,6 +5,7 @@ import {
   criarFavorecido,
   diferencas,
   historicoDeData,
+  historicoDeValor,
   pagamentos,
   vinculosDeQuitacao,
   type Db,
@@ -610,6 +611,347 @@ test("mudar a data mantém o mesmo agendamento, com o vínculo e o histórico", 
   const historico = await historicoDeData(db);
   expect(historico.length).toBeGreaterThanOrEqual(1);
   expect(historico.at(-1)).toMatchObject({ compromisso_id: id, data_nova: nova });
+});
+
+// ══ Corrigir o valor previsto (CONTAI-073) ═══════════════════════════════
+
+/**
+ * ⚠️ **SEM IMPACTO FISCAL** (Gate Fiscal do ticket): valor previsto não compõe
+ * custo de aquisição nem base de aferição INSS. O que estes testes provam é
+ * ESTRUTURAL — que o rastro e o valor andam juntos, que fato consumado não se
+ * reescreve, e que o saldo de uma quitação parcial não zera em silêncio.
+ *
+ * A pergunta é sempre **"o que entrou no banco?"**, contra o Postgres LOCAL,
+ * pelo MESMO client autenticado do app, com a RLS ligada.
+ */
+test.describe("corrigir o valor previsto", () => {
+  test("o valor muda, o rastro nasce, e nada mais do agendamento se move", async ({
+    page,
+    db,
+  }) => {
+    const vencimento = maisDias(20);
+    const id = await agendamento(db, {
+      valor_previsto: 4200,
+      data_prevista: vencimento,
+    });
+    const antes = (await compromissos(db))[0];
+
+    // Critério 12: o link mora no detalhe, no bloco de ações do agendamento.
+    await page.goto(`/compromisso/${id}`);
+    await page.getByRole("link", { name: "Corrigir o valor previsto" }).click();
+    await page.waitForURL(/\/compromisso\/[0-9a-f-]+\/valor$/);
+
+    // Critério 11: os DOIS campos nascem vazios, e o botão espera.
+    await expect(page.getByLabel("Novo valor previsto")).toHaveValue("");
+    await expect(page.getByLabel("Motivo da correção")).toHaveValue("");
+    await expect(
+      page.getByRole("button", { name: "Salvar o novo valor" }),
+    ).toBeDisabled();
+    // O valor atual aparece em modo leitura.
+    await expect(page.getByText("R$ 4.200,00")).toBeVisible();
+
+    // Critérios 16 e 3: valor igual ao atual é recusado ANTES do banco.
+    await page.getByLabel("Novo valor previsto").fill("4.200,00");
+    await expect(
+      page.getByText("Igual ao valor previsto atual — não há o que corrigir."),
+    ).toBeVisible();
+
+    await page.getByLabel("Novo valor previsto").fill("4.850,00");
+    await page
+      .getByLabel("Motivo da correção")
+      .fill("digitei errado, a parcela é maior");
+
+    // Critério 17: a confirmação É o resumo "de A para B", sem modal.
+    await expect(
+      page.getByText("Valor previsto: de R$ 4.200,00 para R$ 4.850,00."),
+    ).toBeVisible();
+    // Sem pagamento parcial, nenhuma linha de saldo aparece.
+    await expect(page.getByText(/Saldo passa de/)).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Salvar o novo valor" }).click();
+    await page.waitForURL(/\/compromisso\/[0-9a-f-]+$/);
+
+    // UMA linha em compromisso, com o valor novo — e critério 8: mais nada se
+    // moveu (data, data de compra, favorecido, nota de origem, situação).
+    const depois = await compromissos(db);
+    expect(depois).toHaveLength(1);
+    expect(Number(depois[0].valor_previsto)).toBe(4850);
+    expect(depois[0]).toMatchObject({
+      id,
+      data_prevista: antes.data_prevista,
+      data_compra: antes.data_compra,
+      favorecido_id: antes.favorecido_id,
+      documento_origem_id: antes.documento_origem_id,
+      situacao: "aberto",
+    });
+
+    // Critério 7: o rastro e o valor, na mesma transação — nunca um sem o outro.
+    const rastro = await historicoDeValor(db);
+    expect(rastro).toHaveLength(1);
+    expect(rastro[0]).toMatchObject({
+      compromisso_id: id,
+      motivo: "digitei errado, a parcela é maior",
+    });
+    expect(Number(rastro[0].valor_anterior)).toBe(4200);
+    expect(Number(rastro[0].valor_novo)).toBe(4850);
+
+    // ⚠️ Critério 20 — as duas tabelas de histórico são INDEPENDENTES: a de
+    // DATA é a que alimenta o "adiado N×". Corrigir valor não pode inflá-la.
+    expect(await historicoDeData(db)).toHaveLength(0);
+    await expect(page.getByText(/adiado/)).toHaveCount(0);
+
+    // Critério 19: o card de histórico do valor no detalhe, com o motivo.
+    await expect(page.getByText("Histórico do valor previsto")).toBeVisible();
+    await expect(page.getByText("R$ 4.200,00 → R$ 4.850,00")).toBeVisible();
+    await expect(
+      page.getByText("motivo: digitei errado, a parcela é maior"),
+    ).toBeVisible();
+  });
+
+  /**
+   * Critério 13 — URL direta num agendamento já respondido: banner, nenhum
+   * formulário. **Nunca tela muda, nunca crash.**
+   */
+  test("agendamento já respondido: nem link no detalhe, nem formulário pela URL", async ({
+    page,
+    db,
+  }) => {
+    const id = await agendamento(db, { data_prevista: maisDias(-8) });
+
+    await page.goto(`/compromisso/${id}/cancelar`);
+    await page.getByLabel("Por que não vai ser pago?").fill("Comprei em outro lugar");
+    await page.getByRole("button", { name: "Marcar que não vai ser pago" }).click();
+    await page.waitForURL(/\/compromisso\/[0-9a-f-]+$/);
+
+    // O link desaparece junto com o resto do bloco de ações.
+    await expect(
+      page.getByRole("link", { name: "Corrigir o valor previsto" }),
+    ).toHaveCount(0);
+
+    await page.goto(`/compromisso/${id}/valor`);
+    await expect(page.getByText(/Este agendamento já foi respondido/)).toBeVisible();
+    await expect(page.getByText("Não há o que corrigir de valor por aqui.")).toBeVisible();
+    await expect(page.getByLabel("Novo valor previsto")).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Salvar o novo valor" }),
+    ).toBeDisabled();
+    // "Voltar sem salvar" continua disponível — a tela nunca é um beco.
+    await expect(page.getByRole("link", { name: "Voltar sem salvar" })).toBeVisible();
+
+    // E o banco não mudou nem ganhou rastro.
+    expect(Number((await compromissos(db))[0].valor_previsto)).toBe(10000);
+    expect(await historicoDeValor(db)).toHaveLength(0);
+  });
+
+  /**
+   * ⚠️ **A GUARDA CENTRAL, pelos DOIS lados** (critério 5 / pre-mortem 1): a
+   * tela recusa antes do clique, e a RPC recusa mesmo chamada direto — é essa
+   * segunda metade que fecha a corrida com uma quitação parcial gravada em
+   * outra aba. Sem ela, `saldoDoCompromisso` (`max(0, previsto − pago)`)
+   * zeraria em silêncio e o agendamento ficaria `aberto` com saldo zero.
+   */
+  test("com quitação parcial, valor ≤ o já pago é recusado pela tela E pelo banco", async ({
+    page,
+    db,
+  }) => {
+    const id = await agendamento(db, { valor_previsto: 10000 });
+
+    // Quitação PARCIAL de R$ 6.000: o agendamento segue aberto com saldo.
+    await page.goto(`/compromisso/${id}/confirmar`);
+    await page.getByLabel("Data em que o dinheiro saiu").fill(hoje());
+    await page.getByLabel("Valor efetivamente pago").fill("6.000,00");
+    await page.getByRole("button", { name: "Falta pagar o resto" }).click();
+    await page.getByRole("button", { name: "Ainda não sei — deixar sem data" }).click();
+    await page.getByRole("button", { name: "Salvar pagamento" }).click();
+    await page.waitForURL(/\/pagamento\/[0-9a-f-]+$/);
+
+    await page.goto(`/compromisso/${id}/valor`);
+
+    // Critério 14: o banner do já pago aparece ANTES de qualquer digitação.
+    await expect(
+      page.getByText(/Já pago R\$\s6\.000,00 contra este agendamento\./),
+    ).toBeVisible();
+
+    // Critério 16: a tela recusa o valor ≤ pago, com o texto que diz quanto.
+    await page.getByLabel("Novo valor previsto").fill("5.500,00");
+    await page.getByLabel("Motivo da correção").fill("errei o total");
+    await expect(
+      page.getByText(/Já foi pago R\$\s6\.000,00 contra este agendamento\./),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Salvar o novo valor" }),
+    ).toBeDisabled();
+
+    // Critério 15: com valor válido, a prévia do saldo aparece.
+    await page.getByLabel("Novo valor previsto").fill("8.000,00");
+    await expect(
+      page.getByText(/Saldo passa de R\$\s4\.000,00 para R\$\s2\.000,00\./),
+    ).toBeVisible();
+
+    // ⚠️ E AGORA O LADO QUE IMPORTA: a RPC chamada DIRETO, como faria a aba que
+    // carregou a tela antes da quitação parcial existir. Mesmo client
+    // autenticado, mesma RLS — e o banco recusa.
+    const recusa = await db.rpc("corrigir_valor_compromisso", {
+      p_compromisso_id: id,
+      p_valor_novo: 5500,
+      p_motivo: "corrida com a quitação parcial",
+    });
+    expect(recusa.error?.code).toBe("CT073");
+    expect(recusa.error?.message).toContain("já foi pago");
+
+    // ⚠️ **A FRONTEIRA EXATA (`<=`, não `<`)**: pagar 6.000 e "corrigir" o
+    // previsto para 6.000 deixaria o compromisso ABERTO com saldo zero — o
+    // estado que nenhuma tela sabe ler. O `<` sozinho não provava isto.
+    const naFronteira = await db.rpc("corrigir_valor_compromisso", {
+      p_compromisso_id: id,
+      p_valor_novo: 6000,
+      p_motivo: "exatamente o que já foi pago",
+    });
+    expect(naFronteira.error?.code).toBe("CT073");
+
+    // ⚠️ **O BURACO DE ARREDONDAMENTO que o `cto-obra` achou no Gate 2.** O
+    // parâmetro é `numeric` sem typmod e a coluna é `numeric(14,2)`: antes da
+    // correção, `6000.004 > 6000` passava pela guarda e **gravava `6000.00`** —
+    // o saldo zerava em silêncio, por dentro da própria guarda que existe para
+    // impedir isso. A RPC agora arredonda ANTES de decidir.
+    //
+    // O client nunca manda 3 casas (`centavosParaNumeric` normaliza), e isso é
+    // irrelevante: a guarda do banco vale para qualquer caminho — SQL editor,
+    // script, RPC direta —, e é essa a doutrina escrita na migration.
+    const comTerceiraCasa = await db.rpc("corrigir_valor_compromisso", {
+      p_compromisso_id: id,
+      p_valor_novo: 6000.004,
+      p_motivo: "três casas decimais viram 6000,00 na coluna",
+    });
+    expect(comTerceiraCasa.error?.code).toBe("CT073");
+
+    // Nada gravou em nenhuma das três: nem valor, nem rastro.
+    expect(Number((await compromissos(db))[0].valor_previsto)).toBe(10000);
+    expect(await historicoDeValor(db)).toHaveLength(0);
+
+    // Acima do pago a mesma RPC grava, e o agendamento SEGUE ABERTO com saldo.
+    const aceita = await db.rpc("corrigir_valor_compromisso", {
+      p_compromisso_id: id,
+      p_valor_novo: 8000,
+      p_motivo: "errei o total do contrato",
+    });
+    expect(aceita.error).toBeNull();
+    const cs = await compromissos(db);
+    expect(Number(cs[0].valor_previsto)).toBe(8000);
+    expect(cs[0].situacao).toBe("aberto");
+    expect(await historicoDeValor(db)).toHaveLength(1);
+  });
+
+  /**
+   * As recusas que a tela também faz, provadas no BANCO: chamada direta pelo
+   * PostgREST não tem tela na frente, e é por isso que cada guarda está nos
+   * dois lugares (critérios 2, 3, 4 e 6).
+   */
+  test("a RPC recusa situação respondida, valor igual, zero e motivo vazio", async ({
+    db,
+  }) => {
+    const aberto = await agendamento(db, { valor_previsto: 4200 });
+
+    const igual = await db.rpc("corrigir_valor_compromisso", {
+      p_compromisso_id: aberto,
+      p_valor_novo: 4200,
+      p_motivo: "nada a corrigir",
+    });
+    expect(igual.error?.message).toContain("igual ao valor previsto atual");
+
+    // O efeito colateral bom da normalização do Gate 2: `4200.004` é `4200.00`
+    // na coluna, logo é "igual ao atual" — mensagem legível, e não um erro cru
+    // do check `compromisso_valor_historico_mudou` vazando para a tela.
+    const igualDepoisDeArredondar = await db.rpc("corrigir_valor_compromisso", {
+      p_compromisso_id: aberto,
+      p_valor_novo: 4200.004,
+      p_motivo: "três casas que arredondam para o valor atual",
+    });
+    expect(igualDepoisDeArredondar.error?.message).toContain(
+      "igual ao valor previsto atual",
+    );
+
+    // Zero pelo mesmo caminho: `0.004` é `0.00` na coluna.
+    for (const valor of [0, -100, 0.004]) {
+      const zero = await db.rpc("corrigir_valor_compromisso", {
+        p_compromisso_id: aberto,
+        p_valor_novo: valor,
+        p_motivo: "zerando",
+      });
+      expect(zero.error?.message).toContain("maior que zero");
+    }
+
+    for (const motivo of ["", "   "]) {
+      const semMotivo = await db.rpc("corrigir_valor_compromisso", {
+        p_compromisso_id: aberto,
+        p_valor_novo: 4850,
+        p_motivo: motivo,
+      });
+      expect(semMotivo.error?.message).toContain("motivo da correção é obrigatório");
+    }
+
+    // Nada disso gravou.
+    expect(Number((await compromissos(db))[0].valor_previsto)).toBe(4200);
+    expect(await historicoDeValor(db)).toHaveLength(0);
+
+    // E o agendamento CANCELADO: fato consumado não se reescreve (critério 2).
+    // ⚠️ Reaproveita o MESMO favorecido do primeiro: `favorecido` é único por
+    // (dono, documento), e um segundo `agendamento()` tentaria recriar o
+    // mesmo CNPJ.
+    const favorecidoId = (await compromissos(db))[0].favorecido_id!;
+    const cancelado = await criarCompromisso(db, {
+      favorecido_id: favorecidoId,
+      valor_previsto: 700,
+      data_prevista: maisDias(28),
+      origem: "boleto",
+    });
+    const cancelamento = await db
+      .from("compromisso")
+      .update({ situacao: "cancelado", motivo_cancelamento: "comprei em outro lugar" })
+      .eq("id", cancelado);
+    expect(cancelamento.error).toBeNull();
+
+    const respondido = await db.rpc("corrigir_valor_compromisso", {
+      p_compromisso_id: cancelado,
+      p_valor_novo: 900,
+      p_motivo: "tentando reescrever o passado",
+    });
+    expect(respondido.error?.message).toContain("já foi respondido");
+    expect(await historicoDeValor(db)).toHaveLength(0);
+  });
+
+  /**
+   * ⚠️ **O rastro é APPEND-ONLY, e é o banco que garante** (critério 9): a
+   * tabela nasce sem UPDATE e sem DELETE para `authenticated`. Um teste que só
+   * olhasse a tela não provaria isso — o PostgREST expõe a tabela.
+   */
+  test("o rastro do valor não se edita nem se apaga, nem pelo dono", async ({
+    db,
+  }) => {
+    const id = await agendamento(db, { valor_previsto: 4200 });
+    const gravou = await db.rpc("corrigir_valor_compromisso", {
+      p_compromisso_id: id,
+      p_valor_novo: 4850,
+      p_motivo: "digitei errado",
+    });
+    expect(gravou.error).toBeNull();
+
+    const linha = (await historicoDeValor(db))[0];
+
+    const tentouEditar = await db
+      .from("compromisso_valor_historico")
+      .update({ motivo: "reescrevendo a história" })
+      .eq("id", linha.id);
+    expect(tentouEditar.error?.code).toBe("42501");
+
+    const tentouApagar = await db
+      .from("compromisso_valor_historico")
+      .delete()
+      .eq("id", linha.id);
+    expect(tentouApagar.error?.code).toBe("42501");
+
+    expect(await historicoDeValor(db)).toEqual([linha]);
+  });
 });
 
 // ══ Cancelar ════════════════════════════════════════════════════════════

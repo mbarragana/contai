@@ -911,6 +911,90 @@ test.describe("compra no cartão nunca vai para o pagamento avulso", () => {
     const novaFatura = fs.find((f) => f.id === vinculos[0].fatura_id);
     expect(novaFatura?.data_vencimento).toBe("2026-10-10");
   });
+
+  /**
+   * **CONTAI-073, critério 18** — corrigir o valor previsto de UMA compra e as
+   * quatro telas da fatura refletirem na leitura seguinte, sem ação nenhuma de
+   * sincronização.
+   *
+   * ⚠️ O que este teste trava é a AUSÊNCIA de snapshot: o total da fatura é
+   * derivado de `compromisso.valor_previsto` a cada leitura (o `reduce` das
+   * quatro telas), nunca gravado numa coluna. Se alguém "otimizar" isso para
+   * uma coluna de total, este teste fica vermelho — e é para isso que ele está
+   * aqui, no arquivo do cartão, e não no do compromisso.
+   *
+   * ⚠️ Sem impacto fiscal: o pagamento da fatura ainda não aconteceu, e o custo
+   * de aquisição nasce na data do PAGAMENTO — não há número declarado em jogo.
+   */
+  test("valor previsto corrigido aparece nas QUATRO telas da fatura, sem sincronizar nada", async ({
+    page,
+    db,
+  }) => {
+    const loja1 = await favorecidoLoja(db, "Leroy Merlin");
+    const loja2 = await favorecidoLoja(db, "Elétrica Ilha");
+    const c1 = await criarCompraCartao(db, {
+      favorecidoId: loja1,
+      valor: 1200,
+      dataCompra: "2026-09-15",
+      dataVencimento: "2026-10-10",
+    });
+    await criarCompraCartao(db, {
+      favorecidoId: loja2,
+      valor: 480,
+      dataCompra: "2026-09-20",
+      dataVencimento: "2026-10-10",
+    });
+
+    // A correção pela TELA, não pela RPC: é o caminho do Mateus.
+    await page.goto(`/compromisso/${c1.compromissoId}/valor`);
+    await page.getByLabel("Novo valor previsto").fill("1.700,00");
+    await page.getByLabel("Motivo da correção").fill("li o valor errado no cupom");
+    await page.getByRole("button", { name: "Salvar o novo valor" }).click();
+    await page.waitForURL(/\/compromisso\/[0-9a-f-]+$/);
+
+    // 1. `/fatura/[id]` — a linha da compra e o total das abertas.
+    await page.goto(`/fatura/${c1.faturaId}`);
+    await expect(page.getByText("R$ 1.700,00").first()).toBeVisible();
+    await expect(page.getByText("R$ 1.200,00")).toHaveCount(0);
+    // 1.700 + 480 = 2.180 — o total é recalculado, nunca lido de coluna.
+    await expect(page.getByText("R$ 2.180,00").first()).toBeVisible();
+
+    // 2. `/fatura/[id]/confirmar` (integral).
+    await page.goto(`/fatura/${c1.faturaId}/confirmar`);
+    await expect(page.getByText("R$ 1.700,00").first()).toBeVisible();
+    await expect(page.getByText("R$ 1.200,00")).toHaveCount(0);
+
+    // 3. `/fatura/[id]/parcial` (rotativo).
+    await page.goto(`/fatura/${c1.faturaId}/parcial`);
+    await expect(page.getByText("R$ 1.700,00").first()).toBeVisible();
+    await expect(page.getByText("R$ 1.200,00")).toHaveCount(0);
+
+    // 4. `/fatura/[id]/alocar` — alcançada gravando o desembolso parcial. O
+    // teto de alocação passa a ser conferido contra o valor CORRIGIDO.
+    await page.getByLabel("Data em que você pagou").fill("2026-10-08");
+    await page.getByLabel("Valor pago").fill("1.750,00");
+    await page.getByRole("button", { name: /^Salvar pagamento/ }).click();
+    await expect(
+      page.getByRole("heading", { name: "Alocar o pagamento" }),
+    ).toBeVisible();
+    await expect(page.getByText("R$ 1.700,00").first()).toBeVisible();
+    await expect(page.getByText("R$ 1.200,00")).toHaveCount(0);
+
+    // E a alocação real usa o valor novo: marcada a compra corrigida, o
+    // pagamento gerado é de R$ 1.700, não de R$ 1.200.
+    await page.getByText("Leroy Merlin").click();
+    await expect(
+      page.getByText("Selecionado: R$ 1.700,00 de R$ 1.750,00 pagos"),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Confirmar alocação" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Alocação confirmada" }),
+    ).toBeVisible();
+
+    const pagos = await pagamentos(db);
+    expect(pagos).toHaveLength(1);
+    expect(Number(pagos[0].valor)).toBe(1700);
+  });
 });
 
 // ══ CONTAI-067 · o EXTRATO DA FATURA ════════════════════════════════════

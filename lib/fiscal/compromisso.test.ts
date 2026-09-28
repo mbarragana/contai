@@ -12,6 +12,8 @@ import {
   ehVencidoSemResposta,
   exportarAgendaCompromissos,
   montarAgendaDaHome,
+  pagoDoCompromisso,
+  podeCorrigirValor,
   PERGUNTA_QUITACAO,
   preposicaoDeTempo,
   perguntaQuitacao,
@@ -460,6 +462,156 @@ describe("saldo do compromisso", () => {
   it("pagou a mais (encargos): o saldo é zero, nunca negativo", () => {
     const c = comp({ id: "c1", valorPrevistoCentavos: 1_000_000, pagamentoIds: ["p1"] });
     expect(saldoDoCompromisso(c, [pag({ id: "p1", valorCentavos: 1_032_000 })])).toBe(0);
+  });
+});
+
+// ══ Corrigir o valor previsto (CONTAI-073) ═══════════════════════════════
+
+/**
+ * ⚠️ **Estes testes travam a validação da TELA, não a garantia.** Quem garante é
+ * a RPC `corrigir_valor_compromisso` (migration 0022), reconferindo tudo DENTRO
+ * da transação — o pre-mortem 1 do ticket é exatamente "a guarda do client não
+ * vê o pagamento que chegou em outra aba". O E2E cobre esse lado.
+ *
+ * ⚠️ **Sem impacto fiscal** (Gate Fiscal do ticket): o que estas guardas
+ * protegem é `saldoDoCompromisso` de zerar em silêncio, não número de
+ * declaração nenhum.
+ */
+describe("corrigir o valor previsto", () => {
+  const ABERTO_SEM_PAGAMENTO = {
+    situacao: "aberto" as const,
+    atualCentavos: 420_000,
+    pagoCentavos: 0,
+  };
+
+  it("agendamento aberto e sem quitação parcial: corrige, para cima ou para baixo", () => {
+    expect(
+      podeCorrigirValor({
+        ...ABERTO_SEM_PAGAMENTO,
+        texto: "4.850,00",
+        motivo: "digitei errado, a parcela é maior",
+      }),
+    ).toEqual({ ok: true, valorNovoCentavos: 485_000 });
+
+    // Sem pagamento nenhum ligado, DESCER é legítimo: é previsão, e previsão
+    // corrigida para menos não zera saldo de coisa nenhuma.
+    expect(
+      podeCorrigirValor({
+        ...ABERTO_SEM_PAGAMENTO,
+        texto: "150,00",
+        motivo: "era a parcela do mês, não o total",
+      }),
+    ).toEqual({ ok: true, valorNovoCentavos: 15_000 });
+  });
+
+  it("situação não-aberta recusa ANTES de olhar valor ou motivo", () => {
+    for (const situacao of ["quitado", "cancelado"] as const) {
+      const p = podeCorrigirValor({
+        situacao,
+        atualCentavos: 420_000,
+        pagoCentavos: 0,
+        // Valor e motivo perfeitamente válidos — e mesmo assim recusa: fato
+        // consumado não se reescreve.
+        texto: "4.850,00",
+        motivo: "digitei errado",
+      });
+      expect(p.ok).toBe(false);
+      expect(p).toMatchObject({ recusa: "situacao_respondida" });
+    }
+  });
+
+  /**
+   * **A guarda que o `cto-obra` achou** (critério 5). Sem ela,
+   * `saldoDoCompromisso` (`max(0, previsto − pago)`) zeraria e o agendamento
+   * ficaria `aberto` com saldo zero — estado que o app não sabe ler hoje.
+   */
+  it("com quitação parcial, valor novo ≤ soma já paga é recusado", () => {
+    const comParcial = {
+      situacao: "aberto" as const,
+      atualCentavos: 1_000_000,
+      pagoCentavos: 600_000,
+    };
+
+    for (const texto of ["6.000,00", "5.999,99", "1,00"]) {
+      const p = podeCorrigirValor({ ...comParcial, texto, motivo: "corrigindo" });
+      expect(p.ok, `${texto} não pode passar`).toBe(false);
+      expect(p).toMatchObject({ recusa: "menor_ou_igual_ao_pago" });
+      // O texto diz QUANTO já foi pago — o Mateus não precisa ir procurar.
+      // ⚠️ `formatarBRL`, e não o literal: o `Intl` do pt-BR usa espaço
+      // INSEPARÁVEL depois do "R$", e um literal digitado à mão não bate.
+      expect(p.ok ? "" : p.motivo).toContain(formatarBRL(600_000));
+    }
+
+    // Um centavo acima do pago já passa: o saldo fica R$ 0,01, não zero.
+    expect(
+      podeCorrigirValor({ ...comParcial, texto: "6.000,01", motivo: "corrigindo" }),
+    ).toEqual({ ok: true, valorNovoCentavos: 600_001 });
+  });
+
+  it("a precedência dos erros é a do spec §5", () => {
+    // 1. vazio não é erro — é a Dica inicial (motivo `null`).
+    expect(
+      podeCorrigirValor({ ...ABERTO_SEM_PAGAMENTO, texto: "   ", motivo: "" }),
+    ).toEqual({ ok: false, recusa: "vazio", motivo: null });
+
+    // 2. não numérico (e negativo, que `parseValorInput` já recusa).
+    for (const texto of ["abc", "-100", "4.85,0,0"]) {
+      expect(
+        podeCorrigirValor({ ...ABERTO_SEM_PAGAMENTO, texto, motivo: "x" }),
+      ).toMatchObject({ recusa: "nao_numerico" });
+    }
+
+    // 3. igual ao atual vem ANTES de zero e de "≤ pago": correção que não
+    // corrige nada não vira linha (critério 3).
+    expect(
+      podeCorrigirValor({
+        ...ABERTO_SEM_PAGAMENTO,
+        texto: "4.200,00",
+        motivo: "digitei errado",
+      }),
+    ).toMatchObject({ recusa: "igual_ao_atual" });
+
+    // 4. zero, e o texto aponta para a ação vizinha que já existe.
+    const zero = podeCorrigirValor({
+      ...ABERTO_SEM_PAGAMENTO,
+      texto: "0,00",
+      motivo: "não vai mais acontecer",
+    });
+    expect(zero).toMatchObject({ recusa: "zero" });
+    expect(zero.ok ? "" : zero.motivo).toContain("Marcar que não vai ser pago");
+
+    // 5. o motivo é o ÚLTIMO: enquanto o valor está inválido, o erro que
+    // aparece é o do valor.
+    expect(
+      podeCorrigirValor({ ...ABERTO_SEM_PAGAMENTO, texto: "abc", motivo: "" }),
+    ).toMatchObject({ recusa: "nao_numerico" });
+    expect(
+      podeCorrigirValor({ ...ABERTO_SEM_PAGAMENTO, texto: "4.850,00", motivo: "  " }),
+    ).toMatchObject({ recusa: "sem_motivo" });
+  });
+
+  it("o motivo é obrigatório e não aceita rabisco de uma letra", () => {
+    for (const motivo of ["", " ", "ab"]) {
+      expect(
+        podeCorrigirValor({ ...ABERTO_SEM_PAGAMENTO, texto: "4.850,00", motivo }),
+      ).toMatchObject({ recusa: "sem_motivo" });
+    }
+    expect(
+      podeCorrigirValor({ ...ABERTO_SEM_PAGAMENTO, texto: "4.850,00", motivo: "erro" }),
+    ).toMatchObject({ ok: true });
+  });
+
+  it("`pagoDoCompromisso` conta só os pagamentos DESTE agendamento, valor cheio", () => {
+    const c = comp({ id: "c1", pagamentoIds: ["p1", "p2"] });
+    const pagamentos = [
+      pag({ id: "p1", valorCentavos: 400_000, encargosCentavos: 32_000 }),
+      pag({ id: "p2", valorCentavos: 200_000 }),
+      pag({ id: "p3", valorCentavos: 900_000 }), // de outro agendamento
+    ];
+    // Valor CHEIO, encargo incluído: o que quita o credor é o que saiu da
+    // conta — a mesma conta de `saldoDoCompromisso`.
+    expect(pagoDoCompromisso(c, pagamentos)).toBe(600_000);
+    expect(pagoDoCompromisso(comp({ id: "c2" }), pagamentos)).toBe(0);
   });
 });
 
