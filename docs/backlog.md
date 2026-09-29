@@ -979,6 +979,8 @@ O status de cada uma está na própria entrada — este índice aponta, não dup
   que `resumo.despesas` é por componente, não por pagamento
   (`linhasDeDespesa` nova no `041`)
 
+| Achado técnico, sem ticket, 2026-09-29 | `docs/backlog/97-2026-09-29-parser-retencao-nao-reconhece-valor-bruto.md` — Mateus reportou NFS-e real (PerfuraTec nº 261) achando que o parser de retenção deveria ter pego o ISS impresso (R$1.797,03) e não pegou. Investigado antes de virar bug: `contador` confirmou que **não há retenção** nessa nota (`Valor bruto = Valor líquido`, situação "Normal" — o ISS é recolhido pela própria PerfuraTec, tomador PF não retém por regra, LC 116/2003 art. 6º §2º II). App está correto. Achado real e de baixa prioridade: `sugerirLinhaRetencao` (`lib/extracao/retencao-texto.ts`) só reconhece o rótulo "Valor Total" (`/total/i`), não "Valor bruto" — não fez diferença aqui (bruto=líquido zera a conta de qualquer forma), mas importaria numa nota futura com retenção real sob esse rótulo. P2, sem Gate Fiscal, sem urgência — fica registrado para quando/se aparecer nota real com esse padrão |
+
 ## Ao acrescentar ao backlog
 
 Nova entrada = **arquivo novo** em `docs/backlog/`, nomeado
