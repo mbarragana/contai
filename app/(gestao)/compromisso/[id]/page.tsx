@@ -171,20 +171,6 @@ export default function DetalheAgendamento() {
    */
   const resolvidos = documentosResolvidosNaConfirmacao(c, estado.documentos);
 
-  /**
-   * ⚠️ **D2 do Gate 2 — cartão não tem pré-vínculo, e por isso não tem CTA nem
-   * texto.** A quitação de uma compra de cartão acontece pela fatura, por RPC
-   * que não conta N e não pergunta nada: as duas variantes do ADENDO 8 §L.2
-   * ("vai vincular automaticamente" / "vai te perguntar") seriam falsas nas
-   * duas pontas. O fluxo de cartão é o CONTAI-081.
-   *
-   * A régua é a MESMA de `podePreVincular` (a guarda de escrita) — não uma
-   * segunda condição escrita à mão: o que muda é só que aqui não há documento
-   * para checar obra, então a tela lê a única condição que depende do
-   * compromisso.
-   */
-  const preVinculoDisponivel = c.origem !== "cartao";
-
   return (
     <>
       <CabecalhoDaTela
@@ -244,7 +230,13 @@ export default function DetalheAgendamento() {
               variante do N atual, e está aqui (dentro do card do FATO) e não
               atrás de clique, pela mesma doutrina de "consequência nunca atrás
               de clique". */}
-          {aberto && preVinculoDisponivel && resolvidos.length > 0 ? (
+          {/* ⚠️ **CONTAI-081 — vale para CARTÃO também**, sem variante nova
+              (critério 2): as duas promessas do §L.2 passaram a ser verdade no
+              caminho da fatura (`planoDeConversaoDaFatura` conta o N antes da
+              RPC; `p_propagar_origem_ids` obedece a ele; `/fatura/[id]/vinculos`
+              pergunta o N≥2). A condição que excluía `origem === "cartao"` saiu
+              junto com `PRE_VINCULO_SEM_CARTAO`. */}
+          {aberto && resolvidos.length > 0 ? (
             <div className="mt-2" data-pre-vinculo="compromisso">
               <Chip cor="amb" peso="vazado">
                 {CHIP_PRE_VINCULO}
@@ -292,22 +284,14 @@ export default function DetalheAgendamento() {
                   `situacao === 'aberto'` é a do bloco inteiro — o pré-vínculo não
                   tem guarda própria (critério 4).
 
-                  ⚠️ **NÃO aparece para `origem === "cartao"`** — D2 do Gate 2.
-                  O parecer não restringe por origem, e uma compra de cartão pode
-                  de fato corresponder a mais de uma nota; o que não existe para
-                  cartão é a CONVERSÃO (a fatura quita por RPC, sem contar N e
-                  sem perguntar). Oferecer a declaração sem a conversão faria o
-                  texto do §L.2 prometer os dois comportamentos que o caminho da
-                  fatura não tem. Cartão é o CONTAI-081, inteiro. */}
-              {/* ⚠️ **NÃO aparece para origem cartão** (D2 do Gate 2): ver
-                  `preVinculoDisponivel` acima. Antes ele aparecia, e levava a
-                  uma tela que prometia um automatismo que o caminho da fatura
-                  não tem. */}
-              {preVinculoDisponivel ? (
-                <BotaoLink href={`/compromisso/${c.id}/pre-vincular`}>
-                  Ligar notas a este agendamento
-                </BotaoLink>
-              ) : null}
+                  ⚠️ **CONTAI-081 — aparece para CARTÃO também** (critério 2),
+                  com o MESMO `BotaoLink` e a MESMA tela de destino: a lista de
+                  documentos candidatos nunca dependeu da origem do compromisso, e
+                  a conversão que faltava para o cartão passou a existir (migration
+                  0024 + `/fatura/[id]/vinculos`). Nenhuma variante visual nova. */}
+              <BotaoLink href={`/compromisso/${c.id}/pre-vincular`}>
+                Ligar notas a este agendamento
+              </BotaoLink>
               {/* "Mudou a data" de compra no cartão re-aloca a fatura — mesma
                   tela, RPC diferente (ver
                   `app/(gestao)/compromisso/[id]/data/page.tsx`). */}

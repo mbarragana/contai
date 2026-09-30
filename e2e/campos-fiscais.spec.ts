@@ -242,6 +242,16 @@ const MAPA: Record<string, Classificacao> = {
     semCamposFiscais: "índice das correções possíveis, só links",
   },
   "/fatura/[id]": { semCamposFiscais: "detalhe da fatura, só leitura e links" },
+  /**
+   * CONTAI-081 — a tela agregada de revalidação. **Nenhum controle de
+   * formulário**: cada bloco tem dois botões (confirmar / revisar), e a decisão
+   * fiscal é o clique. Não há campo a nascer vazio ou preenchido, e é por isso que
+   * o spec `design/mocks/CONTAI-081.md` declara `SEM CAMPOS`.
+   */
+  "/fatura/[id]/vinculos": {
+    semCamposFiscais:
+      "revalidação de pré-vínculo por clique: dois botões por bloco, nenhum campo",
+  },
   "/obras": { semCamposFiscais: "lista de obras, só leitura" },
   "/obras/[id]/discriminacao/[ano]": {
     semCamposFiscais: "texto anual da ficha Bens e Direitos, só leitura",

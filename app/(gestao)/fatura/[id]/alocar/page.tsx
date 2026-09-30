@@ -23,7 +23,7 @@
  * irmãos.
  */
 
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
 import {
@@ -45,10 +45,17 @@ import {
   alocarPagamentoDeFatura,
   carregarCompromissos,
   carregarFatura,
+  carregarPainel,
   classificarErro,
+  converterPreVinculosDaFatura,
   mensagemDeErroDeGravacao,
   type ErroDeTela,
 } from "@/lib/data";
+import {
+  pagamentosNovosPorCompromisso,
+  planoDeConversaoDaFatura,
+  revalidacoesPendentesDaFatura,
+} from "@/lib/fiscal/compromisso";
 import {
   compromissosAbertosDaFatura,
   nadaElegivelParaAlocacao,
@@ -57,17 +64,30 @@ import {
 } from "@/lib/fiscal/fatura";
 import { formatarDataBR } from "@/lib/fiscal/obra";
 import { formatarBRL } from "@/lib/money";
-import type { Compromisso, Fatura, FaturaDesembolso } from "@/lib/types";
+import type {
+  Compromisso,
+  Documento,
+  Fatura,
+  FaturaDesembolso,
+} from "@/lib/types";
+
+/** CONTAI-081 — ver o comentário gêmeo em `/fatura/[id]/confirmar`. */
+interface Carregado {
+  fatura: Fatura;
+  compromissos: Compromisso[];
+  documentos: Documento[];
+}
 
 type Estado =
   | { fase: "carregando" }
   | { fase: "erro"; erro: ErroDeTela }
-  | { fase: "pronto"; fatura: Fatura; compromissos: Compromisso[] }
-  | { fase: "salvando"; fatura: Fatura; compromissos: Compromisso[] }
+  | ({ fase: "pronto" } & Carregado)
+  | ({ fase: "salvando" } & Carregado)
   | { fase: "salvo"; pagas: Compromisso[]; seguem: Compromisso[]; naoAlocado: number };
 
 function AlocarPagamento() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const desembolsoId = useSearchParams().get("desembolso");
   const [estado, setEstado] = useState<Estado>({ fase: "carregando" });
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
@@ -79,9 +99,17 @@ function AlocarPagamento() {
     void (async () => {
       try {
         const fatura = await carregarFatura(id);
-        const todos = await carregarCompromissos(fatura.obraId);
+        const [todos, painel] = await Promise.all([
+          carregarCompromissos(fatura.obraId),
+          carregarPainel(fatura.obraId),
+        ]);
         if (cancelado) return;
-        setEstado({ fase: "pronto", fatura, compromissos: todos });
+        setEstado({
+          fase: "pronto",
+          fatura,
+          compromissos: todos,
+          documentos: painel.documentos,
+        });
       } catch (e) {
         if (!cancelado) setEstado({ fase: "erro", erro: classificarErro(e) });
       }
@@ -174,7 +202,7 @@ function AlocarPagamento() {
     );
   }
 
-  const { fatura, compromissos } = estado;
+  const { fatura, compromissos, documentos } = estado;
 
   if (!desembolsoId) {
     // Achado do `cto-obra`: s7 aberta sem um desembolso recém-criado
@@ -245,9 +273,65 @@ function AlocarPagamento() {
   async function confirmar() {
     if (estado.fase !== "pronto" || !desembolsoId) return;
     setErro(null);
-    setEstado({ fase: "salvando", fatura, compromissos });
+    setEstado({ fase: "salvando", fatura, compromissos, documentos });
+
+    /**
+     * ⚠️ **CONTAI-081 — o plano ANTES da RPC, igual a `/confirmar`** (pre-mortem 3
+     * do ticket: um mecanismo que só valesse para uma das duas portas deixaria o
+     * pré-vínculo funcionando num caminho e não no outro, para a MESMA fatura).
+     * Aqui os compromissos do ato são os MARCADOS, não todas as compras abertas.
+     */
+    const plano = planoDeConversaoDaFatura(compromissosSelecionados, documentos);
+
     try {
-      await alocarPagamentoDeFatura(desembolsoId, Array.from(selecionados));
+      await alocarPagamentoDeFatura(
+        desembolsoId,
+        Array.from(selecionados),
+        plano.propagarOrigemIds,
+      );
+
+      // ⚠️ Daqui para baixo a falha NÃO volta para o formulário — a alocação está
+      // gravada, e um segundo "Confirmar alocação" criaria pagamento duplicado.
+      // E são DOIS `try` separados, pela mesma razão do gêmeo: falha ao converter
+      // um N=1 não pode engolir o redirect do N≥2. Ver `/fatura/[id]/confirmar`.
+      try {
+        const depois = await carregarCompromissos(fatura.obraId);
+        const novos = pagamentosNovosPorCompromisso(
+          compromissosSelecionados,
+          depois,
+        );
+        await converterPreVinculosDaFatura(
+          plano.automaticos.flatMap((a) => {
+            const pagamentoId = novos.get(a.compromissoId)?.[0];
+            return pagamentoId === undefined
+              ? []
+              : [{ pagamentoId, obraId: a.obraId, documentos: [a.documento] }];
+          }),
+        );
+      } catch {
+        // Silêncio deliberado: a alocação é o fato, e ela está gravada.
+      }
+
+      try {
+        const idsDaFatura = new Set(fatura.compromissoIds);
+        const [depois, painel] = await Promise.all([
+          carregarCompromissos(fatura.obraId),
+          carregarPainel(fatura.obraId),
+        ]);
+        const pendentes = revalidacoesPendentesDaFatura(
+          depois.filter((c) => idsDaFatura.has(c.id)),
+          painel.documentos,
+          painel.pagamentos,
+        );
+        if (pendentes.length > 0) {
+          router.push(`/fatura/${fatura.id}/vinculos?confirmouFatura=1`);
+          return;
+        }
+      } catch {
+        // O card de sucesso da alocação é a verdade sobre o que foi gravado; o
+        // que sobrou a decidir continua no CTA de `/fatura/[id]`.
+      }
+
       setEstado({
         fase: "salvo",
         pagas: compromissosSelecionados,
@@ -255,7 +339,7 @@ function AlocarPagamento() {
         naoAlocado,
       });
     } catch (e) {
-      setEstado({ fase: "pronto", fatura, compromissos });
+      setEstado({ fase: "pronto", fatura, compromissos, documentos });
       setErro(mensagemDeErroDeGravacao(e, "na fatura, se a alocação já aparece lançada"));
     }
   }

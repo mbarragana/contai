@@ -1,8 +1,33 @@
 # Índice de tickets — por ordem de execução
 
 ## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
-(`CONTAI-081`, fluxo de cartão do pré-vínculo, ainda sem ticket escrito —
-não contado)
+
+**2026-09-30**: **`081` entregue** — Gate 4 (`po`), 17/17 critérios PASS.
+Pré-vínculo compromisso↔nota passa a valer para compras no cartão, não só
+PIX/boleto. Migration `0024` corrige a propagação incondicional da origem
+nas RPCs de fatura (mesmo D1 do `080` reaparecendo pelo cartão) —
+`propagar_vinculo_de_origem` só roda para compromisso autorizado, decidido
+em JS puro ANTES da RPC. Fatura que confirma vários compromissos de uma
+vez: cada um resolve seu próprio N; os N≥2 pendentes viram blocos
+independentes em `/fatura/[id]/vinculos`, cada um neutro, com 1 clique
+próprio, persistindo mesmo se o Mateus sair no meio (condição de Gate
+Fiscal específica, confirmada no código pelo Gate 2). Gate 2
+(`cto-obra`+`contador`) APPROVE de primeira. 2 dívidas registradas por
+escrito (D-081.1, D-081.2). Sessão com 3 travamentos de ambiente ao longo
+do Gate 2/4 (rate limit semanal + 2 stalls de 600s) — nenhum ligado ao
+código, resolvidos com retomada e `db:stop && db:start`. Detalhe:
+`docs/tickets/CONTAI-081.md`.
+
+**2026-09-29**: **`CONTAI-081` criado** — continuação do `CONTAI-080`
+(entregue) pro fluxo de CARTÃO, maioria do caso real (6 das 7 parcelas do
+concreto). Sem Gate Fiscal novo, mas 1 sanity check ao `contador`:
+confirmação agregada de N≥2 (vários compromissos de uma fatura, cada um
+com seu bloco independente) continua válida desde que cada bloco nasça
+neutro, grave individualmente e persista se o Mateus sair no meio.
+`cto-obra` achou e já corrigiu na proposta o mesmo bug D1 do 080
+reaparecendo pela porta do cartão (RPC de fatura propagava origem
+incondicionalmente). Rota nova `/fatura/[id]/vinculos`. Complexidade M.
+**Pronto para `/develop`.** Detalhe: `docs/tickets/CONTAI-081.md`.
 
 **2026-09-28, mais tarde ainda ainda ainda ainda ainda ainda ainda ainda
 ainda ainda ainda ainda ainda ainda**: **`080` entregue** — Gate 4 (`po`),

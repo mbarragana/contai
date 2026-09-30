@@ -45,7 +45,7 @@ import {
   linhaRetencaoParaBanco,
   type EntradaLinhaRetencao,
 } from "@/lib/fiscal/retencao";
-import { podeVincular } from "@/lib/fiscal/vinculo";
+import { ehDocumentoHabil, podeVincular } from "@/lib/fiscal/vinculo";
 import { centavosParaNumeric, numericParaCentavos } from "@/lib/money";
 import {
   BUCKET_ACERVO,
@@ -1782,7 +1782,9 @@ export async function carregarCompromisso(id: string): Promise<Compromisso> {
  * migration 0023 não concede.
  */
 export async function salvarDocumentosPrevistos(entrada: {
-  compromisso: Pick<Compromisso, "id" | "obraId" | "situacao" | "origem">;
+  // CONTAI-081 — `origem` saiu do Pick junto com a recusa por cartão em
+  // `podePreVincular`: nada aqui discrimina mais por meio de pagamento.
+  compromisso: Pick<Compromisso, "id" | "obraId" | "situacao">;
   /**
    * Os documentos a ADICIONAR — com a obra de cada um, porque a guarda é do
    * CÓDIGO: a policy `dono_compromisso_documento_previsto` só exige mesmo DONO,
@@ -2059,6 +2061,18 @@ export async function registrarDesembolsoDeFatura(entrada: {
   compromissoIds: string[];
   /** O extrato do CICLO — opcional, e `null` significa "não escolhi arquivo". */
   extratoPath?: string | null;
+  /**
+   * **CONTAI-081, critério 5 — OBRIGATÓRIO, sem default.**
+   *
+   * Quais dos `compromissoIds` têm a nota de origem autorizada a propagar sozinha
+   * (os de N < 2, por `planoDeConversaoDaFatura`). O default `'{}'` existe SÓ na
+   * migration 0024, para ela ser aditiva durante a janela `db push` → deploy; aqui
+   * ele não existe de propósito: um chamador novo que esquecesse de calcular o
+   * plano deixaria a origem de um conjunto N≥2 converter antes do clique do
+   * Mateus — o D1 do Gate 2 do CONTAI-080 pela porta do cartão. Sem default, isso
+   * não compila.
+   */
+  propagarOrigemIds: string[];
 }): Promise<string> {
   const { data, error } = await getSupabase().rpc("fatura_desembolso_gravar", {
     p_fatura_id: entrada.faturaId,
@@ -2067,6 +2081,7 @@ export async function registrarDesembolsoDeFatura(entrada: {
     p_comprovante_path: entrada.comprovantePath ?? undefined,
     p_compromisso_ids: entrada.compromissoIds,
     p_extrato_path: entrada.extratoPath ?? undefined,
+    p_propagar_origem_ids: entrada.propagarOrigemIds,
   });
   if (error) throw error;
   return data as string;
@@ -2114,12 +2129,62 @@ export async function anexarExtratoFatura(
 export async function alocarPagamentoDeFatura(
   desembolsoId: string,
   compromissoIds: string[],
+  /**
+   * **CONTAI-081, critério 5 — OBRIGATÓRIO, sem default.** Ver o comentário
+   * gêmeo em `registrarDesembolsoDeFatura`: a razão é a mesma, e a simetria entre
+   * os dois caminhos é o pre-mortem 3 do ticket (um mecanismo que só valesse para
+   * `/confirmar` deixaria o pré-vínculo funcionando numa porta e não na outra,
+   * para a mesma fatura).
+   */
+  propagarOrigemIds: string[],
 ): Promise<void> {
   const { error } = await getSupabase().rpc("fatura_alocar", {
     p_desembolso_id: desembolsoId,
     p_compromisso_ids: compromissoIds,
+    p_propagar_origem_ids: propagarOrigemIds,
   });
   if (error) throw error;
+}
+
+/**
+ * **CONTAI-081 — a conversão dos N=1 de uma fatura, DEPOIS da RPC**, numa chamada
+ * de `criarVinculos` só (critério 7).
+ *
+ * Fonte: ADENDO 7 §K.2 — *"marca automaticamente, sem clique adicional"*. É o
+ * mesmo PASSO 5 que `/compromisso/[id]/confirmar` faz para PIX/boleto desde o
+ * CONTAI-080, aqui aplicado a N compromissos de um ato só.
+ *
+ * ⚠️ **Uma chamada, e não um laço**, pela razão escrita em `criarVinculos`: o
+ * `upsert` com array é UMA statement no Postgres — ou entram todas as linhas, ou
+ * nenhuma. Um laço deixaria "metade dos automáticos ligada" numa falha de rede, e
+ * é justamente a metade que ninguém veria (a conversão de N=1 não tem UI).
+ *
+ * ⚠️ **A duplicata é esperada e é no-op**: quando o único documento resolvido é a
+ * nota de ORIGEM, a RPC já criou a linha (o compromisso estava em
+ * `propagarOrigemIds`, porque N < 2) e o `ignoreDuplicates` engole a repetição —
+ * mesma convergência do CONTAI-080, sem 23505.
+ *
+ * Lista vazia é o caso comum (fatura sem pré-vínculo nenhum): `criarVinculos`
+ * volta sem tocar no banco.
+ */
+export async function converterPreVinculosDaFatura(
+  conversoes: readonly {
+    pagamentoId: string;
+    obraId: string;
+    documentos: readonly Documento[];
+  }[],
+): Promise<void> {
+  await criarVinculos(
+    conversoes.flatMap((c) =>
+      c.documentos.map((d) => ({
+        pagamentoId: c.pagamentoId,
+        documentoId: d.id,
+        obraDoPagamentoId: c.obraId,
+        obraDoDocumentoId: d.obraId,
+        documentoHabil: ehDocumentoHabil(d),
+      })),
+    ),
+  );
 }
 
 /**

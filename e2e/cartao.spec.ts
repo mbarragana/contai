@@ -6,11 +6,15 @@ import {
   criarCompraCartao,
   criarDocumento,
   criarFavorecido,
+  criarPreVinculo,
+  criarVinculo,
   favorecidos,
   faturaCompromissos,
   faturaDesembolsos,
   faturas,
   pagamentos,
+  preVinculos,
+  vinculos,
   type Db,
 } from "./banco";
 import { expect, test } from "./fixtures";
@@ -1431,5 +1435,531 @@ test.describe("extrato da fatura — a pendência vermelha nas duas superfícies
     await expect(naFila).toContainText("2 faturas");
     // Sem lista de faturas no app, o card fica informativo — decisão do `po`.
     await expect(naFila.getByRole("link", { name: "Ver a fatura" })).toHaveCount(0);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// CONTAI-081 · PRÉ-VÍNCULO no caminho do CARTÃO — a fatura convertendo por N
+// ══════════════════════════════════════════════════════════════════════════
+//
+// Fonte normativa: `docs/pareceres/2026-08-18-compromisso-versus-pagamento.md`,
+// ADENDO 6 §J.3, ADENDO 7 §K.2, ADENDO 8 §L.2 — os MESMOS do CONTAI-080, agora
+// com vários compromissos resolvendo N no mesmo ato.
+//
+// O que se prova aqui é o estado GRAVADO em `pagamento_documento` (a tabela que
+// `alocarCusto` consome) depois de cada caminho, contra o Postgres LOCAL, pela
+// tela, com a RLS ligada.
+
+test.describe("pré-vínculo na fatura — a conversão bifurcada por N (CONTAI-081)", () => {
+  /** NF de material hábil da loja, na obra do seed. */
+  async function notaDe(
+    db: Db,
+    favorecidoId: string,
+    over: { numero?: string; valor?: number } = {},
+  ) {
+    return criarDocumento(db, {
+      favorecido_id: favorecidoId,
+      tipo: "nf_material",
+      classificacao: "material",
+      valor: over.valor ?? 4850,
+      numero: over.numero ?? "1042",
+      data_emissao: "2026-02-20",
+      destinatario_cpf_ok: true,
+      status: "registrado",
+    });
+  }
+
+  async function confirmarFaturaPelaTela(page: Page, faturaId: string) {
+    await page.goto(`/fatura/${faturaId}/confirmar`);
+    await page.getByLabel("Data em que a fatura foi paga").fill("2026-04-10");
+    await page.getByRole("button", { name: /^Confirmar pagamento/ }).click();
+  }
+
+  test("N=0 · fatura sem pré-vínculo nenhum: tela de sucesso de sempre, sem vínculo", async ({
+    page,
+    db,
+  }) => {
+    const loja = await favorecidoLoja(db);
+    const c = await criarCompraCartao(db, {
+      favorecidoId: loja,
+      valor: 4850,
+      dataCompra: "2026-03-03",
+      dataVencimento: "2026-04-10",
+    });
+
+    await confirmarFaturaPelaTela(page, c.faturaId);
+    // ⚠️ A tela de sucesso continua INTACTA quando M=0 (critério 14).
+    await expect(
+      page.getByRole("heading", { name: "1 pagamento gerado" }),
+    ).toBeVisible();
+    expect(await pagamentos(db)).toHaveLength(1);
+    expect(await vinculos(db)).toEqual([]);
+  });
+
+  test("N=1 pela ORIGEM · a RPC propaga, e nada é perguntado", async ({
+    page,
+    db,
+  }) => {
+    const loja = await favorecidoLoja(db);
+    const documentoId = await notaDe(db, loja);
+    const c = await criarCompraCartao(db, {
+      favorecidoId: loja,
+      valor: 4850,
+      dataCompra: "2026-03-03",
+      dataVencimento: "2026-04-10",
+      documentoOrigemId: documentoId,
+    });
+
+    await confirmarFaturaPelaTela(page, c.faturaId);
+    await expect(
+      page.getByRole("heading", { name: "1 pagamento gerado" }),
+    ).toBeVisible();
+
+    const pagos = await pagamentos(db);
+    // O CONTAI-065 intacto: o compromisso entrou em `propagarOrigemIds` porque
+    // N < 2, e a linha nasceu dentro da própria RPC.
+    expect(await vinculos(db)).toEqual([
+      { pagamento_id: pagos[0].id, documento_id: documentoId },
+    ]);
+  });
+
+  test("N=1 SÓ por pré-vínculo · converte sozinho depois da RPC, sem clique", async ({
+    page,
+    db,
+  }) => {
+    const loja = await favorecidoLoja(db);
+    const documentoId = await notaDe(db, loja, { numero: "2001" });
+    const c = await criarCompraCartao(db, {
+      favorecidoId: loja,
+      valor: 4850,
+      dataCompra: "2026-03-03",
+      dataVencimento: "2026-04-10",
+    });
+    // Sem nota de origem: a única fonte é o pré-vínculo do CONTAI-080, agora
+    // disponível para cartão.
+    await criarPreVinculo(db, c.compromissoId, documentoId);
+
+    await confirmarFaturaPelaTela(page, c.faturaId);
+    // ⚠️ §K.2 — *"marca automaticamente, sem clique adicional"*: nenhuma tela
+    // intermediária, e a de sucesso é a de sempre.
+    await expect(
+      page.getByRole("heading", { name: "1 pagamento gerado" }),
+    ).toBeVisible();
+
+    const pagos = await pagamentos(db);
+    expect(pagos).toHaveLength(1);
+    // O pagamento ligado é o QUE NASCEU AGORA — identificado por diff, nunca por
+    // data/meio (critério 9).
+    expect(await vinculos(db)).toEqual([
+      { pagamento_id: pagos[0].id, documento_id: documentoId },
+    ]);
+    // A intenção não é apagada pela conversão — é o rastro do que foi dito.
+    expect(await preVinculos(db)).toHaveLength(1);
+  });
+
+  test("⚠️ DEDUP · origem reafirmada como pré-vínculo é N=1: UMA linha, sem 23505", async ({
+    page,
+    db,
+  }) => {
+    const loja = await favorecidoLoja(db);
+    const documentoId = await notaDe(db, loja);
+    const c = await criarCompraCartao(db, {
+      favorecidoId: loja,
+      valor: 4850,
+      dataCompra: "2026-03-03",
+      dataVencimento: "2026-04-10",
+      documentoOrigemId: documentoId,
+    });
+    await criarPreVinculo(db, c.compromissoId, documentoId);
+
+    await confirmarFaturaPelaTela(page, c.faturaId);
+    await expect(
+      page.getByRole("heading", { name: "1 pagamento gerado" }),
+    ).toBeVisible();
+
+    const pagos = await pagamentos(db);
+    // A RPC gravou (N < 2 → está em `propagarOrigemIds`) e
+    // `converterPreVinculosDaFatura` repetiu: o `upsert` com `ignoreDuplicates`
+    // faz da duplicata um no-op, e as duas pontas acabam na MESMA linha.
+    expect(await vinculos(db)).toEqual([
+      { pagamento_id: pagos[0].id, documento_id: documentoId },
+    ]);
+  });
+
+  /**
+   * ⚠️ **O CORAÇÃO DO TICKET, e a condição do Gate Fiscal em forma de teste.**
+   *
+   * Duas compras N≥2 na mesma fatura, um bloco cada. O Mateus confirma UM e sai;
+   * ao voltar, só o outro está lá — e o confirmado continua confirmado. O que
+   * violaria a doutrina do §J.3 é qualquer atalho que produzisse as duas
+   * conversões com um único ato de vontade: por isso a tela **não tem** botão
+   * único, e este teste confere a ausência dele.
+   */
+  test("⚠️ N≥2 em DUAS compras · 2 blocos, confirma 1, sai, e só o outro sobra", async ({
+    page,
+    db,
+  }) => {
+    const superbeton = await favorecidoLoja(db, "Superbeton");
+    const marcenaria = await favorecidoLoja(db, "Marcenaria Ilha");
+
+    const origemA = await notaDe(db, superbeton, { numero: "1042", valor: 3200 });
+    const segundaA = await notaDe(db, superbeton, { numero: "1051", valor: 1650 });
+    const origemB = await notaDe(db, marcenaria, { numero: "87", valor: 6400 });
+    const segundaB = await notaDe(db, marcenaria, { numero: "90", valor: 2000 });
+
+    const a = await criarCompraCartao(db, {
+      favorecidoId: superbeton,
+      valor: 4850,
+      dataCompra: "2026-03-03",
+      dataVencimento: "2026-04-10",
+      documentoOrigemId: origemA,
+    });
+    await criarPreVinculo(db, a.compromissoId, segundaA);
+    const b = await criarCompraCartao(db, {
+      favorecidoId: marcenaria,
+      valor: 6400,
+      dataCompra: "2026-03-11",
+      dataVencimento: "2026-04-10",
+      documentoOrigemId: origemB,
+    });
+    await criarPreVinculo(db, b.compromissoId, segundaB);
+
+    await confirmarFaturaPelaTela(page, a.faturaId);
+
+    // ⚠️ **Redireciona para `/vinculos`, não para a tela de sucesso** (critério
+    // 14), com o banner ÂMBAR de transição.
+    await page.waitForURL(
+      new RegExp(`/fatura/${a.faturaId}/vinculos\\?confirmouFatura=1$`),
+    );
+    await expect(page.getByText("Fatura confirmada.")).toBeVisible();
+    await expect(page.getByText("Falta só decidir 2 vínculos")).toBeVisible();
+
+    // ⚠️ **D1 do Gate 2 pela porta do cartão: NADA em `pagamento_documento`.**
+    // Sem `p_propagar_origem_ids` (migration 0024), as duas notas de ORIGEM já
+    // estariam gravadas aqui e a revalidação cobriria só metade de cada conjunto.
+    expect(
+      await vinculos(db),
+      "N≥2 é 100% revalidado: nem a nota de origem converte antes do toque",
+    ).toEqual([]);
+    // A quitação em si acontece — fato consumado nunca é recusado (§4).
+    expect((await compromissos(db)).every((c) => c.situacao === "quitado")).toBe(
+      true,
+    );
+    expect(await faturaDesembolsos(db)).toHaveLength(1);
+
+    // Dois blocos, em ordem CRONOLÓGICA pela data da compra (spec §1.2).
+    const blocos = page.locator('[data-bloco="revalidacao"]');
+    await expect(blocos).toHaveCount(2);
+    await expect(blocos.nth(0)).toContainText("Superbeton");
+    await expect(blocos.nth(0)).toContainText("compra 03/03/2026");
+    await expect(blocos.nth(1)).toContainText("Marcenaria Ilha");
+    // O texto é o literal do §J.3, com as notas do conjunto DAQUELE bloco.
+    await expect(blocos.nth(0)).toContainText(
+      "Confirmar este pagamento também confirma o vínculo com",
+    );
+    await expect(blocos.nth(0)).toContainText("Nota nº 1042");
+    await expect(blocos.nth(0)).toContainText("Nota nº 1051");
+    await expect(blocos.nth(1)).toContainText("Nota nº 87");
+
+    // ⚠️ **NÃO existe "confirmar tudo"** — a proibição do Gate Fiscal.
+    await expect(
+      page.getByRole("button", { name: /confirmar tud|confirmar todas/i }),
+      "um botão só para os dois blocos violaria o §J.3",
+    ).toHaveCount(0);
+    // Cada bloco tem o SEU par de saídas, e nenhuma nasce marcada.
+    await expect(
+      page.getByRole("button", { name: "Sim, confirmar os vínculos" }),
+    ).toHaveCount(2);
+    await expect(
+      page.getByRole("link", { name: "Revisar antes de confirmar" }),
+    ).toHaveCount(2);
+
+    // ── Confirma SÓ o primeiro ────────────────────────────────────────────
+    await blocos
+      .nth(0)
+      .getByRole("button", { name: "Sim, confirmar os vínculos" })
+      .click();
+    await expect(blocos.nth(0)).toContainText("Vínculo confirmado.");
+
+    const pagos = await pagamentos(db);
+    const pagamentoA = pagos.find((p) => p.favorecido_id === superbeton)!;
+    const pagamentoB = pagos.find((p) => p.favorecido_id === marcenaria)!;
+    await expect
+      .poll(async () => (await vinculos(db)).length, {
+        message: "o clique grava os DOIS documentos deste bloco, e só deste",
+      })
+      .toBe(2);
+    expect(await vinculos(db)).toEqual(
+      expect.arrayContaining([
+        { pagamento_id: pagamentoA.id, documento_id: origemA },
+        { pagamento_id: pagamentoA.id, documento_id: segundaA },
+      ]),
+    );
+
+    // O bloco confirmado SAI da lista sozinho, sem reload, e o outro fica
+    // intocado (spec §1.8).
+    await expect(blocos).toHaveCount(1);
+    await expect(blocos.nth(0)).toContainText("Marcenaria Ilha");
+    await expect(page.getByText("1 compra desta fatura")).toBeVisible();
+
+    // ── Sai no meio e volta: o confirmado persiste, o pendente reaparece ──
+    // ⚠️ Critério 12 e condição (d) do Gate Fiscal. A lista é derivada do estado
+    // GRAVADO: nenhuma flag de sessão participa de quais blocos existem.
+    await page.goto(`/fatura/${a.faturaId}/vinculos`);
+    const depoisDoReload = page.locator('[data-bloco="revalidacao"]');
+    await expect(depoisDoReload).toHaveCount(1);
+    await expect(depoisDoReload.nth(0)).toContainText("Marcenaria Ilha");
+    // Sem o query param, a frase de transição não aparece — ela é cosmética.
+    await expect(page.getByText("Fatura confirmada.")).toHaveCount(0);
+    // E o vínculo do bloco confirmado continua lá, sozinho.
+    expect(await vinculos(db)).toHaveLength(2);
+
+    // O CTA da fatura conta o que sobrou (critério 13).
+    await page.goto(`/fatura/${a.faturaId}`);
+    const cta = page.locator('[data-bloco="vinculos-a-confirmar"]');
+    await expect(cta).toContainText("1 compra com vínculo a confirmar");
+    // A citação do §J.2 está lá, com a concordância do singular.
+    await expect(cta).toContainText(
+      'segue contando em "Notas hábeis sem pagamento vinculado"',
+    );
+    await cta.getByRole("link", { name: "Confirmar vínculos" }).click();
+
+    // ── Fecha o segundo: M chega a zero e o card terminal aparece ─────────
+    await page
+      .locator('[data-bloco="revalidacao"]')
+      .getByRole("button", { name: "Sim, confirmar os vínculos" })
+      .click();
+    await expect(page.getByText("Vínculo(s) confirmado(s).")).toBeVisible();
+    // ⚠️ Sem `router.push` automático (critério 15): a saída é escolha dele.
+    expect(new URL(page.url()).pathname).toBe(`/fatura/${a.faturaId}/vinculos`);
+    await expect(
+      page.getByRole("link", { name: "Voltar à fatura" }),
+    ).toBeVisible();
+
+    expect(await vinculos(db)).toHaveLength(4);
+    expect(await vinculos(db)).toEqual(
+      expect.arrayContaining([
+        { pagamento_id: pagamentoB.id, documento_id: origemB },
+        { pagamento_id: pagamentoB.id, documento_id: segundaB },
+      ]),
+    );
+
+    // E o CTA da fatura desaparece — a ausência é o vazio (critério 13).
+    await page.goto(`/fatura/${a.faturaId}`);
+    await expect(
+      page.locator('[data-bloco="vinculos-a-confirmar"]'),
+    ).toHaveCount(0);
+  });
+
+  test("⚠️ 'Revisar antes de confirmar' leva ao seletor daquele pagamento, sem gravar", async ({
+    page,
+    db,
+  }) => {
+    const loja = await favorecidoLoja(db, "Superbeton");
+    const origem = await notaDe(db, loja, { numero: "1042", valor: 3200 });
+    const segunda = await notaDe(db, loja, { numero: "1051", valor: 1650 });
+    const c = await criarCompraCartao(db, {
+      favorecidoId: loja,
+      valor: 4850,
+      dataCompra: "2026-03-03",
+      dataVencimento: "2026-04-10",
+      documentoOrigemId: origem,
+    });
+    await criarPreVinculo(db, c.compromissoId, segunda);
+
+    await confirmarFaturaPelaTela(page, c.faturaId);
+    await page.waitForURL(new RegExp(`/fatura/${c.faturaId}/vinculos`));
+    await page.getByRole("link", { name: "Revisar antes de confirmar" }).click();
+
+    const pagos = await pagamentos(db);
+    await page.waitForURL(new RegExp(`/pagamento/${pagos[0].id}/ligar$`));
+    // Nada gravado, nada apagado — só não foi confirmado ainda.
+    expect(await vinculos(db)).toEqual([]);
+    expect(await preVinculos(db)).toHaveLength(1);
+
+    // A pré-marcação passiva do CONTAI-080 (critério 13) vale igual aqui: as
+    // DUAS notas da união chegam marcadas, com os checkboxes destravados.
+    const caixas = page.getByRole("checkbox");
+    await expect(caixas).toHaveCount(2);
+    await expect(caixas.nth(0)).toBeChecked();
+    await expect(caixas.nth(1)).toBeChecked();
+    await page.getByRole("button", { name: /^Ligar 2 documentos/ }).click();
+    await page.waitForURL(/\/pagamento\/[0-9a-f-]+$/);
+    expect(await vinculos(db)).toHaveLength(2);
+
+    // Resolvido por FORA da tela agregada, o bloco também some dela.
+    await page.goto(`/fatura/${c.faturaId}/vinculos`);
+    await expect(page.locator('[data-bloco="revalidacao"]')).toHaveCount(0);
+    await expect(
+      page.getByText("Nenhum vínculo pendente nesta fatura no momento."),
+    ).toBeVisible();
+  });
+
+  test("bloco SOME quando o pagamento já tem vínculo — a lista é derivada do gravado", async ({
+    page,
+    db,
+  }) => {
+    const loja = await favorecidoLoja(db);
+    const origem = await notaDe(db, loja, { numero: "1042", valor: 3200 });
+    const segunda = await notaDe(db, loja, { numero: "1051", valor: 1650 });
+    const c = await criarCompraCartao(db, {
+      favorecidoId: loja,
+      valor: 4850,
+      dataCompra: "2026-03-03",
+      dataVencimento: "2026-04-10",
+      documentoOrigemId: origem,
+    });
+    await criarPreVinculo(db, c.compromissoId, segunda);
+
+    await confirmarFaturaPelaTela(page, c.faturaId);
+    await page.waitForURL(new RegExp(`/fatura/${c.faturaId}/vinculos`));
+    await expect(page.locator('[data-bloco="revalidacao"]')).toHaveCount(1);
+
+    // Um vínculo à mão, por outro caminho (mesma condição 3 do CONTAI-065: o
+    // conjunto do pagamento passou a ser afirmação de alguém).
+    const pagos = await pagamentos(db);
+    await criarVinculo(db, pagos[0].id, segunda);
+
+    await page.reload();
+    await expect(page.locator('[data-bloco="revalidacao"]')).toHaveCount(0);
+    // E o CTA da fatura também não aparece mais.
+    await page.goto(`/fatura/${c.faturaId}`);
+    await expect(
+      page.locator('[data-bloco="vinculos-a-confirmar"]'),
+    ).toHaveCount(0);
+  });
+
+  test("chegar em /vinculos sem nada pendente: card terminal neutro, sem banner de sucesso", async ({
+    page,
+    db,
+  }) => {
+    const loja = await favorecidoLoja(db);
+    const c = await criarCompraCartao(db, {
+      favorecidoId: loja,
+      valor: 950,
+      dataCompra: "2026-03-03",
+      dataVencimento: "2026-04-10",
+    });
+
+    await page.goto(`/fatura/${c.faturaId}/vinculos`);
+    await expect(page.locator('[data-vinculos="vazio"]')).toContainText(
+      "Nenhum vínculo pendente nesta fatura no momento.",
+    );
+    // Nada foi confirmado agora, então não há banner de sucesso (spec §1.6).
+    await expect(page.getByText("Vínculo(s) confirmado(s).")).toHaveCount(0);
+    await expect(
+      page.getByRole("link", { name: "Voltar à fatura" }),
+    ).toBeVisible();
+  });
+
+  /**
+   * O rotativo tem de se comportar igual ao integral (pre-mortem 3): um
+   * mecanismo que só valesse para `/confirmar` deixaria o pré-vínculo funcionando
+   * numa porta e não na outra, para a MESMA fatura. `/parcial` só repassa `[]` —
+   * ele não quita compra nenhuma.
+   */
+  test("parcial → alocar · N≥2 na compra MARCADA cai na tela de vínculos; a não marcada nem existe", async ({
+    page,
+    db,
+  }) => {
+    const loja1 = await favorecidoLoja(db, "Superbeton");
+    const loja2 = await favorecidoLoja(db, "Elétrica Ilha");
+    const origem = await notaDe(db, loja1, { numero: "1042", valor: 3200 });
+    const segunda = await notaDe(db, loja1, { numero: "1051", valor: 1650 });
+    const naoMarcada = await notaDe(db, loja2, { numero: "7", valor: 480 });
+
+    const a = await criarCompraCartao(db, {
+      favorecidoId: loja1,
+      valor: 1200,
+      dataCompra: "2026-03-03",
+      dataVencimento: "2026-04-10",
+      documentoOrigemId: origem,
+    });
+    await criarPreVinculo(db, a.compromissoId, segunda);
+    const b = await criarCompraCartao(db, {
+      favorecidoId: loja2,
+      valor: 480,
+      dataCompra: "2026-03-05",
+      dataVencimento: "2026-04-10",
+      documentoOrigemId: naoMarcada,
+    });
+    await criarPreVinculo(db, b.compromissoId, segunda);
+
+    await page.goto(`/fatura/${a.faturaId}/parcial`);
+    await page.getByLabel("Data em que você pagou").fill("2026-04-08");
+    await page.getByLabel("Valor pago").fill("1.200,00");
+    await page.getByRole("button", { name: /^Salvar pagamento/ }).click();
+
+    // O valor pago gravou sem quitar nada — e sem propagar nada (`[]`).
+    await expect(
+      page.getByRole("heading", { name: "Alocar o pagamento" }),
+    ).toBeVisible();
+    expect(await faturaDesembolsos(db)).toHaveLength(1);
+    expect((await compromissos(db)).every((c) => c.situacao === "aberto")).toBe(
+      true,
+    );
+    expect(await vinculos(db)).toEqual([]);
+
+    // Marca só a Superbeton (N≥2) e confirma.
+    await page.getByText("Superbeton").click();
+    await page.getByRole("button", { name: "Confirmar alocação" }).click();
+
+    await page.waitForURL(
+      new RegExp(`/fatura/${a.faturaId}/vinculos\\?confirmouFatura=1$`),
+    );
+    await expect(page.getByText("Falta só decidir 1 vínculo")).toBeVisible();
+    // ⚠️ UM bloco: a compra que continua ABERTA não aparece aqui, ainda que
+    // tenha N≥2 declarado — pendência antes do pagamento é o CTA do CONTAI-080.
+    const blocos = page.locator('[data-bloco="revalidacao"]');
+    await expect(blocos).toHaveCount(1);
+    await expect(blocos.nth(0)).toContainText("Superbeton");
+    expect(await vinculos(db)).toEqual([]);
+
+    await blocos
+      .nth(0)
+      .getByRole("button", { name: "Sim, confirmar os vínculos" })
+      .click();
+    await expect(page.getByText("Vínculo(s) confirmado(s).")).toBeVisible();
+
+    const pagos = await pagamentos(db);
+    expect(pagos).toHaveLength(1);
+    expect(await vinculos(db)).toEqual(
+      expect.arrayContaining([
+        { pagamento_id: pagos[0].id, documento_id: origem },
+        { pagamento_id: pagos[0].id, documento_id: segunda },
+      ]),
+    );
+    expect(await vinculos(db)).toHaveLength(2);
+  });
+
+  test("alocar com N=1 na compra marcada: sucesso de sempre, vínculo criado sozinho", async ({
+    page,
+    db,
+  }) => {
+    const loja = await favorecidoLoja(db);
+    const documentoId = await notaDe(db, loja, { numero: "3003", valor: 1200 });
+    const c = await criarCompraCartao(db, {
+      favorecidoId: loja,
+      valor: 1200,
+      dataCompra: "2026-03-03",
+      dataVencimento: "2026-04-10",
+    });
+    await criarPreVinculo(db, c.compromissoId, documentoId);
+
+    await page.goto(`/fatura/${c.faturaId}/parcial`);
+    await page.getByLabel("Data em que você pagou").fill("2026-04-08");
+    await page.getByLabel("Valor pago").fill("1.200,00");
+    await page.getByRole("button", { name: /^Salvar pagamento/ }).click();
+    await page.getByRole("checkbox").first().check();
+    await page.getByRole("button", { name: "Confirmar alocação" }).click();
+
+    // M=0: a tela de sucesso da alocação continua intacta (critério 14).
+    await expect(
+      page.getByRole("heading", { name: "Alocação confirmada" }),
+    ).toBeVisible();
+    const pagos = await pagamentos(db);
+    expect(await vinculos(db)).toEqual([
+      { pagamento_id: pagos[0].id, documento_id: documentoId },
+    ]);
   });
 });

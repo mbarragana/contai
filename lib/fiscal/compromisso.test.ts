@@ -13,12 +13,14 @@ import {
   identificarDocumentoPreLigado,
   idsDaUniaoDoPreVinculo,
   LIGADO_AO_CONFIRMAR_PORQUE,
+  pagamentosNovosPorCompromisso,
   perguntaConfirmarPreVinculos,
+  planoDeConversaoDaFatura,
   podePreVincular,
   PRE_VINCULO_CONFIRMAR,
   PRE_VINCULO_REVISAR,
-  PRE_VINCULO_SEM_CARTAO,
   PRE_VINCULO_SO_EM_ABERTO,
+  revalidacoesPendentesDaFatura,
   textoPreVinculoDaNota,
   textoPreVinculoDoCompromisso,
   compromissosElegiveisParaQuitacao,
@@ -1602,35 +1604,39 @@ describe("podePreVincular — a guarda de escrita", () => {
   }
 
   /**
-   * **D2 do Gate 2** — a quitação de compra no cartão acontece pela fatura, por
-   * RPC que não conta N e não pergunta nada. Oferecer pré-vínculo ali faria o
-   * texto do ADENDO 8 §L.2 prometer os dois comportamentos que aquele caminho
-   * não tem. Cartão é o CONTAI-081, inteiro.
+   * **CONTAI-081, critério 1 — a recusa por cartão NÃO EXISTE MAIS.**
+   *
+   * Ela existia pelo D2 do Gate 2 do CONTAI-080: o caminho da fatura não contava
+   * N e não perguntava nada, então o texto do ADENDO 8 §L.2 mentiria. O
+   * CONTAI-081 construiu as duas pontas (`planoDeConversaoDaFatura`,
+   * `p_propagar_origem_ids` na migration 0024, `/fatura/[id]/vinculos`), e a
+   * restrição virou o oposto do que protegia.
    */
-  it("⚠️ compra no CARTÃO: recusa, mesmo aberta e na mesma obra", () => {
-    const p = podePreVincular(comp({ id: "c1", origem: "cartao" }), {
-      obraId: OBRA,
-    });
-    expect(p.ok).toBe(false);
-    expect(p.ok === false && p.motivo).toBe(PRE_VINCULO_SEM_CARTAO);
+  it("⚠️ CONTAI-081 · as TRÊS origens podem — cartão inclusive", () => {
+    for (const origem of ["pix", "boleto", "cartao"] as const) {
+      expect(
+        podePreVincular(comp({ id: "c1", origem }), { obraId: OBRA }).ok,
+        `origem ${origem}`,
+      ).toBe(true);
+    }
   });
 
-  it("o cartão é a recusa mais forte — vence a de situação", () => {
-    // Um agendamento de cartão já quitado tem duas razões para recusar, e a que
-    // explica o produto é "isto não existe para cartão", não "já foi respondido".
+  it("⚠️ cartão já respondido recusa pela SITUAÇÃO, não pela origem", () => {
+    // Antes havia duas razões e a da origem vencia. Agora só existe uma, e o
+    // texto que o Mateus lê é o que descreve o estado real do agendamento.
     const p = podePreVincular(
       comp({ id: "c1", origem: "cartao", situacao: "quitado" }),
       { obraId: OBRA },
     );
-    expect(p.ok === false && p.motivo).toBe(PRE_VINCULO_SEM_CARTAO);
+    expect(p.ok).toBe(false);
+    expect(p.ok === false && p.motivo).toBe(PRE_VINCULO_SO_EM_ABERTO);
   });
 
-  it("pix e boleto continuam podendo", () => {
-    for (const origem of ["pix", "boleto"] as const) {
-      expect(podePreVincular(comp({ id: "c1", origem }), { obraId: OBRA }).ok).toBe(
-        true,
-      );
-    }
+  it("⚠️ a guarda de obra vale para cartão igual às outras origens", () => {
+    const p = podePreVincular(comp({ id: "c1", origem: "cartao" }), {
+      obraId: "outra-obra",
+    });
+    expect(p.ok === false && p.motivo).toBe(MOTIVO_OBRA_DIFERENTE);
   });
 });
 
@@ -1866,5 +1872,337 @@ describe("compromissosQuePreLigam — lista TODOS, sem eleição (critério 6)",
 
   it("nota sem agendamento nenhum: lista vazia", () => {
     expect(compromissosQuePreLigam("doc-a", [comp({ id: "c1" })])).toEqual([]);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// CONTAI-081 · o pré-vínculo no CARTÃO — o plano da fatura e as pendências
+// ══════════════════════════════════════════════════════════════════════════
+//
+// Fonte normativa: os MESMOS ADENDOS 6/7/8 — sem tese fiscal nova. O que se
+// prova aqui é que a bifurcação por N do §K.2 continua sendo UMA regra quando
+// vários compromissos resolvem N ao mesmo tempo (uma fatura inteira).
+
+describe("planoDeConversaoDaFatura — os três ramos de N, por compromisso", () => {
+  const notaA = doc({ id: "doc-a", numero: "1042", valorCentavos: 320_000 });
+  const notaB = doc({ id: "doc-b", numero: "1051", valorCentavos: 165_000 });
+  const docs = [notaA, notaB];
+
+  /** Compra no cartão, já aberta e pertencente a uma fatura. */
+  function compra(over: Partial<Compromisso> & { id: string }): Compromisso {
+    return comp({ origem: "cartao", dataCompra: "2026-03-03", ...over });
+  }
+
+  it("N=0 · nada pré-ligado e sem origem: os três baldes vazios", () => {
+    const plano = planoDeConversaoDaFatura([compra({ id: "c1" })], docs);
+    expect(plano.propagarOrigemIds).toEqual([]);
+    expect(plano.automaticos).toEqual([]);
+    expect(plano.revalidar).toEqual([]);
+  });
+
+  it("N=1 pela ORIGEM · propaga pela RPC E converte sozinho — o CONTAI-065 intacto", () => {
+    const c = compra({ id: "c1", documentoOrigemId: "doc-a" });
+    const plano = planoDeConversaoDaFatura([c], docs);
+    // ⚠️ Está nos DOIS: a RPC cria a linha e `converterPreVinculosDaFatura`
+    // repete — a duplicata é no-op (`upsert` com `ignoreDuplicates`), e é essa
+    // convergência que faz os dois caminhos acabarem na MESMA linha.
+    expect(plano.propagarOrigemIds).toEqual(["c1"]);
+    expect(plano.automaticos).toEqual([
+      { compromissoId: "c1", obraId: OBRA, documento: notaA },
+    ]);
+    expect(plano.revalidar).toEqual([]);
+  });
+
+  it("N=1 SÓ por pré-vínculo · converte sozinho, e não há origem a propagar", () => {
+    const c = compra({ id: "c1", documentoPrevistoIds: ["doc-b"] });
+    const plano = planoDeConversaoDaFatura([c], docs);
+    // Sem `documentoOrigemId`, mandar o id à RPC não faria nada — e o array diz
+    // o que o app quis dizer, em vez de delegar a decisão ao silêncio da RPC.
+    expect(plano.propagarOrigemIds).toEqual([]);
+    expect(plano.automaticos.map((a) => a.documento.id)).toEqual(["doc-b"]);
+    expect(plano.revalidar).toEqual([]);
+  });
+
+  it("⚠️ N≥2 · origem + outra nota: NADA propaga e NADA converte sozinho", () => {
+    const c = compra({
+      id: "c1",
+      documentoOrigemId: "doc-a",
+      documentoPrevistoIds: ["doc-b"],
+    });
+    const plano = planoDeConversaoDaFatura([c], docs);
+    // ⚠️ **É O PRE-MORTEM 1 DO TICKET, travado por teste.** Com a origem em
+    // `propagarOrigemIds`, a RPC gravaria `doc-a` antes de qualquer toque e a
+    // revalidação do §J.3 cobriria só `doc-b` — meio conjunto convertido em
+    // silêncio, que é o D1 do Gate 2 do CONTAI-080 pela porta do cartão.
+    expect(plano.propagarOrigemIds).toEqual([]);
+    expect(plano.automaticos).toEqual([]);
+    expect(plano.revalidar).toHaveLength(1);
+    expect(plano.revalidar[0].resolvidos.map((d) => d.id)).toEqual([
+      "doc-a",
+      "doc-b",
+    ]);
+  });
+
+  it("⚠️ DEDUP · origem reafirmada como pré-vínculo é N=1, não N=2", () => {
+    const c = compra({
+      id: "c1",
+      documentoOrigemId: "doc-a",
+      documentoPrevistoIds: ["doc-a"],
+    });
+    const plano = planoDeConversaoDaFatura([c], docs);
+    // O caso mais provável do relato: ele pré-liga, pela tela nova, a nota que
+    // JÁ era a de origem. Sem a dedup (que mora em `idsDaUniaoDoPreVinculo`, uma
+    // vez só), isto cairia em `revalidar` e a tela pediria confirmação de um
+    // conjunto com uma nota só.
+    expect(plano.revalidar).toEqual([]);
+    expect(plano.propagarOrigemIds).toEqual(["c1"]);
+    expect(plano.automaticos.map((a) => a.documento.id)).toEqual(["doc-a"]);
+  });
+
+  it("nota de OUTRA OBRA não conta para o N — e o que sobra decide o ramo", () => {
+    const alheia = doc({ id: "doc-x", obraId: "outra-obra" });
+    const c = compra({
+      id: "c1",
+      documentoOrigemId: "doc-a",
+      documentoPrevistoIds: ["doc-x"],
+    });
+    const plano = planoDeConversaoDaFatura([c], [notaA, alheia]);
+    // Resolver ENCOLHE o conjunto: dois ids, um documento — logo N=1.
+    expect(plano.revalidar).toEqual([]);
+    expect(plano.automaticos.map((a) => a.documento.id)).toEqual(["doc-a"]);
+  });
+
+  it("uma fatura com os três ramos ao mesmo tempo — baldes DISJUNTOS", () => {
+    const zero = compra({ id: "c0" });
+    const um = compra({ id: "c1", documentoOrigemId: "doc-a" });
+    const dois = compra({
+      id: "c2",
+      documentoOrigemId: "doc-a",
+      documentoPrevistoIds: ["doc-b"],
+    });
+    const plano = planoDeConversaoDaFatura([zero, um, dois], docs);
+    expect(plano.propagarOrigemIds).toEqual(["c1"]);
+    expect(plano.automaticos.map((a) => a.compromissoId)).toEqual(["c1"]);
+    expect(plano.revalidar.map((r) => r.compromisso.id)).toEqual(["c2"]);
+    // `propagarOrigemIds` é o COMPLEMENTO de `revalidar`: nenhum compromisso
+    // aparece nos dois, e é isso que fecha o D1.
+    const revalidados = new Set(plano.revalidar.map((r) => r.compromisso.id));
+    expect(plano.propagarOrigemIds.some((id) => revalidados.has(id))).toBe(false);
+  });
+
+  it("os blocos de revalidação saem em ordem CRONOLÓGICA pela data da compra", () => {
+    const tarde = compra({
+      id: "c-tarde",
+      dataCompra: "2026-03-11",
+      documentoOrigemId: "doc-a",
+      documentoPrevistoIds: ["doc-b"],
+    });
+    const cedo = compra({
+      id: "c-cedo",
+      dataCompra: "2026-03-03",
+      documentoOrigemId: "doc-a",
+      documentoPrevistoIds: ["doc-b"],
+    });
+    expect(
+      planoDeConversaoDaFatura([tarde, cedo], docs).revalidar.map(
+        (r) => r.compromisso.id,
+      ),
+    ).toEqual(["c-cedo", "c-tarde"]);
+  });
+
+  it("⚠️ não devolve dinheiro somável: nenhum campo `...Centavos` no plano", () => {
+    const plano = planoDeConversaoDaFatura(
+      [compra({ id: "c1", documentoOrigemId: "doc-a" })],
+      docs,
+    );
+    expect(
+      Object.keys(plano.automaticos[0]).filter((k) => /Centavos/i.test(k)),
+    ).toEqual([]);
+  });
+});
+
+describe("pagamentosNovosPorCompromisso — o pagamento da RPC por DIFF", () => {
+  it("o que não estava antes e está depois é o pagamento novo", () => {
+    const antes = [comp({ id: "c1", pagamentoIds: [] })];
+    const depois = [comp({ id: "c1", pagamentoIds: ["pag-1"] })];
+    expect([...pagamentosNovosPorCompromisso(antes, depois)]).toEqual([
+      ["c1", ["pag-1"]],
+    ]);
+  });
+
+  it("⚠️ pagamento que JÁ existia não volta como novo — é o que o diff protege", () => {
+    // Quitação parcial anterior: `pag-antigo` não pode receber o vínculo do
+    // pré-vínculo desta rodada.
+    const antes = [comp({ id: "c1", pagamentoIds: ["pag-antigo"] })];
+    const depois = [comp({ id: "c1", pagamentoIds: ["pag-antigo", "pag-novo"] })];
+    expect(pagamentosNovosPorCompromisso(antes, depois).get("c1")).toEqual([
+      "pag-novo",
+    ]);
+  });
+
+  it("compromisso que a RPC ignorou (corrida) não entra no mapa", () => {
+    const antes = [comp({ id: "c1", pagamentoIds: [] })];
+    const depois = [comp({ id: "c1", pagamentoIds: [] })];
+    expect(pagamentosNovosPorCompromisso(antes, depois).size).toBe(0);
+  });
+
+  it("⚠️ dois compromissos do MESMO favorecido e valor não se confundem", () => {
+    // O caso do relato: duas parcelas iguais na mesma fatura. Casar por
+    // data/meio acertaria "quase sempre" e erraria exatamente aqui.
+    const antes = [
+      comp({ id: "c1", pagamentoIds: [] }),
+      comp({ id: "c2", pagamentoIds: [] }),
+    ];
+    const depois = [
+      comp({ id: "c1", pagamentoIds: ["pag-1"] }),
+      comp({ id: "c2", pagamentoIds: ["pag-2"] }),
+    ];
+    const novos = pagamentosNovosPorCompromisso(antes, depois);
+    expect(novos.get("c1")).toEqual(["pag-1"]);
+    expect(novos.get("c2")).toEqual(["pag-2"]);
+  });
+
+  it("compromisso que nem existia antes conta tudo como novo", () => {
+    const depois = [comp({ id: "c9", pagamentoIds: ["pag-9"] })];
+    expect(pagamentosNovosPorCompromisso([], depois).get("c9")).toEqual(["pag-9"]);
+  });
+});
+
+describe("revalidacoesPendentesDaFatura — a lista derivada do ESTADO GRAVADO", () => {
+  const notaA = doc({ id: "doc-a", numero: "1042", valorCentavos: 320_000 });
+  const notaB = doc({ id: "doc-b", numero: "1051", valorCentavos: 165_000 });
+  const docs = [notaA, notaB];
+
+  function pagSemVinculo(id: string): Pagamento {
+    return pag({ id, documentoIds: [] });
+  }
+
+  /** Compra de cartão já quitada, com pré-vínculo N≥2 e pagamento sem vínculo. */
+  function pendente(id: string, pagamentoId: string, dataCompra = "2026-03-03") {
+    return comp({
+      id,
+      origem: "cartao",
+      situacao: "quitado",
+      dataCompra,
+      documentoOrigemId: "doc-a",
+      documentoPrevistoIds: ["doc-b"],
+      pagamentoIds: [pagamentoId],
+    });
+  }
+
+  it("N≥2 quitado com pagamento sem vínculo: é bloco, e traz o pagamento", () => {
+    const pendentes = revalidacoesPendentesDaFatura(
+      [pendente("c1", "pag-1")],
+      docs,
+      [pagSemVinculo("pag-1")],
+    );
+    expect(pendentes).toHaveLength(1);
+    expect(pendentes[0].pagamentoId).toBe("pag-1");
+    expect(pendentes[0].resolvidos.map((d) => d.id)).toEqual(["doc-a", "doc-b"]);
+  });
+
+  it("⚠️ o bloco SOME quando o pagamento já tem vínculo — critério 12", () => {
+    // É o que faz a confirmação de um bloco persistir: a lista é derivada, e
+    // `pagamento_documento` é a verdade. Nenhuma flag de sessão participa disso.
+    expect(
+      revalidacoesPendentesDaFatura([pendente("c1", "pag-1")], docs, [
+        pag({ id: "pag-1", documentoIds: ["doc-a", "doc-b"] }),
+      ]),
+    ).toEqual([]);
+  });
+
+  it("⚠️ um vínculo só (resolvido pelo seletor, parcialmente) também tira o bloco", () => {
+    // Mesma condição 3 do CONTAI-065 — "nunca por cima de vínculo que já
+    // existe": o conjunto do pagamento passou a ser afirmação de alguém, e não
+    // cabe ao app somar a ele.
+    expect(
+      revalidacoesPendentesDaFatura([pendente("c1", "pag-1")], docs, [
+        pag({ id: "pag-1", documentoIds: ["doc-b"] }),
+      ]),
+    ).toEqual([]);
+  });
+
+  it("compromisso ABERTO não aparece — pendência antes do pagamento é outro CTA", () => {
+    const aberto = comp({
+      id: "c1",
+      origem: "cartao",
+      situacao: "aberto",
+      documentoOrigemId: "doc-a",
+      documentoPrevistoIds: ["doc-b"],
+      pagamentoIds: [],
+    });
+    expect(revalidacoesPendentesDaFatura([aberto], docs, [])).toEqual([]);
+  });
+
+  it("N=1 não aparece — já converteu sozinho, sem UI (§K.2)", () => {
+    const um = comp({
+      id: "c1",
+      situacao: "quitado",
+      documentoOrigemId: "doc-a",
+      pagamentoIds: ["pag-1"],
+    });
+    expect(
+      revalidacoesPendentesDaFatura([um], docs, [pagSemVinculo("pag-1")]),
+    ).toEqual([]);
+  });
+
+  it("⚠️ remover um pré-vínculo depois da quitação tira o bloco — o N é o ATUAL", () => {
+    const so_origem = comp({
+      id: "c1",
+      situacao: "quitado",
+      documentoOrigemId: "doc-a",
+      documentoPrevistoIds: [],
+      pagamentoIds: ["pag-1"],
+    });
+    expect(
+      revalidacoesPendentesDaFatura([so_origem], docs, [pagSemVinculo("pag-1")]),
+    ).toEqual([]);
+  });
+
+  it("compromisso sem pagamento nenhum (cancelado) não aparece", () => {
+    const cancelado = comp({
+      id: "c1",
+      situacao: "cancelado",
+      motivoCancelamento: "compra estornada",
+      documentoOrigemId: "doc-a",
+      documentoPrevistoIds: ["doc-b"],
+      pagamentoIds: [],
+    });
+    expect(revalidacoesPendentesDaFatura([cancelado], docs, [])).toEqual([]);
+  });
+
+  it("dois pendentes saem em ordem cronológica pela data da compra", () => {
+    const pendentes = revalidacoesPendentesDaFatura(
+      [
+        pendente("c-tarde", "pag-2", "2026-03-11"),
+        pendente("c-cedo", "pag-1", "2026-03-03"),
+      ],
+      docs,
+      [pagSemVinculo("pag-1"), pagSemVinculo("pag-2")],
+    );
+    expect(pendentes.map((p) => p.compromisso.id)).toEqual([
+      "c-cedo",
+      "c-tarde",
+    ]);
+  });
+
+  it("⚠️ confirmar UM deixa o OUTRO — as confirmações são independentes", () => {
+    // A condição do Gate Fiscal em forma de teste: o estado gravado de um bloco
+    // não diz nada sobre o outro.
+    const pendentes = revalidacoesPendentesDaFatura(
+      [pendente("c1", "pag-1"), pendente("c2", "pag-2", "2026-03-11")],
+      docs,
+      [
+        pag({ id: "pag-1", documentoIds: ["doc-a", "doc-b"] }),
+        pagSemVinculo("pag-2"),
+      ],
+    );
+    expect(pendentes.map((p) => p.compromisso.id)).toEqual(["c2"]);
+  });
+
+  it("pagamento que não está na lista carregada degrada em silêncio", () => {
+    expect(revalidacoesPendentesDaFatura([pendente("c1", "pag-1")], docs, [])).toEqual(
+      [],
+    );
   });
 });

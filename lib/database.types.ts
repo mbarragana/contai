@@ -1177,7 +1177,13 @@ export type Database = {
         Returns: undefined
       }
       fatura_alocar: {
-        Args: { p_compromisso_ids: string[]; p_desembolso_id: string }
+        Args: {
+          p_compromisso_ids: string[]
+          p_desembolso_id: string
+          // CONTAI-081 (migration 0024): opcional no BANCO (default '{}'),
+          // obrigatório em `alocarPagamentoDeFatura` — ver o critério 5.
+          p_propagar_origem_ids?: string[]
+        }
         Returns: undefined
       }
       fatura_desembolso_gravar: {
@@ -1187,6 +1193,7 @@ export type Database = {
           p_data_pagamento: string
           p_extrato_path?: string
           p_fatura_id: string
+          p_propagar_origem_ids?: string[]
           p_valor: number
         }
         Returns: string

@@ -212,16 +212,20 @@ test.describe("editor de pré-vínculo — o estado gravado é o que carrega", (
   });
 
   /**
-   * **D2 do Gate 2** — a quitação de compra no cartão acontece pela fatura, por
-   * RPC que não conta N e não pergunta nada (CONTAI-081). O CTA e o texto do
-   * ADENDO 8 §L.2 prometeriam os dois comportamentos que aquele caminho não tem.
+   * ⚠️ **CONTAI-081, critérios 1 a 3 — o INVERSO do que este teste afirmava.**
+   *
+   * Até o CONTAI-080, cartão não tinha pré-vínculo (D2 do Gate 2): o caminho da
+   * fatura não contava N e não perguntava nada, e o texto do ADENDO 8 §L.2
+   * prometeria os dois comportamentos que ele não tinha. O CONTAI-081 construiu as
+   * duas pontas, e a restrição caiu — com os MESMOS componentes, sem variante
+   * nova: o mesmo CTA, o mesmo chip, a mesma tela de edição.
    */
-  test("⚠️ compra no CARTÃO: sem CTA no detalhe, e a tela recusa", async ({
+  test("⚠️ compra no CARTÃO: MESMO CTA, mesma tela, mesmo chip", async ({
     page,
     db,
   }) => {
     const favorecidoId = await loja(db);
-    await nota(db, { favorecidoId });
+    const documentoId = await nota(db, { favorecidoId });
     const { compromissoId } = await criarCompraCartao(db, {
       favorecidoId,
       valor: 4850,
@@ -230,21 +234,34 @@ test.describe("editor de pré-vínculo — o estado gravado é o que carrega", (
     });
 
     await page.goto(`/compromisso/${compromissoId}`);
-    await expect(
-      page.getByRole("link", { name: "Ligar notas a este agendamento" }),
-      "cartão não oferece pré-vínculo — o fluxo dele é o CONTAI-081",
-    ).toHaveCount(0);
-    // A ação primária do cartão continua intacta.
+    // A ação primária do cartão continua intacta — o CTA novo não a substitui.
     await expect(page.getByRole("link", { name: "Ver a fatura" })).toBeVisible();
+    await page
+      .getByRole("link", { name: "Ligar notas a este agendamento" })
+      .click();
 
-    // E a rota, alcançada à mão, recusa em vez de oferecer o editor.
-    await page.goto(`/compromisso/${compromissoId}/pre-vincular`);
-    await expect(
-      page.getByText("ainda não está disponível para compras no cartão", {
-        exact: false,
+    // A tela do CONTAI-080, reaproveitada sem mudança (critério 3): a lista de
+    // candidatos nunca dependeu da origem do compromisso.
+    await page.getByRole("checkbox").first().check();
+    await page.getByRole("button", { name: /^Salvar 1 nota pré-ligada/ }).click();
+    await page.waitForURL(new RegExp(`/compromisso/${compromissoId}$`));
+
+    expect(await preVinculos(db)).toEqual([
+      expect.objectContaining({
+        compromisso_id: compromissoId,
+        documento_id: documentoId,
       }),
-    ).toBeVisible();
-    await expect(page.getByRole("checkbox")).toHaveCount(0);
+    ]);
+    // §J.1 vale igual para cartão: intenção não é vínculo, e nada de pagamento.
+    expect(await vinculos(db)).toEqual([]);
+    expect(await pagamentos(db)).toEqual([]);
+
+    // E o chip/texto do §L.2 — o MESMO bloco, na variante do N atual.
+    const bloco = page.locator('[data-pre-vinculo="compromisso"]');
+    await expect(bloco).toContainText("Pré-vínculo — ainda não é custo");
+    await expect(bloco).toContainText(
+      "o sistema vai vincular esta nota automaticamente — sem perguntar de novo",
+    );
   });
 
   test("obra sem nota nenhuma: estado vazio com a saída de registrar", async ({

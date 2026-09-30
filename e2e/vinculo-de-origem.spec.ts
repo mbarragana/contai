@@ -32,6 +32,19 @@ import { expect, test } from "./fixtures";
  * isso que não há teste unitário dela: uma cópia em TypeScript das cinco
  * condições seria uma SEGUNDA fonte de verdade para uma guarda fiscal — o
  * defeito que o ticket existe para não criar.
+ *
+ * ⚠️ **CONTAI-081 (migration 0024) mudou QUEM MANDA no caminho do cartão, e as
+ * cinco condições não mudaram uma vírgula.** As duas RPCs da fatura só chamam
+ * `propagar_vinculo_de_origem` para os compromissos que vierem em
+ * `p_propagar_origem_ids` — o array que o app calcula com
+ * `planoDeConversaoDaFatura` (os de N < 2). A razão é o D1 do Gate 2 do
+ * CONTAI-080: com pré-vínculo disponível para cartão, uma compra com nota de
+ * origem MAIS um pré-vínculo tem N=2, e propagar a origem incondicionalmente
+ * converteria METADE do conjunto antes de qualquer toque do Mateus.
+ *
+ * Consequência para os testes que chamam a RPC **direto** (sem passar pela tela):
+ * eles precisam dizer o que autorizam. O default `'{}'` do banco significa "não
+ * propague nada" — o lado conservador.
  */
 
 let proximoCnpj = 0;
@@ -184,6 +197,10 @@ test.describe("cartão — a fatura paga leva a nota da compra", () => {
       p_valor: 500,
       p_data_pagamento: "2026-09-05",
       p_compromisso_ids: [compromissoId],
+      // ⚠️ CONTAI-081 — AUTORIZADO de propósito: sem isto o teste passaria por
+      // falta de autorização, e não por falta de nota. O que se prova é a
+      // CONDIÇÃO 1 da função (`documento_origem_id is null` → `false`).
+      p_propagar_origem_ids: [compromissoId],
     });
     expect(error).toBeNull();
 
@@ -221,9 +238,14 @@ test.describe("cartão — a fatura paga leva a nota da compra", () => {
     // A alocação de depois é o OUTRO caminho de quitação do cartão: um vínculo
     // que só sobrevivesse na confirmação integral seria regra dependente de
     // por qual porta o Mateus entrou.
+    //
+    // ⚠️ CONTAI-081 — `p_propagar_origem_ids` é a autorização do app. Aqui o
+    // conjunto é N=1 (só a nota de origem), então `planoDeConversaoDaFatura`
+    // colocaria este compromisso no array, e é isso que o teste reproduz.
     const { error } = await db.rpc("fatura_alocar", {
       p_desembolso_id: desembolso.data as string,
       p_compromisso_ids: [compromissoId],
+      p_propagar_origem_ids: [compromissoId],
     });
     expect(error).toBeNull();
 
@@ -232,6 +254,49 @@ test.describe("cartão — a fatura paga leva a nota da compra", () => {
     expect(await vinculos(db)).toEqual([
       { pagamento_id: pagos[0].id, documento_id: documentoId },
     ]);
+  });
+
+  /**
+   * ⚠️ **CONTAI-081, critério 4 — a guarda do D1 no nível do SQL.**
+   *
+   * O compromisso está em `p_compromisso_ids` (é quitado, o pagamento nasce) e
+   * **fora** de `p_propagar_origem_ids` — o que o app manda quando N ≥ 2. A nota
+   * de origem NÃO pode ser gravada: ela espera o clique, junto com as outras.
+   *
+   * Sem este teste, alguém "simplificando" a RPC de volta à propagação
+   * incondicional passaria pela suíte — e o dano é invisível na tela, porque o
+   * vínculo aparece como se o Mateus o tivesse confirmado.
+   */
+  test("⚠️ compromisso FORA de `p_propagar_origem_ids`: quita e NÃO propaga", async ({
+    db,
+  }) => {
+    const favorecidoId = await loja(db);
+    const documentoId = await nota(db, { favorecidoId });
+    const { faturaId, compromissoId } = await criarCompraCartao(db, {
+      favorecidoId,
+      valor: 950,
+      dataCompra: "2026-08-14",
+      dataVencimento: "2026-09-10",
+      documentoOrigemId: documentoId,
+    });
+
+    // Integral: o array de autorização vem VAZIO, como vem quando N ≥ 2.
+    const { error } = await db.rpc("fatura_desembolso_gravar", {
+      p_fatura_id: faturaId,
+      p_valor: 950,
+      p_data_pagamento: "2026-09-10",
+      p_compromisso_ids: [compromissoId],
+      p_propagar_origem_ids: [],
+    });
+    expect(error).toBeNull();
+
+    // A quitação acontece — fato consumado nunca é recusado.
+    expect(await pagamentos(db)).toHaveLength(1);
+    expect((await compromissos(db))[0].situacao).toBe("quitado");
+    expect(
+      await vinculos(db),
+      "sem autorização do app, a origem não converte — é o D1 fechado no SQL",
+    ).toEqual([]);
   });
 
   test("nota que MUDOU de obra depois do agendamento: quita, e não vincula", async ({
@@ -255,6 +320,9 @@ test.describe("cartão — a fatura paga leva a nota da compra", () => {
       p_valor: 950,
       p_data_pagamento: "2026-09-10",
       p_compromisso_ids: [compromissoId],
+      // ⚠️ CONTAI-081 — AUTORIZADO: o que se prova aqui é a CONDIÇÃO 2 (a obra
+      // tem de bater no ato da quitação), não a falta de autorização do app.
+      p_propagar_origem_ids: [compromissoId],
     });
     expect(error).toBeNull();
 
@@ -290,6 +358,9 @@ test.describe("cartão — a fatura paga leva a nota da compra", () => {
       p_valor: 950,
       p_data_pagamento: "2026-09-10",
       p_compromisso_ids: [compromissoId],
+      // ⚠️ CONTAI-081 — AUTORIZADO: o que se prova aqui é o CRITÉRIO 5 (a nota
+      // tem de ser do dono da sessão), não a falta de autorização do app.
+      p_propagar_origem_ids: [compromissoId],
     });
     // ⚠️ E a quitação NÃO estoura: a RPC checa o dono ANTES de inserir, em vez
     // de deixar a policy recusar o insert e derrubar a transação inteira — um

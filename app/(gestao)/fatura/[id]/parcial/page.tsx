@@ -108,6 +108,13 @@ export default function RegistrarValorPagoParcial() {
         dataPagamento: data,
         comprovantePath: null,
         compromissoIds: [],
+        // ⚠️ **CONTAI-081, critério 8 — vazio, e não "omitido"**: esta tela não
+        // quita compra nenhuma (`compromissoIds: []`), então não há origem a
+        // propagar e não há N a contar. O parâmetro é obrigatório no TypeScript de
+        // propósito (critério 5): quem grava desembolso tem de DIZER o que
+        // autoriza, ainda que a resposta seja "nada". A decisão do que propagar é
+        // tomada em `/fatura/[id]/alocar`, onde as compras são escolhidas.
+        propagarOrigemIds: [],
       });
       router.push(`/fatura/${fatura.id}/alocar?desembolso=${desembolsoId}`);
     } catch (e) {

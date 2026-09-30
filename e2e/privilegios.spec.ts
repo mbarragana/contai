@@ -366,6 +366,15 @@ const FUNCOES_ESPERADAS: Record<string, string> = {
   // `create`, logo revoke/grant novos. O NOME não muda, então a entrada continua
   // sendo aquela — e é justamente por não haver sobrecarga que este mapa pode ser
   // indexado por nome (ver o ⚠️ do cabeçalho).
+  //
+  // ⚠️ **CONTAI-081 (migration 0024) recriou as DUAS**, pela terceira vez no caso
+  // da primeira: `p_propagar_origem_ids uuid[] default '{}'` no fim de
+  // `fatura_desembolso_gravar` (aridade 6 → 7) e de `fatura_alocar` (2 → 3). Mesmo
+  // `drop` + `create`, mesmos revoke/grant novos, e **nada muda neste mapa**: o
+  // nome e o papel são idênticos, só a aridade mudou. As assinaturas de HOJE, para
+  // quem for procurar no `pg_proc`:
+  //   fatura_desembolso_gravar(uuid, numeric, date, text, uuid[], text, uuid[])
+  //   fatura_alocar(uuid, uuid[], uuid[])
 };
 
 test.describe("privilégios do schema public", () => {

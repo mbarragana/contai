@@ -63,7 +63,6 @@ import {
 } from "@/lib/data";
 import {
   CHIP_PRE_VINCULO,
-  PRE_VINCULO_SEM_CARTAO,
   PRE_VINCULO_SO_EM_ABERTO,
 } from "@/lib/fiscal/compromisso";
 import { ROTULO_DO_TIPO } from "@/lib/fiscal/documento";
@@ -279,24 +278,21 @@ export default function PreVincularNotas() {
   const c = pronto.compromisso;
 
   /**
-   * As duas recusas que não dependem de documento, na MESMA ordem e com os
-   * MESMOS textos de `podePreVincular` — que é a guarda de escrita e continua
-   * valendo por item, no `salvar`. Aqui não há documento para checar obra, então
-   * a tela lê só as duas condições do compromisso.
+   * A recusa que não depende de documento, com o MESMO texto de
+   * `podePreVincular` — que é a guarda de escrita e continua valendo por item, no
+   * `salvar`. Aqui não há documento para checar obra, então a tela lê a única
+   * condição que depende só do compromisso: **já respondido** (critério 2, a vida
+   * do pré-vínculo é a do compromisso).
    *
-   * - **Cartão** (D2 do Gate 2): a capacidade não existe para essa origem — a
-   *   fatura quita por RPC que não conta N e não pergunta nada (CONTAI-081).
-   * - **Já respondido** (critério 2): a vida do pré-vínculo é a do compromisso.
+   * ⚠️ **CONTAI-081 — a recusa por cartão saiu** (critério 3): esta tela é
+   * reaproveitada sem mudança para compras no cartão, porque a lista de
+   * candidatos nunca dependeu da origem. O que faltava era a conversão do outro
+   * lado, e ela existe agora (migration 0024 + `/fatura/[id]/vinculos`).
    *
-   * Âmbar nas duas, nunca vermelho — nada de fiscal aconteceu nem deixou de
-   * acontecer, e o agendamento fica exatamente como estava.
+   * Âmbar, nunca vermelho — nada de fiscal aconteceu nem deixou de acontecer, e o
+   * agendamento fica exatamente como estava.
    */
-  const recusa =
-    c.origem === "cartao"
-      ? PRE_VINCULO_SEM_CARTAO
-      : c.situacao !== "aberto"
-        ? PRE_VINCULO_SO_EM_ABERTO
-        : null;
+  const recusa = c.situacao !== "aberto" ? PRE_VINCULO_SO_EM_ABERTO : null;
 
   if (recusa !== null) {
     return (

@@ -20,9 +20,17 @@
  * (parecer de 2026-09-26, ADENDO). Os dois são opcionais e **nenhum dos dois
  * bloqueia "Confirmar pagamento"** — o valor pago é fato consumado, nunca
  * recusado; a ausência do extrato vira pendência VERMELHA, nunca um silêncio.
+ *
+ * ⚠️ **CONTAI-081 — a ORDEM do `salvar()` é o mecanismo fiscal, não arrumação.**
+ * O plano de conversão (`planoDeConversaoDaFatura`) é calculado **ANTES** da RPC e
+ * atravessa ela como `propagarOrigemIds`: a RPC propaga a nota de origem por
+ * dentro do laço, e contar N depois deixaria a origem de um conjunto N≥2 gravada
+ * antes de qualquer toque do Mateus — o D1 do Gate 2 do CONTAI-080 pela porta do
+ * cartão (pre-mortem 1 do ticket). Depois da RPC, os N=1 convertem sozinhos
+ * (§K.2) e o que sobrou em N≥2 espera o clique em `/fatura/[id]/vinculos`.
  */
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { ListaDeAnexos } from "@/app/_components/anexo";
@@ -44,12 +52,19 @@ import {
 import {
   carregarCompromissos,
   carregarFatura,
+  carregarPainel,
   classificarErro,
+  converterPreVinculosDaFatura,
   mensagemDeErroDeGravacao,
   registrarDesembolsoDeFatura,
   subirParaAcervo,
   type ErroDeTela,
 } from "@/lib/data";
+import {
+  pagamentosNovosPorCompromisso,
+  planoDeConversaoDaFatura,
+  revalidacoesPendentesDaFatura,
+} from "@/lib/fiscal/compromisso";
 import {
   compromissosAbertosDaFatura,
   EXTRATO_DA_FATURA_AJUDA,
@@ -59,13 +74,24 @@ import { ROTULO_DO_PAPEL } from "@/lib/fiscal/terreno";
 import { ehDataValida } from "@/lib/fiscal/pagamento";
 import { formatarDataBR } from "@/lib/fiscal/obra";
 import { formatarBRL } from "@/lib/money";
-import type { Compromisso, Fatura } from "@/lib/types";
+import type { Compromisso, Documento, Fatura } from "@/lib/types";
+
+/**
+ * CONTAI-081 — as notas da obra viajam junto das compras porque o plano de
+ * conversão precisa RESOLVER a união de pré-vínculos antes da RPC. Nenhum valor
+ * desta lista é somado nesta tela.
+ */
+interface Carregado {
+  fatura: Fatura;
+  abertas: Compromisso[];
+  documentos: Documento[];
+}
 
 type Estado =
   | { fase: "carregando" }
   | { fase: "erro"; erro: ErroDeTela }
-  | { fase: "pronto"; fatura: Fatura; abertas: Compromisso[] }
-  | { fase: "salvando"; fatura: Fatura; abertas: Compromisso[] }
+  | ({ fase: "pronto" } & Carregado)
+  | ({ fase: "salvando" } & Carregado)
   | {
       fase: "salvo";
       abertas: Compromisso[];
@@ -85,6 +111,7 @@ type Estado =
 
 export default function ConfirmarFaturaIntegral() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const [estado, setEstado] = useState<Estado>({ fase: "carregando" });
   const [dataPagamento, setDataPagamento] = useState("");
   const [comprovante, setComprovante] = useState<File | null>(null);
@@ -100,12 +127,16 @@ export default function ConfirmarFaturaIntegral() {
     void (async () => {
       try {
         const fatura = await carregarFatura(id);
-        const todos = await carregarCompromissos(fatura.obraId);
+        const [todos, painel] = await Promise.all([
+          carregarCompromissos(fatura.obraId),
+          carregarPainel(fatura.obraId),
+        ]);
         if (cancelado) return;
         setEstado({
           fase: "pronto",
           fatura,
           abertas: compromissosAbertosDaFatura(fatura, todos),
+          documentos: painel.documentos,
         });
       } catch (e) {
         if (!cancelado) setEstado({ fase: "erro", erro: classificarErro(e) });
@@ -193,14 +224,20 @@ export default function ConfirmarFaturaIntegral() {
     );
   }
 
-  const { fatura, abertas } = estado;
+  const { fatura, abertas, documentos } = estado;
   const total = abertas.reduce((s, c) => s + c.valorPrevistoCentavos, 0);
   const podeSalvar = dataPagamento !== "" && ehDataValida(dataPagamento);
 
   async function salvar() {
     if (!podeSalvar || estado.fase !== "pronto") return;
     setErro(null);
-    setEstado({ fase: "salvando", fatura, abertas });
+    setEstado({ fase: "salvando", fatura, abertas, documentos });
+
+    // ══ CONTAI-081 · O PLANO, ANTES DA RPC ═════════════════════════════════
+    // Ver o ⚠️ do cabeçalho: é a ordem que impede a origem de um conjunto N≥2 de
+    // converter sozinha. O plano é função pura do estado carregado.
+    const plano = planoDeConversaoDaFatura(abertas, documentos);
+
     try {
       /**
        * ⚠️ **CONTAI-067, critério 3 — os dois sobem ANTES da RPC, e a gravação é
@@ -222,18 +259,87 @@ export default function ConfirmarFaturaIntegral() {
         comprovantePath,
         compromissoIds: abertas.map((c) => c.id),
         extratoPath,
+        propagarOrigemIds: plano.propagarOrigemIds,
       });
-      setEstado({
-        fase: "salvo",
+
+      const salvo = {
+        fase: "salvo" as const,
         abertas,
         dataPagamento,
         anexados: {
           comprovante: comprovantePath !== null,
           extrato: extratoPath !== null,
         },
-      });
+      };
+
+      /**
+       * ⚠️ **DAQUI PARA BAIXO, A FALHA NÃO VOLTA PARA O FORMULÁRIO.** O
+       * desembolso está gravado — fato consumado (ADENDO §B da 0013) — e mandar a
+       * tela de volta para "pronto" convidaria um segundo "Confirmar pagamento",
+       * que gravaria um segundo desembolso. O pior caso de uma falha aqui é o
+       * estado anterior a este ticket: nota sem vínculo, visível como pagamento
+       * `aguardando_nf` e como "Nota hábil sem pagamento vinculado", mais o CTA de
+       * `/fatura/[id]` para o que sobrou em N≥2.
+       */
+      /**
+       * ⚠️ **DOIS `try` SEPARADOS, e a separação é do Gate 2 (não-bloqueante 3).**
+       * A conversão dos N=1 e a contagem dos N≥2 são independentes: com um `try`
+       * só, uma falha de rede ao converter um N=1 engoliria também o redirect, e o
+       * Mateus veria a tela de sucesso sem saber que ainda há vínculo a decidir. O
+       * CTA de `/fatura/[id]` cobriria o caso, mas uma volta a mais.
+       */
+      try {
+        // **O pagamento novo por DIFF** (critério 9), nunca por data/meio: duas
+        // parcelas do mesmo fornecedor na mesma fatura são indistinguíveis por
+        // semelhança, e é exatamente o caso do relato.
+        //
+        // **N=1 → converte sozinho** (§K.2). Compromisso que a RPC ignorou (não
+        // estava mais aberto, corrida entre abas) simplesmente não tem pagamento
+        // novo, e sai da lista sem erro.
+        const depois = await carregarCompromissos(fatura.obraId);
+        const novos = pagamentosNovosPorCompromisso(abertas, depois);
+        await converterPreVinculosDaFatura(
+          plano.automaticos.flatMap((a) => {
+            const pagamentoId = novos.get(a.compromissoId)?.[0];
+            return pagamentoId === undefined
+              ? []
+              : [{ pagamentoId, obraId: a.obraId, documentos: [a.documento] }];
+          }),
+        );
+      } catch {
+        // Silêncio deliberado: ver o ⚠️ acima. A nota que não ligou aparece como
+        // "Nota hábil sem pagamento vinculado" e o pagamento como
+        // `aguardando_nf` — o estado anterior a este ticket, não um silêncio.
+      }
+
+      try {
+        // **M > 0 → a decisão que sobrou vem antes da tela de sucesso**
+        // (critério 14). A contagem é a MESMA função da rota de destino e do CTA
+        // da fatura — lida do estado GRAVADO, não do plano, para incluir
+        // pendência que já existia de uma alocação anterior (e para não depender
+        // de a conversão acima ter dado certo).
+        const idsDaFatura = new Set(fatura.compromissoIds);
+        const [depois, painel] = await Promise.all([
+          carregarCompromissos(fatura.obraId),
+          carregarPainel(fatura.obraId),
+        ]);
+        const pendentes = revalidacoesPendentesDaFatura(
+          depois.filter((c) => idsDaFatura.has(c.id)),
+          painel.documentos,
+          painel.pagamentos,
+        );
+        if (pendentes.length > 0) {
+          router.push(`/fatura/${fatura.id}/vinculos?confirmouFatura=1`);
+          return;
+        }
+      } catch {
+        // A tela de sucesso é a verdade sobre o que foi gravado; o que sobrou a
+        // decidir continua no CTA de `/fatura/[id]`, derivado do mesmo estado.
+      }
+
+      setEstado(salvo);
     } catch (e) {
-      setEstado({ fase: "pronto", fatura, abertas });
+      setEstado({ fase: "pronto", fatura, abertas, documentos });
       setErro(mensagemDeErroDeGravacao(e, "na fatura, se o pagamento já aparece lançado"));
     }
   }

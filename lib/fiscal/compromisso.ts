@@ -1217,33 +1217,24 @@ export const PRE_VINCULO_SO_EM_ABERTO =
   "enquanto ele está em aberto — nada foi alterado.";
 
 /**
- * **D2 do Gate 2 — o pré-vínculo NÃO existe para compra no cartão, e o texto
- * não pode prometer o que o caminho não faz.**
- *
- * A quitação de uma compra de cartão acontece pela fatura (RPCs
- * `fatura_desembolso_gravar`/`fatura_alocar`, migration 0013 + 0020): ela **não
- * conta N e não pergunta nada**. Deixar o CTA e o texto do ADENDO 8 §L.2
- * aparecerem aqui faria a tela afirmar "o sistema vai vincular esta nota
- * automaticamente" / "o sistema vai te perguntar" sobre um fluxo que hoje não
- * faz nem um nem outro — o pre-mortem 4 do ticket ("texto de tela promete o que
- * a regra não faz") acontecendo pela segunda vez no mesmo ticket.
- *
- * O cartão é o **CONTAI-081**, ticket separado, ainda sem critérios escritos. O
- * que o CONTAI-080 já dá a um pagamento nascido de fatura é só a pré-marcação
- * PASSIVA do critério 13 em `/pagamento/[id]/ligar` — que não depende desta
- * tela nem promete nada.
- *
- * ⚠️ Texto de PRODUTO, não de consequência fiscal: ele não afirma nem nega
- * efeito nenhum sobre custo, INSS ou declaração — diz que a capacidade não
- * existe ainda. Nenhum parecer é citado porque nenhum é consumido.
- */
-export const PRE_VINCULO_SEM_CARTAO =
-  "Ligar notas antecipadamente ainda não está disponível para compras no " +
-  "cartão. Nesta compra, a nota se liga ao pagamento depois — quando a fatura " +
-  "for paga, pelo caminho da fatura.";
-
-/**
  * Guarda de escrita do pré-vínculo: compromisso ABERTO e nota da MESMA obra.
+ *
+ * ⚠️ **CONTAI-081 — a recusa por `origem === "cartao"` NÃO existe mais, e a
+ * constante que a explicava (`PRE_VINCULO_SEM_CARTAO`) foi removida por inteiro
+ * junto com o ramo.** Ela existia pelo D2 do Gate 2 do CONTAI-080: a quitação
+ * de uma compra de cartão acontecia pela fatura, por RPC que não contava N e não
+ * perguntava nada, então o texto do ADENDO 8 §L.2 ("vai vincular
+ * automaticamente" / "vai te perguntar") mentiria nas duas pontas.
+ *
+ * O CONTAI-081 construiu as duas pontas: `planoDeConversaoDaFatura` conta o N
+ * ANTES da RPC, `p_propagar_origem_ids` (migration 0024) faz a propagação da
+ * origem obedecer a esse N, e `/fatura/[id]/vinculos` é onde o N≥2 é perguntado.
+ * Com o caminho existindo, a restrição virou o oposto do que protegia — por isso
+ * a remoção é de RESTRIÇÃO, não comportamento novo para PIX/boleto (critério 16).
+ *
+ * ⚠️ **A assinatura perdeu `origem` de propósito** (critério 1): um ramo futuro
+ * que quisesse voltar a discriminar por origem teria de acrescentar o campo de
+ * novo, o que é greppável — e não cabe numa condição escondida.
  *
  * ⚠️ **A guarda de obra é a `podeVincular` de `vinculo.ts`, reaproveitada, e não
  * uma segunda cópia** (Viabilidade do ticket): a condição é a mesma do vínculo
@@ -1260,16 +1251,9 @@ export const PRE_VINCULO_SEM_CARTAO =
  * deixaria passar uma nota de outra obra do próprio Mateus.
  */
 export function podePreVincular(
-  compromisso: Pick<Compromisso, "obraId" | "situacao" | "origem">,
+  compromisso: Pick<Compromisso, "obraId" | "situacao">,
   documento: Pick<Documento, "obraId">,
 ): Permissao {
-  // ⚠️ **PRIMEIRO o cartão** (D2 do Gate 2): é a condição mais forte das três —
-  // não é "ainda não" por estado do agendamento, é capacidade que não existe
-  // para essa origem (CONTAI-081). Um agendamento de cartão já quitado tem duas
-  // razões para recusar, e esta é a que explica o produto.
-  if (compromisso.origem === "cartao") {
-    return { ok: false, motivo: PRE_VINCULO_SEM_CARTAO };
-  }
   if (compromisso.situacao !== "aberto") {
     return { ok: false, motivo: PRE_VINCULO_SO_EM_ABERTO };
   }
@@ -1516,3 +1500,230 @@ export const CHIP_LIGADO_AO_CONFIRMAR = "Ligado ao confirmar o agendamento";
 export const LIGADO_AO_CONFIRMAR_PORQUE =
   "Ligado ao confirmar o agendamento — você já tinha indicado isso antes de " +
   "pagar.";
+
+// ══════════════════════════════════════════════════════════════════════════
+// CONTAI-081 · o pré-vínculo no caminho do CARTÃO — uma fatura, N compromissos
+// ══════════════════════════════════════════════════════════════════════════
+//
+// Fonte normativa: os MESMOS ADENDOS 6/7/8 do bloco acima — nenhuma tese fiscal
+// nova (Gate Fiscal do CONTAI-081: *"é extensão de superfície técnica da mesma
+// regra"*). O que muda é só que agora **vários** compromissos resolvem N ao
+// mesmo tempo, porque uma fatura quita todas as suas compras num ato.
+//
+// ⚠️ **NENHUMA segunda definição de N mora aqui.** As três funções abaixo são
+// definidas EM CIMA de `documentosResolvidosNaConfirmacao` (que por sua vez é
+// `idsDaUniaoDoPreVinculo` + filtro de obra). O pre-mortem 1 do CONTAI-080 é
+// sobre existir mais de uma REGRA de N; continua havendo uma.
+//
+// ⚠️ **Nada aqui devolve dinheiro somável** (regra 2 do cabeçalho deste
+// arquivo): saem ids, `Documento[]` e agrupamentos deles.
+
+/**
+ * Cronológica **pela data da COMPRA** (spec §1.2) — a mesma ordem em que
+ * `/fatura/[id]` já lista as compras do ciclo, para o Mateus não precisar reler a
+ * fatura mentalmente para achar "qual é qual".
+ *
+ * `dataCompra` é `null` em compromisso que não nasceu de cartão (PIX/boleto
+ * agendado): cai na data prevista e, na falta das duas, no id — desempate estável
+ * para a lista não dançar entre dois carregamentos. **Nunca por valor**: valor
+ * não é o eixo em que ele pensa a fatura.
+ */
+function porDataDaCompra(a: Compromisso, b: Compromisso): number {
+  const da = a.dataCompra ?? a.dataPrevista ?? "";
+  const db = b.dataCompra ?? b.dataPrevista ?? "";
+  if (da !== db) return da < db ? -1 : 1;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+/** Um compromisso que converte SOZINHO (N=1) — §K.2, sem clique nenhum. */
+export interface ConversaoAutomaticaDaFatura {
+  compromissoId: string;
+  /** A obra do compromisso — a guarda de `criarVinculos` é por obra dos DOIS lados. */
+  obraId: string;
+  /** O único documento da união resolvida. */
+  documento: Documento;
+}
+
+/** Um compromisso que EXIGE o clique (N≥2) — §J.3, mantido pelo §K.4. */
+export interface RevalidacaoDaFatura {
+  compromisso: Compromisso;
+  /** A união deduplicada, na ordem canônica (origem primeiro). */
+  resolvidos: Documento[];
+}
+
+/**
+ * **O PLANO — o que a fatura pode converter sozinha, e o que tem de esperar o
+ * Mateus.** Três baldes DISJUNTOS por compromisso, decididos pelo N do §K.2.
+ */
+export interface PlanoDeConversaoDaFatura {
+  /**
+   * Os compromissos cuja nota de ORIGEM a RPC está autorizada a propagar
+   * (`p_propagar_origem_ids`, migration 0024) — os de **N < 2**, e só os que têm
+   * origem para propagar.
+   *
+   * ⚠️ É o **complemento** de `revalidar`, e é essa complementaridade que fecha o
+   * D1: para N ≥ 2 a origem NÃO entra aqui, então nem ela converte antes do
+   * clique — o conjunto inteiro é revalidado, não metade dele.
+   */
+  propagarOrigemIds: string[];
+  /**
+   * **N=1** — o vínculo nasce sozinho, depois da RPC, por `criarVinculos`
+   * (`converterPreVinculosDaFatura`, `lib/data.ts`).
+   *
+   * Quando esse único documento É a nota de origem, a RPC já criou a linha (o
+   * compromisso está em `propagarOrigemIds`, porque N < 2) e o `upsert` com
+   * `ignoreDuplicates` faz da segunda gravação um no-op. Os dois caminhos
+   * convergem na MESMA linha de `pagamento_documento` — mesma convergência que o
+   * CONTAI-080 já provou no caminho de PIX/boleto.
+   */
+  automaticos: ConversaoAutomaticaDaFatura[];
+  /**
+   * **N≥2** — pendente de confirmação explícita em `/fatura/[id]/vinculos`, um
+   * bloco por compromisso. Ordem cronológica pela data da compra.
+   */
+  revalidar: RevalidacaoDaFatura[];
+}
+
+/**
+ * **O plano de conversão de UM ATO da fatura** (confirmação integral ou alocação
+ * do rotativo), calculado **ANTES** da RPC.
+ *
+ * ⚠️ **A ORDEM É O MECANISMO, como no CONTAI-080.** A RPC da fatura propaga a
+ * nota de origem por dentro do laço; se o N fosse contado depois, a origem de um
+ * conjunto N≥2 já estaria gravada quando a pergunta aparecesse — o D1 do Gate 2
+ * do CONTAI-080 de volta pela porta do cartão (pre-mortem 1 do CONTAI-081). Por
+ * isso `propagarOrigemIds` é calculado aqui e ATRAVESSA a RPC como parâmetro.
+ *
+ * `compromissos` são os que ESTE ato quita — as compras abertas, em `/confirmar`;
+ * as marcadas, em `/alocar`. Função pura: não olha situação (o ato é justamente o
+ * que vai mudá-la) e não sabe que pagamento vai nascer.
+ */
+export function planoDeConversaoDaFatura(
+  compromissos: readonly Compromisso[],
+  documentos: readonly Documento[],
+): PlanoDeConversaoDaFatura {
+  const propagarOrigemIds: string[] = [];
+  const automaticos: ConversaoAutomaticaDaFatura[] = [];
+  const revalidar: RevalidacaoDaFatura[] = [];
+
+  for (const compromisso of compromissos) {
+    const resolvidos = documentosResolvidosNaConfirmacao(compromisso, documentos);
+
+    if (resolvidos.length >= 2) {
+      revalidar.push({ compromisso, resolvidos });
+      continue;
+    }
+
+    // N < 2 (N=0 e N=1): a origem pode ir sozinha, como o CONTAI-065 sempre fez.
+    // A guarda "tem origem" evita mandar à RPC um id que não tem o que propagar —
+    // a RPC também devolveria `false` em silêncio, mas o array diz o que o app
+    // quis dizer.
+    if (compromisso.documentoOrigemId !== null) {
+      propagarOrigemIds.push(compromisso.id);
+    }
+
+    if (resolvidos.length === 1) {
+      automaticos.push({
+        compromissoId: compromisso.id,
+        obraId: compromisso.obraId,
+        documento: resolvidos[0],
+      });
+    }
+  }
+
+  return {
+    propagarOrigemIds,
+    automaticos,
+    revalidar: revalidar.sort((a, b) =>
+      porDataDaCompra(a.compromisso, b.compromisso),
+    ),
+  };
+}
+
+/**
+ * **Os pagamentos que a RPC acabou de criar, por compromisso — por DIFF, nunca
+ * por inferência** (critério 9).
+ *
+ * As RPCs da fatura criam o `pagamento` por dentro e devolvem só o id do
+ * desembolso: quem quiser ligar uma nota ao pagamento novo tem de descobrir qual
+ * é. Casar por data e meio (`data_pagamento = a da fatura`, `meio = 'cartao'`)
+ * acertaria quase sempre e erraria exatamente no caso do relato — duas parcelas
+ * do MESMO fornecedor, na MESMA fatura, com o mesmo valor. Vínculo decidido por
+ * semelhança é o que o §5.5 do parecer de 17/08 proíbe, e aqui erraria calado.
+ *
+ * O diff não adivinha nada: `compromisso_pagamento` é append-only no fluxo da
+ * fatura, então o que não estava em `antes` e está em `depois` nasceu agora.
+ */
+export function pagamentosNovosPorCompromisso(
+  antes: readonly Pick<Compromisso, "id" | "pagamentoIds">[],
+  depois: readonly Pick<Compromisso, "id" | "pagamentoIds">[],
+): Map<string, string[]> {
+  const antigos = new Map(antes.map((c) => [c.id, new Set(c.pagamentoIds)]));
+  const novos = new Map<string, string[]>();
+  for (const c of depois) {
+    const jaTinha = antigos.get(c.id) ?? new Set<string>();
+    const nascidos = c.pagamentoIds.filter((id) => !jaTinha.has(id));
+    if (nascidos.length > 0) novos.set(c.id, nascidos);
+  }
+  return novos;
+}
+
+/** Um bloco de `/fatura/[id]/vinculos` — e o CTA da fatura conta estes. */
+export interface RevalidacaoPendente extends RevalidacaoDaFatura {
+  /**
+   * O pagamento que nasceu da quitação desta compra — destino do "Revisar antes
+   * de confirmar" (`/pagamento/[id]/ligar`) e alvo dos vínculos do "Sim".
+   */
+  pagamentoId: string;
+}
+
+/**
+ * **O que ainda espera decisão nesta fatura — derivado 100% do ESTADO GRAVADO**
+ * (critério 10, spec §1.1). As três condições, na ordem:
+ *
+ * 1. o compromisso já foi respondido (`situacao !== "aberto"`) — a fatura foi
+ *    confirmada ou alocada. Compromisso aberto não aparece: pendência de
+ *    pré-vínculo ANTES do pagamento é o CTA do CONTAI-080 em `/compromisso/[id]`,
+ *    não esta tela;
+ * 2. a união resolve para **N ≥ 2** AGORA (§L.3 — o N é sempre o atual: remover
+ *    um pré-vínculo depois da quitação faz o bloco sair sozinho);
+ * 3. o pagamento gerado ainda **não tem vínculo nenhum** em
+ *    `pagamento_documento` — mesma condição 3 do CONTAI-065, e é ela que faz o
+ *    bloco desaparecer quando o Mateus confirma, ou quando ele resolve pelo
+ *    caminho de `/pagamento/[id]/ligar`.
+ *
+ * ⚠️ **Nenhum query param entra aqui**, e é o requisito: recarregar, voltar
+ * depois ou chegar pela URL mostra exatamente o que falta (critério 12). Um
+ * "confirmados nesta visita" guardado em memória seria a mesma lista com uma
+ * verdade a menos.
+ *
+ * Compromisso sem pagamento (cancelado, ou quitado sem gerar pagamento) não
+ * entra: não há a que ligar nota.
+ */
+export function revalidacoesPendentesDaFatura(
+  compromissosDaFatura: readonly Compromisso[],
+  documentos: readonly Documento[],
+  pagamentos: readonly Pick<Pagamento, "id" | "documentoIds">[],
+): RevalidacaoPendente[] {
+  const porId = new Map(pagamentos.map((p) => [p.id, p]));
+  const pendentes: RevalidacaoPendente[] = [];
+
+  for (const compromisso of compromissosDaFatura) {
+    if (compromisso.situacao === "aberto") continue;
+
+    const resolvidos = documentosResolvidosNaConfirmacao(compromisso, documentos);
+    if (resolvidos.length < 2) continue;
+
+    // O primeiro pagamento deste compromisso ainda SEM vínculo nenhum. No fluxo
+    // da fatura é sempre um só (uma compra, um pagamento); o `find` cobre o caso
+    // N:M de `compromisso_pagamento` sem inventar rateio entre pagamentos.
+    const pendente = compromisso.pagamentoIds
+      .map((id) => porId.get(id))
+      .find((p) => p !== undefined && p.documentoIds.length === 0);
+    if (pendente === undefined) continue;
+
+    pendentes.push({ compromisso, resolvidos, pagamentoId: pendente.id });
+  }
+
+  return pendentes.sort((a, b) => porDataDaCompra(a.compromisso, b.compromisso));
+}

@@ -42,10 +42,15 @@ import {
   anexarExtratoFatura,
   carregarCompromissos,
   carregarFatura,
+  carregarPainel,
   classificarErro,
   subirParaAcervo,
   type ErroDeTela,
 } from "@/lib/data";
+import {
+  revalidacoesPendentesDaFatura,
+  type RevalidacaoPendente,
+} from "@/lib/fiscal/compromisso";
 import {
   CHIP_FATURA_SEM_EXTRATO,
   COR_FATURA_SEM_EXTRATO,
@@ -64,7 +69,18 @@ import type { Compromisso, Fatura } from "@/lib/types";
 type Estado =
   | { fase: "carregando" }
   | { fase: "erro"; erro: ErroDeTela }
-  | { fase: "pronto"; fatura: Fatura; compromissos: Compromisso[] };
+  | {
+      fase: "pronto";
+      fatura: Fatura;
+      compromissos: Compromisso[];
+      /**
+       * **CONTAI-081, critério 13** — as compras desta fatura que já foram pagas
+       * com pré-vínculo N≥2 e ainda esperam confirmação. Derivado pela MESMA
+       * função pura que a rota `/fatura/[id]/vinculos` usa, nunca uma segunda
+       * contagem.
+       */
+      pendentes: RevalidacaoPendente[];
+    };
 
 export default function DetalheFatura() {
   const { id } = useParams<{ id: string }>();
@@ -80,13 +96,26 @@ export default function DetalheFatura() {
     void (async () => {
       try {
         const fatura = await carregarFatura(id);
-        const todos = await carregarCompromissos(fatura.obraId);
+        // CONTAI-081 — o painel entra aqui só para o CTA do critério 13:
+        // `documentos` resolve a união do pré-vínculo e `pagamentos` traz
+        // `documentoIds`, que é a condição de "ainda sem vínculo formal". Nenhum
+        // número do painel é somado nesta tela.
+        const [todos, painel] = await Promise.all([
+          carregarCompromissos(fatura.obraId),
+          carregarPainel(fatura.obraId),
+        ]);
         if (cancelado) return;
         const idsDaFatura = new Set(fatura.compromissoIds);
+        const daFatura = todos.filter((c) => idsDaFatura.has(c.id));
         setEstado({
           fase: "pronto",
           fatura,
-          compromissos: todos.filter((c) => idsDaFatura.has(c.id)),
+          compromissos: daFatura,
+          pendentes: revalidacoesPendentesDaFatura(
+            daFatura,
+            painel.documentos,
+            painel.pagamentos,
+          ),
         });
       } catch (erro) {
         if (!cancelado) setEstado({ fase: "erro", erro: classificarErro(erro) });
@@ -112,7 +141,7 @@ export default function DetalheFatura() {
     );
   }
 
-  const { fatura, compromissos } = estado;
+  const { fatura, compromissos, pendentes } = estado;
   const abertas = compromissosAbertosDaFatura(fatura, compromissos);
   const totalPrevistoAbertas = abertas.reduce(
     (s, c) => s + c.valorPrevistoCentavos,
@@ -135,7 +164,14 @@ export default function DetalheFatura() {
       await anexarExtratoFatura(fatura.id, path);
       // O estado gravado é o que a tela passa a mostrar — sem recarregar a
       // fatura inteira por um campo que acabamos de escrever.
-      setEstado({ fase: "pronto", fatura: { ...fatura, extratoPath: path }, compromissos });
+      setEstado({
+        fase: "pronto",
+        fatura: { ...fatura, extratoPath: path },
+        compromissos,
+        // O anexo do extrato não move vínculo nenhum: a lista de pendências
+        // continua a mesma, e recarregá-la aqui seria ida ao banco por nada.
+        pendentes,
+      });
       setExtrato(null);
       setAnexo("anexado");
     } catch {
@@ -157,6 +193,51 @@ export default function DetalheFatura() {
           favorecido próprio — o custo se atribui por compra, cada uma com
           seu favorecido, sua nota e sua classificação.
         </Banner>
+
+        {/*
+          ── CONTAI-081 · O CTA DAS PENDÊNCIAS DE VÍNCULO (critério 13) ─────────
+
+          Posição: logo depois do banner de abertura e ANTES de "Compras
+          vinculadas" — é pendência acionável desta fatura, e o que está faltando
+          aparece antes da leitura passiva do que ele já sabe.
+
+          ⚠️ **Independe de `abertas.length`**: o caso comum é justamente a fatura
+          JÁ confirmada com pendência sobrando. E quando `M === 0` o card não
+          renderiza nada — a ausência já é o vazio, mesma lógica do card "Valores
+          já pagos".
+
+          ⚠️ A contagem é o TÍTULO, não o rótulo do botão: o botão do produto é
+          verbo curto ("Confirmar pagamento", "Anexar extrato"), nunca uma frase
+          inteira. O texto de apoio é citação do §J.2 (a nota segue contando),
+          igual ao bloco do CONTAI-080 — não redação nova.
+        */}
+        {pendentes.length > 0 ? (
+          <Card
+            className="border-dashed border-amb"
+            data-bloco="vinculos-a-confirmar"
+          >
+            <div className="text-[13.5px] font-semibold">
+              {pendentes.length}{" "}
+              {pendentes.length === 1 ? "compra" : "compras"} com vínculo a
+              confirmar
+            </div>
+            <p className="mt-1 text-[12.5px] text-mut">
+              {pendentes.length === 1 ? "Foi paga" : "Foram pagas"} com um
+              pré-vínculo declarado antes, mas ainda{" "}
+              {pendentes.length === 1 ? "espera" : "esperam"} sua confirmação —
+              até lá {pendentes.length === 1 ? "segue" : "seguem"} contando em
+              &quot;Notas hábeis sem pagamento vinculado&quot;.
+            </p>
+            <div className="mt-2.5">
+              <BotaoLink
+                href={`/fatura/${fatura.id}/vinculos`}
+                variante="primary"
+              >
+                Confirmar vínculos
+              </BotaoLink>
+            </div>
+          </Card>
+        ) : null}
 
         <Card>
           <div className="text-[11px] uppercase tracking-wide text-mut">
