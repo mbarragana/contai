@@ -98,6 +98,8 @@ function compromisso(over: Partial<Compromisso> & { id: string }): Compromisso {
     dataPrevista: "2026-10-10",
     origem: "cartao",
     documentoOrigemId: null,
+    origemDesfeitaId: null,
+    origemDesfeitaEm: null,
     situacao: "aberto",
     motivoCancelamento: null,
     dataCompra: "2026-09-15",

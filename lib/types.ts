@@ -344,6 +344,25 @@ export interface Compromisso {
    * Por isso não há valor por par — pré-vínculo não tem quantia (§J.4).
    */
   documentoPrevistoIds: string[];
+  /**
+   * **CONTAI-083 — o rastro de "a origem herdada foi desfeita"** (parecer de
+   * 2026-08-18, ADENDO 9 §M.4): o `documentoOrigemId` ANTIGO, preservado, e
+   * quando isso aconteceu. Os dois andam em par, sempre — o check
+   * `compromisso_origem_desfeita_par_completo` (migration 0025) não deixa
+   * existir metade do rastro.
+   *
+   * ⚠️ **NÃO participa de N nenhum, e nunca deve entrar em
+   * `idsDaUniaoDoPreVinculo`**: é auditoria de um vínculo que deixou de existir.
+   * O ponto da ação é justamente fazer N cair para 0 (§M.3) — somar este id de
+   * volta em qualquer contagem ressuscitaria a conversão automática que o
+   * desfazimento existe para parar.
+   *
+   * ⚠️ **É rastro PERMANENTE**: continua visível se o agendamento depois for
+   * pago ou cancelado, e não se lê condicionado a `situacao`.
+   */
+  origemDesfeitaId: string | null;
+  /** Par obrigatório de `origemDesfeitaId` — `timestamptz` ISO. */
+  origemDesfeitaEm: string | null;
   situacao: SituacaoCompromisso;
   motivoCancelamento: string | null;
   /** Cartão: data da compra. Dado probatório — **não decide ano nenhum**. */

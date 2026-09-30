@@ -367,6 +367,11 @@ export function paraCompromisso(
     origem: row.origem,
     documentoOrigemId: row.documento_origem_id,
     documentoPrevistoIds,
+    // CONTAI-083 — o rastro do desfazimento (ADENDO 9 §M.4). Leitura direta, sem
+    // derivar nada: o par existe ou não existe, e o check da migration 0025
+    // garante que nunca existe só metade dele.
+    origemDesfeitaId: row.origem_desfeita_id,
+    origemDesfeitaEm: row.origem_desfeita_em,
     situacao: row.situacao,
     motivoCancelamento: row.motivo_cancelamento,
     dataCompra: row.data_compra,

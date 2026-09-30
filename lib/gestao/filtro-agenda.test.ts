@@ -26,6 +26,8 @@ function comp(over: Partial<Compromisso> & { id: string }): Compromisso {
     origem: "boleto",
     documentoOrigemId: null,
     documentoPrevistoIds: [],
+    origemDesfeitaId: null,
+    origemDesfeitaEm: null,
     situacao: "aberto",
     motivoCancelamento: null,
     dataCompra: null,

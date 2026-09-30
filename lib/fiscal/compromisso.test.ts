@@ -16,6 +16,9 @@ import {
   pagamentosNovosPorCompromisso,
   perguntaConfirmarPreVinculos,
   planoDeConversaoDaFatura,
+  ORIGEM_NAO_HA,
+  ORIGEM_SO_EM_ABERTO,
+  podeDesfazerOrigem,
   podePreVincular,
   PRE_VINCULO_CONFIRMAR,
   PRE_VINCULO_REVISAR,
@@ -94,6 +97,9 @@ function comp(over: Partial<Compromisso> & { id: string }): Compromisso {
     origem: "boleto",
     documentoOrigemId: null,
     documentoPrevistoIds: [],
+    // CONTAI-083 — o par de auditoria nasce vazio, como no banco.
+    origemDesfeitaId: null,
+    origemDesfeitaEm: null,
     situacao: "aberto",
     motivoCancelamento: null,
     dataCompra: null,
@@ -1637,6 +1643,114 @@ describe("podePreVincular — a guarda de escrita", () => {
       obraId: "outra-obra",
     });
     expect(p.ok === false && p.motivo).toBe(MOTIVO_OBRA_DIFERENTE);
+  });
+});
+
+/**
+ * **CONTAI-083 — `podeDesfazerOrigem`, a guarda de desfazer a origem herdada.**
+ *
+ * Fonte normativa: ADENDO 9 §M.4 (desfeito no máximo uma vez) e §M.5 (recusa
+ * total para agendamento que não está `aberto`).
+ */
+describe("podeDesfazerOrigem — a guarda de desfazer a origem", () => {
+  it("aberto + origem preenchida: pode", () => {
+    expect(
+      podeDesfazerOrigem(comp({ id: "c1", documentoOrigemId: "d1" })).ok,
+    ).toBe(true);
+  });
+
+  for (const situacao of ["quitado", "cancelado"] as const) {
+    it(`agendamento ${situacao}: recusa TOTAL (§M.5) — nem tenta`, () => {
+      const p = podeDesfazerOrigem(
+        comp({ id: "c1", situacao, documentoOrigemId: "d1" }),
+      );
+      expect(p.ok).toBe(false);
+      expect(p.ok === false && p.motivo).toBe(ORIGEM_SO_EM_ABERTO);
+    });
+  }
+
+  it("aberto sem origem nenhuma: recusa — não há o que desfazer", () => {
+    const p = podeDesfazerOrigem(comp({ id: "c1", documentoOrigemId: null }));
+    expect(p.ok).toBe(false);
+    expect(p.ok === false && p.motivo).toBe(ORIGEM_NAO_HA);
+  });
+
+  /**
+   * §M.4: *"desfeito no máximo uma vez — nada no produto o repõe depois de
+   * `null`"*. O segundo acesso à tela cai aqui, e diz o que aconteceu em vez de
+   * parecer defeito.
+   */
+  it("origem JÁ desfeita: recusa com o mesmo motivo de 'nunca teve'", () => {
+    const p = podeDesfazerOrigem(
+      comp({
+        id: "c1",
+        documentoOrigemId: null,
+        origemDesfeitaId: "d1",
+        origemDesfeitaEm: "2026-09-30T12:00:00Z",
+      }),
+    );
+    expect(p.ok).toBe(false);
+    expect(p.ok === false && p.motivo).toBe(ORIGEM_NAO_HA);
+  });
+
+  it("⚠️ a SITUAÇÃO vence: já respondido e sem origem lê o motivo do estado real", () => {
+    // Os dois motivos cabem no caso, e o que o Mateus lê tem de ser o que
+    // descreve por que a ação não existe mais — não o acidente de o campo estar
+    // vazio depois da conversão.
+    const p = podeDesfazerOrigem(
+      comp({ id: "c1", situacao: "quitado", documentoOrigemId: null }),
+    );
+    expect(p.ok === false && p.motivo).toBe(ORIGEM_SO_EM_ABERTO);
+  });
+
+  it("⚠️ NENHUMA guarda por meio de pagamento — as três origens podem", () => {
+    for (const origem of ["pix", "boleto", "cartao"] as const) {
+      expect(
+        podeDesfazerOrigem(comp({ id: "c1", origem, documentoOrigemId: "d1" }))
+          .ok,
+        `origem ${origem}`,
+      ).toBe(true);
+    }
+  });
+});
+
+/**
+ * **CONTAI-083, critério 13 — depois de desfeita, N cai para 0 SEM que
+ * `idsDaUniaoDoPreVinculo`/`documentosResolvidosNaConfirmacao` mudem uma linha.**
+ *
+ * ADENDO 9 §M.3, `[Certain]`: *"isto não é um efeito colateral tolerado — é o
+ * efeito que a ação existe para produzir"*. Este bloco é a TRAVA de que
+ * `origemDesfeitaId` não é somado de volta em contagem nenhuma: se alguém um dia
+ * o incluir na união, a conversão automática que o desfazimento parou volta a
+ * existir em silêncio.
+ */
+describe("CONTAI-083 · a origem desfeita não entra em N nenhum", () => {
+  const nota = doc({ id: "d1" });
+
+  it("origem desfeita e nenhum pré-vínculo: união VAZIA, N=0", () => {
+    const c = comp({
+      id: "c1",
+      documentoOrigemId: null,
+      origemDesfeitaId: "d1",
+      origemDesfeitaEm: "2026-09-30T12:00:00Z",
+    });
+    expect(idsDaUniaoDoPreVinculo(c)).toEqual([]);
+    expect(documentosResolvidosNaConfirmacao(c, [nota])).toEqual([]);
+  });
+
+  it("origem desfeita + 1 pré-vínculo de OUTRA nota: N=1, e é a outra", () => {
+    const outra = doc({ id: "d2" });
+    const c = comp({
+      id: "c1",
+      documentoOrigemId: null,
+      documentoPrevistoIds: ["d2"],
+      origemDesfeitaId: "d1",
+      origemDesfeitaEm: "2026-09-30T12:00:00Z",
+    });
+    expect(idsDaUniaoDoPreVinculo(c)).toEqual(["d2"]);
+    expect(
+      documentosResolvidosNaConfirmacao(c, [nota, outra]).map((d) => d.id),
+    ).toEqual(["d2"]);
   });
 });
 

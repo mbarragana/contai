@@ -1472,6 +1472,8 @@ describe("CONTAI-036 · o veto é por saída, e a porta continua única", () => 
     dataPrevista: "2026-08-10",
     origem: "boleto",
     documentoOrigemId: null,
+    origemDesfeitaId: null,
+    origemDesfeitaEm: null,
     situacao: "aberto",
     motivoCancelamento: null,
     dataCompra: null,

@@ -33,7 +33,11 @@ import type {
   FaturaComDesembolsos,
   TerrenoDesembolsoComAnexos,
 } from "@/lib/dados/comum";
-import { podePreVincular, podeQuitar } from "@/lib/fiscal/compromisso";
+import {
+  podeDesfazerOrigem,
+  podePreVincular,
+  podeQuitar,
+} from "@/lib/fiscal/compromisso";
 import type {
   EscolhaDeDocumento,
   EscolhaDePagamento,
@@ -2281,6 +2285,75 @@ export async function corrigirValorPrevisto(entrada: {
     p_motivo: entrada.motivo.trim(),
   });
   if (error) throw error;
+}
+
+/**
+ * **CONTAI-083 — DESFAZER a nota de origem herdada** de um agendamento ABERTO.
+ *
+ * Fonte normativa: `docs/pareceres/2026-08-18-compromisso-versus-pagamento.md`,
+ * ADENDO 9 §M.1-M.5. Nada aqui é inferido.
+ *
+ * ⚠️ **UM statement só, e o `where` carrega a guarda inteira** (Viabilidade do
+ * ticket): `id` + `situacao = 'aberto'` + `documento_origem_id = <a origem que a
+ * tela leu>`. É o que fecha a corrida "carreguei aberto, mudou em outra aba,
+ * cliquei" sem RPC nova — se o agendamento foi pago/cancelado ou a origem já foi
+ * desfeita nesse meio-tempo, o filtro não encontra linha e **nada é gravado**.
+ * Sem o `documento_origem_id` no filtro, um segundo clique regravaria
+ * `origem_desfeita_em` com uma origem que já era `null`, o que o check
+ * `compromisso_origem_desfeita_par_completo` (0025) nem deixaria representar.
+ *
+ * ⚠️ **ZERO LINHAS AFETADAS É ERRO NOMEADO, nunca sucesso silencioso** (mesmo
+ * padrão de `responderGateRetencao`): o `.select("id")` existe só para contar o
+ * que o UPDATE tocou. Um "salvou" que não salvou mandaria o Mateus para o
+ * detalhe achando que a conversão automática parou — e ela não teria parado.
+ *
+ * ⚠️ **NÃO cria pré-vínculo nenhum** (§M.2, `[Certain]`): nem aqui, nem em
+ * chamador algum, nem "por conveniência". A união do critério 10 do CONTAI-080
+ * continuaria resolvendo N=1 com a MESMA nota errada — *"é o mesmo bug, uma
+ * coluna ao lado"*. N cair para 0 é o efeito que a ação existe para produzir
+ * (§M.3), e `documentosResolvidosNaConfirmacao`/`idsDaUniaoDoPreVinculo`
+ * produzem isso sozinhas, sem uma linha de mudança, porque leem
+ * `documentoOrigemId`.
+ *
+ * ⚠️ **A guarda é `podeDesfazerOrigem`, a MESMA que a tela lê** (critério 10):
+ * a tela recusa antes de oferecer o botão, esta função reconfere sobre o
+ * compromisso que ela recebeu, e o `where` reconfere no banco. Três camadas, uma
+ * regra — e a regra mora num lugar só.
+ *
+ * ⚠️ **NENHUMA linha em `revisao`/`pendencia`** (§M.1): compromisso aberto sem
+ * pagamento, `documento_origem_id` *"nunca foi custo, nunca foi nó do grafo de
+ * `alocarCusto`, nunca abateu INSS"*. Não há ano que mude de número.
+ */
+export async function desfazerOrigemDoCompromisso(
+  compromisso: Pick<Compromisso, "id" | "situacao" | "documentoOrigemId">,
+): Promise<void> {
+  const permissao = podeDesfazerOrigem(compromisso);
+  if (!permissao.ok) throw new Error(permissao.motivo);
+  // O `!` é seguro: `podeDesfazerOrigem` recusa `documentoOrigemId === null`.
+  const origemAntiga = compromisso.documentoOrigemId!;
+
+  const { data, error } = await getSupabase()
+    .from("compromisso")
+    .update({
+      documento_origem_id: null,
+      origem_desfeita_id: origemAntiga,
+      // `now()` do CLIENTE, como `resolverDiferenca` já faz: PostgREST manda
+      // valor, não expressão SQL. O campo é rastro de auditoria, não chave de
+      // ano nenhum (o ano fiscal sai de `pagamento.data_pagamento`, e aqui não
+      // há pagamento) — um relógio alguns segundos fora não muda apuração.
+      origem_desfeita_em: new Date().toISOString(),
+    })
+    .eq("id", compromisso.id)
+    .eq("situacao", "aberto")
+    .eq("documento_origem_id", origemAntiga)
+    .select("id");
+  if (error) throw error;
+  if ((data as { id: string }[] | null)?.length !== 1) {
+    throw new Error(
+      "O agendamento mudou enquanto você olhava — foi pago/cancelado em outra " +
+        "aba, ou a origem já foi desfeita. Nada foi alterado: recarregue a tela.",
+    );
+  }
 }
 
 /**

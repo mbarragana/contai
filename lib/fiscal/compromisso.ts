@@ -1260,6 +1260,80 @@ export function podePreVincular(
   return podeVincular({ obraId: compromisso.obraId }, documento);
 }
 
+// ── CONTAI-083 · DESFAZER a origem herdada (ADENDO 9 §M.0-M.8) ───────────
+
+/**
+ * A recusa quando o agendamento não está mais `aberto` — ADENDO 9 §M.5.
+ *
+ * ⚠️ **Recusa TOTAL, nunca "avisar e prosseguir"** (§M.5, `[Certain]`): um
+ * compromisso com `situacao !== 'aberto'` já tem pagamento associado, e nesse
+ * ponto `documento_origem_id` *"deixou de ser previsão e passou a documentar
+ * como um vínculo formal nasceu"*. Mexer nele aí *"é mexer no rastro de um fato
+ * consumado, que é o domínio do CONTAI-021 (correção com rastro), não desta
+ * ação leve"*.
+ *
+ * ⚠️ Texto de PRODUTO, não de consequência fiscal — mesma natureza de
+ * `PRE_VINCULO_SO_EM_ABERTO`: o §M.5 dá a REGRA em prosa, e a redação de tela é
+ * do produto. O que é fiscal — que nada foi alterado, e que nada podia ser — é o
+ * que a frase afirma, e isso sai do parecer.
+ */
+export const ORIGEM_SO_EM_ABERTO =
+  "Este agendamento já foi respondido — não está mais aberto. A ligação com " +
+  "esta nota deixou de ser uma previsão e passou a fazer parte de um pagamento " +
+  "confirmado; desfazer isso aqui não é mais possível. Nada foi alterado.";
+
+/**
+ * A recusa quando não há origem para desfazer — nunca teve, ou já foi desfeita.
+ *
+ * ⚠️ **Só alcançável por URL direta**: o CTA do detalhe já nasce condicionado a
+ * `documentoOrigemId !== null` (critério 4 do ticket). Existir como recusa
+ * nomeada, e não como tela vazia, é o que faz o caso "já desfeita antes" dizer o
+ * que aconteceu em vez de parecer defeito.
+ *
+ * ⚠️ **"no máximo uma vez"** (§M.4): nada no produto repõe `documento_origem_id`
+ * depois do `null` — só a criação o povoa. Então este motivo é o estado final da
+ * ação, e não um passo intermediário.
+ */
+export const ORIGEM_NAO_HA =
+  "Este agendamento não tem nota de origem para desfazer — ou porque nunca " +
+  "teve uma, ou porque ela já foi desfeita antes. Nada foi alterado.";
+
+/**
+ * **Guarda de "desfazer a origem" — a MESMA lida pela tela e pela gravação.**
+ *
+ * As duas condições do ADENDO 9, e nenhuma além delas:
+ * 1. `situacao === 'aberto'` (§M.5) — recusa total, nem tenta gravar;
+ * 2. `documentoOrigemId !== null` — não há o que desfazer.
+ *
+ * ⚠️ **Sem condição de obra, ao contrário de `podePreVincular`**, e a ausência é
+ * deliberada: aqui não entra documento nenhum: a ação só REMOVE uma referência
+ * que já está gravada no próprio compromisso. Checar a obra da nota antiga
+ * poderia recusar a correção justamente no caso em que a origem está errada por
+ * ser de outra obra — o oposto do que a guarda existiria para proteger.
+ *
+ * ⚠️ **Não há guarda por `origem` (pix/boleto/cartão)**: §M.5 condiciona a ação
+ * só a `situacao`, e o campo de origem herdada é o mesmo nos três meios. Um ramo
+ * futuro que quisesse discriminar teria de acrescentar o campo à assinatura — o
+ * que é greppável, pela mesma disciplina do CONTAI-081.
+ *
+ * ⚠️ **Ela mora no app, e o `where` do UPDATE a repete** (Out of Scope do
+ * ticket: sem trigger). A tela recusa antes de tentar; o
+ * `desfazerOrigemDoCompromisso` filtra por `situacao = 'aberto'` e pela origem
+ * antiga no MESMO statement, o que fecha a corrida "carreguei aberto, mudou em
+ * outra aba, cliquei". Duas camadas, uma regra — esta.
+ */
+export function podeDesfazerOrigem(
+  compromisso: Pick<Compromisso, "situacao" | "documentoOrigemId">,
+): Permissao {
+  if (compromisso.situacao !== "aberto") {
+    return { ok: false, motivo: ORIGEM_SO_EM_ABERTO };
+  }
+  if (compromisso.documentoOrigemId === null) {
+    return { ok: false, motivo: ORIGEM_NAO_HA };
+  }
+  return { ok: true };
+}
+
 /**
  * **Os ids da UNIÃO `documentoPrevistoIds ∪ {documentoOrigemId}`, deduplicados
  * e na ordem canônica** (origem primeiro) — SEM resolver em documentos.

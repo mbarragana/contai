@@ -1535,3 +1535,232 @@ gravado (quantas notas estão pré-ligadas agora), não decisão fiscal nova.
 
 **Nada aqui exige CRC.** É correção de texto para bater com o ADENDO 7 — a
 mesma regra fiscal, sem número ou tese de legislação nova.
+
+---
+
+# ADENDO 9 — 2026-09-30 · remover a origem herdada de um compromisso aberto (CONTAI-083)
+
+- **Origem**: Passo 2 do `/tickets-req` para o `CONTAI-083`. Caso real,
+  confirmado em produção, read-only: 3 compromissos de R$ 15.000,00
+  (favorecido "Ilhamix Concreto Ltda"), `situacao='aberto'`, vencimentos
+  15/10, 15/11 e 15/12/2026, **todos** com o mesmo `documento_origem_id`
+  apontando para a NF de serviço nº 1531 (R$ 30.340,00). O favorecido tem
+  duas outras notas hábeis do mesmo período (NF 1541, R$ 29.760,00; NF 1543,
+  R$ 16.240,00) "sem pagamento vinculado". Nenhum dos três compromissos foi
+  pago ainda.
+- **Consome**: §J.0-J.5 (ADENDO 6), §K.1-K.5 (ADENDO 7), §L.1-L.4 (ADENDO 8)
+  deste parecer; §1 e §2 do corpo (compromisso nunca é custo, nunca é nó do
+  grafo); `CONTAI-065`/`propagar_vinculo_de_origem` e o parecer
+  `2026-09-26-replicar-vinculo-documento-quitacao.md`; `CONTAI-080`,
+  critérios 2, 10, 15-16 e viabilidade (tabela `compromisso_documento_previsto`,
+  `documentosResolvidosNaConfirmacao`, a imutabilidade de
+  `documento_origem_id` desde o `CONTAI-064/065`).
+- **Normativo para**: o ticket `CONTAI-083` (ação de desfazer origem herdada
+  em `/compromisso/[id]` ou `/compromisso/[id]/pre-vincular`).
+
+## M.0 O que está quebrado, em uma frase
+
+`[Certain]` Os três compromissos não têm pré-vínculo nenhum declarado — só
+`documento_origem_id`, herdado na criação (CONTAI-064), e esse campo hoje é
+**fixo e imutável**. Pelo ADENDO 7 §K.2, cada um deles, sozinho, resolve para
+**N=1 no momento da confirmação** (a união do critério 10 do `CONTAI-080` é
+`{documento_origem_id} ∪ ∅`) e portanto **converte automaticamente, sem
+clique**, para a NF 1531 — três vezes, para a mesma nota, sem nunca revalidar
+contra o executado nem contra as outras duas notas hábeis do mesmo
+favorecido. É exatamente o cenário que o ADENDO 7 §K.1, item 3, nomeia como
+o único risco real do N:M ("rateio: quanto vai para qual documento só existe
+como decisão quando há mais de um documento") — só que aqui o rateio nunca
+chega a ser considerado, porque `documento_origem_id` nasceu goleando 1
+documento por decisão de tela antiga, não por análise do favorecido.
+
+## M.1 A remoção é fiscalmente segura — confirmado, sem ressalva
+
+`[Certain]`. Nenhum dos três compromissos tem pagamento associado
+(`situacao='aberto'`) e `documento_origem_id`, por si, **nunca foi custo,
+nunca foi nó do grafo de `alocarCusto`, nunca abateu INSS e nunca apareceu em
+apuração nenhuma** (§1, §2 deste parecer; ADENDO 6 §J.1, que já estende essa
+mesma garantia ao pré-vínculo N:M — "nenhum dos dois lados é custo ainda").
+Desfazer o campo de um compromisso aberto não desfaz pagamento nenhum, porque
+não existe pagamento para desfazer, e não corrige apuração nenhuma, porque
+nenhuma rodou sobre esse vínculo. Isso é exatamente o que torna a ação segura
+de propor sem gate de CRC: não há fato consumado no meio do caminho.
+
+**Isto não é o mesmo caso do §D deste parecer nem do CONTAI-021** — lá o fato
+já é consumado (pagamento gravado) e a correção precisa de rastro por ser
+apagamento de fato. Aqui não há fato nenhum a apagar: só uma expectativa
+gravada antes da hora, exatamente a natureza do compromisso definida no §1.
+
+## M.2 Mecanismo — limpar, e só isso; a escolha não é do Mateus na hora
+
+`[Certain]`. **A ação limpa `documento_origem_id` (grava `null`, preservando
+o valor antigo numa coluna de auditoria — ver M.4). Ela NÃO cria,
+automaticamente e no mesmo ato, nenhuma linha em
+`compromisso_documento_previsto`.** Não são duas opções válidas para o
+Mateus escolher na hora — é a única correta, pelo motivo abaixo, que é
+aritmético, não estético.
+
+**Por que auto-converter para pré-vínculo não ajudaria em nada — e por isso
+não é oferecido como opção**: pelo ADENDO 7 §K.3, a doutrina que decide se
+N=1 converte sozinho no momento da confirmação **não distingue onde o campo
+foi preenchido** — só importa quantos documentos sobram na união do critério
+10 do `CONTAI-080` no momento da confirmação. Se a ação de "desfazer"
+transferisse a mesma NF 1531 de `documento_origem_id` para
+`compromisso_documento_previsto` no mesmo clique, a união continuaria
+resolvendo para **N=1, com a mesma nota errada**, e o compromisso
+converteria sozinho na confirmação exatamente como converte hoje — a "correção"
+não mudaria o resultado fiscal em nada, só trocaria de qual tabela o dado
+mora. Isso não é um mecanismo alternativo válido: é o mesmo bug, uma coluna
+ao lado.
+
+**A frase do `po` — "libera o compromisso pra receber pré-vínculo comum" —
+está certa lida como elegibilidade, não como preenchimento automático.**
+Depois do `null`, o compromisso tem união vazia (N=0) e cai no fluxo padrão
+de "Ligar a uma nota" na confirmação (M.3). Se o Mateus ainda achar que a NF
+1531 é candidata — sozinha ou ao lado de outra — ele declara isso **de novo,
+como ato deliberado**, na tela `/pre-vincular` já existente (`CONTAI-080`).
+Essa segunda declaração, feita depois de olhar o caso de novo, é uma
+afirmação nova e válida (mesma doutrina do ADENDO 7 §K.3: "campo preenchido
+afirma", não importa em qual tela) — bem diferente de herdar, sem olhar, o
+mesmo palpite que já causou o problema.
+
+**Regra, no formato do projeto**: *Se o Mateus aciona "desfazer origem" num
+compromisso aberto → o sistema limpa `documento_origem_id` e não grava
+nenhum pré-vínculo automaticamente. Se, depois disso, ele quiser declarar
+candidato(s) — a mesma nota, outra, ou várias → ele o faz pela tela
+`/pre-vincular`, como qualquer outro pré-vínculo, sujeito ao mesmo N:M e à
+mesma revalidação do ADENDO 7.*
+
+## M.3 Efeito em N imediatamente depois — confirmado, e é o ponto da ação
+
+`[Certain]`. Sim, está certo: sem pré-vínculo nenhum sobrando, a união do
+critério 10 do `CONTAI-080` fica vazia, **N=0**, e o compromisso volta ao
+fluxo padrão de "Ligar a uma nota" na confirmação — nenhuma automação,
+nenhuma pergunta especial, tratado exatamente como um compromisso que nunca
+teve `documento_origem_id`. **Isto não é um efeito colateral tolerado — é o
+efeito que a ação existe para produzir.** Manter N=1 (por qualquer caminho,
+incluindo o M.2 descartado) manteria viva a conversão automática que o
+Mateus está tentando parar.
+
+## M.4 Auditoria — duas colunas bastam; não é caso de tabela de histórico
+
+`[Certain]`. O padrão `compromisso_data_historico`/`compromisso_valor_historico`
+(CONTAI-073) existe para campos que podem ser **corrigidos repetidamente ao
+longo da vida do registro** (data e valor previstos mudam mais de uma vez, e
+cada mudança é um fato novo que precisa de linha própria). `documento_origem_id`
+não tem essa forma: ele é escrito **uma única vez, na criação** (CONTAI-064)
+e, com este ticket, pode ser desfeito **no máximo uma vez** — nada no produto
+o repõe depois de `null` (só a criação o povoa; a tela nova só o zera). Não
+existe "segunda edição" para uma tabela de histórico guardar.
+
+**O mínimo que satisfaz "não é apagamento silencioso"**: duas colunas novas,
+nulas por padrão, escritas só no ato do desfazimento —
+`origem_desfeita_id` (o valor antigo de `documento_origem_id`, sem apagar) e
+`origem_desfeita_em` (timestamp). Somam-se ao already-existing padrão de
+"nunca apagar, sempre marcar" do acervo (CONTAI-009) sem abrir tabela nova,
+sem RPC nova, e sem herdar a semântica de "pode acontecer N vezes" que uma
+tabela de histórico implica e que não se aplica aqui. Se um dia o produto
+permitir desfazer/refazer repetidamente (não é o caso proposto), aí sim a
+forma de tabela de histórico volta a fazer sentido — decisão futura, não
+antecipada aqui sem uso.
+
+## M.5 Recusa dura para compromisso que não está `aberto`
+
+`[Certain]`. **Recusa total — nem tenta, sem diálogo de confirmação, rota ou
+CTA inexistente** — não "avisar e prosseguir". Aplicando a régua
+revalidar/avisar/marcar/recusar deste parecer: um compromisso com
+`situacao !== 'aberto'` já tem pagamento associado, e nesse ponto
+`documento_origem_id` deixou de ser previsão e passou a **documentar como um
+vínculo formal nasceu** (via `propagar_vinculo_de_origem`, CONTAI-065, ou via
+conversão N=1/N≥2 do ADENDO 7). Desfazer a origem aí não é "cancelar uma
+intenção não confirmada" — é mexer no rastro de um fato consumado, que é o
+domínio do CONTAI-021 (correção com rastro), não desta ação leve. Avisar e
+deixar prosseguir daria ao usuário um jeito de tocar um vínculo já convertido
+sem passar pelo fluxo de correção auditado que existe para isso.
+
+**Regra, no formato do projeto**: *Se `compromisso.situacao !== 'aberto'` →
+a ação "desfazer origem" é recusada integralmente: a rota não é alcançável
+pela UI e, se acessada diretamente, recusa com o mesmo padrão de banner
+âmbar já usado pelo `/pre-vincular` para compromisso de cartão (CONTAI-080,
+critério 4). Se `compromisso.situacao === 'aberto'` → a ação prossegue sem
+exigir confirmação adicional além da própria tela de desfazer (que já é o
+ato deliberado).*
+
+## M.6 Item (e) — alerta proativo de mesma origem em N compromissos
+
+`[Certain]` **Concordo em não bloquear**, com uma condição nomeada, não em
+branco. Duas defesas já em produção absorvem o risco de o mesmo erro se
+repetir silenciosamente, mesmo sem o alerta novo:
+
+1. **Nenhuma sobre-contagem de custo acontece mesmo sem o alerta.** Se os três
+   compromissos confirmassem hoje sem correção, o teto do mínimo (§3 do corpo,
+   ADENDO 6 §J.4) sobre o conjunto conexo limitaria o custo comprovado a
+   `min(Σ pagamentos, Σ documentos hábeis) = min(45.000, 30.340) = 30.340` — o
+   excedente cairia em "pago sem nota", não em custo inflado. O dano real não
+   é sobra de custo; é a **NF 1541 e a NF 1543 ficando indefinidamente em
+   "notas hábeis sem pagamento vinculado"** — subestimação, não superestimação
+   (mesma direção de risco do H.2: "seguro para não ser autuado, caro para o
+   bolso").
+2. **Essa subestimação já é visível hoje, sem alerta novo**, pela lista
+   existente "Notas hábeis sem pagamento vinculado" (§2, item 6, do corpo) —
+   é o mesmo mecanismo que o `CONTAI-072` já usa para pré-vínculo. Duas notas
+   do mesmo favorecido, do mesmo período, sem pagamento, já aparecem lá hoje;
+   o que falta é o Mateus olhar essa lista, não uma correlação automática nova.
+
+**A condição para não ir junto**: isto só é seguro **enquanto a lista "sem
+pagamento vinculado" continuar fazendo parte da revisão pré-declaração**
+(mesmo papel que o ADENDO 2 §5 e o §F.2 já dão a outras pendências
+"amarelas"/"vermelhas"). Se o produto algum dia deixar de expor essa lista
+com destaque na revisão anual, a ausência do alerta proativo deixa de ser
+inofensiva. **Recomendação de produto, não bloqueante**: registrar a
+detecção de "mesma origem em N compromissos abertos" como ticket separado —
+concordo com o `po` — porque ela adianta o aviso, mas não fecha um buraco que
+hoje ficaria aberto sem ela.
+
+## M.7 Prioridade — concordo com P0, mas o gatilho certo é o pagamento, não a data
+
+`[Likely]` quanto ao número da prioridade em si (é chamada de produto, não
+fiscal pura), `[Certain]` quanto ao raciocínio que sustenta P0. **Não é
+obrigação já descumprida** — nenhum pagamento aconteceu, e §1 deste parecer é
+categórico: compromisso não pago é custo zero, sem exceção. O que justifica
+P0 não é a data 15/10/2026 em si (pagar uma parcela de empreiteiro não é
+prazo de declaração), é o que o **código de produção já faz, hoje, sem esta
+correção**, no instante em que qualquer um dos três for confirmado: pelo
+ADENDO 7 §K.2, N=1 converte **automaticamente, sem clique**, para a NF 1531 —
+e essa conversão, uma vez gravada em `pagamento_documento`, deixa de ser
+"desfazer uma origem não confirmada" (o caso seguro deste ADENDO, M.1) e
+passa a ser "corrigir um vínculo formal de um fato consumado" (o domínio,
+mais pesado, do CONTAI-021, fora do escopo do CONTAI-083).
+
+**Consequência prática, para registrar junto da priorização**: enquanto o
+`CONTAI-083` não estiver no ar, a mitigação de zero custo de engenharia é o
+próprio Mateus **não confirmar pagamento de nenhum dos três compromissos**
+pelo fluxo normal — a primeira parcela vence 15/10/2026, o que dá a folga real
+de ~2 semanas que o `po` citou, mas a folga é do **pagamento**, não do
+calendário: se ele antecipar o pagamento de qualquer um dos três antes do
+ticket entrar em produção, a folga acaba naquele instante, não em 15/10.
+
+**Texto para o `po`**: mantenho P0, e sugiro registrar essa mitigação manual
+(segurar a confirmação dos três pagamentos) como ação imediata e nomeada,
+independente do prazo de entrega do ticket.
+
+## M.8 Automático × humano (deste adendo)
+
+**Sistema sozinho** `[Certain]`: limpar `documento_origem_id` e gravar
+`origem_desfeita_id`/`origem_desfeita_em`; nunca criar pré-vínculo
+automaticamente no mesmo ato; recusar integralmente a ação para compromisso
+não `aberto`; manter a nota antes referenciada por `documento_origem_id`
+exposta em "notas hábeis sem pagamento vinculado" (ela já não conta com
+pagamento vinculado, antes ou depois do desfazimento).
+
+**Só o Mateus**: decidir, depois de olhar o caso de novo, se alguma nota
+(a mesma ou outra) ainda é candidata para aquele compromisso — pela tela
+`/pre-vincular`, como ato novo e explícito, nunca herdado do desfazimento.
+
+**Nada aqui exige CRC.** É extensão de uma capacidade de correção de dado
+não confirmado (compromisso aberto, sem pagamento), dentro do arcabouço já
+fixado pelos ADENDOS 6/7/8 — nenhum número ou tese de legislação nova foi
+usado. Se algum dos três compromissos já tiver sido pago quando este ticket
+entrar em produção, a NF errada eventualmente vinculada a ele sai do escopo
+deste ADENDO e cai no domínio do CONTAI-021 (correção de fato consumado, com
+rastro) — aí sim, qualquer retificadora decorrente exige contador humano
+(§7 do corpo deste parecer).

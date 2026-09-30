@@ -45,6 +45,8 @@ export type Database = {
           motivo_cancelamento: string | null
           obra_id: string
           origem: Database["public"]["Enums"]["origem_compromisso"]
+          origem_desfeita_em: string | null
+          origem_desfeita_id: string | null
           situacao: Database["public"]["Enums"]["situacao_compromisso"]
           user_id: string
           valor_previsto: number
@@ -59,6 +61,8 @@ export type Database = {
           motivo_cancelamento?: string | null
           obra_id: string
           origem: Database["public"]["Enums"]["origem_compromisso"]
+          origem_desfeita_em?: string | null
+          origem_desfeita_id?: string | null
           situacao?: Database["public"]["Enums"]["situacao_compromisso"]
           user_id?: string
           valor_previsto: number
@@ -73,6 +77,8 @@ export type Database = {
           motivo_cancelamento?: string | null
           obra_id?: string
           origem?: Database["public"]["Enums"]["origem_compromisso"]
+          origem_desfeita_em?: string | null
+          origem_desfeita_id?: string | null
           situacao?: Database["public"]["Enums"]["situacao_compromisso"]
           user_id?: string
           valor_previsto?: number
@@ -97,6 +103,13 @@ export type Database = {
             columns: ["obra_id"]
             isOneToOne: false
             referencedRelation: "obra"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compromisso_origem_desfeita_id_fkey"
+            columns: ["origem_desfeita_id"]
+            isOneToOne: false
+            referencedRelation: "documento"
             referencedColumns: ["id"]
           },
         ]

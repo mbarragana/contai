@@ -1735,6 +1735,8 @@ describe("CONTAI-072 — agendamento aberto na linha do terceiro estado", () => 
       documentoPrevistoIds: [],
       origem: "cartao",
       documentoOrigemId: "d1",
+      origemDesfeitaId: null,
+      origemDesfeitaEm: null,
       situacao: "aberto",
       motivoCancelamento: null,
       dataCompra: `${ANO}-06-01`,

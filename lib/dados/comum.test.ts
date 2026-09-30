@@ -908,6 +908,9 @@ describe("compromisso a pagar", () => {
     data_prevista: "2026-04-10",
     origem: "boleto",
     documento_origem_id: "doc-1",
+    // CONTAI-083 — o par de auditoria nasce vazio.
+    origem_desfeita_id: null,
+    origem_desfeita_em: null,
     situacao: "aberto",
     motivo_cancelamento: null,
     data_compra: "2026-03-01",

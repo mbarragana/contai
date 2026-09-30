@@ -49,6 +49,7 @@ import {
   saldoDoCompromisso,
   textoPreVinculoDoCompromisso,
 } from "@/lib/fiscal/compromisso";
+import { ROTULO_DO_TIPO } from "@/lib/fiscal/documento";
 import { formatarDataBR } from "@/lib/fiscal/obra";
 import { hojeIso } from "@/lib/hoje";
 import { formatarBRL, numericParaCentavos } from "@/lib/money";
@@ -90,6 +91,25 @@ const NOME_SITUACAO = {
   quitado: "Quitado",
   cancelado: "Não vai ser pago",
 } as const;
+
+/**
+ * **CONTAI-083** — como a nota desfeita é citada na linha de auditoria: o rótulo
+ * do tipo + o número, sem valor.
+ *
+ * ⚠️ **Não é `identificarDocumentoPreLigado`**, e a diferença é o valor: aquela
+ * função existe para os textos do ADENDO 8 §L.2, que citam `[Nota nº X — R$
+ * valor]`. Aqui o valor não tem o que fazer — a linha é sobre um vínculo que
+ * deixou de existir, e imprimir dinheiro ao lado dela emprestaria a um rastro de
+ * auditoria a aparência de um número que conta em algo. Nenhum conta (ADENDO 9
+ * §M.1).
+ *
+ * Fica LOCAL a esta tela de propósito (mock §5, pergunta 1): é o único texto do
+ * produto com essa forma, e `/pre-vincular` e `/compromisso/[id]/origem` montam
+ * a identificação dentro do layout dos cards deles, em JSX, não em string.
+ */
+function rotuloCurtoDaNota(d: Documento): string {
+  return `${ROTULO_DO_TIPO[d.tipo]}${d.numero ? ` nº ${d.numero}` : ""}`;
+}
 
 export default function DetalheAgendamento() {
   const { id } = useParams<{ id: string }>();
@@ -171,6 +191,22 @@ export default function DetalheAgendamento() {
    */
   const resolvidos = documentosResolvidosNaConfirmacao(c, estado.documentos);
 
+  /**
+   * **CONTAI-083** — a nota que ERA a origem, resolvida só para o texto da linha
+   * de auditoria. `undefined` não esconde a linha: o rastro é o par de colunas,
+   * e a data sozinha já diz o que aconteceu (o acervo é append-only pelo
+   * CONTAI-009, então na prática ela sempre resolve).
+   *
+   * ⚠️ **Ela NÃO entra em `resolvidos`, e a separação é o ponto** (ADENDO 9
+   * §M.3): o efeito que o desfazimento existe para produzir é N cair para 0.
+   * Somar este documento de volta em qualquer contagem ressuscitaria a conversão
+   * automática que a ação acabou de parar.
+   */
+  const origemDesfeita =
+    c.origemDesfeitaId === null
+      ? undefined
+      : estado.documentos.find((d) => d.id === c.origemDesfeitaId);
+
   return (
     <>
       <CabecalhoDaTela
@@ -222,6 +258,24 @@ export default function DetalheAgendamento() {
           <Linha rotulo="Ainda falta pagar">
             <span className="mono text-mut">~ {formatarBRL(saldo)}</span>
           </Linha>
+
+          {/* ⚠️ **CONTAI-083 — o rastro do desfazimento** (ADENDO 9 §M.4:
+              *"não é apagamento silencioso"*). Uma `Linha` no card do FATO, não
+              um card novo: é um fato sobre o agendamento no mesmo nível dos
+              outros. Vem ANTES do chip de pré-vínculo de propósito — o chip é
+              sobre o estado ATUAL dos vínculos, esta linha é sobre um evento
+              PASSADO.
+
+              ⚠️ **Sem guarda de `situacao`**: é rastro permanente, e continua
+              visível se o agendamento depois for pago ou cancelado. */}
+          {c.origemDesfeitaId !== null && c.origemDesfeitaEm !== null ? (
+            <Linha rotulo="Nota de origem">
+              <span data-origem-desfeita="compromisso">
+                desfeita em {formatarDataBR(c.origemDesfeitaEm.slice(0, 10))}
+                {origemDesfeita ? ` — ${rotuloCurtoDaNota(origemDesfeita)}` : ""}
+              </span>
+            </Linha>
+          ) : null}
 
           {/* ⚠️ **CONTAI-080 — o pré-vínculo, e ele NÃO é confirmação de custo.**
               Chip ÂMBAR VAZADO, o mesmo peso do chip "Agendado": §J.2 é
@@ -292,6 +346,23 @@ export default function DetalheAgendamento() {
               <BotaoLink href={`/compromisso/${c.id}/pre-vincular`}>
                 Ligar notas a este agendamento
               </BotaoLink>
+              {/* ⚠️ **CONTAI-083 — logo DEPOIS de "Ligar notas" e ANTES das
+                  correções de agendamento**: as duas são do mesmo grupo
+                  ("preparar o pagamento" / "revisar a origem antes da
+                  confirmação"), pela mesma lógica de agrupamento do
+                  CONTAI-080/073.
+
+                  A guarda de `situacao === 'aberto'` é a do bloco inteiro; a de
+                  `documentoOrigemId !== null` é específica deste botão
+                  (critério 4) — só aparece quando existe algo para desfazer, o
+                  que é a mitigação do pre-mortem 1: a ação é pontual sobre um
+                  agendamento já identificado como errado, não um passo novo do
+                  fluxo comum. */}
+              {c.documentoOrigemId !== null ? (
+                <BotaoLink href={`/compromisso/${c.id}/origem`}>
+                  Desfazer a nota de origem
+                </BotaoLink>
+              ) : null}
               {/* "Mudou a data" de compra no cartão re-aloca a fatura — mesma
                   tela, RPC diferente (ver
                   `app/(gestao)/compromisso/[id]/data/page.tsx`). */}

@@ -30,6 +30,7 @@
  * quem os funde, uma vez só, é `documentosResolvidosNaConfirmacao`.
  */
 
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -372,7 +373,19 @@ export default function PreVincularNotas() {
             <Dica>
               Vinculada na criação deste agendamento —{" "}
               <strong>não pode ser removida aqui</strong>. Ela conta junto com as
-              notas marcadas abaixo quando o pagamento for confirmado.
+              notas marcadas abaixo quando o pagamento for confirmado. Quer parar
+              de ligar esta nota automaticamente?{" "}
+              {/* ⚠️ **CONTAI-083, critério 11 — esta é a ÚNICA linha que muda
+                  nesta tela.** Nenhuma lógica: a origem continua não editável
+                  aqui (critério 15 do CONTAI-080), e desfazer é rota própria,
+                  porque remoção e nova declaração são dois atos deliberados e
+                  separados (ADENDO 9 §M.2). Sem guarda própria: este bloco só
+                  renderiza com `pronto.origem`, e a esta altura da tela
+                  `situacao === "aberto"` já é garantido pela recusa acima. */}
+              <Link href={`/compromisso/${c.id}/origem`} className="underline">
+                Desfazer a origem
+              </Link>
+              .
             </Dica>
           </Card>
         ) : null}

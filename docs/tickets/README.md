@@ -2,6 +2,40 @@
 
 ## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
 
+**2026-09-30, o mais tarde de todos**: **`083` entregue** — Gate 4 (`po`),
+15/15 critérios PASS. Nova rota `/compromisso/[id]/origem` ("Desfazer a
+nota de origem"), mesmo molde de `/cancelar` — card de consequência
+(citando ADENDO 9 §M.1/M.3/M.6 verbatim) antes do clique, sem campo de
+motivo. Migration `0025`: 2 colunas de auditoria em `compromisso`
+(`origem_desfeita_id`, `origem_desfeita_em`) + 2 CHECKs, sem GRANT novo.
+`desfazerOrigemDoCompromisso` faz UM update condicional (`id` +
+`situacao='aberto'` + `documento_origem_id` antigo no mesmo `WHERE`) — 0
+linhas é erro nomeado, fechando a corrida (dois cliques, ou pago no meio
+do caminho) sem RPC. Nunca auto-converte em pré-vínculo no mesmo ato
+(ADENDO 9 §M.2); N cai pra 0, ou permanece no pré-vínculo que sobrevive à
+parte — `documentosResolvidosNaConfirmacao`/`idsDaUniaoDoPreVinculo`
+(CONTAI-080) ficaram 100% intocadas. Recusa total (nem tenta gravar)
+quando `situacao !== 'aberto'` ou já não há origem. Gate 2 (`cto-obra` +
+`contador`) voltou **REQUEST CHANGES** numa rodada — não por código de
+produto, mas pela rota nova faltando no mapa de
+`e2e/campos-fiscais.spec.ts` (mesma classe de falso positivo já vista no
+`082`); corrigido, aprovado de resto ponto a ponto contra o ADENDO 9.
+Vitest 1341/1341, `desfazer-origem.spec.ts` 5/5, `campos-fiscais.spec.ts`
+20/20, `privilegios.spec.ts` 6/6. Detalhe: `docs/tickets/CONTAI-083.md`.
+
+**2026-09-30, mais tarde ainda**: **`CONTAI-083` criado, P0** — Mateus
+achou (confirmado por query read-only em produção) 3 parcelas de cartão
+(R$15.000 cada, Ilhamix Concreto) presas à mesma origem herdada de uma nota
+de R$30.340 — as outras 2 notas do mesmo favorecido nunca recebem prova de
+pagamento, e não existe hoje nenhuma tela pra desfazer isso. `contador`
+fechou ADENDO 9 (§M.0-M.8): desfazer é seguro, só limpar o campo (nunca
+auto-converter em pré-vínculo), 2 colunas de auditoria bastam. **P0, mas o
+prazo real é o 1º pagamento confirmado, não uma data** — memória de
+projeto pedindo ao Mateus segurar os 3 pagamentos até isto estar em
+produção. `cto-obra`: rota nova `/compromisso/[id]/origem`, migration
+`0025`, sem RPC. Complexidade S. **Pronto para `/develop`, com
+prioridade.** Detalhe: `docs/tickets/CONTAI-083.md`.
+
 **2026-09-30, ainda mais tarde**: **`082` entregue** — Gate 4 (`po`),
 16/16 critérios PASS. Filtro por urgência (dropdown `aria-label="Urgência"`,
 severidade decrescente) + busca por favorecido (`normalizar`, sem

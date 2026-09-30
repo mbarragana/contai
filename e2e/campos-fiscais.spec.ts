@@ -239,6 +239,18 @@ const MAPA: Record<string, Classificacao> = {
   "/compromisso/[id]": {
     semCamposFiscais: "detalhe do agendamento; as ações são links para as três telas de resposta",
   },
+  /**
+   * CONTAI-083 — desfazer a origem herdada. Fica fora da lista de visita das
+   * "telas sem controle nenhum" por ser rota dinâmica (exige agendamento em
+   * aberto com `documento_origem_id`), não por dúvida sobre o campo: o
+   * `## Campos` do spec declara **SEM CAMPOS** por escrito — a tela é card de
+   * consequência fiscal (M.1-M.3, M.6) mais um botão de ação sem parâmetro, e
+   * M.4 dispensa campo de motivo (ao contrário de `/cancelar`).
+   */
+  "/compromisso/[id]/origem": {
+    semCamposFiscais:
+      "card de consequência fiscal + botão de confirmação; nenhum input (spec CONTAI-083, `## Campos`: SEM CAMPOS)",
+  },
   "/conta": { semCamposFiscais: "resumo da conta + sair; nenhum campo" },
   "/documento/[id]/cnpj-errado": {
     semCamposFiscais: "explica por que CNPJ não se edita e oferece saídas — só texto e links",
