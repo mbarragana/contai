@@ -320,6 +320,21 @@ export function Dica({ children }: { children: ReactNode }) {
   return <p className="text-[12px] text-mut">{children}</p>;
 }
 
+/**
+ * Campo de filtro/busca de barra de tela de gestão — 44px de alvo e **16px de
+ * fonte** no piso: abaixo de 16px o Safari do iPhone dá zoom a cada foco, e o
+ * filtro passa a mexer no enquadramento da tela toda.
+ *
+ * ⚠️ **É só esta CONSTANTE que as barras de `/despesas` e de `/compromisso`
+ * compartilham** (CONTAI-082, critério 15). As duas barras continuam sendo
+ * componentes próprios, cada um na sua página: uma filtra situação + tipo do
+ * documento, a outra urgência do agendamento, e generalizar um componente sobre
+ * conjuntos de opção tão diferentes custaria mais acoplamento do que economiza.
+ * O que NÃO pode divergir é o tamanho do campo — era cópia literal antes.
+ */
+export const CAMPO =
+  "min-h-[44px] rounded-[9px] border border-line bg-white px-2.5 text-[16px] lg:min-h-[36px] lg:text-[13px]";
+
 const CORES_BOTAO = {
   primary: "bg-ink text-paper border-transparent",
   ghost: "bg-transparent text-ink border-line",

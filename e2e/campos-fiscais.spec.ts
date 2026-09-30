@@ -215,6 +215,26 @@ const MAPA: Record<string, Classificacao> = {
 
   // ── Telas de leitura e de navegação: sem campo, com o motivo ──────────
   "/adicionar": { semCamposFiscais: "menu de duas opções, só links" },
+  /**
+   * ⚠️ **CONTAI-082 — a Agenda ganhou dois controles.** A classificação
+   * `semCamposFiscais` continua valendo: o select de urgência e a busca por
+   * favorecido são recorte de EXIBIÇÃO (Gate Fiscal do ticket: sem impacto
+   * fiscal), não afirmam fato nenhum sobre a obra e não têm `data-campo` —
+   * mesmo tratamento da `BarraDeFiltros` de `/despesas`, logo abaixo.
+   *
+   * ⚠️ **Mas a rota SAIU do bloco "telas declaradas sem campo fiscal não têm
+   * controle nenhum"**, no fim deste arquivo, pelo mesmo motivo que `/despesas`
+   * já estava fora dele: a tela TEM controle. Ela passava lá só porque o
+   * cenário-padrão da suíte é vazio e a barra não renderiza sem agendamento —
+   * verde por omissão de dado, que é a classe de falso positivo que já mordeu o
+   * projeto duas vezes (o `numeric` voltando como string do PostgREST, o GRANT
+   * ausente que só apareceu em produção).
+   *
+   * Que a barra **não** apareça na agenda genuinamente vazia é requisito
+   * (critério 10) e continua travado — mas onde ele se prova, com cenário
+   * explícito: `e2e/compromisso.spec.ts`, *"agenda genuinamente vazia: banner
+   * verde, e NENHUMA barra de filtro"*.
+   */
   "/compromisso": { semCamposFiscais: "lista de agendados, só leitura" },
   "/compromisso/[id]": {
     semCamposFiscais: "detalhe do agendamento; as ações são links para as três telas de resposta",
@@ -710,11 +730,18 @@ test.describe("campos fiscais nascem como o spec declara", () => {
  * As telas classificadas COMO SEM CAMPO, conferidas de verdade onde dá para
  * abrir sem cenário. "Não tem campo" escrito no mapa é afirmação — e afirmação
  * não conferida é o que este ticket combate.
+ *
+ * ⚠️ **Só entra aqui a rota que não tem controle NENHUM em estado nenhum.** Uma
+ * rota cuja barra de filtro aparece só com dado passaria por omissão de cenário,
+ * e "verde porque o banco estava vazio" é o falso positivo que este arquivo
+ * existe para não produzir. É por isso que `/despesas` nunca esteve na lista, e
+ * por isso `/compromisso` saiu dela no CONTAI-082 — as duas seguem
+ * classificadas `semCamposFiscais` no mapa (filtro é recorte de exibição), e o
+ * que cada barra faz em cada estado se prova no spec da própria tela.
  */
 test.describe("telas declaradas sem campo fiscal não têm controle nenhum", () => {
   for (const rota of [
     "/adicionar",
-    "/compromisso",
     "/conta",
     "/obras",
     "/pendencias",

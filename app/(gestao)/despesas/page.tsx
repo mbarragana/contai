@@ -7,6 +7,7 @@ import { useGestao } from "@/app/_components/gestao";
 import {
   Banner,
   Botao,
+  CAMPO,
   Carregando,
   Chip,
   Dica,
@@ -253,10 +254,6 @@ const TIPOS: readonly { valor: FiltroTipo; rotulo: string }[] = [
   { valor: "boleto", rotulo: "Boleto" },
   { valor: "sem_documento", rotulo: "Sem documento" },
 ];
-
-/** Campo de 16px: abaixo disso o Safari do iPhone dá zoom a cada foco. */
-const CAMPO =
-  "min-h-[44px] rounded-[9px] border border-line bg-white px-2.5 text-[16px] lg:min-h-[36px] lg:text-[13px]";
 
 function BarraDeFiltros({
   filtros,

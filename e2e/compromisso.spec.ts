@@ -478,6 +478,186 @@ test.describe("CONTAI-075 — vence hoje e vence amanhã na Agenda", () => {
   });
 });
 
+// ══ CONTAI-082 — filtrar e buscar na Agenda ═════════════════════════════
+//
+// A dor: um fornecedor com 7 parcelas agendadas ao mesmo tempo, e achar uma
+// delas exigia escanear a lista inteira. O que estes testes travam é que o
+// recorte é de EXIBIÇÃO: nada de vencido perdendo o topo, nada de banner
+// afirmando que a obra está vazia porque o filtro escondeu tudo, e nada de
+// filtro sobrevivendo à visita.
+
+test.describe("CONTAI-082 — filtro de urgência e busca na Agenda", () => {
+  const CNPJ_ILHAMIX = "22333444000195";
+
+  /**
+   * Quatro agendamentos abertos, dois favorecidos, um único vencido — é o caso
+   * do relato em miniatura: o mesmo nome repetido em urgências diferentes, para
+   * o filtro e a busca não poderem ser confundidos um com o outro.
+   */
+  async function cenarioDeFiltro(db: Db) {
+    const ilhamix = await criarFavorecido(db, {
+      tipo: "pj",
+      nome: "Ilhamix Concreto LTDA",
+      documento: CNPJ_ILHAMIX,
+    });
+    const wk = await favorecidoWk(db);
+    for (const [favorecidoId, valor, dias] of [
+      [ilhamix, 2480, -8], // o único vencido
+      [ilhamix, 3480, 10],
+      [wk, 4480, 20],
+      [wk, 5480, 30],
+    ] as const) {
+      await criarCompromisso(db, {
+        favorecido_id: favorecidoId,
+        valor_previsto: valor,
+        data_prevista: maisDias(dias),
+        origem: "boleto",
+      });
+    }
+  }
+
+  const contagem = (page: import("@playwright/test").Page) =>
+    page.locator("[data-contagem='agenda']");
+
+  test("Vencidos mantém o cartão do vencido e some com as linhas abertas", async ({
+    page,
+    db,
+  }) => {
+    await cenarioDeFiltro(db);
+    await page.goto("/compromisso");
+
+    // Sem filtro: os quatro, e a contagem OMITE o "de M" (não escreve "4 de 4").
+    await expect(contagem(page)).toHaveText("4 agendamentos");
+    await expect(page.locator("[data-agendado='vencido']")).toHaveCount(1);
+    await expect(page.locator("[data-agendado='aberto']")).toHaveCount(3);
+
+    await page.getByLabel("Urgência").selectOption("vencido");
+
+    // ⚠️ O vencido continua sendo CARTÃO, com as três respostas — filtrar não
+    // rebaixa o único estado que trava relatório anual.
+    await expect(page.locator("[data-agendado='vencido']")).toHaveCount(1);
+    await expect(page.locator("[data-agendado='aberto']")).toHaveCount(0);
+    await expect(contagem(page)).toHaveText("1 de 4 agendamentos");
+
+    // E o inverso: "Agendados" (o `comum`) esconde o vencido.
+    await page.getByLabel("Urgência").selectOption("comum");
+    await expect(page.locator("[data-agendado='vencido']")).toHaveCount(0);
+    await expect(page.locator("[data-agendado='aberto']")).toHaveCount(3);
+    await expect(contagem(page)).toHaveText("3 de 4 agendamentos");
+  });
+
+  test("busca por favorecido, sem caixa e sem acento, e compondo com a urgência", async ({
+    page,
+    db,
+  }) => {
+    await cenarioDeFiltro(db);
+    await page.goto("/compromisso");
+
+    // "ilhamix" acha os dois do Ilhamix — um vencido e um aberto.
+    await page.getByLabel("Buscar favorecido").fill("ilhamix");
+    await expect(page.locator("[data-agendado='vencido']")).toHaveCount(1);
+    await expect(page.locator("[data-agendado='aberto']")).toHaveCount(1);
+    await expect(contagem(page)).toHaveText("2 de 4 agendamentos");
+
+    // Sem acento e sem caixa: "construcoes" acha "WK Construções LTDA".
+    await page.getByLabel("Buscar favorecido").fill("CONSTRUCOES");
+    await expect(page.locator("[data-agendado='vencido']")).toHaveCount(0);
+    await expect(page.locator("[data-agendado='aberto']")).toHaveCount(2);
+    await expect(contagem(page)).toHaveText("2 de 4 agendamentos");
+
+    // ⚠️ **E lógico**: urgência + busca mostram só o que bate nos DOIS, e
+    // limpar um reaplica o outro sozinho — nunca reseta os dois juntos.
+    await page.getByLabel("Urgência").selectOption("vencido");
+    await expect(page.getByRole("status")).toContainText(
+      "Nenhum agendamento com estes filtros.",
+    );
+
+    await page.getByLabel("Buscar favorecido").fill("ilhamix");
+    await expect(page.locator("[data-agendado='vencido']")).toHaveCount(1);
+    await expect(page.locator("[data-agendado='aberto']")).toHaveCount(0);
+    await expect(contagem(page)).toHaveText("1 de 4 agendamentos");
+    // A urgência continuou em "Vencidos" — trocar a busca não a zerou.
+    await expect(page.getByLabel("Urgência")).toHaveValue("vencido");
+  });
+
+  test("⚠️ o filtro NÃO sobrevive à visita: voltar à Agenda mostra tudo", async ({
+    page,
+    db,
+  }) => {
+    // Critério 12. Um filtro guardado esconderia um vencido sem o Mateus ter
+    // acabado de escolher isso — e vencido escondido é o que trava relatório
+    // anual em silêncio.
+    await cenarioDeFiltro(db);
+    await page.goto("/compromisso");
+    await page.getByLabel("Urgência").selectOption("comum");
+    await page.getByLabel("Buscar favorecido").fill("wk");
+    await expect(contagem(page)).toHaveText("2 de 4 agendamentos");
+
+    await page.goto("/");
+    await page.goto("/compromisso");
+
+    await expect(page.getByLabel("Urgência")).toHaveValue("todos");
+    await expect(page.getByLabel("Buscar favorecido")).toHaveValue("");
+    await expect(contagem(page)).toHaveText("4 agendamentos");
+    await expect(page.locator("[data-agendado='vencido']")).toHaveCount(1);
+  });
+
+  test("vazio-por-filtro diz que EXISTE agendamento, e o 'Mostrar todos' devolve", async ({
+    page,
+    db,
+  }) => {
+    await cenarioDeFiltro(db);
+    await page.goto("/compromisso");
+
+    await page.getByLabel("Buscar favorecido").fill("zzz");
+
+    // ⚠️ O banner VERDE ("Nenhum agendamento em aberto") não pode aparecer aqui:
+    // ele afirma um fato da obra, e o fato é o contrário.
+    await expect(page.getByText("Nenhum agendamento em aberto.")).toHaveCount(0);
+    const aviso = page.getByRole("status");
+    await expect(aviso).toContainText("Nenhum agendamento com estes filtros.");
+    await expect(aviso).toContainText(
+      "Há 4 agendamentos em aberto — o filtro é que está escondendo.",
+    );
+    await expect(contagem(page)).toHaveText("0 de 4 agendamentos");
+    await expect(page.locator("[data-bloco='agendados']")).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Mostrar todos" }).click();
+
+    // Os DOIS campos voltam ao padrão, e a lista inteira volta.
+    await expect(page.getByLabel("Buscar favorecido")).toHaveValue("");
+    await expect(page.getByLabel("Urgência")).toHaveValue("todos");
+    await expect(contagem(page)).toHaveText("4 agendamentos");
+    await expect(page.locator("[data-agendado='vencido']")).toHaveCount(1);
+    await expect(page.locator("[data-agendado='aberto']")).toHaveCount(3);
+  });
+
+  test("agenda genuinamente vazia: banner verde, e NENHUMA barra de filtro", async ({
+    page,
+  }) => {
+    // Critério 10. Sem nada para filtrar, oferecer filtro seria um controle que
+    // não resolve nada — mesma regra do `semRegistro` em `/despesas`.
+    await page.goto("/compromisso");
+    await expect(page.getByText("Nenhum agendamento em aberto.")).toBeVisible();
+    await expect(page.locator("[data-filtros='agenda']")).toHaveCount(0);
+    await expect(page.locator("[data-contagem='agenda']")).toHaveCount(0);
+  });
+
+  test("um agendamento só: a contagem fica no SINGULAR", async ({ page, db }) => {
+    await agendamento(db, { data_prevista: maisDias(10) });
+    await page.goto("/compromisso");
+    await expect(contagem(page)).toHaveText("1 agendamento");
+
+    // E quando o filtro esconde o único, o plural volta no "N de M" (convenção
+    // já em produção em `/despesas`): "0 de 1 agendamentos".
+    await page.getByLabel("Urgência").selectOption("vencido");
+    await expect(contagem(page)).toHaveText("0 de 1 agendamentos");
+    await expect(page.getByRole("status")).toContainText(
+      "Há 1 agendamento em aberto — o filtro é que está escondendo.",
+    );
+  });
+});
+
 // ══ Confirmar ═══════════════════════════════════════════════════════════
 
 test.describe("confirmar o pagamento de um agendamento", () => {

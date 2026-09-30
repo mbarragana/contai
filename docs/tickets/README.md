@@ -2,6 +2,39 @@
 
 ## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
 
+**2026-09-30, ainda mais tarde**: **`082` entregue** — Gate 4 (`po`),
+16/16 critérios PASS. Filtro por urgência (dropdown `aria-label="Urgência"`,
+severidade decrescente) + busca por favorecido (`normalizar`, sem
+diacrítico) em `/compromisso`, compondo por E lógico, reduzindo o
+`Compromisso[]` de ENTRADA antes de `montarAgendaDaHome` — a função em si,
+`MAX_ABERTOS_NA_HOME` e a home não sofreram nenhuma mudança (critérios 6 e
+16 confirmados por diff: `lib/fiscal/compromisso.ts` e a home não aparecem
+no diff do ticket). Estado 100% `useState` local, nunca persistido
+(critério 12). `filtrarCandidatos` (CONTAI-078) não foi reaproveitada —
+`Compromisso` não tem `valorCentavos` — e a `BarraDeFiltros` de `/despesas`
+não foi generalizada: só a constante `CAMPO` passou a ser exportada de
+`app/_components/ui.tsx` e reaproveitada nas duas telas (critérios 14-15).
+Gate 2 (`cto-obra`) voltou **REQUEST CHANGES** numa rodada — não por código
+de produto, mas por `e2e/campos-fiscais.spec.ts` classificar `/compromisso`
+por omissão de cenário no bloco "sem controle nenhum" (mesma classe de
+falso positivo do `numeric`-como-string e do GRANT ausente); corrigido
+saindo desse bloco, comentários do MAPA reescritos, **zero linha de app/
+ou lib/ tocada no retrabalho** (conferido por `git diff` nesta rodada de
+Gate 4). Novo módulo puro `lib/gestao/filtro-agenda.ts` (`filtrarAgenda`),
+17 testes unitários próprios. Vitest 1332/1332, Playwright 46/47 nos dois
+specs tocados (a falha restante, `/adicionar/pagamento`, é flake de timeout
+não relacionado — passa isolada). Sem migration. Detalhe:
+`docs/tickets/CONTAI-082.md`.
+
+**2026-09-30, mais tarde**: **`CONTAI-082` criado** — filtro por urgência
+(vencido/vence hoje/vence amanhã/agendado) + busca por favorecido na
+Agenda, motivado pelo fornecedor com 7 parcelas agendadas ao mesmo tempo.
+Sem Gate Fiscal. `cto-obra` corrigiu 2 premissas: `filtrarCandidatos` não
+serve pra `Compromisso` (sem `valorCentavos`) e o filtro NÃO persiste
+(esconderia vencido sem o Mateus escolher isso agora). Complexidade S, sem
+migration, `designer` nível 2. **Pronto para `/develop`.** Detalhe:
+`docs/tickets/CONTAI-082.md`.
+
 **2026-09-30**: **`081` entregue** — Gate 4 (`po`), 17/17 critérios PASS.
 Pré-vínculo compromisso↔nota passa a valer para compras no cartão, não só
 PIX/boleto. Migration `0024` corrige a propagação incondicional da origem
