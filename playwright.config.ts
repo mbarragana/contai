@@ -18,7 +18,13 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  // 2, não 1: no run 36885310685 um teste recebeu "WebKit encountered an
+  // internal error" nas 2 tentativas (original + 1 retry) — crash do motor
+  // sob runner congestionado, não falha determinística do teste. Uma 3ª
+  // chance é barata (CI só gasta o tempo quando falha) e cobre esse caso sem
+  // mascarar falha real (teste que falha 3x por motivo de asserção falharia
+  // 3x por engano de código também, igual falharia com 1 retry).
+  retries: process.env.CI ? 2 : 0,
   // O runner do GitHub roda a suíte em ~5,1 min contra ~2,2 min na máquina do
   // Mateus. Os 5s padrão do `expect` são folgados aqui e apertados lá; medido
   // no run 32640902865.

@@ -144,8 +144,23 @@ jobs:
           path: ~/.cache/ms-playwright
           key: webkit-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
+      # --with-deps chama apt por baixo (dependências de sistema do WebKit, não
+      # cacheadas por `Cache do WebKit` acima, que só cobre ~/.cache/ms-playwright).
+      # No run 36885310685 isso levou 15min contra ~1min do padrão — congestionamento
+      # do runner compartilhado, mesma classe de problema do pull do ECR, resolvida
+      # do mesmo jeito: retry com backoff em vez de deixar a run inteira cair por isso.
       - name: Instala o WebKit do Playwright
-        run: npx playwright install --with-deps webkit
+        run: |
+          set -uo pipefail
+          for tentativa in 1 2 3; do
+            if npx playwright install --with-deps webkit; then
+              exit 0
+            fi
+            echo "Tentativa $tentativa falhou — aguardando antes de tentar de novo"
+            sleep $((tentativa * 20))
+          done
+          echo "::error::playwright install --with-deps webkit falhou após 3 tentativas"
+          exit 1
 
       # O globalSetup dá `supabase db reset` (migrations + seed) e o webServer
       # sobe o Next apontado para o stack local — nada a preparar aqui.
