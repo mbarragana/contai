@@ -1,6 +1,21 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-10-01**: **`CONTAI-084` criado, P1** — criador em lote de parcelas
+de compra no cartão. Dor: "eu tenho que adicionar cada parcela, isso é
+inviável" (Ilhamix, 3x R$15.000, mesmo padrão manual que causou o
+`CONTAI-083`). Não reabre `RECUSA_PARCELADO`/ADENDO 5 — cada parcela
+continua um `Compromisso` fiscalmente independente, à vista por
+construção. `contador`: nenhuma parcela herda `documento_origem_id`
+(ADENDO 9); sem campo "Parcelado?" na tela do lote (ratificado: a linha já
+nasce à vista, não é inferência por rota). `cto-obra`: RPC transacional
+nova `compra_cartao_gravar_lote` (migration `0026`) — N chamadas HTTP
+client-side foram descartadas por não serem atômicas entre si. Rota nova
+`/adicionar/compra-cartao/parcelas`, `designer` nível 1. Só cartão, só
+mensal, resíduo de centavos na última parcela (sugerido, editável).
+Complexidade M. **Pronto para `/develop`.** Detalhe:
+`docs/tickets/CONTAI-084.md`.
 
 **2026-09-30, o mais tarde de todos**: **`083` entregue** — Gate 4 (`po`),
 15/15 critérios PASS. Nova rota `/compromisso/[id]/origem` ("Desfazer a
