@@ -15,6 +15,7 @@
  * relatório anual).
  */
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
@@ -58,6 +59,8 @@ import {
 } from "@/lib/data";
 import {
   RECUSA_PARCELADO,
+  RESSALVA_ANO_DA_FATURA,
+  RESSALVA_ANO_DA_FATURA_TITULO,
   validarCompraCartao,
   type ErroCampoCompraCartao,
   type EntradaCompraCartao,
@@ -380,10 +383,15 @@ function RegistrarCompraCartao({
               </Dica>
             </Card>
           ) : null}
+          {/* ⚠️ CONTAI-084 — a frase saiu do inline para
+              `RESSALVA_ANO_DA_FATURA` em `lib/fiscal/fatura.ts`, byte a byte, e
+              o motivo é o que o próprio arquivo já diz dos textos fiscais: a
+              confirmação do lote precisa da MESMA ressalva (critério 18), e
+              duas cópias dela é como nasce a D46. Nada mudou no que esta tela
+              mostra. */}
           <Banner cor="red" role="status">
-            ⚠️ <strong>Ressalva que viaja junto:</strong> a tese do ano do
-            pagamento da fatura é defensável, não pacífica. Exige confirmação
-            de contador humano (CRC) antes da primeira declaração que a use.
+            ⚠️ <strong>{RESSALVA_ANO_DA_FATURA_TITULO}</strong>{" "}
+            {RESSALVA_ANO_DA_FATURA}
           </Banner>
         </Corpo>
         {/* Critério 8: "Ver a fatura" e "Voltar ao início" são rotas de
@@ -554,9 +562,27 @@ function RegistrarCompraCartao({
                 erro={parcelado === null ? erroDe("parcelado") : undefined}
               />
               {parcelado === "parcelado" ? (
-                <Banner cor="red" role="alert">
-                  <strong>{RECUSA_PARCELADO}</strong>
-                </Banner>
+                <>
+                  <Banner cor="red" role="alert">
+                    <strong>{RECUSA_PARCELADO}</strong>
+                  </Banner>
+                  {/* ⚠️ CONTAI-084, critério 3 — a ÚNICA mudança desta tela.
+                      A recusa continua idêntica (ADENDO 5 não muda): o que
+                      havia de faltar era a saída que ela já mandava tomar —
+                      "lance cada parcela como uma compra separada" — sem
+                      obrigar a repetir o cadastro N vezes.
+
+                      `Link` cru para `/adicionar/compra-cartao/parcelas`, SEM
+                      parâmetro nenhum da URL: a rota irmã nunca lê
+                      `?documento=`, e carregar a herança de nota até a porta
+                      dela seria burlar o critério 10 pelo endereço. */}
+                  <Link
+                    href="/adicionar/compra-cartao/parcelas"
+                    className="text-[13.5px] font-semibold underline"
+                  >
+                    Lançar as parcelas em lote →
+                  </Link>
+                </>
               ) : null}
             </Card>
 

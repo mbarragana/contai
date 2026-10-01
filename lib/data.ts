@@ -1927,6 +1927,59 @@ export async function criarCompraCartao(
   return { compromissoId: resultado.compromisso_id, faturaId: resultado.fatura_id };
 }
 
+// ── CONTAI-084 · o LOTE de parcelas da mesma compra ──────────────────────
+
+export interface ParcelaParaGravar {
+  valorCentavos: number;
+  /** O vencimento da fatura DESTA parcela — é ele que a agrupa. */
+  dataVencimentoFatura: string;
+}
+
+export interface NovoLoteCompraCartao {
+  obraId: string;
+  favorecidoId: string;
+  /** Comum às N parcelas: a compra aconteceu uma vez. */
+  dataCompra: string;
+  valorTotalCentavos: number;
+  parcelas: readonly ParcelaParaGravar[];
+}
+
+/**
+ * Grava as N parcelas como N compras independentes, **tudo-ou-nada** — RPC
+ * `compra_cartao_gravar_lote` (migration 0026), critério 12.
+ *
+ * ⚠️ **Não existe `documentoOrigemId` aqui, e a ausência é o critério 10**: a
+ * RPC não tem o parâmetro (ver o cabeçalho da 0026). Nenhuma parcela nasce
+ * ligada a nota, mesmo quando uma única nota cobre o valor total — herança em
+ * massa escalaria para N parcelas o incidente P0 do CONTAI-083. O vínculo é ato
+ * deliberado posterior, parcela por parcela, no pré-vínculo.
+ *
+ * ⚠️ **N chamadas de `criarCompraCartao` não serviriam**: elas não são atômicas
+ * entre si e não há DELETE para desfazer meio lote (acervo append-only).
+ */
+export async function criarCompraCartaoEmLote(
+  entrada: NovoLoteCompraCartao,
+): Promise<{ compromissoId: string; faturaId: string }[]> {
+  const { data, error } = await getSupabase().rpc("compra_cartao_gravar_lote", {
+    p_obra_id: entrada.obraId,
+    p_favorecido_id: entrada.favorecidoId,
+    p_data_compra: entrada.dataCompra,
+    p_valor_total: centavosParaNumeric(entrada.valorTotalCentavos),
+    p_parcelas: entrada.parcelas.map((p) => ({
+      valor: centavosParaNumeric(p.valorCentavos),
+      vencimento: p.dataVencimentoFatura,
+    })),
+  });
+  if (error) throw error;
+  const resultado = data as {
+    parcelas: { compromisso_id: string; fatura_id: string }[];
+  };
+  return resultado.parcelas.map((p) => ({
+    compromissoId: p.compromisso_id,
+    faturaId: p.fatura_id,
+  }));
+}
+
 /**
  * "Mudou a data" de uma compra no cartão — RE-ALOCA a fatura (RPC
  * `compra_cartao_mudar_data`). Bloqueada pelo banco se a compra já foi

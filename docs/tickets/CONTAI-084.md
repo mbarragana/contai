@@ -33,63 +33,63 @@ gere as N compras de cartão separadas — cada uma continuando a ser um
 manualmente o mesmo cadastro N vezes.
 
 ## Critérios de Aceite
-1. [ ] Proposta nível 1 em `design/mocks/CONTAI-084.md`.
-2. [ ] Rota nova `/adicionar/compra-cartao/parcelas`, irmã de
+1. [x] Proposta nível 1 em `design/mocks/CONTAI-084.md`.
+2. [x] Rota nova `/adicionar/compra-cartao/parcelas`, irmã de
    `/adicionar/compra-cartao` — não um "modo" na mesma tela. Esta rota
    NUNCA lê `?documento=` (isola a herança de nota do `CONTAI-064`/`071`).
-3. [ ] Link de entrada "Lançar as parcelas em lote →" sob o banner
+3. [x] Link de entrada "Lançar as parcelas em lote →" sob o banner
    `RECUSA_PARCELADO` já existente em `compra-cartao/page.tsx` (~linha
    556-560), sem herdar nenhum parâmetro da URL.
-4. [ ] Campos comuns da Tela 1 (preenchidos uma vez): Favorecido (nome),
+4. [x] Campos comuns da Tela 1 (preenchidos uma vez): Favorecido (nome),
    CNPJ/CPF, Data da compra, Vencimento da 1ª fatura (campo separado da
    data da compra — é a semente do gerador de datas), Valor total, Número
    de parcelas (N) — stepper inteiro, mínimo 2, máximo 24, com mensagem de
    erro nomeada nos dois extremos ("Abaixo de 2 não é lote — lance em
    `/adicionar/compra-cartao`." / "Máximo 24 parcelas por lote.").
-5. [ ] A Tela 1 NÃO tem campo "Parcelado?". Dica fixa, texto verbatim
+5. [x] A Tela 1 NÃO tem campo "Parcelado?". Dica fixa, texto verbatim
    (ratificado pelo `contador`): *"Nenhuma parcela aqui pergunta se é
    parcelada — cada uma já nasce um evento à vista, sozinha. Vínculo com
    nota não é feito aqui: depois de criadas, ligue cada parcela em
    pré-vínculo."*
-6. [ ] Banner da Tela 1, texto verbatim (pluralização ratificada pelo
+6. [x] Banner da Tela 1, texto verbatim (pluralização ratificada pelo
    `contador`): *"Estas compras nascem sempre agendamento — o dinheiro só
    sai quando cada fatura for paga. O favorecido é o lojista, nunca o
    banco nem a administradora."*
-7. [ ] Geração de valores: `dividirCentavos(total, N)` — `total ÷ N`
+7. [x] Geração de valores: `dividirCentavos(total, N)` — `total ÷ N`
    truncado em centavos nas N-1 primeiras parcelas, resíduo inteiro de
    centavos somado só à ÚLTIMA parcela.
-8. [ ] Geração de datas: `vencimentosSugeridos(semente, N)` — cada parcela
+8. [x] Geração de datas: `vencimentosSugeridos(semente, N)` — cada parcela
    `i` (i=2..N) vence no mesmo dia do mês da semente, `(i-1)` meses depois
    (cálculo direto `semente + i meses`, nunca iterativo mês a mês); quando
    o mês de destino não tiver esse dia (ex. dia 31 em abril), a data cai no
    último dia daquele mês e a tela nomeia visivelmente qual parcela foi
    ajustada (ex. etiqueta "ajustada — abril não tem dia 31").
-9. [ ] Tela 2 (revisão): valor e vencimento de cada parcela editáveis
+9. [x] Tela 2 (revisão): valor e vencimento de cada parcela editáveis
    individualmente; cabeçalho e linha de totais `sticky`; botão "Confirmar
    as N parcelas" desabilitado enquanto a soma das N parcelas ≠ valor
    total, nomeando a diferença ("Falta R$X,XX para a soma bater com o
    valor total." / "Sobra R$X,XX — a soma passou do valor total.").
-10. [ ] Nenhuma parcela recebe `documento_origem_id` na criação — nasce
+10. [x] Nenhuma parcela recebe `documento_origem_id` na criação — nasce
     sempre `null`, mesmo quando existe uma nota única cobrindo o valor
     total da compra (ADENDO 9 do parecer `docs/pareceres/2026-08-18-compromisso-versus-pagamento.md`,
     confirmado nesta rodada de Gate Fiscal). Vínculo com nota é feito
     depois, pela tela de pré-vínculo (`CONTAI-080`/`081`), uma parcela de
     cada vez.
-11. [ ] Cada parcela é validada como evento "à vista" por construção
+11. [x] Cada parcela é validada como evento "à vista" por construção
     (`validarCompraCartao({..., parcelado: "vista"})`) — a tela do lote
     não tem campo editável de parcelamento, porque cada linha gerada já é
     o estado-alvo prescrito pelo ADENDO 5 §I.1 (uma compra separada por
     fatura, à vista por definição daquela linha).
-12. [ ] Confirmação tudo-ou-nada via RPC nova `compra_cartao_gravar_lote`,
+12. [x] Confirmação tudo-ou-nada via RPC nova `compra_cartao_gravar_lote`,
     numa única transação do banco: ou existem as N linhas de `compromisso`
     com seus vínculos de fatura, ou nenhuma. Guardas no servidor: menos de
     2 parcelas recusa; soma das parcelas ≠ valor total recusa — ambas com
     mensagem nomeada. Verificável por E2E: um lote com uma parcela
     inválida forçada (ex. valor ≤ 0) é recusado e `compromisso` não ganha
     linha nenhuma. Sair do formulário antes de confirmar não grava nada.
-13. [ ] Proteção contra reenvio/duplo clique — botão "ocupado" durante o
+13. [x] Proteção contra reenvio/duplo clique — botão "ocupado" durante o
     envio, mesmo padrão de `compra-cartao/page.tsx`.
-14. [ ] Migration `0026_compra_cartao_lote.sql`: função
+14. [x] Migration `0026_compra_cartao_lote.sql`: função
     `compra_cartao_gravar_lote(p_obra_id uuid, p_favorecido_id uuid,
     p_data_compra date, p_valor_total numeric, p_parcelas jsonb) returns
     jsonb`, `language plpgsql`, `security invoker`, `set search_path =
@@ -97,21 +97,33 @@ manualmente o mesmo cadastro N vezes.
     from public, anon; grant execute ... to authenticated;` na mesma
     migration. `documento_origem_id` NÃO é parâmetro da função (cumpre o
     critério 10 por assinatura, não por disciplina de chamador).
-15. [ ] `e2e/privilegios.spec.ts` — `FUNCOES_ESPERADAS` ganha
+15. [x] `e2e/privilegios.spec.ts` — `FUNCOES_ESPERADAS` ganha
     `compra_cartao_gravar_lote`; suíte continua verde.
-16. [ ] `lib/database.types.ts` atualizado à mão com a função nova (não há
+16. [x] `lib/database.types.ts` atualizado à mão com a função nova (não há
     script `gen types` no projeto — padrão já existente).
-17. [ ] `lib/fiscal/parcelamento.ts` novo (+ `.test.ts`): `dividirCentavos`,
+17. [x] `lib/fiscal/parcelamento.ts` novo (+ `.test.ts`): `dividirCentavos`,
     `vencimentosSugeridos`, `validarLoteCompraCartao` — funções puras,
     testadas isoladamente (sem depender de banco).
-18. [ ] Tela 3 (sucesso): lista das N parcelas confirmadas, com link "Ver a
+18. [x] Tela 3 (sucesso): lista das N parcelas confirmadas, com link "Ver a
     fatura" (ou "Confirmar o pagamento" se já vencida, regra
     `faturaVencida` já existente); banner único (não repetido por linha)
     com a ressalva do ano de pagamento, texto verbatim de
     `compra-cartao/page.tsx`; nenhuma parcela entra em custo ainda.
-19. [ ] `/adicionar/compra-cartao` (tela individual, captura de uma compra
+19. [x] `/adicionar/compra-cartao` (tela individual, captura de uma compra
     só) permanece intocada em comportamento — a única mudança ali é o link
     novo de entrada do critério 3.
+
+## ✅ Entregue — 2026-10-01
+Pipeline completo: Gate 1 (lead-engineer, DONE) → Gate 2 (cto-obra +
+contador, REQUEST CHANGES por 1 divergência de texto — "sozinha" vs.
+"sozinho" — corrigida no mesmo agente, aprovado condicionalmente sem nova
+rodada) → Gate 3 (coberto pelos E2E já rodados nos Gates 1/2) → Gate 4
+(po, PASS nos 19 critérios). Typecheck/lint limpos, 1368 testes unitários
+verdes, E2E verde (`cartao-lote.spec.ts` 12/12, `campos-fiscais.spec.ts`
+21/21, `privilegios.spec.ts` 6/6, `cartao.spec.ts` + `compromisso.spec.ts`
+64/64 sem regressão). Refactor incluído no Gate 1 (não é desvio de
+escopo): extração de `RESSALVA_ANO_DA_FATURA` para `lib/fiscal/fatura.ts`,
+reaproveitada pelas duas telas de cartão, render byte-idêntico.
 
 ## Out of Scope
 - **Fusão das N parcelas num evento fiscal único** — `RECUSA_PARCELADO`/

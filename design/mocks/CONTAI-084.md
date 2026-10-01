@@ -53,8 +53,14 @@ total; Número de parcelas (stepper inteiro, min 2 max 24 — erros nomeados:
 *"Abaixo de 2 não é lote — lance em `/adicionar/compra-cartao`."* e *"Máximo
 24 parcelas por lote."*).
 
+Ajuda fixa do stepper, abaixo dele — **texto acrescentado no Gate 1 e
+ratificado pelo `contador` nesta rodada** (registrado aqui para não ficar só
+no código): *"Cada parcela vira uma compra separada, na fatura em que ela
+vence."* É a instrução do ADENDO 5 §I.1 dita no lugar onde o Mateus escolhe o
+N — não promete nada sobre ano de custo, só nomeia o que o lote produz.
+
 `Dica` fixa abaixo do último campo: *"Nenhuma parcela aqui pergunta se é
-parcelada — cada uma já nasce um evento à vista, sozinho. Vínculo com nota
+parcelada — cada uma já nasce um evento à vista, sozinha. Vínculo com nota
 não é feito aqui: depois de criadas, ligue cada parcela em pré-vínculo."*
 Rodapé: `BotaoSalvar` "Gerar as N parcelas →" (desabilitado nomeando o que
 falta, padrão `faltando` de `compra-cartao`); `BotaoLink` "Voltar".
@@ -100,6 +106,65 @@ vermelho (não repetido por linha) com a ressalva já existente da tese do ano
 de pagamento da fatura (texto verbatim de `compra-cartao`). Rodapé:
 `BotaoLink` "Voltar ao início", `Botao` "Lançar outro lote" (remonta por
 `key`, padrão de `aoRegistrarOutra`).
+
+`Dica` entre a lista e o Banner vermelho — **texto acrescentado no Gate 1 e
+ratificado pelo `contador` nesta rodada** (registrado aqui para não ficar só
+no código): *"Nenhuma delas está ligada a nota. O vínculo é feito depois,
+parcela por parcela, no pré-vínculo de cada agendamento."* É o critério 10
+dito ao Mateus no único momento em que ele poderia supor o contrário — acabou
+de criar N parcelas de uma compra que provavelmente tem uma nota só. Afirma o
+que o sistema fez (nasceram sem origem) e aponta o ato que falta, sem prometer
+custo nenhum.
+
+## Campos
+
+- NÃO É CONTROLE — seção no formato do contrato do `CONTAI-034`
+  (`lib/design/campos-do-spec.ts`). A rota é
+  `/adicionar/compra-cartao/parcelas`, e os ids abaixo são os `data-campo` que
+  a tela repete.
+- NÃO É CONTROLE — ⚠️ **o campo `parc` ("Parcelado?") NÃO existe aqui**, e a
+  ausência é a decisão fiscal do §2 (critério 5 do ticket): cada linha gerada já
+  nasce evento à vista por construção, ADENDO 5 §I.1. Não é default omitido; é
+  campo que não se aplica.
+
+### Tela 1 — os campos comuns, preenchidos uma vez
+
+- `lFavorecido` "Favorecido" — **SEM DEFAULT**. O lojista, nunca o banco nem a
+  administradora.
+- `lFavorecidoDocumento` "CNPJ / CPF do favorecido" — **SEM DEFAULT**.
+  `tipoPorDocumento` decide o rótulo; nada é inferido do nome.
+- `lValorTotal` "Valor total da compra" — **SEM DEFAULT**. É a base da divisão
+  em centavos (critério 7).
+- `lCompra` "Data da compra" — **SEM DEFAULT**. Só registro: não decide
+  ano-calendário nenhum.
+- `lVenc1` "Vencimento da 1ª fatura" — **SEM DEFAULT**. É a SEMENTE do gerador
+  de datas (critério 8).
+- `lParcelas` "Número de parcelas" — **SEM DEFAULT**. Stepper inteiro, 2 a 24,
+  com erro nomeado nos dois extremos. Nasce vazio de propósito: "2"
+  pré-escolhido seria o lote mais comum virando default silencioso.
+- NÃO É CONTROLE — o banner âmbar de agendamento (§2) e a `Dica` da ausência do
+  campo "Parcelado?" são texto fiscal, sem controle nenhum.
+
+### Tela 2 — a revisão das N linhas
+
+- `lVencParcela` "Vencimento da parcela N" — **DEFAULT DECLARADO: a sugestão do
+  gerador de datas (mesmo dia do mês da semente, +1 mês por parcela), visível,
+  editável linha a linha e com etiqueta âmbar nomeando a parcela cuja data foi
+  ajustada por o mês não ter aquele dia (critério 8)**. Um id para as N linhas:
+  o número da parcela vai no nome acessível de cada campo.
+- `lValorParcela` "Valor da parcela N" — **DEFAULT DECLARADO: a sugestão da
+  divisão em centavos (`total ÷ N` truncado nas N-1 primeiras, resíduo inteiro
+  na última — critério 7), visível, editável linha a linha, e a confirmação
+  fica bloqueada enquanto a soma das N não for exatamente o valor total
+  (critério 9)**.
+- NÃO É CONTROLE — resumo fixo dos dados comuns, cabeçalho e linha de totais
+  `sticky`, e os botões "Editar dados comuns" / "Confirmar as N parcelas".
+
+### Tela 3 — sucesso
+
+- NÃO É CONTROLE — a tela é leitura: lista das N parcelas confirmadas com link
+  por linha, o banner único da ressalva do ano de pagamento da fatura e os dois
+  botões de saída. Nenhum campo.
 
 ## Perguntas abertas
 

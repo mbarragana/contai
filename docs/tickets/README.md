@@ -1,6 +1,27 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-10-01, mais tarde**: **`084` entregue** — Gate 4 (`po`), 19/19
+critérios PASS. Rota nova `/adicionar/compra-cartao/parcelas` (irmã de
+`/adicionar/compra-cartao`, nunca lê `?documento=`): preenche
+favorecido/CPF-CNPJ/data da compra/vencimento da 1ª fatura/valor total/N
+uma vez, gera N parcelas (valor por `dividirCentavos`, resíduo na última;
+data por `vencimentosSugeridos`, mês absoluto sem escorregar, ajuste
+nomeado em mês curto), ambos editáveis, botão só habilita com soma exata.
+Gravação por RPC transacional nova `compra_cartao_gravar_lote` (migration
+`0026`) — tudo-ou-nada real (E2E prova zero linhas com parcela inválida
+forçada), sem `documento_origem_id` na assinatura (nenhuma parcela herda
+origem, nem quando há nota única cobrindo o total). Cada parcela
+`parcelado: "vista"` fixo, sem campo editável — doutrina do ADENDO 5
+intocada. Gate 2 voltou **REQUEST CHANGES** uma rodada — não por
+arquitetura, mas por 1 palavra de texto fiscal ("sozinha", não "sozinho",
+concordância com a parcela — ratificado pelo `contador`); corrigido no
+mesmo agente, aprovado sem nova rodada. 1368 testes unitários, E2E verde
+(`cartao-lote` 12/12, `campos-fiscais` 21/21, `privilegios` 6/6,
+`cartao`+`compromisso` 64/64 sem regressão). Refactor incluído no Gate 1:
+`RESSALVA_ANO_DA_FATURA` extraída para `lib/fiscal/fatura.ts`, reusada
+pelas duas telas. Detalhe: `docs/tickets/CONTAI-084.md`.
 
 **2026-10-01**: **`CONTAI-084` criado, P1** — criador em lote de parcelas
 de compra no cartão. Dor: "eu tenho que adicionar cada parcela, isso é

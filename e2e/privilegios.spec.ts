@@ -375,6 +375,19 @@ const FUNCOES_ESPERADAS: Record<string, string> = {
   // quem for procurar no `pg_proc`:
   //   fatura_desembolso_gravar(uuid, numeric, date, text, uuid[], text, uuid[])
   //   fatura_alocar(uuid, uuid[], uuid[])
+
+  // ── CONTAI-084 (migration 0026) ────────────────────────────────────────
+  // O lote de parcelas da MESMA compra no cartão: N compras independentes numa
+  // única transação. Chama `compra_cartao_gravar` (acima) por dentro, uma vez
+  // por parcela — e a auxiliar já tem o EXECUTE que a chamada interna exige,
+  // porque as duas são `security invoker`.
+  //
+  // ⚠️ Nenhuma tabela nova neste ticket, e mesmo assim este mapa MUDA: função
+  // nasce com `execute` para `public` (que inclui `anon`) em qualquer Postgres.
+  // Sem o revoke da 0026, o anônimo poderia gravar 24 compromissos no acervo de
+  // outra pessoa numa só chamada — a família do incidente de 2026-08-17, com a
+  // superfície de escrita multiplicada por 24.
+  compra_cartao_gravar_lote: "authenticated",
 };
 
 test.describe("privilégios do schema public", () => {

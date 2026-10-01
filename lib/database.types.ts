@@ -1154,6 +1154,16 @@ export type Database = {
         }
         Returns: Json
       }
+      compra_cartao_gravar_lote: {
+        Args: {
+          p_data_compra: string
+          p_favorecido_id: string
+          p_obra_id: string
+          p_parcelas: Json
+          p_valor_total: number
+        }
+        Returns: Json
+      }
       compra_cartao_mudar_data: {
         Args: { p_compromisso_id: string; p_nova_data: string }
         Returns: undefined

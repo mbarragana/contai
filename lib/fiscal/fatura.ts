@@ -32,6 +32,22 @@ export const RECUSA_PARCELADO =
   "na fatura em que ela vence. Não lance o valor total numa fatura só: " +
   "isso muda o ano de custo das parcelas seguintes.";
 
+/**
+ * **A ressalva que viaja junto** — texto do CONTAI-022 que estava inline em
+ * `/adicionar/compra-cartao` e que o CONTAI-084 passou a precisar na
+ * confirmação do lote (critério 18: *"texto verbatim de
+ * `compra-cartao/page.tsx`"*).
+ *
+ * ⚠️ Constante, e não uma segunda cópia da frase: é a mesma razão escrita em
+ * `EXTRATO_DA_FATURA_AJUDA` mais abaixo — texto fiscal duplicado é como nasce a
+ * D46, o mesmo fato com dois rostos. As duas telas renderizam exatamente estes
+ * bytes; o `<strong>` do título é markup, não texto.
+ */
+export const RESSALVA_ANO_DA_FATURA_TITULO = "Ressalva que viaja junto:";
+export const RESSALVA_ANO_DA_FATURA =
+  "a tese do ano do pagamento da fatura é defensável, não pacífica. Exige " +
+  "confirmação de contador humano (CRC) antes da primeira declaração que a use.";
+
 export interface EntradaCompraCartao {
   favorecidoNome: string;
   favorecidoDocumento: string;

@@ -140,6 +140,24 @@ const MAPA: Record<string, Classificacao> = {
     iniciais: ["parc"],
     abrir: async () => "/adicionar/compra-cartao",
   },
+  // CONTAI-084 — a rota IRMÃ, o lote de parcelas. Os seis campos comuns nascem
+  // todos vazios, e `parc` não existe aqui de propósito (a Dica da tela explica
+  // a ausência: cada linha gerada já nasce à vista por construção, ADENDO 5
+  // §I.1). Os dois campos POR LINHA (`lVencParcela`/`lValorParcela`) só existem
+  // na Tela 2 e são `DEFAULT DECLARADO` no spec — a visita aqui é só do
+  // primeiro render, que é a Tela 1.
+  "/adicionar/compra-cartao/parcelas": {
+    specs: ["CONTAI-084"],
+    iniciais: [
+      "lFavorecido",
+      "lFavorecidoDocumento",
+      "lValorTotal",
+      "lCompra",
+      "lVenc1",
+      "lParcelas",
+    ],
+    abrir: async () => "/adicionar/compra-cartao/parcelas",
+  },
 
   // ── Ciclo do agendamento (CONTAI-019) ─────────────────────────────────
   "/compromisso/[id]/confirmar": {
