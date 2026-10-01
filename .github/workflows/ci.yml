@@ -70,11 +70,49 @@ jobs:
 
       - run: npm ci
 
+      # O stack local puxa ~10 imagens do ECR Public da AWS a cada run, e o
+      # ECR Public tem rate limit por IP compartilhado entre TODOS os runners
+      # do GitHub Actions — não é bug nosso, mas já derrubou 3 runs em 1
+      # semana (080/081/082: "toomanyrequests: Data limit exceeded"). A chave
+      # leva a versão da CLI (via package-lock.json): quando ela muda, as tags
+      # de imagem pinadas também mudam, e o cache velho vira miss de propósito.
+      - name: Cache das imagens Docker do Supabase
+        id: cache-docker-supabase
+        uses: actions/cache@v4
+        with:
+          path: /tmp/supabase-images.tar
+          key: supabase-docker-images-${{ hashFiles('package-lock.json') }}
+
+      - name: Carrega as imagens do cache
+        if: steps.cache-docker-supabase.outputs.cache-hit == 'true'
+        run: docker load -i /tmp/supabase-images.tar
+
       # A CLI do Supabase é devDependency (correção do Gate 2): usar `npx`
       # garante no CI a MESMA versão que roda na máquina do Mateus. Instalar a
       # CLI por action separada reabriria o "passa aqui, quebra lá".
+      #
+      # Com cache quente o `docker compose` não repuxa imagem já presente, e
+      # o pull nem chega a acontecer. Em cache frio (1ª vez, ou versão nova da
+      # CLI) ainda dependemos do ECR Public — o retry com backoff aqui é
+      # para esse caso: o limite é por janela, então esperar e tentar de novo
+      # geralmente passa, mesmo quando a 1ª tentativa não passa.
       - name: Sobe o Supabase local
-        run: npx supabase start
+        run: |
+          set -uo pipefail
+          for tentativa in 1 2 3 4 5; do
+            if npx supabase start; then
+              exit 0
+            fi
+            echo "Tentativa $tentativa falhou (provável rate limit do ECR Public) — aguardando antes de tentar de novo"
+            npx supabase stop || true
+            sleep $((tentativa * 20))
+          done
+          echo "::error::npx supabase start falhou após 5 tentativas"
+          exit 1
+
+      - name: Salva as imagens no cache (só em cache frio)
+        if: steps.cache-docker-supabase.outputs.cache-hit != 'true'
+        run: docker save -o /tmp/supabase-images.tar $(docker images --format '{{.Repository}}:{{.Tag}}' | grep -v '<none>')
 
       # e2e/ambiente.ts versiona URL e anon key do stack local de propósito:
       # são públicas e determinísticas. Se uma CLI nova mudar isso, é melhor
