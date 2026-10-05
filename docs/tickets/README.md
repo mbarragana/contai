@@ -1,6 +1,25 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 20 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-10-05**: **`CONTAI-085`/`086`/`087` criados, P0/P0/P1** — caso real:
+NFS-e PerfuraTec nº 261 (já registrada) foi cancelada pela prestadora e
+substituída pela nº 263 (mesmo valor, ISS retido na fonte R$1.797,03
+aparece agora). Nenhuma das 3 telas de correção existentes servia
+(valor/classificação/emitente não mudaram) — achado em sessão de suporte
+ao vivo. `085`: corrigir número/série (dívida D89, já pré-aprovada pelo
+parecer de 18/08, nunca construída). `086`: reabrir o gate "esta nota
+destaca retenção?" já respondido (dívida D90, Gate Fiscal novo — anexo
+condicional por motivo, DELETE+snapshot em `revisao` cercado à RPC pra
+reverter destacada→nenhuma, ratificado pelo `contador` depois do
+`cto-obra` corrigir a premissa de que `documento_retencao` seria
+append-only — não é, é deletável por desenho da migration `0017`). `087`:
+anexo numa linha de retenção adicionada depois do registro — mesma lógica
+condicional, implementado no MESMO Gate 1 que o `086` (migration `0028`
+compartilhada, decisão do `cto-obra`). `085` é independente e vai
+primeiro. `designer`: nível 1+2, `design/mocks/CONTAI-085.md` e
+`CONTAI-086.md` (cobre `087`). **Prontos para `/develop`.** Detalhe:
+`docs/tickets/CONTAI-085.md`, `086.md`, `087.md`.
 
 **2026-10-01, mais tarde**: **`084` entregue** — Gate 4 (`po`), 19/19
 critérios PASS. Rota nova `/adicionar/compra-cartao/parcelas` (irmã de
