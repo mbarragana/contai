@@ -1,6 +1,28 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 19 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-10-05, ainda mais tarde**: **`086`+`087` entregues** — mesmo
+Gate 1/2/4 (decisão do `cto-obra`: mesma migration, mesma rota, mesmo
+E2E). Gate 4 (`po`): 17/17 + 9/9 critérios PASS, revalidado item a item
+contra código/migration/E2E, não só aceito do relato do Gate 2. Rota nova
+`/documento/[id]/corrigir/retencao` (4 passos: motivo → gate atual/novo →
+linhas (se destacada) → anexo condicional). `BlocoRetencao` deixa de
+devolver `null` com gate "nenhuma"; reversão destacada→nenhuma grava
+snapshot completo (8 campos + quem reverteu + documento/obra) em
+`revisao.antes` e DELETA as linhas — único DELETE de `documento_retencao`
+no repo, cercado à RPC nomeada (ratificado pelo `contador`: linha de
+retenção é afirmação, não acervo — `vinculo.ts`/`resumo.ts` ficaram com
+zero linha de diff, a remoção física já basta). Ramo "nada a corrigir"
+trava zero rastro, nem o motivo do Passo 1. Anexo condicional por motivo
+nas duas RPCs (`corrigir_gate_retencao`, `adicionar_linha_retencao_registrada`),
+com chips pra reaproveitar anexo já existente do documento (ex: o que o
+CONTAI-085 subiu). Gate 2 pediu 2 ajustes pontuais (texto do chip; recusa
+antecipada de `?modo=linha` com gate errado), corrigidos no mesmo agente.
+Migration `0028`. Typecheck/lint limpos, 1371 testes unitários,
+`corrigir-retencao.spec.ts` 10/10. Dívida nova: **D91**
+(`removerLinhaRetencao` sem rastro, P1). Detalhe:
+`docs/tickets/CONTAI-086.md`, `087.md`.
 
 **2026-10-05, mais tarde**: **`085` entregue** — Gate 4 (`po`), 15/15
 critérios PASS. Rota nova `/documento/[id]/corrigir/numero`: corrige

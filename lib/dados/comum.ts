@@ -161,6 +161,9 @@ export function paraLinhaRetencao(row: DocumentoRetencaoRow): LinhaRetencao {
     eDescontoEfetivo: row.e_desconto_efetivo,
     quemRecolhe: row.quem_recolhe,
     createdAt: row.created_at,
+    // CONTAI-087 — o ato que trouxe a linha, ou `null` para a afirmação
+    // original (captura / primeira linha de um gate respondido no registro).
+    revisaoId: row.revisao_id,
   };
 }
 

@@ -174,6 +174,7 @@ function linhaRetencao(over: Partial<LinhaRetencao> = {}): LinhaRetencao {
     eDescontoEfetivo: true,
     quemRecolhe: "nao_sei",
     createdAt: `${ANO}-03-21T10:00:00Z`,
+    revisaoId: null,
     ...over,
   };
 }

@@ -657,6 +657,9 @@ describe("documento lido do banco", () => {
             e_desconto_efetivo: false,
             quem_recolhe: null,
             created_at: "2026-03-22T09:00:00Z",
+            // CONTAI-087 — linha da captura: afirmação original, sem ato de
+            // correção atrás. `null` aqui é FATO, não dado faltando.
+            revisao_id: null,
           },
           {
             id: "l1",
@@ -668,6 +671,7 @@ describe("documento lido do banco", () => {
             e_desconto_efetivo: true,
             quem_recolhe: "nao_sei",
             created_at: "2026-03-21T09:00:00Z",
+            revisao_id: null,
           },
         ],
       }),

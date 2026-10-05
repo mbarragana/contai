@@ -24,78 +24,92 @@ destaca alguma retenção?", para que o repeater de linhas de retenção
 (CONTAI-038) fique disponível e a pendência real de "quem recolhe" apareça.
 
 ## Critérios de Aceite
-1. [ ] Proposta nível 1 (rota nova) + nível 2 (delta em `BlocoRetencao`)
+1. [x] Proposta nível 1 (rota nova) + nível 2 (delta em `BlocoRetencao`)
    em `design/mocks/CONTAI-086.md` (cobre também o CONTAI-087 — mesma
    tela/fluxo).
-2. [ ] Rota nova `/documento/[id]/corrigir/retencao`, fluxo de 4 passos:
+2. [x] Rota nova `/documento/[id]/corrigir/retencao`, fluxo de 4 passos:
    `PassoMotivo` → gate (resposta atual + nova escolha) → linhas (se
    destacada) → anexo (condicional, critério 9).
-3. [ ] Quando o gate hoje é "nenhuma", `BlocoRetencao` mostra um card
+3. [x] Quando o gate hoje é "nenhuma", `BlocoRetencao` mostra um card
    "Esta nota: sem retenção destacada — Corrigir" (deixa de retornar
    `null`).
-4. [ ] Quando o gate hoje é "destacada", o `Repeater` existente ganha um
+4. [x] Quando o gate hoje é "destacada", o `Repeater` existente ganha um
    link "Corrigir a resposta sobre retenção" ao lado de "+ Adicionar
    outra linha".
-5. [ ] Nova escolha **igual** à atual **e** zero linha nova (ramo 3c) →
+5. [x] Nova escolha **igual** à atual **e** zero linha nova (ramo 3c) →
    botão desabilitado "Nada a corrigir". **Zero rastro gravado — nem o
    motivo escolhido no Passo 1** (confirmado pelo `contador`: gravar um
    não-evento contrariaria o propósito do acervo append-only).
-6. [ ] Nova escolha "destacada" (de "nenhuma", ou reafirmando "destacada"
+6. [x] Nova escolha "destacada" (de "nenhuma", ou reafirmando "destacada"
    com linha nova — caso do CONTAI-087) → formulário de linhas
    acumulando em memória (mesmo padrão de `BlocoRetencaoDaCaptura`), pelo
    menos 1 linha obrigatória antes de confirmar. Gate+linhas+anexo são
    **um ato só**, gravado junto — nenhum estado intermediário visível.
-7. [ ] Nova escolha "nenhuma" com linhas **já existentes** → aviso
+7. [x] Nova escolha "nenhuma" com linhas **já existentes** → aviso
    explícito antes de confirmar, texto verbatim: *"As N linhas de
    retenção desta nota serão removidas. O fato fica registrado no
    histórico da correção — mas elas deixam de contar como pendência."*
-8. [ ] Reversão destacada→nenhuma: a RPC grava **snapshot completo** das
+8. [x] Reversão destacada→nenhuma: a RPC grava **snapshot completo** das
    linhas removidas (`id`, `rotulo_literal`, `valor`, `composicao`,
    `tributo`, `e_desconto_efetivo`, `quem_recolhe`, `created_at`, **quem
    reverteu**, **documento_id/obra_id**) em `revisao.antes` (JSON) e
    **DELETA** as linhas de `documento_retencao`. **O `DELETE` só existe
    dentro desta RPC nomeada — nenhuma rota genérica de delete nessa
    tabela fora deste fluxo.**
-9. [ ] Anexo **CONDICIONAL**: `motivo = emitente_corrigiu_a_nota` →
+9. [x] Anexo **CONDICIONAL**: `motivo = emitente_corrigiu_a_nota` →
    **RECUSA** gravar sem anexo (upload novo OU reaproveitar um anexo já
    existente do mesmo documento, oferecido como chip clicável com data +
    origem). `motivo = erro_de_digitacao_minha`/`outro` → sem upload novo,
    mas com afirmação explícita de reconferência do anexo já existente
    antes de gravar.
-10. [ ] Chips de reaproveitar anexo mostram data e origem (ex: "Usar a
+10. [x] Chips de reaproveitar anexo mostram data e origem (ex: "Usar a
     nota anexada em dd/mm (correção de número)") — vêm de
     `carregarAnexosDoDocumento` enriquecida via embed `documento_anexo` →
     `revisao` (sem coluna nova; `revisao_id` já existe desde a `0009`).
-11. [ ] Rastro quando algo muda: `revisao` (`entidade='documento'`,
+11. [x] Rastro quando algo muda: `revisao` (`entidade='documento'`,
     `campo='retencao_na_nota'`, `antes`, `depois`, `quando`, `quem`,
     `motivo`) — mesmo padrão das outras correções. "Anos afetados" sempre
     vazio (retenção nunca move custo nem aferição).
-12. [ ] Migration `0028` (**compartilhada com o CONTAI-087**):
+12. [x] Migration `0028` (**compartilhada com o CONTAI-087**):
     `revisao_campo_da_entidade` ganha `'retencao_na_nota'` e
     `'linha_retencao'` em `entidade = 'documento'` (sem `alter type
     entidade_revisao`). `documento_retencao` ganha `revisao_id uuid
     references revisao(id)`, nullable.
-13. [ ] RPC `corrigir_gate_retencao(...)` — nenhuma→destacada insere as
+13. [x] RPC `corrigir_gate_retencao(...)` — nenhuma→destacada insere as
     linhas novas com o `revisao_id` do mesmo ato (atômico); destacada→nenhuma
     faz snapshot+delete (critério 8); exige `retencao_na_nota is not
     null` (o legado continua em `responderGateRetencao`/`.is(null)`,
     intocado); exige gate novo diferente do atual, **exceto** quando há
     linha nova a adicionar com o mesmo gate "destacada" (caso do
     CONTAI-087).
-14. [ ] `revoke execute ... from public, anon` + `grant ... to
+14. [x] `revoke execute ... from public, anon` + `grant ... to
     authenticated` na mesma migration; `FUNCOES_ESPERADAS` de
     `e2e/privilegios.spec.ts` atualizado.
-15. [ ] `HistoricoDeCorrecoes` aprende a renderizar `retencao_na_nota`
+15. [x] `HistoricoDeCorrecoes` aprende a renderizar `retencao_na_nota`
     (rótulos de `OPCOES_GATE`) e o snapshot de linhas removidas em
     `antes`.
-16. [ ] `lib/fiscal/vinculo.ts` e `lib/fiscal/resumo.ts` (que leem
+16. [x] `lib/fiscal/vinculo.ts` e `lib/fiscal/resumo.ts` (que leem
     `d.retencoes` direto, sem olhar o gate) **não precisam de nenhuma
     alteração** — a remoção física das linhas (critério 8) já garante que
     elas param de contar, sem precisar de filtro adicional em nenhum
     leitor.
-17. [ ] `carregarAnexosDoDocumento` (`lib/data.ts`) passa a devolver
+17. [x] `carregarAnexosDoDocumento` (`lib/data.ts`) passa a devolver
     `{ arquivoPath, anexadoEm, origem }` via embed com `revisao` (sem
     coluna nova) — `revisao_id is null` → `origem = "registro original"`.
+
+## ✅ Entregue — 2026-10-05
+Pipeline completo, implementado junto com o CONTAI-087 (mesmo Gate 1/2):
+Gate 1 (lead-engineer, DONE — corrigiu também o erro de gramática
+pré-existente do spec que bloqueava `npm run test`) → Gate 2 (cto-obra +
+contador, APPROVE, fiscal ratificado 5/5 — DELETE+snapshot cercado à RPC
+nomeada confirmado, 8 campos + quem reverteu + documento/obra no
+snapshot; 2 ajustes pontuais de texto/UX corrigidos no mesmo agente) →
+Gate 3 (coberto pelos E2E) → Gate 4 (po, PASS nos 17 critérios,
+revalidado item a item contra código/migration/E2E, não só aceito do
+relato do Gate 2). Typecheck/lint limpos, 1371 testes unitários,
+`corrigir-retencao.spec.ts` 10/10, `privilegios` 7/7. Dívida nova
+registrada: **D91** (`removerLinhaRetencao` sem rastro, P1) —
+`docs/backlog/102-2026-10-05-gate4-contai-086-087.md`.
 
 ## Out of Scope
 - **Reverter destacada→nenhuma mantendo a linha viva (soft-delete/coluna

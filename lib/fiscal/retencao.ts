@@ -343,6 +343,42 @@ export function acaoDaRetencaoParcial(falharam: number): string {
 }
 
 /**
+ * **CONTAI-086, critério 7 — o aviso ANTES de reverter o gate para "nenhuma".**
+ *
+ * ⚠️ **CITAÇÃO do Gate Fiscal do ticket, e o plural é VERBATIM**: *"As N linhas
+ * de retenção desta nota serão removidas. O fato fica registrado no histórico da
+ * correção — mas elas deixam de contar como pendência."* Há teste comparando a
+ * saída de `quantas >= 2` byte a byte com essa frase.
+ *
+ * ⚠️ O ramo de UMA linha é **concordância**, não redação nova — a mesma coisa que
+ * `contagemDaRetencaoParcial` já faz neste arquivo (e pela mesma razão: *"As 1
+ * linhas … elas deixam"* ao lado de uma única linha na tela lê como defeito, e
+ * defeito de texto numa frase de consequência fiscal é o que faz ninguém ler a
+ * frase). Nenhum FATO muda entre os dois ramos: o que sai é o registro no
+ * histórico e o fim da pendência, nos dois.
+ */
+export function avisoDeRemocaoDasLinhas(quantas: number): string {
+  if (quantas === 1) {
+    return (
+      "A linha de retenção desta nota será removida. O fato fica registrado " +
+      "no histórico da correção — mas ela deixa de contar como pendência."
+    );
+  }
+  return (
+    `As ${quantas} linhas de retenção desta nota serão removidas. O fato fica ` +
+    "registrado no histórico da correção — mas elas deixam de contar como " +
+    "pendência."
+  );
+}
+
+/** A confirmação do critério 7 — texto de produto, nasce desmarcada. */
+export function confirmacaoDeRemocaoDasLinhas(quantas: number): string {
+  return quantas === 1
+    ? "Confirmo a remoção da linha de retenção desta nota"
+    : `Confirmo a remoção das ${quantas} linhas de retenção desta nota`;
+}
+
+/**
  * O invariante do §2, dito em tela e não só em comentário: **nenhuma retenção
  * desta nota abate a aferição do INSS**. Reuso do que a Tela 7 antiga já
  * afirmava ("Abate no INSS (SERO): não"), agora com o porquê ao lado — o

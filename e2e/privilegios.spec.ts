@@ -242,6 +242,20 @@ const FUNCOES_ESPERADAS: Record<string, string> = {
   // função nasce com `execute` para `public`, e sem o revoke da 0027 o anônimo
   // poderia reescrever o número de uma nota do acervo.
   corrigir_numero_documento: "authenticated",
+  // ── CONTAI-086 + CONTAI-087 (migration 0028) ───────────────────────────
+  // Reabrir o gate de retenção de um documento registrado, e a linha que nasce
+  // depois do registro. ⚠️ A primeira contém o **único `DELETE` da lista inteira
+  // de `documento_retencao`** do repo (reversão destacada→nenhuma, com snapshot
+  // completo em `revisao.antes`): sem o revoke da 0028 o anônimo poderia apagar
+  // as linhas de retenção de uma nota do acervo e gravar rastro em nome de
+  // ninguém. Nenhuma tabela nova neste ticket — só uma coluna numa tabela já
+  // concedida, e três funções.
+  corrigir_gate_retencao: "authenticated",
+  adicionar_linha_retencao_registrada: "authenticated",
+  // A auxiliar que as duas chamam por dentro: as duas são `security invoker`,
+  // então sem EXECUTE aqui a chamada interna falharia com o papel do app —
+  // mesmo caso de `revisao_gravar_anos` e `pendencia_do_ano`.
+  documento_retencao_inserir: "authenticated",
   marcar_emitente_errado: "authenticated",
   mover_documento_de_obra: "authenticated",
   pendencia_do_ano: "authenticated",

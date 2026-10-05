@@ -34,6 +34,7 @@ import {
   carregarObras,
   carregarPainel,
   classificarErro,
+  type AnexoDoDocumento,
   type ErroDeTela,
   type PainelDados,
 } from "@/lib/data";
@@ -108,8 +109,13 @@ type Estado =
        * `documento_anexo` (0009) andam junto com o `arquivo_path`: a carta de
        * correção que chegou depois é acervo deste documento, e antes deste
        * ticket ela não aparecia em tela nenhuma.
+       *
+       * ⚠️ **CONTAI-086 — cada item passou a trazer a ORIGEM** (de qual ato o
+       * papel veio, pelo embed com `revisao`). Esta tela ainda mostra só o
+       * caminho; quem consome a origem é o passo 4 de `corrigir/retencao`, nos
+       * chips de reaproveitar o anexo já existente.
        */
-      anexos: string[];
+      anexos: AnexoDoDocumento[];
       /** Nome de cada obra: o rastro grava id, e id não se lê em 2034. */
       obras: Map<string, string>;
       /**
@@ -469,7 +475,7 @@ function DetalheDocumento() {
         titulo="Papéis deste documento"
         itens={[
           ...papelOriginal(d.arquivoPath),
-          ...estado.anexos.map((path) => ({ path })),
+          ...estado.anexos.map((a) => ({ path: a.arquivoPath })),
         ]}
         vazio={SEM_PAPEL_NO_ACERVO}
       />

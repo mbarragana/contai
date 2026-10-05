@@ -198,6 +198,7 @@ describe("headline — cada tipo isolado (§1 do parecer)", () => {
               eDescontoEfetivo: true,
               quemRecolhe: "nao_sei",
               createdAt: "2026-03-21T10:00:00Z",
+              revisaoId: null,
             },
           ],
         }),

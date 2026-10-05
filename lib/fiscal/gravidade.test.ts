@@ -464,6 +464,7 @@ describe("as cores que `calcularResumo` produz continuam as adjudicadas", () => 
               eDescontoEfetivo: true,
               quemRecolhe: "nao_sei",
               createdAt: "2026-02-11T10:00:00Z",
+              revisaoId: null,
             },
           ],
         }),

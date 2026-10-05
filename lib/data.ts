@@ -1139,24 +1139,86 @@ export async function criarLinkDeLeitura(path: string): Promise<string> {
 /**
  * Os anexos ADICIONAIS do documento (`documento_anexo`, migration 0009).
  *
- * Leitura pura: nesta rodada ninguém escreve nesta tabela por aqui. Ela existe
- * desde o CONTAI-021 — a carta de correção que chegou depois — e sem esta
- * consulta o detalhe do documento mostraria só o `arquivo_path` e esconderia o
- * resto do acervo daquele registro. "A lista inteira" do mock é isto.
+ * Leitura pura: ninguém escreve nesta tabela por aqui. Ela existe desde o
+ * CONTAI-021 — a carta de correção que chegou depois — e sem esta consulta o
+ * detalhe do documento mostraria só o `arquivo_path` e esconderia o resto do
+ * acervo daquele registro. "A lista inteira" do mock é isto.
+ *
+ * ⚠️ **MUDOU NO CONTAI-086 (critérios 10 e 17): devolve a ORIGEM de cada anexo,
+ * e sem coluna nova.** O chip "Usar a nota anexada em dd/mm (correção de
+ * número)" do passo 4 precisa de data + origem por papel, e as duas já existem:
+ * `documento_anexo.revisao_id` é da 0009, e o embed por essa FK traz o ato que
+ * trouxe o papel. Dívida de dado resolvida por JOIN, não por migration.
+ *
+ * ⚠️ **A data exibida é a do ATO, não a do `created_at` da linha** quando há
+ * revisão: as duas são do mesmo instante hoje, mas `revisao.quando` é o que o
+ * histórico mostra, e duas datas para o mesmo ato é a primeira coisa que
+ * divergiria. Sem revisão (`revisao_id is null`) o papel entrou no registro
+ * original, e aí a única data que existe é a da linha.
+ *
+ * ⚠️ **O rótulo do chip vem de `campo` (O QUÊ mudou), nunca de `motivo` (POR
+ * QUÊ)** — e o mapa enum→texto mora na TELA, não aqui: este arquivo não redige
+ * texto de tela, e `rotuloDoCampo`/`ROTULO_MOTIVO_NO_RASTRO` (em `corrigir.tsx`)
+ * já são as duas listas exaustivas que existem para isso.
  */
+export interface AnexoDoDocumento {
+  arquivoPath: string;
+  /** `revisao.quando` quando o papel veio de uma correção; senão o `created_at`. */
+  anexadoEm: string;
+  origem: OrigemDoAnexo;
+}
+
+export type OrigemDoAnexo =
+  /** Entrou no ato do registro (ou antes de a 0009 existir): sem ato de correção. */
+  | { tipo: "registro_original" }
+  | {
+      tipo: "correcao";
+      /** O campo corrigido — é ele que nomeia o chip ("correção de número"). */
+      campo: string;
+      motivo: MotivoRevisao;
+      motivoTexto: string | null;
+    };
+
 export async function carregarAnexosDoDocumento(
   documentoId: string,
-): Promise<string[]> {
+): Promise<AnexoDoDocumento[]> {
   await getUsuarioId();
   const { data, error } = await getSupabase()
     .from("documento_anexo")
-    .select("arquivo_path")
+    // O embed é pela FK `documento_anexo_revisao_id_fkey`, que existe desde a
+    // 0009 — nenhuma coluna nova. A RLS de `revisao` vale DENTRO do embed: o que
+    // a policy esconde chega como `null`, e `null` já é um caso previsto aqui.
+    .select(
+      "arquivo_path, created_at, revisao:revisao_id(campo, motivo, motivo_texto, quando)",
+    )
     .eq("documento_id", documentoId)
     .order("created_at", { ascending: true });
   if (error) throw error;
-  return ((data ?? []) as { arquivo_path: string }[]).map(
-    (a) => a.arquivo_path,
-  );
+
+  type Linha = {
+    arquivo_path: string;
+    created_at: string;
+    revisao: {
+      campo: string;
+      motivo: MotivoRevisao;
+      motivo_texto: string | null;
+      quando: string;
+    } | null;
+  };
+
+  return ((data ?? []) as unknown as Linha[]).map((a) => ({
+    arquivoPath: a.arquivo_path,
+    anexadoEm: a.revisao?.quando ?? a.created_at,
+    origem:
+      a.revisao === null
+        ? { tipo: "registro_original" as const }
+        : {
+            tipo: "correcao" as const,
+            campo: a.revisao.campo,
+            motivo: a.revisao.motivo,
+            motivoTexto: a.revisao.motivo_texto,
+          },
+  }));
 }
 
 /**
@@ -1429,6 +1491,172 @@ export const NAO_FOI_POSSIVEL_REMOVER_A_LINHA =
 
 export const NAO_FOI_POSSIVEL_ALTERAR_A_LINHA =
   "A resposta não foi gravada — a linha continua como estava. Tente de novo.";
+
+// ── CONTAI-086 / CONTAI-087 · corrigir o gate e a linha tardia ───────────
+//
+// ⚠️ **AQUI é RPC, ao contrário das três de cima, e a diferença não é estilo.**
+// O ato desta família toca `documento`, `revisao`, `documento_retencao` e
+// `documento_anexo` **juntos** — e um deles é um DELETE. Pelo PostgREST não há
+// transação entre tabelas: qualquer ordem de dois statements deixa um estado
+// intermediário que outra tela leria (gate flipado sem linha, linha sem rastro,
+// linhas apagadas sem snapshot). É exatamente o que o critério 6 proíbe.
+
+/** O que a tela junta antes de gravar a correção do gate. */
+export interface EntradaCorrecaoDeGate {
+  documentoId: string;
+  /** A resposta NOVA. Igual à gravada só vale com linha nova (o caso do 087). */
+  gate: RespostaRetencaoNaNota;
+  motivo: MotivoRevisao;
+  motivoTexto: string | null;
+  /** As linhas NOVAS do mesmo ato. Vazio na reversão para "nenhuma". */
+  linhas: EntradaLinhaRetencao[];
+  /**
+   * Path no acervo: upload novo OU o de um `documento_anexo` que já existe deste
+   * mesmo documento (o chip do passo 4). Nos dois casos a RPC insere uma linha
+   * NOVA em `documento_anexo` com o `revisao_id` deste ato — um objeto no
+   * bucket, N atos apontando, cada um com seu rastro.
+   */
+  anexoPath: string | null;
+}
+
+/**
+ * **CONTAI-086 — reabrir o gate de retenção de um documento JÁ registrado.**
+ *
+ * ⚠️ **Não substitui `responderGateRetencao`, e não pode**: aquela é a PRIMEIRA
+ * resposta do legado (`.is("retencao_na_nota", null)`), sem motivo e sem rastro
+ * porque não há valor anterior a rastrear. Esta é o regime oposto — reescrever um
+ * campo fiscal já afirmado —, e a RPC recusa documento com o gate em `null`.
+ *
+ * Devolve o id do ATO. Quem decide o que é um ato é o banco: gate + linhas novas
+ * (ou snapshot + delete) + anexo entram juntos ou não entram.
+ */
+export async function corrigirGateRetencao(
+  entrada: EntradaCorrecaoDeGate,
+): Promise<string> {
+  const { data, error } = await getSupabase().rpc("corrigir_gate_retencao", {
+    p_documento_id: entrada.documentoId,
+    p_gate: entrada.gate,
+    p_motivo: entrada.motivo,
+    p_linhas: entrada.linhas.map(linhaParaJson),
+    ...(entrada.motivoTexto ? { p_motivo_texto: entrada.motivoTexto } : {}),
+    ...(entrada.anexoPath ? { p_anexo_path: entrada.anexoPath } : {}),
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+/**
+ * **CONTAI-087 — a linha de retenção que aparece DEPOIS do registro, provada.**
+ *
+ * O caso isolado do critério 4: gate já "destacada", já existe pelo menos uma
+ * linha, e aparece outra agora. `createdAt` sozinho não responde "por que a linha
+ * aparece só agora" (parecer §5), e é por isso que este ato grava rastro próprio
+ * (`campo = 'linha_retencao'`) com o motivo escolhido.
+ *
+ * Devolve o id do ATO.
+ */
+export async function adicionarLinhaRetencaoRegistrada(entrada: {
+  documentoId: string;
+  linha: EntradaLinhaRetencao;
+  motivo: MotivoRevisao;
+  motivoTexto: string | null;
+  anexoPath: string | null;
+}): Promise<string> {
+  const { data, error } = await getSupabase().rpc(
+    "adicionar_linha_retencao_registrada",
+    {
+      p_documento_id: entrada.documentoId,
+      p_linha: linhaParaJson(entrada.linha),
+      p_motivo: entrada.motivo,
+      ...(entrada.motivoTexto ? { p_motivo_texto: entrada.motivoTexto } : {}),
+      ...(entrada.anexoPath ? { p_anexo_path: entrada.anexoPath } : {}),
+    },
+  );
+  if (error) throw error;
+  return data as string;
+}
+
+/**
+ * **CONTAI-087, critério 3 — a PRIMEIRA linha de um gate "destacada", que pode
+ * ou não pertencer a uma correção anterior.**
+ *
+ * O estado é o do `faltaRegistrarLinha`: gate "destacada" e ZERO linhas. Duas
+ * histórias levam a ele, e elas não se gravam igual:
+ *
+ * - o gate foi **corrigido** antes (existe `revisao` com `campo =
+ *   'retencao_na_nota'` e `depois = 'destacada'`) e a linha que aquele ato
+ *   prometeu só está sendo preenchida agora → a linha **amarra àquela revisão**,
+ *   com o motivo já gravado lá. **Nenhuma pergunta nova, e nenhum rastro novo**:
+ *   o ato é o mesmo, e registrá-lo duas vezes inventaria uma segunda correção;
+ * - o gate sempre foi "destacada" **desde a captura** e só faltou a linha → é
+ *   **primeira afirmação**, `revisao_id` nulo e motivo nenhum. Chamar isto de
+ *   correção seria gravar um ato que não aconteceu.
+ *
+ * ⚠️ **`criarLinhaRetencao` continua INTOCADA** (critério 7): ela é o caminho da
+ * captura e do `/anexar`, onde o documento está nascendo. Esta função é a da
+ * GESTÃO, e a diferença entre as duas é justamente o `revisao_id` — por isso são
+ * duas, e não um parâmetro opcional que alguém esquece de passar.
+ *
+ * ⚠️ **O `revisao_id` é LIDO do banco, nunca recebido da tela**: o que a tela
+ * mandasse seria um vínculo de rastro escolhido pelo cliente. A leitura passa
+ * pela RLS de `revisao` (dono = `auth.uid()`), então só é possível amarrar a um
+ * ato do próprio acervo.
+ */
+export async function criarLinhaRetencaoDeGateCorrigido(
+  documentoId: string,
+  entrada: EntradaLinhaRetencao,
+): Promise<string> {
+  const linha = linhaRetencaoParaBanco(entrada);
+  if (linha === null) {
+    throw new Error("Linha de retenção incompleta — responda o que falta.");
+  }
+  const supabase = getSupabase();
+  const { data: revisoes, error: erroRevisao } = await supabase
+    .from("revisao")
+    .select("id")
+    .eq("entidade", "documento")
+    .eq("entidade_id", documentoId)
+    .eq("campo", "retencao_na_nota")
+    .eq("depois", "destacada")
+    // A mais recente: se o gate foi e voltou, a correção que vale é a última.
+    .order("quando", { ascending: false })
+    .limit(1);
+  if (erroRevisao) throw erroRevisao;
+  const revisaoId = (revisoes as { id: string }[] | null)?.[0]?.id ?? null;
+
+  const { valorCentavos, ...resto } = linha;
+  const { data, error } = await supabase
+    .from("documento_retencao")
+    .insert({
+      ...resto,
+      documento_id: documentoId,
+      valor: centavosParaNumeric(valorCentavos),
+      revisao_id: revisaoId,
+    })
+    .select("id")
+    .single();
+  if (error) throw error;
+  return (data as { id: string }).id;
+}
+
+/**
+ * A linha como as duas RPCs a esperam: os nomes do BANCO, com o valor já em
+ * reais. Uma função só para as duas — duas cópias divergiriam, e a primeira coisa
+ * a divergir seria o `valor` em centavos indo para uma coluna em reais (a mordida
+ * de 100× do CONTAI-028).
+ *
+ * ⚠️ Linha incompleta levanta **antes** de qualquer rede: os CHECKs da 0017 a
+ * recusariam de qualquer forma, e falhar aqui dá a mensagem legível em vez do
+ * 23514 (mesma disciplina de `criarLinhaRetencao`).
+ */
+function linhaParaJson(entrada: EntradaLinhaRetencao) {
+  const linha = linhaRetencaoParaBanco(entrada);
+  if (linha === null) {
+    throw new Error("Linha de retenção incompleta — responda o que falta.");
+  }
+  const { valorCentavos, ...resto } = linha;
+  return { ...resto, valor: centavosParaNumeric(valorCentavos) };
+}
 
 /**
  * Reaproveita o favorecido pelo CNPJ/CPF; cria se for a primeira vez.

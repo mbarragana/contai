@@ -17,6 +17,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   acaoDaRetencaoParcial,
+  avisoDeRemocaoDasLinhas,
+  confirmacaoDeRemocaoDasLinhas,
   CHIP_RETENCAO_PARCIALMENTE_GRAVADA,
   CHIP_RETENCAO_SEM_RECOLHEDOR,
   contagemDaRetencaoParcial,
@@ -76,6 +78,7 @@ function linha(over: Partial<LinhaRetencao> = {}): LinhaRetencao {
     eDescontoEfetivo: true,
     quemRecolhe: "nao_sei",
     createdAt: "2026-03-21T10:00:00Z",
+    revisaoId: null,
     ...over,
   };
 }
@@ -826,5 +829,52 @@ describe("CONTAI-070 — a linha nascida de sugestão com categoria", () => {
     expect(validarLinhaRetencao(comDesconto).map((e) => e.campo)).toEqual([
       "quemRecolhe",
     ]);
+  });
+});
+
+// ── CONTAI-086 · o aviso da reversão do gate ─────────────────────────────
+
+describe("CONTAI-086 — reverter o gate para 'nenhuma' remove as linhas", () => {
+  /**
+   * ⚠️ **TESTE-TRAVA de texto verbatim.** A frase é do Gate Fiscal do
+   * CONTAI-086 (critério 7) e ela está no ticket entre `*"…"*`: o teste a LÊ de
+   * lá e compara com a saída da função, com o `N` substituído. Reescrever a frase
+   * no código deixa este teste vermelho — que é o ponto, porque quem a redigiu
+   * foi o `contador`, não esta tela.
+   */
+  it("o texto de 2+ linhas é o do ticket, byte a byte", () => {
+    const ticket = readFileSync("docs/tickets/CONTAI-086.md", "utf-8");
+    const citado = /\*"(As N linhas[\s\S]*?)"\*/.exec(ticket);
+    expect(citado).not.toBeNull();
+    const esperado = citado![1]
+      .split("\n")
+      .map((l) => l.trim())
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .replace("As N linhas", "As 3 linhas");
+    expect(avisoDeRemocaoDasLinhas(3)).toBe(esperado);
+  });
+
+  /**
+   * O ramo de UMA linha é CONCORDÂNCIA, não conteúdo novo: os dois fatos da
+   * frase — o registro no histórico e o fim da pendência — continuam lá, palavra
+   * por palavra. É a mesma adaptação que `contagemDaRetencaoParcial` já faz.
+   */
+  it("com uma linha, concorda no singular sem perder nenhum dos dois fatos", () => {
+    const umaLinha = avisoDeRemocaoDasLinhas(1);
+    expect(umaLinha).toContain("A linha de retenção desta nota será removida");
+    expect(umaLinha).toContain("O fato fica registrado no histórico da correção");
+    expect(umaLinha).toContain("deixa de contar como pendência");
+    // E nunca o plural quebrado que a substituição ingênua produziria.
+    expect(umaLinha).not.toContain("As 1 linhas");
+  });
+
+  it("a confirmação concorda com a quantidade, e nasce como pergunta", () => {
+    expect(confirmacaoDeRemocaoDasLinhas(1)).toBe(
+      "Confirmo a remoção da linha de retenção desta nota",
+    );
+    expect(confirmacaoDeRemocaoDasLinhas(2)).toBe(
+      "Confirmo a remoção das 2 linhas de retenção desta nota",
+    );
   });
 });

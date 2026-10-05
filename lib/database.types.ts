@@ -386,6 +386,9 @@ export type Database = {
           quem_recolhe:
             | Database["public"]["Enums"]["quem_recolhe_retencao"]
             | null
+          // CONTAI-086/087 (migration 0028) — o ato que trouxe esta linha.
+          // `null` é FATO (afirmação original da captura), não dado faltando.
+          revisao_id: string | null
           rotulo_literal: string
           tributo: Database["public"]["Enums"]["tributo_retido"] | null
           valor: number
@@ -399,6 +402,7 @@ export type Database = {
           quem_recolhe?:
             | Database["public"]["Enums"]["quem_recolhe_retencao"]
             | null
+          revisao_id?: string | null
           rotulo_literal: string
           tributo?: Database["public"]["Enums"]["tributo_retido"] | null
           valor: number
@@ -412,6 +416,7 @@ export type Database = {
           quem_recolhe?:
             | Database["public"]["Enums"]["quem_recolhe_retencao"]
             | null
+          revisao_id?: string | null
           rotulo_literal?: string
           tributo?: Database["public"]["Enums"]["tributo_retido"] | null
           valor?: number
@@ -422,6 +427,13 @@ export type Database = {
             columns: ["documento_id"]
             isOneToOne: false
             referencedRelation: "documento"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documento_retencao_revisao_id_fkey"
+            columns: ["revisao_id"]
+            isOneToOne: false
+            referencedRelation: "revisao"
             referencedColumns: ["id"]
           },
         ]
@@ -1114,6 +1126,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      // ── CONTAI-087 (migration 0028) ──────────────────────────────────────
+      // A linha de retenção acrescentada a um documento JÁ registrado, com
+      // rastro próprio. `p_linha` é `jsonb` do lado do banco; aqui ele é `Json`,
+      // como em `p_anos` de `anexar_comprovante_pagamento`.
+      adicionar_linha_retencao_registrada: {
+        Args: {
+          p_anexo_path?: string
+          p_documento_id: string
+          p_linha: Json
+          p_motivo: Database["public"]["Enums"]["motivo_revisao"]
+          p_motivo_texto?: string
+        }
+        Returns: string
+      }
       anexar_arquivo_documento: {
         Args: {
           p_arquivo_path: string
@@ -1180,6 +1206,20 @@ export type Database = {
         }
         Returns: string
       }
+      // ── CONTAI-086 (migration 0028) ──────────────────────────────────────
+      // Corrigir o gate de retenção de um documento registrado. `p_linhas` é as
+      // linhas NOVAS do mesmo ato (`[]` na reversão para "nenhuma").
+      corrigir_gate_retencao: {
+        Args: {
+          p_anexo_path?: string
+          p_documento_id: string
+          p_gate: Database["public"]["Enums"]["retencao_na_nota"]
+          p_linhas: Json
+          p_motivo: Database["public"]["Enums"]["motivo_revisao"]
+          p_motivo_texto?: string
+        }
+        Returns: string
+      }
       corrigir_nome_favorecido: {
         Args: {
           p_anexo_path?: string
@@ -1216,6 +1256,14 @@ export type Database = {
           p_valor_novo: number
         }
         Returns: undefined
+      }
+      // ── CONTAI-086/087 (migration 0028) ──────────────────────────────────
+      // A auxiliar que as duas RPCs acima chamam por dentro. Nenhuma tela a
+      // chama — ela entra aqui por fidelidade ao que `supabase gen types`
+      // emitiria, e o EXECUTE dela está declarado em `e2e/privilegios.spec.ts`.
+      documento_retencao_inserir: {
+        Args: { p_documento_id: string; p_linha: Json; p_revisao_id: string }
+        Returns: string
       }
       fatura_alocar: {
         Args: {

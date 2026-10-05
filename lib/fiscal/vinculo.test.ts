@@ -1638,6 +1638,7 @@ describe("CONTAI-056 · a linha de retenção como perna de pagamento", () => {
       eDescontoEfetivo: true,
       quemRecolhe: "nao_sei",
       createdAt: "2026-03-21T10:00:00Z",
+      revisaoId: null,
       ...over,
     };
   }

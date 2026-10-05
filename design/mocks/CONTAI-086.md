@@ -20,7 +20,7 @@ Nível: 1 (rota nova, 4 passos)   Cenário: gestão   Rota: `/documento/[id]/cor
 - **3b "Nenhuma" com linhas existentes**: `Card border-red` + texto fiscal (abaixo) + checkbox "Confirmo a remoção das N linhas" (nasce desmarcada, SEM DEFAULT). Vazio = desmarcada, CTA desabilitado.
 - **3c "Nenhuma" sem linhas**: `Dica` "Nada a corrigir: esta nota já não tinha nenhuma linha de retenção." + link "Voltar ao documento". Não chega ao passo 4, não grava rastro.
 - **4** (só se 3a/3b produziram algo a gravar):
-  - `emitente_corrigiu_a_nota`: `CampoArquivo` (upload novo) **+** chips clicáveis por anexo já existente no documento, rótulo "Usar a nota anexada em {dd/mm} ({motivo que a anexou})" — cobre o caso real (261→263: o 085 pode ter anexado a 263 segundos antes). Clicar preenche com aquele `arquivo_path`. Vazio = nenhum escolhido, CTA "Anexe ou escolha um documento já anexado para gravar". Erro de upload igual a `corrigir/valor`.
+  - `emitente_corrigiu_a_nota`: `CampoArquivo` (upload novo) **+** chips clicáveis por anexo já existente no documento, rótulo "Usar a nota anexada em {dd/mm/aaaa hh:mm} (correção de {campo})" — o que nomeia o papel é o CAMPO corrigido (critério 10 do ticket), não o motivo: "correção de número da nota" é o que identifica a 263. Data e hora completas, no fuso do aparelho (`quandoDoAtoLegivel`), e nunca a fatia da ISO, que sairia em UTC — cobre o caso real (261→263: o 085 pode ter anexado a 263 segundos antes). Clicar preenche com aquele `arquivo_path`. Vazio = nenhum escolhido, CTA "Anexe ou escolha um documento já anexado para gravar". Erro de upload igual a `corrigir/valor`.
   - `erro_de_digitacao_minha`/`outro`: sem upload; checkbox "Confirmo que reconferi o papel já anexado" (nasce desmarcada). Vazio = CTA desabilitado.
   - **Gravando**: "Gravando…" — upload (se houver) → RPC/inserts num ATO só (gate + linhas novas OU remoção + anexo), mesma atomicidade de `corrigir/valor`.
   - **Erro**: `ErroDeGravacao` — "Nada foi alterado", formulário preservado, retry sem redigitar.
@@ -33,7 +33,9 @@ Nível: 1 (rota nova, 4 passos)   Cenário: gestão   Rota: `/documento/[id]/cor
 ## Campos
 
 - `gateNovo` — "destacada"\|"nenhuma" — obrigatório — SEM DEFAULT
-- linhas 3a — campos do `FormularioDeLinha` (`rotuloLiteral`, `valorCentavos`, `composicao`, `tributo`, `eDescontoEfetivo`, `quemRecolhe`) — reuso `validarLinhaRetencao`, sem sugestão de extração (nunca há PDF novo aqui) — SEM DEFAULT
+- `rotuloLiteral`, `valorCentavos` (3a) — campos do `FormularioDeLinha`, reuso integral — SEM DEFAULT
+- `composicao`, `tributo`, `eDescontoEfetivo`, `quemRecolhe` (3a) — idem, validados por `validarLinhaRetencao` — SEM DEFAULT — campos fiscais
+- NÃO É CONTROLE — o `FormularioDeLinha` do 3a entra **sem** `sugestao`/`tributoSugerido`: nunca há PDF novo a ler aqui.
 - `confirmaRemocao` (3b) — boolean — obrigatório com linha a remover — nasce falso — SEM DEFAULT
 - `anexo`/`chipEscolhido` (4) — um dos dois, obrigatório se `emitente_corrigiu_a_nota` — SEM DEFAULT
 - `reconferiAfirmacao` (4) — boolean — obrigatório nos outros motivos — nasce falso — SEM DEFAULT

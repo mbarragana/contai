@@ -372,6 +372,21 @@ const MAPA: Record<string, Classificacao> = {
     iniciais: [],
     foraDaVisita: "idem `corrigir/classificacao`",
   },
+  /**
+   * CONTAI-086 + CONTAI-087 — reabrir o gate de retenção, e a linha tardia com
+   * prova (mesma tela, mesmo spec, decisão do `cto-obra`). Fora da visita pela
+   * mesma razão das irmãs, em grau maior: a tela exige NF de serviço com o gate
+   * JÁ respondido, `gateNovo` só existe depois do passo 1 (motivo), os campos da
+   * linha só existem depois de o gate novo ser "destacada", e `anexo`/os chips só
+   * com motivo `emitente_corrigiu_a_nota`. O comportamento — inclusive "nada nasce
+   * marcado" nos quatro campos — é provado por `corrigir-retencao.spec.ts`.
+   */
+  "/documento/[id]/corrigir/retencao": {
+    specs: ["CONTAI-086"],
+    iniciais: [],
+    foraDaVisita:
+      "exige NF de serviço com gate já respondido; `gateNovo` nasce no passo 2, as linhas no ramo \"destacada\" e o `anexo` só com motivo `emitente_corrigiu_a_nota` — provado por `corrigir-retencao.spec.ts`",
+  },
   "/documento/[id]/ligar": {
     specs: ["CONTAI-018"],
     iniciais: [],

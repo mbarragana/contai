@@ -35,6 +35,9 @@ import {
   quandoDoAtoLegivel,
   type AtoDeCorrecao,
 } from "@/lib/fiscal/revisao";
+// CONTAI-086 — os rótulos do gate saem DAQUI, nunca redigidos nesta tela: são as
+// mesmas duas palavras que a pergunta oferece na captura e na correção.
+import { OPCOES_GATE } from "@/lib/fiscal/retencao";
 import { formatarBRL, numericParaCentavos } from "@/lib/money";
 import type { CampoRevisao, MotivoRevisao, Revisao } from "@/lib/types";
 
@@ -373,6 +376,15 @@ const ROTULO_CAMPO: Record<CampoRevisao, string> = {
   // formatar número de nota é a normalização que o parecer §1 proíbe).
   numero: "número da nota",
   serie: "série da nota",
+  // CONTAI-086 — a resposta do gate de retenção, reaberta (dívida D90). O
+  // rótulo é a PERGUNTA encurtada, e não "retenção": o que mudou foi a resposta
+  // a "esta nota destaca alguma retenção?", e `legivel` traduz os dois lados por
+  // `OPCOES_GATE` ("Nenhuma" → "Destacada").
+  retencao_na_nota: "resposta sobre retenção na nota",
+  // CONTAI-087 — a linha de retenção que nasceu depois do registro, ou que saiu
+  // pela reversão do gate. O antes/depois é JSON (o snapshot completo), e quem o
+  // torna legível é `descreverLinhaDoRastro`.
+  linha_retencao: "linha de retenção",
 };
 
 /**
@@ -394,6 +406,43 @@ const ROTULO_CLASSIFICACAO: Record<string, string> = {
   material: "material",
   mao_obra: "mão de obra",
 };
+
+/**
+ * **CONTAI-087 — o JSON da linha de retenção, em uma frase legível.**
+ *
+ * O `antes` da reversão é o SNAPSHOT COMPLETO (migration 0028): além dos oito
+ * campos da linha, ele guarda quem reverteu e `documento_id`/`obra_id`, porque é
+ * a única coisa que resta dela depois do DELETE. O que esta função mostra é o que
+ * identifica a linha para quem lê — o rótulo literal e o valor. O resto continua
+ * no acervo, inteiro, em `revisao.antes`.
+ *
+ * ⚠️ **O rótulo sai LITERAL, entre aspas e sem normalização nenhuma** — é o ponto
+ * inteiro do `rotulo_literal` (ADENDO A.1 do parecer de 2026-09-18).
+ *
+ * ⚠️ JSON que não parseia **não some**: volta como está. Rastro ilegível é um
+ * problema; rastro ESCONDIDO porque a tela não o entendeu é a D44 com outro
+ * nome.
+ */
+function descreverLinhaDoRastro(json: string): string {
+  try {
+    const linha = JSON.parse(json) as {
+      rotulo_literal?: unknown;
+      valor?: unknown;
+    };
+    const rotulo =
+      typeof linha.rotulo_literal === "string" ? linha.rotulo_literal : null;
+    const centavos =
+      typeof linha.valor === "string" || typeof linha.valor === "number"
+        ? numericParaCentavos(linha.valor)
+        : null;
+    if (rotulo === null) return json;
+    return centavos === null
+      ? `“${rotulo}”`
+      : `“${rotulo}” ${formatarBRL(centavos)}`;
+  } catch {
+    return json;
+  }
+}
 
 /**
  * `antes`/`depois` são TEXTO no banco (§5: "texto preserva `null`, zeros à
@@ -436,7 +485,27 @@ function legivel(
   if (campo === "comprovante") {
     return valor === null ? "sem comprovante" : "comprovante anexado";
   }
+  /**
+   * ⚠️ **CONTAI-087 — `null` aqui NÃO é "campo vazio", e os dois lados importam**
+   * (mesma razão de `vinculo` e `comprovante` acima estarem antes do teste geral
+   * de `null`). Uma linha de retenção nasce com `antes = null` e morre com
+   * `depois = null`: nos dois casos o fato é a EXISTÊNCIA da linha mudando, e
+   * "(em branco)" descreveria um campo que ficou vazio — que não é o que
+   * aconteceu.
+   */
+  if (campo === "linha_retencao") {
+    return valor === null ? "(sem a linha)" : descreverLinhaDoRastro(valor);
+  }
   if (valor === null) return "(em branco)";
+  /**
+   * CONTAI-086 — os dois lados são os literais do enum `retencao_na_nota`, e os
+   * rótulos saem de `OPCOES_GATE` (`lib/fiscal/retencao.ts`), nunca redigidos
+   * aqui: são as MESMAS duas palavras que a pergunta oferece na captura e na
+   * correção. Token desconhecido cai no próprio token, como no resto da função.
+   */
+  if (campo === "retencao_na_nota") {
+    return OPCOES_GATE.find((o) => o.valor === valor)?.texto ?? valor;
+  }
   if (campo === "valor") {
     const centavos = numericParaCentavos(valor);
     return centavos === null ? valor : formatarBRL(centavos);

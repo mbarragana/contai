@@ -579,6 +579,7 @@ describe("CONTAI-056 — retenção confirmada entra no texto do ano pelo bruto"
           eDescontoEfetivo: true,
           quemRecolhe,
           createdAt: "2026-03-21T10:00:00Z",
+          revisaoId: null,
         },
       ],
     });

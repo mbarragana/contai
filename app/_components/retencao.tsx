@@ -36,6 +36,7 @@ import { CampoTexto, Escolha } from "@/app/_components/campos";
 import {
   Banner,
   Botao,
+  BotaoLink,
   BotaoSalvar,
   Card,
   Chip,
@@ -46,7 +47,7 @@ import {
 } from "@/app/_components/ui";
 import {
   classificarErro,
-  criarLinhaRetencao,
+  criarLinhaRetencaoDeGateCorrigido,
   mensagemDeErroDeGravacao,
   removerLinhaRetencao,
   responderGateRetencao,
@@ -129,7 +130,36 @@ export function BlocoRetencao({
     );
   }
 
-  if (documento.retencaoNaNota === "nenhuma") return null;
+  /**
+   * ⚠️ **MUDOU NO CONTAI-086 (critério 3): aqui era `return null`, e o `null`
+   * era a dívida D90.** Com o gate em "nenhuma" o bloco inteiro desaparecia, e
+   * com ele qualquer caminho de volta: a nota que respondeu "nenhuma" no registro
+   * e depois teve retenção revelada por uma substitutiva ficava presa para
+   * sempre. Caso real: a NFS-e 261 → 263, com R$ 1.797,03 de ISS retido
+   * invisível no sistema inteiro.
+   *
+   * O card não afirma consequência fiscal nenhuma — ele mostra a RESPOSTA
+   * GRAVADA e oferece a correção. "Sem retenção destacada" é o que ele
+   * respondeu, não um veredito do app.
+   */
+  if (documento.retencaoNaNota === "nenhuma") {
+    return (
+      <Card data-bloco="retencao-nenhuma">
+        <div className="font-semibold">Retenção</div>
+        <Linha rotulo="Esta nota">sem retenção destacada</Linha>
+        <Dica>
+          Foi isso que você respondeu olhando a nota. Se a nota mudou — uma
+          substitutiva que passou a destacar retenção —, a resposta se corrige
+          aqui, com motivo e rastro.
+        </Dica>
+        <div className="mt-2.5">
+          <BotaoLink href={`/documento/${documento.id}/corrigir/retencao`}>
+            Corrigir a resposta sobre retenção
+          </BotaoLink>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Repeater
@@ -296,27 +326,52 @@ function Repeater({
 
       {maisDeUmaEuRecolho ? <Dica>{RETENCAO_FECHA_POR_NOTA}</Dica> : null}
 
-      {abrindo ? (
-        // ⚠️ **A persistência é do CHAMADOR desde o CONTAI-053** (`onAdicionar`),
-        // e aqui ela é exatamente a de sempre: INSERT imediato por linha, com o
-        // `documento.id` já gravado. O formulário não sabe mais gravar — é o que
-        // o deixa servir também à captura, onde o documento ainda não existe.
-        <FormularioDeLinha
-          onAdicionar={async (entrada) => {
-            await criarLinhaRetencao(documento.id, entrada);
-            setAbrindo(false);
-            onMudou();
-          }}
-          onCancelar={() => setAbrindo(false)}
-          onSessaoExpirada={onSessaoExpirada}
-        />
+      {/* ══ CONTAI-087, critério 6 — ONDE a linha nova nasce depende de já
+          haver linha ═════════════════════════════════════════════════════════
+          Com ZERO linhas, o formulário continua AQUI, no lugar: este é o estado
+          `faltaRegistrarLinha` (gate "destacada" respondido, linha ainda não
+          preenchida), e ele é a continuação de um ato que já aconteceu — não uma
+          correção nova. Quem grava é `criarLinhaRetencaoDeGateCorrigido`, que
+          amarra a linha à revisão do gate quando houve uma, e nada pergunta.
+
+          Com UMA OU MAIS linhas, a linha nova é descoberta DEPOIS — e aí ela
+          precisa de motivo e de prova (anexo novo ou revalidação do papel já
+          anexado). Isso não cabe num formulário inline sem perguntar nada, e por
+          isso o botão vira LINK para a rota de correção, em modo "só linha". */}
+      {linhas.length === 0 ? (
+        abrindo ? (
+          // ⚠️ **A persistência é do CHAMADOR desde o CONTAI-053**
+          // (`onAdicionar`). O formulário não sabe gravar — é o que o deixa
+          // servir também à captura, onde o documento ainda não existe.
+          <FormularioDeLinha
+            onAdicionar={async (entrada) => {
+              await criarLinhaRetencaoDeGateCorrigido(documento.id, entrada);
+              setAbrindo(false);
+              onMudou();
+            }}
+            onCancelar={() => setAbrindo(false)}
+            onSessaoExpirada={onSessaoExpirada}
+          />
+        ) : (
+          <div className="mt-2.5">
+            <Botao variante="ghost" type="button" onClick={() => setAbrindo(true)}>
+              + Adicionar a primeira linha de retenção
+            </Botao>
+          </div>
+        )
       ) : (
-        <div className="mt-2.5">
-          <Botao variante="ghost" type="button" onClick={() => setAbrindo(true)}>
-            {linhas.length === 0
-              ? "+ Adicionar a primeira linha de retenção"
-              : "+ Adicionar outra linha"}
-          </Botao>
+        <div className="mt-2.5 flex flex-col gap-2">
+          <BotaoLink
+            href={`/documento/${documento.id}/corrigir/retencao?modo=linha`}
+          >
+            + Adicionar outra linha
+          </BotaoLink>
+          {/* Critério 4 do CONTAI-086 — a entrada da correção do GATE, ao lado da
+              de adicionar linha. Mesma rota, sem o `modo=linha`: lá a resposta
+              sobre retenção pode mudar nas duas direções. */}
+          <BotaoLink href={`/documento/${documento.id}/corrigir/retencao`}>
+            Corrigir a resposta sobre retenção
+          </BotaoLink>
         </div>
       )}
     </Card>
@@ -1002,7 +1057,7 @@ export function BlocoRetencaoDaCaptura({
  * `nomeDaRetencao`): com composição combinada ou desconhecida, o nome continua
  * sendo o rótulo literal do ADENDO A.2 — nunca "guia de ISS".
  */
-function LinhaPendente({
+export function LinhaPendente({
   linha,
   onRemover,
 }: {

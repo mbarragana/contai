@@ -21,20 +21,20 @@ documento que revelou isso, para que a pendência de "quem recolhe" não
 fique sem lastro documental.
 
 ## Critérios de Aceite
-1. [ ] Mesmo mock do CONTAI-086 (`design/mocks/CONTAI-086.md`) — não cria
+1. [x] Mesmo mock do CONTAI-086 (`design/mocks/CONTAI-086.md`) — não cria
    spec próprio, é a mesma tela/fluxo (`cto-obra`: 086 e 087 são o mesmo
    Gate 1).
-2. [ ] Linha nascida **dentro** da correção do CONTAI-086 (passo 3, gate
+2. [x] Linha nascida **dentro** da correção do CONTAI-086 (passo 3, gate
    muda para "destacada") → `revisao_id` = revisão do gate, mesmo
    `ato_id`, motivo herdado automaticamente, nenhuma pergunta extra.
-3. [ ] Linha tardia com gate **já** "destacada" e **zero** linhas
+3. [x] Linha tardia com gate **já** "destacada" e **zero** linhas
    (`faltaRegistrarLinha`): se existe uma `revisao` com
    `campo='retencao_na_nota'` e `depois='destacada'` para o documento, a
    linha nova amarra a essa revisão (motivo herdado, sem pergunta nova).
    Se **não existe** nenhuma `revisao` assim (documento sempre foi
    "destacada" desde a captura, só faltou preencher a linha) → é
    **primeira afirmação**: `revisao_id null`, sem motivo.
-4. [ ] Linha tardia com gate "destacada" **e** ≥1 linha **já** gravada
+4. [x] Linha tardia com gate "destacada" **e** ≥1 linha **já** gravada
    (caso isolado) → RPC nova `adicionar_linha_retencao_registrada(p_documento_id
    uuid, p_linha jsonb, p_motivo motivo_revisao, p_motivo_texto text
    default null, p_anexo_path text default null) returns uuid`: grava
@@ -42,24 +42,30 @@ fique sem lastro documental.
    `antes=null`, `depois=`JSON da linha, `motivo`), linha nova em
    `documento_retencao` com esse `revisao_id`, anexo conforme motivo
    (critério 5).
-5. [ ] Anexo **CONDICIONAL** nesta RPC: `motivo = emitente_corrigiu_a_nota`
+5. [x] Anexo **CONDICIONAL** nesta RPC: `motivo = emitente_corrigiu_a_nota`
    → **RECUSA** sem anexo. `motivo = erro_de_digitacao_minha`/`outro` →
    sem upload novo, com checkbox de revalidação ("o valor está visível na
    nota já anexada"). `motivo = comprovante_chegou_depois` → **RECUSA**
    (é motivo de comprovante de pagamento, não se aplica aqui).
-6. [ ] O `Repeater` (`retencao.tsx`) **para de chamar `criarLinhaRetencao`
+6. [x] O `Repeater` (`retencao.tsx`) **para de chamar `criarLinhaRetencao`
    direto** em documento registrado com ≥1 linha — abre
    `/documento/[id]/corrigir/retencao` em modo "só linha" (gate mostrado
    como afirmado, sem opção de mudar, só adicionar linha com
    anexo/revalidação).
-7. [ ] `criarLinhaRetencao`/`criarLinhasRetencao` (INSERT direto)
+7. [x] `criarLinhaRetencao`/`criarLinhasRetencao` (INSERT direto)
    **continuam intocadas** para o fluxo de captura (`/adicionar/documento`)
    e `/anexar` (CONTAI-033) — zero mudança de comportamento ali.
-8. [ ] "Anos afetados" nunca se aplica — mesma doutrina do CONTAI-086
+8. [x] "Anos afetados" nunca se aplica — mesma doutrina do CONTAI-086
    (retenção não move custo nem aferição).
-9. [ ] Migration `0028` (**compartilhada com o CONTAI-086**) — **sem**
+9. [x] Migration `0028` (**compartilhada com o CONTAI-086**) — **sem**
    extensão do enum `entidade_revisao` (a identidade da linha vai no JSON
    de `depois`, não em `entidade` nova).
+
+## ✅ Entregue — 2026-10-05
+Implementado junto com o CONTAI-086, mesmo Gate 1/2/4 (ver detalhe do
+pipeline em `docs/tickets/CONTAI-086.md`). Gate 4 (po): PASS nos 9/9
+critérios. Dívida registrada: **D91** (`removerLinhaRetencao` sem
+rastro, P1) — `docs/backlog/102-2026-10-05-gate4-contai-086-087.md`.
 
 ## Out of Scope
 - **Criar a peça de schema genérica `documento_anexo` "universal"

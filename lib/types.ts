@@ -263,6 +263,16 @@ export interface LinhaRetencao {
   quemRecolhe: QuemRecolheRetencao | null;
   /** Do banco — ordena a lista e nada mais. */
   createdAt: string;
+  /**
+   * **CONTAI-087 (migration 0028)** — o ATO que trouxe esta linha, quando ela
+   * nasceu depois do registro do documento.
+   *
+   * ⚠️ `null` é um FATO, não dado faltando (critério 3): linha gravada na
+   * captura, ou a primeira linha de uma nota cujo gate já era "destacada" desde
+   * o registro, é **afirmação original** — não há correção a apontar, e inventar
+   * uma revisão para ela registraria um ato que não aconteceu.
+   */
+  revisaoId: string | null;
 }
 
 export interface Pagamento {
@@ -635,7 +645,23 @@ export type CampoRevisao =
    * `numero`/`serie` (parecer §1)".
    */
   | "numero"
-  | "serie";
+  | "serie"
+  /**
+   * CONTAI-086 (migration 0028) — a resposta do gate "esta nota destaca alguma
+   * retenção?", reaberta depois de já ter sido afirmada. `antes`/`depois` são os
+   * literais do enum `retencao_na_nota`, e quem os traduz em tela é `OPCOES_GATE`.
+   */
+  | "retencao_na_nota"
+  /**
+   * CONTAI-087 (migration 0028) — uma LINHA de retenção que nasceu (`antes`
+   * null, `depois` = JSON da linha) ou que foi removida pela reversão do gate
+   * (`antes` = snapshot completo em JSON, `depois` null).
+   *
+   * ⚠️ **`entidade` continua `'documento'`** — a identidade da linha mora no
+   * JSON, não numa entidade nova: estender `entidade_revisao` é irreversível e
+   * obrigaria toda leitura de rastro de documento a conhecer um segundo caminho.
+   */
+  | "linha_retencao";
 
 /** Uma linha do rastro (§5). `antes`/`depois` são texto: `null` ≠ zero. */
 export interface Revisao {
