@@ -1191,6 +1191,24 @@ export type Database = {
         }
         Returns: string
       }
+      corrigir_numero_documento: {
+        Args: {
+          p_anexo_path?: string
+          p_documento_id: string
+          p_motivo: Database["public"]["Enums"]["motivo_revisao"]
+          p_motivo_texto?: string
+          p_numero: string
+          // ⚠️ `| null` ALARGADO À MÃO, e não é o que `supabase gen types`
+          // emitiria (ele põe `string` em todo parâmetro `text` sem default).
+          // Série ausente é `null` LEGÍTIMO (CONTAI-004, R6: NFS-e municipal
+          // costuma não ter série) e o parâmetro não pode receber `default
+          // null` — ele vem antes de `p_motivo`, que é obrigatório. Regeneração
+          // dos tipos tem de reaplicar isto; sem o `| null`, `lib/data.ts`
+          // precisaria de um cast, que é onde o tipo para de proteger.
+          p_serie: string | null
+        }
+        Returns: string
+      }
       corrigir_valor_compromisso: {
         Args: {
           p_compromisso_id: string

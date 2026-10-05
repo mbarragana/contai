@@ -125,13 +125,22 @@ export const SAIDA_DEIXAR_COMO_ESTA =
  * "Se o erro é da nota, não existe campo a mostrar — mostrar mesmo assim
  * ensina a digitar por cima do papel." Nada nasce escolhido: campo que decide
  * consequência fiscal não tem resposta padrão.
+ *
+ * ⚠️ `de` existe por causa do CONTAI-085 e **não** é configuração de aparência:
+ * `/corrigir/numero` tem DOIS passos, porque o passo 3 ("o que isso muda no seu
+ * custo") não existe lá — número nunca move custo (parecer §0(a)). Com o "3"
+ * fixo, aquela tela anunciaria um terceiro passo que nunca chega, e o cabeçalho
+ * dela ("passo 1 de 2") contradiria este contador dentro do mesmo render.
+ * Default 3 para as três telas do CONTAI-021 continuarem idênticas.
  */
 export function PassoMotivo({
   documentoHref,
   onEscolher,
+  de = 3,
 }: {
   documentoHref: string;
   onEscolher: (resposta: RespostaPasso1, texto: string | null) => void;
+  de?: number;
 }) {
   const [escolha, setEscolha] = useState<RespostaPasso1 | null>(null);
   const [texto, setTexto] = useState("");
@@ -166,7 +175,7 @@ export function PassoMotivo({
 
   return (
     <>
-      <Passo>Passo 1 de 3</Passo>
+      <Passo>Passo 1 de {de}</Passo>
       <Card>
         <div className="font-semibold">
           Esse dado está errado na nota, ou só aqui no app?
@@ -358,6 +367,12 @@ const ROTULO_CAMPO: Record<CampoRevisao, string> = {
   vinculo: "vínculo pagamento↔nota",
   // CONTAI-061 — o comprovante do pagamento, anexado depois (dívida D56).
   comprovante: "comprovante do pagamento",
+  // CONTAI-085 — o número e a série impressos na nota (dívida D89). Rótulos
+  // curtos de propósito: o que o histórico precisa mostrar é `261 → 263`, e o
+  // antes/depois sai LITERAL por `legivel` (nenhuma regra de formato aqui —
+  // formatar número de nota é a normalização que o parecer §1 proíbe).
+  numero: "número da nota",
+  serie: "série da nota",
 };
 
 /**
@@ -463,8 +478,29 @@ function LinhaDoAto({
    * ato que não tocou pagamento nenhum além do próprio.
    */
   const secundarias = ato.linhas.slice(1);
-  const pagamentos = secundarias.filter((l) => l.entidade === "pagamento");
-  const notas = secundarias.filter((l) => l.entidade === "documento");
+  /**
+   * ⚠️ **CONTAI-085 — a segunda linha pode ser OUTRO CAMPO DO MESMO REGISTRO**,
+   * e não um registro que acompanhou o ato. `corrigir_numero_documento` grava
+   * `numero` e `serie` sob o mesmo `ato_id`, as duas com `entidade = 'documento'`
+   * e o MESMO `entidade_id`.
+   *
+   * Sem esta separação o histórico sairia *"número da nota · 261 → 263, com 1
+   * nota"* — e "com 1 nota" é a frase do MOVE DE OBRA ("o documento foi, e 1
+   * pagamento foi com ele"). Ela afirmaria que outro papel se mexeu, o que não
+   * aconteceu, numa tela cujo propósito declarado é ser lida em 2034.
+   *
+   * O teste é `(entidade, entidadeId)` iguais aos da principal, e não "o campo é
+   * `serie`": a regra é de forma do rastro — campo a mais do mesmo registro é
+   * LINHA, registro a mais é CONTAGEM.
+   */
+  const outrosCampos = secundarias.filter(
+    (l) => l.entidade === principal.entidade && l.entidadeId === principal.entidadeId,
+  );
+  const acompanhantes = secundarias.filter(
+    (l) => !(l.entidade === principal.entidade && l.entidadeId === principal.entidadeId),
+  );
+  const pagamentos = acompanhantes.filter((l) => l.entidade === "pagamento");
+  const notas = acompanhantes.filter((l) => l.entidade === "documento");
   const acompanham = [
     pagamentos.length > 0
       ? `${pagamentos.length} ${pagamentos.length === 1 ? "pagamento" : "pagamentos"}`
@@ -491,6 +527,17 @@ function LinhaDoAto({
         {legivel(principal.campo, principal.depois, obras, documentos)}
         {acompanham.length > 0 ? `, com ${acompanham.join(" e ")}` : ""}
       </div>
+      {/* Critério 15 do CONTAI-085: o ato que mudou número E série mostra as
+          duas linhas, cada uma com o rótulo do campo dela. */}
+      {outrosCampos.map((l) => (
+        <div key={l.id} className="text-[13px]">
+          <span className="text-mut">{rotuloDoCampo(l.campo)}: </span>
+          <span className="mono">
+            {legivel(l.campo, l.antes, obras, documentos)} →{" "}
+            {legivel(l.campo, l.depois, obras, documentos)}
+          </span>
+        </div>
+      ))}
       <div className="text-[12px] text-mut">
         motivo: {ato.motivoTexto ?? ROTULO_MOTIVO_NO_RASTRO[ato.motivo]}
       </div>

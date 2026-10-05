@@ -1,6 +1,24 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 20 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 19 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-10-05, mais tarde**: **`085` entregue** — Gate 4 (`po`), 15/15
+critérios PASS. Rota nova `/documento/[id]/corrigir/numero`: corrige
+número/série de um documento já registrado, comparação textual literal
+(zeros à esquerda preservados), duplicidade como aviso não-bloqueante,
+anexo obrigatório só quando motivo="emitente_corrigiu_a_nota",
+`documento.arquivo_path` imutável (nota nova vira anexo adicional).
+Migration `0027`: constraint `revisao_campo_da_entidade` ganha
+`numero`/`serie`; RPC `corrigir_numero_documento` nova (não estende
+`corrigir_documento` — guarda de "depois not null" seria errada pra
+série). "Anos afetados" sempre vazio — número nunca move custo. Gate 1
+achou e corrigiu um bug real em `LinhaDoAto` (componente compartilhado
+por TODAS as telas de correção): afirmava "com 1 nota" quando dois
+campos do MESMO registro mudavam no mesmo ato — confirmado pelo Gate 2 e
+pelo Gate 4 que não regride o histórico das 3 correções anteriores
+(valor/classificação/emitente). `corrigir-numero.spec.ts` 8/8,
+`campos-fiscais`+`privilegios`+`correcao` 46/46. Detalhe:
+`docs/tickets/CONTAI-085.md`.
 
 **2026-10-05**: **`CONTAI-085`/`086`/`087` criados, P0/P0/P1** — caso real:
 NFS-e PerfuraTec nº 261 (já registrada) foi cancelada pela prestadora e

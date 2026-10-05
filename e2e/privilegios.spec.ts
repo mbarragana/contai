@@ -234,6 +234,14 @@ const FUNCOES_ESPERADAS: Record<string, string> = {
   baixar_pendencia: "authenticated",
   corrigir_documento: "authenticated",
   corrigir_nome_favorecido: "authenticated",
+  // ── CONTAI-085 (migration 0027) ────────────────────────────────────────
+  // Corrigir número/série da nota. Função NOVA, e não um campo a mais em
+  // `corrigir_documento`: a guarda "depois `is null` → exception" daquela é
+  // errada para `serie`, onde `null` é valor legítimo. Nenhuma tabela nova
+  // neste ticket — e o mapa muda de qualquer forma, pela mesma razão da 0016:
+  // função nasce com `execute` para `public`, e sem o revoke da 0027 o anônimo
+  // poderia reescrever o número de uma nota do acervo.
+  corrigir_numero_documento: "authenticated",
   marcar_emitente_errado: "authenticated",
   mover_documento_de_obra: "authenticated",
   pendencia_do_ano: "authenticated",

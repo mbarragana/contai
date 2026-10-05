@@ -681,6 +681,14 @@ function DetalheDocumento() {
           Corrigir a classificação — hoje:{" "}
           {NOME_CLASSIFICACAO[d.classificacao ?? "indefinida"].toLowerCase()}
         </BotaoLink>
+        {/* CONTAI-085 — a nota cancelada e reemitida com número novo (dívida
+            D89). O link mostra só o NÚMERO; a série aparece dentro da tela,
+            porque `null` nela é estado legítimo e não cabe num rótulo de
+            botão. "(em branco)" quando a nota entrou sem número: é o registro
+            legado que a pendência de identificação já cobra. */}
+        <BotaoLink href={`/documento/${d.id}/corrigir/numero`}>
+          Corrigir o número/série — hoje: Nº {d.numero ?? "(em branco)"}
+        </BotaoLink>
         <BotaoLink href={`/documento/${d.id}/corrigir/emitente`}>
           Corrigir o nome do emitente — vale para todos os registros dele
         </BotaoLink>

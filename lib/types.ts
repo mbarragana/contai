@@ -627,7 +627,15 @@ export type CampoRevisao =
   | "obra"
   | "nome"
   | "vinculo"
-  | "comprovante";
+  | "comprovante"
+  /**
+   * CONTAI-085 — o número e a série impressos na nota (migration 0027). O
+   * comentário de `revisao.campo` na 0009 já previa estes dois: "a lista
+   * corrigível CRESCE sem reabrir gate fiscal quando o CONTAI-004 trouxer
+   * `numero`/`serie` (parecer §1)".
+   */
+  | "numero"
+  | "serie";
 
 /** Uma linha do rastro (§5). `antes`/`depois` são texto: `null` ≠ zero. */
 export interface Revisao {

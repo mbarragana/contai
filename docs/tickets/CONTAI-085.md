@@ -27,52 +27,64 @@ apontar para um papel cancelado como se fosse o vigente.
    `corrigir/valor` (`PassoMotivo`, `ListaDeAnexos`, `CampoArquivo`) MAS
    **sem** o bloco de "custo confirmado por ano" (número nunca move custo
    — não ocultar via CSS, cortar o bloco inteiro do código).
-3. [ ] Dois campos: **Número** (texto, obrigatório) e **Série** (texto,
+3. [x] Dois campos: **Número** (texto, obrigatório) e **Série** (texto,
    opcional — `null` é valor legítimo, comum em NFS-e municipal).
    Comparação **textual literal** contra o gravado (zeros à esquerda
    preservados, nunca parse numérico).
-4. [ ] Se número E série digitados forem idênticos, como texto, aos já
+4. [x] Se número E série digitados forem idênticos, como texto, aos já
    gravados, botão desabilitado "Nada a corrigir" — mesmo padrão das
    outras 3 correções.
-5. [ ] Ao gravar, reroda `duplicataDe()` (já existe,
+5. [x] Ao gravar, reroda `duplicataDe()` (já existe,
    `lib/fiscal/documento.ts:321`) contra os documentos da mesma obra,
    **excluindo o próprio documento sendo corrigido** — mesma obra + mesmo
    `favorecido_id` + mesmo número + mesma série → aviso **NÃO-BLOQUEANTE**
    (reuso do texto já em produção, `adicionar/documento/page.tsx:1690-1701`:
    "Essa nota já foi registrada em... conta o custo em dobro"), nunca
    recusa a gravação.
-6. [ ] Anexo **obrigatório** quando `motivo = "emitente_corrigiu_a_nota"`
+6. [x] Anexo **obrigatório** quando `motivo = "emitente_corrigiu_a_nota"`
    (recusa gravar sem anexo) — mesmo padrão das outras 3 correções. Só
    aceita motivo `emitente_corrigiu_a_nota`/`erro_de_digitacao_minha`/`outro`
    (nunca `arquivamento_corrigido` nem `comprovante_chegou_depois`).
-7. [ ] `documento.arquivo_path` **NÃO muda** (imutável por trigger desde a
+7. [x] `documento.arquivo_path` **NÃO muda** (imutável por trigger desde a
    migration `0014`) — a nota nova entra em `documento_anexo` (append-only),
    nunca substitui o arquivo original. Texto de consequência, verbatim:
    *"`documento.arquivo_path` não muda. A nota nova entra como anexo
    adicional do documento — o arquivo original continua lá. O dossiê lista
    os dois arquivos."*
-8. [ ] Rastro: tabela `revisao` (`entidade='documento'`, `entidade_id`,
+8. [x] Rastro: tabela `revisao` (`entidade='documento'`, `entidade_id`,
    `campo='numero'` e/ou `'serie'`, `antes`, `depois` — texto literal,
    `quando`, `quem`, `motivo`, `motivo_texto`) — uma linha de `revisao`
    por campo que de fato mudou, mesmo `ato_id`.
-9. [ ] "Anos afetados" sempre vazio/nenhum — número nunca move custo
+9. [x] "Anos afetados" sempre vazio/nenhum — número nunca move custo
    (parecer §0(a)); a tela **não mostra** bloco de custo confirmado por
    ano (critério 2).
-10. [ ] Migration `0027`: `revisao_campo_da_entidade` ganha `'numero'` e
+10. [x] Migration `0027`: `revisao_campo_da_entidade` ganha `'numero'` e
     `'serie'` para `entidade = 'documento'`.
-11. [ ] RPC nova `corrigir_numero_documento(...)` — **não estende**
+11. [x] RPC nova `corrigir_numero_documento(...)` — **não estende**
     `corrigir_documento` (a guarda "depois `is null` → exception" daquela
     função é errada para `serie`, que pode ser `null` legitimamente). Ambos
     iguais → exception "nada a corrigir". `emitente_corrigiu_a_nota` sem
     anexo → exception.
-12. [ ] `revoke execute ... from public, anon` + `grant ... to authenticated`
+12. [x] `revoke execute ... from public, anon` + `grant ... to authenticated`
     na mesma migration; `FUNCOES_ESPERADAS` de `e2e/privilegios.spec.ts`
     atualizado com o nome da função nova.
-13. [ ] `lib/database.types.ts` atualizado à mão com a função nova.
-14. [ ] Link novo em `/documento/[id]`, junto dos outros links de correção:
+13. [x] `lib/database.types.ts` atualizado à mão com a função nova.
+14. [x] Link novo em `/documento/[id]`, junto dos outros links de correção:
     "Corrigir o número/série — hoje: Nº {numero}".
-15. [ ] Histórico de correções do documento mostra `numero: 261 → 263`
+15. [x] Histórico de correções do documento mostra `numero: 261 → 263`
     (e `serie` se também mudou).
+
+## ✅ Entregue — 2026-10-05
+Pipeline completo: Gate 1 (lead-engineer, DONE — achou e corrigiu um bug
+real em `LinhaDoAto`, componente compartilhado por todas as telas de
+correção, que afirmava incorretamente "com 1 nota" quando dois campos do
+MESMO registro mudavam no mesmo ato) → Gate 2 (cto-obra + contador,
+APPROVE, fiscal ratificado 6/6, 1 ajuste não-bloqueante corrigido no
+mesmo agente) → Gate 3 (coberto pelos E2E já rodados) → Gate 4 (po, PASS
+nos 15 critérios, confirmou que a correção do `LinhaDoAto` não regride o
+histórico das 3 correções anteriores — valor/classificação/emitente).
+Typecheck/lint limpos, `corrigir-numero.spec.ts` 8/8,
+`campos-fiscais`+`privilegios`+`correcao` 46/46 sem regressão.
 
 ## Out of Scope
 - **Trocar `favorecido_id`/CNPJ do emitente na mesma tela** — já tem tela

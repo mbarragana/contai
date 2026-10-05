@@ -361,6 +361,12 @@ const MAPA: Record<string, Classificacao> = {
     iniciais: [],
     foraDaVisita: "idem `corrigir/classificacao`",
   },
+  "/documento/[id]/corrigir/numero": {
+    specs: ["CONTAI-085"],
+    iniciais: [],
+    foraDaVisita:
+      "idem `corrigir/classificacao` — `numero`/`serie` só existem depois do passo 1 (motivo), e `anexo` só com motivo `emitente_corrigiu_a_nota`; o comportamento é provado por `corrigir-numero.spec.ts`",
+  },
   "/documento/[id]/corrigir/valor": {
     specs: ["CONTAI-021"],
     iniciais: [],

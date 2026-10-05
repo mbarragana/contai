@@ -643,6 +643,55 @@ export async function corrigirNomeDoFavorecido(entrada: {
 }
 
 /**
+ * **CONTAI-085 — corrigir o NÚMERO/SÉRIE da nota** (dívida D89): a prestadora
+ * cancelou a NFS-e nº 261 e reemitiu como nº 263, mesmo valor. O campo já estava
+ * pré-aprovado pelo parecer §1 ("CORRIGÍVEL COM CONDIÇÃO… como transcrição,
+ * texto literal, zeros à esquerda preservados"); o que não existia era caminho.
+ *
+ * ⚠️ **RPC PRÓPRIA, nunca `corrigir_documento`** (critério 11). Aquela função
+ * recusa `p_depois is null` — guarda certa para `valor`/`classificacao`, errada
+ * aqui: série ausente é `null` LEGÍTIMO (R6 do CONTAI-004), e "apagar a série
+ * que eu digitei por engano" é correção real. Além disso este é um ato de DOIS
+ * campos: a nota substitutiva troca número e série juntos, e duas chamadas
+ * dariam dois `ato_id` para um ato só.
+ *
+ * ⚠️ **Sem `anos`, e a ausência é o Gate Fiscal em assinatura**: §0(a) é literal
+ * em que o único campo de `documento` que move custo entre anos-calendário é
+ * `valor`. A função grava `'[]'` de dentro — não existe parâmetro por onde a
+ * tela mandar ano nenhum.
+ *
+ * `numero` e `serie` chegam **literais**, como saíram de `numeroParaBanco` /
+ * `serieParaBanco`: nada de `Number()`, `parseInt` ou corte de zero à esquerda —
+ * `"0263"` e `"263"` são notas diferentes (pre-mortem 1 do ticket).
+ */
+export async function corrigirNumeroDoDocumento(entrada: {
+  documentoId: string;
+  numero: string;
+  /** `null` é valor legítimo — "esta nota não tem série", não "não sei". */
+  serie: string | null;
+  motivo: MotivoRevisao;
+  motivoTexto: string | null;
+  anexoPath: string | null;
+}): Promise<string> {
+  const { data, error } = await getSupabase().rpc("corrigir_numero_documento", {
+    p_documento_id: entrada.documentoId,
+    p_numero: entrada.numero,
+    // ⚠️ `p_serie` vai SEMPRE, inclusive `null` — e por isso não usa o
+    // spread-condicional dos outros dois parâmetros abaixo. Omitir o parâmetro
+    // não é "série nula": é chamada sem argumento obrigatório, que o PostgREST
+    // recusa (ele não tem `default`, porque vem antes de `p_motivo`). Omitir
+    // `p_motivo_texto`/`p_anexo_path` é diferente — lá o `default null` da
+    // função é a ausência.
+    p_serie: entrada.serie,
+    p_motivo: entrada.motivo,
+    ...(entrada.motivoTexto ? { p_motivo_texto: entrada.motivoTexto } : {}),
+    ...(entrada.anexoPath ? { p_anexo_path: entrada.anexoPath } : {}),
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+/**
  * Critério 19 — *"Marcar: o CNPJ deste registro está errado — tratar"*.
  *
  * IDEMPOTENTE: voltar e marcar de novo deixa a lista com uma linha só. Não

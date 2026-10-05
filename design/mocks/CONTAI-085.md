@@ -33,9 +33,16 @@ número não move custo (`valorCentavos`/`anos` continuam de fora deste campo).
     > mesma nota registrada duas vezes conta o custo em dobro na declaração."
     > com link "Ver registro existente" → `/documento/{id-do-outro}`.
     Não bloqueia o botão — é aviso, igual à captura.
-  - Card "O que fica registrado": `numero: {antes} → {depois}` e, só se a
-    série mudou, `serie: {antes} → {depois}`. **Nunca** mostra "anos
-    afetados" (o campo não existe nesta tela — número não move custo).
+  - Card "O que fica registrado": **uma linha por campo que DE FATO mudou, e a
+    regra vale para os dois** (ressalva do Gate 2 do CONTAI-085) —
+    `numero: {antes} → {depois}` só quando o número mudou, `serie: {antes} →
+    {depois}` só quando a série mudou. Corrigir apenas a série **não** mostra
+    `numero: 261 → 261`: a RPC só insere a linha de `revisao` do campo com
+    `is distinct from`, e o check `revisao_antes_difere_depois` (migration 0009)
+    recusaria a outra — a tela anunciaria um rastro que não existe, que é a
+    divergência app↔acervo que estas telas existem para consertar.
+    **Nunca** mostra "anos afetados" (o campo não existe nesta tela — número
+    não move custo).
   - Botão: "Nada a corrigir" (desabilitado) se número E série digitados
     batem exatamente com o gravado; "Anexe o documento novo para gravar" se
     faltar anexo obrigatório; senão "Gravar a correção".
@@ -55,7 +62,7 @@ número não move custo (`valorCentavos`/`anos` continuam de fora deste campo).
   preservados, nunca normalizada) — recusa: vazio (CTA desabilitado) e igual
   ao gravado ("Nada a corrigir") — SEM DEFAULT (campo fiscal)
 - `serie` — texto — opcional — comparação literal — SEM DEFAULT
-- `anexo` — arquivo — obrigatório **só quando** `motivo === "emitente_corrigiu_a_nota"` — mesma validação/mensagem de `corrigir/valor`
+- `anexo` — arquivo — obrigatório **só quando** `motivo === "emitente_corrigiu_a_nota"` — mesma validação/mensagem de `corrigir/valor` — SEM DEFAULT
 
 ## Textos com consequência fiscal
 
