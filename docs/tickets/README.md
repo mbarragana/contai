@@ -1,6 +1,23 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 19 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-10-06**: **`CONTAI-088`/`089` criados, P1/P2** — dois relatos vividos
+ao vivo numa sessão de suporte: o Mateus pediu "fazer todas as correções
+em uma edição só" (088 — recusado fundir campos de novo, solução
+acordada é um ponto de entrada único que roteia pelas 3 correções já
+entregues reaproveitando o mesmo anexo) e "o criador em lote de parcelas
+devia pré-preencher a partir da nota" (089 — herança de TEXTO apenas,
+nunca de vínculo, doutrina do CONTAI-084/ADENDO 9 intocada e
+reconfirmada). `/tickets-req` completo pros dois: `cto-obra` achou e
+corrigiu 3 premissas erradas no 088 (anexo viaja por `arquivo_path`, não
+id; o duplicado do caso real foi escolha errada no upload, não bug do
+chip; `corrigir/numero`/`valor` ainda não tinham o chip de reaproveitar
+anexo, viraram fatia A do próprio ticket) e um achado real no 089 (valor
+herdado tem que ser o SALDO da nota, não o valor de face — evita dobrar
+custo numa nota com pagamento parcial). Ambos com designer nível 1+2/2.
+**Prontos para `/develop`.** Detalhe: `docs/tickets/CONTAI-088.md`,
+`089.md`.
 
 **2026-10-05, ainda mais tarde**: **`086`+`087` entregues** — mesmo
 Gate 1/2/4 (decisão do `cto-obra`: mesma migration, mesma rota, mesmo
