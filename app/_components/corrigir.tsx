@@ -18,8 +18,15 @@
  * clicar sem ler.
  */
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
+import { ItemDeAnexo } from "@/app/_components/anexo";
+import {
+  ControleVerDocumento,
+  LightboxDoAnexo,
+  useModoDoPreview,
+  useUrlDoAnexo,
+} from "@/app/_components/anexo-preview";
 import {
   Banner,
   Botao,
@@ -30,6 +37,8 @@ import {
   Linha,
   Passo,
 } from "@/app/_components/ui";
+import { ABRIR_PDF_EM_ABA } from "@/lib/preview-anexo";
+import type { AnexoDoDocumento } from "@/lib/data";
 import {
   agruparPorAto,
   quandoDoAtoLegivel,
@@ -342,6 +351,228 @@ export function MotivoEscolhidoResumo({
           Trocar o motivo
         </Botao>
       </div>
+    </Card>
+  );
+}
+
+// ── O papel que prova a correção (CONTAI-086 → CONTAI-088) ──────────────
+
+/**
+ * A resposta à pergunta "qual papel prova isto?", nas duas formas que ela tem.
+ *
+ * ⚠️ **Upload e chip são a MESMA pergunta, e ela tem UMA resposta** — é por isso
+ * que isto é uma união, e não dois estados independentes: escolher o chip zera o
+ * arquivo, escolher o arquivo zera o chip. Dois selecionados ao mesmo tempo
+ * deixaria a tela decidir sozinha qual vale no "Gravar".
+ */
+export type PapelDoPacote =
+  | { tipo: "existente"; path: string }
+  | { tipo: "novo" };
+
+/**
+ * **Quando o papel é obrigatório, e é o MOTIVO que decide** — parecer
+ * `2026-08-18-correcao-de-documento-registrado.md` §5, regra dura 2; CONTAI-085
+ * critério 6; CONTAI-086 critério 9.
+ *
+ * ⚠️ **Uma definição, e ela existe por causa do CONTAI-088**: com o pacote, um
+ * chip pode chegar PRÉ-SELECIONADO pelo `?anexo=` enquanto o motivo daquela
+ * correção específica não pede anexo nenhum. As três telas precisam responder
+ * igual à pergunta "este papel vai junto?", e a resposta é função só do motivo —
+ * nunca do que veio na URL (critério 10 e condição obrigatória do Gate Fiscal).
+ * A promessa continua sendo do ATO: as RPCs recusam a correção sem anexo quando
+ * o motivo é `emitente_corrigiu_a_nota`, independentemente do que a tela fizer.
+ */
+export function exigeAnexoNovo(motivo: MotivoEscolhido): boolean {
+  return motivo === "emitente_corrigiu_a_nota";
+}
+
+/** Textos de produto do CONTAI-088 (spec, §textos) — não são texto fiscal. */
+export const CHIP_ARQUIVO_NOVO = "Vou anexar um arquivo novo.";
+export const SEM_ANEXO_ADICIONAL =
+  "Este documento ainda não tem nenhum anexo adicional, além do original.";
+export const ANEXO_VEIO_DO_PACOTE =
+  "Este anexo veio da entrada do pacote — pode trocar se não for o papel certo.";
+/** Critério 11 do ticket, verbatim: o aviso diz o que fazer, não só o que falhou. */
+export const ANEXO_DO_PACOTE_NAO_ESTA_AQUI =
+  "O papel indicado não está neste documento — escolha um abaixo ou anexe.";
+export const ARQUIVO_SERA_REAPROVEITADO =
+  "Esse arquivo vai ser reaproveitado nas próximas correções deste pacote.";
+export const MESMO_PAPEL_DUAS_CORRECOES =
+  "O mesmo arquivo pode provar duas correções — cada uma com o seu próprio " +
+  "registro de quando e por quê.";
+export const TITULO_CHIPS_NA_CORRECAO =
+  "Ou use um papel que já está neste documento";
+
+/** Como cada papel já anexado se apresenta: quando chegou, e por qual ato. */
+function rotuloDoChip(a: AnexoDoDocumento): string {
+  const origem =
+    a.origem.tipo === "registro_original"
+      ? "do registro original"
+      : `correção de ${rotuloDoCampo(a.origem.campo)}`;
+  return `Usar a nota anexada em ${quandoDoAtoLegivel(a.anexadoEm)} (${origem})`;
+}
+
+function ChipDePapel({
+  rotulo,
+  marcado,
+  onEscolher,
+}: {
+  rotulo: string;
+  marcado: boolean;
+  onEscolher: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={marcado}
+      onClick={onEscolher}
+      className={`min-h-[44px] rounded-[10px] border px-[14px] py-2 text-left text-[13px] ${
+        marcado ? "border-ink bg-ink text-paper" : "border-line bg-white"
+      }`}
+    >
+      {rotulo}
+    </button>
+  );
+}
+
+/**
+ * **Os chips de reaproveitar um papel que já está no documento — CONTAI-088,
+ * critério 1.**
+ *
+ * Nasceu dentro de `corrigir/retencao` (CONTAI-086, critérios 9/10) e foi
+ * extraído aqui porque `corrigir/numero` e `corrigir/valor` passaram a precisar
+ * do MESMO mecanismo. Três cópias do mesmo bloco seriam três lugares para a
+ * regra de qual papel aparece divergir — e essa regra é fiscal.
+ *
+ * ⚠️ **O anexo ORIGINAL do documento nunca entra aqui**, e a exclusão é regra,
+ * não filtro de conveniência: com `motivo = emitente_corrigiu_a_nota`, o papel
+ * que prova a correção é o que CHEGOU DEPOIS. Oferecer a nota original como
+ * prova de que o emitente a corrigiu seria oferecer o papel errado com um rótulo
+ * convincente. Quem passa a lista é a tela, e ela passa `anexos` —
+ * `carregarAnexosDoDocumento`, que só devolve adicionais.
+ *
+ * ⚠️ **Duplicado na lista aparece duplicado**, e isso é decisão do ticket (Out of
+ * Scope: *"listar duplicados sem tratamento especial é suficiente"*). O que NÃO
+ * se admite é a chave do React colidir e o React descartar o segundo em
+ * silêncio — um papel sumido da tela é a D35 de volta.
+ */
+export function ChipsDeAnexoExistente({
+  anexos,
+  titulo,
+  escolhido,
+  onEscolher,
+  dica = MESMO_PAPEL_DUAS_CORRECOES,
+  comArquivoNovo = false,
+}: {
+  anexos: readonly AnexoDoDocumento[];
+  titulo: string;
+  escolhido: PapelDoPacote | null;
+  onEscolher: (papel: PapelDoPacote) => void;
+  dica?: ReactNode;
+  /**
+   * O chip "Vou anexar um arquivo novo", do passo 1 do ponto de entrada. Nas
+   * três telas de correção ele **não existe**: lá o arquivo novo é o próprio
+   * `CampoArquivo`, que já está na tela.
+   */
+  comArquivoNovo?: boolean;
+}) {
+  if (anexos.length === 0 && !comArquivoNovo) return null;
+
+  return (
+    <Card>
+      <div className="font-semibold">{titulo}</div>
+      {anexos.length === 0 ? <Dica>{SEM_ANEXO_ADICIONAL}</Dica> : null}
+      <div className="mt-2 flex flex-col gap-2">
+        {anexos.map((a, posicao) => (
+          <ChipDePapel
+            key={`${posicao}-${a.arquivoPath}`}
+            rotulo={rotuloDoChip(a)}
+            marcado={
+              escolhido?.tipo === "existente" && escolhido.path === a.arquivoPath
+            }
+            onEscolher={() => onEscolher({ tipo: "existente", path: a.arquivoPath })}
+          />
+        ))}
+        {comArquivoNovo ? (
+          <ChipDePapel
+            rotulo={CHIP_ARQUIVO_NOVO}
+            marcado={escolhido?.tipo === "novo"}
+            onEscolher={() => onEscolher({ tipo: "novo" })}
+          />
+        ) : null}
+      </div>
+      {dica ? <Dica>{dica}</Dica> : null}
+    </Card>
+  );
+}
+
+/**
+ * **O papel escolhido, VISÍVEL antes do "Gravar" — CONTAI-088, critério 13.**
+ *
+ * É a mitigação do pre-mortem 2 do ticket, e o incidente que a pede é real: o
+ * duplicado do acervo não foi falha do chip, foi o arquivo ERRADO escolhido no
+ * seletor de upload (a 261 em vez da 263). Uma lista com mais opções, sem
+ * preview, reproduziria a mesma escolha errada com mais chances de errar.
+ *
+ * ⚠️ **Dois mecanismos, porque os dois casos são materialmente diferentes** —
+ * decisão ratificada pelo `cto-obra` (spec, §decisões):
+ * - upload novo: há um `File` em memória, e `LightboxDoAnexo` exige exatamente
+ *   isso (`arquivo: File`), então o preview é inline;
+ * - chip: o papel já está no acervo e **não há `File` nenhum** — quem abre por
+ *   path é o `ItemDeAnexo`, o MESMO "Abrir" do detalhe do documento, já coberto
+ *   por E2E. Um link avulso novo seria um segundo caminho de visualizar-por-path
+ *   para manter.
+ */
+export function PapelEscolhidoAntesDeGravar({
+  arquivo,
+  chip,
+}: {
+  arquivo: File | null;
+  chip: string | null;
+}) {
+  // Os hooks vêm ANTES de qualquer saída: `useUrlDoAnexo` devolve `null` para
+  // arquivo nulo, e `useModoDoPreview` lê só a mídia do dispositivo.
+  const url = useUrlDoAnexo(arquivo);
+  const modo = useModoDoPreview(arquivo);
+  const [aberto, setAberto] = useState(false);
+
+  if (arquivo === null && chip === null) return null;
+
+  return (
+    <Card>
+      <div className="font-semibold">O papel que prova esta correção</div>
+      {arquivo === null && chip !== null ? (
+        <>
+          <Dica>
+            Confira antes de gravar: é este o papel que vai sustentar esta
+            correção.
+          </Dica>
+          <div className="mt-2">
+            <ItemDeAnexo path={chip} />
+          </div>
+        </>
+      ) : arquivo !== null ? (
+        <>
+          <Dica>{arquivo.name}</Dica>
+          <ControleVerDocumento
+            data-ver="pacote"
+            modo={modo}
+            url={url}
+            rotulo="Ver o arquivo antes de gravar"
+            rotuloPdfEmNovaAba={ABRIR_PDF_EM_ABA}
+            onAbrir={() => setAberto(true)}
+            className="mt-2 min-h-[44px] text-left font-semibold underline"
+          />
+          {aberto && url !== null ? (
+            <LightboxDoAnexo
+              arquivo={arquivo}
+              url={url}
+              modo={modo}
+              onFechar={() => setAberto(false)}
+            />
+          ) : null}
+        </>
+      ) : null}
     </Card>
   );
 }

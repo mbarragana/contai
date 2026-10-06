@@ -1,7 +1,7 @@
 "use client";
 
-import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 
 import {
   ListaDeAnexos,
@@ -11,10 +11,17 @@ import {
 import { CampoArquivo, CampoTexto } from "@/app/_components/campos";
 import { CamposCurtos } from "@/app/_components/captura";
 import {
+  ANEXO_DO_PACOTE_NAO_ESTA_AQUI,
+  ANEXO_VEIO_DO_PACOTE,
+  ARQUIVO_SERA_REAPROVEITADO,
+  ChipsDeAnexoExistente,
   ErroEstaNaNota,
+  exigeAnexoNovo,
   MotivoEscolhidoResumo,
+  PapelEscolhidoAntesDeGravar,
   PassoMotivo,
   ROTULO_MOTIVO_NO_RASTRO,
+  TITULO_CHIPS_NA_CORRECAO,
   type MotivoEscolhido,
   type RespostaPasso1,
 } from "@/app/_components/corrigir";
@@ -39,11 +46,13 @@ import {
 } from "@/app/_components/ui";
 import {
   buscarNotasComNumero,
+  carregarAnexosDoDocumento,
   carregarDocumento,
   classificarErro,
   corrigirNumeroDoDocumento,
   mensagemDeErroDeGravacao,
   subirParaAcervo,
+  type AnexoDoDocumento,
   type ErroDeTela,
 } from "@/lib/data";
 import {
@@ -53,13 +62,27 @@ import {
   type DocumentoRegistrado,
 } from "@/lib/fiscal/documento";
 import { formatarDataBR } from "@/lib/fiscal/obra";
+import {
+  lerAnexoDoPacote,
+  lerPacote,
+  proximaDoPacote,
+  textoContinuar,
+  textoPular,
+} from "@/lib/gestao/pacote-correcao";
 import type { Documento } from "@/lib/types";
 
 type Fase =
   | { nome: "passo1" }
   | { nome: "erro_do_papel" }
   | { nome: "campo"; motivo: MotivoEscolhido; motivoTexto: string | null }
-  | { nome: "gravado"; numero: string; serie: string | null; serieMudou: boolean };
+  | {
+      nome: "gravado";
+      numero: string;
+      serie: string | null;
+      serieMudou: boolean;
+      /** O path que ESTE ato usou — é ele que segue para a próxima do pacote. */
+      anexoUsado: string | null;
+    };
 
 /**
  * ⚠️ **TEXTO DE CONSEQUÊNCIA FISCAL, FECHADO NO GATE FISCAL do CONTAI-085** —
@@ -101,15 +124,45 @@ function ArquivoNaoMuda() {
  * escondido (pre-mortem 3 do ticket: dead code copiado de `corrigir/valor`).
  */
 export default function CorrigirNumero() {
+  return (
+    // `useSearchParams` exige fronteira de Suspense — o `?pacote`/`?anexo` do
+    // CONTAI-088 chega por query. Mesmo padrão de `corrigir/retencao`.
+    <Suspense
+      fallback={
+        <>
+          <CabecalhoDaTela titulo="Corrigir o número/série" />
+          <ColunaDeDetalhe>
+            <Carregando rotulo="Carregando o documento" />
+          </ColunaDeDetalhe>
+        </>
+      }
+    >
+      <Tela />
+    </Suspense>
+  );
+}
+
+function Tela() {
   const { id } = useParams<{ id: string }>();
   const { pedirReautenticacao } = useSessao();
+  /**
+   * **CONTAI-088 — o modo pacote.** `null` é "não há pacote": sem `?pacote` a
+   * tela se comporta exatamente como antes deste ticket (critério 11).
+   */
+  const busca = useSearchParams();
+  const pacote = lerPacote(busca);
+  const anexoDoPacote = lerAnexoDoPacote(busca);
+
   const [documento, setDocumento] = useState<Documento | null>(null);
+  const [anexos, setAnexos] = useState<AnexoDoDocumento[]>([]);
   const [erroCarregar, setErroCarregar] = useState<ErroDeTela | null>(null);
   const [tentativa, setTentativa] = useState(0);
   const [fase, setFase] = useState<Fase>({ nome: "passo1" });
   const [numero, setNumero] = useState("");
   const [serie, setSerie] = useState("");
   const [anexo, setAnexo] = useState<File | null>(null);
+  /** O papel já no acervo, escolhido por chip (CONTAI-088, critério 1). */
+  const [chip, setChip] = useState<string | null>(null);
   const [gravando, setGravando] = useState(false);
   const [erroGravar, setErroGravar] = useState<string | null>(null);
 
@@ -118,7 +171,22 @@ export default function CorrigirNumero() {
     void (async () => {
       try {
         const d = await carregarDocumento(id);
-        if (!cancelado) setDocumento(d);
+        // Os anexos ADICIONAIS alimentam os chips do passo 2 — mesma chamada de
+        // rede que `corrigir/retencao` já fazia desde o CONTAI-086.
+        const lista = await carregarAnexosDoDocumento(d.id);
+        if (cancelado) return;
+        setDocumento(d);
+        setAnexos(lista);
+        // ⚠️ **Critério 11 — `?anexo` só pré-seleciona o que está NESTE
+        // documento.** O path vem da querystring, que é digitável à mão e chega
+        // de link velho: aceitá-lo sem conferir mandaria à RPC um papel que a
+        // tela nunca viu na lista do próprio documento.
+        setChip(
+          anexoDoPacote !== null &&
+            lista.some((a) => a.arquivoPath === anexoDoPacote)
+            ? anexoDoPacote
+            : null,
+        );
       } catch (erro) {
         if (!cancelado) setErroCarregar(classificarErro(erro));
       }
@@ -126,7 +194,7 @@ export default function CorrigirNumero() {
     return () => {
       cancelado = true;
     };
-  }, [id, tentativa]);
+  }, [id, tentativa, anexoDoPacote]);
 
   const tentarDeNovo = useCallback(() => {
     setErroCarregar(null);
@@ -205,7 +273,20 @@ export default function CorrigirNumero() {
       // O upload vem ANTES da gravação, e é o único jeito: o `arquivo_path`
       // precisa existir no acervo para a função Postgres o registrar no mesmo
       // ato. Falha no upload = nada foi gravado, e a tela diz isso.
-      const anexoPath = anexo ? await subirParaAcervo(anexo, "documento") : null;
+      //
+      // ⚠️ O CHIP manda o path de um anexo que JÁ existe — e a RPC insere uma
+      // LINHA NOVA em `documento_anexo` apontando para ele, com o `revisao_id`
+      // deste ato. Um objeto no bucket, N atos apontando: nenhum upload
+      // duplicado, e cada ato com o seu próprio rastro.
+      //
+      // ⚠️ **E nada é anexado quando o motivo não pede anexo** (critério 10): um
+      // chip pré-selecionado pelo `?anexo=` do pacote não pode virar prova de uma
+      // correção cujo motivo é "eu digitei errado" — ali a pergunta é outra.
+      const anexoPath = !exigeAnexoNovo(fase.motivo)
+        ? null
+        : anexo
+          ? await subirParaAcervo(anexo, "documento")
+          : chip;
       await corrigirNumeroDoDocumento({
         documentoId: documento.id,
         numero: numeroLimpo,
@@ -219,6 +300,7 @@ export default function CorrigirNumero() {
         numero: numeroLimpo,
         serie: serieLimpa,
         serieMudou: serieLimpa !== documento.serie,
+        anexoUsado: anexoPath,
       });
     } catch (erro) {
       setGravando(false);
@@ -266,6 +348,17 @@ export default function CorrigirNumero() {
 
   // ── Gravado ────────────────────────────────────────────────────────────
   if (fase.nome === "gravado") {
+    /**
+     * CONTAI-088, critério 12 — a próxima do pacote, com o papel que ESTE ato
+     * de fato usou. Sem papel próprio (motivo que não pede anexo), segue o que
+     * chegou: o pacote não perde o papel só porque uma das correções não
+     * precisou dele.
+     */
+    const proxima = proximaDoPacote(
+      id,
+      pacote,
+      fase.anexoUsado ?? anexoDoPacote,
+    );
     return (
       <>
         <CabecalhoDaTela titulo="Número corrigido ✓" sub={sub} />
@@ -287,6 +380,14 @@ export default function CorrigirNumero() {
               <ArquivoNaoMuda />
             </Dica>
           </Card>
+          {/* Em modo pacote o avanço é PRIMÁRIO e o botão de hoje vira
+              secundário (critério 12) — o caminho que o Mateus veio fazer é
+              continuar, não voltar. Fora do pacote, nada muda. */}
+          {proxima !== null ? (
+            <BotaoLink href={proxima.href} variante="primary">
+              {textoContinuar(proxima)}
+            </BotaoLink>
+          ) : null}
           <BotaoLink href={documentoHref}>Ver o documento</BotaoLink>
         </ColunaDeDetalhe>
       </>
@@ -345,8 +446,24 @@ export default function CorrigirNumero() {
   // 3 e 4). `"0263"` digitado contra `"263"` gravado é uma correção REAL, e é
   // isso que estas duas igualdades de string dizem.
   const igual = numeroLimpo === d.numero && serieLimpa === d.serie;
-  const faltaAnexo = fase.motivo === "emitente_corrigiu_a_nota" && anexo === null;
+  const motivoExigeAnexo = exigeAnexoNovo(fase.motivo);
+  /** Upload e chip são a MESMA pergunta, com UMA resposta (CONTAI-088). */
+  const anexoEscolhido = anexo !== null || chip !== null;
+  const faltaAnexo = motivoExigeAnexo && !anexoEscolhido;
   const podeGravar = numeroLimpo !== null && !igual && !faltaAnexo && !gravando;
+
+  /**
+   * ⚠️ Critério 11 — o `?anexo` que não está neste documento **não pré-seleciona
+   * nada e é dito em tela**. Silenciar aqui faria o Mateus achar que o papel do
+   * pacote está escolhido quando não está, e gravar a correção sem prova.
+   */
+  const anexoDoPacoteNaoEstaAqui =
+    motivoExigeAnexo &&
+    anexoDoPacote !== null &&
+    !anexos.some((a) => a.arquivoPath === anexoDoPacote);
+
+  /** Critério 12 — "Pular esta" propaga o MESMO papel que chegou, sem gravar. */
+  const proxima = proximaDoPacote(id, pacote, anexoDoPacote);
 
   const rotuloBotao = gravando
     ? "Gravando…"
@@ -355,7 +472,11 @@ export default function CorrigirNumero() {
       : igual
         ? "Nada a corrigir"
         : faltaAnexo
-          ? "Anexe o documento novo para gravar"
+          ? // O rótulo acompanha o que a tela de fato oferece: sem anexo
+            // adicional no documento, não há chip a escolher.
+            anexos.length > 0
+            ? "Anexe ou escolha um documento já anexado para gravar"
+            : "Anexe o documento novo para gravar"
           : "Gravar a correção";
 
   /**
@@ -414,18 +535,59 @@ export default function CorrigirNumero() {
           </Dica>
         </Card>
 
-        {fase.motivo === "emitente_corrigiu_a_nota" ? (
+        {motivoExigeAnexo ? (
           <>
             <Passo>Documento novo do emitente</Passo>
             <CampoArquivo
               campo="anexo"
               rotulo="Carta de correção ou nota substitutiva"
-              ajuda="PDF, XML ou foto. Sem ele, esta correção não grava."
+              ajuda={
+                proxima !== null
+                  ? `PDF, XML ou foto. Sem ele, esta correção não grava. ${ARQUIVO_SERA_REAPROVEITADO}`
+                  : "PDF, XML ou foto. Sem ele, esta correção não grava."
+              }
               accept="application/pdf,image/*,text/xml,application/xml"
               arquivo={anexo}
-              onChange={setAnexo}
+              onChange={(f) => {
+                setAnexo(f);
+                // Upload e chip são a MESMA pergunta ("qual papel prova isto?"),
+                // e ela tem uma resposta só.
+                if (f !== null) setChip(null);
+              }}
               erro={faltaAnexo ? "O documento novo é obrigatório." : undefined}
             />
+            {/* ⚠️ **CONTAI-088, critério 1 — o chip de reaproveitar.** Só os
+                anexos ADICIONAIS, nunca o `arquivo_path` original: com
+                `motivo = emitente_corrigiu_a_nota`, o papel que prova a correção
+                é o que CHEGOU DEPOIS. Oferecer a nota original como prova de que
+                o emitente a corrigiu seria oferecer o papel errado com um rótulo
+                convincente. */}
+            <ChipsDeAnexoExistente
+              anexos={anexos}
+              titulo={TITULO_CHIPS_NA_CORRECAO}
+              escolhido={chip === null ? null : { tipo: "existente", path: chip }}
+              onEscolher={(papel) => {
+                if (papel.tipo !== "existente") return;
+                setChip(papel.path);
+                setAnexo(null);
+              }}
+              dica={
+                chip !== null && chip === anexoDoPacote
+                  ? ANEXO_VEIO_DO_PACOTE
+                  : undefined
+              }
+            />
+            {anexoDoPacoteNaoEstaAqui ? (
+              <Consequencia cor="amb">
+                {ANEXO_DO_PACOTE_NAO_ESTA_AQUI}
+              </Consequencia>
+            ) : null}
+            {/* Critério 13 — o papel escolhido, visível ANTES de gravar. É a
+                mitigação do arquivo errado no seletor, que é o que de fato
+                produziu o duplicado do caso real. */}
+            {pacote !== null ? (
+              <PapelEscolhidoAntesDeGravar arquivo={anexo} chip={chip} />
+            ) : null}
             {/* Verbatim do Gate Fiscal deste ticket — não reescrever. */}
             <Consequencia cor="amb">
               <ArquivoNaoMuda />
@@ -526,7 +688,14 @@ export default function CorrigirNumero() {
         >
           {rotuloBotao}
         </BotaoSalvar>
-        <BotaoLink href={documentoHref}>Cancelar</BotaoLink>
+        {/* Em modo pacote, "Cancelar" vira "Pular esta" — e pular NÃO grava nada
+            nem pede confirmação, porque nada foi gravado neste passo ainda
+            (critério 12). Sem próxima, o botão de hoje volta inteiro. */}
+        {proxima !== null ? (
+          <BotaoLink href={proxima.href}>{textoPular(proxima)}</BotaoLink>
+        ) : (
+          <BotaoLink href={documentoHref}>Cancelar</BotaoLink>
+        )}
       </RodapeDeAcao>
     </>
   );

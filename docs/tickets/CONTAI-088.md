@@ -36,7 +36,7 @@ mesmo PDF em cada tela separada.
 (hoje só existe em `corrigir/retencao`, CONTAI-086; entregável e
 deployável sozinha, vem antes da fatia B)
 
-1. [ ] `/documento/[id]/corrigir/numero` e `/documento/[id]/corrigir/valor`,
+1. [x] `/documento/[id]/corrigir/numero` e `/documento/[id]/corrigir/valor`,
    com `motivo = emitente_corrigiu_a_nota`, ganham chip para reaproveitar
    um anexo adicional já existente (data+origem) — mesmo componente e
    regra dos critérios 9/10 do CONTAI-086. O anexo ORIGINAL do documento
@@ -46,69 +46,84 @@ deployável sozinha, vem antes da fatia B)
 
 **Fatia B — ponto de entrada + navegação sequencial**
 
-2. [ ] Rota nova `/documento/[id]/documento-novo`, linkada de
+2. [x] Rota nova `/documento/[id]/documento-novo`, linkada de
    `/documento/[id]` (topo do bloco "Corrigir este registro"): "Recebi um
    documento novo para esta nota — corrigir número, valor e/ou
    retenção".
-3. [ ] Passo 1 do ponto de entrada: lista os anexos adicionais já
+3. [x] Passo 1 do ponto de entrada: lista os anexos adicionais já
    existentes no documento (arquivo, data, origem) como chips, OU a
    opção "Vou anexar um arquivo novo". **O ponto de entrada não faz
    upload nem grava nada**: com "arquivo novo", o upload só acontece
    dentro da PRIMEIRA correção da sequência, e o `arquivo_path`
    resultante é repassado às seguintes — evita objeto órfão no bucket se
    o Mateus desistir no meio do pacote.
-4. [ ] Passo 2: checkboxes das 3 correções (número/série, valor,
+4. [x] Passo 2: checkboxes das 3 correções (número/série, valor,
    retenção), pelo menos uma marcada pra habilitar "Continuar". Ordem
    default de navegação: número → valor → retenção (não é regra, é
    ordem).
-5. [ ] "Continuar" leva à primeira correção marcada com
+5. [x] "Continuar" leva à primeira correção marcada com
    `?pacote=<restantes>&anexo=<arquivo_path ou vazio>` na URL.
-6. [ ] **Verificável em E2E**: ao confirmar N correções do mesmo pacote
+6. [x] **Verificável em E2E**: ao confirmar N correções do mesmo pacote
    com o mesmo papel, `documento_anexo` ganha N linhas com o MESMO
    `arquivo_path` e `revisao_id` distintos (cada ato tem seu próprio
    rastro — nunca reusa a linha física de outro ato), e o bucket
    `acervo` ganha no máximo UM objeto novo (zero se o papel já existia).
-7. [ ] Se o Mateus sair no meio do pacote, cada correção já confirmada
+7. [x] Se o Mateus sair no meio do pacote, cada correção já confirmada
    fica valendo normalmente (aparece no histórico) — o pacote nunca é
    tudo-ou-nada; as correções pendentes continuam acessíveis
    individualmente pelas rotas de hoje.
-8. [ ] O ponto de entrada em si **não grava nenhuma linha própria em
+8. [x] O ponto de entrada em si **não grava nenhuma linha própria em
    `revisao`** — o rastro é exclusivamente a soma das correções
    individuais efetivamente confirmadas.
-9. [ ] Nenhum texto de consequência fiscal é escrito ou reescrito nesta
+9. [x] Nenhum texto de consequência fiscal é escrito ou reescrito nesta
    rodada: todo texto fiscal mostrado dentro de cada correção é o já
    existente, copiado dos pareceres já citados nos tickets
    CONTAI-085/086/087.
-10. [ ] **`PassoMotivo` é perguntado e decidido POR correção, nunca uma
+10. [x] **`PassoMotivo` é perguntado e decidido POR correção, nunca uma
     vez só pro pacote inteiro** — a obrigatoriedade de anexo depende do
     motivo daquela correção específica (parecer
     `docs/pareceres/2026-08-18-correcao-de-documento-registrado.md` §5;
     CONTAI-085 critério 6; CONTAI-086 critério 9). `?anexo=<path>` só
     pré-seleciona o chip; é ignorado quando o motivo daquela correção
     não exige anexo.
-11. [ ] `?anexo=<path>` só é aceito se o path estiver na lista de
+11. [x] `?anexo=<path>` só é aceito se o path estiver na lista de
     `carregarAnexosDoDocumento(d.id)` daquele documento; senão nada é
     pré-selecionado e a tela diz: "O papel indicado não está neste
     documento — escolha um abaixo ou anexe." Sem `?anexo`/`?pacote`, as
     três rotas se comportam exatamente como hoje (E2E existentes passam
     sem mudar asserção).
-12. [ ] Tela "gravado" de cada correção, em modo pacote (há próxima no
+12. [x] Tela "gravado" de cada correção, em modo pacote (há próxima no
     `?pacote`): botão primário "Continuar: corrigir o {próximo} →" com o
     `?pacote` restante e `?anexo` = path efetivamente usado neste ato
     (upload novo ou chip); o botão padrão de hoje ("Ver o documento"/
     equivalente) vira secundário. No passo do campo (antes de gravar),
     "Cancelar" vira "Pular esta e continuar: corrigir o {próximo} →"
     quando em modo pacote, sem gravar nada.
-13. [ ] Antes de "Gravar" em cada correção do pacote, a tela mostra o
+13. [x] Antes de "Gravar" em cada correção do pacote, a tela mostra o
     papel escolhido: upload novo → preview inline
     (`ControleVerDocumento`/`LightboxDoAnexo`); anexo via chip → o
     anexo selecionado renderizado como `ItemDeAnexo` com "Abrir" (mesmo
     mecanismo já usado no detalhe do documento e em `ListaDeAnexos` —
     `LightboxDoAnexo` exige um `File` em memória, que não existe para um
     anexo já no acervo).
-14. [ ] `ListaDeAnexos` do detalhe do documento agrupa entradas com o
+14. [x] `ListaDeAnexos` do detalhe do documento agrupa entradas com o
     mesmo `arquivo_path` repetido (uma linha por correção que o usou)
     como um item só, com "usado em N correções".
+
+## ✅ Entregue — 2026-10-06
+Pipeline completo: Gate 1 (lead-engineer, DONE — duas fatias, chip
+extraído de `corrigir/retencao` pras outras duas telas + rota nova de
+pacote) → Gate 2 (cto-obra + contador, APPROVE direto, sem retrabalho —
+ratificou as 3 decisões de implementação não-literais ao ticket, nenhuma
+inventando regra fiscal) → Gate 3 (coberto pelos 493 E2E já rodados) →
+Gate 4 (po, PASS nos 14/14 critérios, revalidado rodando os testes de
+novo — confirmou não-regressão da fatia A por `git diff --stat` mostrando
+zero linha alterada nos specs de `corrigir-numero`/`correcao`/
+`corrigir-retencao`). `npm run quality` inteiro verde: 1399 unit, 493
+E2E. Sem migration. Duas observações não-bloqueantes registradas
+(candidatas a relato futuro, não dívida fiscal): "Pular esta" só existe
+no passo do campo, não no `PassoMotivo`; rótulo condicional de
+`corrigir/retencao` ainda não foi unificado com o de numero/valor.
 
 ## Out of Scope
 - **Fundir número + valor + retenção num único formulário/INSERT/UPDATE.**

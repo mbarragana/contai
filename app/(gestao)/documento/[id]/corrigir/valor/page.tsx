@@ -1,7 +1,7 @@
 "use client";
 
-import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   ListaDeAnexos,
@@ -10,10 +10,17 @@ import {
 } from "@/app/_components/anexo";
 import { CampoArquivo, CampoTexto } from "@/app/_components/campos";
 import {
+  ANEXO_DO_PACOTE_NAO_ESTA_AQUI,
+  ANEXO_VEIO_DO_PACOTE,
+  ARQUIVO_SERA_REAPROVEITADO,
+  ChipsDeAnexoExistente,
   ErroEstaNaNota,
+  exigeAnexoNovo,
   MotivoEscolhidoResumo,
+  PapelEscolhidoAntesDeGravar,
   PassoMotivo,
   ROTULO_MOTIVO_NO_RASTRO,
+  TITULO_CHIPS_NA_CORRECAO,
   type MotivoEscolhido,
   type RespostaPasso1,
 } from "@/app/_components/corrigir";
@@ -38,12 +45,14 @@ import {
   Passo,
 } from "@/app/_components/ui";
 import {
+  carregarAnexosDoDocumento,
   carregarDocumento,
   carregarPainel,
   classificarErro,
   corrigirValorDoDocumento,
   mensagemDeErroDeGravacao,
   subirParaAcervo,
+  type AnexoDoDocumento,
   type ErroDeTela,
   type PainelDados,
 } from "@/lib/data";
@@ -55,6 +64,13 @@ import {
   SO_SEI_QUE_E_ANO_ANTERIOR,
 } from "@/lib/fiscal/revisao";
 import { custoComprovadoAteOAno, alocarCusto } from "@/lib/fiscal/vinculo";
+import {
+  lerAnexoDoPacote,
+  lerPacote,
+  proximaDoPacote,
+  textoContinuar,
+  textoPular,
+} from "@/lib/gestao/pacote-correcao";
 import { hojeIso } from "@/lib/hoje";
 import { formatarBRL, parseValorInput } from "@/lib/money";
 import type { AnoAfetado, Documento } from "@/lib/types";
@@ -63,7 +79,13 @@ type Fase =
   | { nome: "passo1" }
   | { nome: "erro_do_papel" }
   | { nome: "campo"; motivo: MotivoEscolhido; motivoTexto: string | null }
-  | { nome: "gravado"; anos: AnoAfetado[]; valorCentavos: number };
+  | {
+      nome: "gravado";
+      anos: AnoAfetado[];
+      valorCentavos: number;
+      /** O path que ESTE ato usou — é ele que segue para a próxima do pacote. */
+      anexoUsado: string | null;
+    };
 
 /**
  * Tela s3 do mock v2 — **corrigir o valor**, critério 3 do CONTAI-021.
@@ -79,17 +101,44 @@ type Fase =
  * é gravado VAZIO, não zero — zero é um valor, branco é a ausência dele.
  */
 export default function CorrigirValor() {
+  return (
+    // `useSearchParams` exige fronteira de Suspense — o `?pacote`/`?anexo` do
+    // CONTAI-088 chega por query. Mesmo padrão de `corrigir/retencao`.
+    <Suspense
+      fallback={
+        <>
+          <CabecalhoDaTela titulo="Corrigir o valor" />
+          <ColunaDeDetalhe>
+            <Carregando rotulo="Carregando o documento" />
+          </ColunaDeDetalhe>
+        </>
+      }
+    >
+      <Tela />
+    </Suspense>
+  );
+}
+
+function Tela() {
   const { id } = useParams<{ id: string }>();
   const { pedirReautenticacao } = useSessao();
+  /** CONTAI-088 — `null` é "não há pacote": a tela se comporta como antes. */
+  const busca = useSearchParams();
+  const pacote = lerPacote(busca);
+  const anexoDoPacote = lerAnexoDoPacote(busca);
+
   const [carregado, setCarregado] = useState<{
     documento: Documento;
     painel: PainelDados;
   } | null>(null);
+  const [anexos, setAnexos] = useState<AnexoDoDocumento[]>([]);
   const [erroCarregar, setErroCarregar] = useState<ErroDeTela | null>(null);
   const [tentativa, setTentativa] = useState(0);
   const [fase, setFase] = useState<Fase>({ nome: "passo1" });
   const [texto, setTexto] = useState("");
   const [anexo, setAnexo] = useState<File | null>(null);
+  /** O papel já no acervo, escolhido por chip (CONTAI-088, critério 1). */
+  const [chip, setChip] = useState<string | null>(null);
   const [gravando, setGravando] = useState(false);
   const [erroGravar, setErroGravar] = useState<string | null>(null);
 
@@ -99,7 +148,20 @@ export default function CorrigirValor() {
       try {
         const documento = await carregarDocumento(id);
         const painel = await carregarPainel(documento.obraId);
-        if (!cancelado) setCarregado({ documento, painel });
+        // Os anexos ADICIONAIS alimentam os chips do passo 2 — mesma chamada de
+        // rede que `corrigir/retencao` já fazia desde o CONTAI-086.
+        const lista = await carregarAnexosDoDocumento(documento.id);
+        if (cancelado) return;
+        setCarregado({ documento, painel });
+        setAnexos(lista);
+        // ⚠️ **Critério 11 — `?anexo` só pré-seleciona o que está NESTE
+        // documento.** A querystring é digitável à mão e chega de link velho.
+        setChip(
+          anexoDoPacote !== null &&
+            lista.some((a) => a.arquivoPath === anexoDoPacote)
+            ? anexoDoPacote
+            : null,
+        );
       } catch (erro) {
         if (!cancelado) setErroCarregar(classificarErro(erro));
       }
@@ -107,7 +169,7 @@ export default function CorrigirValor() {
     return () => {
       cancelado = true;
     };
-  }, [id, tentativa]);
+  }, [id, tentativa, anexoDoPacote]);
 
   const tentarDeNovo = useCallback(() => {
     setErroCarregar(null);
@@ -146,7 +208,16 @@ export default function CorrigirValor() {
       // ⚠️ O upload vem ANTES da gravação, e é o único jeito: o `arquivo_path`
       // precisa existir no acervo para a função Postgres o registrar no mesmo
       // ato. Falha no upload = nada foi gravado, e a tela diz isso.
-      const anexoPath = anexo ? await subirParaAcervo(anexo, "documento") : null;
+      //
+      // ⚠️ O CHIP manda o path de um anexo que JÁ existe — e a RPC insere uma
+      // LINHA NOVA em `documento_anexo` apontando para ele, com o `revisao_id`
+      // deste ato: um objeto no bucket, N atos apontando. **E nada é anexado
+      // quando o motivo não pede anexo** (critério 10).
+      const anexoPath = !exigeAnexoNovo(fase.motivo)
+        ? null
+        : anexo
+          ? await subirParaAcervo(anexo, "documento")
+          : chip;
       await corrigirValorDoDocumento({
         documentoId: carregado.documento.id,
         valorCentavos: novoCentavos,
@@ -159,6 +230,7 @@ export default function CorrigirValor() {
         nome: "gravado",
         anos: conta?.anos ?? [],
         valorCentavos: novoCentavos,
+        anexoUsado: anexoPath,
       });
     } catch (erro) {
       setGravando(false);
@@ -195,6 +267,12 @@ export default function CorrigirValor() {
 
   // ── Gravado ────────────────────────────────────────────────────────────
   if (fase.nome === "gravado") {
+    /** Critério 12 — a próxima do pacote, com o papel que ESTE ato usou. */
+    const proxima = proximaDoPacote(
+      id,
+      pacote,
+      fase.anexoUsado ?? anexoDoPacote,
+    );
     return (
       <>
         <CabecalhoDaTela titulo="Valor corrigido ✓" sub={sub} />
@@ -229,6 +307,22 @@ export default function CorrigirValor() {
                 <BotaoLink href="/pendencias">Ver a pendência na lista</BotaoLink>
               </div>
             </Card>
+          ) : null}
+          {/* ⚠️ **Esta tela não tinha botão NENHUM na tela de sucesso** — gap
+              pré-existente que o ticket nomeia e não assume corrigir fora do
+              pacote (spec, §rodapé de sucesso). Em modo pacote os dois aparecem:
+              o avanço primário (critério 12) e a volta como secundária, porque
+              terminar um pacote sem saída nenhuma deixaria o Mateus no meio da
+              sequência sem caminho. */}
+          {proxima !== null ? (
+            <>
+              <BotaoLink href={proxima.href} variante="primary">
+                {textoContinuar(proxima)}
+              </BotaoLink>
+              <BotaoLink href={documentoHref}>Ver o documento</BotaoLink>
+            </>
+          ) : pacote !== null ? (
+            <BotaoLink href={documentoHref}>Ver o documento</BotaoLink>
           ) : null}
         </ColunaDeDetalhe>
       </>
@@ -283,9 +377,21 @@ export default function CorrigirValor() {
   // ── Passos 2 e 3: o campo, e o que ele muda ────────────────────────────
   const igual = novoCentavos !== null && novoCentavos === d.valorCentavos;
   const invalido = texto.trim() !== "" && novoCentavos === null;
-  const faltaAnexo = fase.motivo === "emitente_corrigiu_a_nota" && anexo === null;
+  const motivoExigeAnexo = exigeAnexoNovo(fase.motivo);
+  /** Upload e chip são a MESMA pergunta, com UMA resposta (CONTAI-088). */
+  const anexoEscolhido = anexo !== null || chip !== null;
+  const faltaAnexo = motivoExigeAnexo && !anexoEscolhido;
   const podeGravar =
     novoCentavos !== null && !igual && !invalido && !faltaAnexo && !gravando;
+
+  /** Critério 11 — `?anexo` fora deste documento é dito em tela, não silenciado. */
+  const anexoDoPacoteNaoEstaAqui =
+    motivoExigeAnexo &&
+    anexoDoPacote !== null &&
+    !anexos.some((a) => a.arquivoPath === anexoDoPacote);
+
+  /** Critério 12 — "Pular esta" propaga o MESMO papel que chegou, sem gravar. */
+  const proxima = proximaDoPacote(id, pacote, anexoDoPacote);
 
   const rotuloBotao = gravando
     ? "Gravando…"
@@ -294,7 +400,9 @@ export default function CorrigirValor() {
       : igual
         ? "Nada a corrigir"
         : faltaAnexo
-          ? "Anexe o documento novo para gravar"
+          ? anexos.length > 0
+            ? "Anexe ou escolha um documento já anexado para gravar"
+            : "Anexe o documento novo para gravar"
           : conta && conta.anos.length > 0
             ? `Gravar — o custo de ${conta.anos[0].ano} passa a ${formatarBRL(conta.anos[0].depoisCentavos)}`
             : "Gravar a correção";
@@ -345,17 +453,54 @@ export default function CorrigirValor() {
           </Dica>
         </Card>
 
-        {fase.motivo === "emitente_corrigiu_a_nota" ? (
+        {motivoExigeAnexo ? (
           <>
             <Passo>Documento novo do emitente</Passo>
             <CampoArquivo
               rotulo="Carta de correção ou nota substitutiva"
-              ajuda="PDF, XML ou foto. Sem ele, esta correção não grava."
+              ajuda={
+                proxima !== null
+                  ? `PDF, XML ou foto. Sem ele, esta correção não grava. ${ARQUIVO_SERA_REAPROVEITADO}`
+                  : "PDF, XML ou foto. Sem ele, esta correção não grava."
+              }
               accept="application/pdf,image/*,text/xml,application/xml"
               arquivo={anexo}
-              onChange={setAnexo}
+              onChange={(f) => {
+                setAnexo(f);
+                // Upload e chip são a MESMA pergunta ("qual papel prova isto?"),
+                // e ela tem uma resposta só.
+                if (f !== null) setChip(null);
+              }}
               erro={faltaAnexo ? "O documento novo é obrigatório." : undefined}
             />
+            {/* ⚠️ **CONTAI-088, critério 1 — o chip de reaproveitar.** Só os
+                anexos ADICIONAIS, nunca o `arquivo_path` original: com
+                `motivo = emitente_corrigiu_a_nota`, o papel que prova a correção
+                é o que CHEGOU DEPOIS. */}
+            <ChipsDeAnexoExistente
+              anexos={anexos}
+              titulo={TITULO_CHIPS_NA_CORRECAO}
+              escolhido={chip === null ? null : { tipo: "existente", path: chip }}
+              onEscolher={(papel) => {
+                if (papel.tipo !== "existente") return;
+                setChip(papel.path);
+                setAnexo(null);
+              }}
+              dica={
+                chip !== null && chip === anexoDoPacote
+                  ? ANEXO_VEIO_DO_PACOTE
+                  : undefined
+              }
+            />
+            {anexoDoPacoteNaoEstaAqui ? (
+              <Consequencia cor="amb">
+                {ANEXO_DO_PACOTE_NAO_ESTA_AQUI}
+              </Consequencia>
+            ) : null}
+            {/* Critério 13 — o papel escolhido, visível ANTES de gravar. */}
+            {pacote !== null ? (
+              <PapelEscolhidoAntesDeGravar arquivo={anexo} chip={chip} />
+            ) : null}
             <Consequencia cor="amb">
               Este anexo <strong>não substitui</strong> a nota antiga — ele se
               soma a ela. A nota original continua no acervo, com o arquivo dela.
@@ -494,7 +639,13 @@ export default function CorrigirValor() {
         <BotaoSalvar ocupado={gravando} variante="primary" onClick={gravar} disabled={!podeGravar}>
           {rotuloBotao}
         </BotaoSalvar>
-        <BotaoLink href={documentoHref}>Cancelar</BotaoLink>
+        {/* Em modo pacote, "Cancelar" vira "Pular esta" — e pular NÃO grava nada
+            nem pede confirmação (critério 12). */}
+        {proxima !== null ? (
+          <BotaoLink href={proxima.href}>{textoPular(proxima)}</BotaoLink>
+        ) : (
+          <BotaoLink href={documentoHref}>Cancelar</BotaoLink>
+        )}
       </RodapeDeAcao>
     </>
   );

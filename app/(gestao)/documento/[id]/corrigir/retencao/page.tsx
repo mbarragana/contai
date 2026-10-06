@@ -10,12 +10,18 @@ import {
 } from "@/app/_components/anexo";
 import { CampoArquivo, Escolha } from "@/app/_components/campos";
 import {
+  ANEXO_DO_PACOTE_NAO_ESTA_AQUI,
+  ANEXO_VEIO_DO_PACOTE,
+  ARQUIVO_SERA_REAPROVEITADO,
+  ChipsDeAnexoExistente,
   ErroEstaNaNota,
+  exigeAnexoNovo,
   HistoricoDeCorrecoes,
   MotivoEscolhidoResumo,
+  PapelEscolhidoAntesDeGravar,
   PassoMotivo,
-  rotuloDoCampo,
   ROTULO_MOTIVO_NO_RASTRO,
+  TITULO_CHIPS_NA_CORRECAO,
   type MotivoEscolhido,
   type RespostaPasso1,
 } from "@/app/_components/corrigir";
@@ -52,7 +58,13 @@ import {
   type AnexoDoDocumento,
   type ErroDeTela,
 } from "@/lib/data";
-import { quandoDoAtoLegivel } from "@/lib/fiscal/revisao";
+import {
+  lerAnexoDoPacote,
+  lerPacote,
+  proximaDoPacote,
+  textoContinuar,
+  textoPular,
+} from "@/lib/gestao/pacote-correcao";
 import {
   avisoDeRemocaoDasLinhas,
   confirmacaoDeRemocaoDasLinhas,
@@ -122,6 +134,8 @@ type Fase =
       gateDepois: RespostaRetencaoNaNota;
       criadas: number;
       removidas: number;
+      /** O path que ESTE ato usou — é ele que segue para a próxima do pacote. */
+      anexoUsado: string | null;
     };
 
 function Tela() {
@@ -132,7 +146,19 @@ function Tela() {
    * é "destacada" e continua), e o que falta é a linha nova com prova. O gate
    * aparece afirmado, sem opção de mudar.
    */
-  const soLinha = useSearchParams().get("modo") === "linha";
+  const busca = useSearchParams();
+  const soLinha = busca.get("modo") === "linha";
+  /**
+   * **CONTAI-088 — o modo pacote.** `null` é "não há pacote": sem `?pacote` a
+   * tela se comporta exatamente como antes daquele ticket (critério 11).
+   *
+   * ⚠️ **A retenção entra no pacote SEM `?modo=linha`** (critério 13 do
+   * CONTAI-086): o modo padrão já cobre tanto o flip do gate quanto a linha nova
+   * numa nota que já destaca retenção. Entrar por `?modo=linha` recusaria a nota
+   * cujo gate diz "nenhuma", que é justamente o caso do documento substituto.
+   */
+  const pacote = lerPacote(busca);
+  const anexoDoPacote = lerAnexoDoPacote(busca);
   const { pedirReautenticacao } = useSessao();
 
   const [documento, setDocumento] = useState<Documento | null>(null);
@@ -165,6 +191,16 @@ function Tela() {
         if (cancelado) return;
         setDocumento(d);
         setAnexos(lista);
+        // ⚠️ **CONTAI-088, critério 11 — `?anexo` só pré-seleciona o que está
+        // NESTE documento.** A querystring é digitável à mão e chega de link
+        // velho: aceitá-la sem conferir mandaria à RPC um papel que a tela nunca
+        // viu na lista do próprio documento.
+        setChip(
+          anexoDoPacote !== null &&
+            lista.some((a) => a.arquivoPath === anexoDoPacote)
+            ? anexoDoPacote
+            : null,
+        );
       } catch (erro) {
         if (!cancelado) setErroCarregar(classificarErro(erro));
       }
@@ -172,7 +208,7 @@ function Tela() {
     return () => {
       cancelado = true;
     };
-  }, [id, tentativa]);
+  }, [id, tentativa, anexoDoPacote]);
 
   const tentarDeNovo = useCallback(() => {
     setErroCarregar(null);
@@ -285,6 +321,12 @@ function Tela() {
   // ── Gravado ────────────────────────────────────────────────────────────
   if (fase.nome === "gravado") {
     const gateMudou = fase.gateAntes !== fase.gateDepois;
+    /** CONTAI-088, critério 12 — a próxima do pacote, com o papel deste ato. */
+    const proxima = proximaDoPacote(
+      id,
+      pacote,
+      fase.anexoUsado ?? anexoDoPacote,
+    );
     return (
       <>
         <CabecalhoDaTela titulo="Retenção corrigida ✓" sub={sub} />
@@ -335,9 +377,20 @@ function Tela() {
               cnpj={d.favorecidoDocumento}
             />
           )}
-          <BotaoLink href={documentoHref} variante="primary">
-            Ver o documento
-          </BotaoLink>
+          {/* Em modo pacote o avanço é PRIMÁRIO e o botão de hoje vira
+              secundário (CONTAI-088, critério 12). Fora do pacote, nada muda. */}
+          {proxima !== null ? (
+            <>
+              <BotaoLink href={proxima.href} variante="primary">
+                {textoContinuar(proxima)}
+              </BotaoLink>
+              <BotaoLink href={documentoHref}>Ver o documento</BotaoLink>
+            </>
+          ) : (
+            <BotaoLink href={documentoHref} variante="primary">
+              Ver o documento
+            </BotaoLink>
+          )}
         </ColunaDeDetalhe>
       </>
     );
@@ -410,7 +463,7 @@ function Tela() {
   const precisaLinha = gateEscolhido === "destacada";
   const precisaConfirmarRemocao =
     gateEscolhido === "nenhuma" && !gateIgual && linhasExistentes > 0;
-  const motivoExigeAnexo = motivo === "emitente_corrigiu_a_nota";
+  const motivoExigeAnexo = exigeAnexoNovo(motivo);
   const anexoEscolhido = anexo !== null || chip !== null;
   const faltaAnexo = motivoExigeAnexo && !anexoEscolhido;
   const faltaReconferencia = !motivoExigeAnexo && !reconferi;
@@ -440,6 +493,15 @@ function Tela() {
                 ? "Confirme que reconferiu o papel para gravar"
                 : "Gravar a correção";
 
+  /** CONTAI-088, critério 11 — `?anexo` fora deste documento é dito em tela. */
+  const anexoDoPacoteNaoEstaAqui =
+    motivoExigeAnexo &&
+    anexoDoPacote !== null &&
+    !anexos.some((a) => a.arquivoPath === anexoDoPacote);
+
+  /** Critério 12 — "Pular esta" propaga o MESMO papel que chegou, sem gravar. */
+  const proxima = proximaDoPacote(id, pacote, anexoDoPacote);
+
   async function gravar() {
     // `gateAtual === null` já parou lá em cima (o legado não entra aqui); o teste
     // volta porque o compilador não carrega a estreitura para dentro do closure —
@@ -458,9 +520,15 @@ function Tela() {
       // linha NOVA em `documento_anexo` apontando para ele, com o `revisao_id`
       // deste ato. Um objeto no bucket, N atos apontando: nenhum upload
       // duplicado, e cada ato com o seu próprio rastro.
-      const anexoPath = anexo
-        ? await subirParaAcervo(anexo, "documento")
-        : chip;
+      //
+      // ⚠️ **CONTAI-088, critério 10 — nada é anexado quando o motivo não pede
+      // anexo**: um chip pré-selecionado pelo `?anexo=` do pacote não pode virar
+      // prova de uma correção cujo motivo é "eu digitei errado".
+      const anexoPath = !motivoExigeAnexo
+        ? null
+        : anexo
+          ? await subirParaAcervo(anexo, "documento")
+          : chip;
 
       if (soLinha) {
         await adicionarLinhaRetencaoRegistrada({
@@ -487,6 +555,7 @@ function Tela() {
         gateDepois: gateEscolhido,
         criadas: linhasNovas.length,
         removidas: gateEscolhido === "nenhuma" && !gateIgual ? linhasExistentes : 0,
+        anexoUsado: anexoPath,
       });
 
       // O histórico do spec. Falha aqui NÃO desfaz nem desmente a gravação: o
@@ -712,7 +781,11 @@ function Tela() {
                 <CampoArquivo
                   campo="anexo"
                   rotulo="Documento novo do emitente"
-                  ajuda="PDF, XML ou foto. Sem ele, esta correção não grava."
+                  ajuda={
+                    proxima !== null
+                      ? `PDF, XML ou foto. Sem ele, esta correção não grava. ${ARQUIVO_SERA_REAPROVEITADO}`
+                      : "PDF, XML ou foto. Sem ele, esta correção não grava."
+                  }
                   accept="application/pdf,image/*,text/xml,application/xml"
                   arquivo={anexo}
                   onChange={(f) => {
@@ -724,50 +797,44 @@ function Tela() {
                   erro={faltaAnexo ? "O documento novo é obrigatório." : undefined}
                 />
                 {/* ── Os chips do critério 10 ──────────────────────────────
-                    ⚠️ Só os anexos ADICIONAIS, nunca o `arquivo_path` original:
-                    com `motivo = emitente_corrigiu_a_nota`, o papel que prova a
-                    correção é o que CHEGOU DEPOIS. Oferecer a nota original como
-                    prova de que o emitente a corrigiu seria oferecer o papel
-                    errado com um rótulo convincente.
+                    ⚠️ **O bloco saiu daqui para `ChipsDeAnexoExistente`
+                    (CONTAI-088, critério 1), e o comportamento é o MESMO**: ele
+                    nasceu nesta tela e `corrigir/numero`/`corrigir/valor`
+                    passaram a precisar dele. Três cópias seriam três lugares
+                    para a regra de qual papel aparece divergir — e ela é fiscal:
+                    só os anexos ADICIONAIS, nunca o `arquivo_path` original,
+                    porque com `motivo = emitente_corrigiu_a_nota` o papel que
+                    prova a correção é o que CHEGOU DEPOIS.
 
-                    O rótulo vem do CAMPO corrigido (o QUÊ), não do motivo (o POR
-                    QUÊ): "correção de número da nota" é o que identifica o papel
-                    que o CONTAI-085 pode ter anexado segundos antes. */}
-                {anexos.length > 0 ? (
-                  <Card>
-                    <div className="font-semibold">
-                      Ou use um papel que já está neste documento
-                    </div>
-                    <div className="mt-2 flex flex-col gap-2">
-                      {anexos.map((a) => (
-                        <button
-                          key={a.arquivoPath}
-                          type="button"
-                          aria-pressed={chip === a.arquivoPath}
-                          onClick={() => {
-                            setChip(a.arquivoPath);
-                            setAnexo(null);
-                          }}
-                          className={`min-h-[44px] rounded-[10px] border px-[14px] py-2 text-left text-[13px] ${
-                            chip === a.arquivoPath
-                              ? "border-ink bg-ink text-paper"
-                              : "border-line bg-white"
-                          }`}
-                        >
-                          Usar a nota anexada em{" "}
-                          {quandoDoAtoLegivel(a.anexadoEm)} (
-                          {a.origem.tipo === "registro_original"
-                            ? "do registro original"
-                            : `correção de ${rotuloDoCampo(a.origem.campo)}`}
-                          )
-                        </button>
-                      ))}
-                    </div>
-                    <Dica>
-                      O mesmo arquivo pode provar duas correções — cada uma com o
-                      seu próprio registro de quando e por quê.
-                    </Dica>
-                  </Card>
+                    O rótulo continua vindo do CAMPO corrigido (o QUÊ), não do
+                    motivo (o POR QUÊ): "correção de número da nota" é o que
+                    identifica o papel que o CONTAI-085 pode ter anexado segundos
+                    antes. */}
+                <ChipsDeAnexoExistente
+                  anexos={anexos}
+                  titulo={TITULO_CHIPS_NA_CORRECAO}
+                  escolhido={
+                    chip === null ? null : { tipo: "existente", path: chip }
+                  }
+                  onEscolher={(papel) => {
+                    if (papel.tipo !== "existente") return;
+                    setChip(papel.path);
+                    setAnexo(null);
+                  }}
+                  dica={
+                    chip !== null && chip === anexoDoPacote
+                      ? ANEXO_VEIO_DO_PACOTE
+                      : undefined
+                  }
+                />
+                {anexoDoPacoteNaoEstaAqui ? (
+                  <Consequencia cor="amb">
+                    {ANEXO_DO_PACOTE_NAO_ESTA_AQUI}
+                  </Consequencia>
+                ) : null}
+                {/* Critério 13 — o papel escolhido, visível ANTES de gravar. */}
+                {pacote !== null ? (
+                  <PapelEscolhidoAntesDeGravar arquivo={anexo} chip={chip} />
                 ) : null}
                 {/* Verbatim do Gate Fiscal do CONTAI-085, mesma regra aqui: o
                     anexo não se substitui, anexa-se adicional. */}
@@ -858,7 +925,13 @@ function Tela() {
         >
           {rotuloBotao}
         </BotaoSalvar>
-        <BotaoLink href={documentoHref}>Cancelar</BotaoLink>
+        {/* Em modo pacote, "Cancelar" vira "Pular esta" — e pular NÃO grava nada
+            nem pede confirmação (CONTAI-088, critério 12). */}
+        {proxima !== null ? (
+          <BotaoLink href={proxima.href}>{textoPular(proxima)}</BotaoLink>
+        ) : (
+          <BotaoLink href={documentoHref}>Cancelar</BotaoLink>
+        )}
       </RodapeDeAcao>
     </>
   );

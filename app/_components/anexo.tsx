@@ -224,6 +224,47 @@ export function papeisDoDesembolso(d: TerrenoDesembolso): ItemDeAcervo[] {
 }
 
 /**
+ * **Os anexos ADICIONAIS do documento, agrupados por arquivo — CONTAI-088,
+ * critério 14.**
+ *
+ * Um pacote de correções sobre o MESMO papel grava N linhas em `documento_anexo`
+ * com o mesmo `arquivo_path` e `revisao_id` distintos — cada ato tem o seu
+ * próprio rastro, e isso é invariante do banco (migrations 0027/0028: "LINHA
+ * NOVA mesmo quando o `arquivo_path` já está em `documento_anexo`"). **Nada aqui
+ * muda esse desenho**: o agrupamento é de APRESENTAÇÃO. O que ele evita é o
+ * detalhe do documento listar o mesmo PDF três vezes, com três botões "Abrir"
+ * idênticos, como se três papéis diferentes tivessem chegado.
+ *
+ * A contagem entra no `papel` — o chip cinza que `ItemDeAnexo` já sabe desenhar.
+ * Nenhum componente novo, e a ordem é a de chegada do primeiro uso.
+ *
+ * ⚠️ **O original (`papelOriginal`) nunca passa por aqui**: ele é sempre uma
+ * linha própria, fora da lista de adicionais, e agrupá-lo com um adicional de
+ * path igual esconderia qual dos dois é a nota que originou o registro.
+ */
+export function agruparAnexosPorArquivo(
+  anexos: readonly { arquivoPath: string }[],
+): ItemDeAcervo[] {
+  const usos = new Map<string, number>();
+  for (const a of anexos) {
+    usos.set(a.arquivoPath, (usos.get(a.arquivoPath) ?? 0) + 1);
+  }
+  const itens: ItemDeAcervo[] = [];
+  const jaListado = new Set<string>();
+  for (const a of anexos) {
+    if (jaListado.has(a.arquivoPath)) continue;
+    jaListado.add(a.arquivoPath);
+    const n = usos.get(a.arquivoPath) ?? 1;
+    itens.push(
+      n > 1
+        ? { path: a.arquivoPath, papel: `usado em ${n} correções` }
+        : { path: a.arquivoPath },
+    );
+  }
+  return itens;
+}
+
+/**
  * O papel ORIGINAL do documento, pronto para a lista — **e a lista vazia quando
  * ele não existe** (CONTAI-033: `arquivo_path` passou a admitir `null`).
  *

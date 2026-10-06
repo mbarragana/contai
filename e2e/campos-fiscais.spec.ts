@@ -362,15 +362,29 @@ const MAPA: Record<string, Classificacao> = {
     foraDaVisita: "idem `corrigir/classificacao`",
   },
   "/documento/[id]/corrigir/numero": {
-    specs: ["CONTAI-085"],
+    specs: ["CONTAI-085", "CONTAI-088"],
     iniciais: [],
     foraDaVisita:
       "idem `corrigir/classificacao` — `numero`/`serie` só existem depois do passo 1 (motivo), e `anexo` só com motivo `emitente_corrigiu_a_nota`; o comportamento é provado por `corrigir-numero.spec.ts`",
   },
   "/documento/[id]/corrigir/valor": {
-    specs: ["CONTAI-021"],
+    specs: ["CONTAI-021", "CONTAI-088"],
     iniciais: [],
     foraDaVisita: "idem `corrigir/classificacao`",
+  },
+  /**
+   * CONTAI-088 — o ponto de entrada do pacote de correções. **Não grava nada**:
+   * é roteamento (dois passos, estado React local, nenhuma linha em `revisao`).
+   * Fora da visita porque o único controle de formulário da tela — os checkboxes
+   * do passo 2 — só existe depois da escolha do papel no passo 1, e porque a rota
+   * exige um documento gravado. "Nada nasce marcado" nos dois passos é provado
+   * por `pacote-correcao.spec.ts`, com cenário.
+   */
+  "/documento/[id]/documento-novo": {
+    specs: ["CONTAI-088"],
+    iniciais: [],
+    foraDaVisita:
+      "os checkboxes do passo 2 só existem depois de escolher o papel no passo 1 — provado por `pacote-correcao.spec.ts`",
   },
   /**
    * CONTAI-086 + CONTAI-087 — reabrir o gate de retenção, e a linha tardia com
@@ -382,7 +396,7 @@ const MAPA: Record<string, Classificacao> = {
    * marcado" nos quatro campos — é provado por `corrigir-retencao.spec.ts`.
    */
   "/documento/[id]/corrigir/retencao": {
-    specs: ["CONTAI-086"],
+    specs: ["CONTAI-086", "CONTAI-088"],
     iniciais: [],
     foraDaVisita:
       "exige NF de serviço com gate já respondido; `gateNovo` nasce no passo 2, as linhas no ramo \"destacada\" e o `anexo` só com motivo `emitente_corrigiu_a_nota` — provado por `corrigir-retencao.spec.ts`",

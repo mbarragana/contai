@@ -151,9 +151,9 @@ ele é sempre uma linha própria, fora da lista de adicionais.
 - `correcoesMarcadas` (passo 2) — subset de `{numero, valor, retencao}` — ≥1 obrigatório — SEM
   DEFAULT
 - `pacote` (query, nas 3 rotas de correção) — lista de tokens restantes, nunca persistido fora
-  da URL
+  da URL — SOMENTE LEITURA
 - `anexo` (query, idem) — path ou `""` — nunca grava nada por si: cada correção decide gravar
-  (ou não) seu próprio `documento_anexo`, igual hoje
+  (ou não) seu próprio `documento_anexo`, igual hoje — SOMENTE LEITURA
 
 ## Textos de produto (não fiscais — fiscal é 100% reuso dos pareceres já citados em 085/086/087)
 - Link de entrada: **"Recebi um documento novo para esta nota →"**

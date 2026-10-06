@@ -4,6 +4,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 
 import {
+  agruparAnexosPorArquivo,
   ListaDeAnexos,
   papelOriginal,
   SEM_PAPEL_NO_ACERVO,
@@ -471,11 +472,17 @@ function DetalheDocumento() {
           nullable). `papelOriginal` devolve lista vazia em vez de um item que
           não abre nada — e o `vazio` diz o fato, porque "sem papel" tem
           consequência fiscal e lista vazia muda não diz nada. */}
+      {/* ⚠️ **CONTAI-088, critério 14 — os adicionais entram AGRUPADOS por
+          arquivo.** Um pacote de correções sobre o mesmo papel grava uma linha
+          de `documento_anexo` por ato (e continua gravando: o rastro de cada ato
+          é invariante), mas listar o mesmo PDF três vezes, com três "Abrir"
+          idênticos, diria que três papéis chegaram. O agrupamento é só de
+          apresentação, e a contagem aparece no chip do item. */}
       <ListaDeAnexos
         titulo="Papéis deste documento"
         itens={[
           ...papelOriginal(d.arquivoPath),
-          ...estado.anexos.map((a) => ({ path: a.arquivoPath })),
+          ...agruparAnexosPorArquivo(estado.anexos),
         ]}
         vazio={SEM_PAPEL_NO_ACERVO}
       />
@@ -680,6 +687,20 @@ function DetalheDocumento() {
         diferente na sua declaração. Todas ficam registradas.
       </Dica>
       <div className="mt-2 flex flex-col gap-2">
+        {/* ⚠️ **CONTAI-088, critério 2 — o ponto de entrada vem PRIMEIRO, e ele
+            não funde nada.** Quando um documento substituto chega, número, valor
+            e retenção costumam estar errados no MESMO papel, e até aqui cada
+            correção exigia voltar, reabrir a tela irmã e subir o mesmo PDF de
+            novo — foi assim que nasceram duas cópias do mesmo arquivo no acervo.
+            A fusão dos três campos num formulário só foi avaliada e RECUSADA
+            (Out of Scope, reafirmando o CONTAI-021): o que esta rota faz é
+            roteamento de UI, cada correção continua com a sua RPC, o seu motivo
+            e o seu rastro. Os links individuais abaixo continuam existindo para
+            correção isolada. */}
+        <BotaoLink href={`/documento/${d.id}/documento-novo`}>
+          Recebi um documento novo para esta nota — corrigir número, valor e/ou
+          retenção
+        </BotaoLink>
         <BotaoLink href={`/documento/${d.id}/corrigir/valor`}>
           Corrigir o valor — hoje: {valor}
         </BotaoLink>

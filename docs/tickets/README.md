@@ -1,6 +1,24 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-10-06, ainda mais tarde**: **`088` entregue** — Gate 4 (`po`),
+14/14 critérios PASS, Gate 2 aprovou de primeira sem retrabalho. Duas
+fatias: (A) chip de reaproveitar anexo adicional já existente, extraído
+de `corrigir/retencao` (CONTAI-086) e aplicado também em
+`corrigir/numero`/`corrigir/valor`; (B) rota nova
+`/documento/[id]/documento-novo` — Passo 1 (escolhe anexo existente ou
+"vou anexar um arquivo novo", zero upload aqui) → Passo 2 (checkboxes
+número/valor/retenção) → navegação sequencial pelas rotas já existentes
+via `?pacote=`/`?anexo=<arquivo_path>`. Anexo reaproveitado em N
+correções grava N linhas de `documento_anexo` com o mesmo path e
+`revisao_id` distintos (cada ato com seu próprio rastro), mas no máximo
+1 objeto novo no bucket — provado em E2E. `PassoMotivo` é perguntado em
+CADA correção, nunca compartilhado pelo pacote (condição do Gate
+Fiscal). Preview antes de gravar: inline pra upload novo, `ItemDeAnexo`
+pra anexo via chip (`LightboxDoAnexo` exige `File`, que não existe pra
+anexo já no acervo). Sem migration. `npm run quality` inteiro verde
+(1399 unit + 493 E2E). Detalhe: `docs/tickets/CONTAI-088.md`.
 
 **2026-10-06, mais tarde**: **`089` entregue** — Gate 4 (`po`), 11/11
 critérios PASS, Gate 2 aprovou de primeira sem retrabalho. Tela 1 do
