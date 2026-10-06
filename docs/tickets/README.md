@@ -1,6 +1,22 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 19 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-10-06, mais tarde**: **`089` entregue** — Gate 4 (`po`), 11/11
+critérios PASS, Gate 2 aprovou de primeira sem retrabalho. Tela 1 do
+criador em lote de parcelas (`/adicionar/compra-cartao/parcelas`) passa
+a herdar favorecido/CNPJ/valor da nota de origem quando a navegação vem
+de lá — mas a URL carrega só TEXTO (`?favorecidoNome=...`), nunca um id
+de documento: garantia estrutural, não só disciplina de código (a rota
+não importa `carregarDocumento` nem `sugerirValorDaNota`). Achado real
+evitado antes de virar código: o valor herdado é o SALDO descoberto da
+nota (`sugerirValorDaNota`), nunca o valor de face — repetir o valor
+cheio de uma nota com pagamento parcial dobraria o custo. Link só aparece
+depois que o efeito inteiro de carregar a nota termina (`notaPronta`).
+Módulo puro novo `texto-herdado.ts`, fora de `lib/` de propósito.
+Vitest 1382/1383 (1 falha pré-existente e alheia, no spec do CONTAI-088,
+que ainda nem entrou em desenvolvimento), suíte E2E completa 487/487.
+Sem migration. Detalhe: `docs/tickets/CONTAI-089.md`.
 
 **2026-10-06**: **`CONTAI-088`/`089` criados, P1/P2** — dois relatos vividos
 ao vivo numa sessão de suporte: o Mateus pediu "fazer todas as correções

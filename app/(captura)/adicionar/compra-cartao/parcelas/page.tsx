@@ -9,9 +9,14 @@
  *
  * ⚠️ **ROTA IRMÃ de `/adicionar/compra-cartao`, nunca um "modo" dela**
  * (critério 2, decisão do `cto-obra`). E a separação não é organizacional: é o
- * que ISOLA a herança de nota. Esta rota **nunca lê `?documento=`** — não há
- * `useSearchParams` neste arquivo, e é por isso que ele também não tem
- * fronteira de `Suspense`. Quem for acrescentar leitura de query string aqui
+ * que ISOLA a herança de nota. Esta rota **nunca lê `?documento=`** — e, desde
+ * o CONTAI-089, a frase é mais forte do que "não lê": a única leitura de query
+ * string deste arquivo é `lerTextoHerdado` (`../texto-herdado`), cujo retorno
+ * são três STRINGS (`nome`, `documento`, `valor`) consumidas exclusivamente
+ * como valor inicial de `useState`. Não há id de documento para ler porque o
+ * link de entrada não manda nenhum — a garantia é do transporte, não da
+ * disciplina de quem chama. Quem acrescentar aqui leitura de id, ou passar o
+ * retorno de `lerTextoHerdado` para qualquer lugar que não seja um `useState`,
  * está reabrindo o critério 10 pelo lado de fora.
  *
  * ⚠️ **Nenhuma parcela nasce com `documento_origem_id`** — critério 10 e Gate
@@ -33,7 +38,8 @@
  */
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useMemo, useState } from "react";
 
 import { CampoTexto, ErroCampo, Rotulo } from "@/app/_components/campos";
 import { CamposCurtos, COLUNA_DO_FORMULARIO } from "@/app/_components/captura";
@@ -83,6 +89,37 @@ import {
 } from "@/lib/fiscal/parcelamento";
 import { hojeIso } from "@/lib/hoje";
 import { centavosParaInput, formatarBRL, parseValorInput } from "@/lib/money";
+
+import { lerTextoHerdado, type TextoHerdado } from "../texto-herdado";
+
+/** Esta rota, sem query nenhuma — o destino do `replace` da fase de sucesso. */
+const ROTA_DO_LOTE = "/adicionar/compra-cartao/parcelas";
+
+const SEM_HERANCA: TextoHerdado = { nome: "", documento: "", valor: "" };
+
+/**
+ * CONTAI-089 — a origem do que está no campo, dita no próprio campo. Mesmo
+ * padrão (e mesma razão) de `ajudaDoValorDaNota`: campo preenchido pelo app sem
+ * dizer de onde veio lê como algo que o usuário digitou e conferiu, e não foi.
+ *
+ * ⚠️ **Por campo, nunca um interruptor para os três**: editar o nome não
+ * desmente a origem do CNPJ. E a ajuda SOME ao editar — texto de origem que
+ * sobrevive à edição é mentira sobre a origem do dado.
+ *
+ * O que ela NÃO diz, de propósito: nada sobre vínculo com nota. Não há vínculo
+ * nenhum aqui — a `Dica` fixa da tela e a da fase de sucesso cobrem isso, e o
+ * Gate Fiscal deste ticket é explícito em que "campo preenchido afirma" (ADENDO
+ * 7 §K.3) é doutrina sobre *vínculo*, não sobre *dígitos repetidos*.
+ */
+const AJUDA_HERDADA = "Vem da compra que você estava registrando. Dá para trocar.";
+
+function ajudaHerdada(herdado: string, atual: string): string | undefined {
+  return herdado !== "" && atual === herdado ? AJUDA_HERDADA : undefined;
+}
+
+/** O texto de hoje do "Valor total" — mantido byte a byte (critério 4). */
+const AJUDA_VALOR_TOTAL =
+  "O total da compra. Ele é dividido entre as parcelas, e o resíduo de centavos vai para a última.";
 
 /** Uma linha da Tela 2 — valor e vencimento SEMPRE editáveis (critério 9). */
 interface LinhaDaParcela {
@@ -256,11 +293,30 @@ function LinhaDeRevisao({
 }
 
 function LancarParcelasEmLote({
+  herdarDaUrl,
   aoLancarOutroLote,
 }: {
+  /**
+   * CONTAI-089, critério 10 — se o TEXTO da query string vale para ESTA rodada.
+   * Só a primeira herda: depois de "Lançar outro lote" o componente remonta e o
+   * lote novo nasce em branco, sem depender de o `router.replace` já ter
+   * chegado ao `useSearchParams` (a navegação é assíncrona, e o primeiro render
+   * da rodada nova ainda veria o texto antigo). Mesmo padrão de `herdarDaUrl`
+   * em `compra-cartao/page.tsx`, pelo mesmo motivo (CONTAI-071).
+   */
+  herdarDaUrl: boolean;
   /** Troca a `key` e remonta a tela do zero — padrão de `aoRegistrarOutra`. */
   aoLancarOutroLote: () => void;
 }) {
+  const router = useRouter();
+  /**
+   * `useSearchParams` e não `window.location`: chegando por navegação
+   * client-side (que é o caso — o clique vem do link da tela anterior), o
+   * `location` ainda não tem a query no primeiro render e a herança
+   * desapareceria sem aviso. O custo é a fronteira de `Suspense` no fim do
+   * arquivo, igual à de `compra-cartao/page.tsx`.
+   */
+  const params = useSearchParams();
   const registro = useObraDoRegistro();
   const { pedirReautenticacao } = useSessao();
   const obra = registro.obra;
@@ -268,13 +324,34 @@ function LancarParcelasEmLote({
   const [fase, setFase] = useState<Fase>({ nome: "formulario" });
   const [erroSalvar, setErroSalvar] = useState<string | null>(null);
 
+  /**
+   * ⚠️ O TEXTO herdado da tela anterior, lido UMA vez na montagem — e `useState`
+   * com inicializador, não derivação por render: a URL é limpa pelo
+   * `router.replace` da fase de sucesso, e um valor recalculado a cada render
+   * mudaria de significado no meio do fluxo.
+   *
+   * Três strings, nada mais. **Não existe id de documento aqui** (critério 7):
+   * a tela anterior não manda nenhum, e nada deste componente procura um.
+   */
+  const [herdado] = useState<TextoHerdado>(() =>
+    herdarDaUrl ? lerTextoHerdado(params) : SEM_HERANCA,
+  );
+
   // ── Os campos comuns, preenchidos UMA vez (critério 4) ────────────────
-  const [nome, setNome] = useState("");
-  const [documento, setDocumento] = useState("");
+  // ⚠️ Herdar aqui é a MESMA exceção ao "SEM DEFAULT" já aberta pelo CONTAI-064
+  // (dado replicado de fonte real, com a origem visível na `ajuda`) — e os três
+  // continuam `CampoTexto` comum, editáveis, sem nada de `FavorecidoHerdado`
+  // (que é travado em `compra-cartao` porque LÁ existe vínculo; aqui não existe
+  // vínculo nenhum para travar nada — critério 2 e Pre-mortem 3).
+  const [nome, setNome] = useState(herdado.nome);
+  const [documento, setDocumento] = useState(herdado.documento);
   const [dataCompra, setDataCompra] = useState("");
   /** A SEMENTE do gerador de datas — campo separado da data da compra. */
   const [sementeVencimento, setSementeVencimento] = useState("");
-  const [valorTotal, setValorTotal] = useState("");
+  // ⚠️ **O valor herdado é o SALDO da nota**, calculado por
+  // `sugerirValorDaNota` na tela anterior — nunca o `valorCentavos` de face.
+  // Quem monta a query garante isso (critério 9); aqui chega como texto.
+  const [valorTotal, setValorTotal] = useState(herdado.valor);
   const [quantas, setQuantas] = useState("");
 
   // ── A lista gerada, viva entre revisao → salvando → erro → revisao ────
@@ -396,8 +473,23 @@ function LancarParcelasEmLote({
         dataCompra,
         valorTotalCentavos: totalCentavos,
         parcelas: linhas,
-        // ⚠️ Não há `documentoOrigemId` para passar — critério 10 por assinatura.
+        // ⚠️ Não há `documentoOrigemId` para passar — critério 10 por
+        // assinatura: nem `NovoLoteCompraCartao` (`lib/data.ts`) nem a RPC
+        // `compra_cartao_gravar_lote` (migration 0026) têm o parâmetro. O
+        // CONTAI-089 não o acrescentou: o que ele herda não chega até aqui —
+        // morre nos `useState` da Tela 1, como texto.
       });
+      /**
+       * CONTAI-089, critério 10 — a query string sai da barra ANTES de a tela
+       * de sucesso aparecer: um F5 ali ressuscitaria o texto herdado por cima
+       * de um lote já gravado. `replace` e não `push` (nada a empilhar), e o
+       * `scroll: false` porque a troca de fase já reposiciona a tela.
+       *
+       * ⚠️ Isto é cinto E suspensório com o `herdarDaUrl={rodada === 0}`: a
+       * navegação é assíncrona, então "Lançar outro lote" não pode depender de
+       * o `replace` ter chegado — quem garante a rodada 2 em branco é a `key`.
+       */
+      router.replace(ROTA_DO_LOTE, { scroll: false });
       setFase({
         nome: "sucesso",
         favorecidoNome: nome.trim(),
@@ -683,6 +775,7 @@ function LancarParcelasEmLote({
                   valor={nome}
                   onChange={setNome}
                   placeholder="O lojista — nunca o banco ou a administradora"
+                  ajuda={ajudaHerdada(herdado.nome, nome)}
                 />
                 <CampoTexto
                   campo="lFavorecidoDocumento"
@@ -695,6 +788,7 @@ function LancarParcelasEmLote({
                   onChange={setDocumento}
                   inputMode="numeric"
                   placeholder="00.000.000/0000-00"
+                  ajuda={ajudaHerdada(herdado.documento, documento)}
                 />
               </CamposCurtos>
               <CampoTexto
@@ -704,7 +798,15 @@ function LancarParcelasEmLote({
                 onChange={setValorTotal}
                 inputMode="decimal"
                 placeholder="0,00"
-                ajuda="O total da compra. Ele é dividido entre as parcelas, e o resíduo de centavos vai para a última."
+                /* Os DOIS textos quando o valor vem herdado: a origem some ao
+                   editar, mas a regra do resíduo de centavos continua valendo
+                   em qualquer caso — ela explica o que o botão "Gerar" vai
+                   fazer, e não de onde o número saiu. */
+                ajuda={
+                  ajudaHerdada(herdado.valor, valorTotal)
+                    ? `${AJUDA_HERDADA} ${AJUDA_VALOR_TOTAL}`
+                    : AJUDA_VALOR_TOTAL
+                }
               />
               <CamposCurtos>
                 <CampoTexto
@@ -765,15 +867,20 @@ function LancarParcelasEmLote({
  * inteira — inclusive o que um ticket futuro acrescentar lá dentro. Estado novo
  * entra em `LancarParcelasEmLote`.
  *
- * ⚠️ E **não há `Suspense` aqui**, de propósito: esta rota não lê query string
- * nenhuma (critério 2).
+ * ⚠️ O `Suspense` entrou no CONTAI-089 — exigência do `useSearchParams` no Next
+ * 16, e o único motivo dele. O que a rota lê continua sendo **texto e nada
+ * mais** (critério 7): o comentário do topo do arquivo diz por extenso o que
+ * `lerTextoHerdado` pode e não pode fazer.
  */
 export default function Pagina() {
   const [rodada, setRodada] = useState(0);
   return (
-    <LancarParcelasEmLote
-      key={rodada}
-      aoLancarOutroLote={() => setRodada((r) => r + 1)}
-    />
+    <Suspense fallback={<Carregando rotulo="Carregando a obra" />}>
+      <LancarParcelasEmLote
+        key={rodada}
+        herdarDaUrl={rodada === 0}
+        aoLancarOutroLote={() => setRodada((r) => r + 1)}
+      />
+    </Suspense>
   );
 }

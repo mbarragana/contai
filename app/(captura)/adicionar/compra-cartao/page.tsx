@@ -77,6 +77,11 @@ import { formatarBRL, parseValorInput } from "@/lib/money";
 import { formatarDataBR } from "@/lib/fiscal/obra";
 import type { Documento } from "@/lib/types";
 
+import { montarQueryTextoHerdado } from "./texto-herdado";
+
+/** A rota irmã do lote — a MESMA de sempre, sem parâmetro nenhum. */
+const ROTA_DO_LOTE = "/adicionar/compra-cartao/parcelas";
+
 const RESPOSTAS_PARC = [
   { valor: "vista", texto: "À vista" },
   { valor: "parcelado", texto: "Parcelado" },
@@ -141,6 +146,19 @@ function RegistrarCompraCartao({
     null,
   );
   const [tentativaDaNota, setTentativaDaNota] = useState(0);
+  /**
+   * CONTAI-089, critério 9 — o efeito da nota terminou INTEIRO: nome, CNPJ/CPF
+   * **e** a sugestão de valor (`sugerirValorDaNota` resolvida, com valor ou
+   * `null`). Não é cosmético: o valor que o link do lote carrega é o SALDO
+   * descoberto da nota, e oferecê-lo antes da sugestão resolver mandaria para a
+   * Tela 1 um "Valor total" vazio numa nota que tinha saldo — ou, pior num
+   * refator futuro, o valor de FACE de uma nota com pagamento parcial, que
+   * dobraria o custo (a única direção de erro com passivo tributário).
+   *
+   * Nota que não carrega não trava nada: o `catch` zera `documentoDeOrigemId` e
+   * a tela cai no caso "sem contexto", onde este gate não se aplica.
+   */
+  const [notaPronta, setNotaPronta] = useState(false);
 
   const [nome, setNome] = useState("");
   const [documento, setDocumento] = useState("");
@@ -155,6 +173,16 @@ function RegistrarCompraCartao({
   useEffect(() => {
     if (!documentoDeOrigemId) return;
     let cancelado = false;
+    /**
+     * ⚠️ `notaPronta` **não é zerado aqui**, e não é esquecimento: ele só vira
+     * `true` depois de `setDocumentoDeOrigem(carregado)`, e as duas entradas
+     * deste efeito não podem reabri-lo depois disso. "Tentar de novo"
+     * (`tentativaDaNota`) só existe enquanto `documentoDeOrigem` é `null` —
+     * isto é, enquanto `notaPronta` ainda é `false`; e `documentoDeOrigemId`
+     * nunca troca de nota, só é apagado (pelo `catch` ou pelo "Desfazer"), caso
+     * em que o gate do link deixa de se aplicar. Zerar por precaução custaria
+     * um render em cascata dentro do efeito, que o lint deste projeto recusa.
+     */
 
     void (async () => {
       try {
@@ -174,9 +202,16 @@ function RegistrarCompraCartao({
             atual || formatarDocumento(carregado.favorecidoDocumento ?? ""),
         );
         const sugestao = await sugerirValorDaNota(carregado);
-        if (cancelado || sugestao === null) return;
-        setSugestaoValor(sugestao);
-        setValor((atual) => atual || sugestao.texto);
+        if (cancelado) return;
+        if (sugestao !== null) {
+          setSugestaoValor(sugestao);
+          setValor((atual) => atual || sugestao.texto);
+        }
+        // ⚠️ DEPOIS da sugestão, e **também quando ela é `null`** (CONTAI-089,
+        // critério 9): nota sem saldo sugerível é um efeito que TERMINOU, não
+        // um que está pendente. Travar o link nela seria travar o fluxo por
+        // falta de um número que a tela já decidiu perguntar.
+        setNotaPronta(true);
       } catch {
         // Documento que não abre não pode travar o registro da compra: o
         // dispêndio (aqui, o compromisso) é o fato, e ele tem de entrar. A
@@ -248,6 +283,28 @@ function RegistrarCompraCartao({
       : null;
 
   const tipoFavorecido = useMemo(() => tipoPorDocumento(documento), [documento]);
+
+  /**
+   * CONTAI-089 — o link do lote carrega o **TEXTO** que esta tela já tem na
+   * mão, e só ele: nome, CNPJ/CPF formatado e o valor (que é o SALDO da nota,
+   * via `sugerirValorDaNota`, ou o que o Mateus já digitou por cima).
+   *
+   * ⚠️ **`valor`, nunca `documentoDeOrigem.valorCentavos`** (critério 9): o
+   * valor de face de uma nota com pagamento parcial repetido no lote dobraria o
+   * custo. E ⚠️ **nenhum id**: nem `documentoDeOrigemId`, nem
+   * `origemParaGravar`. A rota irmã não tem o que vazar porque não recebe
+   * (critério 7).
+   *
+   * Sem nada preenchido — acesso direto, ou nota que não carregou — não sobra
+   * query nenhuma e o `href` é **a URL de hoje, byte a byte**, sem `?`
+   * pendurado (critério 4: zero regressão no caminho sem nota).
+   */
+  const hrefDoLote = useMemo(() => {
+    const query = new URLSearchParams(
+      montarQueryTextoHerdado({ nome, documento, valor }),
+    ).toString();
+    return query === "" ? ROTA_DO_LOTE : `${ROTA_DO_LOTE}?${query}`;
+  }, [nome, documento, valor]);
 
   async function salvar() {
     setErroSalvar(null);
@@ -566,22 +623,38 @@ function RegistrarCompraCartao({
                   <Banner cor="red" role="alert">
                     <strong>{RECUSA_PARCELADO}</strong>
                   </Banner>
-                  {/* ⚠️ CONTAI-084, critério 3 — a ÚNICA mudança desta tela.
-                      A recusa continua idêntica (ADENDO 5 não muda): o que
-                      havia de faltar era a saída que ela já mandava tomar —
-                      "lance cada parcela como uma compra separada" — sem
-                      obrigar a repetir o cadastro N vezes.
+                  {/* ⚠️ CONTAI-084, critério 3 — a recusa continua idêntica
+                      (ADENDO 5 não muda): o que havia de faltar era a saída que
+                      ela já mandava tomar — "lance cada parcela como uma compra
+                      separada" — sem obrigar a repetir o cadastro N vezes.
 
-                      `Link` cru para `/adicionar/compra-cartao/parcelas`, SEM
-                      parâmetro nenhum da URL: a rota irmã nunca lê
-                      `?documento=`, e carregar a herança de nota até a porta
-                      dela seria burlar o critério 10 pelo endereço. */}
-                  <Link
-                    href="/adicionar/compra-cartao/parcelas"
-                    className="text-[13.5px] font-semibold underline"
-                  >
-                    Lançar as parcelas em lote →
-                  </Link>
+                      ⚠️ **CONTAI-089 reescreveu o `href`, e NÃO reabriu o
+                      critério 10.** Até aqui o link era cru, "SEM parâmetro
+                      nenhum da URL", porque o único parâmetro que existia era o
+                      `?documento=` — e carregar o ID da nota até a porta da
+                      rota irmã seria burlar o vínculo pelo endereço. O que
+                      viaja agora é TEXTO (`favorecidoNome`,
+                      `favorecidoDocumento`, `valorTotal`): dígitos que o Mateus
+                      digitaria olhando a mesma nota, sem id nenhum no caminho.
+                      A rota do lote continua sem receber documento — é por isso
+                      que não há o que vazar para
+                      `compra_cartao_gravar_lote` (critério 7). */}
+                  {/* Estado de LOADING do link (critério 9): com nota em
+                      carregamento, o link ainda não sabe o saldo — e link
+                      clicável que larga o valor para trás é a fricção que este
+                      ticket veio matar. Texto inline mudo, sem spinner nem
+                      retry: o carregamento principal já tem o seu `Carregando`
+                      na seção "À vista". */}
+                  {documentoDeOrigemId && !notaPronta ? (
+                    <p className="text-[13.5px] text-mut">Carregando a nota…</p>
+                  ) : (
+                    <Link
+                      href={hrefDoLote}
+                      className="text-[13.5px] font-semibold underline"
+                    >
+                      Lançar as parcelas em lote →
+                    </Link>
+                  )}
                 </>
               ) : null}
             </Card>

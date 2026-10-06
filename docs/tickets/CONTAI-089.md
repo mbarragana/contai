@@ -26,40 +26,40 @@ a partir dessa nota — continuando livre para editar qualquer um dos três
 signifique vincular nenhuma das parcelas geradas a essa nota.
 
 ## Critérios de Aceite
-1. [ ] Favorecido (nome), CNPJ/CPF e Valor total aparecem preenchidos na
+1. [x] Favorecido (nome), CNPJ/CPF e Valor total aparecem preenchidos na
    Tela 1 quando a navegação vem de uma nota (documento → "Adicionar
    pagamento" → "Cartão" → "Definir parcelas") — mesmos três campos que
    `/adicionar/compra-cartao?documento=<id>` já pré-preenche hoje
    (CONTAI-064/071).
-2. [ ] Os três campos herdados continuam editáveis livremente — nenhum
+2. [x] Os três campos herdados continuam editáveis livremente — nenhum
    fica travado/read-only por ter vindo de uma nota; é o valor editado
    (se houver) que segue para a geração das parcelas.
-3. [ ] "Data da compra" e "Vencimento da 1ª fatura" permanecem vazios,
+3. [x] "Data da compra" e "Vencimento da 1ª fatura" permanecem vazios,
    sem herdar nenhum valor da nota — decisão do Mateus, 2026-10-06.
-4. [ ] Sem contexto de documento (fluxo atual, direto do banner
+4. [x] Sem contexto de documento (fluxo atual, direto do banner
    `RECUSA_PARCELADO`), a Tela 1 se comporta exatamente como hoje — três
    campos vazios, nada herdado.
-5. [ ] Verificável no banco: um lote gerado a partir de uma Tela 1 com
+5. [x] Verificável no banco: um lote gerado a partir de uma Tela 1 com
    contexto herdado grava as N linhas de `compromisso` com
    `documento_origem_id = null` em todas, sem exceção — reforça, não
    reabre, o critério 2/10 do CONTAI-084 (ADENDO 9 do parecer
    `docs/pareceres/2026-08-18-compromisso-versus-pagamento.md`).
-6. [ ] O mecanismo que carrega o contexto na Tela 1 é tecnicamente
+6. [x] O mecanismo que carrega o contexto na Tela 1 é tecnicamente
    distinto de qualquer leitura usada para gravar vínculo — carregar
    texto para pré-preenchimento e ler para vincular não podem ser a
    mesma função nem o mesmo parâmetro repassado adiante sem filtro.
-7. [ ] A rota `/adicionar/compra-cartao/parcelas` **não recebe nem lê
+7. [x] A rota `/adicionar/compra-cartao/parcelas` **não recebe nem lê
    nenhum id de documento**: o link de entrada carrega só texto
    (`favorecidoNome`, `favorecidoDocumento`, `valorTotal`), e
    `parcelas/page.tsx` não importa `carregarDocumento`, não chama
    `sugerirValorDaNota` nem referencia `documentoOrigemId`/
    `documento_origem_id` fora de comentário — verificável por `grep`.
-8. [ ] A única leitura de query string em `/parcelas` é `lerTextoHerdado`
+8. [x] A única leitura de query string em `/parcelas` é `lerTextoHerdado`
    (`texto-herdado.ts`), cujo retorno é `{nome, documento, valor}: string`,
    consumido exclusivamente como valor inicial de `useState`;
    `montarQueryTextoHerdado` é chamada só em `compra-cartao/page.tsx`.
    Nenhuma das duas funções é importada por `lib/`.
-9. [ ] O link "Lançar as parcelas em lote →" só é oferecido depois que
+9. [x] O link "Lançar as parcelas em lote →" só é oferecido depois que
    nome, CNPJ/CPF e a sugestão de valor da nota terminaram de carregar
    (`sugerirValorDaNota` resolvida, com valor ou `null`) — até então
    mostra "Carregando a nota…". **O valor herdado é o saldo descoberto
@@ -69,13 +69,24 @@ signifique vincular nenhuma das parcelas geradas a essa nota.
    passivo tributário. Nota sem saldo sugerível (`sugerirValorDaNota`
    devolve `null`) chega com "Valor total" vazio, perguntando — não
    trava o link nem o fluxo.
-10. [ ] Só o primeiro lote da rodada herda o texto (`herdarDaUrl`);
+10. [x] Só o primeiro lote da rodada herda o texto (`herdarDaUrl`);
     "Lançar outro lote" e a fase de sucesso (`router.replace` limpando a
     query) não reaproveitam a herança de uma rodada anterior.
-11. [ ] O teste E2E "o link ... NÃO carrega a nota da URL" é reescrito
+11. [x] O teste E2E "o link ... NÃO carrega a nota da URL" é reescrito
     para afirmar que a URL de destino não contém o **id** do documento e
     contém os três textos; novo teste grava um lote herdado por texto e
     confere `documento_origem_id = null` nas N linhas.
+
+## ✅ Entregue — 2026-10-06
+Pipeline completo: Gate 1 (lead-engineer, DONE — módulo puro
+`texto-herdado.ts`, flag `notaPronta` esperando o efeito inteiro de
+carregar a nota, valor herdado sempre o saldo via `sugerirValorDaNota`,
+nunca o valor de face) → Gate 2 (cto-obra, APPROVE direto, sem
+retrabalho — garantia estrutural confirmada por `grep`) → Gate 3
+(coberto pelos 487 E2E já rodados no Gate 1) → Gate 4 (po, PASS nos
+11/11 critérios, revalidado rodando os testes de novo, não só aceitando
+o relato). Typecheck/lint limpos, `texto-herdado.test.ts` 12/12,
+`cartao-lote.spec.ts` 17/17. Sem migration.
 
 ## Out of Scope
 - **Qualquer forma de vínculo/origem automático nas N parcelas** — a

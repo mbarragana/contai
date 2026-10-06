@@ -1,9 +1,12 @@
 import { type Page } from "@playwright/test";
 
-import { OBRA_ID_SEED } from "./ambiente";
+import { OBRA_ID_SEED, URL_SUPABASE_LOCAL, USER_ID_SEED } from "./ambiente";
 import {
   compromissos,
+  criarDocumento,
   criarFavorecido,
+  criarPagamento,
+  criarVinculo,
   faturaCompromissos,
   faturas,
   type Db,
@@ -37,6 +40,9 @@ import { escolher } from "./formularios";
 
 /** CNPJ com dígito verificador válido de verdade. */
 const CNPJ_CONCRETEIRA = "11.222.333/0001-81";
+
+/** O texto de origem dos três campos herdados (CONTAI-089). */
+const AJUDA_HERDADA = "Vem da compra que você estava registrando. Dá para trocar.";
 
 let proximoCnpj = 0;
 
@@ -75,24 +81,155 @@ async function preencherDadosComuns(
   await page.getByLabel("Número de parcelas").fill(dados.parcelas);
 }
 
+/**
+ * A nota de material já registrada, com CNPJ que passa na validação real de
+ * dígito — o mesmo cenário de `e2e/cartao.spec.ts` (herança do CONTAI-064).
+ * `saldoDescobertoDaNota` a considera hábil, então o saldo descoberto dela é o
+ * valor cheio: R$ 950,00.
+ */
+async function notaDaLoja(db: Db, valor = 950) {
+  const loja = await criarFavorecido(db, {
+    tipo: "pj",
+    nome: "Depósito Bom Jesus",
+    documento: "11222333000181",
+  });
+  const documentoId = await criarDocumento(db, {
+    favorecido_id: loja,
+    tipo: "nf_material",
+    classificacao: "material",
+    valor,
+    destinatario_cpf_ok: true,
+    status: "registrado",
+  });
+  return { loja, documentoId };
+}
+
+/** Os parâmetros da URL de destino, decodificados. */
+function queryDoHref(href: string): URLSearchParams {
+  return new URL(href, "https://contai.local").searchParams;
+}
+
 test.describe("a porta de entrada do lote", () => {
-  test("o link aparece sob a recusa de parcelado e NÃO carrega a nota da URL", async ({
+  /**
+   * ⚠️ **TESTE REESCRITO PELO CONTAI-089 — e o que ele prova mudou de lado.**
+   *
+   * Até aqui ele exigia `href` CRU, sem query nenhuma, porque o único parâmetro
+   * que existia era o `?documento=` e levar o ID da nota até a porta da rota
+   * irmã seria burlar o critério 10 pelo endereço. O que a URL carrega agora é
+   * TEXTO — favorecido, CNPJ/CPF e valor —, e a assertiva passa a ser a dos
+   * dois lados do critério 7: **o id do documento NÃO viaja**, e os três textos
+   * viajam.
+   */
+  test("o link aparece sob a recusa de parcelado e carrega TEXTO, nunca o id da nota", async ({
     page,
     db,
   }) => {
-    // A compra individual, chegando de uma nota: é exatamente o caso em que
-    // herdar a origem para 3 parcelas de uma vez seria o CONTAI-083 em escala.
-    const favorecidoId = await favorecidoDeConcreto(db);
-    expect(favorecidoId).toBeTruthy();
+    const { documentoId } = await notaDaLoja(db);
 
-    await page.goto("/adicionar/compra-cartao?documento=qualquer");
+    await page.goto(`/adicionar/compra-cartao?documento=${documentoId}`);
+    await escolher(page, "Parcelado?", "Parcelado");
+
+    const link = page.getByRole("link", {
+      name: "Lançar as parcelas em lote →",
+    });
+    // Critério 9: o link só existe depois que o efeito INTEIRO terminou — e
+    // `toBeVisible` espera por isso, que é o estado "Carregando a nota…".
+    await expect(link).toBeVisible();
+
+    const href = (await link.getAttribute("href"))!;
+    // ⚠️ A metade que importa: nenhum id de documento no caminho. Não é
+    // disciplina de quem monta o link — a rota irmã não tem como receber um.
+    expect(href).not.toContain(documentoId);
+    expect(href).not.toContain("documento=");
+    expect(href.startsWith("/adicionar/compra-cartao/parcelas?")).toBe(true);
+
+    // E a outra metade: os três textos, do jeito que a tela de origem mostra
+    // (CNPJ com máscara, valor em texto decimal pt-BR).
+    const query = queryDoHref(href);
+    expect(query.get("favorecidoNome")).toBe("Depósito Bom Jesus");
+    expect(query.get("favorecidoDocumento")).toBe(CNPJ_CONCRETEIRA);
+    expect(query.get("valorTotal")).toBe("950,00");
+
+    await link.click();
+    await expect(
+      page.getByRole("heading", { name: "Lançar parcelas em lote" }),
+    ).toBeVisible();
+    expect(page.url()).toContain("/adicionar/compra-cartao/parcelas");
+    expect(page.url()).not.toContain("documento=");
+    expect(page.url()).not.toContain(documentoId);
+
+    // Os três chegam preenchidos, EDITÁVEIS, com a origem dita no campo
+    // (critérios 1 e 2) — e nada de bloco travado de favorecido, que é o
+    // Pre-mortem 3.
+    const favorecido = page.getByLabel("Favorecido", { exact: true });
+    await expect(favorecido).toHaveValue("Depósito Bom Jesus");
+    await expect(favorecido).toBeEditable();
+    await expect(page.getByLabel("CNPJ / CPF do favorecido")).toHaveValue(
+      CNPJ_CONCRETEIRA,
+    );
+    await expect(page.getByLabel("CNPJ / CPF do favorecido")).toBeEditable();
+    await expect(page.getByLabel("Valor total da compra")).toHaveValue("950,00");
+    await expect(page.getByLabel("Valor total da compra")).toBeEditable();
+    await expect(
+      page.getByRole("group", { name: "Favorecido da nota" }),
+    ).toHaveCount(0);
+    await expect(page.getByText(AJUDA_HERDADA)).toHaveCount(3);
+
+    // Critério 3: as duas datas NÃO herdam — decisão do Mateus.
+    await expect(page.getByLabel("Data da compra")).toHaveValue("");
+    await expect(page.getByLabel("Vencimento da 1ª fatura")).toHaveValue("");
+
+    // A ajuda de origem é POR CAMPO: editar o nome não desmente o CNPJ.
+    await favorecido.fill("Depósito Bom Jesus ME");
+    await expect(page.getByText(AJUDA_HERDADA)).toHaveCount(2);
+  });
+
+  /**
+   * Critério 9, o estado de LOADING — e por que ele não é cosmético: o valor que
+   * o link carrega é o SALDO da nota, resolvido por `sugerirValorDaNota`. Link
+   * clicável antes disso largaria o valor para trás, que é a fricção que o
+   * ticket veio matar.
+   *
+   * ⚠️ A requisição fica PENDURADA (nunca resolve) — latência, não stub: o
+   * `documento` vem do Postgres local de verdade, e por isso nome e CNPJ
+   * chegam; só a sugestão de valor não resolve. Mesmo recurso do teste 5.5 de
+   * `captura-retencao-desktop.spec.ts`.
+   */
+  test("enquanto a nota não termina de carregar, o lugar do link diz 'Carregando a nota…'", async ({
+    page,
+    db,
+  }) => {
+    const { documentoId } = await notaDaLoja(db);
+    // `pagamento_documento` é uma das consultas do painel que
+    // `sugerirValorDaNota` espera — e não é pedida por `carregarDocumento`.
+    await page.route(
+      `${URL_SUPABASE_LOCAL}/rest/v1/pagamento_documento*`,
+      async () => {},
+    );
+
+    await page.goto(`/adicionar/compra-cartao?documento=${documentoId}`);
+    await escolher(page, "Parcelado?", "Parcelado");
+
+    await expect(page.getByText("Carregando a nota…")).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Lançar as parcelas em lote →" }),
+    ).toHaveCount(0);
+  });
+
+  /**
+   * Critério 4 e Pre-mortem 2 — o caminho SEM nota de origem não regrediu: a
+   * URL é a de hoje, byte a byte, e a Tela 1 nasce vazia.
+   */
+  test("sem contexto de documento, o link é o de hoje e a Tela 1 nasce vazia", async ({
+    page,
+  }) => {
+    await page.goto("/adicionar/compra-cartao");
     await escolher(page, "Parcelado?", "Parcelado");
 
     const link = page.getByRole("link", {
       name: "Lançar as parcelas em lote →",
     });
     await expect(link).toBeVisible();
-    // Sem query string: a rota irmã nunca lê `?documento=` (critério 2).
     await expect(link).toHaveAttribute(
       "href",
       "/adicionar/compra-cartao/parcelas",
@@ -102,8 +239,48 @@ test.describe("a porta de entrada do lote", () => {
     await expect(
       page.getByRole("heading", { name: "Lançar parcelas em lote" }),
     ).toBeVisible();
-    expect(page.url()).toContain("/adicionar/compra-cartao/parcelas");
-    expect(page.url()).not.toContain("documento=");
+    await expect(page.getByLabel("Favorecido", { exact: true })).toHaveValue("");
+    await expect(page.getByLabel("CNPJ / CPF do favorecido")).toHaveValue("");
+    await expect(page.getByLabel("Valor total da compra")).toHaveValue("");
+    await expect(page.getByText(AJUDA_HERDADA)).toHaveCount(0);
+  });
+
+  /**
+   * ⚠️ **A regressão cara desta herança**, e a única direção de erro com passivo
+   * tributário: a nota tem parcela paga, e repetir o valor de FACE no lote
+   * dobraria o custo. O que viaja é o SALDO (critério 9) — o mesmo número de
+   * `sugerirValorDaNota`, não `documento.valorCentavos`.
+   */
+  test("nota com pagamento parcial: o valor herdado é o SALDO, nunca o valor de face", async ({
+    page,
+    db,
+  }) => {
+    const { loja, documentoId } = await notaDaLoja(db, 3000);
+    const parcelaPaga = await criarPagamento(db, {
+      favorecido_id: loja,
+      valor: 1000,
+      data_pagamento: "2026-09-10",
+      meio: "pix",
+      status: "aguardando_nf",
+      comprovante_path: `${USER_ID_SEED}/comprovante/pix-loja-1.png`,
+    });
+    await criarVinculo(db, parcelaPaga, documentoId);
+
+    await page.goto(`/adicionar/compra-cartao?documento=${documentoId}`);
+    await escolher(page, "Parcelado?", "Parcelado");
+
+    const link = page.getByRole("link", {
+      name: "Lançar as parcelas em lote →",
+    });
+    await expect(link).toBeVisible();
+    const query = queryDoHref((await link.getAttribute("href"))!);
+    expect(query.get("valorTotal")).toBe("2.000,00");
+    expect(query.get("valorTotal")).not.toBe("3.000,00");
+
+    await link.click();
+    await expect(page.getByLabel("Valor total da compra")).toHaveValue(
+      "2.000,00",
+    );
   });
 
   test("a Tela 1 não pergunta se é parcelado, e diz por quê", async ({
@@ -314,6 +491,113 @@ test.describe("caminho feliz — N compras independentes num ato só", () => {
     await expect(
       page.getByText("ajustada — abril não tem dia 31"),
     ).toBeVisible();
+  });
+});
+
+/**
+ * CONTAI-089 — **herdar TEXTO não é herdar VÍNCULO**, provado no banco.
+ *
+ * Este bloco é a mitigação do Pre-mortem 1 do ticket: o medo não é o campo
+ * preenchido, é o id do documento viajar escondido até
+ * `compra_cartao_gravar_lote` e reabrir o incidente P0 do CONTAI-083 (Ilhamix)
+ * multiplicado por N parcelas numa ação só. A garantia é estrutural — nem
+ * `NovoLoteCompraCartao` nem a RPC da migration 0026 têm o parâmetro —, e aqui
+ * ela é CONFERIDA no estado gravado, não deduzida da assinatura.
+ */
+test.describe("herança de texto não vira vínculo (CONTAI-089)", () => {
+  test("lote gerado de uma Tela 1 herdada: as N parcelas nascem com documento_origem_id nulo", async ({
+    page,
+    db,
+  }) => {
+    const { loja, documentoId } = await notaDaLoja(db);
+
+    await page.goto(`/adicionar/compra-cartao?documento=${documentoId}`);
+    await escolher(page, "Parcelado?", "Parcelado");
+    await page
+      .getByRole("link", { name: "Lançar as parcelas em lote →" })
+      .click();
+
+    // Favorecido, CNPJ/CPF e valor total vieram da tela anterior; as duas datas
+    // e o número de parcelas continuam sendo ato do Mateus (critério 3).
+    await expect(page.getByLabel("Valor total da compra")).toHaveValue("950,00");
+    await page.getByLabel("Data da compra").fill("2026-10-01");
+    await page.getByLabel("Vencimento da 1ª fatura").fill("2026-10-15");
+    await page.getByLabel("Número de parcelas").fill("2");
+
+    await page.getByRole("button", { name: /^Gerar as 2 parcelas/ }).click();
+    await expect(page.getByLabel("Valor da parcela 1")).toHaveValue("475,00");
+    await page.getByRole("button", { name: "Confirmar as 2 parcelas" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Parcelas lançadas" }),
+    ).toBeVisible();
+
+    // ⚠️ A ASSERTIVA DO CRITÉRIO 5: nenhuma das N linhas ficou ligada à nota de
+    // onde o TEXTO veio. Nem uma.
+    const cs = await compromissos(db);
+    expect(cs).toHaveLength(2);
+    for (const c of cs) {
+      expect(c.documento_origem_id).toBeNull();
+      expect(c.favorecido_id).toBe(loja);
+      expect(Number(c.valor_previsto)).toBe(475);
+    }
+    // E o acervo não ganhou vínculo por outra porta: a nota continua sem
+    // pagamento nenhum ligado a ela.
+    expect(await faturaCompromissos(db)).toHaveLength(2);
+
+    // O CNPJ herdado reusou o MESMO favorecido — é metade do motivo de herdar
+    // (redigitar um dígito criaria uma segunda linha da mesma empresa na ficha
+    // Pagamentos Efetuados).
+    const { data: favs } = await db.from("favorecido").select("id");
+    expect(favs).toHaveLength(1);
+
+    // Critério 10: a query sai da barra ao entrar na fase de sucesso — um F5
+    // aqui não ressuscita o texto herdado por cima de um lote já gravado. A
+    // navegação é assíncrona, então a asserção é a que espera por ela.
+    await expect(page).toHaveURL("/adicionar/compra-cartao/parcelas");
+
+    // E "Lançar outro lote" nasce em branco, sem reaproveitar a herança.
+    await page.getByRole("button", { name: "Lançar outro lote" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Lançar parcelas em lote" }),
+    ).toBeVisible();
+    await expect(page.getByLabel("Favorecido", { exact: true })).toHaveValue("");
+    await expect(page.getByLabel("CNPJ / CPF do favorecido")).toHaveValue("");
+    await expect(page.getByLabel("Valor total da compra")).toHaveValue("");
+    await expect(page.getByText(AJUDA_HERDADA)).toHaveCount(0);
+  });
+
+  /**
+   * O texto herdado é EDITÁVEL de verdade (critério 2): o que segue para a
+   * geração é o valor editado, não o que veio na URL.
+   */
+  test("valor herdado editado na Tela 1: o lote sai pelo número novo", async ({
+    page,
+    db,
+  }) => {
+    const { documentoId } = await notaDaLoja(db);
+
+    await page.goto(`/adicionar/compra-cartao?documento=${documentoId}`);
+    await escolher(page, "Parcelado?", "Parcelado");
+    await page
+      .getByRole("link", { name: "Lançar as parcelas em lote →" })
+      .click();
+
+    await page.getByLabel("Valor total da compra").fill("600,00");
+    // A ajuda de origem some: o número não vem mais da compra anterior.
+    await expect(page.getByText(AJUDA_HERDADA)).toHaveCount(2);
+    await page.getByLabel("Data da compra").fill("2026-10-01");
+    await page.getByLabel("Vencimento da 1ª fatura").fill("2026-10-15");
+    await page.getByLabel("Número de parcelas").fill("2");
+    await page.getByRole("button", { name: /^Gerar as 2 parcelas/ }).click();
+    await page.getByRole("button", { name: "Confirmar as 2 parcelas" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Parcelas lançadas" }),
+    ).toBeVisible();
+
+    const valores = (await compromissos(db)).map((c) =>
+      Number(c.valor_previsto),
+    );
+    expect(valores).toEqual([300, 300]);
   });
 });
 
