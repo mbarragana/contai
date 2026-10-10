@@ -1,6 +1,30 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-10-10, ainda mais tarde**: **`CONTAI-091` criado, P1** — relato de
+sessão de suporte, caso Ilhamix (notas 1541/1543): `/despesas` mostrava "Sem
+pagamento ligado" numa nota que já tinha pré-vínculo (`documentoPrevistoIds`)
+esperando confirmação, porque `agendamentosPorDocumento` só elege por
+`documentoOrigemId` (deliberado, CONTAI-072); o detalhe da nota já mostrava
+certo via `compromissosQuePreLigam`. Mateus: *"fica parecendo que esta
+pendente de trabalho meu"*. `/tickets-req` completo: terceiro estado visual
+(nunca reaproveitar "Agendado") via função pura nova
+`preVinculosPorDocumento` em `lib/fiscal/compromisso.ts`, chaves disjuntas de
+`agendamentosPorDocumento`, chip mandatório `CHIP_PRE_VINCULO` (Gate Fiscal,
+ADENDO 6 §J.2, `docs/pareceres/2026-08-18-compromisso-versus-pagamento.md`) —
+texto do rótulo não é escolha do `designer`, só o CTA e o layout. CTA aponta
+para `/compromisso/{id}` quando há 1 pré-vínculo, ou `/documento/{id}` quando
+há N≥2 (caso real, não hipotético — backlog 96); `/documento/[id]` ganha
+navegação aditiva (cada compromisso já listado no texto vira link), texto
+fiscal intocado byte a byte. Inclui a Home, não só `/despesas` — mesma
+função, mesmo par chip+CTA, para não reabrir a divergência entre telas que o
+CONTAI-072 já corrigiu uma vez. `contador` confirmou, lendo o código real,
+que a nota com pré-vínculo continua contando em "Notas hábeis sem pagamento
+vinculado" (`documentosHabeisSemPagamento`, `vinculo.ts:1059`) — zero
+caminho de código por onde pré-vínculo reduziria essa contagem. Mock nível 2
+em `design/mocks/CONTAI-091.md`. Complexidade M. **Pronto para `/develop`.**
+Detalhe: `docs/tickets/CONTAI-091.md`.
 
 **2026-10-10, mais tarde**: **`090` entregue** — Gate 4 (`po`), 13/13
 critérios PASS, Gate 2 (`cto-obra`+`contador`) aprovou de primeira sem
