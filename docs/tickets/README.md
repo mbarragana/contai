@@ -1,6 +1,23 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-10-10**: **`CONTAI-090` criado, P2** — relato vivido ao vivo nesta
+sessão: o Mateus, revisando a nota PerfuraTec já corrigida, estranhou o
+banner âmbar "Excedente da nota: R$34.901,00" misturar duas pendências de
+natureza diferente (a pagar ao fornecedor R$33.103,97 + ISS retido a
+recolher R$1.797,03). Zero mudança de cálculo (`alocarCusto` intocado) —
+função pura nova `quebrarExcedenteDaNota` em `lib/fiscal/retencao.ts`
+decompõe a apresentação do card `PagamentosDesteDocumento`. O `cto-obra`
+achou que o caso X=0 não é hipotético (é o Francisco/JA SILVA, já cobre o
+E2E `retencao.spec.ts:813-824`, que precisa ser reescrito, não só não
+quebrar). Achou também a **D92**: `nomeDaRetencao` devolve rótulo
+autocontraditório ("presumivelmente recolhida por terceiros" ao lado de
+"recolhedor confirmado") para retenção não discriminada com
+`quem_recolhe='eu'` — correção entra no próprio ticket (critério 4), nova
+constante `ROTULO_RETENCAO_NAO_DISCRIMINADA_RECOLHEDOR_CONFIRMADO`. Mock
+nível 2 em `design/mocks/CONTAI-090.md` (5 estados). Aprovado no
+`/tickets-req`, pendente `/develop`. Detalhe: `docs/tickets/CONTAI-090.md`.
 
 **2026-10-06, ainda mais tarde**: **`088` entregue** — Gate 4 (`po`),
 14/14 critérios PASS, Gate 2 aprovou de primeira sem retrabalho. Duas
