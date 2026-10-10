@@ -243,6 +243,21 @@ export const CONSEQUENCIA_RETENCAO_SEM_RECOLHEDOR =
 export const ROTULO_RETENCAO_NAO_DISCRIMINADA =
   "retenção não discriminada, presumivelmente recolhida por terceiros";
 
+/**
+ * **CONTAI-090 / D92 — o MESMO rótulo do A.2, sem o sufixo que contradiz o que
+ * o Mateus já respondeu.** Correção decidida pelo `contador` na ratificação do
+ * ticket (Gate Fiscal, item 4), não redação minha.
+ *
+ * O A.2 proíbe nomear o TRIBUTO de um valor que a nota não abriu — e esta
+ * constante continua não o nomeando. O que ela tira é a outra metade da frase
+ * do rótulo acima, *"presumivelmente recolhida por terceiros"*, que é uma
+ * afirmação sobre **quem recolhe**: dita ao lado de "Recolhedor confirmado —
+ * guia ainda não paga", ela diz o oposto do que a linha gravada diz
+ * (`quem_recolhe = "eu"`). A cautela do A.2 fica intacta; a contradição sai.
+ */
+export const ROTULO_RETENCAO_NAO_DISCRIMINADA_RECOLHEDOR_CONFIRMADO =
+  "retenção não discriminada";
+
 /** Chip da pendência na home — **Estado A** desde o CONTAI-059. */
 export const CHIP_RETENCAO_SEM_RECOLHEDOR = "Retenção sem recolhedor";
 
@@ -768,6 +783,92 @@ export function motivoDaRetencaoDoDocumento(
 }
 
 /**
+ * **CONTAI-090 — o "Excedente da nota" são DUAS pendências de natureza
+ * diferente, e o card somava as duas num número só.**
+ *
+ * O relato (`docs/backlog/105-2026-10-10-...md`): *"não é os 34mil referente a
+ * nota, é 33 e pouco referente a nota e 1797 referente ao ISS"*. O dinheiro a
+ * pagar ao FORNECEDOR e a fatia retida que o próprio Mateus vai recolher
+ * (`quem_recolhe = "eu"`, guia ainda não paga) vivem os dois dentro de
+ * `faltaPagamentoCentavos` — e é correto que vivam (Gate Fiscal, item 1: a
+ * perna de retenção de `"eu"` NUNCA soma em `alocarCusto`, ADENDO 3). O que
+ * este ticket faz é **reagrupar na tela um número que o cálculo já produz**:
+ * nenhuma soma nova, nenhuma fonte independente, zero risco de dupla contagem.
+ *
+ * ⚠️ **Nenhuma condição é reimplementada aqui** (critério 3): quem diz se a
+ * linha está em Estado C é `motivoDaRetencaoAberta`, a mesma função que o card
+ * da linha e a fila de pendências leem. `eDescontoEfetivo && quemRecolhe ===
+ * "eu"` já tem duas cópias no app; esta não é a terceira.
+ *
+ * ⚠️ **`notaCoberta` sai de `faltaPagamentoCentavos <= 0`** — o mesmo fato,
+ * nunca uma segunda soma de "quanto desta nota já foi pago".
+ *
+ * **Agregação por tributo** (Gate Fiscal, item 3 — regra do `contador`,
+ * CONTAI-090, não citação de parecer anterior): linhas do mesmo
+ * `nomeDaRetencao` somam num item; tributos identificados diferentes (ISS +
+ * INSS) geram um item cada, na ordem da 1ª ocorrência na nota. Fundir tributos
+ * que a nota já abriu reproduziria, em escala menor, a mesma opacidade que
+ * motivou o ticket.
+ *
+ * Invariante, sempre que `quebra: true`:
+ * `aPagarAoFornecedorCentavos + Σ porTributo.valorCentavos === faltaPagamentoCentavos`.
+ */
+export function quebrarExcedenteDaNota(
+  linhas: readonly Pick<
+    LinhaRetencao,
+    "eDescontoEfetivo" | "quemRecolhe" | "composicao" | "tributo" | "valorCentavos"
+  >[],
+  faltaPagamentoCentavos: number,
+): QuebraDoExcedente {
+  const notaCoberta = faltaPagamentoCentavos <= 0;
+  const porTributo: { rotulo: string; valorCentavos: number }[] = [];
+
+  for (const linha of linhas) {
+    if (motivoDaRetencaoAberta(linha, notaCoberta) !== "eu_sem_guia") continue;
+    const rotulo = nomeDaRetencaoARecolher(linha);
+    const grupo = porTributo.find((g) => g.rotulo === rotulo);
+    if (grupo === undefined) porTributo.push({ rotulo, valorCentavos: linha.valorCentavos });
+    else grupo.valorCentavos += linha.valorCentavos;
+  }
+
+  if (porTributo.length === 0) {
+    return { quebra: false, motivo: "sem_retencao_eu_sem_guia" };
+  }
+
+  const somaPendente = porTributo.reduce((t, g) => t + g.valorCentavos, 0);
+  // ⚠️ **Dado contraditório, e ele não ganha texto inventado** (critério 6 /
+  // pre-mortem 3): Σ retenção além da falta daria um "A pagar ao fornecedor"
+  // NEGATIVO. É o espelho `"eu"` da `RETENCAO_SOBRECOBERTA`, e nenhum parecer
+  // normatiza este caso porque ele não é um fato fiscal possível — é dado
+  // errado de um dos dois lados. Aqui ele só é DETECTADO: a tela volta ao
+  // bloco agregado de sempre. Dívida registrada na Viabilidade do ticket.
+  if (somaPendente > faltaPagamentoCentavos) {
+    return { quebra: false, motivo: "retencao_excede_falta" };
+  }
+
+  return {
+    quebra: true,
+    aPagarAoFornecedorCentavos: faltaPagamentoCentavos - somaPendente,
+    porTributo,
+  };
+}
+
+/**
+ * O resultado de `quebrarExcedenteDaNota` — e os dois `quebra: false` são
+ * motivos DISTINTOS de propósito: "não há o que quebrar" (caso comum) e "os
+ * números não fecham" (defeito de dado). Colapsá-los num booleano é o que faria
+ * a contradição passar como normalidade.
+ */
+export type QuebraDoExcedente =
+  | { quebra: false; motivo: "sem_retencao_eu_sem_guia" | "retencao_excede_falta" }
+  | {
+      quebra: true;
+      /** O residual depois de separar a(s) fatia(s) de retenção. */
+      aPagarAoFornecedorCentavos: number;
+      porTributo: { rotulo: string; valorCentavos: number }[];
+    };
+
+/**
  * **CONTAI-056 — a linha conta como PERNA DE PAGAMENTO em `alocarCusto`?**
  *
  * Fonte: ADENDO 3 do parecer (2026-09-25), Pergunta 1, `[Certain]`, literal:
@@ -862,6 +963,30 @@ export function nomeDaRetencao(
     return NOME_TRIBUTO[linha.tributo];
   }
   return ROTULO_RETENCAO_NAO_DISCRIMINADA;
+}
+
+/**
+ * **CONTAI-090 / D92** — o mesmo nome de perna de `nomeDaRetencao`, menos a
+ * afirmação sobre quem recolhe quando ela já foi respondida.
+ *
+ * ⚠️ **A condição é `quemRecolhe === "eu"`, não `motivo === "eu_sem_guia"`**, e
+ * a razão é que o sufixo *"presumivelmente recolhida por terceiros"* contradiz a
+ * resposta dele **independentemente de a guia já ter sido paga** — e porque um
+ * dos dois pontos corrigidos (`LinhaPendente`, a linha ainda não gravada) não
+ * tem `notaCoberta` para calcular motivo nenhum. Com `"empresa"`/`"nao_sei"`/
+ * `null` o rótulo do A.2 continua intacto, letra por letra: lá a presunção de
+ * terceiro é exatamente o que falta confirmar.
+ */
+export function nomeDaRetencaoARecolher(linha: {
+  composicao: ComposicaoRetencao | null;
+  tributo: TributoRetido | null;
+  quemRecolhe: QuemRecolheRetencao | null;
+}): string {
+  const nome = nomeDaRetencao(linha);
+  if (nome !== ROTULO_RETENCAO_NAO_DISCRIMINADA) return nome;
+  return linha.quemRecolhe === "eu"
+    ? ROTULO_RETENCAO_NAO_DISCRIMINADA_RECOLHEDOR_CONFIRMADO
+    : ROTULO_RETENCAO_NAO_DISCRIMINADA;
 }
 
 /** O que a linha diz de si mesma na lista do detalhe. */

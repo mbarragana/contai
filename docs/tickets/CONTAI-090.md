@@ -23,11 +23,11 @@ de um total único — para não precisar refazer de cabeça a conta que o
 sistema já tem os dois números para fazer.
 
 ## Critérios de Aceite
-1. [ ] Spec nível 2 em `design/mocks/CONTAI-090.md` — delta no card
+1. [x] Spec nível 2 em `design/mocks/CONTAI-090.md` — delta no card
    `PagamentosDesteDocumento` (`app/(gestao)/documento/[id]/page.tsx:288-302`).
    Sem rota, sem campo, sem estado novo — condição de existir do bloco
    continua `alocado && faltaPagamentoCentavos > 0`.
-2. [ ] Função pura nova `quebrarExcedenteDaNota` em `lib/fiscal/retencao.ts`
+2. [x] Função pura nova `quebrarExcedenteDaNota` em `lib/fiscal/retencao.ts`
    (ao lado de `motivoDaRetencaoDoDocumento`), assinatura:
    ```ts
    export type QuebraDoExcedente =
@@ -43,12 +43,12 @@ sistema já tem os dois números para fazer.
    ```
    Invariante: `aPagarAoFornecedorCentavos + Σ porTributo.valorCentavos === faltaPagamentoCentavos`
    sempre que `quebra: true`. A função não lê nem altera `alocarCusto`.
-3. [ ] Identificação do estado usa **só** `motivoDaRetencaoAberta(linha, notaCoberta) === "eu_sem_guia"`
+3. [x] Identificação do estado usa **só** `motivoDaRetencaoAberta(linha, notaCoberta) === "eu_sem_guia"`
    (`lib/fiscal/retencao.ts:675`) — proibido reimplementar
    `eDescontoEfetivo && quemRecolhe === "eu"` (já duplicado em
    `app/_components/retencao.tsx:288`; não criar uma terceira cópia).
    `notaCoberta` deriva de `faltaPagamentoCentavos <= 0` — nenhuma segunda soma.
-4. [ ] Linhas `eu_sem_guia` do mesmo tributo somam num único item, rotulado
+4. [x] Linhas `eu_sem_guia` do mesmo tributo somam num único item, rotulado
    por `nomeDaRetencao(linha)` — **exceto** quando `nomeDaRetencao` devolveria
    "retenção não discriminada, presumivelmente recolhida por terceiros"
    (composição não discriminada), caso em que o rótulo usado é a nova
@@ -57,43 +57,43 @@ sistema já tem os dois números para fazer.
    D92). Tributos distintos geram um item por tributo, ordem de 1ª
    ocorrência na nota. Nunca um item "retenção" genérico somando tributos
    diferentes.
-5. [ ] Quando `aPagarAoFornecedorCentavos === 0` (caso Francisco/JA SILVA), a
+5. [x] Quando `aPagarAoFornecedorCentavos === 0` (caso Francisco/JA SILVA), a
    linha "A pagar ao fornecedor" e seu parágrafo **não aparecem** — nunca
    "R$ 0,00 — nota ainda não paga".
-6. [ ] Quando `Σ porTributo > faltaPagamentoCentavos` (dado contraditório), a
+6. [x] Quando `Σ porTributo > faltaPagamentoCentavos` (dado contraditório), a
    função devolve `{quebra: false, motivo: "retencao_excede_falta"}` e o
    bloco é exibido **sem alteração** (valor único, texto atual) — nenhum
    texto novo inventado para esse caso; registrado como dívida (critério 12).
-7. [ ] Quando não há nenhuma linha `eu_sem_guia` (caso comum), o bloco
+7. [x] Quando não há nenhuma linha `eu_sem_guia` (caso comum), o bloco
    continua **byte a byte** igual a hoje: uma linha "Excedente da nota:
    R$(valor) — nota ainda não paga" com o texto de consequência atual.
-8. [ ] A linha "A pagar ao fornecedor" mantém o texto de consequência atual
+8. [x] A linha "A pagar ao fornecedor" mantém o texto de consequência atual
    do bloco ("Este pedaço da nota não vira custo: regime de caixa — sem
    desembolso não há dispêndio. Ele passa a contar quando o pagamento
    existir e for ligado aqui.", `page.tsx:296-300`, inalterado) — agora
    cobrindo só a fatia do fornecedor, não o total.
-9. [ ] A(s) linha(s) de retenção levam o chip `CHIP_RETENCAO_GUIA_PENDENTE`
+9. [x] A(s) linha(s) de retenção levam o chip `CHIP_RETENCAO_GUIA_PENDENTE`
    (`retencao.ts:278`), cor de `TEXTO_DA_RETENCAO_ABERTA.eu_sem_guia.gravidade`
    — nunca `"amb"` literal escolhido na tela. **Sem repetir o parágrafo**
    `CONSEQUENCIA_RETENCAO_EU_SEM_GUIA` neste card: ele já existe na mesma
    tela, no card da própria linha (`BlocoRetencao`, `page.tsx:652`,
    `data-motivo="eu_sem_guia"`) — repetir seria ruído, não erro, mas a
    decisão do `cto-obra` é não repetir.
-10. [ ] Atributos `data-excedente="fornecedor"` / `data-excedente="retencao"`
+10. [x] Atributos `data-excedente="fornecedor"` / `data-excedente="retencao"`
     no padrão já usado por `data-retencao="sobrecoberta"`.
-11. [ ] Vitest em `lib/fiscal/retencao.test.ts` cobre os 8 casos: (i) zero
+11. [x] Vitest em `lib/fiscal/retencao.test.ts` cobre os 8 casos: (i) zero
     linha `eu_sem_guia` → `quebra:false`; (ii) linha `eu` com
     `eDescontoEfetivo=false` → `quebra:false`; (iii) 1 linha ISS, falta > Y →
     X>0, 1 item; (iv) 1 linha ISS, falta == Y → X=0, 1 item; (v) 2 linhas ISS
     → 1 item somado; (vi) ISS + INSS → 2 itens, ordem estável; (vii) ΣY >
     falta → `motivo:"retencao_excede_falta"`; (viii) invariante X + ΣY =
     falta em (iii)-(vi).
-12. [ ] `e2e/retencao.spec.ts:813-824` (caso Francisco/JA SILVA, X=0) é
+12. [x] `e2e/retencao.spec.ts:813-824` (caso Francisco/JA SILVA, X=0) é
     **reescrito**: a asserção de `"nota ainda não paga"` visível passa para
     `toHaveCount(0)`, e o card passa a mostrar só o chip "Guia de retenção
     pendente" + R$540,00. Teste novo cobre X>0 + Y com pagamento parcial,
     ponta a ponta contra o Postgres local.
-13. [ ] Nenhum teste existente de `alocarCusto`/`vinculo.ts` muda de valor
+13. [x] Nenhum teste existente de `alocarCusto`/`vinculo.ts` muda de valor
     esperado — a mudança é só em `lib/fiscal/retencao.ts` (nova função pura)
     e na camada de apresentação de `app/(gestao)/documento/[id]/page.tsx`.
 
@@ -222,3 +222,43 @@ Veredito: **APROVADO**.
 Spec completo em `design/mocks/CONTAI-090.md`. 5 estados (sem quebra; 1 grupo
 X>0; X=0; 2+ tributos; dado contraditório), hierarquia fornecedor-antes-de-
 retenção, zero texto fiscal novo reescrito.
+
+## Status: DONE (2026-10-10)
+
+- **Gate 0** — spec nível 2 já existia em `design/mocks/CONTAI-090.md` antes
+  do `/develop` começar. OK.
+- **Gate 1 (lead-engineer)** — DONE. Implementou `quebrarExcedenteDaNota` +
+  `QuebraDoExcedente` em `lib/fiscal/retencao.ts`, a constante D92
+  `ROTULO_RETENCAO_NAO_DISCRIMINADA_RECOLHEDOR_CONFIRMADO`, o card
+  `ExcedenteDaNota` em `app/(gestao)/documento/[id]/page.tsx`, a correção D92
+  nos dois pontos pré-existentes de `app/_components/retencao.tsx` (`:444`/
+  `:1084`), 10 casos novos em `lib/fiscal/retencao.test.ts`, ajuste de guarda
+  em `lib/fiscal/terreno.test.ts`, e reescreveu `e2e/retencao.spec.ts` (caso
+  Francisco/JA SILVA + teste novo X>0+Y). Sem retrabalho.
+- **Gate 2 (cto-obra + subagent contador)** — APPROVE de primeira. Confirmou
+  a invariante do critério 2, a agregação por tributo, a correção D92, que
+  `lib/fiscal/vinculo.ts`/`vinculo.test.ts` ficaram com diff vazio (critério
+  13), e que o card não repete `CONSEQUENCIA_RETENCAO_EU_SEM_GUIA`. O
+  `contador` aprovou fiscalmente e respondeu a Pergunta Aberta do ticket: o
+  padrão de rótulo "ISS a recolher (guia pendente)" respeita o ADENDO A.2.
+  Registrou dívida não bloqueante, fora de escopo: com `quem_recolhe=
+  'a_empresa'` o rótulo ainda diz "presumivelmente" — não é D92, é dívida
+  nova se quiserem fechar depois.
+- **Gate 3 (testes de fluxo)** — suíte Playwright completa (mobile+desktop)
+  rodada duas vezes pelo orquestrador: 1ª rodada 492 passed + 2 falhas por
+  timeout em specs não relacionados (`cartao-lote.spec.ts`, `cno.spec.ts`);
+  reexecutados isolados, os dois passaram — flake confirmada, não é
+  regressão deste ticket. `e2e/retencao.spec.ts` 21/21 contra o Postgres
+  local.
+- **Gate 4 (po)** — PASS, 13/13 critérios, validados item a item contra o
+  ticket e o spec do mock, com `git diff --stat` conferido (nenhum arquivo
+  fora do escopo esperado, `vinculo.ts` sem diff). "Arquivos alterados após
+  o último APPROVE": nenhum.
+- **`npm run quality`** (lint + typecheck + unit + E2E) rodado pelo
+  orquestrador depois do Gate 4, inteiro verde: Vitest 1410/1410, Playwright
+  494/494 (mobile+desktop), sem a flake da rodada anterior.
+- **Migration**: nenhuma — mudança só de apresentação (critério 1).
+- **Dívida nova, não bloqueante, fora de escopo**: rótulo de retenção ainda
+  diz "presumivelmente recolhida por terceiros" quando `quem_recolhe=
+  'a_empresa'` — achado pelo `contador` no Gate 2, registrar em
+  `docs/backlog.md` se aparecer caso real que peça a correção.

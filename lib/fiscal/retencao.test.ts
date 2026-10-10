@@ -19,6 +19,7 @@ import {
   acaoDaRetencaoParcial,
   avisoDeRemocaoDasLinhas,
   confirmacaoDeRemocaoDasLinhas,
+  CHIP_RETENCAO_GUIA_PENDENTE,
   CHIP_RETENCAO_PARCIALMENTE_GRAVADA,
   CHIP_RETENCAO_SEM_RECOLHEDOR,
   contagemDaRetencaoParcial,
@@ -36,17 +37,21 @@ import {
   motivoDaRetencaoAberta,
   motivoDaRetencaoDoDocumento,
   nomeDaRetencao,
+  nomeDaRetencaoARecolher,
   OPCOES_COMPOSICAO,
   OPCOES_GATE,
   OPCOES_QUEM_RECOLHE,
   PERGUNTA_DESCONTO_EFETIVO,
+  quebrarExcedenteDaNota,
   ROTULO_RETENCAO_NAO_DISCRIMINADA,
+  ROTULO_RETENCAO_NAO_DISCRIMINADA_RECOLHEDOR_CONFIRMADO,
   SUGESTAO_RETENCAO_CONFIRA,
   SUGESTAO_RETENCAO_FALHOU,
   TEXTO_DA_RETENCAO_ABERTA,
   TITULO_RETENCAO_SEM_RECOLHEDOR,
   validarLinhaRetencao,
   type EntradaLinhaRetencao,
+  type QuebraDoExcedente,
 } from "./retencao";
 import type {
   Documento,
@@ -876,5 +881,211 @@ describe("CONTAI-086 — reverter o gate para 'nenhuma' remove as linhas", () =>
     expect(confirmacaoDeRemocaoDasLinhas(2)).toBe(
       "Confirmo a remoção das 2 linhas de retenção desta nota",
     );
+  });
+});
+
+// ── CONTAI-090 · o excedente da nota quebrado em fornecedor + retenção ──
+
+/**
+ * **O relato, em forma de teste** (`docs/backlog/105-2026-10-10-...md`): *"para
+ * mim aquele dizer em âmbar não faz sentido, porque não é os 34mil referente a
+ * nota, é 33 e pouco referente a nota e 1797 referente ao ISS"*.
+ *
+ * ⚠️ **Nenhum valor de custo muda aqui, e o teste existe para provar isso**: a
+ * invariante `X + ΣY === faltaPagamentoCentavos` é o que garante que a quebra é
+ * REAGRUPAMENTO de um número que `alocarCusto` já produziu — não uma segunda
+ * fonte. Se algum dia a soma deixar de fechar, é porque a tela passou a inventar
+ * número, que é exatamente o risco que o Gate Fiscal (item 1) descartou.
+ */
+describe("CONTAI-090 — quebra do excedente da nota", () => {
+  /** A linha em Estado C: descontada de fato, e quem recolhe é ele. */
+  const euSemGuia = (over: Partial<LinhaRetencao> = {}) =>
+    linha({ quemRecolhe: "eu", eDescontoEfetivo: true, ...over });
+
+  const soma = (q: QuebraDoExcedente) =>
+    q.quebra ? q.porTributo.reduce((t, g) => t + g.valorCentavos, 0) : 0;
+
+  it("(i) zero linha em Estado C → não há o que quebrar", () => {
+    // Nenhuma linha.
+    expect(quebrarExcedenteDaNota([], 3_490_100)).toEqual({
+      quebra: false,
+      motivo: "sem_retencao_eu_sem_guia",
+    });
+    // E as linhas que NÃO são Estado C também não quebram nada: "a empresa"
+    // fecha a pendência (ADENDO 3) e "não sei" é Estado A — pendência de
+    // IDENTIFICAÇÃO, chip e texto outros, fora de escopo deste ticket.
+    expect(
+      quebrarExcedenteDaNota([linha({ quemRecolhe: "empresa" })], 3_490_100).quebra,
+    ).toBe(false);
+    expect(
+      quebrarExcedenteDaNota([linha({ quemRecolhe: "nao_sei" })], 3_490_100).quebra,
+    ).toBe(false);
+  });
+
+  it("(ii) linha informativa com 'eu' não quebra — ela não desconta nada", () => {
+    // §4, item 2: percentual informativo (composição do DAS) não é dinheiro
+    // descontado, e `motivoDaRetencaoAberta` já devolve `null` para ela. A
+    // quebra herda isso em vez de reimplementar a condição.
+    const informativa = euSemGuia({ eDescontoEfetivo: false });
+    expect(motivoDaRetencaoAberta(informativa, false)).toBeNull();
+    expect(quebrarExcedenteDaNota([informativa], 3_490_100)).toEqual({
+      quebra: false,
+      motivo: "sem_retencao_eu_sem_guia",
+    });
+  });
+
+  it("(iii) o caso PerfuraTec: falta > retenção → fornecedor + 1 tributo", () => {
+    const iss = euSemGuia({
+      composicao: "tributo_identificado",
+      tributo: "iss",
+      valorCentavos: 179_703,
+    });
+    const q = quebrarExcedenteDaNota([iss], 3_490_100);
+    expect(q).toEqual({
+      quebra: true,
+      aPagarAoFornecedorCentavos: 3_310_397,
+      porTributo: [{ rotulo: "ISS", valorCentavos: 179_703 }],
+    });
+    // (viii) a invariante, nos números do relato.
+    expect(q.quebra && q.aPagarAoFornecedorCentavos + soma(q)).toBe(3_490_100);
+  });
+
+  it("(iv) o caso Francisco: falta == retenção → X=0, e a tela esconde a linha", () => {
+    // Nota de R$ 18.000, PIX de R$ 17.460, retenção de R$ 540 que ele recolhe:
+    // o excedente é a guia, e NADA é devido ao fornecedor. É o critério 5 —
+    // "R$ 0,00 — nota ainda não paga" afirmaria uma dívida que não existe.
+    const q = quebrarExcedenteDaNota([euSemGuia({ valorCentavos: 54_000 })], 54_000);
+    expect(q.quebra && q.aPagarAoFornecedorCentavos).toBe(0);
+    expect(q.quebra && q.porTributo).toHaveLength(1);
+    expect(q.quebra && q.aPagarAoFornecedorCentavos + soma(q)).toBe(54_000);
+  });
+
+  it("(v) duas linhas do MESMO tributo somam num item só", () => {
+    const q = quebrarExcedenteDaNota(
+      [
+        euSemGuia({
+          id: "a",
+          composicao: "tributo_identificado",
+          tributo: "iss",
+          valorCentavos: 100_000,
+        }),
+        euSemGuia({
+          id: "b",
+          composicao: "tributo_identificado",
+          tributo: "iss",
+          valorCentavos: 79_703,
+        }),
+      ],
+      3_490_100,
+    );
+    expect(q.quebra && q.porTributo).toEqual([
+      { rotulo: "ISS", valorCentavos: 179_703 },
+    ]);
+    expect(q.quebra && q.aPagarAoFornecedorCentavos + soma(q)).toBe(3_490_100);
+  });
+
+  /**
+   * **Regra do `contador`, CONTAI-090 (Gate Fiscal, item 3)** — não é citação de
+   * parecer anterior: tributos que a nota JÁ abriu nunca se fundem num item
+   * "retenção" genérico. Fundi-los reproduziria, em escala menor, a mesma
+   * opacidade que motivou o ticket.
+   */
+  it("(vi) ISS + INSS → um item por tributo, na ordem da 1ª ocorrência", () => {
+    const q = quebrarExcedenteDaNota(
+      [
+        euSemGuia({
+          id: "a",
+          composicao: "tributo_identificado",
+          tributo: "iss",
+          valorCentavos: 179_703,
+        }),
+        euSemGuia({
+          id: "b",
+          composicao: "tributo_identificado",
+          tributo: "inss",
+          valorCentavos: 179_703,
+        }),
+      ],
+      3_490_100,
+    );
+    expect(q.quebra && q.porTributo).toEqual([
+      { rotulo: "ISS", valorCentavos: 179_703 },
+      { rotulo: "INSS", valorCentavos: 179_703 },
+    ]);
+    expect(q.quebra && q.aPagarAoFornecedorCentavos).toBe(3_130_694);
+    expect(q.quebra && q.aPagarAoFornecedorCentavos + soma(q)).toBe(3_490_100);
+  });
+
+  it("(vii) Σ retenção > falta é DADO CONTRADITÓRIO: detectado, nunca textualizado", () => {
+    // X seria negativo. O bloco volta ao agregado de sempre — critério 6
+    // proíbe inventar texto para um caso que nenhum parecer normatiza.
+    expect(quebrarExcedenteDaNota([euSemGuia({ valorCentavos: 54_001 })], 54_000)).toEqual(
+      { quebra: false, motivo: "retencao_excede_falta" },
+    );
+  });
+
+  it("nota já coberta não quebra — Estado C fechou com a guia", () => {
+    // `notaCoberta` sai de `faltaPagamentoCentavos <= 0`, nunca de uma segunda
+    // soma (critério 3). Com a nota coberta, `motivoDaRetencaoAberta` devolve
+    // `null` para "eu", e não há excedente a quebrar nem a exibir.
+    expect(quebrarExcedenteDaNota([euSemGuia()], 0).quebra).toBe(false);
+  });
+
+  /**
+   * **D92** — achado pelo `contador` ao ratificar este ticket: o rótulo do A.2
+   * afirma "presumivelmente recolhida por terceiros" ao lado de "Recolhedor
+   * confirmado — guia ainda não paga". A correção tira o sufixo, e **só** para
+   * quem já respondeu "Eu".
+   */
+  it("D92 — respondido 'Eu', o rótulo não presume terceiro; nos outros, presume", () => {
+    expect(ROTULO_RETENCAO_NAO_DISCRIMINADA_RECOLHEDOR_CONFIRMADO).toBe(
+      "retenção não discriminada",
+    );
+    const combinada = { composicao: "combinado_nao_aberto" as const, tributo: null };
+    expect(nomeDaRetencaoARecolher({ ...combinada, quemRecolhe: "eu" })).toBe(
+      ROTULO_RETENCAO_NAO_DISCRIMINADA_RECOLHEDOR_CONFIRMADO,
+    );
+    // ⚠️ Nos outros três estados o rótulo do A.2 continua INTEIRO: lá a
+    // presunção de terceiro é justamente o que falta confirmar.
+    for (const quemRecolhe of ["empresa", "nao_sei", null] as const) {
+      expect(nomeDaRetencaoARecolher({ ...combinada, quemRecolhe })).toBe(
+        ROTULO_RETENCAO_NAO_DISCRIMINADA,
+      );
+    }
+    // E o tributo identificado continua se chamando pelo nome, em qualquer
+    // estado de quem recolhe — a correção do D92 não toca nesse ramo.
+    expect(
+      nomeDaRetencaoARecolher({
+        composicao: "tributo_identificado",
+        tributo: "iss",
+        quemRecolhe: "eu",
+      }),
+    ).toBe("ISS");
+  });
+
+  it("o grupo não discriminado usa o rótulo do D92, sem o sufixo de terceiro", () => {
+    const q = quebrarExcedenteDaNota(
+      [euSemGuia({ composicao: "combinado_nao_aberto", valorCentavos: 54_000 })],
+      100_000,
+    );
+    expect(q.quebra && q.porTributo).toEqual([
+      {
+        rotulo: ROTULO_RETENCAO_NAO_DISCRIMINADA_RECOLHEDOR_CONFIRMADO,
+        valorCentavos: 54_000,
+      },
+    ]);
+  });
+
+  /**
+   * ⚠️ **A tela NÃO escolhe chip nem cor** (critério 9): os dois saem do mapa do
+   * Estado C, o mesmo que o card da linha e a fila de pendências leem. Chip
+   * literal em JSX é como as duas superfícies passam a discordar da mesma
+   * pendência.
+   */
+  it("o chip e a cor da linha de retenção vêm do mapa do Estado C", () => {
+    expect(TEXTO_DA_RETENCAO_ABERTA.eu_sem_guia.chip).toBe(
+      CHIP_RETENCAO_GUIA_PENDENTE,
+    );
+    expect(TEXTO_DA_RETENCAO_ABERTA.eu_sem_guia.gravidade).toBe("amb");
   });
 });

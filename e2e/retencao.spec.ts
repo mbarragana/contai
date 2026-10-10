@@ -806,11 +806,18 @@ test.describe("retenção confirmada conta como custo (CONTAI-056)", () => {
 
   /**
    * **O contraponto que trava a regressão do ADENDO 3**: com `"Eu"` a linha
-   * NUNCA soma, e a nota continua dizendo o que sempre disse — faltam os R$ 540
-   * da guia, que ele ainda tem no bolso. É o mesmo caso do teste de
-   * `linhaSemRecolhedor` acima, visto pelo lado do CUSTO.
+   * NUNCA soma, e os R$ 540 da guia continuam fora do custo — ele ainda os tem
+   * no bolso. É o mesmo caso do teste de `linhaSemRecolhedor` acima, visto pelo
+   * lado do CUSTO.
+   *
+   * ⚠️ **REESCRITO no CONTAI-090, critério 12, e não é "zero regressão"**: aqui
+   * a falta é INTEIRAMENTE a guia (X = 0), e o bloco dizia *"R$ 540,00 — nota
+   * ainda não paga"* sobre um valor que ele não deve a fornecedor nenhum. A
+   * frase sai de cena, e no lugar dela fica a pendência que de fato existe: a
+   * guia. O que NÃO muda é o número do custo — é isso que o `toHaveCount(0)`
+   * ao lado do `R$ 17.460,00` afirma junto.
    */
-  test('"Eu": a linha não soma, e a nota continua com falta de R$ 540,00', async ({
+  test('"Eu" com X=0: a falta é a GUIA, e "nota ainda não paga" sai de cena', async ({
     page,
     db,
   }) => {
@@ -819,8 +826,92 @@ test.describe("retenção confirmada conta como custo (CONTAI-056)", () => {
     await page.goto(`/documento/${id}`);
     const card = page.getByText("Custo comprovado", { exact: true }).locator("..");
     await expect(card.getByText("R$ 17.460,00")).toBeVisible();
-    await expect(page.getByText("nota ainda não paga")).toBeVisible();
     await expect(card.getByText("Quitado por retenção")).toHaveCount(0);
+
+    // Critério 12: a frase do fornecedor não existe mais nesta nota.
+    await expect(page.getByText("nota ainda não paga")).toHaveCount(0);
+    // Critério 5: nem a linha dele, nem um "R$ 0,00" no lugar.
+    await expect(card.locator('[data-excedente="fornecedor"]')).toHaveCount(0);
+
+    // E o que ficou é a guia: a linha da retenção, com o chip do Estado C.
+    const retido = card.locator('[data-excedente="retencao"]');
+    await expect(retido).toHaveCount(1);
+    await expect(retido.getByText("R$ 540,00")).toBeVisible();
+    await expect(retido.getByText("Guia de retenção pendente")).toBeVisible();
+    // A linha do Francisco é combinada: o rótulo NUNCA nomeia tributo (A.2) —
+    // e, respondido "Eu", também não presume terceiro (D92).
+    await expect(
+      retido.getByText("retenção não discriminada a recolher (guia pendente)"),
+    ).toBeVisible();
+    await expect(card.getByText("presumivelmente recolhida")).toHaveCount(0);
+  });
+
+  /**
+   * **CONTAI-090, critério 12 — o caso do relato (PerfuraTec) em miniatura:
+   * pagamento PARCIAL + retenção que ele recolhe.** As duas pendências convivem
+   * dentro do mesmo `faltaPagamentoCentavos`, e o card para de somá-las num
+   * número só: *"não é os 34mil referente a nota, é 33 e pouco referente a nota
+   * e 1797 referente ao ISS"*.
+   *
+   * Nota R$ 18.000 · pago R$ 8.000 · retenção de ISS de R$ 540 com
+   * `quem_recolhe = "eu"` → falta R$ 10.000, dos quais R$ 9.460 são do
+   * fornecedor e R$ 540 são a guia. Contra o Postgres local: o valor da linha
+   * atravessa `numeric(14,2)` do PostgREST, que é a razão histórica de este
+   * arquivo não ser mockado.
+   */
+  test("X>0 + guia: fornecedor e retenção em LINHAS SEPARADAS, somando a falta", async ({
+    page,
+    db,
+  }) => {
+    const id = await notaComRetencaoDestacada(db, { valor: 18000 });
+    await criarLinhaDeRetencao(
+      db,
+      linhaDoFrancisco(id, {
+        rotulo_literal: "ISS retido",
+        composicao: "tributo_identificado",
+        tributo: "iss",
+        quem_recolhe: "eu",
+      }),
+    );
+    const parcial = await criarPagamento(db, {
+      favorecido_id: (await documentos(db))[0].favorecido_id,
+      valor: 8000,
+      data_pagamento: "2026-03-25",
+      meio: "pix",
+      comprovante_path: "u/pix.png",
+    });
+    await criarVinculo(db, parcial, id);
+
+    await page.goto(`/documento/${id}`);
+    const card = page.getByText("Custo comprovado", { exact: true }).locator("..");
+    // O custo não mudou: só o que saiu do bolso, pela data do pagamento.
+    await expect(card.getByText("R$ 8.000,00")).toBeVisible();
+
+    // O fornecedor, nomeado, com o texto do regime de caixa que já era dele.
+    const fornecedor = card.locator('[data-excedente="fornecedor"]');
+    await expect(fornecedor.getByText("A pagar ao fornecedor")).toBeVisible();
+    await expect(fornecedor.getByText("R$ 9.460,00")).toBeVisible();
+    await expect(fornecedor.getByText("regime de caixa")).toBeVisible();
+
+    // A guia, nomeada pelo tributo que a NOTA abriu, com o chip do Estado C.
+    const retido = card.locator('[data-excedente="retencao"]');
+    await expect(retido).toHaveCount(1);
+    await expect(retido.getByText("ISS a recolher (guia pendente)")).toBeVisible();
+    await expect(retido.getByText("R$ 540,00")).toBeVisible();
+    await expect(retido.getByText("Guia de retenção pendente")).toBeVisible();
+
+    // ⚠️ O total agregado NÃO volta disfarçado: nem a frase antiga, nem os
+    // R$ 10.000 que ela carregava. Quem soma as duas pendências é o leitor,
+    // e agora ele tem os dois números para isso.
+    await expect(page.getByText("nota ainda não paga")).toHaveCount(0);
+    await expect(card.getByText("R$ 10.000,00")).toHaveCount(0);
+
+    // E o parágrafo do Estado C aparece UMA vez na tela — no card da linha,
+    // não repetido aqui (critério 9).
+    await expect(card.getByText(CONSEQUENCIA_EU_SEM_GUIA)).toHaveCount(0);
+    await expect(
+      page.locator('[data-pendencia="retencao-sem-recolhedor"][data-motivo="eu_sem_guia"]'),
+    ).toHaveCount(1);
   });
 
   /**

@@ -1,6 +1,25 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-10-10, mais tarde**: **`090` entregue** — Gate 4 (`po`), 13/13
+critérios PASS, Gate 2 (`cto-obra`+`contador`) aprovou de primeira sem
+retrabalho. Função pura nova `quebrarExcedenteDaNota` (`lib/fiscal/retencao.ts`)
+decompõe o card "Excedente da nota" (`/documento/[id]`) em "a pagar ao
+fornecedor" + uma linha por tributo em `eu_sem_guia`, agregadas por
+`nomeDaRetencao` na ordem de 1ª ocorrência — zero mudança em `alocarCusto`/
+`vinculo.ts` (confirmado por `git diff` vazio nos dois). Caso real X=0
+(Francisco/JA SILVA) esconde a linha do fornecedor em vez de afirmar
+"R$ 0,00"; `e2e/retencao.spec.ts` reescrito (não só preservado) para esse
+caso, mais um teste novo X>0+Y com pagamento parcial. **D92** corrigida nos
+dois pontos pré-existentes de `app/_components/retencao.tsx` (`:444`/`:1084`)
+com a nova constante `ROTULO_RETENCAO_NAO_DISCRIMINADA_RECOLHEDOR_CONFIRMADO`.
+`contador` respondeu a Pergunta Aberta do ticket (rótulo "ISS a recolher
+(guia pendente)" respeita o ADENDO A.2) e registrou dívida não bloqueante
+fora de escopo (rótulo ainda diz "presumivelmente" quando `quem_recolhe=
+'a_empresa'" — não é D92, dívida nova se quiserem fechar). Vitest 1410/1410,
+Playwright 494/494 (`npm run quality` inteiro verde). Sem migration — mudança
+de apresentação. Detalhe: `docs/tickets/CONTAI-090.md`.
 
 **2026-10-10**: **`CONTAI-090` criado, P2** — relato vivido ao vivo nesta
 sessão: o Mateus, revisando a nota PerfuraTec já corrigida, estranhou o

@@ -64,7 +64,7 @@ import {
   linhaSugerida,
   motivoDaRetencaoAberta,
   motivoDaRetencaoDoDocumento,
-  nomeDaRetencao,
+  nomeDaRetencaoARecolher,
   OPCOES_COMPOSICAO,
   OPCOES_GATE,
   OPCOES_QUEM_RECOLHE,
@@ -441,7 +441,14 @@ function LinhaGravada({
         // recolhida por terceiros". Nunca "guia de ISS"/"guia de INSS" — nomear
         // o tributo de um valor que a nota não abriu é a decomposição por chute
         // que o A.1 proíbe, com outro rosto.
-        <Linha rotulo="A recolher como">{nomeDaRetencao(linha)}</Linha>
+        //
+        // ⚠️ **D92, corrigido no CONTAI-090**: com `quem_recolhe = "eu"` o
+        // sufixo *"presumivelmente recolhida por terceiros"* ficava a duas
+        // linhas de "Recolhedor confirmado — guia ainda não paga", dizendo o
+        // oposto do que ele acabou de responder. `nomeDaRetencaoARecolher` tira
+        // o sufixo SÓ nesse caso; a cautela do A.2 sobre nomear o tributo
+        // continua inteira.
+        <Linha rotulo="A recolher como">{nomeDaRetencaoARecolher(linha)}</Linha>
       ) : null}
 
       {erro ? (
@@ -1054,8 +1061,10 @@ export function BlocoRetencaoDaCaptura({
  * `splice` local, sem confirmação e sem servidor.
  *
  * ⚠️ A descrição sai das MESMAS funções da gestão (`descricaoDaComposicao`,
- * `nomeDaRetencao`): com composição combinada ou desconhecida, o nome continua
- * sendo o rótulo literal do ADENDO A.2 — nunca "guia de ISS".
+ * `nomeDaRetencaoARecolher`): com composição combinada ou desconhecida, o nome
+ * continua sendo o rótulo literal do ADENDO A.2 — nunca "guia de ISS". A única
+ * subtração é a do D92 (CONTAI-090): respondido "Eu", o sufixo sobre quem
+ * recolhe sai, porque aqui ele já foi confirmado.
  */
 export function LinhaPendente({
   linha,
@@ -1081,7 +1090,7 @@ export function LinhaPendente({
       </Linha>
       {linha.eDescontoEfetivo ? (
         <>
-          <Linha rotulo="A recolher como">{nomeDaRetencao(linha)}</Linha>
+          <Linha rotulo="A recolher como">{nomeDaRetencaoARecolher(linha)}</Linha>
           <Linha rotulo="Quem recolhe">
             {OPCOES_QUEM_RECOLHE.find((o) => o.valor === linha.quemRecolhe)
               ?.texto ?? "—"}

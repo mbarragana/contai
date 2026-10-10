@@ -1876,6 +1876,16 @@ describe("CONTAI-036 · o veto é por saída, e a porta continua única", () => 
         "documento, não lê pagamento, não conhece ano-calendário e não apura " +
         "nada — ela existe para PROIBIR que o app chame o valor de 'guia de " +
         "ISS'/'guia de INSS'.",
+      "lib/fiscal/retencao.ts::ROTULO_RETENCAO_NAO_DISCRIMINADA_RECOLHEDOR_CONFIRMADO":
+        "não produz saída anual: é a MESMA família do rótulo acima, menos o " +
+        "sufixo sobre quem recolhe — *retenção não discriminada* —, usada " +
+        "quando o Mateus já respondeu que quem recolhe é ele (D92, corrigido " +
+        "no CONTAI-090). Casa no radical `discrimina` pela palavra " +
+        "'discriminada' da frase, não pela ficha de discriminação de Bens e " +
+        "Direitos. Constante de string: não lê documento, não lê pagamento, " +
+        "não conhece ano-calendário e não apura nada — ela continua PROIBINDO " +
+        "chamar o valor de 'guia de ISS'/'guia de INSS' e só deixa de afirmar " +
+        "o que a linha gravada contradiz.",
       "lib/fiscal/retencao.ts::RETENCAO_NAO_ABATE_SERO":
         "não produz saída anual: é o texto de TELA do detalhe do documento " +
         "(CONTAI-038) dizendo que nenhuma retenção daquela nota abate a " +

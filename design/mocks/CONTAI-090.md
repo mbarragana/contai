@@ -71,8 +71,9 @@ com `RETENCAO_SOBRECOBERTA` (checagem separada, mais abaixo no card).
 - Mesmo nível/indentação, itens-irmãos do grupo "Excedente da nota"; rótulo
   de grupo só aparece quando `quebra=true`.
 ## Campos / Navegação
-Nenhum campo novo (bloco só leitura); nenhuma navegação nova (mesma tela,
-mesmo card).
+- SEM CAMPOS — bloco só de LEITURA: nenhum input novo, nenhuma validação nova
+  e nenhuma navegação nova (mesma tela, mesmo card). O ticket só decompõe
+  visualmente um valor que `alocarCusto` já produz.
 ## Textos com consequência fiscal
 - `CONSEQUENCIA_RETENCAO_EU_SEM_GUIA`, `CHIP_RETENCAO_GUIA_PENDENTE`,
   `TEXTO_DA_RETENCAO_ABERTA.gravidade`, `nomeDaRetencao()` —

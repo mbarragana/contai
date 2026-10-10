@@ -25,6 +25,9 @@ import {
   ColunaDeDetalhe,
 } from "@/app/_components/detalhe";
 import { HistoricoDeCorrecoes } from "@/app/_components/corrigir";
+// Só o MAPA de classe de cor (`amb` → `text-amb`), nunca a escolha da cor: ela
+// vem da gravidade. Importar daqui evita a terceira cópia do mapa no app.
+import { COR_DO_NUMERO, type CorDoTile } from "@/app/_components/painel";
 import { BlocoRetencao } from "@/app/_components/retencao";
 import { useSessao } from "@/app/_components/sessao";
 import {
@@ -61,10 +64,13 @@ import {
 import { formatarDataBR } from "@/lib/fiscal/obra";
 import {
   CHIP_QUITADO_POR_RETENCAO,
+  CHIP_RETENCAO_GUIA_PENDENTE,
   CHIP_RETENCAO_SOBRECOBERTA,
+  quebrarExcedenteDaNota,
   RETENCAO_EXPLICA_A_SOBRA,
   RETENCAO_NAO_ABATE_SERO,
   RETENCAO_SOBRECOBERTA,
+  TEXTO_DA_RETENCAO_ABERTA,
 } from "@/lib/fiscal/retencao";
 import {
   alocarCusto,
@@ -130,6 +136,111 @@ type Estado =
        */
       compromissos: Compromisso[];
     };
+
+/**
+ * ⚠️ **O MESMO parágrafo nos dois ramos, e por isso ele é uma constante**
+ * (CONTAI-090, critérios 7 e 8). Sem quebra ele descreve o excedente inteiro;
+ * com quebra ele descreve só a fatia do fornecedor — é a mesma frase porque é
+ * a mesma consequência (regime de caixa, IN SRF 84/2001 art. 17), e duas cópias
+ * em JSX divergiriam no dia em que alguém mexesse num dos dois ramos.
+ */
+/**
+ * `Gravidade` é tipo MARCADO (`("red"|"amb") & {…}`): ele passa como ARGUMENTO,
+ * mas não indexa objeto `as const`. Uma função de uma linha resolve isso sem
+ * `as` — que seria forjar a marca — e sem recriar o mapa de classe.
+ */
+const corDoNumero = (cor: CorDoTile) => COR_DO_NUMERO[cor];
+
+const SEM_DESEMBOLSO_NAO_VIRA_CUSTO = (
+  <>
+    Este pedaço da nota <strong>não vira custo</strong>: regime de caixa — sem
+    desembolso não há dispêndio. Ele passa a contar quando o pagamento existir e
+    for ligado aqui.
+  </>
+);
+
+/**
+ * **CONTAI-090 — duas pendências de natureza diferente param de somar num
+ * número só.**
+ *
+ * O relato: *"não é os 34mil referente a nota, é 33 e pouco referente a nota e
+ * 1797 referente ao ISS"*. Quem decide se há o que quebrar é
+ * `quebrarExcedenteDaNota` — função pura, com `motivoDaRetencaoAberta` por
+ * dentro. **Esta tela não reimplementa condição nenhuma e não escolhe cor
+ * nenhuma**: a do fornecedor é o `text-amb` que já estava aqui, a da retenção
+ * sai de `TEXTO_DA_RETENCAO_ABERTA.eu_sem_guia.gravidade`.
+ *
+ * ⚠️ **O parágrafo `CONSEQUENCIA_RETENCAO_EU_SEM_GUIA` NÃO se repete aqui** —
+ * ele já aparece por inteiro nesta mesma tela, no card da própria linha
+ * (`BlocoRetencao`, `data-motivo="eu_sem_guia"`). Decisão do `cto-obra`
+ * (critério 9): só o chip. A diferenciação entre as duas linhas é por rótulo e
+ * chip, nunca por cor — as duas são "dinheiro que ainda não saiu".
+ *
+ * ⚠️ **Nada aqui recalcula valor**: `faltaPagamentoCentavos` vem pronto de
+ * `alocarCusto`, e as linhas exibidas somam exatamente ele (invariante da
+ * função pura, com teste). Nenhum número novo nasce na camada de tela.
+ */
+function ExcedenteDaNota({
+  retencoes,
+  faltaPagamentoCentavos,
+}: {
+  retencoes: Documento["retencoes"];
+  faltaPagamentoCentavos: number;
+}) {
+  const quebra = quebrarExcedenteDaNota(retencoes, faltaPagamentoCentavos);
+
+  // Caso comum (nenhuma linha "eu recolho" aberta) e dado contraditório
+  // (Σ retenção > falta) caem no MESMO bloco de sempre: valor agregado, texto
+  // atual. O segundo de propósito — critério 6 proíbe inventar texto para ele.
+  if (!quebra.quebra) {
+    return (
+      <>
+        <Linha rotulo="Excedente da nota">
+          <span className="mono font-semibold text-amb">
+            {formatarBRL(faltaPagamentoCentavos)} — nota ainda não paga
+          </span>
+        </Linha>
+        <Consequencia cor="amb">{SEM_DESEMBOLSO_NAO_VIRA_CUSTO}</Consequencia>
+      </>
+    );
+  }
+
+  const gravidade = TEXTO_DA_RETENCAO_ABERTA.eu_sem_guia.gravidade;
+
+  return (
+    <>
+      {/* Rótulo de GRUPO, e só existe quando há grupo: as linhas abaixo são
+          itens-irmãos dele, no mesmo nível. */}
+      <div className="mt-2.5 text-[12px] text-mut">Excedente da nota</div>
+      {/* ⚠️ Critério 5 — com X = 0 (o caso real do Francisco) a linha do
+          fornecedor SOME por inteiro. "R$ 0,00 — nota ainda não paga" afirmaria
+          uma pendência que não existe sobre um valor que ele não deve a
+          ninguém: é o bug do CONTAI-056 voltando por outra porta. */}
+      {quebra.aPagarAoFornecedorCentavos > 0 ? (
+        <div data-excedente="fornecedor">
+          <Linha rotulo="A pagar ao fornecedor">
+            <span className="mono font-semibold text-amb">
+              {formatarBRL(quebra.aPagarAoFornecedorCentavos)}
+            </span>
+          </Linha>
+          <Consequencia cor="amb">{SEM_DESEMBOLSO_NAO_VIRA_CUSTO}</Consequencia>
+        </div>
+      ) : null}
+      {quebra.porTributo.map((grupo) => (
+        <div key={grupo.rotulo} data-excedente="retencao">
+          <Linha rotulo={`${grupo.rotulo} a recolher (guia pendente)`}>
+            <span className={`mono font-semibold ${corDoNumero(gravidade)}`}>
+              {formatarBRL(grupo.valorCentavos)}
+            </span>
+          </Linha>
+          <div className="mt-1.5">
+            <Chip cor={gravidade}>{CHIP_RETENCAO_GUIA_PENDENTE}</Chip>
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
 
 /**
  * O bloco que este ticket acrescenta (mock s1, s6, s7, s8) — caminho B do
@@ -286,19 +397,10 @@ function PagamentosDesteDocumento({
           </>
         ) : null}
         {alocado && alocado.faltaPagamentoCentavos > 0 ? (
-          <>
-            <Linha rotulo="Excedente da nota">
-              <span className="mono font-semibold text-amb">
-                {formatarBRL(alocado.faltaPagamentoCentavos)} — nota ainda não
-                paga
-              </span>
-            </Linha>
-            <Consequencia cor="amb">
-              Este pedaço da nota <strong>não vira custo</strong>: regime de
-              caixa — sem desembolso não há dispêndio. Ele passa a contar
-              quando o pagamento existir e for ligado aqui.
-            </Consequencia>
-          </>
+          <ExcedenteDaNota
+            retencoes={documento.retencoes}
+            faltaPagamentoCentavos={alocado.faltaPagamentoCentavos}
+          />
         ) : null}
         {alocado && alocado.retencaoSobrecobertaCentavos > 0 ? (
           <div data-retencao="sobrecoberta">
