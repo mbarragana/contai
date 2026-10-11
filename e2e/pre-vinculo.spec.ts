@@ -14,6 +14,12 @@ import {
   type Db,
 } from "./banco";
 import { expect, test } from "./fixtures";
+/**
+ * ⚠️ **O texto fiscal se confere contra a CONSTANTE que a tela lê** — digitá-lo
+ * de novo aqui seria só uma segunda chance de errar, dos dois lados.
+ */
+import { CHIP_PRE_VINCULO } from "../lib/fiscal/compromisso";
+import { EXPLICACAO_NOTAS_SEM_PAGAMENTO } from "../lib/fiscal/vinculo";
 
 /**
  * **CONTAI-080 — o PRÉ-VÍNCULO compromisso↔nota, antes do pagamento.**
@@ -700,3 +706,202 @@ async function criarPagamentoAvulso(
     comprovante_path: `${OBRA_ID_SEED}/comprovante/pix.pdf`,
   });
 }
+
+// ══ CONTAI-091 · o terceiro estado VISÍVEL nas listas ═══════════════════
+/**
+ * **CONTAI-091 — a nota só pré-ligada deixa de se ler como "Sem pagamento
+ * ligado".**
+ *
+ * A dor é o caso Ilhamix do relato 106: notas com candidato de pagamento já
+ * declarado apareciam na Home e em `/despesas` como se não houvesse rastro
+ * nenhum — *"fica parecendo que está pendente de trabalho meu de inserir os
+ * pagamentos"*. `agendamentosPorDocumento` só elege por `documentoOrigemId`
+ * (deliberado, CONTAI-072 "1 aviso por nota"), então o pré-vínculo ficava
+ * invisível fora do detalhe.
+ *
+ * ⚠️ **O Gate Fiscal continua sendo o mesmo do bloco acima**: a nota pré-ligada
+ * **não sai** da lista nem da soma (§J.1/critério 3) — o teste "critério 7" já
+ * trava isso comparando a Visão geral inteira, byte a byte. Aqui se prova a
+ * outra metade: que o estado aparece, com o chip do parecer e o destino certo.
+ */
+test.describe("CONTAI-091 — pré-vínculo visível na Home e em /despesas", () => {
+  const PAINEL = '[data-painel="notas-sem-pagamento"]';
+  const TABELA = '[data-tabela="despesas"]';
+
+  /** Agendamento aberto e FUTURO — pré-vínculo nasce neutro, sem urgência. */
+  async function futuro(
+    db: Db,
+    over: { favorecidoId: string; valor?: number; dias?: number; documentoOrigemId?: string },
+  ) {
+    return criarCompromisso(db, {
+      favorecido_id: over.favorecidoId,
+      valor_previsto: over.valor ?? 4850,
+      data_prevista: maisDias(over.dias ?? 20),
+      origem: "boleto",
+      ...(over.documentoOrigemId
+        ? { documento_origem_id: over.documentoOrigemId }
+        : {}),
+    });
+  }
+
+  test("N=1 · chip do parecer e CTA 'Revisar pré-vínculo' levando ao compromisso", async ({
+    page,
+    db,
+  }) => {
+    const favorecidoId = await loja(db, "Ilhamix");
+    const documentoId = await nota(db, { favorecidoId, numero: "1541" });
+    const compromissoId = await futuro(db, { favorecidoId });
+    await criarPreVinculo(db, compromissoId, documentoId);
+
+    // ── Home ──────────────────────────────────────────────────────────────
+    await page.goto("/");
+    const painel = page.locator(PAINEL);
+    await expect(painel).toBeVisible();
+    // O chip é o do parecer, verbatim, e NUNCA o "Agendado" (confundiria custo
+    // em trilho com candidato revisável — rejeitado explicitamente no ticket).
+    await expect(painel.locator('[data-pre-vinculo="nota"]')).toHaveText(
+      CHIP_PRE_VINCULO,
+    );
+    await expect(painel.getByText("Sem pagamento ligado", { exact: true })).toHaveCount(0);
+    await expect(painel.getByText("Agendado", { exact: true })).toHaveCount(0);
+    // Formato CURTO na dica, nunca a frase integral do §J.2 (essa é do detalhe).
+    await expect(painel).toContainText("Ilhamix — previsto R$ 4.850,00 para");
+    await expect(painel).not.toContainText("está pré-ligado a esta nota");
+    // ⚠️ O CTA só NAVEGA — nada em `pagamento_documento` sai de um clique na
+    // lista (§J.3).
+    const cta = painel.getByRole("link", { name: "Revisar pré-vínculo" });
+    await expect(cta).toHaveAttribute("href", `/compromisso/${compromissoId}`);
+    await expect(painel.getByRole("link", { name: "Ligar a um pagamento" })).toHaveCount(0);
+    // A consequência fiscal do painel não muda: a nota segue sem pagamento.
+    await expect(painel).toContainText(EXPLICACAO_NOTAS_SEM_PAGAMENTO);
+
+    // ── /despesas ─────────────────────────────────────────────────────────
+    await page.goto("/despesas");
+    const tabela = page.locator(TABELA);
+    await expect(tabela).toBeVisible();
+    await expect(tabela).toContainText(CHIP_PRE_VINCULO);
+    await expect(tabela.getByText("Sem pagamento ligado", { exact: true })).toHaveCount(0);
+    // A pílula continua NEUTRA nesta tabela (critério 6): âmbar aqui tem
+    // significado reservado (vencido sem resposta), e nada venceu.
+    await expect(tabela.locator("[data-urgencia]")).toHaveCount(0);
+    await expect(tabela).toContainText(EXPLICACAO_NOTAS_SEM_PAGAMENTO);
+    await expect(tabela.getByRole("link", { name: "Abrir →" })).toHaveAttribute(
+      "href",
+      `/compromisso/${compromissoId}`,
+    );
+    // A nota continua isolável como terceiro estado — ela não saiu do filtro.
+    await page.getByLabel("Situação").selectOption("sem_pagamento");
+    await expect(page.locator(`${TABELA} tbody tr`)).toHaveCount(1);
+
+    // E o clique leva à tela de revisão que já existia, sem gravar nada.
+    await page.goto("/");
+    await painel.getByRole("link", { name: "Revisar pré-vínculo" }).click();
+    await expect(page).toHaveURL(new RegExp(`/compromisso/${compromissoId}$`));
+    expect(await vinculos(db)).toHaveLength(0);
+  });
+
+  test("N≥2 · 'Ver pré-vínculos (2)' leva ao DOCUMENTO, que lista os dois com link", async ({
+    page,
+    db,
+  }) => {
+    const favorecidoId = await loja(db, "Ilhamix");
+    const documentoId = await nota(db, { favorecidoId, numero: "1543" });
+    const primeiro = await futuro(db, { favorecidoId, dias: 20, valor: 4850 });
+    const segundo = await futuro(db, { favorecidoId, dias: 50, valor: 1600 });
+    await criarPreVinculo(db, primeiro, documentoId);
+    await criarPreVinculo(db, segundo, documentoId);
+
+    await page.goto("/");
+    const painel = page.locator(PAINEL);
+    // ⚠️ Com N≥2 nenhum dos dois é eleito "o" candidato: o destino é o detalhe
+    // da nota, que já lista todos (critério 2).
+    const cta = painel.getByRole("link", { name: "Ver pré-vínculos (2)" });
+    await expect(cta).toHaveAttribute("href", `/documento/${documentoId}`);
+    await expect(painel.locator('[data-pre-vinculo="nota"]')).toHaveText(
+      CHIP_PRE_VINCULO,
+    );
+
+    await page.goto("/despesas");
+    await expect(
+      page.locator(TABELA).getByRole("link", { name: "Abrir →" }),
+    ).toHaveAttribute("href", `/documento/${documentoId}`);
+
+    // ── A navegação ADITIVA do detalhe (critério 9) ────────────────────────
+    await page.goto("/");
+    await painel.getByRole("link", { name: "Ver pré-vínculos (2)" }).click();
+    const bloco = page.locator('[data-pre-vinculo="documento"]');
+    await expect(bloco).toBeVisible();
+    // O texto fiscal do §J.2 continua INTEIRO — a mudança é só o link.
+    await expect(bloco).toContainText("estão pré-ligados a esta nota");
+    await expect(bloco).toContainText(
+      'segue contando em "Notas hábeis sem pagamento vinculado"',
+    );
+    for (const [id, valor] of [
+      [primeiro, "R$ 4.850,00"],
+      [segundo, "R$ 1.600,00"],
+    ]) {
+      await expect(
+        bloco.getByRole("link", { name: new RegExp(`previsto ${valor.replace(/[.$]/g, "\\$&")}`) }),
+      ).toHaveAttribute("href", `/compromisso/${id}`);
+    }
+  });
+
+  test("⚠️ 'Agendado' tem precedência — a nota de ORIGEM nunca ganha o chip de pré-vínculo", async ({
+    page,
+    db,
+  }) => {
+    // O caso Ilhamix inteiro: o compromisso nasce da nota 1531 (origem) e
+    // pré-liga a 1541. Uma nota, um chip, cada uma com o seu.
+    const favorecidoId = await loja(db, "Ilhamix");
+    const origem = await nota(db, { favorecidoId, numero: "1531", valor: 4850 });
+    const preLigada = await nota(db, { favorecidoId, numero: "1541", valor: 2300 });
+    const compromissoId = await futuro(db, {
+      favorecidoId,
+      documentoOrigemId: origem,
+    });
+    await criarPreVinculo(db, compromissoId, preLigada);
+
+    await page.goto("/");
+    const painel = page.locator(PAINEL);
+    // ⚠️ As duas notas continuam na lista E na soma (§J.1/critério 3) — nenhuma
+    // saiu por ter rastro de intenção. O total é a prova mais curta disso.
+    await expect(painel).toContainText("R$ 7.150,00");
+    await expect(painel).toContainText("R$ 4.850,00");
+    await expect(painel).toContainText("R$ 2.300,00");
+    // Um chip por nota, nunca dois na mesma: "Agendado" na de origem,
+    // pré-vínculo na outra.
+    await expect(painel.getByText("Agendado", { exact: true })).toHaveCount(1);
+    await expect(painel.locator('[data-pre-vinculo="nota"]')).toHaveCount(1);
+    await expect(
+      painel.getByRole("link", { name: "Ver agendamento" }),
+    ).toHaveAttribute("href", `/compromisso/${compromissoId}`);
+    await expect(
+      painel.getByRole("link", { name: "Revisar pré-vínculo" }),
+    ).toHaveAttribute("href", `/compromisso/${compromissoId}`);
+  });
+
+  test("nota órfã: nenhuma regressão — 'Sem pagamento ligado' e o CTA manual", async ({
+    page,
+    db,
+  }) => {
+    const favorecidoId = await loja(db);
+    const documentoId = await nota(db, { favorecidoId });
+
+    await page.goto("/");
+    const painel = page.locator(PAINEL);
+    await expect(painel.getByText("Sem pagamento ligado", { exact: true })).toBeVisible();
+    await expect(painel.locator('[data-pre-vinculo="nota"]')).toHaveCount(0);
+    await expect(
+      painel.getByRole("link", { name: "Ligar a um pagamento" }),
+    ).toHaveAttribute("href", `/documento/${documentoId}/ligar`);
+
+    await page.goto("/despesas");
+    const tabela = page.locator(TABELA);
+    await expect(tabela.getByText("Sem pagamento ligado", { exact: true })).toBeVisible();
+    await expect(tabela).not.toContainText(CHIP_PRE_VINCULO);
+    await expect(tabela.getByRole("link", { name: "Abrir →" })).toHaveAttribute(
+      "href",
+      `/documento/${documentoId}`,
+    );
+  });
+});

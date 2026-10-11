@@ -53,6 +53,7 @@ import {
 } from "@/lib/fiscal/pagamento";
 import {
   chipDoAgendado,
+  CHIP_PRE_VINCULO,
   resumoDoAgendamento,
   VENCIDO_SEM_RESPOSTA,
 } from "@/lib/fiscal/compromisso";
@@ -1881,5 +1882,181 @@ describe("CONTAI-072 — agendamento aberto na linha do terceiro estado", () => 
     const linha = linhaDe(linhas, "documento:d1");
     expect(chips(linha)).toEqual([CHIP_SEM_PAGAMENTO]);
     expect(linha.href).toBe("/documento/d1");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+/**
+ * **CONTAI-091 — a nota que SÓ tem PRÉ-VÍNCULO aberto, na linha do terceiro
+ * estado.**
+ *
+ * ⚠️ **O Gate Fiscal é o primeiro teste deste bloco, como no CONTAI-072, e pela
+ * mesma razão**: o pré-vínculo é *"anotação estruturada de INTENÇÃO, sobre um
+ * fato que ainda não aconteceu"* (ADENDO 6 §J.1 de
+ * `docs/pareceres/2026-08-18-compromisso-versus-pagamento.md`). A nota
+ * pré-ligada **continua** na tabela, no filtro do terceiro estado e na soma de
+ * "Notas hábeis sem pagamento vinculado" — §J.1/critério 3, literal. O que muda
+ * é chip, nota de apoio e destino do link; cor e consequência ficam intocadas.
+ */
+describe("CONTAI-091 — pré-vínculo na linha do terceiro estado", () => {
+  function comp(over: Partial<Compromisso> & { id: string }): Compromisso {
+    return {
+      obraId: OBRA.id,
+      favorecidoId: "fav-ilhamix",
+      favorecidoNome: "Ilhamix",
+      valorPrevistoCentavos: 500_000,
+      dataPrevista: `${ANO}-07-10`, // depois de HOJE
+      documentoPrevistoIds: [],
+      origem: "cartao",
+      documentoOrigemId: null,
+      origemDesfeitaId: null,
+      origemDesfeitaEm: null,
+      situacao: "aberto",
+      motivoCancelamento: null,
+      dataCompra: `${ANO}-06-01`,
+      pagamentoIds: [],
+      adiamentos: 0,
+      ...over,
+    };
+  }
+
+  /**
+   * **O fixture do caso real Ilhamix** (relato 106 / backlog 96): duas parcelas
+   * de cartão nascidas da nota `d-1531` que também pré-ligam `d-1541` e
+   * `d-1543`. Era este cenário que a tabela lia como "Sem pagamento ligado".
+   */
+  const ILHAMIX = [
+    comp({
+      id: "c-p1",
+      documentoOrigemId: "d-1531",
+      documentoPrevistoIds: ["d-1541", "d-1543"],
+      dataPrevista: `${ANO}-07-10`,
+    }),
+    comp({
+      id: "c-p2",
+      documentoOrigemId: "d-1531",
+      documentoPrevistoIds: ["d-1541", "d-1543"],
+      dataPrevista: `${ANO}-08-10`,
+    }),
+  ];
+
+  const NOTAS_ILHAMIX = [
+    doc({ id: "d-1531" }),
+    doc({ id: "d-1541" }),
+    doc({ id: "d-1543" }),
+  ];
+
+  it("⚠️ Gate Fiscal — a nota pré-ligada NÃO sai da tabela, do filtro nem da soma", () => {
+    // Critério 10: os números são IDÊNTICOS antes e depois de existir
+    // pré-vínculo, porque `documentosHabeisSemPagamento` só olha
+    // `pagamento_documento`.
+    const semNada = projetar(NOTAS_ILHAMIX, []);
+    const comPreVinculo = projetar(NOTAS_ILHAMIX, [], {}, ILHAMIX);
+
+    expect(comPreVinculo.linhas).toHaveLength(semNada.linhas.length);
+    expect(comPreVinculo.resumo.notasSemPagamentoCentavos).toBe(
+      semNada.resumo.notasSemPagamentoCentavos,
+    );
+    expect(comPreVinculo.resumo.notasSemPagamento.map((n) => n.documentoId)).toEqual(
+      semNada.resumo.notasSemPagamento.map((n) => n.documentoId),
+    );
+    for (const id of ["d-1541", "d-1543"]) {
+      const linha = linhaDe(comPreVinculo.linhas, `documento:${id}`);
+      expect(linha.valorCentavos).toBe(
+        linhaDe(semNada.linhas, `documento:${id}`).valorCentavos,
+      );
+      expect(linha.custoComprovadoCentavos).toBe(0);
+      // O campo que o filtro de Situação lê (CONTAI-063) continua verdadeiro.
+      expect(linha.semPagamentoLigado).toBe(true);
+    }
+    expect(
+      filtrarLinhas(
+        comPreVinculo.linhas,
+        { ...FILTROS_PADRAO, situacao: "sem_pagamento" },
+        TODOS,
+      ),
+    ).toHaveLength(
+      filtrarLinhas(
+        semNada.linhas,
+        { ...FILTROS_PADRAO, situacao: "sem_pagamento" },
+        TODOS,
+      ).length,
+    );
+  });
+
+  it("N=1 · chip do parecer, pill NEUTRA, consequência intocada e link para o compromisso", () => {
+    const so = comp({ id: "c1", documentoPrevistoIds: ["d1"] });
+    const { linhas } = projetar([doc({ id: "d1" })], [], {}, [so]);
+    const linha = linhaDe(linhas, "documento:d1");
+    const situacao = linha.situacoes[0];
+
+    expect(situacao.chip).toBe(CHIP_PRE_VINCULO);
+    // ⚠️ **A cor NÃO escala** (critério 6): nesta tabela "neutra" já É o
+    // tratamento do terceiro estado, e âmbar tem significado reservado (vencido
+    // sem resposta). Quem distingue pré-vínculo de órfão aqui é o TEXTO.
+    expect(situacao.cor).toBe("neutra");
+    expect(situacao.consequencia).toBe(EXPLICACAO_NOTAS_SEM_PAGAMENTO);
+    // Pré-vínculo não tem urgência — inventar uma afirmaria cobrança sobre
+    // intenção.
+    expect(situacao.urgencia).toBeNull();
+    // Formato CURTO, o mesmo do agendamento — nunca a frase integral do §J.2.
+    expect(situacao.nota).toBe(resumoDoAgendamento(so));
+    expect(linha.href).toBe("/compromisso/c1");
+    // Compromisso não é pendência fiscal: nada saiu da conta.
+    expect(linha.temPendencia).toBe(false);
+  });
+
+  it("N≥2 · o link vai ao DOCUMENTO, e a nota lista os dois sem eleger nenhum", () => {
+    const { linhas } = projetar(NOTAS_ILHAMIX, [], {}, ILHAMIX);
+    const linha = linhaDe(linhas, "documento:d-1541");
+    const situacao = linha.situacoes[0];
+
+    expect(situacao.chip).toBe(CHIP_PRE_VINCULO);
+    expect(situacao.cor).toBe("neutra");
+    expect(linha.href).toBe("/documento/d-1541");
+    expect(situacao.nota).toBe(
+      [resumoDoAgendamento(ILHAMIX[0]), resumoDoAgendamento(ILHAMIX[1])].join(", "),
+    );
+  });
+
+  it("⚠️ 'Agendado' tem precedência: a nota de ORIGEM nunca ganha o chip de pré-vínculo", () => {
+    // Critério 8: `d-1531` é origem das duas parcelas abertas E está no conjunto
+    // pré-ligado de nenhuma — ela continua "Agendado", um chip só.
+    const { linhas } = projetar(NOTAS_ILHAMIX, [], {}, ILHAMIX);
+    const linha = linhaDe(linhas, "documento:d-1531");
+    expect(chips(linha)).toEqual(["Agendado"]);
+    expect(chips(linha)).not.toContain(CHIP_PRE_VINCULO);
+    expect(linha.href).toBe("/compromisso/c-p1");
+  });
+
+  it("⚠️ nota órfã: nenhuma regressão, 'Sem pagamento ligado' byte a byte (critério 7)", () => {
+    const referencia = linhaDe(projetar([doc({ id: "d1" })], []).linhas, "documento:d1");
+    // Pré-vínculo em OUTRA nota não encosta nesta.
+    const { linhas } = projetar([doc({ id: "d1" })], [], {}, [
+      comp({ id: "c1", documentoPrevistoIds: ["d9"] }),
+    ]);
+    const linha = linhaDe(linhas, "documento:d1");
+    expect(chips(linha)).toEqual([CHIP_SEM_PAGAMENTO]);
+    expect(linha.situacoes[0].nota).toBeNull();
+    expect(linha.situacoes[0].cor).toBe("neutra");
+    expect(linha.href).toBe(referencia.href);
+  });
+
+  it("quitado e cancelado deixam a linha exatamente como era", () => {
+    const referencia = linhaDe(projetar([doc({ id: "d1" })], []).linhas, "documento:d1");
+    for (const situacao of ["quitado", "cancelado"] as const) {
+      const { linhas } = projetar([doc({ id: "d1" })], [], {}, [
+        comp({
+          id: "c1",
+          situacao,
+          documentoPrevistoIds: ["d1"],
+          motivoCancelamento: situacao === "cancelado" ? "cartão não passou" : null,
+        }),
+      ]);
+      const linha = linhaDe(linhas, "documento:d1");
+      expect(chips(linha)).toEqual([CHIP_SEM_PAGAMENTO]);
+      expect(linha.situacoes[0].nota).toBeNull();
+      expect(linha.href).toBe(referencia.href);
+    }
   });
 });

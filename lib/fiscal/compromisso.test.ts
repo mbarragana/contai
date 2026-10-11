@@ -20,6 +20,7 @@ import {
   ORIGEM_SO_EM_ABERTO,
   podeDesfazerOrigem,
   podePreVincular,
+  preVinculosPorDocumento,
   PRE_VINCULO_CONFIRMAR,
   PRE_VINCULO_REVISAR,
   PRE_VINCULO_SO_EM_ABERTO,
@@ -1481,6 +1482,163 @@ describe("agendamentosPorDocumento (CONTAI-072, critérios 3 a 6)", () => {
     // O valor previsto só aparece DENTRO do resumo, já marcado como previsto —
     // não há `...Centavos` a somar com o número do card de notas sem pagamento.
     expect(Object.keys(marca).filter((k) => /Centavos/i.test(k))).toEqual([]);
+    expect(marca.resumo).toContain("previsto");
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// CONTAI-091 · o TERCEIRO estado visual: a nota que SÓ tem pré-vínculo
+// ══════════════════════════════════════════════════════════════════════════
+//
+// Fonte normativa: ADENDO 6 §J.1-J.2 de
+// `docs/pareceres/2026-08-18-compromisso-versus-pagamento.md`. Nenhuma regra
+// nova — o que este bloco prova é que a marca é DECORAÇÃO (texto + destino de
+// link) e que a precedência "Agendado > Pré-vínculo" mora na própria função.
+
+describe("preVinculosPorDocumento (CONTAI-091, critérios 1 a 3)", () => {
+  /**
+   * **O fixture do caso real Ilhamix** (relato 106 /
+   * `docs/backlog/96-2026-09-28-pre-vinculo-compromisso-nota-antes-do-pagamento.md`):
+   * duas parcelas de cartão nascidas da nota 1531 (`documentoOrigemId`) que
+   * também pré-ligam as notas 1541 e 1543 (`documentoPrevistoIds`). Era
+   * exatamente isto que `/despesas` lia como "Sem pagamento ligado".
+   */
+  const ILHAMIX = [
+    comp({
+      id: "c-1531-p1",
+      favorecidoNome: "Ilhamix",
+      documentoOrigemId: "doc-1531",
+      documentoPrevistoIds: ["doc-1541", "doc-1543"],
+      dataPrevista: "2026-09-10",
+      origem: "cartao",
+      dataCompra: "2026-08-12",
+    }),
+    comp({
+      id: "c-1531-p2",
+      favorecidoNome: "Ilhamix",
+      documentoOrigemId: "doc-1531",
+      documentoPrevistoIds: ["doc-1541", "doc-1543"],
+      dataPrevista: "2026-10-10",
+      origem: "cartao",
+      dataCompra: "2026-08-12",
+    }),
+  ];
+
+  it("⚠️ as chaves são DISJUNTAS das de agendamentosPorDocumento (critério 1)", () => {
+    const agendados = agendamentosPorDocumento(ILHAMIX, HOJE);
+    const preVinculos = preVinculosPorDocumento(ILHAMIX, HOJE);
+
+    // A nota de ORIGEM é do ramo "Agendado" e só dele — nunca dois chips na
+    // mesma nota.
+    expect([...agendados.keys()]).toEqual(["doc-1531"]);
+    expect([...preVinculos.keys()].sort()).toEqual(["doc-1541", "doc-1543"]);
+    for (const id of preVinculos.keys()) {
+      expect(agendados.has(id)).toBe(false);
+    }
+  });
+
+  it("N=1 · o href é o do COMPROMISSO — é lá que mora a bifurcação cartão × PIX", () => {
+    const marca = preVinculosPorDocumento(
+      [comp({ id: "c1", documentoPrevistoIds: ["doc-a"] })],
+      HOJE,
+    ).get("doc-a")!;
+
+    expect(marca.n).toBe(1);
+    expect(marca.compromissoIds).toEqual(["c1"]);
+    expect(marca.href).toBe("/compromisso/c1");
+  });
+
+  it("N≥2 · o href é o do DOCUMENTO — nenhum dos N é eleito 'o' candidato", () => {
+    const marca = preVinculosPorDocumento(ILHAMIX, HOJE).get("doc-1541")!;
+
+    expect(marca.n).toBe(2);
+    expect(marca.compromissoIds).toEqual(["c-1531-p1", "c-1531-p2"]);
+    expect(marca.href).toBe("/documento/doc-1541");
+    // A ordem é a da eleição (data prevista mais próxima primeiro), para a
+    // lista não dançar entre dois carregamentos.
+    expect(marca.resumo).toBe(
+      [resumoDoAgendamento(ILHAMIX[0]), resumoDoAgendamento(ILHAMIX[1])].join(
+        ", ",
+      ),
+    );
+  });
+
+  it("⚠️ o chip é SEMPRE a constante CHIP_PRE_VINCULO (critério 3, §J.2)", () => {
+    // Nenhum texto novo é cunhado para o rótulo, e ele não muda por N nem por
+    // urgência: o pré-vínculo é neutro em qualquer tela.
+    const vencido = comp({
+      id: "c-vencido",
+      documentoPrevistoIds: ["doc-a"],
+      dataPrevista: "2026-07-01",
+    });
+    for (const mapa of [
+      preVinculosPorDocumento([vencido], HOJE),
+      preVinculosPorDocumento(ILHAMIX, HOJE),
+    ]) {
+      for (const marca of mapa.values()) {
+        expect(marca.chip).toBe(CHIP_PRE_VINCULO);
+      }
+    }
+  });
+
+  it("⚠️ quitado e cancelado NÃO pré-ligam nada (vida do pré-vínculo é a do compromisso)", () => {
+    for (const situacao of ["quitado", "cancelado"] as const) {
+      const c = comp({
+        id: "c1",
+        situacao,
+        documentoPrevistoIds: ["doc-a"],
+        motivoCancelamento: situacao === "cancelado" ? "cartão não passou" : null,
+      });
+      expect(preVinculosPorDocumento([c], HOJE).size).toBe(0);
+    }
+  });
+
+  it("agendamento ABERTO de origem na mesma nota tem precedência sobre o pré-vínculo (critério 8)", () => {
+    // A nota é origem de um agendamento aberto E pré-ligada por outro: ela
+    // continua no ramo "Agendado", sem nunca aparecer aqui.
+    const origem = comp({ id: "c-origem", documentoOrigemId: "doc-a" });
+    const soPrevisto = comp({ id: "c-prev", documentoPrevistoIds: ["doc-a"] });
+    expect(
+      preVinculosPorDocumento([origem, soPrevisto], HOJE).get("doc-a"),
+    ).toBeUndefined();
+
+    // Com o de origem QUITADO, o agendamento deixa de existir e o pré-vínculo
+    // volta a ser a verdade sobre a nota.
+    const quitado = comp({
+      id: "c-origem",
+      documentoOrigemId: "doc-a",
+      situacao: "quitado",
+    });
+    expect(
+      preVinculosPorDocumento([quitado, soPrevisto], HOJE).get("doc-a")?.n,
+    ).toBe(1);
+  });
+
+  it("o mesmo compromisso citando a nota duas vezes NÃO é um N=2", () => {
+    // O conjunto gravado não é deduplicado (decisão do CONTAI-080): a contagem
+    // é de COMPROMISSOS, não de linhas.
+    const marca = preVinculosPorDocumento(
+      [comp({ id: "c1", documentoPrevistoIds: ["doc-a", "doc-a"] })],
+      HOJE,
+    ).get("doc-a")!;
+    expect(marca.n).toBe(1);
+    expect(marca.compromissoIds).toEqual(["c1"]);
+  });
+
+  it("documento sem rastro nenhum: `undefined`, e a nota órfã segue igual (critério 7)", () => {
+    expect(preVinculosPorDocumento([], HOJE).get("doc-a")).toBeUndefined();
+    expect(
+      preVinculosPorDocumento(
+        [comp({ id: "c1", documentoOrigemId: "doc-z" })],
+        HOJE,
+      ).size,
+    ).toBe(0);
+  });
+
+  it("⚠️ nenhum campo da marca é dinheiro somável (regra 2 deste módulo)", () => {
+    const marca = preVinculosPorDocumento(ILHAMIX, HOJE).get("doc-1543")!;
+    expect(Object.keys(marca).filter((k) => /Centavos/i.test(k))).toEqual([]);
+    // O valor previsto só aparece DENTRO do resumo, já qualificado.
     expect(marca.resumo).toContain("previsto");
   });
 });

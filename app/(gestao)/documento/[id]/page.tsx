@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 
@@ -45,6 +46,7 @@ import {
 import {
   CHIP_PRE_VINCULO,
   compromissosQuePreLigam,
+  resumoDoAgendamento,
   textoPreVinculoDaNota,
 } from "@/lib/fiscal/compromisso";
 import { formatarDocumento } from "@/lib/fiscal/identificacao";
@@ -301,7 +303,26 @@ function PagamentosDesteDocumento({
    * fecha o critério 8: esta nota **continua** contando em "Notas hábeis sem
    * pagamento vinculado", porque pré-vínculo não tira nota de lista nenhuma
    * (§J.1).
+   *
+   * ⚠️ **CONTAI-091 — a única mudança é NAVEGAÇÃO, e o texto continua byte a
+   * byte o mesmo.** Cada compromisso já listado passa a ser `<Link>` para
+   * `/compromisso/{id}`, porque com N≥2 este bloco é o destino do CTA das listas
+   * (critério 2) e, sem link, ele seria um beco: diz quais são os N e não deixa
+   * agir sobre nenhum.
+   *
+   * ⚠️ **A cauda da frase NÃO é reescrita aqui.** Ela é FATIADA da própria
+   * `textoPreVinculoDaNota` — a mesma string literal do §J.2, da mesma função —,
+   * e o prefixo fatiado é exatamente a lista que vira link. Copiar a frase para
+   * dentro deste JSX a transformaria numa segunda redação do texto do parecer,
+   * livre para divergir na primeira correção; o `slice` garante a identidade por
+   * construção, e o `=== null` cai de volta no texto inteiro sem link se algum
+   * dia o formato da função mudar.
    */
+  const textoDoPreVinculo = textoPreVinculoDaNota(preLigadoPor);
+  const listaDoPreVinculo = preLigadoPor.map(resumoDoAgendamento).join(", ");
+  const caudaDoPreVinculo = textoDoPreVinculo.startsWith(listaDoPreVinculo)
+    ? textoDoPreVinculo.slice(listaDoPreVinculo.length)
+    : null;
   const preVinculo =
     preLigadoPor.length === 0 ? null : (
       <div data-pre-vinculo="documento">
@@ -309,7 +330,23 @@ function PagamentosDesteDocumento({
           {CHIP_PRE_VINCULO}
         </Chip>
         <p className="mt-1.5 text-[13.5px]">
-          {textoPreVinculoDaNota(preLigadoPor)}
+          {caudaDoPreVinculo === null ? (
+            textoDoPreVinculo
+          ) : (
+            <>
+              {preLigadoPor.map((c, i) => (
+                <span key={c.id}>
+                  {/* O MESMO separador do `join(", ")` que a função usa — é o
+                      que mantém a concatenação do DOM idêntica à string. */}
+                  {i > 0 ? ", " : ""}
+                  <Link href={`/compromisso/${c.id}`} className="underline">
+                    {resumoDoAgendamento(c)}
+                  </Link>
+                </span>
+              ))}
+              {caudaDoPreVinculo}
+            </>
+          )}
         </p>
       </div>
     );

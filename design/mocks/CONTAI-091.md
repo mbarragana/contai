@@ -31,8 +31,8 @@ Dica → CTA), SEM painel novo:
 [Chip âmbar VAZADO] Pré-vínculo — ainda não é custo
 Título da nota
 {favorecido} — previsto R$X para DD/MM/AAAA · R$ <valor da nota>
-[BotaoLink ghost]  N=1 → "Revisar vínculo"
-                   N≥2 → "Ver vínculos (N)"
+[BotaoLink ghost]  N=1 → "Revisar pré-vínculo"
+                   N≥2 → "Ver pré-vínculos (N)"
 ```
 - Chip: `cor="amb"`, `peso="vazado"` — mesmo peso visual que o detalhe já usa
   para `CHIP_PRE_VINCULO` (comentário em `compromisso.ts:1202-1203`: "o peso
@@ -107,10 +107,10 @@ string única para spans com `<Link>`. Precisa importar `Link` de
 `next/link` (ainda não importado neste arquivo).
 
 ## Campos
-SEM CAMPO FISCAL NOVO — as três mudanças são de leitura e navegação (chip,
-texto curto, `href`). Nenhum input, nenhum formulário, nenhum "Salvar". A
-disciplina de campo vazio/preenchido e proibição de default não se aplica
-aqui por ausência de campo, não por exceção.
+- SEM CAMPOS — as três mudanças são de leitura e navegação (chip, texto curto,
+  `href`). Nenhum input, nenhum formulário, nenhum "Salvar". A disciplina de
+  campo vazio/preenchido e proibição de default não se aplica aqui por ausência
+  de campo, não por exceção.
 
 ## Textos com consequência fiscal
 - `CHIP_PRE_VINCULO` = "Pré-vínculo — ainda não é custo" —
@@ -137,8 +137,8 @@ aqui por ausência de campo, não por exceção.
   revisar algo já resolvido por intenção, não uma cobrança como "Responder
   agendamento" (que é primary só no vencido). Mesma régua de peso que já
   distingue "Agendado dentro do prazo" (ghost) de "vencido" (primary).
-- Decisão: rótulo do CTA com contagem só quando N≥2 ("Ver vínculos (N)"); com
-  N=1 o rótulo não repete número ("Revisar vínculo"), para não soar burocrático
+- Decisão: rótulo do CTA com contagem só quando N≥2 ("Ver pré-vínculos (N)"); com
+  N=1 o rótulo não repete número ("Revisar pré-vínculo"), para não soar burocrático
   no caso mais comum.
 - Decisão: a linha "nota"/"Dica" nas listas (Home, `/despesas`) usa o formato
   curto de `resumoDoAgendamento`, não a frase integral de

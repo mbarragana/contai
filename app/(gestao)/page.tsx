@@ -22,7 +22,10 @@ import {
   Dica,
   EstadoErro,
 } from "@/app/_components/ui";
-import { agendamentosPorDocumento } from "@/lib/fiscal/compromisso";
+import {
+  agendamentosPorDocumento,
+  preVinculosPorDocumento,
+} from "@/lib/fiscal/compromisso";
 import { EXPLICACAO_NOTAS_SEM_PAGAMENTO } from "@/lib/fiscal/vinculo";
 import { hojeIso } from "@/lib/hoje";
 import { formatarBRL } from "@/lib/money";
@@ -119,6 +122,19 @@ export default function VisaoGeral() {
    * Fiscal do ticket).
    */
   const agendamentos = agendamentosPorDocumento(compromissos, hoje);
+  /**
+   * **CONTAI-091 — o sub-estado "só pré-ligada", pela MESMA função pura que
+   * `/despesas` usa.**
+   *
+   * ⚠️ **Nada aqui muda o número do card tampouco.** O pré-vínculo é *"anotação
+   * estruturada de INTENÇÃO, sobre um fato que ainda não aconteceu"* (ADENDO 6
+   * §J.1): a nota pré-ligada **continua** inteira em `notasSemPagamento` e na
+   * soma de `notasSemPagamentoCentavos`, até que um pagamento de verdade seja
+   * confirmado e ligado a ela. O que este Map muda é chip, dica e destino de
+   * link — e a precedência "Agendado > Pré-vínculo" já vem garantida por ele,
+   * não é recomposta nesta tela.
+   */
+  const preVinculos = preVinculosPorDocumento(compromissos, hoje);
 
   return (
     <>
@@ -235,6 +251,23 @@ export default function VisaoGeral() {
                  * e não está no custo" — e aqui nada saiu da conta.
                  */
                 const agendado = agendamentos.get(n.documentoId);
+                /**
+                 * **CONTAI-091 — o quarto sub-estado: a nota que SÓ tem
+                 * pré-vínculo aberto.**
+                 *
+                 * Era o caso Ilhamix lendo-se como "Sem pagamento ligado": uma
+                 * nota com candidato declarado esperando confirmação aparecia
+                 * como se não houvesse rastro nenhum, e custou investigação
+                 * repetida (relato 106).
+                 *
+                 * O `agendado ? undefined :` é redundante por construção — os
+                 * dois Maps têm chaves disjuntas — e fica como afirmação do
+                 * invariante no ponto de leitura: nunca dois chips na mesma
+                 * nota.
+                 */
+                const preVinculo = agendado
+                  ? undefined
+                  : preVinculos.get(n.documentoId);
                 return (
                   <div key={n.id} className="border-t border-line pt-3">
                     {/* **CONTAI-075** — o peso vem do MESMO `pesoDoChip` que
@@ -243,13 +276,28 @@ export default function VisaoGeral() {
                         (critério 5). Sem agendamento nenhum o chip continua
                         preenchido, como sempre foi — e sem `data-urgencia`, que
                         seria afirmar urgência sobre um agendamento que não
-                        existe. */}
+                        existe.
+
+                        **CONTAI-091** — o pré-vínculo entra com `peso="vazado"`,
+                        o MESMO peso que `/documento/[id]` já dá ao
+                        `CHIP_PRE_VINCULO` (ADENDO 6 §J.2: "nunca vermelho, nunca
+                        verde"; o peso visual é o do chip "Agendado"). Preenchido
+                        continua reservado ao vencido, e `data-urgencia` continua
+                        sem ser escrito: pré-vínculo não tem urgência, e inventar
+                        uma aqui seria afirmar cobrança sobre intenção. */}
                     <Chip
                       cor="amb"
-                      peso={agendado ? pesoDoChip[agendado.urgencia] : "preenchido"}
+                      peso={
+                        agendado
+                          ? pesoDoChip[agendado.urgencia]
+                          : preVinculo
+                            ? "vazado"
+                            : "preenchido"
+                      }
                       data-urgencia={agendado?.urgencia}
+                      data-pre-vinculo={preVinculo ? "nota" : undefined}
                     >
-                      {agendado?.chip ?? "Sem pagamento ligado"}
+                      {agendado?.chip ?? preVinculo?.chip ?? "Sem pagamento ligado"}
                     </Chip>
                     <div className="mt-1.5 text-[13.5px] font-semibold">
                       {n.titulo}
@@ -259,7 +307,12 @@ export default function VisaoGeral() {
                           dele sai marcado como PREVISTO pela própria função
                           (Gate Fiscal 6.3). O valor à direita continua sendo o
                           DA NOTA, que é o que compõe a soma acima. */}
-                      {agendado?.resumo ?? n.detalhe} ·{" "}
+                      {/* **CONTAI-091** — o pré-vínculo usa o MESMO formato
+                          curto (`resumoDoAgendamento`, com N≥2 unido por
+                          vírgula), nunca a frase integral de
+                          `textoPreVinculoDaNota`: ela continua exclusiva de
+                          `/documento/[id]`, onde há espaço para ela. */}
+                      {agendado?.resumo ?? preVinculo?.resumo ?? n.detalhe} ·{" "}
                       <span className="mono">
                         {formatarBRL(n.valorCentavos)}
                       </span>
@@ -270,7 +323,31 @@ export default function VisaoGeral() {
                       </Consequencia>
                     ) : null}
                     <div className="mt-2.5">
-                      {agendado === undefined ? (
+                      {agendado === undefined && preVinculo !== undefined ? (
+                        /* ⚠️ **CONTAI-091 — `ghost`, nunca `primary`**: não é
+                           cobrança, é convite a revisar algo que o Mateus já
+                           resolveu por intenção (mesma régua de peso que
+                           distingue "Ver agendamento" de "Responder
+                           agendamento"). E ele **só NAVEGA**: a conversão do
+                           pré-vínculo em vínculo formal exige confirmação
+                           explícita na tela de destino (ADENDO 6 §J.3), nunca
+                           sai de um clique numa lista. O rótulo só repete número
+                           quando há ambiguidade — com N=1 "Revisar pré-vínculo"
+                           não soa burocrático.
+
+                           ⚠️ **"pré-vínculo", nunca "vínculo" sozinho** (ADENDO
+                           6 §J.2 (iii), Gate 2 do CONTAI-091): *"evita a palavra
+                           'vínculo' sozinha na tela — é a mesma palavra usada
+                           para o vínculo formal `pagamento_documento`, e usá-la
+                           sem qualificador seria o § inteiro do CONTAI-074
+                           (vínculo real, fiscal) colapsado com uma intenção"*.
+                           O qualificador É o conteúdo fiscal do rótulo. */
+                        <BotaoLink href={preVinculo.href} variante="ghost">
+                          {preVinculo.n === 1
+                            ? "Revisar pré-vínculo"
+                            : `Ver pré-vínculos (${preVinculo.n})`}
+                        </BotaoLink>
+                      ) : agendado === undefined ? (
                         <BotaoLink href={`${n.href}/ligar`} variante="primary">
                           Ligar a um pagamento
                         </BotaoLink>

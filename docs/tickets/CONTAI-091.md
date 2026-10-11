@@ -45,7 +45,7 @@ confirmar/revisar esse candidato, não ao fluxo manual.
 
 ## Critérios de Aceite
 
-1. [ ] Função pura nova `preVinculosPorDocumento(compromissos, hojeIso)` em
+1. [x] Função pura nova `preVinculosPorDocumento(compromissos, hojeIso)` em
    `lib/fiscal/compromisso.ts` (ao lado de `agendamentosPorDocumento`),
    devolvendo `Map<documentoId, PreVinculoDoDocumento>` com
    `PreVinculoDoDocumento = { compromissoIds: string[]; n: number; href:
@@ -57,12 +57,12 @@ confirmar/revisar esse candidato, não ao fluxo manual.
    precedência "Agendado > Pré-vínculo" dentro da própria função, não nos
    consumidores). Teste unitário afirma a disjunção dos dois Maps com o
    fixture do caso Ilhamix (backlog 96).
-2. [ ] `href` de `PreVinculoDoDocumento`: quando `n === 1`,
+2. [x] `href` de `PreVinculoDoDocumento`: quando `n === 1`,
    `href = /compromisso/${compromissoIds[0]}` (é lá que já mora a bifurcação
    cartão × PIX/boleto — "Ver a fatura" vs. "Registrar o pagamento"); quando
    `n >= 2`, `href = /documento/${documentoId}` — nunca elege um dos N como
    "o" candidato.
-3. [ ] `chip` de `PreVinculoDoDocumento` é a constante existente
+3. [x] `chip` de `PreVinculoDoDocumento` é a constante existente
    `CHIP_PRE_VINCULO` = "Pré-vínculo — ainda não é custo"
    (`lib/fiscal/compromisso.ts:1205`), verbatim — nenhum texto novo é cunhado
    para o rótulo do estado (mandato do Gate Fiscal, ADENDO 6 §J.2 de
@@ -70,12 +70,12 @@ confirmar/revisar esse candidato, não ao fluxo manual.
    pré-vínculo, em qualquer tela, é neutro e usa este texto). A liberdade de
    design fica restrita ao texto do CTA e ao layout — nunca ao rótulo do
    chip.
-4. [ ] Nenhuma string literal `documentoPrevistoIds` (nem o nome de coluna
+4. [x] Nenhuma string literal `documentoPrevistoIds` (nem o nome de coluna
    `compromisso_documento_previsto`) aparece fora de `lib/fiscal/compromisso.ts`
    e `lib/fiscal/fatura.ts` — guarda já existente em `lib/fiscal/resumo.test.ts`
    (teste 8, ~linha 1471) continua vermelha com o nome do arquivo se violado;
    este ticket não pode tocar esse teste para "passar".
-5. [ ] Home (`app/(gestao)/page.tsx`, painel "Notas hábeis sem pagamento
+5. [x] Home (`app/(gestao)/page.tsx`, painel "Notas hábeis sem pagamento
    vinculado", ~207-299): para cada nota, `agendado =
    agendamentosPorDocumento.get(id)`; `preVinculo = agendado ? undefined :
    preVinculosPorDocumento.get(id)`. Quando `preVinculo` existe: chip
@@ -83,9 +83,14 @@ confirmar/revisar esse candidato, não ao fluxo manual.
    usa para `CHIP_PRE_VINCULO`); linha "Dica" = `preVinculo.resumo` (formato
    curto, não a frase integral de `textoPreVinculoDaNota`); CTA
    `variante="ghost"` (nunca `primary` — não é cobrança) com rótulo "Revisar
-   vínculo" quando `n === 1` ou "Ver vínculos (N)" quando `n >= 2`,
-   `href = preVinculo.href`.
-6. [ ] `/despesas` (`lib/fiscal/despesas.ts` bloco 6, ~701-741, e
+   pré-vínculo" quando `n === 1` ou "Ver pré-vínculos (N)" quando `n >= 2`,
+   `href = preVinculo.href`. ⚠️ **Rótulos corrigidos no Gate 2 (2026-10-10)**:
+   diziam "Revisar vínculo"/"Ver vínculos (N)", sem qualificador, e o ADENDO 6
+   §J.2 (iii) proíbe exatamente isso — *"evita a palavra 'vínculo' sozinha na
+   tela [...] usá-la sem qualificador seria o § inteiro do CONTAI-074 (vínculo
+   real, fiscal) colapsado com uma intenção"*. O erro nasceu aqui e no mock, e
+   passou pela Viabilidade e pelo Gate Fiscal sem ser pego.
+6. [x] `/despesas` (`lib/fiscal/despesas.ts` bloco 6, ~701-741, e
    `app/(gestao)/despesas/page.tsx` célula "Situação", ~547-561): mesma
    composição de precedência do critério 5. Quando `preVinculo` existe:
    `chip = preVinculo.chip`, `nota = preVinculo.resumo`,
@@ -93,15 +98,15 @@ confirmar/revisar esse candidato, não ao fluxo manual.
    o mesmo tratamento que a tabela já dá hoje ao terceiro estado) — não
    escala para `"amb"` aqui; `consequencia` permanece
    `EXPLICACAO_NOTAS_SEM_PAGAMENTO`, inalterada.
-7. [ ] Uma nota genuinamente órfã (nenhum compromisso via
+7. [x] Uma nota genuinamente órfã (nenhum compromisso via
    `documentoOrigemId` nem via `documentoPrevistoIds`) continua mostrando
    exatamente "Sem pagamento ligado" na Home e em `/despesas`, byte a byte
    como hoje — nenhuma regressão no caso órfão.
-8. [ ] Uma nota com compromisso `documentoOrigemId` confirmado continua
+8. [x] Uma nota com compromisso `documentoOrigemId` confirmado continua
    mostrando "Agendado" exatamente como hoje na Home e em `/despesas`, mesmo
    que outro compromisso também a pré-ligue via `documentoPrevistoIds` —
    "Agendado" tem precedência sempre, nunca dois chips na mesma nota.
-9. [ ] `/documento/[id]` (bloco de pré-vínculo, ~305-315,
+9. [x] `/documento/[id]` (bloco de pré-vínculo, ~305-315,
    `compromissosQuePreLigam`/`textoPreVinculoDaNota`): o texto fixado pelo
    Gate Fiscal permanece verbatim (byte a byte) — a única mudança é que cada
    compromisso já listado no texto passa a ser também um `<Link>` (import
@@ -109,28 +114,28 @@ confirmar/revisar esse candidato, não ao fluxo manual.
    `resumoDoAgendamento` (já exportado, `lib/fiscal/compromisso.ts:1163`)
    como rótulo do link. Nenhuma mudança de texto fiscal, nenhuma mudança de
    cálculo, nenhuma eleição de "qual dos N é o principal".
-10. [ ] Nenhuma mudança em `alocarCusto`, `documentosHabeisSemPagamento`
+10. [x] Nenhuma mudança em `alocarCusto`, `documentosHabeisSemPagamento`
     (`lib/fiscal/vinculo.ts:1059`) ou `resumo.notasSemPagamento`/
     `notasSemPagamentoCentavos` (`lib/fiscal/resumo.ts:970`/`:1235`) — valores
     idênticos antes/depois, confirmados por teste unitário com o fixture do
     caso Ilhamix (backlog 96). A nota com pré-vínculo continua contando em
     "Notas hábeis sem pagamento vinculado" independentemente do novo chip
     (doutrina ADENDO 6 §J.1 critério 3).
-11. [ ] Spec nível 2 em `design/mocks/CONTAI-091.md` — já escrito, cobre as 3
+11. [x] Spec nível 2 em `design/mocks/CONTAI-091.md` — já escrito, cobre as 3
     superfícies (Home, `/despesas`, `/documento/[id]`), estados de chip/CTA,
     navegação aditiva e a ausência de campo fiscal novo. Sem gate de
     aprovação formal (processo revisado em 2026-09-20) — serve de referência
     direta para o `lead-engineer`.
-12. [ ] Vitest novo: `lib/fiscal/compromisso.test.ts` cobre
+12. [x] Vitest novo: `lib/fiscal/compromisso.test.ts` cobre
     `preVinculosPorDocumento` — N=1 (href de compromisso), N≥2 (href de
     documento), disjunção com `agendamentosPorDocumento` (precedência),
     chip sempre `CHIP_PRE_VINCULO`. `lib/fiscal/despesas.test.ts` cobre chip/
     nota/href propagados na linha da tabela com cor/consequência inalteradas
     quando há pré-vínculo.
-13. [ ] E2E novo (`e2e/despesas.spec.ts` e/ou `e2e/pre-vinculo.spec.ts`,
+13. [x] E2E novo (`e2e/despesas.spec.ts` e/ou `e2e/pre-vinculo.spec.ts`,
     contra o Postgres local) cobre: nota só pré-ligada (N=1) na Home e em
     `/despesas` mostrando o chip `CHIP_PRE_VINCULO` e CTA correto; nota com
-    N≥2 pré-vínculos mostrando "Ver vínculos (N)" e navegando a
+    N≥2 pré-vínculos mostrando "Ver pré-vínculos (N)" e navegando a
     `/documento/{id}`; `/documento/[id]` com N≥2 mostrando os links por
     compromisso.
 
@@ -284,9 +289,24 @@ Bloqueado por / Bloqueia: nenhum.
   o Gate 1: se o conteúdo colidir com a implementação mais direta, o
   `lead-engineer` trata como critério de UI do `designer` e devolve a ele em
   vez de decidir sozinho.
+  **✅ RESPONDIDA no Gate 4 (`po`, 2026-10-10)**: o `resumo` nasce no formato
+  curto dentro da própria função pura (`ordenados.map(resumoDoAgendamento)
+  .join(", ")`), e é adequado para as duas superfícies — é o mesmo formato
+  que a linha "Dica" da Home e a coluna `nota` de `/despesas` já exibem para
+  "Agendado", cada item carrega a palavra "previsto" (Gate Fiscal 6.3 do
+  CONTAI-072) e a frase integral do §J.2 fica exclusiva de `/documento/[id]`.
+  Ressalva cosmética, não bloqueante: com N≥2 o nome do favorecido se repete
+  a cada item; se um caso real chegar a N≥3 vale encurtar — hoje o maior caso
+  real (Ilhamix) é N=2.
 - Dívida 2 da Viabilidade (urgência do pré-vínculo não aparece no chip) —
   registrar em `docs/backlog.md` se aparecer caso real que peça
   diferenciação visual de pré-vínculo vencido.
+  **✅ RESPONDIDA no Gate 4 (`po`, 2026-10-10)**: a dívida está registrada
+  neste ticket em dois lugares (Viabilidade, dívida (2), e Out of Scope,
+  item "Urgência/vencimento do pré-vínculo no chip da lista") e **não ganha
+  entrada em `docs/backlog.md` enquanto não houver caso real** — pré-vínculo
+  vencido já "grita" na Agenda, e registrar dívida sem dor vivida é inflar o
+  índice com hipótese.
 
 ## Cenário e checagem final
 **Gestão** — Home e `/despesas`, revisão antes de decidir, sentado, nunca
@@ -307,3 +327,55 @@ Spec completo em `design/mocks/CONTAI-091.md`. Três superfícies (Home,
 `/despesas`, `/documento/[id]`), chip `CHIP_PRE_VINCULO` verbatim nas três,
 navegação aditiva no detalhe, zero campo fiscal novo, zero texto fiscal novo
 redigido.
+
+---
+
+## Log de gates
+
+- **Gate 0 (design)** — spec nível 2 já existente em
+  `design/mocks/CONTAI-091.md` (criado em `5bb55a3`); sem gate de aprovação,
+  processo de 2026-09-20.
+- **Gate 1 (`lead-engineer`)** — DONE. `preVinculosPorDocumento` +
+  `PreVinculoDoDocumento` em `lib/fiscal/compromisso.ts`; decoração em
+  `lib/fiscal/despesas.ts` (bloco 6) e `app/(gestao)/page.tsx`; navegação
+  aditiva em `app/(gestao)/documento/[id]/page.tsx`; Vitest em
+  `compromisso.test.ts` e `despesas.test.ts`; E2E em `e2e/pre-vinculo.spec.ts`
+  (4 testes novos). `app/(gestao)/despesas/page.tsx` não precisou mudar: a
+  célula `Situacao` e o link `Abrir →` já consomem `chip`/`nota`/`href`
+  genericamente.
+- **Gate 2 (`cto-obra`, fable)** — REQUEST CHANGES na 1ª rodada por uma única
+  pendência: rótulos do CTA da Home "Revisar vínculo"/"Ver vínculos (N)" sem o
+  qualificador "pré-", em desacordo com o ADENDO 6 §J.2 (iii) de
+  `docs/pareceres/2026-08-18-compromisso-versus-pagamento.md`. Corrigido para
+  "Revisar pré-vínculo"/"Ver pré-vínculos (N)" em `page.tsx`, `e2e/
+  pre-vinculo.spec.ts`, neste ticket (critérios 5 e 13) e no mock → APPROVE
+  final sobre o diff atual. `contador`: *"[Certain] A redação nova 'Revisar
+  pré-vínculo' (n===1) / 'Ver pré-vínculos (N)' (n>=2) atende o ADENDO 6 §J.2
+  (iii) do parecer porque o qualificador 'pré-' distingue na tela a intenção
+  gravada do vínculo formal pagamento_documento — exatamente a confusão que a
+  razão (iii) proíbe — e usa o termo que o próprio parecer fixa como
+  vocabulário de produto. Consistente em page.tsx, ticket, mock e e2e.
+  APROVADO."* Duas divergências do spec aceitas no Gate 2 e ratificadas no
+  Gate 4: (a) em `/documento/[id]` a frase de `textoPreVinculoDaNota` é
+  **fatiada** (`slice`) para injetar os `<Link>`, não transcrita no JSX como o
+  spec desenhou — identidade byte a byte por construção, com fallback sem link
+  se o formato da função mudar; (b) a seção `## Campos` do mock foi
+  reformatada de prosa para `- SEM CAMPOS — <por quê>`, porque
+  `lib/design/campos-do-spec.test.ts` (CONTAI-034, fail-closed) reprovava o
+  spec como criado — conteúdo e decisão de design idênticos.
+- **Gate 3 (quality)** — `npm run quality` (lint + typecheck + Vitest +
+  Playwright, stack local de pé via `npm run db:start`) rodado inteiro após a
+  correção de rótulo do Gate 2: **passou de ponta a ponta, exit code 0.**
+  `lint` ok, `typecheck` ok, `test` (Vitest) verde, `test:e2e` (Playwright
+  contra o Postgres local) **498 passed em 7.0m**, zero falha. Nenhum teste
+  pulado, nenhum retry.
+- **Gate 4 (`po`)** — **PASS, 13/13 critérios.** **Arquivos alterados após o
+  último APPROVE: nenhum.** Critério 4 lido pela guarda real
+  (`lib/fiscal/resumo.test.ts`, teste 4/8: módulos de custo + `despesas.ts`),
+  não pela letra "fora de `compromisso.ts` e `fatura.ts`" — a letra é mais
+  larga do que a guarda e falharia por arquivos que o CONTAI-080 já tinha
+  (`lib/types.ts`, `lib/dados/comum.ts`, `pre-vincular/page.tsx`); este diff
+  não acrescentou o literal fora dos permitidos e `resumo.test.ts` está
+  intocado. `lib/fiscal/vinculo.ts` e `lib/fiscal/resumo.ts` sem diff
+  (critério 10). As duas Perguntas Abertas acima estão respondidas; nenhuma
+  entrada nova em `docs/backlog.md`. Linha do `contador` transcrita no Gate 2.

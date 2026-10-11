@@ -1,6 +1,31 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-10-10, fim do dia**: **`091` entregue** — Gate 4 (`po`), 13/13
+critérios PASS. Função pura nova `preVinculosPorDocumento`
+(`lib/fiscal/compromisso.ts`, ao lado de `agendamentosPorDocumento`) devolve
+por nota só pré-ligada `{ compromissoIds, n, href, chip, resumo }`, com as
+chaves **disjuntas** das de `agendamentosPorDocumento` garantidas dentro da
+própria função — "Agendado > Pré-vínculo > Sem pagamento ligado", nunca dois
+chips na mesma nota. Home: chip âmbar vazado `CHIP_PRE_VINCULO`, dica no
+formato curto de `resumoDoAgendamento`, CTA ghost "Revisar pré-vínculo"
+(N=1 → `/compromisso/{id}`) ou "Ver pré-vínculos (N)" (N≥2 →
+`/documento/{id}`). `/despesas`: mesmo chip e `href`, pílula continua neutra
+e consequência inalterada. `/documento/[id]`: cada compromisso já citado no
+texto do §J.2 vira `<Link>`, frase byte a byte igual (fatiada da própria
+`textoPreVinculoDaNota`, não retranscrita — divergência do spec aceita no
+Gate 2). Gate 2 (`cto-obra`) REQUEST CHANGES na 1ª rodada por uma pendência
+só — rótulos "Revisar vínculo"/"Ver vínculos (N)" sem o qualificador, que o
+ADENDO 6 §J.2 (iii) proíbe; nasceu no ticket e no mock e passou pela
+Viabilidade e pelo Gate Fiscal sem ser pego — corrigido, APPROVE final,
+`contador` APROVADO a redação nova. `vinculo.ts`/`resumo.ts` sem diff: a nota
+pré-ligada continua contando em "Notas hábeis sem pagamento vinculado"
+(provado por unitário com o fixture Ilhamix). Vitest 1425 verdes, E2E 498
+verdes (+ `pre-vinculo.spec.ts` 22/22 depois da troca de rótulo). Sem
+migration. Perguntas abertas do ticket respondidas no Gate 4 (formato curto
+confirmado; dívida de urgência fica no ticket, sem entrada no backlog até
+haver caso real). Detalhe: `docs/tickets/CONTAI-091.md`.
 
 **2026-10-10, ainda mais tarde**: **`CONTAI-091` criado, P1** — relato de
 sessão de suporte, caso Ilhamix (notas 1541/1543): `/despesas` mostrava "Sem
@@ -23,8 +48,8 @@ CONTAI-072 já corrigiu uma vez. `contador` confirmou, lendo o código real,
 que a nota com pré-vínculo continua contando em "Notas hábeis sem pagamento
 vinculado" (`documentosHabeisSemPagamento`, `vinculo.ts:1059`) — zero
 caminho de código por onde pré-vínculo reduziria essa contagem. Mock nível 2
-em `design/mocks/CONTAI-091.md`. Complexidade M. **Pronto para `/develop`.**
-Detalhe: `docs/tickets/CONTAI-091.md`.
+em `design/mocks/CONTAI-091.md`. Complexidade M. **Entregue no mesmo dia —
+ver nota acima.** Detalhe: `docs/tickets/CONTAI-091.md`.
 
 **2026-10-10, mais tarde**: **`090` entregue** — Gate 4 (`po`), 13/13
 critérios PASS, Gate 2 (`cto-obra`+`contador`) aprovou de primeira sem

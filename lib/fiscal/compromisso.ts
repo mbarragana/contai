@@ -750,6 +750,132 @@ export function agendamentosPorDocumento(
   );
 }
 
+// ── CONTAI-091 · o TERCEIRO estado visual da nota: só pré-ligada ─────────
+
+/**
+ * **A marca de PRÉ-VÍNCULO de um documento — o estado entre "Agendado" e "Sem
+ * pagamento ligado".**
+ *
+ * ⚠️ **Mesma régua do `AgendamentoDoDocumento`: daqui sai TEXTO e DESTINO DE
+ * LINK, nunca dinheiro somável** (ADENDO 6 §J.1 do parecer
+ * `docs/pareceres/2026-08-18-compromisso-versus-pagamento.md`): *"a nota
+ * pré-ligada continua aparecendo em 'Notas hábeis sem pagamento vinculado' até
+ * que um pagamento de verdade seja confirmado e ligado a ela"*. Nenhum campo
+ * desta interface é um valor, e de propósito.
+ */
+export interface PreVinculoDoDocumento {
+  /**
+   * TODOS os agendamentos abertos que pré-ligam esta nota, sem eleição — a
+   * razão é a mesma de `compromissosQuePreLigam` (critério 2 do CONTAI-091):
+   * com N≥2 nenhum deles é "o" candidato, e escolher um esconderia intenção já
+   * declarada.
+   */
+  compromissoIds: string[];
+  /** `compromissoIds.length`, pronto, para o consumidor não contar de novo. */
+  n: number;
+  /**
+   * ⚠️ **O destino sai DAQUI, não da tela** (pre-mortem 1 do CONTAI-091): com
+   * `n === 1`, `/compromisso/{id}` — é lá que mora a bifurcação cartão ×
+   * PIX/boleto. Com `n >= 2`, `/documento/{id}`, que já lista os N em texto.
+   *
+   * ⚠️ **Nenhum dos dois GRAVA nada** (§J.3): o CTA só abre a tela de
+   * revisão/confirmação que já existe. Pré-vínculo vira `pagamento_documento`
+   * por confirmação explícita, nunca por clique numa lista.
+   */
+  href: string;
+  /**
+   * `CHIP_PRE_VINCULO`, sempre e literalmente — ADENDO 6 §J.2: *"se o
+   * pré-vínculo aparece em qualquer tela, carrega chip neutro"*, e o texto é o
+   * do parecer. O campo existe para o consumidor não ter de importar a
+   * constante nem cunhar rótulo próprio.
+   */
+  chip: string;
+  /**
+   * O formato CURTO de `resumoDoAgendamento` — "{favorecido} — previsto R$X
+   * para DD/MM/AAAA", com N≥2 unido por vírgula.
+   *
+   * ⚠️ **Não é `textoPreVinculoDaNota`**, e a escolha é do `designer`
+   * (`design/mocks/CONTAI-091.md`): a frase integral do §J.2 continua exclusiva
+   * de `/documento/[id]`, onde há espaço para ela. Repeti-la na densidade de
+   * uma lista duplicaria o que o chip e a consequência já dizem.
+   */
+  resumo: string;
+}
+
+/**
+ * **CONTAI-091 — as notas que SÓ têm pré-vínculo aberto, indexadas pelo
+ * documento.**
+ *
+ * ⚠️ **Ela NÃO tira nada de lista nenhuma e NÃO devolve valor nenhum a somar** —
+ * a mesma advertência de `agendamentosPorDocumento`, pela mesma razão do Gate
+ * Fiscal (ADENDO 6 §J.1/critério 3): `documentosHabeisSemPagamento`,
+ * `resumo.notasSemPagamento` e `notasSemPagamentoCentavos` ficam idênticos com e
+ * sem pré-vínculo. O que sai daqui é TEXTO e DESTINO DE LINK.
+ *
+ * ⚠️ **As chaves são DISJUNTAS das de `agendamentosPorDocumento`, e é a própria
+ * função que garante** (critério 1, condição fiscal 6.2 do ticket): "Agendado"
+ * precede sempre, e nunca há dois chips na mesma nota. Deixar a precedência a
+ * cargo de cada consumidor é como Home e `/despesas` voltariam a divergir sobre
+ * a mesma nota — foi disso que o CONTAI-072 nasceu.
+ *
+ * ⚠️ **Só `documentoPrevistoIds`, nunca `documentoOrigemId`**: a nota de origem
+ * de um agendamento aberto já é o caso de `agendamentosPorDocumento`, e a
+ * disjunção acima a exclui de qualquer forma.
+ *
+ * ⚠️ `situacao === "aberto"` e só — quitado ou cancelado não pré-liga nada
+ * (critério 2 do CONTAI-080): o de um quitado já cumpriu seu papel, e um
+ * cancelado deixa a nota exatamente como uma nota sem rastro nenhum.
+ */
+export function preVinculosPorDocumento(
+  compromissos: readonly Compromisso[],
+  hojeIso: string,
+): Map<string, PreVinculoDoDocumento> {
+  // A MESMA função, chamada por dentro: a disjunção não pode depender de o
+  // consumidor ter chamado as duas com os mesmos argumentos.
+  const agendados = agendamentosPorDocumento(compromissos, hojeIso);
+
+  const porDocumento = new Map<string, Compromisso[]>();
+  for (const c of compromissos) {
+    if (c.situacao !== "aberto") continue;
+    for (const documentoId of c.documentoPrevistoIds) {
+      // Precedência "Agendado > Pré-vínculo", dentro da função.
+      if (agendados.has(documentoId)) continue;
+      const atual = porDocumento.get(documentoId);
+      if (atual === undefined) {
+        porDocumento.set(documentoId, [c]);
+        continue;
+      }
+      // O conjunto gravado não é deduplicado (`lib/dados/comum.ts`, por
+      // decisão do CONTAI-080): o mesmo compromisso pode citar a mesma nota
+      // duas vezes, e isso não é um N=2.
+      if (!atual.some((outro) => outro.id === c.id)) atual.push(c);
+    }
+  }
+
+  return new Map(
+    [...porDocumento].map(([documentoId, encontrados]) => {
+      // A MESMA ordem da eleição de `agendamentosPorDocumento` — uma regra de
+      // ordenação só neste arquivo, com desempate final por `id` para a lista
+      // não dançar entre dois carregamentos.
+      const ordenados = [...encontrados].sort((a, b) =>
+        porPrioridadeDoAgendamento(a, b, hojeIso),
+      );
+      const compromissoIds = ordenados.map((c) => c.id);
+      const n = compromissoIds.length;
+      return [
+        documentoId,
+        {
+          compromissoIds,
+          n,
+          href: n === 1 ? `/compromisso/${compromissoIds[0]}` : `/documento/${documentoId}`,
+          chip: CHIP_PRE_VINCULO,
+          resumo: ordenados.map(resumoDoAgendamento).join(", "),
+        },
+      ];
+    }),
+  );
+}
+
 // ── Saldo (critérios 15, 29 e 30) ────────────────────────────────────────
 
 /**

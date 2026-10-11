@@ -87,8 +87,16 @@ import {
 // do CONTAI-041). Foi por isso que `VENCIDO_SEM_RESPOSTA` mudou de casa no
 // CONTAI-072: o texto tinha de sair de `app/_components/` para caber num módulo
 // puro, mesmo chegando aqui pela marca.
+//
+// ⚠️ **CONTAI-091 — `preVinculosPorDocumento` entra pela MESMA porta, e o teste
+// 4 de `resumo.test.ts` é o que mantém a licença estreita**: ele reprova por
+// substring se o nome do conjunto gravado aparecer NESTE arquivo. Ler
+// pré-vínculo aqui dentro é como o §J.1/critério 3 cairia (a nota sairia da
+// lista por ter intenção declarada), então a leitura fica do outro lado da
+// fronteira e o que atravessa é a marca pronta: chip, resumo e href.
 import {
   agendamentosPorDocumento,
+  preVinculosPorDocumento,
   type UrgenciaDoAgendamento,
 } from "./compromisso";
 import { anoCalendario, rotulosPagoSemNota } from "./pagamento";
@@ -432,6 +440,14 @@ export function linhasDeDespesa(
    * sobre a mesma nota que originou o ticket.
    */
   const agendamentos = agendamentosPorDocumento(compromissos, hojeIso);
+  /**
+   * CONTAI-091 — o sub-estado entre "Agendado" e "Sem pagamento ligado", pela
+   * MESMA função pura que a Visão geral usa (condição fiscal 6.4 do ticket:
+   * duas detecções da mesma coisa divergem, e é a origem do CONTAI-072). As
+   * chaves já vêm disjuntas das de `agendamentos` — a precedência não é
+   * recomposta aqui.
+   */
+  const preVinculos = preVinculosPorDocumento(compromissos, hojeIso);
 
   const docPorId = new Map(documentos.map((d) => [d.id, d]));
   /** Documentos que JÁ aparecem dentro da linha de algum pagamento. */
@@ -700,12 +716,23 @@ export function linhasDeDespesa(
   // sub-estados — o que muda é **texto, cor e destino do link**, e nada mais.
   for (const { documento } of documentosHabeisSemPagamento(alocacao)) {
     const agendado = agendamentos.get(documento.id);
+    /**
+     * **CONTAI-091 — o terceiro sub-estado virou quatro, e a nota não saiu de
+     * lugar nenhum.** A precedência é "Agendado > Pré-vínculo > Sem pagamento
+     * ligado", e vem pronta da função pura: `preVinculos` nunca tem a chave de
+     * um documento que `agendamentos` já tem. O `agendado ? undefined :` é
+     * redundante por construção e fica como afirmação do invariante no ponto de
+     * leitura — nunca há dois chips na mesma nota.
+     */
+    const preVinculo = agendado ? undefined : preVinculos.get(documento.id);
     for (const linha of linhasDoDocumento.get(documento.id) ?? []) {
       linha.situacoes.push({
         id: `${linha.id}:sem-pagamento`,
         pendenciaId: null,
-        // Sem agendamento aberto, é a aparência de sempre (critério 2).
-        chip: agendado?.chip ?? CHIP_SEM_PAGAMENTO,
+        // Sem agendamento e sem pré-vínculo, é a aparência de sempre (critério
+        // 2 do CONTAI-072 e critério 7 do CONTAI-091: a nota órfã não muda um
+        // byte).
+        chip: agendado?.chip ?? preVinculo?.chip ?? CHIP_SEM_PAGAMENTO,
         /**
          * **CONTAI-075** — a urgência vem PRONTA da marca, e este é o único
          * `push` do arquivo que a carrega. Nada é recalculado: `/despesas` não
@@ -719,19 +746,38 @@ export function linhasDeDespesa(
         // (`compromissosQueBloqueiam`), e o neutro o faria ler como "está tudo
         // certo". Dentro do prazo continua NEUTRO — há plano, não há cobrança.
         // ⚠️ Vermelho em nenhum dos dois: nada saiu da conta.
+        //
+        // ⚠️ **CONTAI-091 — o pré-vínculo NÃO escala a cor, e a linha fica
+        // intocada de propósito** (critério 6): nesta tabela "neutra" já É o
+        // tratamento visual do terceiro estado, e âmbar aqui tem significado
+        // reservado (vencido sem resposta). O que distingue pré-vínculo de órfão
+        // dentro desta tabela é o TEXTO do chip e da linha `nota`, nunca a cor.
+        // Pré-vínculo nunca é vencido — vencido é o ramo `agendado`, que tem
+        // precedência e nunca coexiste —, então a expressão já cai em "neutra"
+        // sem ramo novo.
         cor: agendado?.vencidoSemResposta === true ? "amb" : "neutra",
+        // ⚠️ Inalterada no pré-vínculo, pela mesma razão: ele cai em
+        // `EXPLICACAO_NOTAS_SEM_PAGAMENTO` sem ramo novo, porque a consequência
+        // fiscal da nota é exatamente a mesma — ela segue sem pagamento
+        // vinculado (§J.1/critério 3).
         consequencia:
           agendado?.consequenciaExtra ?? EXPLICACAO_NOTAS_SEM_PAGAMENTO,
         // Quem, quanto e para quando — já marcado como PREVISTO pela própria
-        // `resumoDoAgendamento` (Gate Fiscal 6.3).
-        nota: agendado?.resumo ?? null,
+        // `resumoDoAgendamento` (Gate Fiscal 6.3), nos dois ramos: o pré-vínculo
+        // reaproveita o MESMO formato curto, com N≥2 unido por vírgula.
+        nota: agendado?.resumo ?? preVinculo?.resumo ?? null,
         valorCentavos: null,
       });
       // ⚠️ **O link da linha passa a ser o do agendamento** (critérios 3 e 4):
       // uma casa só para agir sobre o mesmo compromisso, e é lá que as três
       // respostas existem (critério 7 — elas não se duplicam aqui). A nota
       // continua alcançável pelo link da coluna `Documento`, que não muda.
+      //
+      // ⚠️ **CONTAI-091 estende a MESMA regra ao pré-vínculo** (critério 2): o
+      // destino sai pronto da função pura — `/compromisso/{id}` com N=1,
+      // `/documento/{id}` com N≥2 —, e nenhum dos dois grava nada.
       if (agendado !== undefined) linha.href = agendado.href;
+      else if (preVinculo !== undefined) linha.href = preVinculo.href;
       // ⚠️ **Não mexe em `temPendencia`**: nem comprovado nem em risco.
       //
       // **CONTAI-063** — o que muda é só o campo PRÓPRIO do terceiro estado, no
