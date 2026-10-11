@@ -1990,8 +1990,8 @@ não deve ser iniciado até esta nota ser removida por decisão do Mateus.
 
 | ID | O que é | P |
 |---|---|---|
-| **012** | Manter o Supabase acordado | P1 |
-| **013** | Configuração de produção do login | **P0** |
+| **012** | Manter o Supabase acordado — **NÃO IMPLEMENTADO**, rebaixado de P1 em 2026-10-11 | P2 |
+| **013** | Configuração de produção do login — **NÃO IMPLEMENTADO**, rebaixado de P0 em 2026-10-11 | P2 |
 | **014** | Prova no aparelho real | P1 |
 
 ### Depois

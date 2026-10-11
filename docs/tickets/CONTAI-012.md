@@ -1,9 +1,17 @@
 # CONTAI-012 — Manter o projeto Supabase acordado
 
+> ⚠️ **NÃO IMPLEMENTADO — reclassificado para P2 em 2026-10-11, decisão
+> explícita do Mateus.** Confirmado nesta data: `.github/workflows/` só tem
+> `ci.yml`, sem `schedule` nenhum — nenhuma rotina periódica existe, o risco
+> de auto-pause do plano gratuito do Supabase (~7 dias de baixa atividade)
+> continua real e sem mitigação. Rebaixado de P1 porque, na prática, o app é
+> aberto quase todo dia — o risco só se materializa numa ausência longa (ex.:
+> férias). Ver `docs/backlog.md` para a entrada completa da decisão.
+
 ## Tipo e Prioridade
 
 - **Tipo**: chore de infraestrutura
-- **Prioridade**: **P1**
+- **Prioridade**: **P2** (era P1 — rebaixado em 2026-10-11, ver nota acima)
 - **Origem**: desmembrado do CONTAI-011 pelo `po` em 2026-08-16 (4ª revisão da
   fila). O argumento do auto-pause estava sendo usado para promover a US-011
   para a R1; o `po` rejeitou a promoção e separou o problema barato do caro.

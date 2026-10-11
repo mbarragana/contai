@@ -1,8 +1,21 @@
 # CONTAI-013 — Configuração de produção do login (runbook + prova no alvo real)
 
+> ⚠️ **NÃO IMPLEMENTADO — reclassificado para P2 em 2026-10-11, decisão
+> explícita do Mateus.** Confirmado nesta data: os 10 critérios seguem `[ ]`,
+> não existe `docs/runbooks/deploy-producao.md`, não existe
+> `scripts/verificar-login-producao.ts`, e o lembrete de 90 dias no Google
+> Calendar (critério 9) nunca foi criado. Na prática o login funciona em
+> produção (uso diário confirmado) — o que falta é só a formalização e o
+> detector de regressão silenciosa (SMTP expirar, template voltar ao padrão,
+> chave rotacionar). Rebaixado de P0 porque o uso real já prova o caminho
+> funcionando; o risco é de regressão futura não detectada, não de
+> indisponibilidade hoje. Ver `docs/backlog.md` para a entrada completa da
+> decisão.
+
 ## Tipo e Prioridade
 
-chore de infraestrutura — **P0 de deploy**.
+chore de infraestrutura — **P2 de deploy** (era P0 — rebaixado em
+2026-10-11, ver nota acima).
 
 **NÃO entra na fila de implementação da R1.** Entra onde sempre estiveram "push
 do repo", "conectar a Vercel" e o `CONTAI-012`: **não é escopo de release, é
