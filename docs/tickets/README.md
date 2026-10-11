@@ -1,6 +1,43 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-10-11**: **`CONTAI-092` criado, P1** — relato de backlog (`108`):
+Mateus pediu lembrete automático de pagamento agendado PIX/boleto via Google
+Calendar (5 dias antes, 2 dias antes, no dia), depois de descartar WhatsApp
+pelo custo de infra. **Override explícito e consciente do filtro das três
+metas** — o `po` reconfirmou com o Mateus que isto não serve nenhuma das três
+metas do produto (já cortado uma vez no `CONTAI-019`) e ele decidiu seguir
+mesmo assim; registrado como exceção nomeada, não como reversão da doutrina.
+`/tickets-req` completo: 1 evento por compromisso (nunca 3), `eventId`
+derivado deterministicamente de `compromisso.id` — garantia **estrutural**
+contra evento duplicado (409 do Google vira `patch`), não disciplina de
+quem escreve o hook de sincronização. Evento é **removido** (nunca "marcado")
+na quitação/cancelamento ou quando a data prevista some (correção do
+`cto-obra` ao relato original). Duas tabelas novas — `integracao_google`
+(token OAuth, RLS por `user_id`, sem criptografia em repouso: decisão
+consciente, RLS já protege o mesmo nível de dado que CPF/CNO no resto do
+schema) e `compromisso_agenda` (espelho do estado no Google, não é fato
+fiscal, por isso fora de `compromisso`). Falha de sincronização nunca entra
+na tabela `pendencia` fiscal nem nos relatórios anuais — é estado de
+integração operacional (linha no detalhe do compromisso + contador no card
+"Integrações" novo em `/conta`). Reconciliação é sob demanda (`{ tudo: true
+}`, sem cron — Hobby não tem cron frequente e exigiria service key).
+Primeiro módulo do app a ler sessão pelo servidor Next (`lib/supabase-servidor.ts`
+novo) porque o refresh token não pode chegar ao browser — dívida D-c registra
+isso como precedente arquitetural. Gate Fiscal do `contador`: sem impacto
+fiscal direto (gatilho é data de vencimento previsto, nunca data de
+pagamento/regime de caixa), mas trava duro o texto do evento/UI — proibido
+vocabulário fiscal ("vencimento fiscal", "obrigação", "DARF", "aferição"),
+proibida promessa de garantia de pagamento em dia, proibido CPF ou qualquer
+identificador do favorecido além do nome no evento do Calendar (só
+favorecido/valor/forma/data). `designer`: card "Integrações" com 4 estados
+(não configurado/não conectado/conectado/expirado) em `/conta`, cenário
+gestão (sem equivalente de canteiro). URI de callback OAuth a cadastrar no
+Google Cloud Console: produção `https://contai-rosy.vercel.app/api/google/agenda/callback`,
+dev `http://localhost:3200/api/google/agenda/callback`. Complexidade M. Mock
+em `design/mocks/CONTAI-092.md`. **Pronto para `/develop`.** Detalhe:
+`docs/tickets/CONTAI-092.md`.
 
 **2026-10-10, fim do dia**: **`091` entregue** — Gate 4 (`po`), 13/13
 critérios PASS. Função pura nova `preVinculosPorDocumento`
