@@ -71,6 +71,16 @@ export type PendenciaDesfechoRow = Tables<"pendencia_desfecho">;
 // CONTAI-067 — `carregarFaturas` lê a fatura com os desembolsos ANINHADOS.
 export type FaturaRow = Tables<"fatura">;
 export type FaturaDesembolsoRow = Tables<"fatura_desembolso">;
+// ── CONTAI-092 (migration 0029) ──────────────────────────────────────────
+// ⚠️ **Nenhuma das duas é fato fiscal** (Gate Fiscal do ticket): elas não entram
+// em soma nenhuma, não alimentam relatório anual nem dossiê de venda, e o estado
+// de falha de sincronização NÃO é `pendencia` (critério 9).
+//
+// ⚠️ `IntegracaoGoogleRow` inclui `refresh_token`: use-a só no SERVIDOR. Quem lê
+// pelo browser (`carregarIntegracaoGoogle`, em `lib/data.ts`) seleciona colunas
+// nomeadas, nunca `*`.
+export type IntegracaoGoogleRow = Tables<"integracao_google">;
+export type CompromissoAgendaRow = Tables<"compromisso_agenda">;
 
 // ── Inserts ──────────────────────────────────────────────────────────────
 export type ObraInsert = TablesInsert<"obra">;

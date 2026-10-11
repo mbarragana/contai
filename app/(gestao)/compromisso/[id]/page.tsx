@@ -39,10 +39,17 @@ import {
   carregarCompromisso,
   carregarHistoricoDeData,
   carregarHistoricoDeValorPrevisto,
+  carregarIntegracaoGoogle,
   carregarPainel,
+  carregarSincronizacaoDoCompromisso,
   classificarErro,
+  sincronizarCompromissoAgora,
   type ErroDeTela,
 } from "@/lib/data";
+import {
+  falhouSincronizacao,
+  type EstadoSincronizado,
+} from "@/lib/agenda/evento";
 import {
   CHIP_PRE_VINCULO,
   documentosResolvidosNaConfirmacao,
@@ -84,6 +91,19 @@ type Estado =
        * não volta (o botão espera; ver a guarda no card de situação).
        */
       faturaId: string | null;
+      /**
+       * **CONTAI-092 — o lembrete deste compromisso no Google Agenda.**
+       *
+       * `integracaoConectada` é a guarda externa da linha de "não sincronizado"
+       * (spec): se a autorização nunca existiu, não houve tentativa nenhuma, e
+       * então não há o que relatar aqui. `agenda` é a linha de
+       * `compromisso_agenda` — `null` quando nunca se tentou.
+       *
+       * ⚠️ **Nada disto é fato fiscal** (critério 9): não entra em soma nenhuma
+       * e não aparece nos três zeros do card "O que isso muda hoje".
+       */
+      integracaoConectada: boolean;
+      agenda: EstadoSincronizado | null;
     };
 
 const NOME_SITUACAO = {
@@ -111,6 +131,80 @@ function rotuloCurtoDaNota(d: Documento): string {
   return `${ROTULO_DO_TIPO[d.tipo]}${d.numero ? ` nº ${d.numero}` : ""}`;
 }
 
+/**
+ * **CONTAI-092 — a linha de "lembrete não sincronizado"** (spec de design,
+ * seção "Detalhe do compromisso").
+ *
+ * ⚠️ **Não é erro fiscal, e por isso não é `Banner`/`Consequencia` vermelhos**:
+ * é linha curta em âmbar com ação inline. O vermelho do app é reservado a custo
+ * fora do lugar e documentação faltante — aqui nenhum dinheiro saiu errado e
+ * nenhum documento está faltando.
+ *
+ * ⚠️ **Não diagnostica a causa** (spec): ela só relata "não sincronizado". Quem
+ * explica autorização expirada é o card de `/conta`; repetir "sua conexão
+ * expirou" aqui duplicaria o card e erraria quando a causa fosse só um blip da
+ * API.
+ *
+ * ⚠️ **Nunca entra em `pendencia` nem nos relatórios anuais** (critério 9): é
+ * estado de integração operacional. Esta linha e a contagem do card de `/conta`
+ * são os DOIS únicos lugares em que ele aparece.
+ *
+ * Estado próprio em vez de recarregar a tela toda: o spec pede que a linha
+ * desapareça (ou volte ao texto original) sem navegação e sem piscar o resto do
+ * detalhe.
+ */
+function LinhaDoLembrete({
+  compromisso,
+  conectada,
+  inicial,
+}: {
+  compromisso: Compromisso;
+  conectada: boolean;
+  inicial: EstadoSincronizado | null;
+}) {
+  const [linha, setLinha] = useState(inicial);
+  const [tentando, setTentando] = useState(false);
+
+  // As três guardas do spec, nesta ordem: aberto, integração conectada (sem
+  // autorização nunca houve tentativa) e falha registrada neste compromisso.
+  if (compromisso.situacao !== "aberto") return null;
+  if (!conectada) return null;
+  if (!falhouSincronizacao(compromisso, linha)) return null;
+
+  async function tentar() {
+    setTentando(true);
+    try {
+      await sincronizarCompromissoAgora(compromisso.id);
+      setLinha(await carregarSincronizacaoDoCompromisso(compromisso.id));
+    } catch {
+      // Falhou de novo: volta ao texto original, sem contador de tentativas
+      // visível (spec). Nada aqui vira afirmação sobre o pagamento.
+    }
+    setTentando(false);
+  }
+
+  return (
+    <div
+      className="mt-2 text-[13px] text-amb"
+      data-agenda-sincronizacao="falhou"
+      role="status"
+    >
+      ⚠ Lembrete no Google Agenda: não sincronizado.{" "}
+      {tentando ? (
+        <span className="text-mut">sincronizando…</span>
+      ) : (
+        <button
+          type="button"
+          className="underline underline-offset-2"
+          onClick={() => void tentar()}
+        >
+          tentar de novo
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function DetalheAgendamento() {
   const { id } = useParams<{ id: string }>();
   const [estado, setEstado] = useState<Estado>({ fase: "carregando" });
@@ -122,14 +216,21 @@ export default function DetalheAgendamento() {
     void (async () => {
       try {
         const compromisso = await carregarCompromisso(id);
-        const [painel, historico, historicoDeValor, faturaId] = await Promise.all([
-          carregarPainel(compromisso.obraId),
-          carregarHistoricoDeData(compromisso.id),
-          carregarHistoricoDeValorPrevisto(compromisso.id),
-          compromisso.origem === "cartao"
-            ? buscarFaturaDoCompromisso(compromisso.id)
-            : Promise.resolve(null),
-        ]);
+        const [painel, historico, historicoDeValor, faturaId, integracao, agenda] =
+          await Promise.all([
+            carregarPainel(compromisso.obraId),
+            carregarHistoricoDeData(compromisso.id),
+            carregarHistoricoDeValorPrevisto(compromisso.id),
+            compromisso.origem === "cartao"
+              ? buscarFaturaDoCompromisso(compromisso.id)
+              : Promise.resolve(null),
+            // CONTAI-092 — as duas leituras da agenda falham para "não tem
+            // nada a relatar", nunca para o estado de erro da tela: o detalhe
+            // do agendamento existe para mostrar fatos fiscais, e a integração
+            // com um calendário de terceiro não pode esconder nenhum deles.
+            carregarIntegracaoGoogle().catch(() => null),
+            carregarSincronizacaoDoCompromisso(compromisso.id).catch(() => null),
+          ]);
         if (cancelado) return;
         setEstado({
           fase: "pronto",
@@ -144,6 +245,8 @@ export default function DetalheAgendamento() {
           historicoDeValor,
           obraNome: painel.obra.nome,
           faturaId,
+          integracaoConectada: integracao?.concedidoEm != null,
+          agenda,
         });
       } catch (erro) {
         if (!cancelado) setEstado({ fase: "erro", erro: classificarErro(erro) });
@@ -276,6 +379,16 @@ export default function DetalheAgendamento() {
               </span>
             </Linha>
           ) : null}
+
+          {/* CONTAI-092 — DEPOIS de "Ainda falta pagar" e da `Linha`
+              condicional "Nota de origem", ANTES do chip de pré-vínculo e do
+              bloco de Ações (spec de design): é mais um fato sobre o
+              agendamento, no mesmo nível dos outros. */}
+          <LinhaDoLembrete
+            compromisso={c}
+            conectada={estado.integracaoConectada}
+            inicial={estado.agenda}
+          />
 
           {/* ⚠️ **CONTAI-080 — o pré-vínculo, e ele NÃO é confirmação de custo.**
               Chip ÂMBAR VAZADO, o mesmo peso do chip "Agendado": §J.2 é

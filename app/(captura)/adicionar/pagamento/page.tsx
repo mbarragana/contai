@@ -46,6 +46,7 @@ import {
   garantirFavorecido,
   mensagemDeErro,
   mensagemDeErroDeGravacao,
+  sincronizarAgenda,
   subirParaAcervo,
 } from "@/lib/data";
 import { decidirRegistro, type Destino } from "@/lib/fiscal/compromisso";
@@ -466,6 +467,11 @@ function RegistrarPagamento() {
         documentoOrigemId: documentoDeOrigem?.id ?? null,
         dataCompra: null,
       });
+      // CONTAI-092 — o lembrete no Google Agenda, DEPOIS da gravação e sem
+      // esperar por ela (critério 5): o agendamento já está salvo, e falha de
+      // integração não pode bloquear nem reverter isso. Cartão não passa por
+      // aqui; e se passasse, `eventoDesejado` não geraria evento (critério 2).
+      sincronizarAgenda(id);
       setFase({
         nome: "agendado",
         id,

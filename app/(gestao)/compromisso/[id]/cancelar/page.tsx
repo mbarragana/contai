@@ -37,6 +37,7 @@ import {
   carregarCompromisso,
   classificarErro,
   mensagemDeErroDeGravacao,
+  sincronizarAgenda,
   type ErroDeTela,
 } from "@/lib/data";
 import { preposicaoDeTempo } from "@/lib/fiscal/compromisso";
@@ -78,6 +79,10 @@ export default function CancelarAgendamento() {
     setErro(null);
     try {
       await cancelarCompromisso(id, motivo.trim());
+      // CONTAI-092 — o evento é REMOVIDO, nunca "marcado" (critério 4): evento
+      // marcado continuaria aparecendo na agenda do Mateus como lembrete de
+      // algo que ele já decidiu não pagar. Depois da gravação e sem esperar.
+      sincronizarAgenda(id);
       router.push(`/compromisso/${id}`);
     } catch (e) {
       setErro(mensagemDeErroDeGravacao(e, "na lista de compromissos"));

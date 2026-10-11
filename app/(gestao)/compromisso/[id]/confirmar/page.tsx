@@ -68,6 +68,7 @@ import {
   mensagemDeErroDeGravacao,
   quitarCompromisso,
   registrarDiferenca,
+  sincronizarAgenda,
   subirParaAcervo,
   type ErroDeTela,
 } from "@/lib/data";
@@ -348,6 +349,24 @@ export default function ConfirmarPagamento() {
           ? { novaDataPrevista: saldoSemData ? null : dataSaldo }
           : {}),
       });
+
+      // CONTAI-092 — o lembrete acompanha o desfecho. ⚠️ **Este é o caminho
+      // PRINCIPAL de quitação de PIX/boleto agendado**, que é a dor de origem do
+      // ticket: sem esta chamada, um pagamento já confirmado continuaria com
+      // evento ativo no Google e o popup soaria às 09:00 do dia do vencimento,
+      // até a reconciliação de 6h passar. (Achado do Gate 2 — o hook existia nos
+      // outros cinco pontos e faltava exatamente no mais usado.)
+      //
+      // Quem decide o QUE fazer é o estado derivado no servidor, não esta tela:
+      // quitação integral REMOVE o evento, parcial com nova data o REAPONTA,
+      // parcial sem data o remove. Por isso a mesma chamada serve aos três
+      // casos — e ela vem DEPOIS da gravação, sem esperar e sem tratar erro
+      // (critério 5): o pagamento já está salvo e o lembrete é conveniência.
+      //
+      // ⚠️ ANTES do PASSO 5, de propósito: no caminho N≥2 o fluxo faz `return`
+      // ali e espera o clique do Mateus na revalidação. Depois do PASSO 5, a
+      // sincronização ficaria pendurada num ramo que não executa.
+      sincronizarAgenda(compromisso.id);
 
       // ══ PASSO 5 · CONTAI-080 — a CONVERSÃO do pré-vínculo, bifurcada por N ══
 

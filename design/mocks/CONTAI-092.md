@@ -241,12 +241,12 @@ Vencimento previsto: {data}
   Calendar dispara as notificações nos offsets configurados.
 
 ## Campos
-Nenhum campo novo de formulário — esta entrega não tem tela de captura nem
-edição de dado fiscal. O botão "Conectar" não é um campo, é uma ação que
-inicia um redirecionamento; nada aqui é digitado pelo Mateus. A disciplina de
-"campo vazio pergunta, campo preenchido afirma, sem default em campo fiscal"
-**não se aplica por ausência de campo**, não por exceção — confirmando
-explicitamente, como pedido.
+- SEM CAMPOS — nenhum campo novo de formulário: esta entrega não tem tela de
+  captura nem edição de dado fiscal. O botão "Conectar" não é um campo, é uma
+  ação que inicia um redirecionamento; nada aqui é digitado pelo Mateus. A
+  disciplina de "campo vazio pergunta, campo preenchido afirma, sem default em
+  campo fiscal" **não se aplica por ausência de campo**, não por exceção —
+  confirmando explicitamente, como pedido.
 
 ## Textos com consequência fiscal
 Nenhum — este fluxo não tem consequência fiscal (é lembrete de conveniência,

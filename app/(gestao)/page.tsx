@@ -14,6 +14,7 @@ import {
 } from "@/app/_components/kpi";
 import { AvisoEquiparacao } from "@/app/_components/obra";
 import { LinhaDoPainel, Painel } from "@/app/_components/painel";
+import { ReconciliacaoDaAgenda } from "@/app/_components/reconciliacao-agenda";
 import {
   BotaoLink,
   Carregando,
@@ -138,6 +139,12 @@ export default function VisaoGeral() {
 
   return (
     <>
+      {/* CONTAI-092, critério 11 — a reconciliação dos lembretes do Google
+          Agenda, 1× por aparelho a cada 6h. Não renderiza nada, não avisa nada
+          e não pode falhar para a tela: é conveniência, e a rota resolve na
+          hora quando não há integração nenhuma. */}
+      <ReconciliacaoDaAgenda />
+
       {/* Aviso persistente, nunca bloqueio (CONTAI-003, critério 11). Ele traz
           a guarda por dentro e some sozinho quando não se aplica. */}
       <AvisoEquiparacao obra={obra} />

@@ -90,6 +90,34 @@ export default defineConfig({
       // exportada por acaso, o autologin daria sessão a todo teste e a injeção
       // real de sessão passaria a ser decorativa — verde pelo motivo errado.
       NEXT_PUBLIC_DEV_AUTOLOGIN: "0",
+
+      /**
+       * ⚠️ **CONTAI-092 — credencial OAuth FALSA, e de propósito.**
+       *
+       * O E2E **não fala com o Google** (critério 18: a porta 3100 nem se
+       * registra como URI de redirecionamento). Estas três existem para o
+       * servidor responder "configurado" e assim deixar os estados 2, 3 e 4 do
+       * card "Integrações" alcançáveis a partir de linhas reais no Postgres —
+       * que é o único jeito de provar o card sem inventar backend (regra dura
+       * de E2E do projeto: stub de Supabase é proibido).
+       *
+       * Consequências assumidas, e as duas estão cobertas:
+       * - o estado 1 ("Não configurado") NÃO é alcançável aqui, porque o
+       *   servidor sobe configurado. Ele é provado por unit test da função pura
+       *   `qualEstado` (`lib/agenda/estado.test.ts`), onde os quatro estados
+       *   ficam lado a lado;
+       * - nenhum teste CLICA em "Conectar": o clique navegaria para
+       *   accounts.google.com de verdade. O que o E2E faz com a rota de
+       *   autorização é conferir o `Location` do redirecionamento, sem seguir —
+       *   prova de que a URL de consentimento é a certa, sem tráfego externo.
+       *
+       * A `REDIRECT_URI` aponta para a porta 3100 (a do Playwright) porque o
+       * valor precisa ser coerente com o servidor que está de pé; ela nunca é
+       * usada contra o Google.
+       */
+      GOOGLE_OAUTH_CLIENT_ID: "teste-e2e.apps.googleusercontent.com",
+      GOOGLE_OAUTH_CLIENT_SECRET: "segredo-de-teste-que-nunca-sai-da-maquina",
+      GOOGLE_OAUTH_REDIRECT_URI: `${BASE_URL}/api/google/agenda/callback`,
     },
   },
 });

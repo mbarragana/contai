@@ -114,6 +114,56 @@ export type Database = {
           },
         ]
       }
+      compromisso_agenda: {
+        Row: {
+          compromisso_id: string
+          data_sincronizada: string | null
+          estado: Database["public"]["Enums"]["estado_agenda"]
+          google_event_id: string
+          sincronizado_em: string | null
+          situacao_sincronizada:
+            | Database["public"]["Enums"]["situacao_compromisso"]
+            | null
+          tentado_em: string | null
+          ultimo_erro: string | null
+          user_id: string
+        }
+        Insert: {
+          compromisso_id: string
+          data_sincronizada?: string | null
+          estado: Database["public"]["Enums"]["estado_agenda"]
+          google_event_id: string
+          sincronizado_em?: string | null
+          situacao_sincronizada?:
+            | Database["public"]["Enums"]["situacao_compromisso"]
+            | null
+          tentado_em?: string | null
+          ultimo_erro?: string | null
+          user_id?: string
+        }
+        Update: {
+          compromisso_id?: string
+          data_sincronizada?: string | null
+          estado?: Database["public"]["Enums"]["estado_agenda"]
+          google_event_id?: string
+          sincronizado_em?: string | null
+          situacao_sincronizada?:
+            | Database["public"]["Enums"]["situacao_compromisso"]
+            | null
+          tentado_em?: string | null
+          ultimo_erro?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compromisso_agenda_compromisso_id_fkey"
+            columns: ["compromisso_id"]
+            isOneToOne: true
+            referencedRelation: "compromisso"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       compromisso_data_historico: {
         Row: {
           compromisso_id: string
@@ -667,6 +717,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      integracao_google: {
+        Row: {
+          concedido_em: string
+          email_conta: string | null
+          escopo: string
+          motivo_revogacao: string | null
+          refresh_token: string
+          revogado_em: string | null
+          user_id: string
+        }
+        Insert: {
+          concedido_em?: string
+          email_conta?: string | null
+          escopo: string
+          motivo_revogacao?: string | null
+          refresh_token: string
+          revogado_em?: string | null
+          user_id?: string
+        }
+        Update: {
+          concedido_em?: string
+          email_conta?: string | null
+          escopo?: string
+          motivo_revogacao?: string | null
+          refresh_token?: string
+          revogado_em?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       obra: {
         Row: {
@@ -1345,6 +1425,7 @@ export type Database = {
         | "cnpj_gravado_esta_certo"
         | "apontamento_corrigido"
       entidade_revisao: "documento" | "favorecido" | "pagamento"
+      estado_agenda: "presente" | "removido"
       estado_desembolso_terreno: "pago" | "previsto"
       meio_pagamento: "pix" | "boleto" | "cartao"
       motivo_revisao:
@@ -1526,6 +1607,7 @@ export const Constants = {
         "apontamento_corrigido",
       ],
       entidade_revisao: ["documento", "favorecido", "pagamento"],
+      estado_agenda: ["presente", "removido"],
       estado_desembolso_terreno: ["pago", "previsto"],
       meio_pagamento: ["pix", "boleto", "cartao"],
       motivo_revisao: [

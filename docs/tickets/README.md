@@ -1,6 +1,49 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 18 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-10-11, mais tarde**: **`092` entregue** — Gate 4 (`po`), 19/19
+critérios PASS (o 18, cadastro das URIs de redirect no Google Cloud Console,
+marcado "PASS condicional": ação de dashboard fora do código, verificação
+manual futura do Mateus). Gate 1 (`lead-engineer`): migration `0029`
+(`integracao_google` + `compromisso_agenda`, RLS, revoke-antes-grant, mapa de
+`e2e/privilegios.spec.ts` atualizado), módulo `lib/agenda/` (cliente HTTP
+isolado do Google Calendar, testável com `fetch` mockado — nunca Supabase
+mockado), estado DERIVADO do compromisso (não por transição): a rota de
+sincronização relê o compromisso no banco e calcula o evento desejado;
+`eventId` = uuid sem hífens (nunca busca-antes-de-cria); 409→`patch` com
+`status:"confirmed"` revive evento removido; retry ×2 em rede/429/5xx; token
+inválido marca `revogado_em`. Reconciliação `{tudo:true}` só sob demanda
+(botão em `/conta` + throttle client-side de 6h na Home) — **sem cron**.
+Primeiro client Supabase de servidor (`lib/supabase-servidor.ts`). Card
+"Integrações" (4 estados) em `/conta`, linha âmbar de falha isolada no
+detalhe do compromisso. Gate 2 (`cto-obra`+`contador`, Gate Fiscal): **1ª
+rodada REQUEST CHANGES** (bloqueante — `compromisso/[id]/confirmar/page.tsx`,
+caminho principal de quitação de PIX/boleto agendado, não chamava
+`sincronizarAgenda`; a dor de origem do ticket passaria batido justo no
+caminho mais comum). Corrigido pelo mesmo `lead-engineer` (retrabalho único,
+loop 1 de 2): hook inserido antes do PASSO 5 (ramo N≥2 dá `return` ali —
+depois seria caminho morto), trava estrutural nova em
+`lib/agenda/reconciliacao.test.ts` (varredura de `app/` garantindo que todo
+mutador de compromisso chama `sincronizarAgenda`, verificada por mutação
+real), e corrida de `registrarFalha` fechada de carona. **APPROVE técnico e
+fiscal mantidos** sobre o diff final — as duas linhas dos revisores
+transcritas no Gate 4, como a regra exige. Gate 3: `npm run quality`
+completo contra o Postgres local — lint OK, typecheck OK, Vitest 1512/1512
+(48 arquivos), Playwright E2E 512/512, build OK. Dívidas abertas, sem
+bloqueio: **D-g** (correção de valor previsto com sync falha não é
+redetectada pela reconciliação atual — fiscal: inócuo, previsão não é custo)
+e **D-h** (linha pendente no `CLAUDE.md` sobre `lib/supabase-servidor.ts`,
+deliberadamente não editada por este pipeline — é ação do Mateus/`po` no
+fechamento do release). Migration **0029** pushada e confirmada no remoto
+(`npx supabase db push`, antes do `git push` de código, ordem obrigatória do
+`CLAUDE.md`). Pendência real: **tudo que depende de credencial OAuth real do
+Google Cloud Console** (round-trip de consentimento, criação/patch/delete de
+evento de verdade, `descobrirEmailDaConta` sob o escopo `calendar.events`,
+disparo real dos 3 popups) só é verificável depois que o Mateus cadastrar as
+URIs e preencher as env — não testável neste pipeline, registrado como
+verificação manual futura, não como bloqueio. Detalhe:
+`docs/tickets/CONTAI-092.md`.
 
 **2026-10-11**: **`CONTAI-092` criado, P1** — relato de backlog (`108`):
 Mateus pediu lembrete automático de pagamento agendado PIX/boleto via Google
@@ -36,8 +79,8 @@ favorecido/valor/forma/data). `designer`: card "Integrações" com 4 estados
 gestão (sem equivalente de canteiro). URI de callback OAuth a cadastrar no
 Google Cloud Console: produção `https://contai-rosy.vercel.app/api/google/agenda/callback`,
 dev `http://localhost:3200/api/google/agenda/callback`. Complexidade M. Mock
-em `design/mocks/CONTAI-092.md`. **Pronto para `/develop`.** Detalhe:
-`docs/tickets/CONTAI-092.md`.
+em `design/mocks/CONTAI-092.md`. **Entregue no mesmo dia — ver nota acima.**
+Detalhe: `docs/tickets/CONTAI-092.md`.
 
 **2026-10-10, fim do dia**: **`091` entregue** — Gate 4 (`po`), 13/13
 critérios PASS. Função pura nova `preVinculosPorDocumento`

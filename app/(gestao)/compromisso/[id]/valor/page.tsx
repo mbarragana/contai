@@ -50,6 +50,7 @@ import {
   corrigirValorPrevisto,
   ehErroDeSaldoJaPago,
   mensagemDeErroDeGravacao,
+  sincronizarAgenda,
   type ErroDeTela,
 } from "@/lib/data";
 import {
@@ -152,6 +153,16 @@ export default function CorrigirValorPrevisto() {
         valorNovoCentavos: permissao.valorNovoCentavos,
         motivo,
       });
+      // CONTAI-092 — o valor previsto aparece no TÍTULO do evento, então
+      // corrigi-lo deixa o lembrete desatualizado. Sincroniza no ato, depois da
+      // gravação e sem esperar (critério 5).
+      //
+      // ⚠️ A reconciliação do critério 11 NÃO redetecta este caso: a régua de
+      // `precisaSincronizar` compara data e situação, e `compromisso_agenda` não
+      // tem coluna de valor sincronizado (as colunas são fixadas pelo critério
+      // 12). Se esta chamada falhar, o título fica com o valor antigo até a
+      // próxima mudança de data ou situação — dívida declarada no Gate 1.
+      sincronizarAgenda(c.id);
       // Sem tela de sucesso própria (§8): o detalhe já mostra o valor novo e a
       // linha nova do histórico — mesma decisão de `mudarDataPrevista`.
       router.push(`/compromisso/${c.id}`);

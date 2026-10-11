@@ -36,23 +36,23 @@ for resolvido (sem lembrete fantasma de algo já pago ou cancelado).
 
 ## Critérios de Aceite
 
-1. [ ] Todo `compromisso` criado com `meio` PIX ou boleto, `situacao='aberto'`
+1. [x] Todo `compromisso` criado com `meio` PIX ou boleto, `situacao='aberto'`
    e `data_prevista` não nula gera, no Google Calendar do Mateus, **um único
    evento** cujo `reminders.overrides` contém exatamente 3 entradas (método
    `popup`, `useDefault: false`): 5 dias antes, 2 dias antes, 0 dias (no dia)
    do vencimento. O evento tem horário definido (não "dia inteiro") — hora
    padrão 09:00 `America/Sao_Paulo`, para o lembrete "no dia" soar em horário
    útil, não à meia-noite.
-2. [ ] `compromisso` com `meio` cartão **não** gera evento nenhum no Google
+2. [x] `compromisso` com `meio` cartão **não** gera evento nenhum no Google
    Calendar, em nenhum momento do seu ciclo de vida.
-3. [ ] O id do evento no Google (`eventId`) é **derivado deterministicamente**
+3. [x] O id do evento no Google (`eventId`) é **derivado deterministicamente**
    de `compromisso.id` (uuid sem hífens, 32 caracteres `[0-9a-f]`, aceito pela
    API como id customizado). Consequência estrutural, não disciplina de quem
    escreve o código: uma segunda tentativa de criar o mesmo evento recebe 409
    do Google e é tratada como atualização (`patch`), nunca cria um segundo
    evento — cobre tanto o caminho normal (mudança de data, `CONTAI-073`)
    quanto o reprocessamento depois de uma falha (critério 11).
-4. [ ] Quando o compromisso é marcado como quitado ou cancelado, OU quando
+4. [x] Quando o compromisso é marcado como quitado ou cancelado, OU quando
    `data_prevista` passa a ser nula (ex.: saldo remanescente de quitação
    parcial sem nova data definida), o evento correspondente é **REMOVIDO**
    (`events.delete`) do Google Calendar — nunca "marcado" ou mantido com
@@ -61,20 +61,20 @@ for resolvido (sem lembrete fantasma de algo já pago ou cancelado).
    histórico do compromisso já mora no app). Uma segunda tentativa de remoção
    (evento já removido) recebe 404/410 do Google e é tratada como "já feito",
    nunca como erro.
-5. [ ] Enquanto o Mateus não concluir a autorização OAuth2 (sem linha válida
+5. [x] Enquanto o Mateus não concluir a autorização OAuth2 (sem linha válida
    em `integracao_google`, ou variável de ambiente do Google ausente no
    servidor), nenhuma chamada à API do Google é feita, e toda a
    criação/edição/quitação/cancelamento de compromisso continua funcionando
    normalmente — a chamada de sincronização é sempre posterior à gravação do
    compromisso e nunca bloqueia nem reverte essa gravação.
-6. [ ] Se a autorização for revogada ou expirar depois de concedida (o Google
+6. [x] Se a autorização for revogada ou expirar depois de concedida (o Google
    devolve `invalid_grant`/401), o app grava `integracao_google.revogado_em`,
    para de chamar a API até nova autorização, e o card "Integrações" em
    `/conta` muda para o estado "Autorização expirada/revogada" (banner âmbar,
    texto conforme `design/mocks/CONTAI-092.md`, Estado 4) na carga seguinte
    da tela — nunca falha silenciosamente sem o Mateus ter como descobrir pela
    interface.
-7. [ ] O texto do evento do Google Calendar (título + descrição) **nunca**
+7. [x] O texto do evento do Google Calendar (título + descrição) **nunca**
    contém afirmação do tipo "o app garante que você paga em dia" ou
    equivalente, nem vocabulário que sugira controle fiscal oficial ou vínculo
    com apuração — termos como "vencimento fiscal", "obrigação", "prazo
@@ -84,7 +84,7 @@ for resolvido (sem lembrete fantasma de algo já pago ou cancelado).
    operacional sobre o compromisso ("pagamento sem lembrete" ≠ "pagamento
    irregular"). Texto nunca sugere ou implica o status de documentação hábil
    do compromisso (nota recebida, retenção, "em dia com o Fisco").
-8. [ ] O evento do Google Calendar (título, descrição, qualquer campo) contém
+8. [x] O evento do Google Calendar (título, descrição, qualquer campo) contém
    **apenas** favorecido (nome), valor, forma de pagamento (Pix/Boleto) e
    data de vencimento previsto — **nunca** CPF, número de nota ou qualquer
    outro identificador do prestador/favorecido além do nome. Texto exato
@@ -92,7 +92,7 @@ for resolvido (sem lembrete fantasma de algo já pago ou cancelado).
    — a frase de abertura da descrição ali é provisória até confirmação do
    `contador` (ver Perguntas Abertas; verificada abaixo sem bloquear este
    ticket).
-9. [ ] Falha de sincronização de um compromisso específico (API indisponível,
+9. [x] Falha de sincronização de um compromisso específico (API indisponível,
    rate limit, erro transitório — token ainda válido) **nunca** entra na
    tabela `pendencia` fiscal do app, e **nunca** aparece nos relatórios
    anuais (discriminação Bens e Direitos, lista de Pagamentos Efetuados,
@@ -102,12 +102,12 @@ for resolvido (sem lembrete fantasma de algo já pago ou cancelado).
    compromisso (`/compromisso/[id]`, cor âmbar, posição e guarda conforme
    spec), com ação inline de nova tentativa sem navegação; (b) contagem de
    "Pendentes" no card "Integrações" de `/conta`.
-10. [ ] Falha de escrita na API do Google por rede/rate limit/5xx tenta de
+10. [x] Falha de escrita na API do Google por rede/rate limit/5xx tenta de
     novo até 2 vezes dentro da mesma chamada de sincronização; 4xx de
     configuração (exceto token expirado, coberto pelo critério 6) não tenta
     de novo automaticamente. Toda tentativa (sucesso ou falha) registra
     `tentado_em`/`ultimo_erro` em `compromisso_agenda`.
-11. [ ] Existe reconciliação sob demanda, sem cron: uma chamada com
+11. [x] Existe reconciliação sob demanda, sem cron: uma chamada com
     `{ tudo: true }` percorre compromissos abertos PIX/boleto cuja linha em
     `compromisso_agenda` está ausente ou desatualizada (`data_sincronizada` ≠
     `data_prevista`, ou `estado` incoerente com a situação atual) e aplica o
@@ -117,7 +117,7 @@ for resolvido (sem lembrete fantasma de algo já pago ou cancelado).
     com a integração ativa. Cobre também o backfill dos compromissos já
     existentes no banco antes deste ticket entrar em produção — não precisa
     de migração de dados separada.
-12. [ ] Tabela nova `integracao_google` (1 linha por usuário: `user_id`
+12. [x] Tabela nova `integracao_google` (1 linha por usuário: `user_id`
     (PK, `default auth.uid()`), `refresh_token`, `email_conta`, `escopo`,
     `concedido_em`, `revogado_em`, `motivo_revogacao`) e tabela nova
     `compromisso_agenda` (1:1 com `compromisso`: `compromisso_id` (PK,
@@ -132,26 +132,26 @@ for resolvido (sem lembrete fantasma de algo já pago ou cancelado).
     (`integracao_google: "INSERT,SELECT,UPDATE"`,
     `compromisso_agenda: "INSERT,SELECT,UPDATE"`). `lib/database.types.ts`
     regenerado.
-13. [ ] Nenhuma coluna nova em `compromisso` — estado de integração com o
+13. [x] Nenhuma coluna nova em `compromisso` — estado de integração com o
     Google não é fato fiscal e não entra na tabela que alimenta os
     relatórios anuais.
-14. [ ] Refresh token armazenado em texto simples em
+14. [x] Refresh token armazenado em texto simples em
     `integracao_google.refresh_token`, protegido só por RLS — sem
     criptografia em repouso (pgsodium/Vault) nesta versão. Decisão registrada
     em Viabilidade (CTO) com justificativa; não se reabre sem motivo novo
     (ex.: segundo usuário no sistema).
-15. [ ] Variáveis de ambiente `GOOGLE_OAUTH_CLIENT_ID`,
+15. [x] Variáveis de ambiente `GOOGLE_OAUTH_CLIENT_ID`,
     `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI` são
     **server-only** (nunca `NEXT_PUBLIC_`, mesmo padrão de `GEMINI_API_KEY`).
     Ausentes → card "Integrações" mostra o estado "Não configurado" (critério
     16) e nenhuma rota chama o Google.
-16. [ ] Card "Integrações" em `/conta` (entre o card de dados da conta e o
+16. [x] Card "Integrações" em `/conta` (entre o card de dados da conta e o
     card "Sair") com 4 estados — Não configurado / Não conectado / Conectado
     / Autorização expirada — textos, guardas, atributo
     `data-integracao-google` e botões ("Conectar Google Agenda" / "Sincronizar
     agora" / "Conectar de novo") exatamente conforme
     `design/mocks/CONTAI-092.md`.
-17. [ ] Fluxo OAuth: botão "Conectar" → `GET /api/google/agenda/autorizar`
+17. [x] Fluxo OAuth: botão "Conectar" → `GET /api/google/agenda/autorizar`
     (gera `state` em cookie `httpOnly`, redireciona ao Google com
     `access_type=offline&prompt=consent&scope=.../auth/calendar.events`) →
     consentimento no Google → `GET /api/google/agenda/callback` (valida
@@ -160,14 +160,14 @@ for resolvido (sem lembrete fantasma de algo já pago ou cancelado).
     sessão, redireciona a `/conta`). Cancelamento/negação no Google volta ao
     estado "Não conectado" com aviso temporário (query param transitório, nome
     exato a definir no Gate 1), sem gravar nada em `integracao_google`.
-18. [ ] URI de redirecionamento (callback) cadastrada no mesmo cliente OAuth
+18. [x] URI de redirecionamento (callback) cadastrada no mesmo cliente OAuth
     do Google Cloud Console, nas duas variantes: produção
     `https://contai-rosy.vercel.app/api/google/agenda/callback` e
     desenvolvimento `http://localhost:3200/api/google/agenda/callback`
     (porta do `dev:local`). A porta 3100 (Playwright) não se registra — E2E
     não fala com o Google de verdade (critério 5 cobre o caso sem
     integração; o cliente HTTP é testado com fetch stubado).
-19. [ ] Spec de design em `design/mocks/CONTAI-092.md` — sem gate de
+19. [x] Spec de design em `design/mocks/CONTAI-092.md` — sem gate de
     aprovação formal (processo revisado em 2026-09-20), serve de referência
     direta para o `lead-engineer`.
 
@@ -416,3 +416,66 @@ parecer a citar, nenhuma condição órfã.
 
 Veredito: **APROVADO** — pronto para `/develop`. Nenhuma pergunta aberta
 bloqueia o Gate 1.
+
+## Dívidas registradas no Gate 1 / Gate 2 (2026-10-11)
+
+Acrescentado pelo `lead-engineer` depois do REQUEST CHANGES do `cto-obra`, a
+pedido dele ("documente no corpo do ticket"). Nenhuma destas linhas muda
+escopo, critério de aceite ou regra fiscal — são consequências conhecidas da
+implementação, registradas aqui para não existirem só no transcript do gate.
+
+- **D-g (garantia) — correção de valor previsto com sincronização falha não é
+  redetectada pela reconciliação.** O valor aparece no TÍTULO do evento, e
+  `app/(gestao)/compromisso/[id]/valor/page.tsx` sincroniza no ato. Mas a régua
+  de `precisaSincronizar` compara **data** e **situação**, e `compromisso_agenda`
+  não tem coluna de valor sincronizado — o critério 12 fixa as colunas da
+  tabela. Se aquela chamada falhar, o lembrete fica com o valor antigo no título
+  até a próxima mudança de data ou de situação. O dado do lembrete fica velho;
+  **nada fiscal fica errado** (o valor previsto no app está correto, e previsão
+  não é custo de nada). Conserto, se um dia incomodar: coluna
+  `valor_sincronizado` + a comparação na régua, num ticket próprio.
+- **D-h (documentação) — `lib/supabase-servidor.ts` precisa de uma linha no
+  `CLAUDE.md`** quando entrar em produção: ele é o primeiro client que lê o banco
+  pelo servidor Next e vira o padrão para qualquer rota futura que faça isso
+  (dívida D-c da Viabilidade, já prevista lá como "ação de documentação
+  pós-Gate 1/2, não um critério de código"). ⚠️ **Não executado pelo
+  `lead-engineer` de propósito**: `CLAUDE.md` é a instrução do projeto e não se
+  edita a pedido de agente — a linha entra quando o Mateus (ou o `po`) fechar o
+  release, que é também quando a afirmação "entrou em produção" passa a ser
+  verdadeira.
+- **Resolvido no mesmo diff, registrado para quem procurar depois**: a corrida
+  de `registrarFalha` (`select` → `insert` colidindo na PK entre duas abas, o
+  que deixava `ultimo_erro` sem gravar e a linha âmbar sem acender) virou
+  `update` com `.select()` → `insert` só se zero linhas → `update` de novo no
+  23505. Não é mais dívida.
+
+## Status — DONE (2026-10-11)
+
+Pipeline `/develop` completo, 19/19 critérios marcados:
+
+- **Gate 1** (`lead-engineer`) — implementação + retrabalho único (loop 1 de
+  2) depois do REQUEST CHANGES do Gate 2 abaixo.
+- **Gate 2** (`cto-obra` + `contador`, Gate Fiscal) — 1º veredito REQUEST
+  CHANGES (bloqueante: `confirmar/page.tsx` quitando sem chamar
+  `sincronizarAgenda`); corrigido pelo mesmo `lead-engineer`; **APPROVE**
+  técnico e fiscal mantidos sobre o diff final, com a linha obrigatória de
+  cada revisor transcrita no Gate 4.
+- **Gate 3** — `npm run quality` completo contra o Postgres local: lint OK,
+  typecheck OK, Vitest 1512/1512 (48 arquivos), Playwright E2E 512/512, build
+  OK.
+- **Gate 4** (`po`) — **PASS**, 19/19 critérios, incluindo o 18 como "PASS
+  condicional" (depende de cadastro de URI no Google Cloud Console, ação de
+  dashboard fora do código).
+
+**Pendências que sobrevivem ao DONE** (nenhuma bloqueia o fechamento, todas
+já descritas acima ou nas seções correspondentes):
+- Verificação manual futura do Mateus, só possível com credencial OAuth real
+  do Google Cloud Console: round-trip de consentimento, criação/patch/delete
+  de evento de verdade, 409→patch revivendo evento removido,
+  `descobrirEmailDaConta` sob o escopo `calendar.events`, detecção de
+  `invalid_grant`, disparo real dos 3 popups.
+- Cadastro das duas URIs de redirect + as 3 env vars no Google Cloud
+  Console/ambiente de produção (critério 18) — ação do Mateus, fora do
+  código.
+- D-g e D-h (acima).
+- D-b/D-c/D-e/D-f da Viabilidade — aceitas, sem mudança neste fechamento.

@@ -10,6 +10,8 @@ import {
   ACERVO_NEGADO,
   classificarFalhaDeAbertura,
 } from "@/lib/acervo";
+import type { DadosDaIntegracao } from "@/lib/agenda/estado";
+import type { EstadoSincronizado } from "@/lib/agenda/evento";
 import {
   agruparVinculos,
   indexarDiferencas,
@@ -3153,6 +3155,140 @@ export async function criarInforme(entrada: EntradaInforme): Promise<string> {
     .single();
   if (error) throw error;
   return (data as { id: string }).id;
+}
+
+// ══ CONTAI-092 · lembrete de pagamento no Google Agenda ═════════════════
+//
+// ⚠️ **Nada aqui é fato fiscal** (Gate Fiscal do ticket): não entra em soma
+// nenhuma, não vira `pendencia` e não aparece em relatório anual nem no dossiê
+// de venda (critério 9). É estado de integração operacional.
+//
+// ⚠️ **A ESCRITA no Google NÃO passa por este arquivo.** O refresh token não
+// pode chegar ao browser, então quem fala com o Google é a Route Handler
+// `/api/google/agenda/sincronizar`, com o client de servidor
+// (`lib/supabase-servidor.ts`). O que mora aqui é só o DISPARO e as duas
+// leituras que a tela do compromisso precisa.
+
+/**
+ * Dispara a sincronização de UM compromisso — e **não espera, não trata erro,
+ * não propaga nada**.
+ *
+ * ⚠️ **Isso é o critério 5, não descuido.** A chamada é sempre POSTERIOR à
+ * gravação do compromisso e não pode bloquear nem reverter essa gravação: o
+ * agendamento do Mateus está salvo, e o lembrete é conveniência. Se o `fetch`
+ * falhar (offline, servidor fora, Google fora), o compromisso continua correto
+ * no app e a divergência é recuperada pela reconciliação do critério 11 — é a
+ * dívida D-b declarada no ticket, assumida de propósito.
+ *
+ * ⚠️ **`void` sem `await` e sem `.catch` que mostre algo na tela.** Uma tela que
+ * avisasse "não deu para criar o lembrete" depois de um "Agendado ✓" diria ao
+ * Mateus que algo deu errado no registro — que é justamente a leitura que o Gate
+ * Fiscal 7b proíbe ("pagamento sem lembrete" ≠ "pagamento irregular").
+ */
+export function sincronizarAgenda(compromissoId: string): void {
+  void fetch("/api/google/agenda/sincronizar", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ compromissoId }),
+    // `keepalive` para a requisição sobreviver a uma navegação logo depois do
+    // Salvar, que é o caso comum (toda tela de agendamento redireciona).
+    keepalive: true,
+  }).catch(() => {
+    // Silêncio deliberado: ver o cabeçalho.
+  });
+}
+
+/**
+ * A nova tentativa de UM compromisso — o `[tentar de novo]` da linha âmbar do
+ * detalhe (spec de design). Diferente de `sincronizarAgenda` porque aqui **há
+ * quem espere**: o Mateus tocou o botão, o texto vira "sincronizando…", e o
+ * resultado decide se a linha desaparece (o fato deixou de ser verdadeiro) ou
+ * volta ao texto original.
+ *
+ * Não lança por falha do Google: a rota responde 200 com as contagens, e quem
+ * chama reconfere o estado no banco. Lança só se a rota não respondeu.
+ */
+export async function sincronizarCompromissoAgora(
+  compromissoId: string,
+): Promise<void> {
+  const resposta = await fetch("/api/google/agenda/sincronizar", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ compromissoId }),
+  });
+  if (!resposta.ok) throw new Error("Não foi possível sincronizar agora.");
+}
+
+/**
+ * O estado do card "Integrações" de `/conta`, pronto pela rota — inclusive o
+ * "está configurado?", que depende de variável de ambiente server-only e por
+ * isso **não** pode vir do PostgREST (critério 15).
+ */
+export async function carregarEstadoDaAgenda(): Promise<DadosDaIntegracao> {
+  const resposta = await fetch("/api/google/agenda/estado", {
+    headers: { Accept: "application/json" },
+  });
+  if (!resposta.ok) {
+    throw new Error("Não foi possível ler o estado da integração.");
+  }
+  return (await resposta.json()) as DadosDaIntegracao;
+}
+
+/**
+ * A reconciliação sob demanda (critério 11). Devolve o resultado porque aqui
+ * existe quem o mostre: o botão "Sincronizar agora" de `/conta` atualiza a
+ * contagem de pendentes com ele.
+ */
+export async function reconciliarAgenda(): Promise<void> {
+  const resposta = await fetch("/api/google/agenda/sincronizar", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tudo: true }),
+  });
+  if (!resposta.ok) throw new Error("Não foi possível sincronizar agora.");
+}
+
+/**
+ * A integração vista pelo BROWSER — só o que a tela do compromisso precisa para
+ * saber se existe autorização (a linha de "não sincronizado" só aparece quando
+ * existe; sem autorização nunca houve tentativa, então não há o que relatar).
+ *
+ * ⚠️ **Colunas NOMEADAS, nunca `*`**: a tabela guarda o refresh token, e o papel
+ * `authenticated` do browser é o mesmo do servidor (dívida D-a). A barreira "o
+ * token só é lido no servidor" é de código — este `select` é essa barreira.
+ */
+export async function carregarIntegracaoGoogle(): Promise<{
+  concedidoEm: string | null;
+  revogadoEm: string | null;
+} | null> {
+  const { data, error } = await getSupabase()
+    .from("integracao_google")
+    .select("concedido_em, revogado_em")
+    .limit(1);
+  if (error) throw error;
+  const linha = data?.[0];
+  if (!linha) return null;
+  return { concedidoEm: linha.concedido_em, revogadoEm: linha.revogado_em };
+}
+
+/** O estado do lembrete de UM compromisso, para a linha do detalhe. */
+export async function carregarSincronizacaoDoCompromisso(
+  compromissoId: string,
+): Promise<EstadoSincronizado | null> {
+  const { data, error } = await getSupabase()
+    .from("compromisso_agenda")
+    .select("estado, data_sincronizada, situacao_sincronizada, ultimo_erro")
+    .eq("compromisso_id", compromissoId)
+    .limit(1);
+  if (error) throw error;
+  const linha = data?.[0];
+  if (!linha) return null;
+  return {
+    estado: linha.estado,
+    dataSincronizada: linha.data_sincronizada,
+    situacaoSincronizada: linha.situacao_sincronizada,
+    ultimoErro: linha.ultimo_erro,
+  };
 }
 
 // ══ CONTAI-028 · barrel ═════════════════════════════════════════════════

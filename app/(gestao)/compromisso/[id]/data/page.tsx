@@ -39,6 +39,7 @@ import {
   mensagemDeErroDeGravacao,
   mudarDataCompraCartao,
   mudarDataPrevista,
+  sincronizarAgenda,
   type ErroDeTela,
 } from "@/lib/data";
 import { preposicaoDeTempo } from "@/lib/fiscal/compromisso";
@@ -97,6 +98,14 @@ export default function MudarData() {
           compromisso.dataPrevista,
           semData ? null : nova,
         );
+        // CONTAI-092 — a data nova no lembrete. Com o id de evento derivado do
+        // compromisso (critério 3), isto é `patch` do MESMO evento: não existe
+        // caminho em que adiar crie um segundo lembrete.
+        //
+        // ⚠️ Só no ramo de PIX/boleto: cartão nunca gera evento (critério 2), e
+        // chamar aqui seria uma ida de rede para o servidor concluir "nada a
+        // fazer".
+        sincronizarAgenda(compromisso.id);
       }
       router.push(`/compromisso/${compromisso.id}`);
     } catch (e) {

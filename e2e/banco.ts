@@ -278,7 +278,19 @@ const SQL_LIMPAR = [
   "delete from compromisso_valor_historico;",
   "delete from compromisso_data_historico;",
   "delete from compromisso_pagamento;",
+  // CONTAI-092 — o vínculo com o evento do Google cai antes do `compromisso`
+  // que ele referencia. `on delete cascade` já daria conta, mas apagar
+  // explícito deixa o erro no lugar certo se a FK mudar. Ela nasce SEM DELETE
+  // para `authenticated` (migration 0029: a remoção do evento é uma TRANSIÇÃO
+  // registrada, não o apagamento da linha), então limpá-la só pode ser andaime
+  // de ambiente — a exceção nomeada do CLAUDE.md.
+  "delete from compromisso_agenda;",
   "delete from compromisso;",
+  // CONTAI-092 — a autorização OAuth não depende de obra nenhuma, mas é estado
+  // por USUÁRIO e vaza de um teste para o outro: um teste que planta "conectado"
+  // deixaria o card de `/conta` conectado para os seguintes. Também sem DELETE
+  // para `authenticated` (mesmo motivo: "desconectar" não existe no app).
+  "delete from integracao_google;",
   "delete from pagamento_diferenca;",
   "delete from pagamento_documento;",
   "delete from pagamento;",
@@ -1058,4 +1070,64 @@ export function plantarObjetoDeOutroDono(nome: string): string {
     );
   }
   return caminho;
+}
+
+// ── CONTAI-092 · lembrete de pagamento no Google Agenda ───────────────────
+//
+// ⚠️ **Os dois cenários são montados pelo MESMO client autenticado do app**, com
+// a RLS da migration 0029 ligada: `authenticated` tem INSERT nas duas tabelas,
+// então plantar "já conectado" ou "esta sincronização falhou" é um estado que o
+// próprio produto alcança — não é furo de privilégio só para o teste.
+//
+// ⚠️ **O `refresh_token` plantado aqui é lixo de propósito.** Ele nunca é usado
+// contra o Google: o E2E não fala com a API real (critério 18), e o único
+// caminho que leria este valor é a sincronização com algo pendente, que os
+// testes evitam. Ver a nota das variáveis falsas em `playwright.config.ts`.
+
+/** Planta a autorização OAuth — estado 3 do card, ou 4 com `revogadoEm`. */
+export async function conectarGoogle(
+  db: Db,
+  over: Partial<TablesInsert<"integracao_google">> = {},
+): Promise<void> {
+  const { error } = await db.from("integracao_google").insert({
+    user_id: USER_ID_SEED,
+    refresh_token: "refresh-de-teste-que-nunca-sai-da-maquina",
+    email_conta: "mateus.obra@gmail.com",
+    escopo: "https://www.googleapis.com/auth/calendar.events",
+    concedido_em: "2026-09-12T13:00:00Z",
+    ...over,
+  });
+  conferir("conectar o Google Agenda", error);
+}
+
+/**
+ * Planta o estado de sincronização de UM compromisso. Com `ultimo_erro`, é o
+ * cenário da linha âmbar do detalhe (critério 9); sem ele, "está em dia".
+ */
+export async function sincronizacaoDoCompromisso(
+  db: Db,
+  compromissoId: string,
+  over: Partial<TablesInsert<"compromisso_agenda">> = {},
+): Promise<void> {
+  const { error } = await db.from("compromisso_agenda").insert({
+    compromisso_id: compromissoId,
+    user_id: USER_ID_SEED,
+    google_event_id: compromissoId.replace(/-/g, ""),
+    estado: "removido",
+    tentado_em: "2026-10-10T12:00:00Z",
+    ...over,
+  });
+  conferir("plantar a sincronização do compromisso", error);
+}
+
+export async function linhasDaAgenda(db: Db) {
+  const { data, error } = await db.from("compromisso_agenda").select("*");
+  conferir("ler compromisso_agenda", error);
+  return data!;
+}
+
+export async function integracaoGoogle(db: Db) {
+  const { data, error } = await db.from("integracao_google").select("*");
+  conferir("ler integracao_google", error);
+  return data!;
 }

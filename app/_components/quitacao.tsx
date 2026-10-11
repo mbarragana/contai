@@ -46,6 +46,7 @@ import {
   mensagemDeErroDeGravacao,
   quitarCompromisso,
   recusarQuitacao,
+  sincronizarAgenda,
 } from "@/lib/data";
 import {
   compromissosElegiveisParaQuitacao,
@@ -138,6 +139,12 @@ export function SugestaoQuitacao({
               ? { novaDataPrevista: escolha.novaDataPrevista }
               : {}),
           });
+          // CONTAI-092 — o lembrete acompanha o desfecho: quitação integral
+          // REMOVE o evento, quitação parcial o REAPONTA para a nova data
+          // prevista (ou o remove, quando o saldo fica sem data). Quem decide
+          // é o estado derivado no servidor, não esta tela — por isso a mesma
+          // chamada serve aos dois casos.
+          sincronizarAgenda(compromisso.id);
           onQuitou?.();
         }
         setTentativa((t) => t + 1);

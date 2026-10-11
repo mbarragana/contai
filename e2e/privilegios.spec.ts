@@ -171,6 +171,35 @@ const ESPERADO: Record<string, string> = {
   // SEM UPDATE: a linha É o par (PK composta), não há coluna a corrigir. Trocar
   // de nota é remover um par e inserir outro.
   compromisso_documento_previsto: "DELETE,INSERT,SELECT",
+
+  // ── CONTAI-092 (migration 0029) ─────────────────────────────────────────
+  // As duas nascem aqui, e as duas precisaram de `revoke` ANTES do `grant` —
+  // pelo mesmo motivo de todas as anteriores. Aqui a aposta é mais alta: uma
+  // delas guarda um refresh token de conta Google, e tabela nova nascendo
+  // liberada para `anon` no stack local significaria a suíte verde sobre uma
+  // credencial acessível ao anônimo.
+  //
+  // ⚠️ **Nenhuma das duas é fiscal.** Elas não entram em soma nenhuma, não
+  // alimentam relatório anual nem dossiê de venda, e a falha de sincronização
+  // que mora em `compromisso_agenda.ultimo_erro` **não é** `pendencia`
+  // (critério 9 do ticket, ressalva do `contador`).
+  //
+  // SEM DELETE nas duas:
+  // * `integracao_google` — revogação DETECTADA é UPDATE de `revogado_em`,
+  //   nunca apagar a linha: apagar perderia `concedido_em` e `email_conta`, que
+  //   são o que o card do estado 4 mostra para o Mateus reconhecer a conta certa
+  //   ao reconectar. "Desconectar pelo app" está fora de escopo (o caminho que
+  //   existe é revogar na própria conta Google), e privilégio sem caminho na
+  //   interface é superfície à toa.
+  // * `compromisso_agenda` — remover o EVENTO é `estado = 'removido'`, uma
+  //   transição registrada. Sem a linha, a reconciliação não saberia que existiu
+  //   evento, e um `events.delete` perdido viraria lembrete fantasma permanente.
+  //
+  // UPDATE em `integracao_google` serve a dois atos: reautorizar (upsert pela
+  // PK) e marcar a revogação. Em `compromisso_agenda`, ao resultado de cada
+  // tentativa de sincronização.
+  integracao_google: "INSERT,SELECT,UPDATE",
+  compromisso_agenda: "INSERT,SELECT,UPDATE",
 };
 
 /**

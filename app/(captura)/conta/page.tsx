@@ -1,8 +1,10 @@
 "use client";
 
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { COLUNA_DO_FORMULARIO } from "@/app/_components/captura";
+import { CardIntegracoes } from "@/app/_components/integracoes";
 import { useSessao } from "@/app/_components/sessao";
 import {
   AppBar,
@@ -18,7 +20,14 @@ import {
   Linha,
   Rodape,
 } from "@/app/_components/ui";
-import { carregarObras, classificarErro, type ErroDeTela } from "@/lib/data";
+import type { DadosDaIntegracao } from "@/lib/agenda/estado";
+import { PARAM_RESULTADO, type ResultadoOAuth } from "@/lib/agenda/oauth";
+import {
+  carregarEstadoDaAgenda,
+  carregarObras,
+  classificarErro,
+  type ErroDeTela,
+} from "@/lib/data";
 
 /**
  * Tela 7 do mock CONTAI-002 — a conta e a saída (critério 6).
@@ -34,20 +43,58 @@ import { carregarObras, classificarErro, type ErroDeTela } from "@/lib/data";
 type Estado =
   | { fase: "carregando" }
   | { fase: "erro"; erro: ErroDeTela }
-  | { fase: "pronto"; obras: number };
+  | {
+      fase: "pronto";
+      obras: number;
+      /**
+       * CONTAI-092 — o estado do card "Integrações". `"erro"` é um valor, não
+       * uma exceção: a leitura da integração **não pode** derrubar a tela que
+       * mostra e-mail, obras e a saída da conta.
+       */
+      integracao: DadosDaIntegracao | "erro";
+    };
+
+/** Nomes válidos do parâmetro transitório da volta do OAuth (critério 17). */
+function avisoDaVolta(bruto: string | null): ResultadoOAuth | null {
+  return bruto === "negado" || bruto === "falhou" ? bruto : null;
+}
 
 export default function Conta() {
   const { email, sairDaConta } = useSessao();
+  const router = useRouter();
+  const parametros = useSearchParams();
   const [estado, setEstado] = useState<Estado>({ fase: "carregando" });
   const [tentativa, setTentativa] = useState(0);
   const [saindo, setSaindo] = useState(false);
+
+  /**
+   * CONTAI-092 — o aviso da volta cancelada/negada, lido UMA vez e descartado.
+   * Capturado em estado no primeiro render para sobreviver ao `router.replace`
+   * que limpa a URL: sem a limpeza, um F5 reexibiria o aviso de uma tentativa
+   * que o Mateus já esqueceu (o spec pede "não persiste em refresh").
+   */
+  const [aviso] = useState<ResultadoOAuth | null>(() =>
+    avisoDaVolta(parametros.get(PARAM_RESULTADO)),
+  );
+  useEffect(() => {
+    if (parametros.get(PARAM_RESULTADO) !== null) router.replace("/conta");
+  }, [parametros, router]);
 
   useEffect(() => {
     let cancelado = false;
     void (async () => {
       try {
-        const obras = await carregarObras();
-        if (!cancelado) setEstado({ fase: "pronto", obras: obras.length });
+        // Em paralelo, e a falha da integração é CAPTURADA como valor: o spec
+        // pede o card já resolvido junto com o `fase: "pronto"` da tela, e um
+        // `Promise.all` que rejeita por causa dela levaria `/conta` inteira
+        // para o estado de erro.
+        const [obras, integracao] = await Promise.all([
+          carregarObras(),
+          carregarEstadoDaAgenda().catch(() => "erro" as const),
+        ]);
+        if (!cancelado) {
+          setEstado({ fase: "pronto", obras: obras.length, integracao });
+        }
       } catch (erro) {
         if (!cancelado) setEstado({ fase: "erro", erro: classificarErro(erro) });
       }
@@ -97,6 +144,14 @@ export default function Conta() {
               pede a senha de novo. Sair só é necessário se este aparelho deixar
               de ser seu.
             </Dica>
+
+            {/* CONTAI-092 — entre "informação neutra" e "ação destrutiva",
+                nunca ao lado da segunda (spec de design). */}
+            <CardIntegracoes
+              dados={estado.integracao}
+              aviso={aviso}
+              onRecarregar={tentarDeNovo}
+            />
 
             <Card>
               <Chip cor="red">Sair</Chip>
