@@ -1,6 +1,53 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 17 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 21 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-10-14**: **`CONTAI-093`/`094`/`095`/`096` criados, P1** — relato de
+backlog (`109`): Mateus quer que o engenheiro da obra (hoje intermediário via
+WhatsApp/e-mail) acesse o sistema direto, cadastrando `documento` e criando
+`compromisso` em nome próprio, ficando pendente de revisão do Mateus;
+confirmar `pagamento` continua exclusivo dele. **3 perguntas do relato já
+respondidas pelo Mateus em 2026-10-14**: visibilidade configurável por
+vínculo colaborador↔obra (restrita OU total, não fixa); **N colaboradores**
+por obra desde já; cadastro direto por e-mail, sem convite/aceite. `/tickets-req`
+completo, com a mesma lacuna estrutural que pausou o `CONTAI-011` em
+2026-09-23 (RLS hoje é `user_id = auth.uid()`, dono único) agora desenhada de
+verdade, não mais evitada. `cto-obra` **fatiou em 4 tickets** (doutrina do
+`CONTAI-011`/`049`/`050`), 4 migrations, cada uma com `GRANT` próprio e diff
+em `e2e/privilegios.spec.ts`: **`093`** (base, bloqueia as outras 3) — tabela
+`obra_colaborador` (vínculo, visibilidade, soft-delete por `removido_em`),
+colunas `criado_por`/`revisado_em`/`revisado_por` em `documento`/`compromisso`
+com trigger de imutabilidade, trigger `user_id_da_obra` (todo registro nasce
+no acervo do dono, nunca do colaborador), função única
+`visibilidade_na_obra` (usada por todas as RLS das 3 fatias seguintes),
+gestão de acesso por e-mail cobrindo os 2 casos de primeiro login (conta já
+existe vs. nasce depois — convergem por trigger em `auth.users`, sem RPC,
+sem service key), shell do colaborador que nunca renderiza Home/`/despesas`/
+relatórios (ausência estrutural, não CSS). **`094`** — colaborador cadastra
+`documento` pela mesma rota `/adicionar/documento`, mesma documentação hábil
+do dono (confirmado pelo `contador`: nota é nota, independente de quem
+cadastrou); fila de revisão do dono na Home/`despesas`; **novo parecer**
+`docs/pareceres/2026-10-14-veto-relatorio-documento-colaborador-nao-revisado.md`
+— documento de colaborador não revisado veta as 3 saídas anuais, por
+fundamento diferente de "sem arquivo" (falta o ato do declarante, não o
+documento). **`095`** — colaborador cria `compromisso` por rota exclusiva
+`/adicionar/compromisso`, que **nunca importa** `decidirRegistro`/
+`criarPagamento`: trava contra "pagamento fantasma" em 3 camadas (RLS de
+`pagamento` sempre dono mesmo que a UI tenha bug; ausência estrutural do
+import; teste-trava Vitest). `decidirRegistro` não ganha parâmetro de
+autoria — o `cto-obra` discordou dessa opção, citando o mesmo defeito do
+campo `status` do parecer de 18/08 §2 (flag que todo chamador tem de
+lembrar). **`096`** — visibilidade "total" ganha leitura (nunca escrita) de
+`pagamento` já confirmado, com indicador "Modo leitura" nas 3 telas de
+detalhe. `designer`: nível 1 (`093`, `095` — telas/rotas inteiramente
+novas), nível 2 (`094`, `096` — delta em tela existente); 4 specs em
+`design/mocks/CONTAI-093.md` a `096.md`. Dependência: `093` bloqueia as
+outras 3; `094`/`095`/`096` são independentes entre si. **Prontos para
+`/develop`**, na ordem `093` → (`094`/`095`/`096` em qualquer ordem).
+Perguntas abertas de produto para o Mateus, não decididas pelo pipeline: a
+interpretação exata de "restrita" (só o que cadastra, ou também os
+pendentes de outros?) e se um mesmo colaborador pode atuar em mais de uma
+obra ao mesmo tempo. Detalhe: `docs/tickets/CONTAI-093.md` a `096.md`.
 
 **2026-10-11, mais tarde**: **`092` entregue** — Gate 4 (`po`), 19/19
 critérios PASS (o 18, cadastro das URIs de redirect no Google Cloud Console,
