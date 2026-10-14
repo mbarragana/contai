@@ -49,6 +49,32 @@ interpretação exata de "restrita" (só o que cadastra, ou também os
 pendentes de outros?) e se um mesmo colaborador pode atuar em mais de uma
 obra ao mesmo tempo. Detalhe: `docs/tickets/CONTAI-093.md` a `096.md`.
 
+**Atualização 2026-10-14, mesmo dia** — as duas perguntas acima foram
+respondidas pelo Mateus, mudando (não só confirmando) o desenho: **"restrita"
+= próprios registros + todos os pendentes de revisão da obra** (não só os
+próprios); **colaborador pode atuar em N obras do Mateus simultaneamente,
+desde já**. `cto-obra` reavaliou arquitetura e `po` checou critérios de
+aceite — EMENDA aplicada direto nos 4 tickets e nos specs de `093`/`094`/
+`095`/`096` (sem ticket novo: `po` recomendou **não** criar `CONTAI-097`).
+Pontos centrais da emenda: coluna gerada `pendente_revisao` em `documento`/
+`compromisso` (fonte única para RLS, `/despesas`, Home, lista do colaborador
+e `podeGerarRelatorioAnual` — corrige o achado de que `revisado_em is null`
+sozinho incluiria todo registro do próprio Mateus, que nunca passa pela ação
+"Revisado"); correção de bug real em `visibilidade_na_obra` (faltava filtrar
+por `obra_id`, latente mesmo antes da resposta de multi-obra); shell do
+colaborador ganha tela nova `/colaborador/[obraId]` (a tela de lista de
+obras vira só "entrar nesta obra"; é ali, por obra, que documento/compromisso
+do colaborador realmente vivem); `papelDaSessao()` e guardas de rota novos
+(dono nunca cai na área do colaborador e vice-versa). Complexidade: `093`
+**M → M/L**; `096` **S/M → M** (infraestrutura de rota alcançável pelo
+colaborador concentrada no critério 16 da `093`, não duplicada em `096`);
+`094` mantém **M/L**, `095` mantém **M** com uma ressalva técnica (mecanismo
+de fechamento de `revisado_em` em `compromisso`, critério 9 novo da `095`)
+para o `cto-obra` confirmar no Gate 2. Pergunta nova e única que resta ao
+Mateus: num item pendente de **outro** colaborador, mostrar "criado por
+outro colaborador" sem nome (default proposto, mais simples) ou vale o custo
+de uma função `security definer` extra para mostrar o nome real?
+
 **2026-10-11, mais tarde**: **`092` entregue** — Gate 4 (`po`), 19/19
 critérios PASS (o 18, cadastro das URIs de redirect no Google Cloud Console,
 marcado "PASS condicional": ação de dashboard fora do código, verificação

@@ -5,6 +5,14 @@ feature — P1 — entrega o núcleo da dor original do relato 109 (engenheiro
 cadastra a nota direto, sem passar por WhatsApp/e-mail). Depende de
 `CONTAI-093`.
 
+## EMENDA pós-Gate-4 (2026-10-14)
+O Mateus respondeu, no mesmo dia da criação deste ticket, duas Perguntas
+Abertas do `CONTAI-093` que mudam critérios já escritos aqui: (1) "restrita"
+= próprios + todos os pendentes de revisão da obra (não só os próprios); (2)
+multi-obra desde já. Critérios 2, 4, 8, 9, 10, 13 revisados abaixo; critério
+14 é novo. Reavaliação de arquitetura: `cto-obra`; checagem de critérios:
+`po`. Complexidade mantém **M/L**.
+
 ## Dor de Origem
 `docs/backlog/109-2026-10-14-engenheiro-acesso-multiusuario.md`: "seria ainda
 mais fácil pra mim se ao invés de ele me mandar a nota fiscal e eu baixar e
@@ -29,17 +37,25 @@ confirmado pessoalmente os fatos que ele registrou.
    documentação hábil muda em função de quem cadastra (confirmado pelo Gate
    Fiscal). A única diferença de fluxo é o texto final de confirmação
    (critério 6).
-2. [ ] RLS de `documento`: `select` quando `user_id = auth.uid()` (dono) **ou**
-   `visibilidade_na_obra(obra_id) = 'total'` **ou**
-   (`visibilidade_na_obra(obra_id) = 'restrita' and criado_por = auth.uid()`);
-   `insert with check (criado_por = auth.uid() and (user_id = auth.uid() or
+2. [ ] **Emenda 2026-10-14** — RLS de `documento`: `select` quando `user_id =
+   auth.uid()` (dono) **ou** `visibilidade_na_obra(obra_id) = 'total'`
+   **ou** (`visibilidade_na_obra(obra_id) = 'restrita' and (criado_por =
+   auth.uid() or pendente_revisao)`) — a visibilidade "restrita" deixou de
+   ser só "o que eu criei": por resposta do Mateus de 2026-10-14, inclui
+   também qualquer documento pendente de revisão da obra, de qualquer
+   colaborador (`pendente_revisao`, `CONTAI-093` critério 6). `insert with
+   check (criado_por = auth.uid() and (user_id = auth.uid() or
    visibilidade_na_obra(obra_id) is not null))` — o `user_id` chega do
    trigger `user_id_da_obra` (`CONTAI-093`) como o do dono, e `criado_por =
    auth.uid()` impede forjar autoria; `update using/with check (user_id =
-   auth.uid())` — **colaborador nunca corrige o que criou**, correção vira
-   sempre ato do Mateus, com o mesmo rastro de revisão já existente
-   (`revisao`). `documento_retencao` recebe a mesma partição (deriva do
-   documento a que pertence).
+   auth.uid())` — **colaborador nunca corrige o que viu**, criado por ele ou
+   por outro, correção vira sempre ato do Mateus, com o mesmo rastro de
+   revisão já existente (`revisao`). `documento_retencao`: **select** herda
+   a mesma partição ampliada do documento-pai (via `exists (select 1 from
+   documento d where d.id = documento_id)`, nunca repetindo o predicado —
+   doutrina CONTAI-072); **insert/update/delete** continuam restritos a dono
+   ou ao autor do documento a que pertence — colaborador não ganha poder de
+   edição sobre o que não criou só porque passou a poder ler.
 3. [ ] RLS de `favorecido`: `select`/`insert` quando `user_id = auth.uid()`
    **ou** `user_id` é de uma obra em que o usuário é colaborador ativo;
    `update` continua só dono. `garantirFavorecido` passa a receber o
@@ -54,6 +70,11 @@ confirmado pessoalmente os fatos que ele registrou.
    inferir de `getUsuarioId()` — todo chamador passa a dizer de quem é o
    acervo. Policy de `insert`/`select` em `storage.objects` acompanha a
    mesma regra de visibilidade do critério 2 (via subquery em `documento`).
+   **Emenda 2026-10-14**: como a visibilidade "restrita" agora inclui os
+   pendentes de revisão de qualquer colaborador (critério 2), a policy de
+   `select` do anexo acompanha essa ampliação — um colaborador restrito pode
+   abrir o anexo de uma nota pendente cadastrada por **outro** colaborador,
+   não só da própria.
 5. [ ] Colunas `revisado_em`/`revisado_por` (`CONTAI-093`) são preenchidas só
    pelo Mateus, via ação "Revisado" — trigger `revisado_imutavel` (`before
    update`) impede que `revisado_em` volte de preenchido para `null` ou seja
@@ -68,29 +89,45 @@ confirmado pessoalmente os fatos que ele registrou.
    trabalho, não dívida documental — misturar cor arriscaria o Mateus ler
    "aguardando revisão" como "pendência fiscal"); link "Ver fila (N) →" leva
    a `/despesas` já com o filtro de revisão aplicado.
-8. [ ] `/despesas`: filtro novo "Aguardando revisão" (ao lado de
-   Situação/Tipo/Busca); cada linha criada por colaborador ganha uma segunda
-   linha de texto secundário "criado por {nome} em dd/MM/aaaa" (mesmo padrão
-   tipográfico já usado para a nota de agendamento, `CONTAI-057`/`091`) e uma
-   ação "Revisado" na célula de Ação, com peso visual **secundário/ghost**
-   (nunca o mesmo peso do botão que confirma pagamento, para não parecer uma
+8. [ ] **Emenda 2026-10-14** — `/despesas`: filtro novo "Aguardando revisão"
+   (ao lado de Situação/Tipo/Busca) filtra exatamente por
+   `documento.pendente_revisao = true` — **nunca** por `revisado_em is null`
+   isolado, que incluiria todo documento do próprio Mateus (ele nunca passa
+   pela ação "Revisado"). Cada linha com `pendente_revisao = true` ganha uma
+   segunda linha de texto secundário "criado por {nome} em dd/MM/aaaa" (o
+   dono sempre vê o nome real, isso não muda; mesmo padrão tipográfico já
+   usado para a nota de agendamento, `CONTAI-057`/`091`) e uma ação
+   "Revisado" na célula de Ação, com peso visual **secundário/ghost** (nunca
+   o mesmo peso do botão que confirma pagamento, para não parecer uma
    confirmação de pagamento).
-9. [ ] Lista de documentos do colaborador (área da `CONTAI-093`): mostra os
-   dele (visibilidade restrita) ou o acervo inteiro (visibilidade total), com
-   chip `CHIP_PENDENTE_REVISAO = "Pendente de revisão"` ou `CHIP_REVISADO =
-   "Revisado"` — cor neutra (mesma régua do critério 7), nunca as cores de
-   gravidade fiscal (vermelho/âmbar/verde), porque isto não é pendência
-   fiscal. Nomenclatura exata sujeita à confirmação do `po` (pergunta aberta).
-10. [ ] **Veto às saídas anuais**: se um `documento` foi cadastrado por
-    colaborador e `revisado_em is null` → a tela que lista o que falta
-    revisar antes de gerar a saída anual **avisa** (lista o que falta
-    revisar) e `podeGerarRelatorioAnual` **veta** as três saídas (Bens e
-    Direitos, Pagamentos Efetuados, aferição INSS) enquanto a pendência
-    existir, pelo parecer transcrito em
+9. [ ] **Emenda 2026-10-14** — Lista de documentos do colaborador (tela (c)
+    da `CONTAI-093`, `/colaborador/[obraId]`): para visibilidade
+    **restrita**, mostra os documentos que ele próprio criou **mais** todos
+    os documentos com `pendente_revisao = true` da mesma obra criados por
+    **outros** colaboradores; para visibilidade **total**, mostra o acervo
+    inteiro da obra. Cada item ganha chip `CHIP_PENDENTE_REVISAO = "Pendente
+    de revisão"` ou `CHIP_REVISADO = "Revisado"` — cor neutra (mesma régua
+    do critério 7), nunca as cores de gravidade fiscal (vermelho/âmbar/
+    verde), porque isto não é pendência fiscal. Quando o item não foi
+    criado pelo próprio colaborador logado, o rótulo de autoria é **"criado
+    por você"** (quando foi ele) ou **"criado por outro colaborador"** (sem
+    nome, nunca o nome real) — o colaborador não tem, por RLS, como ler o
+    nome de outro colaborador na tabela `obra_colaborador`; só o dono vê
+    nomes reais, em qualquer tela sua. Nomenclatura dos chips confirmada
+    pelo `po`.
+10. [ ] **Veto às saídas anuais** (reescrito, Emenda 2026-10-14, mesma regra,
+    agora amarrada à coluna única): quando `documento.pendente_revisao =
+    true` → a tela que lista o que falta revisar antes de gerar a saída
+    anual **avisa** (lista o que falta revisar) e `podeGerarRelatorioAnual`
+    **veta** as três saídas (Bens e Direitos, Pagamentos Efetuados, aferição
+    INSS) enquanto a pendência existir, pelo parecer transcrito em
     `docs/pareceres/2026-10-14-veto-relatorio-documento-colaborador-nao-revisado.md`.
-    O documento continua gravando no acervo normalmente (nunca recusa fato
-    consumado); o único destravamento é a revisão/confirmação do Mateus
-    (critério 8), nunca upload de arquivo.
+    (Equivalente à condição anterior "cadastrado por colaborador e
+    `revisado_em is null`"; a reescrita só amarra à coluna única em vez de
+    repetir a composição em cada lugar — doutrina CONTAI-072.) O documento
+    continua gravando no acervo normalmente (nunca recusa fato consumado); o
+    único destravamento é a ação "Revisado" do Mateus (critério 8), nunca
+    upload de arquivo.
 11. [ ] Ficha Pagamentos Efetuados: quando o pagamento listado tem origem em
     documento cadastrado por colaborador, isso é marcado só no registro
     interno (autoria), sem alterar o conteúdo da ficha em si — a ficha
@@ -101,12 +138,23 @@ confirmado pessoalmente os fatos que ele registrou.
     e pela policy nova em `storage.objects`.
 13. [ ] E2E novo (`e2e/colaborador-documento.spec.ts`, Postgres local, client
     autenticado): colaborador cadastra documento e ele aparece na fila do
-    dono com autoria correta; colaborador com visibilidade restrita não vê
-    documento de outro colaborador nem do dono; colaborador com visibilidade
-    total vê; `podeGerarRelatorioAnual` veta quando há documento de
-    colaborador não revisado e destrava depois da ação "Revisado"; tentativa
-    de colaborador dar `update` em documento que não criou é recusada pela
-    RLS.
+    dono com autoria correta; colaborador com visibilidade restrita **não**
+    vê documento já revisado de outro colaborador nem do dono, **mas vê**
+    (Emenda 2026-10-14) documento pendente de revisão cadastrado por outro
+    colaborador da mesma obra; colaborador com visibilidade total vê tudo;
+    `podeGerarRelatorioAnual` veta quando há documento de colaborador não
+    revisado (`pendente_revisao = true`) e destrava depois da ação
+    "Revisado"; tentativa de colaborador dar `update` em documento que não
+    criou (seu ou de outro colaborador) é recusada pela RLS.
+14. [ ] **Critério novo, Emenda 2026-10-14.** `/documento/[id]`: quando quem
+    abre é colaborador com visibilidade **restrita** olhando um documento
+    que **não** criou (pendente de outro colaborador, agora visível pelo
+    critério 2), a tela entra no mesmo "modo leitura" da `CONTAI-096`
+    (critério 4/5 ampliado) — nenhum botão de ação aparece, mesmo indicador
+    textual discreto. A lista do colaborador (critério 9) passa a linkar
+    para `/documento/[id]` nesse caso. Isso não existia antes porque, antes
+    da Emenda, "restrita" nunca via documento de outro colaborador — não
+    havia o que abrir.
 
 ## Out of Scope
 - Colaborador criar/editar vínculo `pagamento_documento` ("ligar a um
@@ -217,16 +265,21 @@ combinando (sem reinterpretar) `docs/pareceres/2026-08-23-anexo-no-desembolso-do
 ## Dependências
 Bloqueado por `CONTAI-093`. Não bloqueia `CONTAI-095`/`CONTAI-096`
 diretamente (as três fatias de escrita/leitura são independentes entre si
-depois de `093`).
+depois de `093`). **Emenda 2026-10-14**: o critério 14 (modo leitura em
+`/documento/[id]`) depende também do critério 16 da `CONTAI-093`
+(`papelDaSessao`, guardas de rota) para a rota ser alcançável pelo
+colaborador.
 
 ## Perguntas Abertas
 1. Texto exato da tela de confirmação quando quem salva é colaborador
    (designer).
 2. Card da Home quando N=0: não aparece, ou aparece esmaecido com "Nenhum
    registro aguardando revisão"? (designer).
-3. Nomenclatura dos chips — `"Pendente de revisão"`/`"Revisado"` propostos
-   pelo designer, ou o `po` prefere outro rótulo para não colidir
-   semanticamente com "pendência" fiscal (ex.: "Aguardando revisão")?
+3. ~~Nomenclatura dos chips~~ — **resolvida pelo `po` na Emenda 2026-10-14**:
+   mantém `CHIP_PENDENTE_REVISAO = "Pendente de revisão"` /
+   `CHIP_REVISADO = "Revisado"` (critério 9); rótulo de autoria novo "criado
+   por você"/"criado por outro colaborador" (sem nome) também fechado no
+   critério 9, não é mais pergunta aberta.
 4. Botão "Revisado" em `/despesas`: ação de um clique sem confirmação, ou
    exige passo de confirmação, já que é o que libera o veto às saídas
    anuais? (designer).

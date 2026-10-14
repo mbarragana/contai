@@ -7,6 +7,13 @@ conjunto de campos que a ramificação de agendamento dentro de
 previsto, vencimento, nota de origem/vínculo opcional) — só muda o **ponto
 de entrada e o desligamento da bifurcação por data**.
 
+## EMENDA pós-Gate-4 (2026-10-14)
+A resposta do Mateus de que "restrita" = próprios registros + todos os
+pendentes de revisão da obra muda o delta de `/compromisso/[id]` (abaixo) e
+adiciona uma lista de compromissos do colaborador que não existia neste
+mock — espelho da lista de documentos da `CONTAI-094`, vivendo na mesma
+tela (c) da `CONTAI-093` (`/colaborador/[obraId]`).
+
 ## Cenário
 
 Captura, pelo colaborador, no mesmo sentido do `CONTAI-094` — mesma pressa
@@ -44,9 +51,33 @@ não um upload novo.
 
 Quando o compromisso foi criado por colaborador, a tela passa a mostrar
 "criado por {nome}" (mesmo padrão tipográfico secundário já usado em outras
-telas de autoria desta rodada) e os botões de resposta/confirmação de
-pagamento **não aparecem** para o colaborador — nem escondidos por CSS, a
-ausência é condicional ao papel de quem está vendo a tela.
+telas de autoria desta rodada) para o **dono**; os botões de
+resposta/confirmação de pagamento **não aparecem** para o colaborador —
+nem escondidos por CSS, a ausência é condicional ao papel de quem está
+vendo a tela.
+
+**Emenda 2026-10-14**: quando quem abre é o próprio **colaborador**
+(qualquer visibilidade) olhando um compromisso que **não** criou (pendente
+de outro colaborador, visível agora pela visibilidade "restrita" ampliada),
+a tela mostra "criado por você"/"criado por outro colaborador" (sem nome —
+mesma régua da `CONTAI-094`) e entra em modo leitura: mesmo indicador
+textual discreto da `CONTAI-096` ("Modo leitura — ações são exclusivas do
+dono da obra"), nenhum botão de resposta, nem para o criador original.
+
+## Delta novo — lista de compromissos do colaborador (Emenda 2026-10-14)
+
+Mesma tela (c) da `CONTAI-093` (`/colaborador/[obraId]`) que já hospeda a
+lista de documentos da `CONTAI-094` — esta fatia acrescenta a seção
+equivalente para compromissos, no mesmo padrão visual (mesma tela, pode ser
+uma segunda lista/seção abaixo da de documentos, não uma rota nova). Para
+visibilidade **restrita**: compromissos que o colaborador criou **mais**
+todos os pendentes de revisão da obra criados por outros colaboradores.
+Para **total**: todos os compromissos da obra. Mesmos chips
+(`CHIP_PENDENTE_REVISAO`/`CHIP_REVISADO`) e mesmo rótulo de autoria ("criado
+por você"/"criado por outro colaborador") da `CONTAI-094` Delta 4 —
+reaproveitar os componentes, não recriar. Item pendente de outro
+colaborador é clicável e abre `/compromisso/[id]` em modo leitura (delta
+acima).
 
 ## Campos
 

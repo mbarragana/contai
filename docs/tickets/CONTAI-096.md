@@ -5,6 +5,17 @@ feature — P1 — completa a opção "total" de visibilidade fechada pelo Mateu
 (resposta 1 do backlog 109). Depende de `CONTAI-093`; independente de
 `CONTAI-094`/`CONTAI-095`.
 
+## EMENDA pós-Gate-4 (2026-10-14)
+O Mateus respondeu, no mesmo dia da criação deste ticket, duas Perguntas
+Abertas do `CONTAI-093` que mudam critérios já escritos aqui: (1) "restrita"
+= próprios + todos os pendentes de revisão da obra (não só os próprios) —
+isso faz o colaborador **restrito** também abrir registro que não criou,
+não só o "total"; (2) multi-obra desde já. Critérios 4 e 5 revisados;
+critério 10 é novo (dependência de roteamento). Reavaliação de arquitetura:
+`cto-obra`; checagem de critérios: `po`. Complexidade: **S/M → M**, com a
+infraestrutura de roteamento movida para o critério 16 da `CONTAI-093` (não
+duplicada aqui).
+
 ## Dor de Origem
 `docs/backlog/109-2026-10-14-engenheiro-acesso-multiusuario.md`, resposta do
 Mateus: "visibilidade: configurável, as duas opções existem [...] o
@@ -36,21 +47,28 @@ de direito exclusivo.
    from pagamento p where p.comprovante_path = name)` na mesma regra de
    visibilidade — colaborador com visão total pode abrir o comprovante de um
    pagamento já confirmado; nunca envia/substitui.
-4. [ ] `/documento/[id]`, `/compromisso/[id]`, `/pagamento/[id]`: quando o
-   colaborador tem visibilidade "total" e está olhando um registro que não é
-   dele (já confirmado pelo dono, ou criado por outro colaborador), **todos**
-   os botões de ação desaparecem condicionalmente — nunca edita, nunca
-   confirma, nunca liga/desliga vínculo. Isso vale também por navegação
-   direta a sub-rotas de ação (`/documento/[id]/ligar`,
-   `/pagamento/[id]/comprovante`, `/compromisso/[id]/confirmar` etc.) — a
-   RLS de escrita (critério 1-2) garante que a gravação é recusada mesmo se
-   a tela chegar a renderizar; a UI não depende disso para decidir o que
-   mostrar.
-5. [ ] As três telas do critério 4 ganham um indicador textual discreto no
-   topo, para o colaborador com visão total ("Modo leitura — ações são
-   exclusivas do dono da obra"), com peso visual de legenda — não é banner
-   de alerta, não usa a paleta de pendência fiscal. Texto exato em
-   `design/mocks/CONTAI-096.md` (pergunta aberta).
+4. [ ] **Emenda 2026-10-14** — `/documento/[id]`, `/compromisso/[id]`: todos
+   os botões de ação desaparecem condicionalmente sempre que `criado_por <>
+   auth.uid()` **e** quem olha é colaborador — em **qualquer** visibilidade
+   (total **ou** restrita), não só total. Isso vale porque a decisão do
+   Mateus sobre "restrita" (ver EMENDA) fez o colaborador restrito também
+   abrir registro que não criou (o pendente de outro colaborador, ver
+   `CONTAI-094` critério 14 / `CONTAI-095` critério 4). `/pagamento/[id]`
+   **não muda**: continua condicionado só a `visibilidade_na_obra =
+   'total'`, porque colaborador restrito nunca lê nenhuma linha de
+   `pagamento` em hipótese alguma (`093`/`096` não dão RLS de `pagamento` a
+   restrita). Vale também por navegação direta a sub-rotas de ação
+   (`/documento/[id]/ligar`, `/pagamento/[id]/comprovante`,
+   `/compromisso/[id]/confirmar` etc.), nas três telas — a RLS de escrita
+   (critério 1-2) garante que a gravação é recusada mesmo se a tela chegar
+   a renderizar; a UI não depende disso para decidir o que mostrar.
+5. [ ] **Emenda 2026-10-14** — As três telas ganham o indicador textual
+   discreto no topo ("Modo leitura — ações são exclusivas do dono da
+   obra") sempre que o critério 4 (ou a regra equivalente de
+   `/pagamento/[id]`, só para "total") escondeu os botões — não só para
+   colaborador "total"; peso visual de legenda, não é banner de alerta, não
+   usa a paleta de pendência fiscal. Texto exato em `design/mocks/CONTAI-096.md`
+   (pergunta aberta).
 6. [ ] Nenhum texto fiscal muda nas três telas: quarentena, consequência de
    CNO, retenção etc. continuam aparecendo exatamente como para o dono — o
    colaborador com visão "total" vê o estado fiscal real, só não pode agir
@@ -71,6 +89,13 @@ de direito exclusivo.
    `insert`/`update` em `pagamento` é recusada pela RLS; navegação direta a
    `/pagamento/[id]/comprovante` por colaborador com visão total não produz
    gravação nenhuma mesmo que a tela renderize.
+10. [ ] **Critério novo, Emenda 2026-10-14.** `/documento/[id]`,
+    `/compromisso/[id]`, `/pagamento/[id]` precisam estar alcançáveis por
+    uma sessão de colaborador — hoje vivem só sob o layout de `(gestao)`,
+    que monta painel/sidebar dono-only. Depende da infraestrutura de papel
+    da `CONTAI-093` critério 16 (`papelDaSessao`/guardas de rota); este
+    ticket não resolve a bifurcação de layout por conta própria, só
+    consome o resultado dela.
 
 ## Out of Scope
 - Qualquer ação de escrita do colaborador sobre `pagamento` — permanece
@@ -133,9 +158,13 @@ só abre leitura, nunca escrita.
   `app/(gestao)/pagamento/[id]/page.tsx` (indicador de modo leitura +
   ocultação condicional de ações), `e2e/colaborador-visibilidade-total.spec.ts`,
   `e2e/privilegios.spec.ts`.
-- **Complexidade: S/M.** Independente de `CONTAI-094`/`095` — pode ser
-  implementado e revisado em paralelo com qualquer uma das duas, desde que
-  `CONTAI-093` já esteja em produção.
+- **Complexidade: M** (subiu de **S/M** na Emenda 2026-10-14 — critério 4
+  deixou de ser condicional só a "total"; o `po` recomenda, e este ticket
+  adota, mover a infraestrutura de roteamento alcançável pelo colaborador
+  para o critério 16 da `CONTAI-093` em vez de duplicá-la aqui, o que evita
+  subir para L). Independente de `CONTAI-094`/`095` — pode ser implementado
+  e revisado em paralelo com qualquer uma das duas, desde que `CONTAI-093`
+  já esteja em produção **e** seu critério 16 esteja pronto.
 - **Dívidas**: nenhuma nova além das já registradas nas fatias anteriores.
 
 ## Dependências

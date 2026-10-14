@@ -5,6 +5,16 @@ Nível 2 — reaproveita a tela de captura de documento já especificada
 `captura-no-desktop-v1.md`) e acrescenta campo/estado em três superfícies já
 existentes: Home, `/despesas`, e uma lista própria do colaborador.
 
+## EMENDA pós-Gate-4 (2026-10-14)
+A resposta do Mateus de que "restrita" = próprios registros + todos os
+pendentes de revisão da obra (não só os próprios) muda a Delta 4: a lista do
+colaborador agora pode mostrar documento pendente cadastrado por **outro**
+colaborador, não só do próprio. Isso introduz um rótulo de autoria novo
+("criado por você"/"criado por outro colaborador", sem nome) e um link para
+`/documento/[id]` em modo leitura que antes não existia (não havia o que
+abrir). A lista em si passa a viver na tela (c) nova da `CONTAI-093`
+(`/colaborador/[obraId]`), não mais numa tela filha genérica da shell.
+
 ## Cenário — dois lados da mesma fatia
 
 - Para o colaborador cadastrando: **captura**, no sentido pleno do
@@ -58,11 +68,20 @@ na célula de Ação.
 Clicar em "Revisado" não deve parecer uma confirmação de pagamento — botão
 secundário/ghost, nunca o mesmo peso visual do botão que confirma pagamento.
 
-## Delta 4 — lista do colaborador (tela filha da shell `093`)
+## Delta 4 — lista do colaborador (tela (c) da `CONTAI-093`, `/colaborador/[obraId]`)
 
-Dentro da área do colaborador, uma lista dos documentos que ele cadastrou
-(ou do acervo inteiro, se visibilidade = total), cada item com chip
-"Pendente de revisão" / "Revisado".
+**Reescrito pela Emenda 2026-10-14** (visibilidade "restrita" ampliada):
+dentro da tela (c), uma lista de documentos — para visibilidade
+**restrita**, os que o colaborador cadastrou **mais** os pendentes de
+revisão de qualquer outro colaborador da mesma obra; para visibilidade
+**total**, o acervo inteiro. Cada item com chip "Pendente de revisão" /
+"Revisado" **e** um rótulo de autoria: **"criado por você"** (quando foi o
+próprio colaborador logado) ou **"criado por outro colaborador"** (sem
+nome — o colaborador não tem como ler o nome de outro colaborador; só o
+dono vê nomes reais). Item pendente de outro colaborador é clicável e abre
+`/documento/[id]` em modo leitura (mesmo indicador da `CONTAI-096`,
+critério 4/5 ampliado) — nenhum botão de ação aparece lá, nem para o
+criador original.
 
 Constantes propostas, não-fiscais, em paralelo às `CHIP_*` existentes de
 `lib/fiscal/despesas.ts`: `CHIP_PENDENTE_REVISAO = "Pendente de revisão"` e
@@ -92,10 +111,10 @@ copy de produto/workflow, não consequência fiscal — não precisam ir ao
 
 1. Texto exato da tela de confirmação quando quem salva é colaborador.
 2. Card da Home quando N=0: não aparece, ou aparece esmaecido?
-3. Os rótulos `CHIP_PENDENTE_REVISAO`/`CHIP_REVISADO` propostos são
-   aceitáveis, ou o `po` já tem outra nomenclatura em mente (ex.:
-   "Aguardando revisão" em vez de "Pendente de revisão", para não colidir
-   semanticamente com "pendência" fiscal)?
+3. ~~Os rótulos `CHIP_PENDENTE_REVISAO`/`CHIP_REVISADO`~~ — **resolvida pelo
+   `po` na Emenda 2026-10-14**: mantidos como propostos; o rótulo de
+   autoria novo ("criado por você"/"criado por outro colaborador") também
+   já está fechado na Delta 4, não é mais pergunta aberta.
 4. Botão "Revisado" em `/despesas`: ação de um clique sem confirmação, ou
    exige um passo de confirmação (visto que é o que torna o registro
    "oficialmente revisado" pelo dono, e libera o veto às saídas anuais)?

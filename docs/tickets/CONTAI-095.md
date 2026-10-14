@@ -5,6 +5,17 @@ feature — P1 — completa o escopo de papéis do relato 109 (engenheiro també
 agenda compromissos de pagamento, não só cadastra nota). Depende de
 `CONTAI-093`.
 
+## EMENDA pós-Gate-4 (2026-10-14)
+O Mateus respondeu, no mesmo dia da criação deste ticket, duas Perguntas
+Abertas do `CONTAI-093` que mudam critérios já escritos aqui: (1) "restrita"
+= próprios + todos os pendentes de revisão da obra (não só os próprios); (2)
+multi-obra desde já. Critério 3 revisado; critérios 8 e 9 são novos (lista do
+colaborador e fechamento de `revisado_em` de `compromisso`, respectivamente);
+critério 4 ganha o modo leitura ampliado. Reavaliação de arquitetura:
+`cto-obra`; checagem de critérios: `po`. Complexidade mantém **M**, com uma
+ressalva técnica pendente de confirmação do `cto-obra` no Gate 2 sobre o
+mecanismo do critério 9.
+
 ## Dor de Origem
 `docs/backlog/109-2026-10-14-engenheiro-acesso-multiusuario.md`, correção do
 próprio Mateus: "essa pessoa já colocaria a data do vencimento, adicionaria a
@@ -45,22 +56,39 @@ nunca descubra um "pagamento" fantasma na minha apuração.
    varredura de `app/(captura)/adicionar/compromisso/` proibindo os
    literais `decidirRegistro`, `criarPagamento`,
    `subirParaAcervo(.*"comprovante"`.
-3. [ ] RLS de `compromisso`: mesma partição de `documento` (`CONTAI-094`
-   critério 2) — `select` por dono/visibilidade, `insert with check
-   (criado_por = auth.uid())`, `update` só dono (colaborador não corrige o
-   que criou; qualquer resposta ao compromisso — mudar data, confirmar
-   pagamento, cancelar — é sempre ato do Mateus). `compromisso_documento_previsto`
-   (pré-vínculo) ganha `insert` para colaborador — pré-vínculo é intenção,
-   não custo (ADENDO 6 §J.1 de
-   `docs/pareceres/2026-08-18-compromisso-versus-pagamento.md`).
+3. [ ] **Emenda 2026-10-14** — RLS de `compromisso`: `select` quando
+   `user_id = auth.uid()` (dono) **ou** `visibilidade_na_obra(obra_id) =
+   'total'` **ou** (`visibilidade_na_obra(obra_id) = 'restrita' and
+   (criado_por = auth.uid() or pendente_revisao)`) — mesma regra ampliada
+   da `CONTAI-094` critério 2, agora explícita aqui (e não só remetida,
+   porque o conteúdo da regra mudou depois que este ticket foi escrito pela
+   primeira vez); `insert with check (criado_por = auth.uid())`, `update` só
+   dono (colaborador não corrige o que viu, criado por ele ou por outro;
+   qualquer resposta ao compromisso — mudar data, confirmar pagamento,
+   cancelar — é sempre ato do Mateus). `compromisso_documento_previsto`
+   (pré-vínculo): **select** herda a mesma partição ampliada do
+   compromisso-pai; **insert** para colaborador (pré-vínculo é intenção, não
+   custo — ADENDO 6 §J.1 de
+   `docs/pareceres/2026-08-18-compromisso-versus-pagamento.md`), restrito a
+   `exists (select 1 from compromisso c where c.id = compromisso_id and
+   (c.user_id = auth.uid() or c.criado_por = auth.uid()))` e a um documento
+   que o chamador já enxerga; **delete** só dono.
    `compromisso_data_historico`/`compromisso_valor_historico` continuam
    dono-only (derivam de correção, que é sempre do Mateus).
 4. [ ] `/compromisso/[id]`: quando o compromisso foi criado por colaborador,
    mostra "criado por {nome}" (mesmo padrão tipográfico secundário das
-   demais telas de autoria desta rodada); os botões de resposta/confirmação
-   de pagamento **não aparecem** para o colaborador — ausência condicional
-   ao papel de quem está vendo a tela (RLS de `update`/`pagamento` já barra
-   no nível de dados; a UI não é a única trava).
+   demais telas de autoria desta rodada) para o **dono**; os botões de
+   resposta/confirmação de pagamento **não aparecem** para o colaborador —
+   ausência condicional ao papel de quem está vendo a tela (RLS de
+   `update`/`pagamento` já barra no nível de dados; a UI não é a única
+   trava). **Emenda 2026-10-14**: quando quem abre é colaborador com
+   visibilidade restrita olhando um compromisso que **não** criou (pendente
+   de outro colaborador, agora visível pelo critério 3), a tela entra no
+   mesmo "modo leitura" da `CONTAI-096` ampliado — nenhum botão de resposta
+   aparece, mesmo para o criador original (que também não tem esse poder);
+   mostra "criado por você"/"criado por outro colaborador" (sem nome),
+   mesma regra da `CONTAI-094` critério 9. A lista do colaborador (critério
+   8 novo) linka para esta tela nesse caso.
 5. [ ] `app/api/google/agenda/*` (`CONTAI-092`) recusa (403) qualquer
    requisição de usuário com papel colaborador — hoje `integracao_google` é
    por `user_id = auth.uid()`; sem essa trava, um colaborador com visão
@@ -76,7 +104,30 @@ nunca descubra um "pagamento" fantasma na minha apuração.
    direta de `criarPagamento` pelo client do colaborador é recusada pela
    RLS (erro de permissão, não "0 linhas"); `/compromisso/[id]` não mostra
    botão de confirmar pagamento para o colaborador; `app/api/google/agenda/*`
-   devolve 403 para sessão de colaborador.
+   devolve 403 para sessão de colaborador. **Emenda 2026-10-14**: colaborador
+   restrito lê compromisso pendente de revisão cadastrado por outro
+   colaborador da mesma obra, mas tentativa de `update` nele (de qualquer
+   colaborador, criador ou não) é recusada pela RLS.
+8. [ ] **Critério novo, Emenda 2026-10-14.** Lista de compromissos do
+   colaborador (tela (c) da `CONTAI-093`, mesma área que a lista de
+   documentos): para visibilidade **restrita**, mostra os compromissos que
+   ele criou **mais** todos com `pendente_revisao = true` da obra criados
+   por outros colaboradores; para **total**, o acervo inteiro. Mesmos chips
+   e mesmo rótulo de autoria ("criado por você"/"criado por outro
+   colaborador") da `CONTAI-094` critério 9 — reaproveitar as mesmas
+   constantes, nunca duplicar nomenclatura.
+9. [ ] **Critério novo, Emenda 2026-10-14.** `revisado_em`/`revisado_por` de
+   `compromisso` são preenchidos **automaticamente** na primeira ação de
+   resposta do Mateus ao compromisso (mudar data, cancelar, ou
+   confirmar/registrar o pagamento) — não existe botão "Revisado" dedicado
+   para compromisso, diferente de documento, porque todo compromisso de
+   colaborador já exige uma ação do dono para ser resolvido; essa ação em
+   si é a revisão. Sem este critério, `compromisso.pendente_revisao`
+   (`CONTAI-093` critério 6) ficaria `true` para sempre em todo compromisso
+   de colaborador, mesmo depois de confirmado/cancelado pelo Mateus. **Gate
+   2 do `cto-obra` confirma o mecanismo exato (trigger vs. código de
+   aplicação) antes da implementação** — este critério fecha o requisito de
+   produto, não a forma técnica.
 
 ## Out of Scope
 - Qualquer caminho, automático ou manual, que produza `pagamento` a partir
@@ -180,11 +231,17 @@ sem reinterpretar nenhuma das duas.
   bifurcação de data nem o passo de comprovante), `app/(gestao)/compromisso/[id]/page.tsx`
   (autoria + ocultação de botões), `app/api/google/agenda/*` (gate de
   papel), `e2e/colaborador-compromisso.spec.ts`, `e2e/privilegios.spec.ts`.
-- **Complexidade: M.**
+- **Complexidade: M** (confirmado na Emenda 2026-10-14; o `po` sinaliza uma
+  ressalva não resolvida — se o mecanismo do critério 9 exigir trigger
+  próprio em vez de reaproveitar código de aplicação, pode empurrar para
+  M/L; **o `cto-obra` confirma no Gate 2**).
 - **Dívidas**: nenhuma nova além das já registradas em `CONTAI-093`/`094`.
 
 ## Dependências
 Bloqueado por `CONTAI-093`. Independente de `CONTAI-094`/`CONTAI-096`.
+**Emenda 2026-10-14**: o critério 4 (modo leitura em `/compromisso/[id]`)
+depende também do critério 16 da `CONTAI-093` (`papelDaSessao`, guardas de
+rota) para a rota ser alcançável pelo colaborador.
 
 ## Perguntas Abertas
 1. Texto exato da tela de confirmação ao final de `/adicionar/compromisso`
