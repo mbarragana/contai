@@ -174,6 +174,14 @@ export default function DadosDaObra() {
           Terreno — desembolsos, contrato e informes
         </BotaoLink>
         {/*
+          CONTAI-093 — a porta da gestão de colaboradores, pelo MESMO padrão de
+          link que leva ao terreno (spec de design, cenário da tela (a)). Sem
+          ela a tela nasceria inalcançável, que é o formato exato da D47.
+        */}
+        <BotaoLink href={`/obras/${id}/colaboradores`}>
+          Colaboradores — quem mais mexe nesta obra
+        </BotaoLink>
+        {/*
           ⚠️ A PRIMEIRA SAÍDA ANUAL DO PRODUTO (CONTAI-036). Sem esta porta ela
           nasceria inalcançável, que é o formato exato da D47: superfície
           gravada e caminho nunca entregue.

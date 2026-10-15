@@ -37,6 +37,11 @@ export type Database = {
       compromisso: {
         Row: {
           created_at: string
+          // ── CONTAI-093 (migration 0030) — AUTORIA ────────────────────────
+          // `criado_por` = quem DIGITOU; `user_id` = dono do acervo (derivado da
+          // obra pelo trigger `user_id_da_obra`). A distinção é a dívida D-v do
+          // ticket: o nome `user_id` engana a partir da 0030.
+          criado_por: string
           data_compra: string | null
           data_prevista: string | null
           documento_origem_id: string | null
@@ -47,12 +52,20 @@ export type Database = {
           origem: Database["public"]["Enums"]["origem_compromisso"]
           origem_desfeita_em: string | null
           origem_desfeita_id: string | null
+          // ⚠️ Coluna GERADA (`revisado_em is null and criado_por <> user_id`):
+          // o banco RECUSA escrita nela. O `?` que `supabase gen types` emite nos
+          // blocos Insert/Update abaixo é fidelidade ao gerador, não permissão —
+          // ver a nota no Insert.
+          pendente_revisao: boolean | null
+          revisado_em: string | null
+          revisado_por: string | null
           situacao: Database["public"]["Enums"]["situacao_compromisso"]
           user_id: string
           valor_previsto: number
         }
         Insert: {
           created_at?: string
+          criado_por?: string
           data_compra?: string | null
           data_prevista?: string | null
           documento_origem_id?: string | null
@@ -63,12 +76,21 @@ export type Database = {
           origem: Database["public"]["Enums"]["origem_compromisso"]
           origem_desfeita_em?: string | null
           origem_desfeita_id?: string | null
+          // ⚠️ **Mandar esta chave é erro de runtime** ("cannot insert a
+          // non-DEFAULT value into column"). Ela fica aqui porque é o que
+          // `supabase gen types` emite para coluna gerada, e divergir à mão
+          // seria desfeito na próxima regeneração em silêncio. Nenhum caminho de
+          // `lib/data.ts` a escreve.
+          pendente_revisao?: boolean | null
+          revisado_em?: string | null
+          revisado_por?: string | null
           situacao?: Database["public"]["Enums"]["situacao_compromisso"]
           user_id?: string
           valor_previsto: number
         }
         Update: {
           created_at?: string
+          criado_por?: string
           data_compra?: string | null
           data_prevista?: string | null
           documento_origem_id?: string | null
@@ -79,6 +101,9 @@ export type Database = {
           origem?: Database["public"]["Enums"]["origem_compromisso"]
           origem_desfeita_em?: string | null
           origem_desfeita_id?: string | null
+          pendente_revisao?: boolean | null
+          revisado_em?: string | null
+          revisado_por?: string | null
           situacao?: Database["public"]["Enums"]["situacao_compromisso"]
           user_id?: string
           valor_previsto?: number
@@ -301,6 +326,10 @@ export type Database = {
           classificacao: Database["public"]["Enums"]["classificacao"] | null
           cno_referenciado: string | null
           created_at: string
+          // ── CONTAI-093 (migration 0030) — AUTORIA ────────────────────────
+          // Mesma semântica de `compromisso.criado_por` acima: quem DIGITOU, em
+          // oposição a `user_id` (dono do acervo, derivado da obra por trigger).
+          criado_por: string
           data_emissao: string | null
           destinatario_cpf_ok: boolean
           favorecido_id: string | null
@@ -309,9 +338,13 @@ export type Database = {
           nota_traz_cno: boolean | null
           numero: string | null
           obra_id: string
+          // ⚠️ Coluna GERADA — ver a nota em `compromisso.pendente_revisao`.
+          pendente_revisao: boolean | null
           retencao_na_nota:
             | Database["public"]["Enums"]["retencao_na_nota"]
             | null
+          revisado_em: string | null
+          revisado_por: string | null
           serie: string | null
           status: Database["public"]["Enums"]["status_documento"]
           tipo: Database["public"]["Enums"]["tipo_documento"]
@@ -325,6 +358,7 @@ export type Database = {
           classificacao?: Database["public"]["Enums"]["classificacao"] | null
           cno_referenciado?: string | null
           created_at?: string
+          criado_por?: string
           data_emissao?: string | null
           destinatario_cpf_ok: boolean
           favorecido_id?: string | null
@@ -333,9 +367,14 @@ export type Database = {
           nota_traz_cno?: boolean | null
           numero?: string | null
           obra_id: string
+          // ⚠️ Gerada: mandar esta chave é erro de runtime. Ver a nota em
+          // `compromisso.pendente_revisao`.
+          pendente_revisao?: boolean | null
           retencao_na_nota?:
             | Database["public"]["Enums"]["retencao_na_nota"]
             | null
+          revisado_em?: string | null
+          revisado_por?: string | null
           serie?: string | null
           status?: Database["public"]["Enums"]["status_documento"]
           tipo: Database["public"]["Enums"]["tipo_documento"]
@@ -349,6 +388,7 @@ export type Database = {
           classificacao?: Database["public"]["Enums"]["classificacao"] | null
           cno_referenciado?: string | null
           created_at?: string
+          criado_por?: string
           data_emissao?: string | null
           destinatario_cpf_ok?: boolean
           favorecido_id?: string | null
@@ -357,9 +397,12 @@ export type Database = {
           nota_traz_cno?: boolean | null
           numero?: string | null
           obra_id?: string
+          pendente_revisao?: boolean | null
           retencao_na_nota?:
             | Database["public"]["Enums"]["retencao_na_nota"]
             | null
+          revisado_em?: string | null
+          revisado_por?: string | null
           serie?: string | null
           status?: Database["public"]["Enums"]["status_documento"]
           tipo?: Database["public"]["Enums"]["tipo_documento"]
@@ -801,6 +844,62 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      obra_colaborador: {
+        Row: {
+          // `null` = a conta ainda não existe no Supabase Auth (caso (b) do
+          // critério 11): o vínculo nasce pendente e os triggers da 0030 o ligam
+          // sozinhos quando a conta nascer, em qualquer ordem.
+          colaborador_user_id: string | null
+          concedido_em: string
+          email: string
+          id: string
+          nome: string
+          obra_id: string
+          // Revogação de acesso. Nunca DELETE (critério 3): a linha é a única
+          // fonte de nome/e-mail do rastro de autoria depois que a pessoa sai.
+          removido_em: string | null
+          /** O DONO que concedeu — não o colaborador. */
+          user_id: string
+          visibilidade: Database["public"]["Enums"]["visibilidade_colaborador"]
+        }
+        Insert: {
+          // ⚠️ Mandar esta chave não tem efeito: o trigger
+          // `obra_colaborador_resolver_conta` SEMPRE a deriva do e-mail (o
+          // e-mail é o mecanismo de concessão, e um segundo mecanismo invisível
+          // na tela seria um buraco de acesso).
+          colaborador_user_id?: string | null
+          concedido_em?: string
+          email: string
+          nome: string
+          id?: string
+          obra_id: string
+          removido_em?: string | null
+          user_id?: string
+          // ⚠️ **OBRIGATÓRIA, sem default no banco** (critério 1): ninguém
+          // concede acesso sem decidir o que a pessoa vê.
+          visibilidade: Database["public"]["Enums"]["visibilidade_colaborador"]
+        }
+        Update: {
+          colaborador_user_id?: string | null
+          concedido_em?: string
+          email?: string
+          id?: string
+          nome?: string
+          obra_id?: string
+          removido_em?: string | null
+          user_id?: string
+          visibilidade?: Database["public"]["Enums"]["visibilidade_colaborador"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "obra_colaborador_obra_id_fkey"
+            columns: ["obra_id"]
+            isOneToOne: false
+            referencedRelation: "obra"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pagamento: {
         Row: {
@@ -1411,6 +1510,15 @@ export type Database = {
         }
         Returns: string
       }
+      // ── CONTAI-093 (migration 0030) ──────────────────────────────────────
+      // A ÚNICA função de visibilidade do produto (critério 8): toda policy
+      // desta fatia e das fatias 094/095/096 a chama, nenhuma duplica a leitura.
+      // `null` = o usuário não é colaborador DAQUELA obra especificamente — o
+      // filtro por `obra_id` é o que a Emenda 2026-10-14 corrigiu.
+      visibilidade_na_obra: {
+        Args: { p_obra_id: string }
+        Returns: Database["public"]["Enums"]["visibilidade_colaborador"]
+      }
     }
     Enums: {
       classificacao: "material" | "mao_obra"
@@ -1463,6 +1571,7 @@ export type Database = {
       tipo_favorecido: "pj" | "pf"
       tipo_pendencia: "retificadora_possivel" | "emitente_errado"
       tributo_retido: "iss" | "inss" | "irrf" | "pis" | "cofins" | "csll"
+      visibilidade_colaborador: "restrita" | "total"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1649,6 +1758,7 @@ export const Constants = {
       tipo_favorecido: ["pj", "pf"],
       tipo_pendencia: ["retificadora_possivel", "emitente_errado"],
       tributo_retido: ["iss", "inss", "irrf", "pis", "cofins", "csll"],
+      visibilidade_colaborador: ["restrita", "total"],
     },
   },
 } as const

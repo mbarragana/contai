@@ -27,6 +27,26 @@ export const SENHA_SEED = "contai-local-123";
 export const USER_ID_SEED = "11111111-1111-4111-8111-111111111111";
 export const OBRA_ID_SEED = "22222222-2222-4222-8222-222222222222";
 
+// ── CONTAI-093 · o SEGUNDO usuário: o colaborador ────────────────────────
+// O engenheiro da obra (critério 14). Identidade real, com login de verdade no
+// GoTrue local e sujeito à MESMA RLS do app — é o que permite provar que a
+// policy que barra o colaborador barra de fato, em vez de afirmar que barra.
+//
+// ⚠️ Ele nasce SEM vínculo nenhum (ver supabase/seed.sql): cada teste monta o
+// vínculo que quer provar. Vínculo no seed vazaria o cenário de um teste para
+// todos os outros — foi o bug do `natureza_aquisicao_terreno` em `OBRA_SEED`.
+export const EMAIL_COLABORADOR = "engenheiro@contai.local";
+export const SENHA_COLABORADOR = "contai-local-456";
+export const USER_ID_COLABORADOR = "55555555-5555-4555-8555-555555555555";
+
+/**
+ * Prefixo dos e-mails de conta que um TESTE planta (o caso "a conta nasce
+ * depois do vínculo", critério 11b). O `limpar` apaga essas contas entre
+ * testes pelo prefixo — sem isso, a segunda rodada do mesmo teste encontraria a
+ * conta já existente e provaria o caminho (a), que é o outro caso.
+ */
+export const PREFIXO_CONTA_DE_TESTE = "e2e-";
+
 /**
  * A obra do seed, campo a campo — o `limpar` de cada teste recria esta linha
  * quando um teste a apaga (o caso "nenhuma obra cadastrada", critério 12).

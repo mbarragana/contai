@@ -13,9 +13,12 @@ import type { Database, TablesInsert } from "../lib/database.types";
 import {
   BUCKET_ACERVO,
   CHAVE_PUBLICAVEL_LOCAL,
+  EMAIL_COLABORADOR,
   EMAIL_SEED,
   OBRA_ID_SEED,
   OBRA_SEED,
+  PREFIXO_CONTA_DE_TESTE,
+  SENHA_COLABORADOR,
   SENHA_SEED,
   URL_SUPABASE_LOCAL,
   USER_ID_SEED,
@@ -128,7 +131,10 @@ export function consultarAdmin(sql: string, rotulo: string): string[][] {
  * Login de verdade no GoTrue local. Sessão em memória (`persistSession:
  * false`): quem persiste é o browser, com o JSON que sai daqui.
  */
-export async function entrar(): Promise<{ db: Db; sessao: Session }> {
+async function login(
+  email: string,
+  senha: string,
+): Promise<{ db: Db; sessao: Session }> {
   const db = createClient<Database>(
     URL_SUPABASE_LOCAL,
     CHAVE_PUBLICAVEL_LOCAL,
@@ -142,17 +148,42 @@ export async function entrar(): Promise<{ db: Db; sessao: Session }> {
   );
 
   const { data, error } = await db.auth.signInWithPassword({
-    email: EMAIL_SEED,
-    password: SENHA_SEED,
+    email,
+    password: senha,
   });
   if (error || !data.session) {
     throw new Error(
-      `Login falhou em ${URL_SUPABASE_LOCAL} como ${EMAIL_SEED}: ` +
+      `Login falhou em ${URL_SUPABASE_LOCAL} como ${email}: ` +
         `${error?.message ?? "sem sessão"}. ` +
         "O stack local do Supabase está de pé? `npm run db:start`",
     );
   }
   return { db, sessao: data.session };
+}
+
+export async function entrar(): Promise<{ db: Db; sessao: Session }> {
+  return login(EMAIL_SEED, SENHA_SEED);
+}
+
+/**
+ * **CONTAI-093, critério 14 — a sessão do COLABORADOR.**
+ *
+ * Mesma receita do dono, outro usuário: login real no GoTrue, client sujeito à
+ * mesma RLS. É o que permite ao teste afirmar "o colaborador VÊ" e "o
+ * colaborador NÃO ESCREVE" em vez de supor — e é por isso que não existe aqui
+ * (nem pode existir) atalho por service key: o que a policy barra para o app
+ * tem de barrar para o teste.
+ *
+ * ⚠️ Devolve o `sessao` junto porque os testes de TELA precisam injetá-la no
+ * browser (`injetarSessao`): o shell do colaborador é escolhido por
+ * `papelDaSessao()`, que lê o banco com a identidade da sessão — com a sessão do
+ * Mateus no cookie, a tela abriria o shell de gestão.
+ */
+export async function sessaoDoColaborador(): Promise<{
+  db: Db;
+  sessao: Session;
+}> {
+  return login(EMAIL_COLABORADOR, SENHA_COLABORADOR);
 }
 
 /**
@@ -296,6 +327,22 @@ const SQL_LIMPAR = [
   "delete from pagamento;",
   "delete from documento;",
   "delete from favorecido;",
+  // CONTAI-093 — o vínculo de colaborador cai ANTES da obra que ele referencia.
+  // `on delete cascade` já daria conta, mas apagar explícito deixa o erro no
+  // lugar certo se a FK mudar. Ela nasce SEM DELETE para `authenticated`
+  // (migration 0030: revogar acesso é `removido_em`, nunca apagar a linha —
+  // é dela que sai o nome do rastro de autoria), então limpá-la só pode ser
+  // andaime de ambiente: a exceção nomeada do CLAUDE.md.
+  "delete from obra_colaborador;",
+  // ⚠️ E as CONTAS que um teste plantou — o caso "a conta nasce depois do
+  // vínculo" (critério 11b). Sem isto, a segunda rodada do mesmo teste
+  // encontraria a conta já existente e provaria o caminho (a), que é o OUTRO
+  // caso: o teste ficaria verde tendo exercitado o trigger errado.
+  //
+  // O filtro é por PREFIXO, e nunca por "tudo menos o seed": apagar
+  // `auth.users` em largura levaria embora o usuário do seed, o do colaborador
+  // e as contas alheias dos plantios de RLS — e `obra.user_id` tem cascade.
+  `delete from auth.users where email like '${PREFIXO_CONTA_DE_TESTE}%';`,
   `delete from obra where id <> ${literalSql(OBRA_ID_SEED)};`,
   `insert into obra (${COLUNAS_SEED.join(", ")}) values (` +
     `${Object.values(OBRA_SEED_COM_DONO).map(literalSql).join(", ")})` +
@@ -1130,4 +1177,118 @@ export async function integracaoGoogle(db: Db) {
   const { data, error } = await db.from("integracao_google").select("*");
   conferir("ler integracao_google", error);
   return data!;
+}
+
+// ── CONTAI-093 · colaborador na obra ─────────────────────────────────────
+//
+// ⚠️ **Os cenários são montados pelo client autenticado do DONO**, com a RLS da
+// migration 0030 ligada: `authenticated` tem INSERT e UPDATE em
+// `obra_colaborador` desde que seja dono da obra, então conceder e revogar
+// acesso é exatamente o que o produto faz — não é furo de privilégio só para o
+// teste. O que passa pelo andaime de administrador é uma coisa só: CRIAR CONTA,
+// que o app não faz e não pode fazer (passo de dashboard, dívida D-iv).
+
+/** Concede acesso pela MESMA escrita que a tela de gestão faz. */
+export async function criarColaborador(
+  db: Db,
+  linha: Partial<TablesInsert<"obra_colaborador">> & {
+    nome: string;
+    email: string;
+    visibilidade: Database["public"]["Enums"]["visibilidade_colaborador"];
+  },
+) {
+  const { data, error } = await db
+    .from("obra_colaborador")
+    .insert({ obra_id: OBRA_ID_SEED, ...linha })
+    .select("*")
+    .single();
+  conferir("conceder acesso a colaborador", error);
+  return data!;
+}
+
+/** Os vínculos que ESTE client alcança — a RLS da 0030 recorta. */
+export async function colaboradores(db: Db) {
+  const { data, error } = await db
+    .from("obra_colaborador")
+    .select("*")
+    .order("concedido_em", { ascending: true });
+  conferir("ler obra_colaborador", error);
+  return data!;
+}
+
+/**
+ * A visibilidade que o banco atribui a ESTE client NAQUELA obra — a função
+ * `visibilidade_na_obra` (critério 8), chamada pelo mesmo caminho que as
+ * policies usam.
+ *
+ * É assim que o cenário (e) prova a correção da Emenda 2026-10-14: duas obras,
+ * duas visibilidades, uma resposta certa para cada.
+ */
+export async function visibilidadeNaObra(db: Db, obraId: string) {
+  const { data, error } = await db.rpc("visibilidade_na_obra", {
+    p_obra_id: obraId,
+  });
+  conferir("ler visibilidade_na_obra", error);
+  return data;
+}
+
+/**
+ * Cria uma CONTA no GoTrue local — o passo que em produção é do dashboard
+ * (Authentication → Users → Add user, com Auto Confirm).
+ *
+ * ⚠️ Andaime de administrador, e é a única escolha possível: o app não cria
+ * conta por desenho (Out of Scope do ticket), então não existe caminho pelo
+ * client autenticado. O que o teste NÃO contorna é o que ele quer provar — o
+ * trigger `resolver_vinculos_de_colaborador` da 0030 dispara neste INSERT como
+ * dispararia no do dashboard.
+ *
+ * O e-mail precisa começar com `PREFIXO_CONTA_DE_TESTE` para o `limpar` apagar
+ * a conta depois (ver a nota em `SQL_LIMPAR`) — sem isso, a segunda rodada
+ * provaria o outro caminho.
+ */
+export function plantarConta(email: string, id: string): string {
+  if (!email.startsWith(PREFIXO_CONTA_DE_TESTE)) {
+    throw new Error(
+      `conta de teste tem de começar com "${PREFIXO_CONTA_DE_TESTE}" para o ` +
+        `limpar apagá-la entre testes; recebi "${email}"`,
+    );
+  }
+  sqlAdmin(
+    `insert into auth.users (
+       instance_id, id, aud, role, email, encrypted_password,
+       email_confirmed_at, created_at, updated_at,
+       raw_app_meta_data, raw_user_meta_data,
+       confirmation_token, recovery_token, email_change_token_new,
+       email_change, email_change_token_current, phone_change,
+       phone_change_token, reauthentication_token
+     ) values (
+       '00000000-0000-0000-0000-000000000000',
+       ${literalSql(id)},
+       'authenticated', 'authenticated', ${literalSql(email)},
+       crypt('nao-usada-em-lugar-nenhum', gen_salt('bf')),
+       now(), now(), now(), '{}'::jsonb, '{}'::jsonb,
+       '', '', '', '', '', '', '', ''
+     );`,
+    `plantar a conta ${email}`,
+  );
+  return id;
+}
+
+/**
+ * Os vínculos de um e-mail SEM passar pela RLS — é como o teste confere que o
+ * trigger `after insert` em `auth.users` resolveu **TODAS** as linhas pendentes
+ * daquele e-mail, e não só a primeira (Emenda 2026-10-14 do critério 11).
+ *
+ * Pelo client autenticado isto não daria: o dono vê os vínculos que concedeu, o
+ * colaborador vê os dele, e aqui a pergunta é sobre o ESTADO GRAVADO de linhas
+ * de obras diferentes de um usuário que acabou de nascer.
+ */
+export function contasResolvidasSemRls(email: string): (string | null)[] {
+  return consultarAdmin(
+    `select coalesce(colaborador_user_id::text, '(pendente)')
+       from obra_colaborador
+      where email = ${literalSql(email)}
+      order by concedido_em;`,
+    "conferir a resolução dos vínculos sem RLS",
+  ).map(([valor]) => (valor === "(pendente)" ? null : valor));
 }

@@ -6,6 +6,8 @@ import { useState } from "react";
 import { FluxoEntrar } from "@/app/_components/entrar";
 import { AppBar } from "@/app/_components/ui";
 import { destinoSeguro, PARAM_DESTINO } from "@/lib/auth";
+import { carregarPapelDaSessao } from "@/lib/data";
+import { destinoDoPapel } from "@/lib/papel";
 
 /**
  * Tela 1 do mock CONTAI-002. Única rota do app que não exige sessão.
@@ -46,8 +48,30 @@ export default function Entrar() {
     <div className="mx-auto flex min-h-0 w-full max-w-[430px] flex-1 flex-col">
       <AppBar titulo="contai" sub="Entrar" />
       {/* Critério 4: volta para a rota pedida, não para a home — quem chega
-          por um lembrete de boleto vem para pagar aquele boleto. */}
-      <FluxoEntrar aoEntrar={() => router.replace(destino)} />
+          por um lembrete de boleto vem para pagar aquele boleto.
+
+          ⚠️ **CONTAI-093, critério 16 — o papel decide o shell AQUI também.**
+          Sem esta leitura, o colaborador cairia em `/` (o default de
+          `destinoSeguro`), veria o shell de gestão com tudo vazio pela RLS e só
+          seria redirecionado pela guarda do layout — um salto visível no login,
+          que é o pior momento para o app parecer quebrado. O deep link legítimo
+          continua vencendo: `destinoDoPapel` só corrige destino do shell errado.
+
+          Falha de leitura NÃO trava o login: vai para o destino pedido e a
+          guarda do layout resolve depois. "Entrou mas não navegou" seria a pior
+          saída possível de uma tela de login. */}
+      <FluxoEntrar
+        aoEntrar={() => {
+          void (async () => {
+            try {
+              const papel = await carregarPapelDaSessao();
+              router.replace(destinoDoPapel(papel, destino));
+            } catch {
+              router.replace(destino);
+            }
+          })();
+        }}
+      />
     </div>
   );
 }

@@ -40,7 +40,7 @@ registro mesmo depois de essa pessoa sair.
 
 ## Critérios de Aceite
 
-1. [ ] Tabela nova `obra_colaborador` (migration `0030_obra_colaborador.sql`):
+1. [x] Tabela nova `obra_colaborador` (migration `0030_obra_colaborador.sql`):
    `id uuid pk`, `obra_id` (FK `obra`, `on delete cascade`), `user_id` (dono
    que concedeu, `default auth.uid()`), `email text not null` (gravado
    `lower(trim())`, `check (email = lower(email))`), `nome text not null`
@@ -50,26 +50,26 @@ registro mesmo depois de essa pessoa sair.
    (`'restrita' | 'total'`, **sem default no banco** — a UI pré-seleciona
    "restrita", mas nenhum chamador pode inserir sem decidir), `concedido_em
    timestamptz not null default now()`, `removido_em timestamptz`.
-2. [ ] `unique (obra_id, email) where removido_em is null`. Índices:
+2. [x] `unique (obra_id, email) where removido_em is null`. Índices:
    `(colaborador_user_id) where removido_em is null`, `(obra_id)`, e **índice
    único parcial novo** `(obra_id, colaborador_user_id) where removido_em is
    null` — impede duas linhas ativas do mesmo colaborador resolvido na mesma
    obra (a mesma pessoa pode colaborar em N obras do Mateus, nunca duas
    vezes na mesma obra). **Emenda 2026-10-14** (multi-obra).
-3. [ ] Remover acesso é `update removido_em = now()`, **nunca** `DELETE` — a
+3. [x] Remover acesso é `update removido_em = now()`, **nunca** `DELETE` — a
    linha é a única fonte de nome/e-mail para o rastro de autoria depois que o
    colaborador sai (critério 11). Readmitir a mesma pessoa cria linha nova.
-4. [ ] RLS de `obra_colaborador`: `select` quando `user_id = auth.uid()`
+4. [x] RLS de `obra_colaborador`: `select` quando `user_id = auth.uid()`
    (dono) **ou** `colaborador_user_id = auth.uid()` (o próprio colaborador lê
    seu vínculo — é como o app descobre papel e visibilidade); `insert`/
    `update` só pelo dono (`with check exists (select 1 from obra where
    id = obra_id and user_id = auth.uid())`). A policy de `select` **não**
    referencia `obra` (recursão de policy é recusada pelo Postgres).
-5. [ ] GRANT explícito para `obra_colaborador` (`INSERT,SELECT,UPDATE`,
+5. [x] GRANT explícito para `obra_colaborador` (`INSERT,SELECT,UPDATE`,
    revoke-antes-grant) na própria migration, e `e2e/privilegios.spec.ts`
    atualizado com a tabela nova e com as funções de trigger/helper desta
    fatia (ver critérios 6-8) — regra do projeto para toda tabela/função nova.
-6. [ ] Colunas novas `criado_por uuid not null default auth.uid() references
+6. [x] Colunas novas `criado_por uuid not null default auth.uid() references
    auth.users(id)` (sem `on delete cascade`), `revisado_em timestamptz`,
    `revisado_por uuid references auth.users(id)` em `documento` e
    `compromisso`, com backfill `criado_por = user_id` nos registros
@@ -89,13 +89,13 @@ registro mesmo depois de essa pessoa sair.
    nunca passa pela ação "Revisado", então `revisado_em` é sempre `null` nos
    dele; sem o `criado_por <> user_id`, qualquer tela que filtrasse só por
    `revisado_em is null` trataria o acervo inteiro do dono como pendente.
-7. [ ] Trigger `user_id_da_obra` (`before insert` em `documento` e
+7. [x] Trigger `user_id_da_obra` (`before insert` em `documento` e
    `compromisso`, `security definer`, `set search_path = ''`): força
    `new.user_id := (select user_id from obra where id = new.obra_id)`.
    `documento.user_id = obra.user_id` passa a ser invariante de banco, não só
    convenção de código — é o que faz o registro do colaborador nascer no
    acervo do dono, nunca no dele.
-8. [ ] Função `visibilidade_na_obra(p_obra_id uuid) returns
+8. [x] Função `visibilidade_na_obra(p_obra_id uuid) returns
    visibilidade_colaborador` (`security definer stable`, `null` quando o
    usuário não é colaborador daquela obra **especificamente**): lê
    `obra_colaborador where obra_id = p_obra_id and colaborador_user_id =
@@ -108,11 +108,11 @@ registro mesmo depois de essa pessoa sair.
    função usada por todas as policies desta fatia e das fatias `094`/`095`/
    `096` — nenhuma policy duplica essa leitura (doutrina CONTAI-072: fonte
    única, nunca duas funções calculando a mesma coisa).
-9. [ ] RLS de `obra`: a policy única `dono_obra for all` é dividida em
+9. [x] RLS de `obra`: a policy única `dono_obra for all` é dividida em
    `obra_select` (`user_id = auth.uid() or visibilidade_na_obra(id) is not
    null`) e `obra_escrita` (insert/update só dono). Colaborador passa a ver a
    obra (nome, cidade) — nada além disso nesta fatia.
-10. [ ] Tela de gestão de colaboradores (dono), em
+10. [x] Tela de gestão de colaboradores (dono), em
     `app/(gestao)/obras/[id]/colaboradores/page.tsx`: formulário sempre
     visível no topo (nome, e-mail, visibilidade pré-selecionada "restrita" —
     não é campo fiscal, pré-seleção visível é aceitável aqui, diferente da
@@ -121,7 +121,7 @@ registro mesmo depois de essa pessoa sair.
     com diálogo de confirmação (ação irreversível na prática, mesmo que o
     banco preserve o registro). 4 estados (loading/vazio/erro/sucesso) —
     descrição completa em `design/mocks/CONTAI-093.md`.
-11. [ ] Primeiro acesso por e-mail, os dois casos, sem RPC e sem service key:
+11. [x] Primeiro acesso por e-mail, os dois casos, sem RPC e sem service key:
     (a) e-mail já tem conta no Supabase Auth → trigger `before insert` em
     `obra_colaborador` (`security definer`) resolve `colaborador_user_id`
     pelo e-mail em `auth.users` na hora, vínculo já nasce ativo; (b) e-mail
@@ -140,7 +140,7 @@ registro mesmo depois de essa pessoa sair.
     `obra_colaborador` que casam com aquele e-mail e ainda estão
     `colaborador_user_id is null` (UPDATE de conjunto) — nunca só a primeira
     encontrada.
-12. [ ] **Emenda 2026-10-14 — critério reescrito por causa da resposta de
+12. [x] **Emenda 2026-10-14 — critério reescrito por causa da resposta de
     multi-obra.** Shell/área do colaborador logado, em duas telas, fora de
     `(gestao)` e `(captura)`:
     - **Tela (b)**, lista de obras — `app/(colaborador)/colaborador/page.tsx`:
@@ -163,16 +163,16 @@ registro mesmo depois de essa pessoa sair.
       `lib/agenda/reconciliacao.test.ts`): varredura dos arquivos dessa área
       proibindo import de `lib/fiscal/resumo` e de qualquer módulo de saída
       anual.
-13. [ ] Revogar acesso (`removido_em`) não apaga, não desvincula e não altera
+13. [x] Revogar acesso (`removido_em`) não apaga, não desvincula e não altera
     `criado_por` em nenhum `documento`/`compromisso` já criado pelo
     colaborador — permanecem íntegros, e o nome dele continua exibível (lido
     de `obra_colaborador` mesmo com `removido_em` preenchido).
-14. [ ] `supabase/seed.sql` ganha um segundo usuário de desenvolvimento
+14. [x] `supabase/seed.sql` ganha um segundo usuário de desenvolvimento
     (`engenheiro@contai.local`, mesmo molde do usuário existente) para
     viabilizar o E2E de colaborador; `e2e/banco.ts` ganha
     `sessaoDoColaborador()` (mesma receita de sessão autenticada já usada
     para o dono).
-15. [ ] E2E novo (`e2e/colaborador.spec.ts`, Postgres local, client
+15. [x] E2E novo (`e2e/colaborador.spec.ts`, Postgres local, client
     autenticado — nunca stub): (a) colaborador vê a obra depois do vínculo e
     deixa de ver depois de `removido_em`; (b) vínculo criado antes da conta
     existir liga sozinho quando a conta é criada depois (ordem inversa
@@ -184,7 +184,13 @@ registro mesmo depois de essa pessoa sair.
     obra (prova direta da correção do critério 8); vínculo pendente (sem
     conta) em duas obras ao mesmo tempo resolve as duas quando a conta nasce
     (critério 11).
-16. [ ] **Critério novo, Emenda 2026-10-14.** Função `papelDaSessao()`
+    ⚠️ **Gate 1: arquivo ESCRITO, suíte AINDA NÃO EXECUTADA** (os 11 testes
+    cobrem a–e). O comportamento de banco de cada cenário foi conferido no
+    Gate 1 por `psql` contra o Postgres local — resolução de conta pelo
+    e-mail, visibilidade por obra em multi-obra, revogação derrubando a
+    leitura, UPDATE do colaborador afetando zero linhas, `criado_por`
+    imutável e `anon` sem acesso. Rodar a suíte é Gate 3.
+16. [x] **Critério novo, Emenda 2026-10-14.** Função `papelDaSessao()`
     (`'dono' | 'colaborador'`) decide, no login, qual shell abre: `'dono'`
     se o usuário possui ≥1 `obra` com `user_id = auth.uid()`; senão
     `'colaborador'` se possui ≥1 linha em `obra_colaborador` com

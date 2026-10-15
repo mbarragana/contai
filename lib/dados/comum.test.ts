@@ -114,6 +114,17 @@ function rowDocumento(
     favorecido_id: "fav-1",
     favorecido: { nome: "Depósito Cachoeira", documento: "12345678000199" },
     arquivo_path: "acervo/nf-1.pdf",
+    // ── CONTAI-093 (migration 0030) — AUTORIA ────────────────────────────
+    // Registro do PRÓPRIO dono: `criado_por = user_id`, logo
+    // `pendente_revisao = false` (é a coluna gerada do banco, reproduzida aqui
+    // com o valor que o Postgres calcularia para esta linha). É o estado de
+    // todo o acervo existente depois do backfill da 0030 — nenhum mapeamento
+    // deste arquivo lê os três campos, e é de propósito: autoria em TELA é
+    // escopo das fatias 094/095.
+    criado_por: "user-1",
+    revisado_em: null,
+    revisado_por: null,
+    pendente_revisao: false,
     ...over,
   };
 }
@@ -918,6 +929,11 @@ describe("compromisso a pagar", () => {
     situacao: "aberto",
     motivo_cancelamento: null,
     data_compra: "2026-03-01",
+    // CONTAI-093 — autoria do próprio dono; ver a nota em `rowDocumento`.
+    criado_por: "user-1",
+    revisado_em: null,
+    revisado_por: null,
+    pendente_revisao: false,
     ...over,
   });
 
