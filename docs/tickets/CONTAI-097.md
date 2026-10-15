@@ -41,19 +41,19 @@ os `pagamento`s que a alocação gerar dali — sem custar um upload por
 favorecido.
 
 ## Critérios de Aceite
-1. [ ] `/fatura/[id]/parcial` ganha um campo de anexo **opcional**
+1. [x] `/fatura/[id]/parcial` ganha um campo de anexo **opcional**
    (`CampoArquivo`, rótulo "Comprovante deste pagamento (opcional)", ajuda
    "PDF, foto ou print — se você tiver à mão agora. Pode anexar depois, no
    detalhe do pagamento.", `accept=".pdf,image/*"`), dentro do `Card` já
    existente de data/valor (terceiro campo do mesmo formulário, não uma
    `Card` nova) — spec em `design/mocks/CONTAI-097.md`.
-2. [ ] `podeSalvar` não muda: o anexo nunca entra na condição de habilitar
+2. [x] `podeSalvar` não muda: o anexo nunca entra na condição de habilitar
    "Salvar" — ausência de arquivo não bloqueia a gravação, em nenhum caso.
-3. [ ] Em `salvar()`, se houver arquivo selecionado: `subirParaAcervo(arquivo,
+3. [x] Em `salvar()`, se houver arquivo selecionado: `subirParaAcervo(arquivo,
    "comprovante")` roda ANTES de `registrarDesembolsoDeFatura` (mesma ordem
    já usada em `/fatura/[id]/confirmar/page.tsx:249-259,374`), e o
    `comprovantePath` resultante substitui o `null` fixo de hoje no payload.
-4. [ ] Dado o Mateus preenche o anexo e confirma, quando a RPC
+4. [x] Dado o Mateus preenche o anexo e confirma, quando a RPC
    (`fatura_desembolso_gravar`, e depois `fatura_alocar` ao alocar) grava os
    `pagamento`s daquele desembolso, então TODOS eles recebem o MESMO
    `comprovante_path` informado — verificável por dois ou mais `pagamento`s
@@ -61,24 +61,24 @@ favorecido.
    criar objeto novo no Storage por `pagamento`. Capacidade já implementada
    nas RPCs (0024); este critério é de verificação por E2E, não de código
    novo nas RPCs.
-5. [ ] Dado o Mateus NÃO preenche o anexo, quando confirma, então o
+5. [x] Dado o Mateus NÃO preenche o anexo, quando confirma, então o
    comportamento é byte-a-byte o de hoje: `pagamento`s gerados com
    `comprovante_path = null`, cada um elegível ao fluxo retroativo
    (CONTAI-061/CONTAI-098) depois — zero regressão.
-6. [ ] Falha no upload do anexo (antes de chamar a RPC): mesmo banner de
+6. [x] Falha no upload do anexo (antes de chamar a RPC): mesmo banner de
    erro já usado pela tela (`mensagemDeErroDeGravacao`); o estado volta a
    `"pronto"` com `data`, `valor` e o **arquivo selecionado preservados** —
    não força escolher o arquivo de novo numa nova tentativa.
-7. [ ] Nenhuma pergunta fiscal nova (CPF, retenção) é introduzida por este
+7. [x] Nenhuma pergunta fiscal nova (CPF, retenção) é introduzida por este
    campo — ele é só um anexo probatório opcional.
-8. [ ] Navegação de sucesso inalterada:
+8. [x] Navegação de sucesso inalterada:
    `/fatura/${fatura.id}/alocar?desembolso=${desembolsoId}`.
-9. [ ] E2E novo (`e2e/fatura-parcial-comprovante.spec.ts`, contra o Postgres
+9. [x] E2E novo (`e2e/fatura-parcial-comprovante.spec.ts`, contra o Postgres
    local) cobre: (a) registrar o parcial COM anexo → alocar 2+ compromissos
    → os `pagamento`s gerados compartilham o mesmo `comprovante_path`; (b)
    registrar SEM anexo → `pagamento`s com `comprovante_path = null`, sem
    regressão no fluxo atual.
-10. [ ] Vitest: nenhuma função pura nova é necessária nesta ponta (a
+10. [x] Vitest: nenhuma função pura nova é necessária nesta ponta (a
     propagação já é comportamento de RPC existente) — este critério existe
     para registrar explicitamente que o Gate 2 não deve esperar um teste
     unitário de `lib/fiscal/` para este ticket; a prova é só E2E (critério 9).

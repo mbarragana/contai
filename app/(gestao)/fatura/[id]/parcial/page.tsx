@@ -6,12 +6,23 @@
  * ⚠️ **O valor pago é gravado SEMPRE** — fato consumado, nunca recusado
  * (ADENDO §B). O que muda é que nenhuma compra é confirmada sozinha: a
  * próxima tela (alocação manual) é onde o Mateus escolhe quais.
+ *
+ * ⚠️ **CONTAI-097 — o comprovante OPCIONAL deste desembolso (D56-b, ponta A).**
+ * Um desembolso parcial do rotativo gera N `pagamento`s a favorecidos
+ * diferentes, e o PIX/transferência que o cobriu é UM arquivo só. Quem o anexa
+ * aqui o anexa uma vez: as RPCs `fatura_desembolso_gravar` e `fatura_alocar`
+ * (0024) COPIAM o `comprovante_path` do desembolso para cada `pagamento` que
+ * geram — a mesma denormalização deliberada já em produção no caminho
+ * "fatura paga integral", não bug (path nunca muda, storage append-only).
+ * O campo é opcional e NUNCA entra no `podeSalvar`: sem arquivo, o payload é o
+ * de antes deste ticket (`comprovantePath: null`), e cada `pagamento` segue
+ * elegível ao comprovante tardio de `/pagamento/[id]/comprovante` (CONTAI-061).
  */
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { CampoTexto } from "@/app/_components/campos";
+import { CampoArquivo, CampoTexto } from "@/app/_components/campos";
 import {
   CabecalhoDaTela,
   ColunaDeDetalhe,
@@ -31,6 +42,7 @@ import {
   classificarErro,
   mensagemDeErroDeGravacao,
   registrarDesembolsoDeFatura,
+  subirParaAcervo,
   type ErroDeTela,
 } from "@/lib/data";
 import { compromissosAbertosDaFatura } from "@/lib/fiscal/fatura";
@@ -51,6 +63,13 @@ export default function RegistrarValorPagoParcial() {
   const [estado, setEstado] = useState<Estado>({ fase: "carregando" });
   const [data, setData] = useState("");
   const [valor, setValor] = useState("");
+  /**
+   * CONTAI-097 — fora do `Estado` de propósito: a volta de `"salvando"` para
+   * `"pronto"` numa falha de gravação não pode perder o arquivo escolhido
+   * (critério 6). Arquivo que a tela esquece é arquivo que o Mateus procura de
+   * novo no celular.
+   */
+  const [comprovante, setComprovante] = useState<File | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
@@ -100,13 +119,25 @@ export default function RegistrarValorPagoParcial() {
     setErro(null);
     setEstado({ fase: "salvando", fatura, abertas });
     try {
+      /**
+       * ⚠️ **CONTAI-097, critério 3 — a subida vem ANTES da RPC, e a gravação é
+       * UMA.** Falha ao subir não grava desembolso nenhum: ou os dois
+       * aconteceram, ou nenhum (pre-mortem 3). O inverso deixaria o desembolso
+       * gravado sem o anexo, e o arquivo já saiu da tela.
+       */
+      const comprovantePath = comprovante
+        ? await subirParaAcervo(comprovante, "comprovante")
+        : null;
       // Sem alocação neste ato (crit. 9) — array vazio. A tela seguinte
       // pergunta quais compras este valor cobriu.
       const desembolsoId = await registrarDesembolsoDeFatura({
         faturaId: fatura.id,
         valorCentavos,
         dataPagamento: data,
-        comprovantePath: null,
+        // CONTAI-097 — `null` quando não há arquivo: o payload de antes deste
+        // ticket, byte a byte (critério 5). Quando há, a RPC o copia para cada
+        // `pagamento` que esta alocação gerar.
+        comprovantePath,
         compromissoIds: [],
         // ⚠️ **CONTAI-081, critério 8 — vazio, e não "omitido"**: esta tela não
         // quita compra nenhuma (`compromissoIds: []`), então não há origem a
@@ -179,6 +210,32 @@ export default function RegistrarValorPagoParcial() {
                 ? `Pagou menos que o previsto de ${formatarBRL(totalPrevisto)} — é rotativo, não integral.`
                 : undefined
             }
+          />
+          {/*
+            CONTAI-097 — o TERCEIRO campo do mesmo formulário, dentro da Card de
+            data/valor e depois do valor (spec `design/mocks/CONTAI-097.md`):
+            não é um bloco temático próprio como os dois documentos de
+            `/confirmar`, é o anexo do desembolso que acabou de ser descrito
+            acima.
+
+            ⚠️ Nenhuma pergunta fiscal aqui (critério 7): comprovante de
+            pagamento não pergunta "nota no CPF?" nem retenção — mesmo
+            tratamento de `/pagamento/[id]/comprovante` (CONTAI-061). Por ser
+            documento probatório opcional, sua ausência não abre pendência nem
+            viola "campo vazio pergunta, preenchido afirma": este campo não
+            afirma fato fiscal nenhum.
+
+            ⚠️ "Pode anexar depois, no detalhe do pagamento" é afirmação
+            verdadeira hoje, não promessa: `/pagamento/[id]/comprovante` já
+            cobre o comprovante tardio de qualquer pagamento, incluindo os que
+            nascerem deste desembolso.
+          */}
+          <CampoArquivo
+            rotulo="Comprovante deste pagamento (opcional)"
+            ajuda="PDF, foto ou print — se você tiver à mão agora. Pode anexar depois, no detalhe do pagamento."
+            accept=".pdf,image/*"
+            arquivo={comprovante}
+            onChange={setComprovante}
           />
         </Card>
       </ColunaDeDetalhe>

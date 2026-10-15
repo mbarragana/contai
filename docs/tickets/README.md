@@ -1,6 +1,14 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 23 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 22 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-10-15, mais tarde: `CONTAI-097` entregue** (Gate 4, 10/10 PASS) —
+volta a 22, `098` sozinho na fila, sem bloqueio técnico. Campo
+`CampoArquivo` opcional em `/fatura/[id]/parcial`, propagado pela RPC
+`fatura_desembolso_gravar`/`fatura_alocar` já em produção; E2E novo 3/3
+(COM anexo, SEM anexo, falha de upload); sem divergência do
+`design/mocks/CONTAI-097.md`. Detalhe:
+`docs/backlog/111-2026-10-15-gate4-contai-097.md`.
 
 **2026-10-15**: **`CONTAI-097`/`098` criados, P1** — relato de backlog
 (`110`): o mesmo comprovante de uma fatura de cartão paga em parcelas
