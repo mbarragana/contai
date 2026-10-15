@@ -7,6 +7,7 @@ import {
 } from "./ambiente";
 import {
   colaboradores,
+  contarColaboradoresSemRls,
   contasResolvidasSemRls,
   criarColaborador,
   criarObra,
@@ -295,6 +296,66 @@ test.describe("(d) conceder e alterar acesso é só do dono", () => {
     expect((await colaboradores(db)).map((c) => c.visibilidade)).toEqual([
       "total",
     ]);
+  });
+
+  /**
+   * **O FURO QUE O GATE 2 ACHOU, virado trava** (2026-10-15).
+   *
+   * A primeira versão da migration 0030 tinha `with check (exists (… from obra
+   * …))` e nada mais. `user_id` tem `default auth.uid()`, mas **default não é
+   * trava**: o PostgREST aceita a coluna no corpo do POST, e o dono conseguia
+   * gravar um vínculo com `user_id` de OUTRA conta.
+   *
+   * ⚠️ **O estrago é pior do que "campo errado"**: a linha concede acesso de
+   * verdade (o trigger resolve `colaborador_user_id` pelo e-mail, e a policy de
+   * `obra` passa a devolver a obra àquela pessoa) e ao mesmo tempo DESAPARECE da
+   * lista do dono, porque `obra_colaborador_select` filtra por `user_id =
+   * auth.uid()`. É o Pre-mortem 1 do ticket com a mitigação desligada: o ticket
+   * conta com "lista visível + remoção rápida" (critério 10), e não há remoção
+   * rápida do que não aparece na lista.
+   *
+   * Sem este teste, a correção ficaria sendo uma linha de SQL que o próximo
+   * refactor de policy pode desfazer sem nada ficar vermelho.
+   */
+  test("nem o DONO grava vínculo com `user_id` de outra conta", async ({
+    db,
+  }) => {
+    // ⚠️ A conta alheia precisa EXISTIR: com um uuid inventado a recusa viria
+    // da FK, e o teste ficaria verde provando "uuid inexistente não entra" —
+    // que é outra coisa, e passaria com a policy aberta.
+    const ALHEIO = plantarConta(
+      `${PREFIXO_CONTA_DE_TESTE}alheio@contai.local`,
+      "88888888-8888-4888-8888-888888888884",
+    );
+
+    const recusado = await db.from("obra_colaborador").insert({
+      obra_id: OBRA_ID_SEED,
+      user_id: ALHEIO,
+      nome: "Vínculo órfão",
+      email: EMAIL_COLABORADOR,
+      visibilidade: "total",
+    });
+    expect(
+      recusado.error,
+      "`with check` tem de exigir `user_id = auth.uid()`: sem isso o acesso é " +
+        "concedido e fica invisível na lista de quem concedeu",
+    ).not.toBeNull();
+
+    // E nada foi gravado — a asserção sobre o ESTADO, e não só sobre o erro:
+    // `insert` sem `returning` é justamente como o furo passava despercebido,
+    // e a linha órfã é invisível para o client do dono (é o furo inteiro).
+    expect(contarColaboradoresSemRls()).toBe(0);
+
+    // O mesmo pelo UPDATE: o dono não empurra um vínculo dele para outra conta.
+    const vinculo = await concederAoEngenheiro(db);
+    await db
+      .from("obra_colaborador")
+      .update({ user_id: ALHEIO })
+      .eq("id", vinculo.id);
+    expect(
+      (await colaboradores(db)).map((c) => c.user_id),
+      "o vínculo continua pertencendo a quem o concedeu",
+    ).toEqual([USER_ID_SEED]);
   });
 });
 

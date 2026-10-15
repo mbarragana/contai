@@ -21,10 +21,17 @@ import { ShellDeGestao } from "@/app/_components/shell";
  *
  * ⚠️ **CONTAI-093, critério 16 — a guarda de papel envolve o grupo inteiro.**
  * Gestão é do DONO: um colaborador que chegue aqui por URL direta é levado para
- * `/colaborador`. A guarda fica POR FORA do provedor porque o provedor carrega
- * obra, resumo fiscal, agenda e fila de pendências — trabalho que não precisa
- * nem começar para quem vai ser redirecionado. Ela não bloqueia o render (ver o
- * cabeçalho de `GuardaDePapel`): quem protege o acervo é a RLS, não ela.
+ * `/colaborador`.
+ *
+ * ⚠️ **Ela NÃO é um portão: o provedor carrega normalmente enquanto ela
+ * decide** (ver o cabeçalho de `GuardaDePapel`). Quem protege o acervo é a RLS
+ * do Postgres — para o colaborador, essa carga volta vazia —, e é por isso que
+ * valeu mais não somar uma leitura bloqueante na frente de toda tela de gestão
+ * do Mateus, que é o uso diário do app, do que encurtar um instante de shell
+ * vazio num caso raro. O aninhamento por fora do provedor é organização de
+ * responsabilidade (papel decide shell; provedor carrega conteúdo), não uma
+ * economia de carregamento — afirmar o contrário seria descrever um portão
+ * síncrono que este código deliberadamente não é.
  */
 export default function GestaoLayout({
   children,

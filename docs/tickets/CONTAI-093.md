@@ -316,7 +316,19 @@ si, mas fixa duas garantias que as fatias seguintes dependem:
   não derruba sessão JWT já emitida — é a RLS que torna o acesso nulo na
   requisição seguinte (discordância registrada: "revoga login" do critério 4
   do relato original é sobre operação, não sobre banir a conta); (D-viii)
-  `CONTAI-011` continua pausado — este desenho não resolve o multi-dono.
+  `CONTAI-011` continua pausado — este desenho não resolve o multi-dono;
+  **(D-ix, acrescentada no Gate 2 de 2026-10-15)** RLS de `obra`
+  (`obra_select`) devolve a **LINHA INTEIRA** ao colaborador, inclusive
+  `cno` e `matricula` — RLS é por linha, nunca por coluna. A garantia de que
+  ele só vê **nome e cidade** é das queries de colunas NOMEADAS de
+  `carregarMeusVinculos` em `lib/data.ts` (`obra(nome, municipio)`), não do
+  banco: um `obra(*)` num ticket futuro põe o CNO no payload do colaborador
+  sem uma linha de diff em tela nenhuma. **Vazamento aceito nesta fatia** por
+  três razões: é dono→colaborador que o **próprio dono concedeu** (não entre
+  colaboradores e não entre obras — as duas vedações estão provadas por teste
+  no cenário (c)); o colaborador vai **precisar** do CNO na `CONTAI-094`, onde
+  o check fiscal "qual CNO está impresso nela?" é dele; e fechar de verdade
+  exige view ou split de colunas, fora de escopo aqui.
 - **Primeiro acesso**: resolvido sem RPC e sem service key (critério 11) —
   dois triggers convergem os dois casos (vínculo antes da conta, conta antes
   do vínculo) sem o app precisar saber em qual ordem aconteceu.

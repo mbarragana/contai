@@ -199,13 +199,34 @@ alter table obra_colaborador enable row level security;
 create policy obra_colaborador_select on obra_colaborador for select
   using (user_id = auth.uid() or colaborador_user_id = auth.uid());
 
--- Conceder e alterar são atos do DONO DA OBRA, sempre — e a condição é a
--- propriedade da obra, não `user_id = auth.uid()`: assim um vínculo não pode
--- nascer pendurado na obra de outra conta nem com `user_id` discordando do dono
--- real (o `with check` cobre as duas coisas de uma vez).
+-- Conceder e alterar são atos do DONO DA OBRA, sempre. São DUAS condições, e as
+-- duas são necessárias:
+--
+-- 1. `exists (… from obra …)` — o vínculo não nasce pendurado na obra de outra
+--    conta;
+-- 2. `user_id = auth.uid()` — o vínculo não nasce com `user_id` DISCORDANDO de
+--    quem o criou.
+--
+-- ⚠️ **A segunda entrou no Gate 2, e a primeira versão desta migration não a
+-- tinha** — o comentário afirmava que o `exists` cobria as duas coisas, e era
+-- falso: `user_id` tem `default auth.uid()`, mas default não é trava, e o
+-- PostgREST aceita a coluna no corpo do POST. O revisor provou por `psql` que o
+-- dono conseguia gravar um vínculo com `user_id` de outra conta.
+--
+-- O estrago não é teórico, e é pior do que parece: a linha CONCEDE acesso de
+-- verdade (o trigger resolve `colaborador_user_id` pelo e-mail e a policy de
+-- `obra` passa a devolver a obra para aquela pessoa), mas desaparece da lista
+-- do dono — porque `obra_colaborador_select` filtra por `user_id = auth.uid()`.
+-- Acesso concedido e invisível é exatamente o Pre-mortem 1 do ticket ("erro de
+-- digitação no e-mail concede acesso a quem não devia") com a mitigação
+-- desligada: o ticket conta com "a lista visível + remoção rápida" (critério
+-- 10), e não há remoção rápida do que não aparece na lista.
 create policy obra_colaborador_insert on obra_colaborador for insert
   with check (
-    exists (select 1 from obra o where o.id = obra_id and o.user_id = auth.uid())
+    user_id = auth.uid()
+    and exists (
+      select 1 from obra o where o.id = obra_id and o.user_id = auth.uid()
+    )
   );
 
 -- ⚠️ O `using` é o que impede o COLABORADOR de se promover: ele VÊ o vínculo
@@ -213,12 +234,26 @@ create policy obra_colaborador_insert on obra_colaborador for insert
 -- deixaria linha nenhuma visível para UPDATE — mas também não é dele que o
 -- `using` fala. Ele fala da obra: só quem é dono alcança a linha para alterar
 -- visibilidade ou carimbar `removido_em`.
+--
+-- ⚠️ **O `using` fica SÓ com a propriedade da obra, e o `user_id = auth.uid()`
+-- entra só no `with check`** — a assimetria é deliberada. O `using` escolhe
+-- QUAIS LINHAS o dono alcança; se ele também exigisse `user_id = auth.uid()`,
+-- uma linha com `user_id` errado ficaria inalcançável para revogação, ou seja,
+-- um acesso impossível de cortar. Com a assimetria, o dono alcança a linha, e o
+-- `with check` só recusa se o UPDATE deixar `user_id` apontando para outra
+-- conta.
+--
+-- Não há linha órfã a consertar hoje: a tabela nasce nesta migration e o
+-- `with check` do insert acima fecha a única porta por onde ela entraria.
 create policy obra_colaborador_update on obra_colaborador for update
   using (
     exists (select 1 from obra o where o.id = obra_id and o.user_id = auth.uid())
   )
   with check (
-    exists (select 1 from obra o where o.id = obra_id and o.user_id = auth.uid())
+    user_id = auth.uid()
+    and exists (
+      select 1 from obra o where o.id = obra_id and o.user_id = auth.uid()
+    )
   );
 
 -- ══ 4 · RLS DA OBRA: a policy única se parte em duas ═════════════════════

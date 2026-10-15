@@ -1275,6 +1275,22 @@ export function plantarConta(email: string, id: string): string {
 }
 
 /**
+ * Quantas linhas de vínculo existem no banco INTEIRO, sem passar pela RLS.
+ *
+ * ⚠️ Existe por causa do furo que o Gate 2 achou (2026-10-15): um vínculo
+ * gravado com `user_id` de outra conta é INVISÍVEL para o client do dono, então
+ * conferir "não gravou" pelo client autenticado daria verde mesmo com a linha
+ * lá. A pergunta "a tabela está vazia?" só tem resposta honesta fora da RLS.
+ */
+export function contarColaboradoresSemRls(): number {
+  const [linha] = consultarAdmin(
+    "select count(*) from obra_colaborador;",
+    "contar vínculos de colaborador sem RLS",
+  );
+  return Number(linha?.[0] ?? 0);
+}
+
+/**
  * Os vínculos de um e-mail SEM passar pela RLS — é como o teste confere que o
  * trigger `after insert` em `auth.users` resolveu **TODAS** as linhas pendentes
  * daquele e-mail, e não só a primeira (Emenda 2026-10-14 do critério 11).
