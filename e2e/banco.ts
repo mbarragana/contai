@@ -48,6 +48,19 @@ export type Db = SupabaseClient<Database>;
 //
 // `docker exec ... psql` é o mesmo caminho que o `npm run db:demo` já usa; o
 // nome do container sai do `project_id` do supabase/config.toml.
+//
+// ⚠️ **TUDO QUE PASSA POR AQUI RODA FORA DE SESSÃO: `auth.uid()` é `null`.**
+// Toda coluna `not null default auth.uid()` tem de vir EXPLÍCITA no insert, ou
+// o plantio morre com `null value in column "..." violates not-null
+// constraint`. Hoje são duas — `user_id` (desde a 0001, e os plantios sempre a
+// passaram) e **`criado_por` (desde a 0030, CONTAI-093)**, que entrou depois e
+// derrubou três testes no Gate 3 justamente por ter sido esquecida aqui.
+//
+// E o valor não é detalhe de sintaxe: nos plantios de OUTRA CONTA, `criado_por`
+// é o `user_id` DAQUELA conta, nunca o usuário do seed. Com o do seed a linha
+// viraria "registro criado pelo Mateus no acervo de outra pessoa" —
+// `pendente_revisao` nasceria `true`, e o teste de acesso cruzado passaria a
+// exercitar um cenário que ninguém quis escrever.
 const CONTAINER_BANCO = "supabase_db_contai";
 
 function literalSql(valor: string | number | boolean | null): string {
@@ -998,10 +1011,11 @@ export function plantarLinhaDeRetencaoDeOutroDono(): string {
      on conflict (id) do nothing;
 
      insert into documento (
-       id, user_id, obra_id, tipo, arquivo_path, valor, classificacao,
-       destinatario_cpf_ok, retencao_na_nota, status
+       id, user_id, criado_por, obra_id, tipo, arquivo_path, valor,
+       classificacao, destinatario_cpf_ok, retencao_na_nota, status
      ) values (
        ${literalSql(documentoAlheio)}, ${literalSql(DONO_ALHEIO)},
+       ${literalSql(DONO_ALHEIO)},
        ${literalSql(obraAlheia)}, 'nf_servico',
        ${literalSql(`${DONO_ALHEIO}/documento/alheia.pdf`)}, 1000, 'mao_obra',
        true, 'destacada', 'registrado'
@@ -1061,10 +1075,11 @@ export function plantarDocumentoDeOutroDono(): string {
      on conflict (id) do nothing;
 
      insert into documento (
-       id, user_id, obra_id, tipo, arquivo_path, valor, classificacao,
-       destinatario_cpf_ok, retencao_na_nota, status
+       id, user_id, criado_por, obra_id, tipo, arquivo_path, valor,
+       classificacao, destinatario_cpf_ok, retencao_na_nota, status
      ) values (
        ${literalSql(documentoAlheio)}, ${literalSql(DONO_ALHEIO)},
+       ${literalSql(DONO_ALHEIO)},
        ${literalSql(obraAlheia)}, 'nf_material',
        ${literalSql(`${DONO_ALHEIO}/documento/alheia.pdf`)}, 950, 'material',
        true, null, 'registrado'
