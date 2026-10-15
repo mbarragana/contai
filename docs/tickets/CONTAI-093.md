@@ -317,18 +317,41 @@ si, mas fixa duas garantias que as fatias seguintes dependem:
   requisição seguinte (discordância registrada: "revoga login" do critério 4
   do relato original é sobre operação, não sobre banir a conta); (D-viii)
   `CONTAI-011` continua pausado — este desenho não resolve o multi-dono;
-  **(D-ix, acrescentada no Gate 2 de 2026-10-15)** RLS de `obra`
-  (`obra_select`) devolve a **LINHA INTEIRA** ao colaborador, inclusive
-  `cno` e `matricula` — RLS é por linha, nunca por coluna. A garantia de que
-  ele só vê **nome e cidade** é das queries de colunas NOMEADAS de
-  `carregarMeusVinculos` em `lib/data.ts` (`obra(nome, municipio)`), não do
-  banco: um `obra(*)` num ticket futuro põe o CNO no payload do colaborador
-  sem uma linha de diff em tela nenhuma. **Vazamento aceito nesta fatia** por
-  três razões: é dono→colaborador que o **próprio dono concedeu** (não entre
-  colaboradores e não entre obras — as duas vedações estão provadas por teste
-  no cenário (c)); o colaborador vai **precisar** do CNO na `CONTAI-094`, onde
-  o check fiscal "qual CNO está impresso nela?" é dele; e fechar de verdade
-  exige view ou split de colunas, fora de escopo aqui.
+  **(D-ix, acrescentada no Gate 2 de 2026-10-15; primeira frase revista pelo
+  `contador` na mesma data e transcrita LITERALMENTE — texto de consequência
+  fiscal se copia, não se reescreve)** RLS de `obra` (`obra_select`) devolve a
+  LINHA INTEIRA ao colaborador — RLS é por linha, nunca por coluna. Além de
+  `nome`/`municipio`, a linha de hoje carrega `cno`, `matricula`, `cartorio`,
+  `data_inicio_obra`, `cno_registrado_em`, `unidades_autonomas`,
+  `origem_desmembramento_loteamento` e `natureza_aquisicao_terreno`. NENHUM
+  valor em dinheiro: a 0008 dropou
+  `valor_terreno`/`valor_itbi`/`valor_escritura_registro`, logo nenhum
+  componente do custo de aquisição sai por aqui. Dois pares pesam mais que o
+  CNO e NÃO estão cobertos pelas justificativas abaixo: (i) `data_inicio_obra`
+  + `cno_registrado_em` expõem a janela sem CNO — exposição previdenciária do
+  dono; (ii) `unidades_autonomas` + `origem_desmembramento_loteamento` são os
+  dois insumos de `exigeAvisoEquiparacao` (`lib/fiscal/obra.ts`), o gatilho de
+  equiparação a PJ (art. 166+, RIR/2018). Coluna nova em `obra` entra no
+  payload do colaborador por OMISSÃO: quem acrescentar coluna lá responde antes
+  "isto pode ir para o colaborador?"
+  A garantia de que ele só vê **nome e cidade** é das queries de colunas
+  NOMEADAS de `carregarMeusVinculos` em `lib/data.ts` (`obra(nome, municipio)`),
+  não do banco: um `obra(*)` num ticket futuro põe tudo isso no payload do
+  colaborador sem uma linha de diff em tela nenhuma. **Vazamento aceito nesta
+  fatia** por três razões: é dono→colaborador que o **próprio dono concedeu**
+  (não entre colaboradores e não entre obras — as duas vedações estão provadas
+  por teste no cenário (c)); o colaborador vai **precisar** do CNO na
+  `CONTAI-094`, onde o check fiscal "qual CNO está impresso nela?" é dele; e
+  fechar de verdade exige view ou split de colunas, fora de escopo aqui.
+  ⚠️ **CONDIÇÃO HERDADA PELA `CONTAI-094` — exigência do `contador`, Gate 2 de
+  2026-10-15.** A terceira justificativa acima autoriza **EXIBIR** o CNO da
+  obra ao colaborador, e **NUNCA PRÉ-PREENCHER** com ele o check "qual CNO está
+  impresso nela?". O check pergunta o que está **IMPRESSO NA NOTA**; o CNO
+  guardado na obra é o termo de **COMPARAÇÃO**, não a resposta. Pré-preencher
+  converte pergunta fiscal em default — vedado pela mesma regra que proíbe a
+  extração automática de preencher `notaNoCpf` e `retencao11` (campo vazio
+  pergunta, campo preenchido afirma). **Campo pré-preenchido na `CONTAI-094` é
+  REQUEST CHANGES lá**, não ajuste de acabamento.
 - **Primeiro acesso**: resolvido sem RPC e sem service key (critério 11) —
   dois triggers convergem os dois casos (vínculo antes da conta, conta antes
   do vínculo) sem o app precisar saber em qual ordem aconteceu.

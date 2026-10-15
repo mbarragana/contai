@@ -236,15 +236,31 @@ create policy obra_colaborador_insert on obra_colaborador for insert
 -- visibilidade ou carimbar `removido_em`.
 --
 -- ⚠️ **O `using` fica SÓ com a propriedade da obra, e o `user_id = auth.uid()`
--- entra só no `with check`** — a assimetria é deliberada. O `using` escolhe
--- QUAIS LINHAS o dono alcança; se ele também exigisse `user_id = auth.uid()`,
--- uma linha com `user_id` errado ficaria inalcançável para revogação, ou seja,
--- um acesso impossível de cortar. Com a assimetria, o dono alcança a linha, e o
--- `with check` só recusa se o UPDATE deixar `user_id` apontando para outra
--- conta.
+-- entra só no `with check`.** A assimetria é inofensiva, e o que ela NÃO faz
+-- precisa estar escrito aqui, porque a primeira redação deste comentário
+-- afirmava o contrário e foi desmentida por `psql` no Gate 2:
 --
--- Não há linha órfã a consertar hoje: a tabela nasce nesta migration e o
--- `with check` do insert acima fecha a única porta por onde ela entraria.
+-- ❌ **Ela não deixa o dono reparar uma linha com `user_id` errado.** Isso foi
+--    testado, não deduzido: com uma linha órfã plantada por administrador,
+--    `update … set removido_em = now() where email = …` e
+--    `update … set removido_em = now(), user_id = auth.uid()` afetam, os dois,
+--    **ZERO linhas** para o dono da obra. O motivo tem duas pernas:
+--    (a) UPDATE com WHERE lê a linha pela policy de **SELECT**
+--    (`user_id = auth.uid() or colaborador_user_id = auth.uid()`), e a órfã não
+--    passa por nenhuma das duas pernas — para o dono ela simplesmente não
+--    existe; (b) sem WHERE, o `with check` acima recusa a órfã inteira.
+--    Logo: **linha com `user_id` errado não tem reparo pelo app, só por
+--    administrador do banco.**
+--
+-- ✅ **O que sustenta a decisão é a outra ponta**: nenhuma órfã pode NASCER. O
+--    `with check` do insert exige `user_id = auth.uid()`, e
+--    `e2e/colaborador.spec.ts` (cenário (d)) trava isso pelos dois verbos, com
+--    a asserção sobre o estado lido FORA da RLS — pelo client do dono a órfã é
+--    invisível, que é o furo inteiro que o Gate 2 achou.
+--
+-- Pôr `user_id = auth.uid()` também no `using` não mudaria nada de prático (a
+-- policy de SELECT já barra antes), então a assimetria fica — por não custar,
+-- não por comprar um reparo que ela não entrega.
 create policy obra_colaborador_update on obra_colaborador for update
   using (
     exists (select 1 from obra o where o.id = obra_id and o.user_id = auth.uid())
