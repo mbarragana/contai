@@ -303,6 +303,39 @@ const MAPA: Record<string, Classificacao> = {
       "revalidação de pré-vínculo por clique: dois botões por bloco, nenhum campo",
   },
   "/obras": { semCamposFiscais: "lista de obras, só leitura" },
+  /**
+   * ── CONTAI-093 — as três telas do colaborador ──────────────────────────
+   *
+   * ⚠️ **A tela de gestão TEM controles e continua `semCamposFiscais`**, e a
+   * combinação é legítima: a classificação deste mapa é sobre campo **fiscal**,
+   * não sobre existir controle (é a mesma leitura de `/despesas` e
+   * `/compromisso`, cujas barras de filtro são controles e não são fiscais).
+   *
+   * O que autoriza é o Gate Fiscal do próprio ticket, item 2: *"visibilidade
+   * (restrita/total) é questão de produto/privacidade, não fiscal"* — e nome e
+   * e-mail de uma pessoa não decidem classificação, regime de caixa, retenção
+   * nem relatório anual. É também o que permite à visibilidade nascer
+   * pré-marcada em "restrita", o que a proibição de default fiscal nunca
+   * permitiria.
+   *
+   * Os quatro controles declaram `data-campo` de qualquer forma
+   * (`colabNome`, `colabEmail`, `colabVisibilidade`,
+   * `colabVisibilidadeDaLinha`) e estão em `design/mocks/CONTAI-093.md` com
+   * `SEM DEFAULT` / `DEFAULT DECLARADO` — custo zero, e é o elo que já existe
+   * se um dia a classificação mudar.
+   */
+  "/obras/[id]/colaboradores": {
+    semCamposFiscais:
+      "nome, e-mail e visibilidade do colaborador: nenhum decide consequência tributária (Gate Fiscal do CONTAI-093, item 2)",
+  },
+  "/colaborador": {
+    semCamposFiscais:
+      "lista das obras em que a pessoa colabora; uma ação por cartão, nenhum campo",
+  },
+  "/colaborador/[obraId]": {
+    semCamposFiscais:
+      "área da obra pelo olho do colaborador: 'nada a fazer ainda' + 'Trocar obra', nenhum campo",
+  },
   "/obras/[id]/discriminacao/[ano]": {
     semCamposFiscais: "texto anual da ficha Bens e Direitos, só leitura",
   },

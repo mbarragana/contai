@@ -43,6 +43,22 @@ export type RespostaRetencaoNaNota = Enums<"retencao_na_nota">;
 export type ComposicaoRetencao = Enums<"composicao_retencao">;
 export type TributoRetido = Enums<"tributo_retido">;
 export type QuemRecolheRetencao = Enums<"quem_recolhe_retencao">;
+// ── CONTAI-093 ────────────────────────────────────────────────────────────
+/**
+ * O que o colaborador vê da obra. Binário por decisão do Mateus (resposta 1):
+ * não existe granularidade por tipo de documento nem por faixa de valor.
+ *
+ * ⚠️ **"restrita" NÃO é "só o que eu criei"** (Emenda 2026-10-14): é *próprios
+ * registros + todos os pendentes de revisão da obra*, de qualquer colaborador —
+ * e quem decide "pendente" é a coluna gerada `pendente_revisao` da migration
+ * 0030, nunca uma leitura de `revisado_em` montada à mão. A RLS que usa isso
+ * nasce nas fatias `CONTAI-094`/`095`; aqui o valor só é guardado e exibido.
+ *
+ * ⚠️ Sem default no banco, de propósito (critério 1): a UI pré-seleciona
+ * "restrita" e isso é legítimo (não é campo fiscal), mas nenhum chamador de
+ * banco concede acesso sem decidir o que a pessoa vê.
+ */
+export type VisibilidadeColaborador = Enums<"visibilidade_colaborador">;
 
 // ── Rows (PostgREST) ─────────────────────────────────────────────────────
 export type ObraRow = Tables<"obra">;
@@ -81,6 +97,8 @@ export type FaturaDesembolsoRow = Tables<"fatura_desembolso">;
 // nomeadas, nunca `*`.
 export type IntegracaoGoogleRow = Tables<"integracao_google">;
 export type CompromissoAgendaRow = Tables<"compromisso_agenda">;
+// ── CONTAI-093 (migration 0030) ──────────────────────────────────────────
+export type ObraColaboradorRow = Tables<"obra_colaborador">;
 
 // ── Inserts ──────────────────────────────────────────────────────────────
 export type ObraInsert = TablesInsert<"obra">;
@@ -124,6 +142,62 @@ export interface Obra {
   cnoRegistradoEm: string | null;
   unidadesAutonomas: number;
   origemDesmembramentoLoteamento: boolean;
+}
+
+// ── CONTAI-093 — colaborador na obra ─────────────────────────────────────
+
+/**
+ * Um vínculo, como a TELA DE GESTÃO do dono o lê (`/obras/[id]/colaboradores`).
+ *
+ * Sem dinheiro nenhum aqui, e nem poderia haver: esta fatia é infraestrutura de
+ * acesso e autoria, não cadastra documento/pagamento/compromisso (Gate Fiscal
+ * do ticket).
+ */
+export interface Colaborador {
+  id: string;
+  obraId: string;
+  /** Como o Mateus chama a pessoa — é o nome que aparece em "criado por". */
+  nome: string;
+  email: string;
+  /**
+   * `null` = **o e-mail ainda não tem conta no Supabase Auth**. O vínculo é
+   * válido e fica esperando: quando a conta nascer (passo de dashboard, fora do
+   * app), o trigger `resolver_vinculos_de_colaborador` da 0030 liga sozinho. A
+   * tela DIZ isso em vez de fingir que o acesso já funciona (critério 11b).
+   */
+  colaboradorUserId: string | null;
+  visibilidade: VisibilidadeColaborador;
+  concedidoEm: string;
+  /**
+   * Acesso revogado. A linha permanece para sempre — é a única fonte de
+   * nome/e-mail do rastro de autoria depois que a pessoa sai (critério 13).
+   */
+  removidoEm: string | null;
+}
+
+/**
+ * Um vínculo visto pelo PRÓPRIO COLABORADOR (tela (b), `/colaborador`).
+ *
+ * Tipo separado de `Colaborador` de propósito: são leituras com colunas
+ * diferentes porque são papéis diferentes. O colaborador não lê `user_id`,
+ * `nome` nem `email` do vínculo (não precisa saber como o dono o chama), e em
+ * troca lê o nome e a cidade da obra — nada de CNO, matrícula ou número fiscal
+ * (crit. 12). Um tipo só obrigaria campos opcionais que uma das duas telas
+ * nunca preenche, e campo opcional é onde nasce "achei que estava carregado".
+ */
+export interface VinculoDaObra {
+  id: string;
+  obraId: string;
+  visibilidade: VisibilidadeColaborador;
+  /**
+   * `null` quando o vínculo está removido: a policy `obra_select` da 0030 para
+   * de devolver a linha da obra no instante em que `removido_em` é carimbado —
+   * é a revogação funcionando, não falha de carregamento. A tela (b) lista só
+   * os ativos; `papelDaSessao` conta os removidos também (critério 16).
+   */
+  nomeDaObra: string | null;
+  municipio: string | null;
+  removidoEm: string | null;
 }
 
 export interface Documento {

@@ -104,10 +104,35 @@ para Home, `/despesas`, `/pendencias` ou relatórios anuais.
 
 ## Campos
 
-`nome`, `e-mail`, `visibilidade` na tela (a). Nenhum é campo fiscal — não
-cadastram documento/pagamento, então a disciplina "campo vazio pergunta,
-nunca default fiscal" não se aplica a eles; ainda assim o default de
-visibilidade deve estar visivelmente pré-marcado, nunca implícito.
+### Tela (a) — gestão de colaboradores
+
+- NÃO É CONTROLE — nota sobre as três entradas abaixo: nenhuma decide
+  consequência tributária (Gate Fiscal do ticket, item 2), porque esta tela
+  não cadastra documento, pagamento nem compromisso. É por isso — e só por
+  isso — que a visibilidade pode nascer pré-marcada, o que a disciplina de
+  "campo vazio pergunta" nunca permitiria num campo fiscal.
+- `colabNome` "Nome" — texto livre: como o Mateus chama a pessoa, e é o nome
+  que aparece em "criado por" depois. **SEM DEFAULT** — não há o que o app
+  possa supor no nome de alguém.
+- `colabEmail` "E-mail" — o endereço da conta dela no contai; é ele que
+  concede o acesso (resposta 3 do Mateus: cadastro direto, sem convite).
+  **SEM DEFAULT**.
+- `colabVisibilidade` "O que ela vê" — escolha restrita/total do formulário de
+  concessão — DEFAULT DECLARADO: "restrita", pré-marcada e VISÍVEL. É o acesso
+  mais estreito dos dois, e a pré-marcação é explícita na tela, nunca
+  implícita.
+- `colabVisibilidadeDaLinha` "O que ela vê" — o mesmo controle, inline em cada
+  linha da lista de colaboradores ativos — DEFAULT DECLARADO: a visibilidade
+  já gravada daquele vínculo. É edição de um valor existente, não escolha
+  nova: nascer vazio aqui apagaria da tela o que está em vigor.
+
+### Telas (b) e (c) — área do colaborador
+
+- NÃO É CONTROLE — nenhuma das duas tem formulário, campo ou anexo. São telas
+  de orientação e navegação: a (b) lista obras com uma ação por cartão
+  ("Entrar nesta obra"), a (c) diz "nada a fazer ainda" e oferece "Trocar
+  obra". Captura pelo colaborador só chega em `CONTAI-094`/`095`, e é lá que
+  os campos fiscais do formulário de documento voltam a valer, intactos.
 
 ## Textos fiscais
 

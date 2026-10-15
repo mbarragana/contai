@@ -51,6 +51,51 @@ insert into auth.identities (
   'email', now(), now(), now()
 );
 
+-- ── Segundo usuário local: o COLABORADOR (CONTAI-093, critério 14) ───────
+-- O engenheiro da obra, para o E2E de colaborador ter uma segunda identidade
+-- real — com login de verdade no GoTrue local e sujeito à mesma RLS do app.
+--
+-- ⚠️ Ele NÃO recebe vínculo aqui, e a ausência é o ponto: `papelDaSessao()`
+-- devolve `'dono'` para quem não tem obra nem vínculo (primeiro acesso), e é
+-- cada teste que monta o vínculo que quer provar. Vínculo no seed vazaria o
+-- cenário de um teste para todos os outros.
+--
+-- ⚠️ A ordem importa: este insert dispara o trigger
+-- `resolver_vinculos_de_colaborador` (migration 0030), que aqui não acha
+-- vínculo nenhum para resolver — é o caminho inverso (conta antes do vínculo),
+-- exercitado de propósito já no seed.
+insert into auth.users (
+  instance_id, id, aud, role, email, encrypted_password,
+  email_confirmed_at, created_at, updated_at,
+  raw_app_meta_data, raw_user_meta_data,
+  confirmation_token, recovery_token, email_change_token_new,
+  email_change, email_change_token_current, phone_change,
+  phone_change_token, reauthentication_token
+) values (
+  '00000000-0000-0000-0000-000000000000',
+  '55555555-5555-4555-8555-555555555555',
+  'authenticated', 'authenticated', 'engenheiro@contai.local',
+  crypt('contai-local-456', gen_salt('bf')),
+  now(), now(), now(),
+  '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb,
+  '', '', '', '', '', '', '', ''
+);
+
+insert into auth.identities (
+  id, user_id, provider_id, identity_data, provider,
+  last_sign_in_at, created_at, updated_at
+) values (
+  gen_random_uuid(),
+  '55555555-5555-4555-8555-555555555555',
+  '55555555-5555-4555-8555-555555555555',
+  jsonb_build_object(
+    'sub', '55555555-5555-4555-8555-555555555555',
+    'email', 'engenheiro@contai.local',
+    'email_verified', true
+  ),
+  'email', now(), now(), now()
+);
+
 -- ── Obra ─────────────────────────────────────────────────────────────────
 -- user_id explícito: o seed roda fora de sessão, então auth.uid() é null.
 -- Datas fixas (não relativas a now()) para o E2E poder afirmar a janela sem

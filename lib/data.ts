@@ -53,6 +53,7 @@ import {
 } from "@/lib/fiscal/retencao";
 import { ehDocumentoHabil, podeVincular } from "@/lib/fiscal/vinculo";
 import { centavosParaNumeric, numericParaCentavos } from "@/lib/money";
+import { papelDaSessao, type PapelDaSessao } from "@/lib/papel";
 import {
   BUCKET_ACERVO,
   getSupabase,
@@ -61,6 +62,7 @@ import {
 import type {
   AnoAfetado,
   Classificacao,
+  Colaborador,
   Compromisso,
   CompromissoDataHistoricoRow,
   CompromissoInsert,
@@ -78,6 +80,7 @@ import type {
   FinanciamentoInformeRow,
   FinanciamentoRow,
   Obra,
+  ObraColaboradorRow,
   ObraRow,
   OrigemCompromisso,
   OrigemRecursoEntrada,
@@ -103,6 +106,8 @@ import type {
   TerrenoDesembolsoUpdate,
   TipoDesembolsoTerreno,
   TipoFavorecido,
+  VinculoDaObra,
+  VisibilidadeColaborador,
 } from "@/lib/types";
 
 /**
@@ -3289,6 +3294,197 @@ export async function carregarSincronizacaoDoCompromisso(
     situacaoSincronizada: linha.situacao_sincronizada,
     ultimoErro: linha.ultimo_erro,
   };
+}
+
+// ══ CONTAI-093 · colaborador na obra ════════════════════════════════════
+//
+// ⚠️ **Nada aqui é fato fiscal** (Gate Fiscal do ticket): nenhuma destas
+// funções lê, grava ou soma `documento`, `pagamento` ou `compromisso`. Elas
+// movem vínculo de acesso e nome de pessoa — e `pagamento` continua, nesta
+// fatia como antes, exclusivo do Mateus pela RLS de 0001.
+
+function paraColaborador(row: ObraColaboradorRow): Colaborador {
+  return {
+    id: row.id,
+    obraId: row.obra_id,
+    nome: row.nome,
+    email: row.email,
+    colaboradorUserId: row.colaborador_user_id,
+    visibilidade: row.visibilidade,
+    concedidoEm: row.concedido_em,
+    removidoEm: row.removido_em,
+  };
+}
+
+/**
+ * Os colaboradores ATIVOS de uma obra, do mais antigo para o mais novo.
+ *
+ * ⚠️ **Só os ativos, e isso é a Pergunta Aberta 4 do ticket ainda sem resposta
+ * do Mateus** ("a lista mostra também os removidos, com um estado 'removido'?").
+ * O critério 10 pede "lista de colaboradores ativos", então é o que esta função
+ * devolve; o banco guarda os removidos para sempre (critério 3) e o dia em que
+ * a auditoria virar requisito, o filtro sai daqui e a tela ganha o chip.
+ */
+export async function carregarColaboradores(
+  obraId: string,
+): Promise<Colaborador[]> {
+  await getUsuarioId();
+  const { data, error } = await getSupabase()
+    .from("obra_colaborador")
+    .select("*")
+    .eq("obra_id", obraId)
+    .is("removido_em", null)
+    .order("concedido_em", { ascending: true });
+  if (error) throw error;
+  return ((data ?? []) as ObraColaboradorRow[]).map(paraColaborador);
+}
+
+export interface EntradaColaborador {
+  obraId: string;
+  nome: string;
+  email: string;
+  visibilidade: VisibilidadeColaborador;
+}
+
+/**
+ * Concede acesso. **Devolve a linha gravada**, e não `void`, porque é só nela
+ * que se sabe se o e-mail JÁ TINHA CONTA: `colaboradorUserId === null` é o caso
+ * (b) do critério 11, e a tela precisa dizer que falta criar a conta no
+ * dashboard antes de o acesso funcionar. Sem o retorno, a tela teria de
+ * recarregar a lista e procurar a linha — ou, pior, calar.
+ *
+ * ⚠️ Quem resolve a conta é o TRIGGER do banco
+ * (`obra_colaborador_resolver_conta`, migration 0030), nunca este código: o app
+ * não tem (e não deve ter) privilégio de consultar `auth.users`.
+ *
+ * O `lower(trim())` daqui é conveniência de tela — o banco normaliza de novo no
+ * trigger e trava no check. Normalizar aqui faz o e-mail que o Mateus digitou
+ * com maiúscula casar com a conta na PRIMEIRA tentativa.
+ */
+export async function adicionarColaborador(
+  entrada: EntradaColaborador,
+): Promise<Colaborador> {
+  const { data, error } = await getSupabase()
+    .from("obra_colaborador")
+    .insert({
+      obra_id: entrada.obraId,
+      nome: entrada.nome.trim(),
+      email: entrada.email.trim().toLowerCase(),
+      visibilidade: entrada.visibilidade,
+    })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return paraColaborador(data as ObraColaboradorRow);
+}
+
+/** Troca o que a pessoa vê. Vale na requisição seguinte dela (a RLS relê). */
+export async function alterarVisibilidade(
+  id: string,
+  visibilidade: VisibilidadeColaborador,
+): Promise<void> {
+  const { error } = await getSupabase()
+    .from("obra_colaborador")
+    .update({ visibilidade })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+/**
+ * Revoga o acesso — `removido_em`, **nunca DELETE** (critério 3). O papel
+ * `authenticated` não tem DELETE nesta tabela, então não há como errar isto por
+ * distração: a migration 0030 fecha a porta.
+ *
+ * ⚠️ **Dívida D-vii, declarada no ticket**: isto não derruba o JWT já emitido.
+ * A sessão do colaborador continua válida até expirar; o que fica nulo é o
+ * ACESSO — `visibilidade_na_obra` devolve `null` na requisição seguinte e a RLS
+ * para de devolver linha. Operacionalmente é o que o relato pedia; banir a
+ * conta é passo de dashboard, fora do app.
+ *
+ * O carimbo é o `now()` do CLIENTE, e aqui isso é aceitável: `removido_em` é
+ * marcador de estado ("ainda vale?"), não data fiscal. Nenhuma apuração o lê.
+ */
+export async function removerColaborador(id: string): Promise<void> {
+  const { error } = await getSupabase()
+    .from("obra_colaborador")
+    .update({ removido_em: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+/** O embed da obra dentro do vínculo. Colunas NOMEADAS — ver abaixo. */
+type VinculoComObra = {
+  id: string;
+  obra_id: string;
+  visibilidade: VisibilidadeColaborador;
+  removido_em: string | null;
+  obra: { nome: string; municipio: string | null } | null;
+};
+
+/**
+ * Os vínculos do USUÁRIO LOGADO — a tela (b), `/colaborador`, e a contagem de
+ * `papelDaSessao`.
+ *
+ * ⚠️ **`obra(nome, municipio)` e nunca `obra(*)`** (critério 12). RLS é por
+ * linha: a policy `obra_select` da 0030 devolve a obra INTEIRA ao colaborador,
+ * com `cno`, `matricula` e datas. "Colaborador vê nome e cidade" é garantia
+ * desta lista de colunas — a única que existe hoje. Trocar por `*` aqui põe o
+ * CNO da obra no payload do colaborador sem uma linha de diff em tela nenhuma.
+ *
+ * ⚠️ Devolve ATIVOS E REMOVIDOS, de propósito: `papelDaSessao` conta os dois
+ * (ver `ContagensDaSessao`), e quem filtra para exibir é a tela. `obra` vem
+ * `null` nos removidos — a mesma policy que revoga o acesso para de devolver a
+ * linha da obra, e isso é a revogação funcionando.
+ */
+export async function carregarMeusVinculos(): Promise<VinculoDaObra[]> {
+  const usuarioId = await getUsuarioId();
+  const { data, error } = await getSupabase()
+    .from("obra_colaborador")
+    .select("id, obra_id, visibilidade, removido_em, obra(nome, municipio)")
+    .eq("colaborador_user_id", usuarioId)
+    .order("concedido_em", { ascending: true });
+  if (error) throw error;
+  return ((data ?? []) as unknown as VinculoComObra[]).map((row) => ({
+    id: row.id,
+    obraId: row.obra_id,
+    visibilidade: row.visibilidade,
+    nomeDaObra: row.obra?.nome ?? null,
+    municipio: row.obra?.municipio ?? null,
+    removidoEm: row.removido_em,
+  }));
+}
+
+/**
+ * **Qual shell abre** (critério 16). A decisão é de `papelDaSessao`, em
+ * `lib/papel.ts`; aqui é só a contagem que ela precisa.
+ *
+ * ⚠️ `count: "exact", head: true` na obra, e com `eq("user_id", …)`
+ * EXPLÍCITO: desde a 0030 a policy `obra_select` devolve também as obras em que
+ * a pessoa só COLABORA, então um `count` sem o filtro contaria obra de
+ * terceiro como obra própria — e o colaborador abriria o shell de dono, vendo a
+ * Home e as Despesas da obra do Mateus. É a linha mais perigosa deste arquivo.
+ */
+export async function carregarPapelDaSessao(): Promise<PapelDaSessao> {
+  const usuarioId = await getUsuarioId();
+  const supabase = getSupabase();
+
+  const [proprias, vinculos] = await Promise.all([
+    supabase
+      .from("obra")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", usuarioId),
+    supabase
+      .from("obra_colaborador")
+      .select("id", { count: "exact", head: true })
+      .eq("colaborador_user_id", usuarioId),
+  ]);
+  if (proprias.error) throw proprias.error;
+  if (vinculos.error) throw vinculos.error;
+
+  return papelDaSessao({
+    obrasProprias: proprias.count ?? 0,
+    vinculosDeColaborador: vinculos.count ?? 0,
+  });
 }
 
 // ══ CONTAI-028 · barrel ═════════════════════════════════════════════════

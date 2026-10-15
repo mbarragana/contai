@@ -200,6 +200,27 @@ const ESPERADO: Record<string, string> = {
   // tentativa de sincronização.
   integracao_google: "INSERT,SELECT,UPDATE",
   compromisso_agenda: "INSERT,SELECT,UPDATE",
+
+  // ── CONTAI-093 (migration 0030) ─────────────────────────────────────────
+  // ⚠️ **A aposta mais alta do repo até aqui.** Esta é a tabela que DECIDE QUEM
+  // VÊ O ACERVO FISCAL DE OUTRA PESSOA: um privilégio errado nela não vaza um
+  // campo, vaza a obra inteira — CPF, CNO e notas — para uma segunda pessoa, ou
+  // deixa essa pessoa alterar o próprio nível de acesso. Precisou de `revoke`
+  // ANTES do `grant` pelo mesmo motivo de todas as anteriores (o
+  // `alter default privileges` do stack local faria a suíte ficar verde sobre um
+  // banco mais permissivo que a produção).
+  //
+  // SEM DELETE, e a ausência é a decisão (critério 3): revogar acesso é
+  // `update removido_em = now()`. Apagar a linha perderia o nome e o e-mail que
+  // sustentam "criado por Fulano" depois que a pessoa sai do projeto — é a
+  // meta 3 do produto aplicada a gente, não a papel. É também por isso que o
+  // `limpar` do E2E apaga esta tabela pelo andaime de administrador.
+  //
+  // UPDATE serve a DOIS atos, os dois com caminho na tela de gestão: trocar
+  // `visibilidade` e carimbar `removido_em`. Quem pode executá-los é só o DONO
+  // DA OBRA — isso é RLS (policy `obra_colaborador_update`), não grant: o
+  // colaborador tem o verbo e não alcança linha nenhuma com ele.
+  obra_colaborador: "INSERT,SELECT,UPDATE",
 };
 
 /**
@@ -439,6 +460,48 @@ const FUNCOES_ESPERADAS: Record<string, string> = {
   // outra pessoa numa só chamada — a família do incidente de 2026-08-17, com a
   // superfície de escrita multiplicada por 24.
   compra_cartao_gravar_lote: "authenticated",
+
+  // ── CONTAI-093 (migration 0030) ─────────────────────────────────────────
+  //
+  // ⚠️ **AS PRIMEIRAS FUNÇÕES `security definer` DO REPO** (dívida D-i, pattern
+  // break declarado na Viabilidade do ticket). A diferença em relação a todas as
+  // outras linhas deste mapa não é de grau: função `security invoker` roda com o
+  // papel de quem chama e a RLS continua valendo; `security definer` roda com os
+  // privilégios do DONO, logo **por cima da RLS**. `execute` para `anon` numa
+  // dessas não é superfície a mais, é a RLS desligada para o anônimo.
+  //
+  // As quatro levam `set search_path = ''` e qualificam tudo por schema
+  // (`public.`, `auth.`): sem isso, um schema plantado na frente de `public`
+  // sequestraria a resolução de nome dentro de uma função que roda como dono.
+  //
+  // `visibilidade_na_obra` é a única CHAMÁVEL de fora — é ela que as policies
+  // consultam e que as fatias `094`/`095`/`096` vão usar. `anon` e `PUBLIC` sem
+  // nada; `authenticated` com EXECUTE.
+  visibilidade_na_obra: "authenticated",
+
+  // ⚠️ **As três funções de TRIGGER `security definer` ficam com privilégio
+  // NENHUM — e aqui o repo quebra o padrão das linhas acima de propósito.**
+  // `pendencia_uma_aberta_por_chave`, `documento_arquivo_path_imutavel` e
+  // companhia aparecem com `PUBLIC,anon,authenticated` porque são `security
+  // invoker` e o Postgres recusa chamada direta de função de trigger — o
+  // privilégio herdado é inofensivo e foi DOCUMENTADO em vez de revogado.
+  // Estas são `security definer`: um `execute` que não protege nada numa função
+  // que roda como dono não se justifica por comodidade. Revogar não afeta o
+  // trigger — o Postgres confere EXECUTE no `CREATE TRIGGER`, não a cada
+  // disparo (conferido no Gate 1 contra o Postgres local: os cinco triggers
+  // disparam com o mapa como está).
+  //
+  // `(nenhum)` é o que o teste de EXECUTE compara quando a função não aparece
+  // em `routine_privileges` para nenhum dos três papéis medidos.
+  user_id_da_obra: "(nenhum)",
+  obra_colaborador_resolver_conta: "(nenhum)",
+  resolver_vinculos_de_colaborador: "(nenhum)",
+
+  // `criado_por_imutavel` é `security invoker` e `returns trigger`: fica no
+  // padrão das outras funções de trigger do repo, declarada e não silenciada.
+  // ⚠️ UMA função para DUAS tabelas (`documento` e `compromisso`): o corpo só
+  // nomeia `criado_por`, que existe nas duas com o mesmo significado.
+  criado_por_imutavel: "PUBLIC,anon,authenticated",
 };
 
 test.describe("privilégios do schema public", () => {

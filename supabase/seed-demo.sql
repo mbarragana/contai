@@ -32,12 +32,19 @@ insert into favorecido (id, user_id, tipo, nome, documento) values
 -- ── Documentos ───────────────────────────────────────────────────────────
 -- Os arquivos NÃO existem no bucket: isto é cenário de tela, não acervo. Quem
 -- exercita upload de verdade é o E2E e o uso manual.
+-- ⚠️ `criado_por` EXPLÍCITO (CONTAI-093): a coluna é `not null default
+-- auth.uid()`, e este arquivo roda por `psql`, fora de sessão — `auth.uid()`
+-- seria null e o insert morreria. Autoria = o próprio dono, que é o que a
+-- demonstração representa (nenhum colaborador neste cenário, logo
+-- `pendente_revisao` nasce `false` nas três).
 insert into documento (
-  user_id, obra_id, favorecido_id, tipo, arquivo_path, valor, vencimento,
-  classificacao, destinatario_cpf_ok, retencao_na_nota, status, motivo_quarentena
+  user_id, criado_por, obra_id, favorecido_id, tipo, arquivo_path, valor,
+  vencimento, classificacao, destinatario_cpf_ok, retencao_na_nota, status,
+  motivo_quarentena
 ) values
   -- Nota emitida para outro CPF → quarentena, fora do custo de aquisição.
   ('11111111-1111-4111-8111-111111111111',
+   '11111111-1111-4111-8111-111111111111',
    '22222222-2222-4222-8222-222222222222',
    '33333333-3333-4333-8333-333333333332',
    'nf_material', 'demo/nf-material-quarentena.pdf', 4850.00, null,
@@ -45,6 +52,7 @@ insert into documento (
    'Documento não está no CPF do dono da obra — não entra no custo de aquisição.'),
   -- Boleto: título de cobrança, não sustenta custo sozinho.
   ('11111111-1111-4111-8111-111111111111',
+   '11111111-1111-4111-8111-111111111111',
    '22222222-2222-4222-8222-222222222222',
    '33333333-3333-4333-8333-333333333331',
    'boleto', 'demo/boleto-aje.pdf', 25000.00,
@@ -53,6 +61,7 @@ insert into documento (
   -- CONTAI-038 — NF de serviço com retenção DESTACADA. O id é fixo para a
   -- linha de retenção abaixo poder pendurar nela sem um `select`.
   ('11111111-1111-4111-8111-111111111111',
+   '11111111-1111-4111-8111-111111111111',
    '22222222-2222-4222-8222-222222222222',
    '33333333-3333-4333-8333-333333333331',
    'nf_servico', 'demo/nf-servico-aje.pdf', 18000.00, null,
