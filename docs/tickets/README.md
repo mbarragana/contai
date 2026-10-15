@@ -1,6 +1,49 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 21 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 23 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-10-15**: **`CONTAI-097`/`098` criados, P1** — relato de backlog
+(`110`): o mesmo comprovante de uma fatura de cartão paga em parcelas
+precisou ser subido 4+ vezes, um por `pagamento` gerado (caso real: 3
+desembolsos parciais → 7 `pagamento`s a favorecidos diferentes). Materializa
+a dívida **D56-b**, nomeada no "Out of Scope" do `CONTAI-061`. **2 perguntas
+do relato já respondidas pelo Mateus em 2026-10-15**: listar TODOS os
+anexos distintos quando houver mais de um comprovante entre irmãos (nunca
+"um oficial"); cobrir as DUAS pontas (raiz e retroativo), não só uma.
+`/tickets-req` completo, com achado técnico que reduziu o dimensionamento:
+as RPCs `fatura_desembolso_gravar`/`fatura_alocar`
+(`supabase/migrations/0024_fatura_propagar_por_n.sql`) **já propagam**
+`comprovante_path` para os N `pagamento`s gerados — é o mesmo mecanismo já
+em produção no caminho "fatura integral" (denormalização deliberada, não
+bug); a lacuna é só a UI nunca exercitar essa capacidade. `cto-obra` fatiou
+em **2 tickets sem dependência técnica**: **`097`** (ponta raiz —
+`/fatura/[id]/parcial` ganha `CampoArquivo` opcional, zero migration,
+complexidade S) e **`098`** (ponta retroativa —
+`/pagamento/[id]/comprovante` ganha chips de reaproveitamento entre
+`pagamento`s irmãos da mesma fatura, generalizando `ChipsDeAnexoExistente`/
+`ChipDePapel` de `app/_components/corrigir.tsx`, com migration de enum
+(`motivo_revisao` ganha `comprovante_reaproveitado_de_irmao`) + RPC nova
+`reaproveitar_comprovante_de_irmao`, complexidade M). **Achado de modelo do
+`cto-obra`, ratificado pelo `po` no mesmo dia**: não existe coluna que
+persista qual desembolso gerou qual `pagamento`, então "irmão" só é
+resolvível na granularidade de FATURA, nunca de desembolso — por isso o
+chip "Vou anexar um arquivo novo." tem que ficar **sempre visível**, mesmo
+quando há só 1 arquivo candidato entre os irmãos (o único arquivo visível
+pode não ser prova do pagamento em aberto, se vier de um desembolso
+diferente da mesma fatura). Essa correção mudou os critérios 4 e 7 do
+desenho original do `po` depois de uma rodada de ida e volta dentro do
+mesmo `/tickets-req`. Gate Fiscal do `contador`: sem regra nova — ratifica
+que reaproveitar o mesmo `comprovante_path` entre `pagamento`s da mesma
+fatura não duplica custo (`docs/tickets/CONTAI-027.md:404-427` §1 + ADENDO 2
+de `docs/pareceres/2026-08-18-compromisso-versus-pagamento.md`), e exige
+rastro de `revisao` com motivo próprio para o reaproveitamento (fiscal, não
+cosmético: evita que um exame futuro conte o comprovante mais de uma vez
+pelo desembolso agregado). `designer`: nível 2 nos dois, `design/mocks/
+CONTAI-097.md` e `CONTAI-098.md`. Cenário gestão nos dois — Teste do
+Canteiro não se aplica. Dívida nova registrada (não bloqueante): sem link
+persistido `pagamento ↔ fatura_desembolso`. **Prontos para `/develop`,
+ordem livre entre os dois (sem bloqueio técnico).** Detalhe:
+`docs/tickets/CONTAI-097.md`, `098.md`.
 
 **2026-10-14**: **`CONTAI-093`/`094`/`095`/`096` criados, P1** — relato de
 backlog (`109`): Mateus quer que o engenheiro da obra (hoje intermediário via
