@@ -184,12 +184,12 @@ registro mesmo depois de essa pessoa sair.
     obra (prova direta da correção do critério 8); vínculo pendente (sem
     conta) em duas obras ao mesmo tempo resolve as duas quando a conta nasce
     (critério 11).
-    ⚠️ **Gate 1: arquivo ESCRITO, suíte AINDA NÃO EXECUTADA** (os 11 testes
-    cobrem a–e). O comportamento de banco de cada cenário foi conferido no
-    Gate 1 por `psql` contra o Postgres local — resolução de conta pelo
-    e-mail, visibilidade por obra em multi-obra, revogação derrubando a
-    leitura, UPDATE do colaborador afetando zero linhas, `criado_por`
-    imutável e `anon` sem acesso. Rodar a suíte é Gate 3.
+    ✅ **EXECUTADO no Gate 3 (2026-10-15): os 14 testes do arquivo passaram**,
+    cobrindo a–e, e a suíte inteira fechou **526 passaram / 0 falharam**.
+    Entrou junto uma trava a mais que o critério não previa: nem o DONO grava
+    vínculo com `user_id` de outra conta — o furo que o Gate 2 achou, com a
+    asserção sobre o estado lido FORA da RLS, porque pelo client do dono a
+    linha órfã é invisível.
 16. [x] **Critério novo, Emenda 2026-10-14.** Função `papelDaSessao()`
     (`'dono' | 'colaborador'`) decide, no login, qual shell abre: `'dono'`
     se o usuário possui ≥1 `obra` com `user_id = auth.uid()`; senão

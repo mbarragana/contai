@@ -1,6 +1,49 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 21 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 20 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-10-15**: **`093` entregue** — Gate 4 (`po`) PASS, **16/16 critérios**,
+nenhuma divergência de spec não justificada. ⚠️ **Entregue em BRANCH
+SEPARADO (`feature/colaborador-multiusuario`), sem push e sem PR** — a
+migration `0030` **não** foi aplicada no remoto e o código **não** está na
+`main` nem na Vercel. Aguarda PR/review do Mateus; quando for, vale a ordem
+obrigatória do `CLAUDE.md` (`npx supabase db push` **antes** do `git push`).
+Por isso este ticket **não** entra na tabela "Em produção" — nada dele está
+no ar. Quatro commits: `b6b322b` (Gate 1), `095f1a9` (correção do Gate 2),
+`253249e` (doc do Gate 2), `c230666` (regressão do Gate 3).
+Gate 1: migration `0030` (tabela `obra_colaborador`, enum
+`visibilidade_colaborador` **sem default no banco**, índice único parcial de
+multi-obra, autoria `criado_por`/`revisado_em`/`revisado_por` + coluna
+**gerada** `pendente_revisao` em `documento`/`compromisso`, as **primeiras
+funções `security definer` do repo** com `set search_path = ''`, cinco
+triggers, revoke-antes-grant e mapa de `e2e/privilegios.spec.ts` atualizado
+no mesmo diff); `lib/papel.ts` puro (`papelNaObra`, `nomeDoAutor`,
+`papelDaSessao`) com teste; três telas novas (gestão de colaboradores +
+route group `(colaborador)` com as telas (b) e (c)); guardas de papel nos dois
+layouts e no pós-login. Gate 2 (`cto-obra`+`contador`): **1ª rodada REQUEST
+CHANGES**, e o achado é o mais caro do ticket — o `with check` de
+`obra_colaborador` exigia só a propriedade da obra, então o dono conseguia
+gravar vínculo com `user_id` de OUTRA conta: a linha **concedia acesso de
+verdade e ficava invisível na lista de quem concedeu** (a policy de select
+filtra por `user_id = auth.uid()`), ou seja, o Pre-mortem 1 do ticket com a
+mitigação do critério 10 desligada. Corrigido com `user_id = auth.uid()` nos
+dois `with check`, mais teste-trava com asserção **fora da RLS** (pelo client
+do dono a órfã é invisível, que é o furo inteiro). Gate 3: Playwright
+**526/526**, incluindo os 14 testes de `e2e/colaborador.spec.ts`; achou e
+derrubou uma **regressão** deste ticket — `criado_por not null default
+auth.uid()` quebrava os plantios administrativos do E2E, que rodam por `psql`
+fora de sessão (mesma classe já corrigida no `seed-demo.sql`, esquecida em
+`e2e/banco.ts`). Dívida nova: **D-ix** — a RLS de `obra` devolve a LINHA
+INTEIRA ao colaborador (RLS é por linha, nunca por coluna); "ele só vê nome e
+cidade" é garantia das queries de colunas nomeadas, não do banco. Redação da
+dívida é do `contador`, transcrita literalmente, e ela **condiciona a
+`CONTAI-094`**: exibir o CNO ao colaborador está autorizado, **pré-preencher**
+o check "qual CNO está impresso nela?" é REQUEST CHANGES lá. Seguem **sem
+resposta do Mateus** (texto neutro provisório em tela, não bloqueiam):
+texto do aviso "e-mail sem conta", lista mostrar ou não os removidos, texto
+exato de "nada a fazer ainda", chip de visibilidade, e nome do outro
+colaborador em item pendente. **Destrava `094`/`095`/`096`.** Detalhe:
+`docs/tickets/CONTAI-093.md`.
 
 **2026-10-14**: **`CONTAI-093`/`094`/`095`/`096` criados, P1** — relato de
 backlog (`109`): Mateus quer que o engenheiro da obra (hoje intermediário via
@@ -44,6 +87,12 @@ novas), nível 2 (`094`, `096` — delta em tela existente); 4 specs em
 `design/mocks/CONTAI-093.md` a `096.md`. Dependência: `093` bloqueia as
 outras 3; `094`/`095`/`096` são independentes entre si. **Prontos para
 `/develop`**, na ordem `093` → (`094`/`095`/`096` em qualquer ordem).
+⚠️ **Atualização de 2026-10-15 — o `093` foi ENTREGUE** (ver o bloco no topo
+deste arquivo): a base existe, a dependência está satisfeita e `094`/`095`/
+`096` passam a ser os três abertos desta família, em qualquer ordem. O que o
+`094` herda como CONDIÇÃO, não como sugestão: a dívida **D-ix** autoriza
+exibir o CNO da obra ao colaborador e **proíbe pré-preencher** com ele o
+check "qual CNO está impresso nela?".
 Perguntas abertas de produto para o Mateus, não decididas pelo pipeline: a
 interpretação exata de "restrita" (só o que cadastra, ou também os
 pendentes de outros?) e se um mesmo colaborador pode atuar em mais de uma
