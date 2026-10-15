@@ -57,8 +57,8 @@ Isso já está fechado no escopo da fatia e não reabre.
 
 ## Campos
 
-Nenhum. É puramente visibilidade condicional de botões/ações já existentes
-mais um indicador textual novo.
+- SEM CAMPOS — puramente visibilidade condicional de botões/ações já
+  existentes, mais um indicador textual novo (sem campo de entrada)
 
 ## Textos com consequência fiscal
 

@@ -91,13 +91,13 @@ dívida fiscal.
 
 ## Campos
 
-Nenhum campo novo no formulário de captura (reaproveitado intacto). O que é
-novo é **metadado de autoria** (quem criou, quando, revisado ou não) — não
-é campo fiscal, então a disciplina de "nasce vazio" não se aplica a ele; mas
-vale notar onde a tela TEM campo fiscal: o formulário de documento em si
-continua com todos os campos fiscais de sempre (nota no CPF?, CNO impresso,
-etc.), nascendo vazios exatamente como hoje, independente de quem está
-logado.
+- SEM CAMPOS — nenhum campo novo no formulário de captura (reaproveitado
+  intacto); o formulário de documento em si continua com todos os campos
+  fiscais de sempre (nota no CPF?, CNO impresso, etc.), nascendo vazios
+  exatamente como hoje, independente de quem está logado
+- NÃO É CONTROLE — metadado de autoria (quem criou, quando, revisado ou
+  não): dado exibido, não campo editável; a disciplina de "nasce vazio" não
+  se aplica a ele
 
 ## Textos com consequência fiscal
 

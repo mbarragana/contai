@@ -235,7 +235,7 @@ rodada (não citado no ticket).
   irmãos; sempre visível no ramo sem irmãos, como hoje), nunca o próprio
   campo.
 
-## Campos fiscais novos
+## Nota: nenhum campo fiscal novo
 
 SEM CAMPOS FISCAIS NOVOS — nenhuma pergunta de CPF ou retenção em nenhum dos
 dois caminhos (upload ou reaproveitar), mesma restrição do CONTAI-061. O

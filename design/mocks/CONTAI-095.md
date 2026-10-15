@@ -81,10 +81,10 @@ acima).
 
 ## Campos
 
-Favorecido (nome + CNPJ/CPF), valor previsto, vencimento, nota de origem
-(opcional) — todos campos fiscais, todos já existentes hoje no ramo de
-agendamento, todos nascem vazios sem default, exatamente como já funcionam.
-Nenhum campo novo nasce neste ticket.
+- SEM CAMPOS — nenhum campo novo nasce neste ticket. Favorecido (nome +
+  CNPJ/CPF), valor previsto, vencimento e nota de origem (opcional) já
+  existem hoje no formulário de agendamento, todos campos fiscais, todos
+  nascem vazios sem default, exatamente como já funcionam
 
 ## Textos com consequência fiscal
 

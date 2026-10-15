@@ -26,7 +26,7 @@ fiscal nova para esta ponta — o campo é um anexo probatório opcional, sem
   quando houver arquivo) — SEM DEFAULT (nasce sem arquivo selecionado; a
   ausência não bloqueia "Salvar" — comportamento idêntico ao atual).
 
-## Campos fiscais novos
+## Nota: nenhum campo fiscal novo
 
 SEM CAMPOS FISCAIS NOVOS — o anexo é documento probatório (comprovante de
 pagamento), não uma pergunta fiscal: não há "nota no CPF?" nem gate de

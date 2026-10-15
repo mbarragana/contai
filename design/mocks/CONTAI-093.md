@@ -104,10 +104,11 @@ para Home, `/despesas`, `/pendencias` ou relatórios anuais.
 
 ## Campos
 
-`nome`, `e-mail`, `visibilidade` na tela (a). Nenhum é campo fiscal — não
-cadastram documento/pagamento, então a disciplina "campo vazio pergunta,
-nunca default fiscal" não se aplica a eles; ainda assim o default de
-visibilidade deve estar visivelmente pré-marcado, nunca implícito.
+- `nome`, `email` — texto — SEM DEFAULT — não são campos fiscais (não
+  cadastram documento/pagamento), tela (a)
+- `visibilidade` — escolha (restrita/total) — DEFAULT DECLARADO: valor
+  padrão da obra, sempre visivelmente pré-marcado na tela, nunca implícito —
+  não é campo fiscal, tela (a)
 
 ## Textos fiscais
 
