@@ -60,10 +60,18 @@ import type { CampoRevisao, MotivoRevisao, Revisao } from "@/lib/types";
  * e aquela tela **não pergunta motivo** — não existe motivo possível para "o
  * comprovante chegou depois". Oferecê-lo na lista do §5 seria pedir ao Mateus
  * que escolhesse a causa de um fato que o próprio ato já descreve.
+ *
+ * ⚠️ `comprovante_reaproveitado_de_irmao` (CONTAI-098) sai pela mesma razão: ele
+ * também é gravado pela máquina, e o motivo é o próprio ato ("este comprovante
+ * veio de outro pagamento desta fatura"). O que ele NÃO é é um sinônimo do
+ * anterior — a distinção entre os dois é exigência fiscal (Gate Fiscal item 4),
+ * escrita por extenso na migration 0030.
  */
 export type MotivoEscolhido = Exclude<
   MotivoRevisao,
-  "arquivamento_corrigido" | "comprovante_chegou_depois"
+  | "arquivamento_corrigido"
+  | "comprovante_chegou_depois"
+  | "comprovante_reaproveitado_de_irmao"
 >;
 
 /** A quarta resposta do passo 1, e ela NÃO grava nada (adendo §1). */
@@ -99,6 +107,15 @@ export const ROTULO_MOTIVO_NO_RASTRO: Record<MotivoRevisao, string> = {
    * chegou depois"). Não há frase do Mateus para exibir.
    */
   comprovante_chegou_depois: "o comprovante chegou depois",
+  /**
+   * CONTAI-098 — mesmo caso dos dois acima: gravado pela MÁQUINA, sem pergunta.
+   * A frase nomeia O FATO (de onde o arquivo veio), nunca um juízo sobre ele —
+   * e **não repete** o rótulo do anterior, porque quem ler o histórico em 2034
+   * precisa distinguir "chegou um papel novo" de "um papel que já estava no
+   * acervo passou a provar um segundo lançamento" (Gate Fiscal item 4).
+   */
+  comprovante_reaproveitado_de_irmao:
+    "o comprovante foi reaproveitado de outro pagamento desta fatura",
 };
 
 /**
@@ -412,7 +429,17 @@ function rotuloDoChip(a: AnexoDoDocumento): string {
   return `Usar a nota anexada em ${quandoDoAtoLegivel(a.anexadoEm)} (${origem})`;
 }
 
-function ChipDePapel({
+/**
+ * ⚠️ **Exportado desde o CONTAI-098**, e a exportação é o mínimo: o chip de
+ * reaproveitar comprovante de IRMÃO (`ChipsDeComprovanteIrmao`,
+ * `app/_components/comprovante.tsx`) é um componente próprio — a lista dele vem
+ * de outra fonte (`carregarIrmaosDeComprovante`, não
+ * `carregarAnexosDoDocumento`) e `ChipsDeAnexoExistente` é escopado a anexos do
+ * MESMO documento. O que as duas compartilham é só a APARÊNCIA e os estados do
+ * botão, e essa parte não se copia: dois botões com `aria-pressed` divergindo em
+ * cor ou altura seriam dois mecanismos onde há um.
+ */
+export function ChipDePapel({
   rotulo,
   marcado,
   onEscolher,

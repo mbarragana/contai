@@ -1394,6 +1394,18 @@ export type Database = {
         Args: { p_compromisso_id: string; p_pagamento_id: string }
         Returns: boolean
       }
+      // ── CONTAI-098 (migration 0031) ──────────────────────────────────────
+      // Reaproveitar o comprovante de um pagamento IRMÃO da mesma fatura. O app
+      // passa a ORIGEM, nunca um path: quem lê o `comprovante_path` é o banco —
+      // é isso que torna a proveniência verificável por construção.
+      reaproveitar_comprovante_de_irmao: {
+        Args: {
+          p_anos: Json
+          p_origem_pagamento_id: string
+          p_pagamento_id: string
+        }
+        Returns: string
+      }
       revisao_gravar_anos: {
         Args: { p_anos: Json; p_revisao_id: string }
         Returns: undefined
@@ -1434,6 +1446,7 @@ export type Database = {
         | "outro"
         | "arquivamento_corrigido"
         | "comprovante_chegou_depois"
+        | "comprovante_reaproveitado_de_irmao"
       natureza_aquisicao_terreno:
         | "a_vista"
         | "financiado"
@@ -1616,6 +1629,7 @@ export const Constants = {
         "outro",
         "arquivamento_corrigido",
         "comprovante_chegou_depois",
+        "comprovante_reaproveitado_de_irmao",
       ],
       natureza_aquisicao_terreno: [
         "a_vista",

@@ -370,6 +370,24 @@ const FUNCOES_ESPERADAS: Record<string, string> = {
   // chamada direta, e o privilégio é inofensivo — declarado, não silenciado.
   pagamento_comprovante_path_imutavel: "PUBLIC,anon,authenticated",
 
+  // ── CONTAI-098 (migrations 0030 e 0031) ────────────────────────────────
+  // Reaproveitar o comprovante de um pagamento IRMÃO da mesma fatura (D56-b,
+  // ponta B): o path sai da ORIGEM (o app nunca o passa), a proveniência é
+  // conferida pela cadeia `compromisso_pagamento → fatura_compromisso` nos dois
+  // sentidos, e o rastro vai com motivo PRÓPRIO — exigência fiscal, não
+  // cosmética. `anexar_comprovante_pagamento` (acima) fica com zero diff.
+  //
+  // ⚠️ Nenhuma tabela nova neste ticket, e mesmo assim este mapa MUDA: ele cobre
+  // FUNÇÃO, e função nasce com `execute` para `public` (que inclui `anon`) em
+  // qualquer Postgres. Sem o revoke da 0031, o anônimo poderia carimbar o
+  // comprovante de um pagamento no acervo de outra pessoa e abrir pendência de
+  // retificadora em nome de ninguém.
+  //
+  // ⚠️ A migration 0030 **não entra em mapa nenhum**, e a ausência é a decisão:
+  // ela só acrescenta um rótulo ao enum `motivo_revisao`, e tipo não tem ACL de
+  // PostgREST — não há nada a conceder nem a revogar (critério 12 do ticket).
+  reaproveitar_comprovante_de_irmao: "authenticated",
+
   // ── CONTAI-065 (migration 0020) ────────────────────────────────────────
   // A propagação do vínculo com a nota de origem na QUITAÇÃO (dívida D79).
   // Chamada por dentro de `fatura_desembolso_gravar`/`fatura_alocar` (que são

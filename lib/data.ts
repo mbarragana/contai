@@ -48,6 +48,10 @@ import type {
 } from "@/lib/fiscal/revisao";
 import type { DocumentoRegistrado } from "@/lib/fiscal/documento";
 import {
+  comprovantesDosIrmaos,
+  type ComprovanteIrmao,
+} from "@/lib/fiscal/fatura";
+import {
   linhaRetencaoParaBanco,
   type EntradaLinhaRetencao,
 } from "@/lib/fiscal/retencao";
@@ -1298,6 +1302,153 @@ export async function anexarComprovantePagamento(
     {
       p_pagamento_id: pagamentoId,
       p_comprovante_path: comprovantePath,
+      p_anos: paraAnosJson(anos),
+    },
+  );
+  if (error) throw error;
+  return data as string;
+}
+
+// ── CONTAI-098 · reaproveitar o comprovante de um IRMÃO da fatura (D56-b) ──
+//
+// Fonte: `docs/tickets/CONTAI-027.md:404-427` §1 + `docs/pareceres/
+// 2026-08-18-compromisso-versus-pagamento.md` ADENDO 2 §1-§2.
+
+export type {
+  ComprovanteIrmao,
+  OrigemDoComprovanteIrmao,
+} from "@/lib/fiscal/fatura";
+
+/**
+ * **Os comprovantes já enviados para os PAGAMENTOS IRMÃOS da mesma fatura** —
+ * CONTAI-098, critério 1.
+ *
+ * ⚠️ **A granularidade é por FATURA, nunca por desembolso individual**, e é fato
+ * do modelo: não existe `pagamento.fatura_desembolso_id` nem tabela que registre
+ * qual desembolso quitou qual compromisso. A única cadeia determinística é
+ * `pagamento → compromisso_pagamento → compromisso → fatura_compromisso →
+ * fatura`, e é ela que esta função percorre — ida e volta. Consequência que a
+ * TELA precisa respeitar: o arquivo de um irmão pode ter vindo de OUTRO
+ * desembolso da mesma fatura e não ser prova deste pagamento, e é por isso que o
+ * chip "Vou anexar um arquivo novo." nunca pode faltar (critério 4).
+ *
+ * ⚠️ **`null` ≠ `[]`**: `null` é "não pertence a fatura nenhuma" (PIX avulso a
+ * prestador), `[]` é "pertence, e nenhum irmão tem comprovante ainda". Para a
+ * tela as duas renderizam igual (critério 6, zero regressão); a distinção é da
+ * camada de dados, e quem a interpreta é `comprovantesDosIrmaos`.
+ *
+ * ⚠️ **Cinco consultas em sequência, e não um embed encadeado** (a forma era
+ * decisão livre do Gate 1, "Perguntas Abertas" do ticket): o caminho atravessa
+ * DUAS tabelas de junção com PK composta, nas duas direções, e o `.select()` com
+ * embeds aninhados devolveria uma árvore que precisaria ser achatada aqui de
+ * qualquer jeito — com a forma do join escondida numa string. A RLS vale em todas
+ * elas, como no resto do app: o que a policy esconde simplesmente não volta.
+ */
+export async function carregarIrmaosDeComprovante(
+  pagamentoId: string,
+): Promise<ComprovanteIrmao[] | null> {
+  const supabase = getSupabase();
+
+  // 1 · os compromissos que este pagamento quitou (total ou parcialmente).
+  const meus = await supabase
+    .from("compromisso_pagamento")
+    .select("compromisso_id")
+    .eq("pagamento_id", pagamentoId);
+  if (meus.error) throw meus.error;
+  const meusCompromissos = (meus.data ?? []).map((v) => v.compromisso_id);
+  if (meusCompromissos.length === 0) return null;
+
+  // 2 · a(s) fatura(s) desses compromissos. Pagamento de boleto/PIX quita
+  // compromisso que não está em fatura nenhuma — e aí também não há irmão.
+  const minhas = await supabase
+    .from("fatura_compromisso")
+    .select("fatura_id")
+    .in("compromisso_id", meusCompromissos);
+  if (minhas.error) throw minhas.error;
+  const faturaIds = [...new Set((minhas.data ?? []).map((f) => f.fatura_id))];
+  if (faturaIds.length === 0) return null;
+
+  // 3 · a volta: TODOS os compromissos dessas faturas.
+  const daFatura = await supabase
+    .from("fatura_compromisso")
+    .select("compromisso_id")
+    .in("fatura_id", faturaIds);
+  if (daFatura.error) throw daFatura.error;
+  const compromissoIds = (daFatura.data ?? []).map((f) => f.compromisso_id);
+  if (compromissoIds.length === 0) return [];
+
+  // 4 · e todos os pagamentos deles — os irmãos, o próprio incluído (quem o
+  // exclui é `comprovantesDosIrmaos`, onde o caso está testado).
+  const vinculos = await supabase
+    .from("compromisso_pagamento")
+    .select("pagamento_id")
+    .in("compromisso_id", compromissoIds);
+  if (vinculos.error) throw vinculos.error;
+  const pagamentoIds = [
+    ...new Set((vinculos.data ?? []).map((v) => v.pagamento_id)),
+  ];
+  if (pagamentoIds.length === 0) return [];
+
+  // ⚠️ `created_at` como ordem, e não o nome do favorecido: a ordem precisa ser
+  // determinística (os chips não podem trocar de lugar entre dois carregamentos)
+  // e NÃO pode sugerir precedência — "três lojas da mesma rede" têm nomes
+  // idênticos, e ordenar por nome insinuaria um critério que não existe.
+  const irmaos = await supabase
+    .from("pagamento")
+    .select("id, valor, comprovante_path, favorecido(nome)")
+    .in("id", pagamentoIds)
+    .order("created_at", { ascending: true });
+  if (irmaos.error) throw irmaos.error;
+
+  type Linha = {
+    id: string;
+    valor: string | number;
+    comprovante_path: string | null;
+    favorecido: { nome: string } | null;
+  };
+
+  return comprovantesDosIrmaos(
+    pagamentoId,
+    ((irmaos.data ?? []) as unknown as Linha[]).map((p) => ({
+      pagamentoId: p.id,
+      favorecidoNome: p.favorecido?.nome ?? null,
+      valorCentavos: numericParaCentavos(p.valor) ?? 0,
+      comprovantePath: p.comprovante_path,
+    })),
+  );
+}
+
+/**
+ * **Grava o comprovante do irmão no pagamento aberto** — CONTAI-098, critério 7.
+ *
+ * ⚠️ **RPC PRÓPRIA, e `anexarComprovantePagamento` fica com zero diff**
+ * (critério 13): o app **não passa um path**, passa a ORIGEM — e o banco lê o
+ * path dela. Com o path vindo daqui, "este arquivo é de um irmão da mesma
+ * fatura" seria promessa do cliente; com a origem, a proveniência é verificável
+ * por construção, no mesmo statement que grava (a função recusa origem de outra
+ * fatura).
+ *
+ * ⚠️ **Nenhum `subirParaAcervo` neste caminho**: o objeto já está no acervo, e o
+ * reaproveitamento não cria um segundo. Dois `pagamento`s apontando ao idêntico
+ * `comprovante_path` **não duplicam custo** — o valor de cada lançamento é
+ * digitado uma vez por lançamento, e nenhuma saída fiscal soma ou deduplica por
+ * anexo compartilhado (`CONTAI-027.md:404-427` §1, ratificado no Gate Fiscal
+ * deste ticket). É o mesmo padrão que "fatura paga integral" já produz.
+ *
+ * ⚠️ O rastro vai com motivo PRÓPRIO (`comprovante_reaproveitado_de_irmao`,
+ * migration 0030), distinto de `comprovante_chegou_depois` — exigência fiscal do
+ * Gate Fiscal item 4, escrita por extenso na migration. Devolve o id do ATO.
+ */
+export async function reaproveitarComprovanteDeIrmao(
+  pagamentoId: string,
+  origemPagamentoId: string,
+  anos: readonly AnoAfetado[],
+): Promise<string> {
+  const { data, error } = await getSupabase().rpc(
+    "reaproveitar_comprovante_de_irmao",
+    {
+      p_pagamento_id: pagamentoId,
+      p_origem_pagamento_id: origemPagamentoId,
       p_anos: paraAnosJson(anos),
     },
   );

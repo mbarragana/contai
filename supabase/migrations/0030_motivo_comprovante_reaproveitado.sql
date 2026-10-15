@@ -1,0 +1,39 @@
+-- CONTAI-098 — o valor de enum, SOZINHO, numa migration própria (critério 12).
+--
+-- Fonte normativa: docs/tickets/CONTAI-027.md:404-427 §1 (dupla contagem por
+-- anexo é impossível por construção) + docs/pareceres/2026-08-18-compromisso-
+-- versus-pagamento.md ADENDO 2 §1-§2 (o que o comprovante prova no caminho PF),
+-- os dois citados no Gate Fiscal deste ticket. Nada aqui é inferido.
+--
+-- ⚠️ **POR QUE O MOTIVO É PRÓPRIO, E NÃO `comprovante_chegou_depois`** — Gate
+-- Fiscal item 4, e é exigência fiscal, não cosmética. Reaproveitar o
+-- `comprovante_path` de um pagamento IRMÃO da mesma fatura é uma edição de
+-- registro já gravado da mesma família do anexo tardio (0018), mas não é o mesmo
+-- fato: lá chegou um papel novo; aqui um papel que JÁ estava no acervo passou a
+-- provar um segundo lançamento. Sem a marca própria, um exame futuro (prazo do
+-- CTN art. 173, I, que pode passar de 7 anos) não distingue os dois e poderia
+-- contar o valor "provado pelo comprovante" mais de uma vez pelo mesmo
+-- desembolso agregado — o erro inverso do que o §1 do CONTAI-027 protege.
+--
+-- ⚠️ E ele é gravado pela MÁQUINA, sem perguntar — como `arquivamento_corrigido`
+-- (0009) e `comprovante_chegou_depois` (0018). A tela **não pergunta motivo**: o
+-- motivo é o próprio ato ("este comprovante veio de outro pagamento desta
+-- fatura"), e oferecer a lista do §5 ali seria pedir ao Mateus que classificasse
+-- um fato que o ato já descreve.
+--
+-- ⚠️ **ARQUIVO SEPARADO, e a razão é a da 0018 — não "senão quebra".** Desde o
+-- PG 12 `alter type ... add value` roda dentro de transação; o que o Postgres
+-- recusa é USAR o valor novo num statement EXECUTADO na mesma transação. A 0031
+-- só DEFINE a RPC (o plpgsql não resolve o corpo no `create function`), então
+-- juntar as duas funcionaria. A separação fica pelas três razões escritas por
+-- extenso na 0018: precedente do repo, margem para um backfill futuro, e o fato
+-- de `add value` ser irreversível (não existe `drop value`) — isolado, é o menor
+-- diff possível de auditar.
+--
+-- ── A PERGUNTA OBRIGATÓRIA DO REPO ──────────────────────────────────────
+-- "Isto depende de algum default do stack local que o projeto remoto não tem?"
+-- **Não.** Nenhuma tabela, coluna, sequence, view ou função nasce aqui — só um
+-- rótulo a mais num enum que existe desde a 0009. Nada a conceder, nada a
+-- revogar: `motivo_revisao` não é objeto com ACL própria que o app toque
+-- (critério 12: "sem GRANT — tipo não tem ACL de PostgREST").
+alter type motivo_revisao add value 'comprovante_reaproveitado_de_irmao';

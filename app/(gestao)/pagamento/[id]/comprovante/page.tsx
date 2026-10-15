@@ -5,6 +5,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ListaDeAnexos } from "@/app/_components/anexo";
 import { CampoArquivo } from "@/app/_components/campos";
+import { ChipsDeComprovanteIrmao } from "@/app/_components/comprovante";
+import {
+  ROTULO_MOTIVO_NO_RASTRO,
+  type PapelDoPacote,
+} from "@/app/_components/corrigir";
 import {
   CabecalhoDaTela,
   ColunaDeDetalhe,
@@ -27,11 +32,14 @@ import {
 } from "@/app/_components/ui";
 import {
   anexarComprovantePagamento,
+  carregarIrmaosDeComprovante,
   carregarPagamento,
   carregarPainel,
   classificarErro,
   mensagemDeErroDeGravacao,
+  reaproveitarComprovanteDeIrmao,
   subirParaAcervo,
+  type ComprovanteIrmao,
   type ErroDeTela,
   type PainelDados,
 } from "@/lib/data";
@@ -84,9 +92,26 @@ import type { AnoAfetado, Pagamento } from "@/lib/types";
  */
 const CAMINHO_SIMULADO = "(simulação — nada foi gravado)";
 
+/**
+ * **CONTAI-098** — no ramo SEM irmão com comprovante a tela é byte-a-byte a de
+ * hoje (critério 6): o controle de chips não é renderizado, e a única resposta
+ * possível é o upload. Constante de módulo (e não um literal por render) para o
+ * `useMemo` do delta não recalcular a cada renderização.
+ *
+ * ⚠️ Isto **não é um default em campo fiscal**: no ramo COM irmãos, `escolhido`
+ * nasce `null` e continua `null` até o clique (critério 5).
+ */
+const SO_UPLOAD: PapelDoPacote = { tipo: "novo" };
+
 type Fase =
   | { nome: "escolhendo" }
-  | { nome: "gravado"; anos: AnoAfetado[]; comprovantePath: string };
+  | {
+      nome: "gravado";
+      anos: AnoAfetado[];
+      comprovantePath: string;
+      /** Ramo "existente": muda o banner e o motivo do rastro, nada mais. */
+      reaproveitado: boolean;
+    };
 
 export default function AnexarComprovanteDoPagamento() {
   const { id } = useParams<{ id: string }>();
@@ -95,11 +120,24 @@ export default function AnexarComprovanteDoPagamento() {
   const [carregado, setCarregado] = useState<{
     pagamento: Pagamento;
     painel: PainelDados;
+    /**
+     * CONTAI-098 — `null` é "não pertence a fatura nenhuma" (PIX avulso); `[]` é
+     * "pertence, e nenhum irmão tem comprovante ainda". Para a TELA os dois
+     * renderizam igual; a distinção vive na camada de dados.
+     */
+    irmaos: ComprovanteIrmao[] | null;
   } | null>(null);
   const [erroCarregar, setErroCarregar] = useState<ErroDeTela | null>(null);
   const [tentativa, setTentativa] = useState(0);
 
   const [arquivo, setArquivo] = useState<File | null>(null);
+  /**
+   * **CONTAI-098, critério 5** — nasce `null` em QUALQUER contagem de irmãos (1
+   * ou N): nenhum chip vem pré-marcado, nunca pré-seleção automática. Com um
+   * candidato só não há escolha entre arquivos, mas o CLIQUE continua humano
+   * (Gate Fiscal item 6).
+   */
+  const [escolhido, setEscolhido] = useState<PapelDoPacote | null>(null);
   const [fase, setFase] = useState<Fase>({ nome: "escolhendo" });
   const [gravando, setGravando] = useState(false);
   const [erroGravar, setErroGravar] = useState<string | null>(null);
@@ -109,8 +147,16 @@ export default function AnexarComprovanteDoPagamento() {
     void (async () => {
       try {
         const pagamento = await carregarPagamento(id);
-        const painel = await carregarPainel(pagamento.obraId);
-        if (!cancelado) setCarregado({ pagamento, painel });
+        // A guarda de reentrada (pagamento que JÁ tem comprovante) decide a tela
+        // mais abaixo, e aqui ela já evita a travessia da fatura: não há escolha
+        // a oferecer para um pagamento cujo path o banco não aceita reescrever.
+        const [painel, irmaos] = await Promise.all([
+          carregarPainel(pagamento.obraId),
+          pagamento.comprovantePath === null
+            ? carregarIrmaosDeComprovante(pagamento.id)
+            : Promise.resolve(null),
+        ]);
+        if (!cancelado) setCarregado({ pagamento, painel, irmaos });
       } catch (erro) {
         if (!cancelado) setErroCarregar(classificarErro(erro));
       }
@@ -127,6 +173,26 @@ export default function AnexarComprovanteDoPagamento() {
     setTentativa((t) => t + 1);
   }, []);
 
+  const irmaos = carregado?.irmaos ?? null;
+  const temIrmaos = irmaos !== null && irmaos.length > 0;
+  /** No ramo sem irmãos a pergunta tem uma resposta só, e ela já está na tela. */
+  const papel = temIrmaos ? escolhido : SO_UPLOAD;
+
+  /**
+   * Trocar de chip descarta o `File` em memória, se havia (spec, §decisões):
+   * upload e chip são a MESMA pergunta, e nada foi gravado ainda neste ponto.
+   */
+  const escolher = useCallback((novo: PapelDoPacote) => {
+    setEscolhido(novo);
+    if (novo.tipo === "existente") setArquivo(null);
+  }, []);
+
+  /** O grupo do arquivo escolhido — de onde sai a ORIGEM que a RPC recebe. */
+  const grupoEscolhido =
+    papel?.tipo === "existente"
+      ? ((irmaos ?? []).find((g) => g.comprovantePath === papel.path) ?? null)
+      : null;
+
   const ano = Number(hojeIso().slice(0, 4));
 
   /**
@@ -136,16 +202,24 @@ export default function AnexarComprovanteDoPagamento() {
    * O único campo que muda na cópia é `comprovantePath` deste pagamento —
    * `documentos` fica idêntico, porque anexar comprovante não cria nem altera
    * documento hábil nenhum.
+   *
+   * ⚠️ **CONTAI-098, critério 10 — UM mecanismo para os DOIS caminhos.** No ramo
+   * "novo" o path é o sentinel `CAMINHO_SIMULADO` (nenhum upload ainda); no ramo
+   * "existente" é o `comprovantePath` REAL da origem escolhida, que já está no
+   * acervo e não precisa de sentinel. É a única diferença mecânica entre eles: a
+   * chamada a `anosAfetadosDeUmaObra`/`alocarCusto` é idêntica, e não existe uma
+   * segunda função de cálculo de custo.
    */
   const conta = useMemo(() => {
     if (!carregado) return null;
     const { pagamento, painel } = carregado;
     if (pagamento.comprovantePath !== null) return null;
 
+    const caminho = papel?.tipo === "existente" ? papel.path : CAMINHO_SIMULADO;
     const depois = {
       documentos: painel.documentos,
       pagamentos: painel.pagamentos.map((p) =>
-        p.id === pagamento.id ? { ...p, comprovantePath: CAMINHO_SIMULADO } : p,
+        p.id === pagamento.id ? { ...p, comprovantePath: caminho } : p,
       ),
     };
 
@@ -154,13 +228,40 @@ export default function AnexarComprovanteDoPagamento() {
       acumuladoAntes: custoComprovadoAteOAno(alocarCusto(painel), ano),
       acumuladoDepois: custoComprovadoAteOAno(alocarCusto(depois), ano),
     };
-  }, [carregado, ano]);
+  }, [carregado, ano, papel]);
 
   async function gravar() {
-    if (!carregado || arquivo === null) return;
+    if (!carregado || papel === null) return;
+    if (papel.tipo === "existente" && grupoEscolhido === null) return;
+    if (papel.tipo !== "existente" && arquivo === null) return;
     setGravando(true);
     setErroGravar(null);
     try {
+      if (papel.tipo === "existente") {
+        // ⚠️ **NENHUM `subirParaAcervo` neste ramo** (critério 7): o objeto já
+        // está no acervo, e o reaproveitamento não cria um segundo. Quem lê o
+        // `comprovante_path` é o BANCO, a partir da origem — o app nunca passa
+        // um path aqui, e é isso que torna a proveniência verificável.
+        //
+        // Qualquer uma das origens serve: elas compartilham EXATAMENTE o mesmo
+        // arquivo (é o critério do agrupamento), e a guarda de proveniência da
+        // RPC vale igual para todas.
+        if (grupoEscolhido === null) return;
+        await reaproveitarComprovanteDeIrmao(
+          carregado.pagamento.id,
+          grupoEscolhido.origens[0].pagamentoId,
+          conta?.anos ?? [],
+        );
+        setFase({
+          nome: "gravado",
+          anos: conta?.anos ?? [],
+          comprovantePath: papel.path,
+          reaproveitado: true,
+        });
+        return;
+      }
+
+      if (arquivo === null) return;
       // ⚠️ O upload vem ANTES da gravação, e é o único jeito: o caminho precisa
       // existir no acervo para a função Postgres o registrar no mesmo ato.
       // Falha no upload = nada foi gravado, e a tela diz isso.
@@ -170,7 +271,12 @@ export default function AnexarComprovanteDoPagamento() {
         comprovantePath,
         conta?.anos ?? [],
       );
-      setFase({ nome: "gravado", anos: conta?.anos ?? [], comprovantePath });
+      setFase({
+        nome: "gravado",
+        anos: conta?.anos ?? [],
+        comprovantePath,
+        reaproveitado: false,
+      });
     } catch (erro) {
       setGravando(false);
       if (classificarErro(erro).tipo === "sem_sessao") {
@@ -213,11 +319,32 @@ export default function AnexarComprovanteDoPagamento() {
   if (fase.nome === "gravado") {
     return (
       <>
-        <CabecalhoDaTela titulo="Comprovante anexado ✓" sub={sub} />
+        {/* CONTAI-098 — o banner é dinâmico (spec, `## Textos`): o texto nunca
+            diz "anexado" quando nenhum arquivo novo subiu. Dali para baixo os
+            dois ramos são idênticos — mesma `ListaDeAnexos`, mesma tabela de
+            anos, mesmo tratamento de pendência. */}
+        <CabecalhoDaTela
+          titulo={
+            fase.reaproveitado
+              ? "Comprovante reaproveitado ✓"
+              : "Comprovante anexado ✓"
+          }
+          sub={sub}
+        />
         <ColunaDeDetalhe>
           <Banner cor="grn" role="status">
-            <strong>Anexado.</strong> Este pagamento agora tem comprovante, e o
-            anexo ficou registrado no histórico com a data.
+            {fase.reaproveitado ? (
+              <>
+                <strong>Reaproveitado.</strong> Este pagamento agora aponta para
+                o mesmo comprovante de outro pagamento desta fatura, e o
+                reaproveitamento ficou registrado no histórico com a data.
+              </>
+            ) : (
+              <>
+                <strong>Anexado.</strong> Este pagamento agora tem comprovante, e
+                o anexo ficou registrado no histórico com a data.
+              </>
+            )}
           </Banner>
           <Card>
             <ListaDeAnexos
@@ -306,17 +433,47 @@ export default function AnexarComprovanteDoPagamento() {
 
   const comPendencia = conta !== null && abrePendencia(conta.anos);
   const primeiroAno = conta?.anos[0];
-  const podeGravar = arquivo !== null && !gravando;
+  const reaproveitando = papel?.tipo === "existente";
+  /**
+   * CONTAI-098, critério 5: sem escolha explícita o botão fica desabilitado. No
+   * ramo "novo" continua valendo a regra de hoje (sem arquivo, não grava).
+   */
+  const podeGravar =
+    !gravando && (reaproveitando || (papel?.tipo === "novo" && arquivo !== null));
 
+  /**
+   * **O rótulo, dinâmico** (spec, `## Textos de produto`). O verbo troca com o
+   * ramo e o texto **nunca diz "anexar" quando nenhum arquivo novo está
+   * subindo** — a fórmula do delta é a mesma nos dois.
+   */
+  const deltaDoAno = primeiroAno
+    ? `${primeiroAno.ano} passa a ${formatarBRL(primeiroAno.depoisCentavos)}`
+    : "";
   const rotuloBotao = gravando
-    ? "Anexando…"
-    : arquivo === null
-      ? "Escolha o comprovante para continuar"
-      : primeiroAno === undefined
-        ? "Anexar comprovante"
-        : comPendencia
-          ? `Anexar mesmo assim — o custo de ${primeiroAno.ano} passa a ${formatarBRL(primeiroAno.depoisCentavos)}`
-          : `Anexar comprovante — o custo confirmado de ${primeiroAno.ano} passa a ${formatarBRL(primeiroAno.depoisCentavos)}`;
+    ? reaproveitando
+      ? "Reaproveitando…"
+      : "Anexando…"
+    : papel === null
+      ? "Escolha um comprovante para continuar"
+      : papel.tipo === "novo" && arquivo === null
+        ? "Escolha o comprovante para continuar"
+        : primeiroAno === undefined
+          ? reaproveitando
+            ? "Usar este comprovante"
+            : "Anexar comprovante"
+          : comPendencia
+            ? reaproveitando
+              ? `Usar mesmo assim — o custo de ${deltaDoAno}`
+              : `Anexar mesmo assim — o custo de ${deltaDoAno}`
+            : reaproveitando
+              ? `Usar este comprovante — o custo confirmado de ${deltaDoAno}`
+              : `Anexar comprovante — o custo confirmado de ${deltaDoAno}`;
+
+  /**
+   * O delta aparece quando a pergunta já tem resposta: um chip de
+   * reaproveitamento marcado, ou um arquivo escolhido no ramo "novo".
+   */
+  const mostrarDelta = reaproveitando || arquivo !== null;
 
   return (
     <>
@@ -349,20 +506,38 @@ export default function AnexarComprovanteDoPagamento() {
           </Linha>
         </Card>
 
+        {/* ── CONTAI-098 — os chips de reaproveitamento ────────────────────
+            Só existem quando há pelo menos um arquivo distinto entre os irmãos;
+            sem isso a tela é byte-a-byte a de hoje (critério 6). */}
+        {temIrmaos ? (
+          <ChipsDeComprovanteIrmao
+            irmaos={irmaos}
+            escolhido={escolhido}
+            onEscolher={escolher}
+          />
+        ) : null}
+
         {/* `campo` é o id do spec (`design/mocks/CONTAI-061.md`, `## Campos`) —
             é por ele que `e2e/campos-fiscais.spec.ts` cruza SEM DEFAULT
-            declarado contra o campo nascendo vazio. */}
-        <CampoArquivo
-          campo="comprovante"
-          rotulo="Comprovante do pagamento"
-          ajuda="PDF, foto ou print — é ele que comprova este pagamento."
-          accept="application/pdf,image/*"
-          arquivo={arquivo}
-          onChange={setArquivo}
-        />
+            declarado contra o campo nascendo vazio.
+
+            ⚠️ CONTAI-098: no ramo COM irmãos ele aparece **só** depois do clique
+            em "Vou anexar um arquivo novo." — nunca lado a lado com os chips,
+            que seriam duas perguntas simultâneas sobre o mesmo arquivo. No ramo
+            SEM irmãos ele continua visível de cara, como sempre. */}
+        {papel?.tipo === "novo" ? (
+          <CampoArquivo
+            campo="comprovante"
+            rotulo="Comprovante do pagamento"
+            ajuda="PDF, foto ou print — é ele que comprova este pagamento."
+            accept="application/pdf,image/*"
+            arquivo={arquivo}
+            onChange={setArquivo}
+          />
+        ) : null}
 
         <Passo>O que isso muda no seu custo</Passo>
-        {arquivo === null ? (
+        {!mostrarDelta ? (
           <Dica>
             Escolha o arquivo para ver o efeito no custo confirmado do ano.
           </Dica>
@@ -439,9 +614,26 @@ export default function AnexarComprovanteDoPagamento() {
         <Passo>O que fica registrado</Passo>
         <Card>
           <Linha rotulo="campo comprovante">
-            <span className="mono">sem comprovante → comprovante anexado</span>
+            <span className="mono">
+              {reaproveitando
+                ? "sem comprovante → comprovante reaproveitado"
+                : "sem comprovante → comprovante anexado"}
+            </span>
           </Linha>
-          <Linha rotulo="motivo">o comprovante chegou depois</Linha>
+          {/* ⚠️ CONTAI-098 — o rótulo sai do MAPA do rastro
+              (`ROTULO_MOTIVO_NO_RASTRO`), nunca redigido aqui: é a mesma frase
+              que o histórico do pagamento vai mostrar em 2034, e os dois motivos
+              são DISTINTOS por exigência fiscal (Gate Fiscal item 4). Duas
+              redações do mesmo fato é como nasce a D46. */}
+          <Linha rotulo="motivo">
+            {
+              ROTULO_MOTIVO_NO_RASTRO[
+                reaproveitando
+                  ? "comprovante_reaproveitado_de_irmao"
+                  : "comprovante_chegou_depois"
+              ]
+            }
+          </Linha>
           <Linha rotulo="quando, e por quem">no ato da gravação</Linha>
           <Linha rotulo="anos afetados">
             {conta && conta.anos.length > 0

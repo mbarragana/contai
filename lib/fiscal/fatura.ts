@@ -339,3 +339,95 @@ export function faturasSemExtrato(
     href: semExtrato.length === 1 ? `/fatura/${semExtrato[0].id}` : null,
   };
 }
+
+// ══ CONTAI-098 · o comprovante dos PAGAMENTOS IRMÃOS da mesma fatura ══════
+//
+// Fonte: `docs/tickets/CONTAI-027.md:404-427` §1 (dupla contagem por anexo é
+// impossível por construção) + `docs/pareceres/2026-08-18-compromisso-versus-
+// pagamento.md` ADENDO 2 §1-§2 (o que o comprovante prova no caminho PF).
+//
+// ⚠️ **NENHUMA CONTA FISCAL NASCE AQUI, e a ausência é o ponto.** Este bloco
+// agrupa ARQUIVO, nunca valor: o valor de cada lançamento é digitado uma vez por
+// lançamento (§1), e um comprovante compartilhado por N pagamentos não soma, não
+// deduplica e não entra em `alocarCusto`. O que ele prova são as quatro coisas do
+// ADENDO 2 §2 (data do desembolso, que o dinheiro saiu, que saiu da conta dele, e
+// quanto saiu **do desembolso agregado**) — nunca "quanto saiu para aquele
+// favorecido específico". Os valores abaixo existem só para o Mateus RECONHECER
+// qual arquivo é qual no chip (critério 3: favorecido + valor visíveis, mitigação
+// do pre-mortem 1 — três lojas da mesma rede na mesma fatura).
+
+/** Um pagamento irmão que usa um `comprovante_path` — o que o chip exibe. */
+export interface OrigemDoComprovanteIrmao {
+  pagamentoId: string;
+  favorecidoNome: string | null;
+  valorCentavos: number;
+}
+
+/** Um grupo por `comprovante_path` DISTINTO entre os irmãos (critério 2). */
+export interface ComprovanteIrmao {
+  comprovantePath: string;
+  /** Todo pagamento irmão que usa este MESMO arquivo — pode ser >1. */
+  origens: OrigemDoComprovanteIrmao[];
+}
+
+/** Um pagamento alcançado pela fatura, como a camada de dados o devolve. */
+export interface PagamentoDaFatura {
+  pagamentoId: string;
+  favorecidoNome: string | null;
+  valorCentavos: number;
+  comprovantePath: string | null;
+}
+
+/**
+ * **Os arquivos reaproveitáveis entre os irmãos — CONTAI-098, critério 17.**
+ *
+ * Recebe os pagamentos alcançados pela(s) fatura(s) do pagamento aberto (a
+ * travessia `pagamento → compromisso_pagamento → compromisso →
+ * fatura_compromisso → fatura` e a volta por todos os compromissos dela é da
+ * camada de dados) e devolve **um grupo por arquivo distinto**.
+ *
+ * - `null` → o pagamento não pertence a fatura nenhuma (PIX avulso a prestador):
+ *   não há irmão a buscar. A camada de dados sinaliza isso passando `null`.
+ * - `[]` → há fatura, mas nenhum irmão tem `comprovante_path` ainda.
+ *
+ * ⚠️ Para a TELA, `null` e `[]` renderizam exatamente igual (critério 6: nenhum
+ * componente novo aparece, zero regressão). A distinção vive só aqui.
+ *
+ * ⚠️ **NUNCA "o" comprovante oficial** (resposta do Mateus, 2026-10-15, e recusa
+ * explícita do `contador`): com N arquivos distintos nenhum tem precedência
+ * fiscal sobre os outros, então esta função não escolhe, não ordena por
+ * "melhor" e não colapsa — ela agrupa e devolve todos, na ordem em que o arquivo
+ * apareceu pela primeira vez (determinística, dada a ordem da consulta).
+ *
+ * ⚠️ **O pagamento aberto sai da própria lista**: ele é o destino, não origem de
+ * si mesmo. E irmão sem `comprovante_path` é ignorado — não há arquivo a oferecer.
+ */
+export function comprovantesDosIrmaos(
+  pagamentoId: string,
+  pagamentosDaFatura: readonly PagamentoDaFatura[] | null,
+): ComprovanteIrmao[] | null {
+  if (pagamentosDaFatura === null) return null;
+
+  const porPath = new Map<string, ComprovanteIrmao>();
+  for (const p of pagamentosDaFatura) {
+    if (p.pagamentoId === pagamentoId) continue;
+    if (p.comprovantePath === null) continue;
+
+    const grupo = porPath.get(p.comprovantePath);
+    const origem: OrigemDoComprovanteIrmao = {
+      pagamentoId: p.pagamentoId,
+      favorecidoNome: p.favorecidoNome,
+      valorCentavos: p.valorCentavos,
+    };
+    if (grupo === undefined) {
+      porPath.set(p.comprovantePath, {
+        comprovantePath: p.comprovantePath,
+        origens: [origem],
+      });
+    } else {
+      grupo.origens.push(origem);
+    }
+  }
+
+  return [...porPath.values()];
+}

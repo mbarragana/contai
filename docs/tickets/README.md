@@ -1,6 +1,35 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 22 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 21 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-10-15, ainda mais tarde: `CONTAI-098` entregue** (Gate 4, 18/18
+PASS) — fecha a dívida **D56-b** por completo, junto com o `097`. Migration
+dupla `0030_motivo_comprovante_reaproveitado.sql` (enum, sozinha,
+sem GRANT — tipo não tem ACL) + `0031_reaproveitar_comprovante_de_irmao.sql`
+(RPC nova, `security invoker`, revoke/grant, proveniência bidirecional
+`pagamento → compromisso_pagamento → compromisso → fatura_compromisso →
+fatura`, guarda dupla de imutabilidade igual à da 0019). Componente novo
+`ChipsDeComprovanteIrmao` em `/pagamento/[id]/comprovante` — um chip por
+`comprovante_path` distinto entre irmãos (favorecido+valor, nunca "o"
+comprovante oficial), chip "Vou anexar um arquivo novo." sempre presente ao
+lado. Gate 2 (`cto-obra`) voltou uma vez com 3 ajustes pequenos (guard de
+`gravar()` reordenado antes de `setGravando(true)`; texto do card "o que
+fica registrado" corrigido para "comprovante reaproveitado" no ramo de
+reaproveitamento; comentário "cinco consultas" não "quatro") — aplicados e
+reconfirmados no diff final pelos dois revisores que haviam aprovado
+(`cto-obra` e `contador`). Gate Fiscal (`contador`): rastro de `revisao`
+grava motivo PRÓPRIO (`comprovante_reaproveitado_de_irmao`, distinto de
+`comprovante_chegou_depois`), sem duplicar custo de aquisição — ratifica
+`docs/tickets/CONTAI-027.md:404-427` §1 + ADENDO 2 de
+`docs/pareceres/2026-08-18-compromisso-versus-pagamento.md`. Testes: Vitest
+1519/1519, E2E 519/519 (Postgres local) — ambos incluem os casos novos de
+`comprovantesDosIrmaos` e `pagamento-comprovante-irmao.spec.ts`; `npm run
+lint` ficou vermelho só em `.claude/worktrees/agent-ab2fb2980c435ec5a`
+(worktree locked de outra branch, `feature/colaborador-multiusuario`, não
+tocada) — zero findings nos arquivos deste ticket. Migrations 0030/0031
+pushadas ao remoto antes do código, confirmadas via `supabase migration
+list --linked`. Dívida reconhecida (fora de escopo): sem link persistido
+`pagamento ↔ fatura_desembolso`.
 
 **2026-10-15, mais tarde: `CONTAI-097` entregue** (Gate 4, 10/10 PASS) —
 volta a 22, `098` sozinho na fila, sem bloqueio técnico. Campo

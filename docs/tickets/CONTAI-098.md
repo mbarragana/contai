@@ -33,7 +33,7 @@ para que confirmar uma fatura com N favorecidos não custe N uploads do
 mesmo arquivo.
 
 ## Critérios de Aceite
-1. [ ] Dado o `pagamento` aberto em `/pagamento/[id]/comprovante` pertence a
+1. [x] Dado o `pagamento` aberto em `/pagamento/[id]/comprovante` pertence a
    uma fatura (via `pagamento → compromisso_pagamento → compromisso →
    fatura_compromisso → fatura`) com ao menos um `pagamento` irmão já com
    `comprovante_path` preenchido, quando a tela carrega, então ela mostra um
@@ -43,17 +43,17 @@ mesmo arquivo.
    (`app/_components/corrigir.tsx:459-507`, 415-458) para a fonte nova
    "outros `pagamento`s da mesma fatura". Spec completo em
    `design/mocks/CONTAI-098.md`.
-2. [ ] Quando há DOIS OU MAIS arquivos distintos entre os irmãos: aparece
+2. [x] Quando há DOIS OU MAIS arquivos distintos entre os irmãos: aparece
    **um chip por arquivo distinto** — nunca "o" comprovante oficial (resposta
    do Mateus, 2026-10-15, não reabrir).
-3. [ ] Cada chip mostra, no mínimo, o(s) favorecido(s) e valor(es) do(s)
+3. [x] Cada chip mostra, no mínimo, o(s) favorecido(s) e valor(es) do(s)
    `pagamento`(s) de origem daquele `comprovante_path` — nunca só nome de
    arquivo (mitigação do pre-mortem 2: chip errado entre favorecidos
    parecidos, caso real de 3 lojas da mesma rede como favorecidos distintos
    na mesma fatura). Rótulo exato: "Usar o comprovante de {favorecidoNome}
    — {valor} (já enviado para outro pagamento desta fatura)", pluralizado
    quando há mais de uma origem para o mesmo arquivo.
-4. [ ] O chip "Vou anexar um arquivo novo." (`comArquivoNovo`, texto
+4. [x] O chip "Vou anexar um arquivo novo." (`comArquivoNovo`, texto
    verbatim `CHIP_ARQUIVO_NOVO`) está **SEMPRE presente** ao lado de
    qualquer chip de reaproveitamento — nunca omitido, independente de N
    (1 ou mais arquivos distintos). **Correção explícita do `cto-obra`,
@@ -64,42 +64,42 @@ mesmo arquivo.
    que originou o `pagamento` em aberto, e não ser prova dele. Esconder o
    upload novo nesse caso trocaria uma fricção reversível por um erro
    irreversível (comprovante errado, travado por imutabilidade).
-5. [ ] `escolhido: PapelDoPacote | null` nasce **sempre `null`**, em
+5. [x] `escolhido: PapelDoPacote | null` nasce **sempre `null`**, em
    qualquer contagem de irmãos (1 ou N) — nenhum chip vem pré-marcado, nunca
    pré-seleção automática. O botão de confirmar fica desabilitado até o
    clique explícito.
-6. [ ] Quando nenhum `pagamento` irmão da mesma fatura tem comprovante ainda
+6. [x] Quando nenhum `pagamento` irmão da mesma fatura tem comprovante ainda
    (ou o `pagamento` em aberto não pertence a fatura nenhuma — PIX avulso a
    prestador): a tela comporta-se byte-a-byte como hoje (CONTAI-061) — só
    `CampoArquivo`, zero componente novo, zero regressão.
-7. [ ] Confirmar um chip de reaproveitamento grava, no `pagamento` atual, o
+7. [x] Confirmar um chip de reaproveitamento grava, no `pagamento` atual, o
    MESMO `comprovante_path` do irmão escolhido — verificável por dois ou
    mais `pagamento`s da mesma fatura apontando ao idêntico
    `comprovante_path` no banco, sem gerar objeto novo no Storage.
-8. [ ] O trigger `pagamento_comprovante_path_imutavel` continua valendo: o
+8. [x] O trigger `pagamento_comprovante_path_imutavel` continua valendo: o
    reaproveitamento só é possível enquanto o `comprovante_path` do
    `pagamento` de destino está `null`; uma segunda tentativa (reaproveitar
    ou upload novo) sobre um `pagamento` que já tem comprovante falha
    explicitamente — idêntico ao que já vale hoje (CONTAI-061, critério 5).
-9. [ ] Nenhuma pergunta fiscal nova (CPF, retenção) em nenhum dos dois
+9. [x] Nenhuma pergunta fiscal nova (CPF, retenção) em nenhum dos dois
    caminhos (upload ou reaproveitar) — mesma restrição do CONTAI-061.
-10. [ ] O delta "antes → depois" de custo confirmado (`anosAfetadosDeUmaObra`/
+10. [x] O delta "antes → depois" de custo confirmado (`anosAfetadosDeUmaObra`/
     `abrePendencia`, já existente na tela) é calculado para os DOIS
     caminhos pelo mesmo mecanismo: no caminho "novo", com o sentinel
     `CAMINHO_SIMULADO`; no caminho "existente", com o `comprovantePath` real
     da origem escolhida — nenhuma segunda função de cálculo.
-11. [ ] A gravação do reaproveitamento registra, na tabela `revisao`, o fato
+11. [x] A gravação do reaproveitamento registra, na tabela `revisao`, o fato
     como DISTINTO de "upload novo direto": novo valor de `motivo_revisao`
     = `'comprovante_reaproveitado_de_irmao'` (diferente de
     `comprovante_chegou_depois`, já existente, CONTAI-061) — exigência
     fiscal, não cosmética (Gate Fiscal, item 4): sem essa marca, um exame
     futuro poderia contar o "comprovante provado" mais de uma vez pelo
     mesmo desembolso agregado.
-12. [ ] Migration nova e PRÓPRIA (anterior à que usa o valor, regra do
+12. [x] Migration nova e PRÓPRIA (anterior à que usa o valor, regra do
     Postgres já documentada no CONTAI-061) só com
     `alter type motivo_revisao add value 'comprovante_reaproveitado_de_irmao'`
     — sem `GRANT` (tipo não tem ACL de PostgREST).
-13. [ ] RPC nova `reaproveitar_comprovante_de_irmao(p_pagamento_id uuid,
+13. [x] RPC nova `reaproveitar_comprovante_de_irmao(p_pagamento_id uuid,
     p_origem_pagamento_id uuid, p_anos jsonb) returns uuid` — NÃO estende
     `anexar_comprovante_pagamento` (que continua com zero diff): lê o
     `comprovante_path` da origem (nulo → exceção), valida que origem e
@@ -109,10 +109,10 @@ mesmo arquivo.
     `revisao` com o motivo do critério 11, `security invoker`,
     `set search_path = public, pg_temp`, `revoke ... from public, anon`,
     `grant execute ... to authenticated`.
-14. [ ] `e2e/privilegios.spec.ts` ganha a entrada nova
+14. [x] `e2e/privilegios.spec.ts` ganha a entrada nova
     `reaproveitar_comprovante_de_irmao: "authenticated"` — tabela de
     privilégios fica vermelha com o nome da função se o `GRANT` faltar.
-15. [ ] Saídas fiscais não deduplicam: dado dois ou mais `pagamento`s
+15. [x] Saídas fiscais não deduplicam: dado dois ou mais `pagamento`s
     compartilhando o mesmo `comprovante_path`, quando "Pagamentos
     Efetuados" ou a discriminação anual é gerada, cada `pagamento` continua
     linha própria com seu próprio valor digitado — nenhuma saída soma ou
@@ -121,17 +121,17 @@ mesmo arquivo.
     ratificação explícita do `contador` neste Gate Fiscal para o caso "1
     anexo, N lançamentos" (ver Gate Fiscal abaixo) — já é o padrão em
     produção no caminho "fatura integral".
-16. [ ] Texto novo (rótulo do chip, dica do Card, botão de confirmar
+16. [x] Texto novo (rótulo do chip, dica do Card, botão de confirmar
     dinâmico, banner de sucesso "Comprovante reaproveitado ✓") é exatamente
     o fixado em `design/mocks/CONTAI-098.md`, seção "Textos de produto" —
     nenhuma variação redige "comprovante oficial" ou qualquer rótulo que
     sugira que um chip é a prova correta e os outros não (recusado
     explicitamente pelo `contador`).
-17. [ ] Vitest novo: `lib/fiscal/fatura.ts::comprovantesDosIrmaos` (função
+17. [x] Vitest novo: `lib/fiscal/fatura.ts::comprovantesDosIrmaos` (função
     pura) — casos: sem fatura → `null`; 1 `comprovante_path`; N `paths`
     distintos; `pagamento` alvo excluído da própria lista; irmãos sem path
     ignorados.
-18. [ ] E2E novo (`e2e/pagamento-comprovante-tardio.spec.ts`, ampliado, ou
+18. [x] E2E novo (`e2e/pagamento-comprovante-tardio.spec.ts`, ampliado, ou
     arquivo próprio, contra o Postgres local): 1 arquivo distinto (chip +
     upload novo, ambos visíveis); 2+ arquivos distintos; `pagamento` avulso
     sem fatura (zero chip); `revisao.motivo` grava o valor novo; segunda

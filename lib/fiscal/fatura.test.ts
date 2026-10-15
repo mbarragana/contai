@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  comprovantesDosIrmaos,
   compromissosAbertosDaFatura,
   COR_FATURA_SEM_EXTRATO,
   faltaOExtrato,
@@ -13,6 +14,7 @@ import {
   totalDesembolsadoCentavos,
   validarCompraCartao,
   type EntradaCompraCartao,
+  type PagamentoDaFatura,
 } from "./fatura";
 import type { Compromisso, Fatura } from "@/lib/types";
 
@@ -353,5 +355,152 @@ describe("a cor e o escopo do veto — adjudicação do contador, não do códig
     expect(FATURA_SEM_EXTRATO_NAO_VETA).not.toContain(
       "nenhuma saída anual é gerada",
     );
+  });
+});
+
+// ══ CONTAI-098 · os comprovantes dos pagamentos IRMÃOS ═══════════════════
+
+describe("comprovantesDosIrmaos — um grupo por arquivo distinto", () => {
+  function irmao(
+    over: Partial<PagamentoDaFatura> & Pick<PagamentoDaFatura, "pagamentoId">,
+  ): PagamentoDaFatura {
+    return {
+      favorecidoNome: "Depósito Ilha",
+      valorCentavos: 9_400,
+      comprovantePath: null,
+      ...over,
+    };
+  }
+
+  /**
+   * ⚠️ `null` é o PIX avulso a prestador — pagamento que não pertence a fatura
+   * nenhuma. Não é o mesmo que "fatura sem irmão com comprovante" (`[]`), e a
+   * distinção existe na camada de dados: para a tela as duas renderizam igual
+   * (critério 6).
+   */
+  it("sem fatura → null", () => {
+    expect(comprovantesDosIrmaos("pag-1", null)).toBeNull();
+  });
+
+  it("fatura sem nenhum irmão com comprovante → lista vazia, nunca null", () => {
+    expect(
+      comprovantesDosIrmaos("pag-1", [
+        irmao({ pagamentoId: "pag-1" }),
+        irmao({ pagamentoId: "pag-2" }),
+      ]),
+    ).toEqual([]);
+  });
+
+  it("um arquivo distinto → um grupo, com favorecido e valor da origem", () => {
+    expect(
+      comprovantesDosIrmaos("pag-1", [
+        irmao({ pagamentoId: "pag-1" }),
+        irmao({
+          pagamentoId: "pag-2",
+          favorecidoNome: "PerfuraTec",
+          valorCentavos: 179_703,
+          comprovantePath: "dono/comprovante/pix-da-fatura.pdf",
+        }),
+      ]),
+    ).toEqual([
+      {
+        comprovantePath: "dono/comprovante/pix-da-fatura.pdf",
+        origens: [
+          {
+            pagamentoId: "pag-2",
+            favorecidoNome: "PerfuraTec",
+            valorCentavos: 179_703,
+          },
+        ],
+      },
+    ]);
+  });
+
+  /**
+   * Critério 2, e é a resposta do Mateus de 2026-10-15 (não reabrir): com N
+   * arquivos distintos a função devolve N grupos — nunca escolhe "o" oficial.
+   */
+  it("N arquivos distintos → N grupos, na ordem da primeira aparição", () => {
+    const grupos = comprovantesDosIrmaos("pag-1", [
+      irmao({
+        pagamentoId: "pag-2",
+        favorecidoNome: "Loja Rede X",
+        valorCentavos: 42_000,
+        comprovantePath: "dono/comprovante/a.pdf",
+      }),
+      irmao({
+        pagamentoId: "pag-3",
+        favorecidoNome: "Loja Rede X",
+        valorCentavos: 98_000,
+        comprovantePath: "dono/comprovante/b.pdf",
+      }),
+      irmao({
+        pagamentoId: "pag-4",
+        favorecidoNome: "Loja Rede X",
+        valorCentavos: 30_000,
+        comprovantePath: "dono/comprovante/c.pdf",
+      }),
+    ]);
+    expect(grupos?.map((g) => g.comprovantePath)).toEqual([
+      "dono/comprovante/a.pdf",
+      "dono/comprovante/b.pdf",
+      "dono/comprovante/c.pdf",
+    ]);
+    expect(grupos?.every((g) => g.origens.length === 1)).toBe(true);
+  });
+
+  /**
+   * O caso que o rótulo pluralizado serve (spec, `## Textos`): o MESMO arquivo
+   * já provando dois pagamentos da fatura — o padrão que "fatura paga integral"
+   * produz desde o CONTAI-022.
+   */
+  it("mesmo arquivo em dois irmãos → UM grupo com duas origens", () => {
+    const grupos = comprovantesDosIrmaos("pag-1", [
+      irmao({
+        pagamentoId: "pag-2",
+        favorecidoNome: "Ilhamix",
+        valorCentavos: 120_000,
+        comprovantePath: "dono/comprovante/pix.pdf",
+      }),
+      irmao({
+        pagamentoId: "pag-3",
+        favorecidoNome: "Casas da Água",
+        valorCentavos: 48_000,
+        comprovantePath: "dono/comprovante/pix.pdf",
+      }),
+    ]);
+    expect(grupos).toHaveLength(1);
+    expect(grupos?.[0].origens.map((o) => o.favorecidoNome)).toEqual([
+      "Ilhamix",
+      "Casas da Água",
+    ]);
+  });
+
+  /**
+   * ⚠️ O pagamento ABERTO é o destino, nunca origem de si mesmo. Chegar aqui com
+   * comprovante só acontece por reentrada (a tela tem guarda própria), e mesmo
+   * assim ele não pode aparecer como candidato.
+   */
+  it("o pagamento alvo sai da própria lista, mesmo tendo comprovante", () => {
+    expect(
+      comprovantesDosIrmaos("pag-1", [
+        irmao({
+          pagamentoId: "pag-1",
+          comprovantePath: "dono/comprovante/do-proprio.pdf",
+        }),
+      ]),
+    ).toEqual([]);
+  });
+
+  it("irmão sem comprovante é ignorado, e não vira grupo com path nulo", () => {
+    const grupos = comprovantesDosIrmaos("pag-1", [
+      irmao({ pagamentoId: "pag-2", comprovantePath: null }),
+      irmao({
+        pagamentoId: "pag-3",
+        comprovantePath: "dono/comprovante/unico.pdf",
+      }),
+    ]);
+    expect(grupos).toHaveLength(1);
+    expect(grupos?.[0].origens.map((o) => o.pagamentoId)).toEqual(["pag-3"]);
   });
 });
