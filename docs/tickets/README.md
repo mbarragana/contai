@@ -1,36 +1,39 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 22 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 21 tickets (mais 1 parado, aguardando o Mateus)
 
-**2026-10-19: `CONTAI-099` criado, P1** — relato de backlog (`112`): Mateus
-pagou uma nota no mesmo ato de cadastrá-la e teve que voltar à Home para
-achar o caminho até `/adicionar/pagamento` — a tela de confirmação do
-documento (`Registrado`) só prometia em TEXTO "registrar o pagamento quando
-ele acontecer", sem botão, mesmo o mecanismo (`/adicionar/pagamento?documento=<id>`,
-herda favorecido/CNPJ/valor, cria o vínculo no salvar) já existindo e já
-funcionando a partir de `/documento/[id]`. `/tickets-req` completo, 3
-perguntas do relato fechadas pelo pipeline (não pelo Mateus): **(1) cartão**
-— `cto-obra` decidiu **um botão só**, achando e corrigindo uma premissa
-errada do relato (compra **avulsa** no cartão herda por `?documento=` desde
-o `CONTAI-064`; ADENDO 9/`texto-herdado.ts` restringe só o **lote de
-parcelas**, CONTAI-084/089) — a própria `/adicionar/pagamento` já bifurca
-para cartão pelo seletor "Como foi pago", então um segundo botão na
-confirmação duplicaria a pergunta; **(2) rótulo** — `designer` escolheu
-"Registrar o pagamento desta nota", reaproveitado byte a byte de
-`documento/[id]/page.tsx:363-365`; **(3) `vinculoFalhou`** — `cto-obra`
-achou que esse estado real (`documento/page.tsx:194`) força `ligados` a 0 no
-mesmo código, então a condição não podia ser só `ligados === 0`: a CTA
-**exclui** o ramo `vinculoFalhou` (mostrar "registrar pagamento novo" ali
-induziria pagamento duplicado, porque esse ramo já tem um pagamento
-existente só não ligado). `contador`: sem impacto fiscal direto; confirmou
-que o precedente `CONTAI-018` (portas separadas Documento/Pagamento no hub)
-**não se aplica** — é CTA ativa reaproveitando mecanismo real, não promessa
-passiva; única condição de produto (não fiscal) é o rótulo nunca afirmar
-fato consumado. `designer`: nível 2, `design/mocks/CONTAI-099.md` (botão
-dentro do mesmo `Card` de Obra/Próximo passo/Custo, `variante="primary"`,
-dica de apoio; cenário captura, mas sem exercitar o tratamento desktop de
-`/adicionar/*` do CONTAI-047/permissão de 2026-09-22). Complexidade **S**,
-zero migration, sem dívida nova. **Pronto para `/develop`.** Detalhe:
+**2026-10-19: `CONTAI-099` entregue** (Gate 4, 10/10 PASS) — CTA "Registrar
+o pagamento desta nota" na tela de confirmação do documento (`Registrado`),
+substituindo o texto estático que só prometia "registrar o pagamento quando
+ele acontecer". `Registrado` ganhou prop opcional `acaoProximoPasso?:
+ReactNode`, renderizado no mesmo `Card` logo depois da última `Linha` e
+antes de `{extra}`; o outro consumidor (`pagamento/page.tsx`) não é afetado.
+`app/(captura)/adicionar/documento/page.tsx` passa o botão
+(`BotaoLink variante="primary"` para `/adicionar/pagamento?documento=<id>`
++ `Dica` de herança) só quando `fase.ligados === 0 && !fase.vinculoFalhou`
+— condição composta confirmada no código real (`vinculoFalhou` já força
+`ligados` a 0), exatamente como o `cto-obra` havia decidido no
+`/tickets-req`: usar só `ligados === 0` teria feito a CTA aparecer também no
+ramo de vínculo que falhou, onde já existe um pagamento não ligado, criando
+risco de duplicação. Rótulo reaproveitado byte a byte de
+`documento/[id]/page.tsx:363-365`. Gate 2 teve dois revisores em paralelo:
+`cto-obra` (APPROVE, diff conferido linha a linha contra os 10 critérios) e
+`contador` (APPROVE — sem impacto fiscal: não muda regime de caixa,
+documentação hábil nem aferição INSS; o clique só navega, a criação do
+pagamento/vínculo continua condicionada ao "Salvar" do formulário de
+destino; precedente `CONTAI-018` confirmado como não aplicável). Gate 3: 3
+E2E novos em `e2e/vinculo.spec.ts` rodados de forma independente pelo
+orquestrador (não só pelo relato do Gate 1), cobrindo os 3 ramos — sem
+vínculo (CTA aparece, clique só navega, herda favorecido/CNPJ/valor), com
+`ligados > 0` (CTA ausente, texto preservado) e com `vinculoFalhou` (CTA
+ausente — o caso mais fácil de regredir, citado explicitamente no ticket).
+`npm run quality` completo: lint + typecheck + Vitest + E2E (522/522,
+Postgres local) 100% verde. O lead-engineer também corrigiu, dentro do
+mesmo diff, a seção `## Campos` de `design/mocks/CONTAI-099.md` (prosa →
+formato `- SEM CAMPOS — ...`) porque `lib/design/campos-do-spec.test.ts`
+reprovava antes — é só formatação exigida pelo lint de spec, sem mudar
+nenhuma condição de design ou fiscal; os dois revisores do Gate 2
+confirmaram isso no mesmo diff. Zero migration, zero dívida nova. Detalhe:
 `docs/tickets/CONTAI-099.md`.
 
 **2026-10-15, ainda mais tarde: `CONTAI-098` entregue** (Gate 4, 18/18

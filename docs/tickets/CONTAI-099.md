@@ -35,9 +35,9 @@ precisar voltar à Home e navegar de novo até o detalhe do documento só para
 achar o mesmo link que eu já sei que existe lá.
 
 ## Critérios de Aceite
-1. [ ] Proposta de design nível 2 em `design/mocks/CONTAI-099.md` (rótulo,
+1. [x] Proposta de design nível 2 em `design/mocks/CONTAI-099.md` (rótulo,
    ASCII antes/depois, decisões de onde o botão entra no `Card`).
-2. [ ] Na tela de confirmação (`Registrado`, chamada a partir de
+2. [x] Na tela de confirmação (`Registrado`, chamada a partir de
    `/adicionar/documento` em fase "salvo"), quando `fase.ligados === 0 &&
    !fase.vinculoFalhou`, o campo "Próximo passo" ganha, no mesmo `Card`
    (abaixo da `Linha` existente, sem alterar o texto dela), um **botão
@@ -49,38 +49,38 @@ achar o mesmo link que eu já sei que existe lá.
    (mecanismo existente desde o CONTAI-064). O clique só navega: não cria
    pagamento nem vínculo por si só — a criação continua acontecendo no
    "Salvar" do formulário seguinte.
-3. [ ] Quando `fase.ligados > 0` (já tem pagamento vinculado nesse ato), o
+3. [x] Quando `fase.ligados > 0` (já tem pagamento vinculado nesse ato), o
    comportamento atual (texto "nada pendente — N pagamento(s) ligado(s)")
    permanece byte a byte inalterado — sem regressão do caso já coberto.
-4. [ ] Quando `fase.vinculoFalhou === true` (tentativa automática de vínculo
+4. [x] Quando `fase.vinculoFalhou === true` (tentativa automática de vínculo
    que não deu certo — estado real, hoje força `ligados` a 0 no mesmo
    código), a CTA de "registrar pagamento NOVO" **não aparece**: esse ramo
    já tem um pagamento existente, só não ligado, e oferecer "Registrar
    pagamento" ali induziria a criação de um pagamento duplicado. O
    comportamento atual desse ramo (banner vermelho + texto orientando abrir
    o documento e usar "Ligar a um pagamento") permanece inalterado.
-5. [ ] O botão reaproveita 100% o mecanismo já existente de
+5. [x] O botão reaproveita 100% o mecanismo já existente de
    `/adicionar/pagamento?documento=<id>` (herança de favorecido/CNPJ,
    sugestão de valor pelo saldo, criação do vínculo no salvar) — zero lógica
    nova de herança, zero mudança de schema.
-6. [ ] As duas ações hoje existentes na tela de confirmação ("Corrigir a obra
+6. [x] As duas ações hoje existentes na tela de confirmação ("Corrigir a obra
    deste registro", "Voltar ao início") continuam presentes e funcionando —
    o botão novo se soma, não substitui nenhuma delas.
-7. [ ] `Registrado` ganha um prop novo opcional `acaoProximoPasso?:
+7. [x] `Registrado` ganha um prop novo opcional `acaoProximoPasso?:
    ReactNode`, renderizado dentro do mesmo `Card` que já tem
    Obra/Próximo passo/Custo, imediatamente depois da última `Linha` e antes
    de `{extra}` — não reaproveita `extra` (já ocupado, no mesmo call site,
    pelos avisos ortogonais de CNO ausente e retenção parcial, que podem
    coexistir com o caso novo). O outro consumidor de `Registrado`
    (`pagamento/page.tsx`) não é afetado — o prop é opcional.
-8. [ ] O botão usa `variante="primary"` (mesmo peso visual de "Voltar ao
+8. [x] O botão usa `variante="primary"` (mesmo peso visual de "Voltar ao
    início"; "Corrigir a obra deste registro" continua `ghost`).
-9. [ ] Rótulo do botão nunca afirma fato consumado (ex.: nunca "Pagamento
+9. [x] Rótulo do botão nunca afirma fato consumado (ex.: nunca "Pagamento
    registrado" ou "Nota paga") — é convite à ação. O rótulo
    "Registrar o pagamento desta nota" é fixo (reaproveita byte a byte o já
    usado em `documento/[id]/page.tsx:363-365`), não é escolha livre de quem
    implementa.
-10. [ ] E2E novo cobrindo: salvar documento sem vínculo → botão "Registrar o
+10. [x] E2E novo cobrindo: salvar documento sem vínculo → botão "Registrar o
     pagamento desta nota" aparece → clicar → cai em
     `/adicionar/pagamento?documento=<id>` com favorecido/CNPJ herdados e
     valor sugerido corretos; mais asserções confirmando que o caso

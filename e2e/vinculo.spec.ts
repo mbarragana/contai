@@ -722,6 +722,188 @@ test.describe("caminho A — vínculo no ato do registro", () => {
 });
 
 /**
+ * CONTAI-099 — a tela de confirmação de `/adicionar/documento` dizia
+ * "registrar o pagamento quando ele acontecer" e não oferecia caminho nenhum:
+ * o Mateus voltava ao início e navegava até o detalhe do documento só para
+ * achar o botão que já existia lá. O caso comum da obra é a nota chegar JÁ
+ * PAGA.
+ *
+ * ⚠️ **Os dois casos NEGATIVOS valem tanto quanto o positivo**, e o de
+ * `vinculoFalhou` é o caro: `ligados` é forçado a 0 nesse ramo, então uma
+ * condição só de `ligados === 0` faria a CTA aparecer onde o pagamento JÁ
+ * EXISTE (só não ficou ligado) — e "Registrar o pagamento" ali cria um SEGUNDO
+ * pagamento para a mesma despesa. Passivo real, descoberto reconciliando o ano
+ * inteiro depois.
+ */
+test.describe("CONTAI-099 — a confirmação do documento oferece o pagamento", () => {
+  /** Rótulo FIXO, o mesmo de `/documento/[id]` — mesma ação, mesmo destino. */
+  const CTA_PAGAMENTO = "Registrar o pagamento desta nota";
+  const DICA_HERANCA = "Favorecido, CNPJ e valor sugerido já vêm desta nota.";
+
+  /** A nota do depósito, hábil, até antes do "Salvar registro". */
+  async function preencherNotaDoDeposito(page: Page) {
+    await page.goto("/adicionar/documento");
+    await preencherDocumentoBasico(page, {
+      tipo: "NF material",
+      emitente: "Depósito Cachoeira ME",
+      documento: "11.444.777/0001-61",
+      valor: "800,00",
+      numero: "800",
+      dataEmissao: "2026-05-04",
+      arquivo: pdf("NF-DEPOSITO-800.pdf"),
+      noCpf: "Sim",
+    });
+  }
+
+  /** O PIX de R$ 800 solto, que o seletor da captura oferece como candidato. */
+  async function pixSoltoDoDeposito(db: Db) {
+    const deposito = await criarFavorecido(db, {
+      nome: "Depósito Cachoeira ME",
+      documento: CNPJ_DEPOSITO_DIGITOS,
+      tipo: "pj",
+    });
+    return criarPagamento(db, {
+      favorecido_id: deposito,
+      valor: 800,
+      data_pagamento: `${ANO}-08-05`,
+      meio: "pix",
+      status: "aguardando_nf",
+      comprovante_path: `${USER_ID_SEED}/comprovante/pix-deposito.png`,
+    });
+  }
+
+  /**
+   * Marca "Já paguei esta nota" e o único candidato oferecido.
+   *
+   * ⚠️ Por `data-campo`, e não pelo "último checkbox da página": esta tela tem
+   * outros checkboxes, e o `.last()` marcava algum deles em silêncio — o save
+   * ia embora com `marcados` vazio e o teste falhava lendo "a CTA apareceu",
+   * que é a conclusão errada sobre o código certo.
+   */
+  async function marcarOCandidato(page: Page) {
+    await page.getByRole("checkbox", { name: "Já paguei esta nota" }).check();
+    const candidatos = page.locator('input[data-campo="pagamentosCandidatos"]');
+    await expect(candidatos).toHaveCount(1);
+    await candidatos.check();
+  }
+
+  test("sem vínculo: o botão aparece e leva ao formulário com a herança da nota", async ({
+    page,
+    db,
+  }) => {
+    await preencherNotaDoDeposito(page);
+    await page.getByRole("button", { name: "Salvar registro" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Registrado ✓" }),
+    ).toBeVisible();
+
+    // O texto da `Linha "Próximo passo"` NÃO muda — o botão soma, não troca.
+    await expect(
+      page.getByText("registrar o pagamento quando ele acontecer"),
+    ).toBeVisible();
+    await expect(page.getByText(DICA_HERANCA)).toBeVisible();
+
+    // Critério 6: as duas ações de sempre continuam ali, e a saída também.
+    await expect(
+      page.getByRole("link", { name: "Corrigir a obra deste registro" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Voltar ao início" }),
+    ).toBeVisible();
+
+    const docs = await documentos(db);
+    expect(docs).toHaveLength(1);
+    const cta = page.getByRole("link", { name: CTA_PAGAMENTO });
+    await expect(cta).toHaveAttribute(
+      "href",
+      `/adicionar/pagamento?documento=${docs[0].id}`,
+    );
+    await cta.click();
+
+    // Os três vêm da nota — e o CNPJ vem SEM campo: redigitado, um dígito
+    // trocado criaria um segundo favorecido pela chave (dono, DOCUMENTO).
+    const herdado = page.getByRole("group", { name: "Favorecido da nota" });
+    await expect(herdado.getByText("Depósito Cachoeira ME")).toBeVisible();
+    await expect(herdado.getByText("11.444.777/0001-61")).toBeVisible();
+    await expect(page.getByLabel("Valor")).toHaveValue("800,00");
+    await expect(page.getByLabel("Valor")).toBeEditable();
+    await expect(page.getByText("Vem da nota — valor da nota.")).toBeVisible();
+
+    // ⚠️ O clique SÓ NAVEGA (Gate Fiscal): pagamento e vínculo continuam
+    // nascendo exclusivamente no "Salvar" da tela de destino.
+    expect(await pagamentos(db)).toEqual([]);
+    expect(await vinculos(db)).toEqual([]);
+  });
+
+  test("com pagamento já ligado no ato, a CTA não aparece (critério 3)", async ({
+    page,
+    db,
+  }) => {
+    const pagamentoId = await pixSoltoDoDeposito(db);
+
+    await preencherNotaDoDeposito(page);
+    await marcarOCandidato(page);
+    await page.getByRole("button", { name: "Salvar registro" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Registrado ✓" }),
+    ).toBeVisible();
+
+    // Comportamento de sempre, inalterado: nada pendente, e nada a oferecer.
+    await expect(page.getByText(/1 pagamento ligado/)).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: CTA_PAGAMENTO }),
+    ).toHaveCount(0);
+    await expect(page.getByText(DICA_HERANCA)).toHaveCount(0);
+
+    const docs = await documentos(db);
+    expect(await vinculos(db)).toEqual([
+      { pagamento_id: pagamentoId, documento_id: docs[0].id },
+    ]);
+  });
+
+  test("vínculo que falhou NÃO ganha a CTA — ela duplicaria o pagamento (critério 4)", async ({
+    page,
+    db,
+  }) => {
+    await pixSoltoDoDeposito(db);
+
+    // Falsificação restrita ao INSERT do vínculo, como no teste do critério 1:
+    // o documento tem de entrar de verdade para o ramo existir.
+    await page.route(
+      `${URL_SUPABASE_LOCAL}/rest/v1/pagamento_documento*`,
+      (rota) =>
+        rota.request().method() === "POST"
+          ? rota.fulfill({
+              status: 503,
+              contentType: "application/json",
+              body: JSON.stringify({
+                code: "PGRST000",
+                message: "could not connect to server",
+              }),
+            })
+          : rota.fallback(),
+    );
+
+    await preencherNotaDoDeposito(page);
+    await marcarOCandidato(page);
+    await page.getByRole("button", { name: "Salvar registro" }).click();
+
+    // `ligados` é 0 aqui — e é exatamente por isso que a condição não pode ser
+    // só `ligados === 0`. O pagamento existe; falta LIGAR, não registrar.
+    await expect(page.getByText(/ficou SEM VÍNCULO/)).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: CTA_PAGAMENTO }),
+    ).toHaveCount(0);
+    await expect(page.getByText(DICA_HERANCA)).toHaveCount(0);
+    // O texto que orienta o caminho certo (pagamento existente) continua.
+    await expect(page.getByText(/Ligar a um pagamento/)).toBeVisible();
+
+    expect(await vinculos(db)).toEqual([]);
+    expect(await pagamentos(db)).toHaveLength(1);
+  });
+});
+
+/**
  * O caso misto do Gate 2 (B1): um candidato foi ligado POR OUTRA ABA enquanto
  * este seletor estava aberto. Sem `on conflict`, a violação de PK abortava a
  * statement inteira — o novo NÃO entrava, a tela navegava como sucesso e o

@@ -1183,6 +1183,47 @@ export default function RegistrarDocumento() {
           ) : undefined
         }
         arquivoNoAcervo={!fase.semArquivo}
+        /* ══ CONTAI-099 — o "Próximo passo" ganha a ação que ele já anunciava
+           ═══════════════════════════════════════════════════════════════════
+           O caso comum da obra é a nota chegar JÁ PAGA, e até aqui esta tela
+           dizia "registrar o pagamento quando ele acontecer" sem oferecer o
+           caminho — o Mateus voltava ao início e navegava até o detalhe do
+           documento só para achar o mesmo botão que já existe lá.
+
+           ⚠️ A condição é `ligados === 0 && !vinculoFalhou`, **nunca** só
+           `ligados === 0`: quando o vínculo falha, `ligados` é forçado a 0
+           logo acima (`vinculoFalhou ? 0 : paraLigar.length`) — e nesse ramo
+           o pagamento JÁ EXISTE, só não ficou ligado. Oferecer "Registrar o
+           pagamento" ali induz a criar um SEGUNDO pagamento para a mesma
+           despesa: a única direção de erro com passivo real. Esse ramo
+           continua sendo atendido pelo `aviso` vermelho, que manda ligar o
+           pagamento existente.
+
+           O clique só NAVEGA: o pagamento e o vínculo continuam nascendo
+           exclusivamente no "Salvar" de `/adicionar/pagamento` — nada aqui
+           afirma fato consumado (precedente do critério 19 do CONTAI-018).
+           O rótulo é o MESMO byte a byte de `/documento/[id]` (mesma ação,
+           mesmo destino): dois textos para o mesmo botão custariam
+           reconhecimento e não ganhariam nada. Cartão não tem botão próprio
+           aqui — quem bifurca é o seletor "Como foi pago" da tela de destino
+           (CONTAI-064). */
+        acaoProximoPasso={
+          fase.ligados === 0 && !fase.vinculoFalhou ? (
+            <>
+              <BotaoLink
+                href={`/adicionar/pagamento?documento=${fase.id}`}
+                variante="primary"
+              >
+                Registrar o pagamento desta nota
+              </BotaoLink>
+              <div className="mt-2">
+                <Dica>
+                  Favorecido, CNPJ e valor sugerido já vêm desta nota.
+                </Dica>
+              </div>
+            </>
+          ) : undefined
+        }
         /* Tela 7 do mock do CONTAI-004 — critério 3. A pendência aparece AQUI,
            no ato, além de entrar na lista de pendências (critério 4): o texto
            é o MESMO do bloqueio, porque a consequência fiscal é a mesma; o que

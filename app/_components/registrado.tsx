@@ -29,6 +29,7 @@ export function Registrado({
   obraNome,
   hrefCorrigirObra,
   aviso,
+  acaoProximoPasso,
   extra,
   arquivoNoAcervo = true,
 }: {
@@ -53,6 +54,20 @@ export function Registrado({
    * prop — hoje só `/adicionar/documento`.
    */
   arquivoNoAcervo?: boolean;
+  /**
+   * CONTAI-099 — a continuação do "Próximo passo" como AÇÃO, dentro do mesmo
+   * `Card` que a anuncia como texto.
+   *
+   * ⚠️ **Prop próprio, e não um uso do `extra`**, de propósito: no call site de
+   * `/adicionar/documento` o `extra` já carrega os avisos de CNO ausente e de
+   * retenção parcial, que são ortogonais a `ligados`/`vinculoFalhou` e podem
+   * coexistir com esta ação. Concatenar três condições independentes num
+   * `ReactNode` à mão é o que este prop evita.
+   *
+   * Ausente, o `Card` fica byte a byte como era — `null` não cria nó no DOM, e
+   * a última `Linha` continua sendo `:last-child` (sem borda de baixo).
+   */
+  acaoProximoPasso?: ReactNode;
   /**
    * Bloco que entra DEPOIS da confirmação — hoje, a sugestão de quitação do
    * CONTAI-019 (critério 37). Fica aqui, e não antes do "Salvar", porque a
@@ -94,6 +109,9 @@ export function Registrado({
           <Linha rotulo="Obra">{obraNome}</Linha>
           <Linha rotulo="Próximo passo">{proximoPasso}</Linha>
           <Linha rotulo={`Custo ${ano}`}>{custo}</Linha>
+          {acaoProximoPasso ? (
+            <div className="mt-3">{acaoProximoPasso}</div>
+          ) : null}
         </Card>
         {extra}
         <Card>

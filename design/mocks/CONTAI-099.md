@@ -49,8 +49,9 @@ antes de ir, que não vai redigitar nada) e é uma afirmação verdadeira hoje
 
 ## Campos
 
-Nenhum. Esta mudança é 100% navegação — um `BotaoLink` para uma rota que já
-existe.
+- SEM CAMPOS — esta mudança é 100% navegação: um `BotaoLink` para uma rota que
+  já existe. Nenhum controle novo, nenhum rótulo de campo, nenhum default
+  tocado.
 
 ## Fluxo
 
