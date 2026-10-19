@@ -1,6 +1,37 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 21 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 22 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-10-19: `CONTAI-099` criado, P1** — relato de backlog (`112`): Mateus
+pagou uma nota no mesmo ato de cadastrá-la e teve que voltar à Home para
+achar o caminho até `/adicionar/pagamento` — a tela de confirmação do
+documento (`Registrado`) só prometia em TEXTO "registrar o pagamento quando
+ele acontecer", sem botão, mesmo o mecanismo (`/adicionar/pagamento?documento=<id>`,
+herda favorecido/CNPJ/valor, cria o vínculo no salvar) já existindo e já
+funcionando a partir de `/documento/[id]`. `/tickets-req` completo, 3
+perguntas do relato fechadas pelo pipeline (não pelo Mateus): **(1) cartão**
+— `cto-obra` decidiu **um botão só**, achando e corrigindo uma premissa
+errada do relato (compra **avulsa** no cartão herda por `?documento=` desde
+o `CONTAI-064`; ADENDO 9/`texto-herdado.ts` restringe só o **lote de
+parcelas**, CONTAI-084/089) — a própria `/adicionar/pagamento` já bifurca
+para cartão pelo seletor "Como foi pago", então um segundo botão na
+confirmação duplicaria a pergunta; **(2) rótulo** — `designer` escolheu
+"Registrar o pagamento desta nota", reaproveitado byte a byte de
+`documento/[id]/page.tsx:363-365`; **(3) `vinculoFalhou`** — `cto-obra`
+achou que esse estado real (`documento/page.tsx:194`) força `ligados` a 0 no
+mesmo código, então a condição não podia ser só `ligados === 0`: a CTA
+**exclui** o ramo `vinculoFalhou` (mostrar "registrar pagamento novo" ali
+induziria pagamento duplicado, porque esse ramo já tem um pagamento
+existente só não ligado). `contador`: sem impacto fiscal direto; confirmou
+que o precedente `CONTAI-018` (portas separadas Documento/Pagamento no hub)
+**não se aplica** — é CTA ativa reaproveitando mecanismo real, não promessa
+passiva; única condição de produto (não fiscal) é o rótulo nunca afirmar
+fato consumado. `designer`: nível 2, `design/mocks/CONTAI-099.md` (botão
+dentro do mesmo `Card` de Obra/Próximo passo/Custo, `variante="primary"`,
+dica de apoio; cenário captura, mas sem exercitar o tratamento desktop de
+`/adicionar/*` do CONTAI-047/permissão de 2026-09-22). Complexidade **S**,
+zero migration, sem dívida nova. **Pronto para `/develop`.** Detalhe:
+`docs/tickets/CONTAI-099.md`.
 
 **2026-10-15, ainda mais tarde: `CONTAI-098` entregue** (Gate 4, 18/18
 PASS) — fecha a dívida **D56-b** por completo, junto com o `097`. Migration
