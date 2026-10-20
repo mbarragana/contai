@@ -1,6 +1,34 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 21 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 22 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-10-20: `CONTAI-100` criado, P1** — relato de backlog (`113`), caso
+vivido ao vivo: Mateus cadastrou a NF 1726 (Ilhamix) e registrou 2x no
+cartão via `CONTAI-099` → "Lançar parcelas em lote" (`CONTAI-084`/`089`); as
+2 parcelas salvaram sem nenhum vínculo com a nota. Quando o lote é alcançado
+com `documento.id` de origem no contexto, cada parcela nasce com pré-vínculo
+automático em `compromisso_documento_previsto` (gravado na mesma transação
+da RPC `compra_cartao_gravar_lote`, migration nova por DROP+CREATE) — nunca
+`documento_origem_id` (ADENDO 9 intocado). Gate Fiscal (`contador`):
+confirmado que a conversão automática N=1 na confirmação de cada parcela
+(ADENDO 7 §K.2/§K.5) não recria o `CONTAI-083` — no 083 o erro foi
+correspondência errada entre notas do mesmo favorecido, herdada às cegas em
+3 atos de criação separados no tempo; aqui as N parcelas nascem num único
+ato atômico, dividindo uma nota já identificada sem ambiguidade no momento
+do clique — condicionado a 2 critérios novos que entraram no ticket: o `id`
+usado no salvamento tem que ser o vigente no instante (nunca congelado,
+cenário de teste A→B exigido) e a tela tem que exibir a nota antes de
+salvar. `cto-obra`: regra pendurada na condição real de
+`/adicionar/compra-cartao` (`origemParaGravar !== null`), não num caminho
+nomeado — achou um 4º caminho de entrada que o relato não citava
+(`documento/[id]/corrigir/emitente`); pré-vínculo é por parcela individual,
+sem alternativa no modelo (`compromisso_documento_previsto` não tem conceito
+de lote). `designer`: nível 2, `design/mocks/CONTAI-100.md` — 4 estados
+(carregando/nota carregada/não carregou/obra divergente) nas Telas 1 e 2 do
+lote; achado adicional fora do mandato original: a `Dica` da Tela 3 de
+sucesso ("nenhuma ligada a nota") ficaria falsa e precisa bifurcar. Sem
+migration de tabela nova (função existente ganha parâmetro aditivo).
+Complexidade M. **Pronto para `/develop`.** Detalhe: `docs/tickets/CONTAI-100.md`.
 
 **2026-10-19: `CONTAI-099` entregue** (Gate 4, 10/10 PASS) — CTA "Registrar
 o pagamento desta nota" na tela de confirmação do documento (`Registrado`),
