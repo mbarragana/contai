@@ -1554,12 +1554,155 @@ export function documentosResolvidosNaConfirmacao(
  * R$ 0,00 — que afirmaria um valor que o registro não tem.
  */
 export function identificarDocumentoPreLigado(d: Documento): string {
-  const quem = d.numero ? `Nota nº ${d.numero}` : ROTULO_DO_TIPO[d.tipo];
-  const quanto =
-    d.valorCentavos === null
-      ? "sem valor informado"
-      : formatarBRL(d.valorCentavos);
+  const { quem, quanto } = fragmentosDaNota(d);
   return `${quem} — ${quanto}`;
+}
+
+/**
+ * Os dois fragmentos de que as duas identificações são feitas — definidos UMA
+ * vez (CONTAI-100).
+ *
+ * ⚠️ Existe porque o CONTAI-100 precisou da MESMA identificação com o
+ * favorecido no meio, e reescrever o "quem"/"quanto" numa segunda função é
+ * exatamente a divergência que produziu a D40 e a D55: duas telas citando a
+ * mesma nota com rótulos diferentes. A função pública de cima não mudou de
+ * saída em um byte — as 3 superfícies do CONTAI-091 continuam idênticas.
+ */
+function fragmentosDaNota(d: Documento): { quem: string; quanto: string } {
+  return {
+    quem: d.numero ? `Nota nº ${d.numero}` : ROTULO_DO_TIPO[d.tipo],
+    quanto:
+      d.valorCentavos === null
+        ? "sem valor informado"
+        : formatarBRL(d.valorCentavos),
+  };
+}
+
+/**
+ * A MESMA identificação, com o favorecido entre o quem e o quanto — CONTAI-100,
+ * critério 6 do Gate Fiscal: *"a tela tem que mostrar qual nota vai ser
+ * pré-vinculada, antes do salvamento, para que o ato de salvar seja uma
+ * afirmação vista"*.
+ *
+ * ⚠️ O favorecido entra aqui, e não em `identificarDocumentoPreLigado`, porque
+ * as 3 superfícies pós-salvamento (detalhe do compromisso, detalhe da nota,
+ * seletor de `/pagamento/[id]/ligar`) já mostram o favorecido ao lado, e repetir
+ * não é informação. No lote, o favorecido é digitável em campo próprio da mesma
+ * tela — ver o nome da nota ao lado do nome digitado é o que permite perceber
+ * que a nota escolhida não é a do fornecedor que se está lançando.
+ *
+ * ⚠️ Texto de identificação, não de consequência fiscal (`design/mocks/
+ * CONTAI-100.md` §8): nada aqui afirma custo, INSS ou relatório. Quem diz a
+ * consequência continua sendo `textoPreVinculoDoCompromisso` (ADENDO 8 §L.2),
+ * nas 3 superfícies de sempre.
+ */
+export function identificarDocumentoComFavorecido(d: Documento): string {
+  const { quem, quanto } = fragmentosDaNota(d);
+  const favorecido = d.favorecidoNome ?? "documento sem emitente";
+  return `${quem} — ${favorecido} — ${quanto}`;
+}
+
+// ── CONTAI-100 · o PRÉ-VÍNCULO do LOTE de parcelas com a nota de origem ──
+//
+// ⚠️ **Mora aqui, e não em `parcelamento.ts` (o módulo do lote), por causa de
+// uma trava**: `lib/fiscal/resumo.test.ts` deixa vermelho qualquer módulo de
+// `lib/fiscal/` fora de `compromisso.ts`/`fatura.ts`/`despesas.ts` que passe a
+// conhecer `compromisso_documento_previsto` — pré-vínculo é intenção, não
+// custo (ADENDO 6 §J.1), e a barreira é por grep de propósito. Este arquivo já
+// é a casa de tudo de pré-vínculo (`podePreVincular`, `CHIP_PRE_VINCULO`,
+// `idsDaUniaoDoPreVinculo`), então é aqui que a decisão do lote pertence.
+
+/**
+ * O estado do bloco de pré-vínculo das Telas 1 e 2 do lote — os quatro de
+ * `design/mocks/CONTAI-100.md` §2, mais o "não há nota nenhuma no contexto",
+ * que é o caminho de hoje e não desenha bloco algum.
+ *
+ * ⚠️ **`pronto` é o ÚNICO estado que autoriza a gravação.** É o gate do critério
+ * 5 do Gate Fiscal em forma de tipo: o id só sai daqui dentro de um estado que
+ * carrega a nota já carregada, e essa nota só entra no estado se o `id` dela
+ * for o MESMO que está na URL agora. Um id obsoleto de uma tentativa anterior
+ * não tem como chegar à RPC — não porque alguém se lembre de conferir, mas
+ * porque o estado em que ele viajaria não é representável.
+ */
+export type PreVinculoDoLote =
+  /** Não chegou `?documento=` — a tela é byte a byte a de antes do CONTAI-100. */
+  | { estado: "sem_origem" }
+  /** O id está na URL e a nota ainda não resolveu (nem carregou, nem falhou). */
+  | { estado: "carregando" }
+  /** `carregarDocumento` falhou para o id ATUAL. Aviso visível, nunca silêncio. */
+  | { estado: "nao_carregou" }
+  /** A nota carregou e é de OUTRA obra — o lote segue, sem pré-vínculo. */
+  | { estado: "obra_diferente"; nota: Documento; motivo: string }
+  /** A nota carregou, é desta obra: as N parcelas nascem pré-ligadas a ela. */
+  | { estado: "pronto"; nota: Documento };
+
+/**
+ * Decide, a cada render e no instante do clique de salvar, qual dos cinco
+ * estados vale — CONTAI-100, critérios 5 e 6 do Gate Fiscal.
+ *
+ * ⚠️ **Função pura, e é por isso que ela existe fora da tela**: o critério 5 é
+ * "o id usado é o vigente no momento do salvamento, nunca congelado". Uma
+ * condição espalhada por três `useState` da página não se testa sem browser;
+ * aqui o `nota.id !== documentoNaUrl` é uma linha e tem teste unitário.
+ *
+ * ⚠️ **A guarda de obra é `podeVincular` de `vinculo.ts`, reaproveitada** — a
+ * mesma de `podePreVincular` (`compromisso.ts`), e não uma segunda redação
+ * dela. Não é `podePreVincular` direto porque ela também exige
+ * `compromisso.situacao === "aberto"`, e aqui não existe compromisso nenhum
+ * ainda: os N nascem `aberto` na mesma transação da RPC, então a metade da
+ * guarda que sobra é exatamente a de obra.
+ *
+ * ⚠️ **Nenhum estado BLOQUEIA o lote** (critério 6 do ticket): `nao_carregou` e
+ * `obra_diferente` avisam e deixam gravar sem pré-vínculo. Pré-vínculo não é
+ * custo (ADENDO 6 §J.1) — recusar o registro do dispêndio por causa dele seria
+ * recusar o fato consumado por falta de uma intenção.
+ */
+export function decidirPreVinculoDoLote(entrada: {
+  /** O `?documento=` lido da URL AGORA — nunca um valor copiado na montagem. */
+  documentoNaUrl: string | null;
+  /** A nota que o efeito carregou, seja de que id for. */
+  nota: Documento | null;
+  /** O id para o qual `carregarDocumento` falhou, ou `null` se não falhou. */
+  falhouParaId: string | null;
+  /** A obra ESTA tela está registrando — `null` enquanto ela carrega. */
+  obraId: string | null;
+}): PreVinculoDoLote {
+  const { documentoNaUrl, nota, falhouParaId, obraId } = entrada;
+  if (documentoNaUrl === null || documentoNaUrl === "") {
+    return { estado: "sem_origem" };
+  }
+  // ⚠️ A comparação que é o critério 5: nota de OUTRO id não é esta nota. Vale
+  // para o A→B do ticket (abrir com ?documento=A, navegar para ?documento=B sem
+  // salvar) — enquanto a B não chega, o estado é `carregando`, nunca "pronto
+  // com a A".
+  //
+  // `obraId === null` (a obra do registro ainda carregando) cai em `carregando`
+  // junto: sem saber a obra desta tela não há como dizer se a nota é dela, e
+  // afirmar "pronto" antes disso seria afirmar o que não se sabe.
+  if (nota !== null && nota.id === documentoNaUrl && obraId !== null) {
+    const permissao = podeVincular({ obraId }, nota);
+    return permissao.ok
+      ? { estado: "pronto", nota }
+      : { estado: "obra_diferente", nota, motivo: permissao.motivo };
+  }
+  if (nota !== null && nota.id === documentoNaUrl) {
+    return { estado: "carregando" };
+  }
+  if (falhouParaId === documentoNaUrl) return { estado: "nao_carregou" };
+  return { estado: "carregando" };
+}
+
+/**
+ * O id que vai para `p_documento_previsto_id` — e `null` em todo o resto.
+ *
+ * Existe como função, e não como `estado === "pronto" ? nota.id : null` solto na
+ * tela, para que o ponto único de saída do id seja greppável: quem procurar
+ * "quem pode mandar um documento para o lote" acha uma função, não um ternário.
+ */
+export function idDoPreVinculoParaGravar(
+  pre: PreVinculoDoLote,
+): Documento | null {
+  return pre.estado === "pronto" ? pre.nota : null;
 }
 
 /**

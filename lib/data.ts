@@ -2372,24 +2372,70 @@ export interface NovoLoteCompraCartao {
   dataCompra: string;
   valorTotalCentavos: number;
   parcelas: readonly ParcelaParaGravar[];
+  /**
+   * CONTAI-100 — a nota a que as N parcelas nascem **PRÉ-vinculadas**, ou
+   * `null` para o lote sem origem (o caminho de antes deste ticket).
+   *
+   * ⚠️ **Obrigatório, sem default, mesmo tendo `default null` no banco** (mesma
+   * disciplina de `p_propagar_origem_ids` na 0024): o default existe só para a
+   * janela `db push` → deploy. Em TypeScript, um chamador novo que esquecesse
+   * de decidir não compila — e "esquecer de decidir" aqui significaria gravar
+   * N parcelas sem o vínculo que o Mateus acabou de declarar, que é a dor do
+   * relato 113.
+   *
+   * ⚠️ **A obra vem junto porque a guarda é do CÓDIGO**, igual em
+   * `salvarDocumentosPrevistos`: a policy da 0023 só exige mesmo DONO e
+   * deixaria passar nota de outra obra do próprio Mateus.
+   */
+  documentoPrevisto: Pick<Documento, "id" | "obraId"> | null;
 }
 
 /**
  * Grava as N parcelas como N compras independentes, **tudo-ou-nada** — RPC
- * `compra_cartao_gravar_lote` (migration 0026), critério 12.
+ * `compra_cartao_gravar_lote` (migrations 0026 → 0032), critério 12.
  *
- * ⚠️ **Não existe `documentoOrigemId` aqui, e a ausência é o critério 10**: a
- * RPC não tem o parâmetro (ver o cabeçalho da 0026). Nenhuma parcela nasce
- * ligada a nota, mesmo quando uma única nota cobre o valor total — herança em
- * massa escalaria para N parcelas o incidente P0 do CONTAI-083. O vínculo é ato
- * deliberado posterior, parcela por parcela, no pré-vínculo.
+ * ⚠️ **`documentoOrigemId` continua não existindo aqui, e a ausência continua
+ * sendo a proibição do ADENDO 9 §M**: a RPC não tem o parâmetro, e nenhuma
+ * parcela nasce com `documento_origem_id` — nem quando uma única nota cobre o
+ * valor total. Herança de ORIGEM em massa escalaria o incidente P0 do
+ * CONTAI-083 para 24 parcelas numa ação só.
+ *
+ * ⚠️ **REESCRITO pelo CONTAI-100, e a frase que saiu era uma invariante morta.**
+ * Até aqui este bloco dizia que o vínculo era *"ato deliberado posterior,
+ * parcela por parcela, no pré-vínculo"* — e a garantia que a sustentava era
+ * estrutural: a rota do lote não recebia id de documento nenhum (CONTAI-089).
+ * O CONTAI-100 derrubou essa garantia **de propósito**: o PRÉ-vínculo passou a
+ * nascer no mesmo ato, para as N parcelas de uma vez, quando o lote é alcançado
+ * de uma nota que o Mateus está olhando. O que continua posterior e parcela por
+ * parcela é o vínculo FORMAL (`pagamento_documento`, na confirmação do
+ * pagamento) e o desfazer, em `/compromisso/[id]/pre-vincular`.
+ *
+ * Por que isso não reabre o ADENDO 9 (Gate Fiscal do CONTAI-100, ponto 1):
+ * pré-vínculo não é custo, não é nó de `alocarCusto`, não abate INSS e não tira
+ * a nota de "sem pagamento vinculado" (ADENDO 6 §J.1) — campo e mecanismo
+ * diferentes dos que o §M regula.
+ *
+ * ⚠️ **A decisão é tomada AQUI, e a RPC só executa** (doutrina do CONTAI-081):
+ * `podeVincular` roda antes da chamada, e a guarda de servidor da 0032 é a
+ * segunda camada da mesma regra, não a primeira.
  *
  * ⚠️ **N chamadas de `criarCompraCartao` não serviriam**: elas não são atômicas
- * entre si e não há DELETE para desfazer meio lote (acervo append-only).
+ * entre si e não há DELETE para desfazer meio lote (acervo append-only). Pela
+ * mesma razão os N pré-vínculos entram DENTRO da RPC e não num upsert depois:
+ * lote gravado com zero pré-vínculo é a dor do relato de volta, com a tela de
+ * sucesso afirmando o contrário.
  */
 export async function criarCompraCartaoEmLote(
   entrada: NovoLoteCompraCartao,
 ): Promise<{ compromissoId: string; faturaId: string }[]> {
+  if (entrada.documentoPrevisto !== null) {
+    const permissao = podeVincular(
+      { obraId: entrada.obraId },
+      entrada.documentoPrevisto,
+    );
+    if (!permissao.ok) throw new VinculoEntreObrasError(permissao.motivo);
+  }
+
   const { data, error } = await getSupabase().rpc("compra_cartao_gravar_lote", {
     p_obra_id: entrada.obraId,
     p_favorecido_id: entrada.favorecidoId,
@@ -2399,6 +2445,10 @@ export async function criarCompraCartaoEmLote(
       valor: centavosParaNumeric(p.valorCentavos),
       vencimento: p.dataVencimentoFatura,
     })),
+    // `?? undefined` e não `?? null`: sem a chave, o `default null` da 0032
+    // resolve — e é o que mantém o app compatível com a janela em que a
+    // migration já subiu e o código ainda não (ou o inverso).
+    p_documento_previsto_id: entrada.documentoPrevisto?.id ?? undefined,
   });
   if (error) throw error;
   const resultado = data as {

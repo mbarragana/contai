@@ -15,9 +15,18 @@
  * centavos e de calendário, e ela se testa sozinha.
  *
  * ⚠️ **O que este módulo NÃO decide**: `documento_origem_id`. Nenhuma função
- * daqui o aceita ou devolve, e a RPC `compra_cartao_gravar_lote` (migration
- * 0026) nem tem o parâmetro — é o critério 10 cumprido por assinatura, não por
- * disciplina de chamador.
+ * daqui o aceita ou devolve, e a RPC `compra_cartao_gravar_lote` (migrations
+ * 0026 → 0032) nem tem o parâmetro — a proibição do ADENDO 9 §M cumprida por
+ * assinatura, não por disciplina de chamador.
+ *
+ * ⚠️ **Nem o PRÉ-vínculo mora aqui, e a razão é uma trava** (CONTAI-100): o
+ * pré-vínculo é intenção, e `lib/fiscal/resumo.test.ts` mantém um grep que
+ * deixa VERMELHO qualquer módulo de `lib/fiscal/` — fora de `compromisso.ts`,
+ * `fatura.ts` e `despesas.ts` — que passe a conhecê-lo. A decisão de qual nota
+ * o lote pré-vincula (`decidirPreVinculoDoLote`) mora em `compromisso.ts`,
+ * junto de `podePreVincular` e do chip, que é onde o projeto já guarda tudo de
+ * pré-vínculo. Este arquivo continua sendo só aritmética de centavos e de
+ * calendário.
  */
 
 import { formatarBRL } from "@/lib/money";

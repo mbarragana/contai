@@ -79,8 +79,26 @@ import type { Documento } from "@/lib/types";
 
 import { montarQueryTextoHerdado } from "./texto-herdado";
 
-/** A rota irmã do lote — a MESMA de sempre, sem parâmetro nenhum. */
+/** A rota irmã do lote. */
 const ROTA_DO_LOTE = "/adicionar/compra-cartao/parcelas";
+
+/**
+ * A chave do id da nota na query string — a MESMA que esta tela já lê de quem a
+ * chama, e que o CONTAI-100 passou a repassar ao lote.
+ *
+ * ⚠️ Literal, e não constante importada de um módulo compartilhado, porque é o
+ * idioma que o app já usa para este parâmetro em todos os 4 caminhos que
+ * chegam aqui (`documento/[id]/page.tsx`, `adicionar/documento/page.tsx`,
+ * `documento/[id]/ligar/page.tsx`, `documento/[id]/corrigir/emitente/
+ * page.tsx`). O outro lado está em `compra-cartao/parcelas/page.tsx`, onde a
+ * constante tem o mesmo nome — `grep -rn 'PARAM_DOCUMENTO' app/` acha os dois.
+ *
+ * ⚠️ **Fora de `texto-herdado.ts` de propósito** (Viabilidade do CONTAI-100): o
+ * contrato daquele módulo é "três strings e nada mais", e o id não é texto a
+ * pré-preencher campo — é o id de um vínculo. Misturar os dois lá dentro é
+ * desfazer a separação que o CONTAI-089 construiu.
+ */
+const PARAM_DOCUMENTO = "documento";
 
 const RESPOSTAS_PARC = [
   { valor: "vista", texto: "À vista" },
@@ -138,7 +156,7 @@ function RegistrarCompraCartao({
    * desapareceria sem aviso — que é exatamente o silêncio que este ticket veio
    * matar. O custo é a fronteira de Suspense no fim do arquivo.
    */
-  const documentoNaUrl = useSearchParams().get("documento");
+  const documentoNaUrl = useSearchParams().get(PARAM_DOCUMENTO);
   const [documentoDeOrigemId, setDocumentoDeOrigemId] = useState<string | null>(
     herdarDaUrl ? documentoNaUrl : null,
   );
@@ -285,26 +303,43 @@ function RegistrarCompraCartao({
   const tipoFavorecido = useMemo(() => tipoPorDocumento(documento), [documento]);
 
   /**
-   * CONTAI-089 — o link do lote carrega o **TEXTO** que esta tela já tem na
-   * mão, e só ele: nome, CNPJ/CPF formatado e o valor (que é o SALDO da nota,
-   * via `sugerirValorDaNota`, ou o que o Mateus já digitou por cima).
+   * O link do lote carrega o **TEXTO** que esta tela já tem na mão — nome,
+   * CNPJ/CPF formatado e o valor (que é o SALDO da nota, via
+   * `sugerirValorDaNota`, ou o que o Mateus já digitou por cima) — e, desde o
+   * CONTAI-100, também o **id da nota**, quando existe uma.
    *
-   * ⚠️ **`valor`, nunca `documentoDeOrigem.valorCentavos`** (critério 9): o
-   * valor de face de uma nota com pagamento parcial repetido no lote dobraria o
-   * custo. E ⚠️ **nenhum id**: nem `documentoDeOrigemId`, nem
-   * `origemParaGravar`. A rota irmã não tem o que vazar porque não recebe
-   * (critério 7).
+   * ⚠️ **`valor`, nunca `documentoDeOrigem.valorCentavos`** (CONTAI-089,
+   * critério 9): o valor de face de uma nota com pagamento parcial repetido no
+   * lote dobraria o custo.
+   *
+   * ⚠️ **REESCRITO pelo CONTAI-100, e o que mudou é uma proibição que este
+   * ticket derrubou de propósito.** Até aqui esta frase dizia "**nenhum id**:
+   * nem `documentoDeOrigemId`, nem `origemParaGravar` — a rota irmã não tem o
+   * que vazar porque não recebe". Isso virou FALSO: o lote passou a receber o
+   * id para **PRÉ-vincular** as N parcelas (ADENDO 6 §J.1 — intenção, nunca
+   * custo), e o que continua proibido é `documento_origem_id`, que a RPC do
+   * lote nunca aceitou e continua não aceitando (ADENDO 9 §M).
+   *
+   * ⚠️ **A condição é `origemParaGravar !== null`, não um caminho nomeado**
+   * (critério 2 do ticket, mitigação do Pre-mortem 1): é a MESMA condição que
+   * decide o que esta tela gravaria como origem — nota carregada **e** obra
+   * batendo. Os 4 caminhos que hoje chegam aqui com `?documento=` herdam a
+   * regra de graça, e qualquer caminho futuro também, sem ticket novo.
    *
    * Sem nada preenchido — acesso direto, ou nota que não carregou — não sobra
    * query nenhuma e o `href` é **a URL de hoje, byte a byte**, sem `?`
-   * pendurado (critério 4: zero regressão no caminho sem nota).
+   * pendurado (CONTAI-089, critério 4: zero regressão no caminho sem nota).
    */
   const hrefDoLote = useMemo(() => {
     const query = new URLSearchParams(
       montarQueryTextoHerdado({ nome, documento, valor }),
-    ).toString();
-    return query === "" ? ROTA_DO_LOTE : `${ROTA_DO_LOTE}?${query}`;
-  }, [nome, documento, valor]);
+    );
+    if (origemParaGravar !== null) {
+      query.set(PARAM_DOCUMENTO, origemParaGravar);
+    }
+    const texto = query.toString();
+    return texto === "" ? ROTA_DO_LOTE : `${ROTA_DO_LOTE}?${texto}`;
+  }, [nome, documento, valor, origemParaGravar]);
 
   async function salvar() {
     setErroSalvar(null);
@@ -628,17 +663,25 @@ function RegistrarCompraCartao({
                       ela já mandava tomar — "lance cada parcela como uma compra
                       separada" — sem obrigar a repetir o cadastro N vezes.
 
-                      ⚠️ **CONTAI-089 reescreveu o `href`, e NÃO reabriu o
-                      critério 10.** Até aqui o link era cru, "SEM parâmetro
-                      nenhum da URL", porque o único parâmetro que existia era o
-                      `?documento=` — e carregar o ID da nota até a porta da
-                      rota irmã seria burlar o vínculo pelo endereço. O que
-                      viaja agora é TEXTO (`favorecidoNome`,
-                      `favorecidoDocumento`, `valorTotal`): dígitos que o Mateus
-                      digitaria olhando a mesma nota, sem id nenhum no caminho.
-                      A rota do lote continua sem receber documento — é por isso
-                      que não há o que vazar para
-                      `compra_cartao_gravar_lote` (critério 7). */}
+                      ⚠️ **O `href` foi reescrito duas vezes, e a segunda
+                      derrubou a garantia da primeira — de propósito.** O
+                      CONTAI-089 trocou o link cru por TEXTO
+                      (`favorecidoNome`, `favorecidoDocumento`, `valorTotal`):
+                      dígitos que o Mateus digitaria olhando a mesma nota, sem
+                      id nenhum no caminho, porque levar o id até a porta da
+                      rota irmã seria burlar o vínculo pelo endereço.
+
+                      O **CONTAI-100** passou a levar o id também
+                      (`?documento=`), e o que ele habilita do outro lado é
+                      PRÉ-vínculo — intenção editável que não é custo, não abate
+                      INSS e não entra em relatório (ADENDO 6 §J.1) —, nunca
+                      `documento_origem_id`, que `compra_cartao_gravar_lote`
+                      continua não aceitando (ADENDO 9 §M, critério 4 do
+                      CONTAI-100). A garantia que se perdeu ("a rota não recebe
+                      id") está nomeada como dívida 3 do ticket: o que sobra é o
+                      nome do parâmetro (`previsto`, nunca `origem`) e os E2E
+                      que contam os pré-vínculos e exigem
+                      `documento_origem_id = null`. */}
                   {/* Estado de LOADING do link (critério 9): com nota em
                       carregamento, o link ainda não sabe o saldo — e link
                       clicável que larga o valor para trás é a fricção que este

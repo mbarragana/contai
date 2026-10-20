@@ -273,6 +273,16 @@ confirmado lendo `lib/fiscal/compromisso.ts` (`textoPreVinculoDoCompromisso`,
 `CHIP_PRE_VINCULO`) e os 3 call sites em `compromisso/[id]/page.tsx`,
 `documento/[id]/page.tsx` e `pagamento/[id]/ligar/page.tsx`.
 
+## Campos
+
+- SEM CAMPOS — o delta deste ticket é um bloco INFORMATIVO (chip, identificação
+  da nota e avisos), sem nenhum controle novo: nenhum campo editável, nenhum
+  checkbox, nenhum toggle de "pré-vincular? sim/não" (critério 12 do ticket). Os
+  seis campos comuns da Tela 1 e as duas colunas editáveis da Tela 2 continuam
+  exatamente os do CONTAI-084, com a herança de texto do CONTAI-089 — nenhum
+  default tocado. A seção 6 abaixo explica por que "campo vazio pergunta, campo
+  preenchido afirma" não se aplica aqui.
+
 ## 6. Campos — nenhum novo, nenhum toggle (item 6 do meu mandato)
 
 Nenhum campo editável, nenhum checkbox, nenhuma pergunta "pré-vincular

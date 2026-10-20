@@ -456,6 +456,23 @@ const FUNCOES_ESPERADAS: Record<string, string> = {
   // Sem o revoke da 0026, o anônimo poderia gravar 24 compromissos no acervo de
   // outra pessoa numa só chamada — a família do incidente de 2026-08-17, com a
   // superfície de escrita multiplicada por 24.
+  //
+  // ⚠️ **CONTAI-100 (migration 0032) RECRIOU esta função**: `drop` + `create`
+  // com `p_documento_previsto_id uuid default null` no fim (aridade 5 → 6), para
+  // as N parcelas poderem nascer PRÉ-vinculadas à nota de origem. Mesma razão de
+  // `fatura_desembolso_gravar`/`fatura_alocar` na 0024 — `create or replace` com
+  // aridade diferente criaria SOBRECARGA, e a assinatura velha (que não sabe
+  // pré-vincular) ficaria viva e chamável, que é justamente o que faria este
+  // mapa indexado por NOME parar de identificar uma função só. **Nada muda neste
+  // mapa**: mesmo nome, mesmo papel, e o revoke/grant novos estão na 0032
+  // (os da 0026 morreram no `drop`). A assinatura de HOJE, para quem for
+  // procurar no `pg_proc`:
+  //   compra_cartao_gravar_lote(uuid, uuid, date, numeric, jsonb, uuid)
+  //
+  // ⚠️ **Nenhum GRANT de tabela novo**, e a ausência é conferida pelos testes de
+  // tabela acima: `compromisso_documento_previsto` já tem `insert` para
+  // `authenticated` desde a 0023, e `documento` tem `select` desde a 0005 — os
+  // dois privilégios que a função nova exerce por dentro.
   compra_cartao_gravar_lote: "authenticated",
 };
 

@@ -8,24 +8,43 @@
  * ADENDO 5 §I.1-I.3 e ADENDO 9 §M.
  *
  * ⚠️ **ROTA IRMÃ de `/adicionar/compra-cartao`, nunca um "modo" dela**
- * (critério 2, decisão do `cto-obra`). E a separação não é organizacional: é o
- * que ISOLA a herança de nota. Esta rota **nunca lê `?documento=`** — e, desde
- * o CONTAI-089, a frase é mais forte do que "não lê": a única leitura de query
- * string deste arquivo é `lerTextoHerdado` (`../texto-herdado`), cujo retorno
- * são três STRINGS (`nome`, `documento`, `valor`) consumidas exclusivamente
- * como valor inicial de `useState`. Não há id de documento para ler porque o
- * link de entrada não manda nenhum — a garantia é do transporte, não da
- * disciplina de quem chama. Quem acrescentar aqui leitura de id, ou passar o
- * retorno de `lerTextoHerdado` para qualquer lugar que não seja um `useState`,
- * está reabrindo o critério 10 pelo lado de fora.
+ * (CONTAI-084, critério 2, decisão do `cto-obra`).
  *
- * ⚠️ **Nenhuma parcela nasce com `documento_origem_id`** — critério 10 e Gate
- * Fiscal. Não é disciplina desta tela: a RPC `compra_cartao_gravar_lote`
- * (migration 0026) não tem o parâmetro. Mesmo que exista uma nota única
- * cobrindo o valor total, o vínculo é ato deliberado posterior, uma parcela de
- * cada vez, em `/compromisso/[id]/pre-vincular` (CONTAI-080/081). O motivo está
- * por extenso na 0026: herança em massa escalaria o incidente P0 do CONTAI-083
- * para 24 parcelas numa única ação.
+ * ⚠️ **REESCRITO PELO CONTAI-100 — a invariante que este bloco afirmava foi
+ * derrubada de propósito, e por isso ela não podia continuar escrita aqui.**
+ * Até este ticket o texto dizia *"Esta rota **nunca lê `?documento=`**"*, e a
+ * garantia era do transporte: o link de entrada não mandava id nenhum, logo não
+ * havia id para vazar (CONTAI-089). O que vale agora:
+ *
+ *   * esta rota **lê `?documento=`**, e o faz de forma **REATIVA** — derivado
+ *     de `useSearchParams` a cada render, nunca copiado para um `useState`
+ *     inicializado uma vez (ao contrário do TEXTO herdado, que continua
+ *     congelado na montagem, e pode). É o critério 5 do Gate Fiscal do
+ *     CONTAI-100: o Next 16 **não remonta** o segmento ao navegar para a mesma
+ *     rota com query diferente, então um id congelado sobreviveria à troca de
+ *     nota e as N parcelas nasceriam pré-ligadas à nota ERRADA, sem o Mateus
+ *     ver. Quem transformar esse id em estado inicializado uma vez só reabre
+ *     esse cenário;
+ *   * o que esse id habilita é **PRÉ-vínculo** (`compromisso_documento_
+ *     previsto`, migration 0023): anotação de INTENÇÃO, que não entra em soma
+ *     nenhuma, não é nó de `alocarCusto`, não abate INSS, não entra em
+ *     relatório e não tira a nota de "sem pagamento vinculado" (ADENDO 6
+ *     §J.1). Ele nasce por PARCELA — N parcelas, N linhas — e continua
+ *     desfazível, uma a uma, em `/compromisso/[id]/pre-vincular`
+ *     (CONTAI-080/081).
+ *
+ * ⚠️ **Nenhuma parcela nasce com `documento_origem_id`, e isto o CONTAI-100 NÃO
+ * reabriu** (critério 4 do ticket, ADENDO 9 §M). Não é disciplina desta tela: a
+ * RPC `compra_cartao_gravar_lote` (migrations 0026 → 0032) não tem o parâmetro,
+ * e o que ela ganhou se chama `p_documento_previsto_id` — `previsto`, nunca
+ * `origem`. Herança de ORIGEM em massa escalaria o incidente P0 do CONTAI-083
+ * para 24 parcelas numa única ação; pré-vínculo não, porque não é custo e é
+ * revisável antes de cada confirmação.
+ *
+ * ⚠️ **Nenhum campo, checkbox ou toggle para "desligar" o pré-vínculo**
+ * (critério 12): o bloco é INFORMATIVO e automático. "Campo vazio pergunta,
+ * campo preenchido afirma" não se aplica porque não há campo — e desfazer tem
+ * um lugar, que é o agendamento, depois de salvo.
  *
  * ⚠️ **Não existe campo "Parcelado?" aqui** (critério 5), e a ausência é
  * justificada, não esquecida: cada linha gerada JÁ É o estado-alvo que o ADENDO
@@ -39,7 +58,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 import { CampoTexto, ErroCampo, Rotulo } from "@/app/_components/campos";
 import { CamposCurtos, COLUNA_DO_FORMULARIO } from "@/app/_components/captura";
@@ -54,6 +73,7 @@ import {
   BotaoSalvar,
   Card,
   Carregando,
+  Chip,
   Corpo,
   Dica,
   ErroDeGravacao,
@@ -62,11 +82,19 @@ import {
   Rodape,
 } from "@/app/_components/ui";
 import {
+  carregarDocumento,
   classificarErro,
   criarCompraCartaoEmLote,
   garantirFavorecido,
   mensagemDeErroDeGravacao,
 } from "@/lib/data";
+import {
+  CHIP_PRE_VINCULO,
+  decidirPreVinculoDoLote,
+  identificarDocumentoComFavorecido,
+  idDoPreVinculoParaGravar,
+  type PreVinculoDoLote,
+} from "@/lib/fiscal/compromisso";
 import {
   RESSALVA_ANO_DA_FATURA,
   RESSALVA_ANO_DA_FATURA_TITULO,
@@ -89,6 +117,7 @@ import {
 } from "@/lib/fiscal/parcelamento";
 import { hojeIso } from "@/lib/hoje";
 import { centavosParaInput, formatarBRL, parseValorInput } from "@/lib/money";
+import type { Documento } from "@/lib/types";
 
 import { lerTextoHerdado, type TextoHerdado } from "../texto-herdado";
 
@@ -96,6 +125,145 @@ import { lerTextoHerdado, type TextoHerdado } from "../texto-herdado";
 const ROTA_DO_LOTE = "/adicionar/compra-cartao/parcelas";
 
 const SEM_HERANCA: TextoHerdado = { nome: "", documento: "", valor: "" };
+
+/**
+ * CONTAI-100 — a chave do id da nota de origem na query string, a MESMA que
+ * `compra-cartao/page.tsx` monta (lá a constante tem este mesmo nome).
+ *
+ * ⚠️ **Fora de `../texto-herdado` de propósito**: o contrato daquele módulo é
+ * "três strings e nada mais", consumidas como valor inicial de `useState`. O id
+ * é o oposto disso — é lido a cada render (critério 5) e não preenche campo
+ * nenhum. Misturar os dois lá dentro desfaria a separação do CONTAI-089.
+ */
+const PARAM_DOCUMENTO = "documento";
+
+// ── CONTAI-100 · os textos do bloco de pré-vínculo ───────────────────────
+//
+// ⚠️ Todos são texto de PRODUTO (`design/mocks/CONTAI-100.md` §8): identificação
+// da nota, aviso de carregamento, aviso de falha, aviso de obra divergente e a
+// bifurcação da Dica. **Nenhum deles afirma consequência fiscal** — custo, INSS
+// e relatório só aparecem pelas constantes já existentes (`CHIP_PRE_VINCULO`,
+// `MOTIVO_OBRA_DIFERENTE`), reusadas verbatim, e o texto expandido do ADENDO 8
+// §L.2 continua restrito às 3 superfícies do CONTAI-091, depois que a parcela
+// existe de verdade.
+//
+// ⚠️ Todos falam no FUTURO ("vão nascer"), nunca no presente: nenhuma parcela
+// existe enquanto estas telas estão abertas, e afirmar fato consumado antes do
+// "Confirmar" é a mesma falha que a Dica da Tela 3 tinha (achado §4 do mock).
+
+/** Mesmo peso e mesmo padrão do "Carregando a nota…" do CONTAI-089. */
+const CARREGANDO_A_NOTA = "Carregando a nota de origem…";
+
+const MECANISMO_DO_PRE_VINCULO =
+  "As parcelas que você gerar aqui vão nascer já ligadas a esta nota. Fica " +
+  'visível e desfazível em cada agendamento, em "Ligar notas a este ' +
+  'agendamento", enquanto ele estiver em aberto.';
+
+/** A variante da Tela 2, que já sabe o N — difere em uma frase, não em regra. */
+function mecanismoDaRevisao(quantas: number): string {
+  return `As ${quantas} parcelas abaixo vão nascer já ligadas a esta nota.`;
+}
+
+/** Aviso visível, nunca silêncio — requisito explícito do `cto-obra`. */
+const NOTA_NAO_CARREGOU =
+  "A nota de origem não carregou. As parcelas vão nascer sem pré-vínculo — " +
+  "você pode ligar cada uma a esta nota depois, pelo pré-vínculo do " +
+  "agendamento.";
+
+/**
+ * A abertura e o fechamento do aviso de obra divergente — produto, adaptados ao
+ * contexto do LOTE (aqui não existe "pagamento" nem "ligar" ainda, existe
+ * "gerar parcelas"), no mesmo espírito da frase que `compra-cartao/page.tsx`
+ * monta ao redor da MESMA constante. A frase-motivo no meio é
+ * `MOTIVO_OBRA_DIFERENTE` verbatim, e vem dentro de `pre.motivo`.
+ */
+const OBRA_DIFERENTE_ABERTURA = "Estas parcelas não vão nascer com pré-vínculo.";
+const OBRA_DIFERENTE_FECHAMENTO =
+  "Troque a obra desta tela antes de gerar as parcelas, ou prossiga — elas " +
+  "nascem sem pré-vínculo.";
+
+/**
+ * A `Dica` da Tela 3 quando o lote NASCEU pré-vinculado — achado §4 do mock: o
+ * texto fixo de hoje ("Nenhuma delas está ligada a nota") ficaria FALSO
+ * justamente no estado que este ticket criou.
+ *
+ * ⚠️ Nomeia o chip e aponta onde está o texto completo, em vez de reproduzir a
+ * frase do ADENDO 8 §L.2 — disciplina do critério 8 do Gate Fiscal.
+ */
+function dicaDoLotePreVinculado(nota: Documento): string {
+  return (
+    `Todas nascem pré-ligadas a ${identificarDocumentoComFavorecido(nota)} ` +
+    `(chip "${CHIP_PRE_VINCULO}" em cada agendamento). O vínculo completo — e ` +
+    "a opção de desfazer — fica em cada parcela, ao abrir o agendamento."
+  );
+}
+
+/**
+ * O bloco de pré-vínculo das Telas 1 e 2 — os 4 estados de
+ * `design/mocks/CONTAI-100.md` §2-3, num componente só porque são o MESMO
+ * conteúdo nas duas telas (só o parágrafo de mecanismo muda).
+ *
+ * `sem_origem` não desenha nada: sem `?documento=` a tela é byte a byte a de
+ * antes deste ticket (zero regressão, critério 9 do ticket).
+ *
+ * ⚠️ **Nenhum destes estados bloqueia o lote.** `nao_carregou` e
+ * `obra_diferente` avisam e deixam gravar sem pré-vínculo: pré-vínculo não é
+ * custo (ADENDO 6 §J.1), e recusar o registro do dispêndio por falta de uma
+ * intenção seria recusar o fato consumado.
+ */
+function BlocoDoPreVinculo({
+  pre,
+  mecanismo,
+  onTentarDeNovo,
+}: {
+  pre: PreVinculoDoLote;
+  /** O parágrafo que descreve o que vai acontecer — difere entre Tela 1 e 2. */
+  mecanismo: string;
+  onTentarDeNovo: () => void;
+}) {
+  if (pre.estado === "sem_origem") return null;
+
+  if (pre.estado === "carregando") {
+    // Parágrafo mudo, sem spinner e sem retry: não bloqueia campo nenhum da
+    // Tela 1 — o Mateus pode preencher favorecido/valor/datas enquanto resolve.
+    return <p className="text-[13.5px] text-mut">{CARREGANDO_A_NOTA}</p>;
+  }
+
+  if (pre.estado === "nao_carregou") {
+    return (
+      <Banner cor="amb" role="status">
+        {NOTA_NAO_CARREGOU}
+        <div className="pt-2">
+          <Botao variante="ghost" onClick={onTentarDeNovo}>
+            Tentar de novo
+          </Botao>
+        </div>
+      </Banner>
+    );
+  }
+
+  if (pre.estado === "obra_diferente") {
+    return (
+      <Banner cor="red" role="alert">
+        <strong>{OBRA_DIFERENTE_ABERTURA}</strong> {pre.motivo}{" "}
+        {OBRA_DIFERENTE_FECHAMENTO}
+      </Banner>
+    );
+  }
+
+  return (
+    <Card className="border-dashed border-amb" data-pre-vinculo="lote">
+      <Chip cor="amb" peso="vazado">
+        {CHIP_PRE_VINCULO}
+      </Chip>
+      <p className="mt-1.5 text-[13.5px]">
+        Pré-vínculo com{" "}
+        <strong>{identificarDocumentoComFavorecido(pre.nota)}</strong>
+      </p>
+      <p className="mt-1.5 text-[13px] text-mut">{mecanismo}</p>
+    </Card>
+  );
+}
 
 /**
  * CONTAI-089 — a origem do que está no campo, dita no próprio campo. Mesmo
@@ -144,7 +312,20 @@ type Fase =
   | { nome: "formulario" }
   | { nome: "revisao" }
   | { nome: "salvando" }
-  | { nome: "sucesso"; favorecidoNome: string; itens: ParcelaGravada[] };
+  | {
+      nome: "sucesso";
+      favorecidoNome: string;
+      itens: ParcelaGravada[];
+      /**
+       * CONTAI-100, critério 10 — a nota a que as N parcelas NASCERAM
+       * pré-ligadas, ou `null`. Congelada no momento do "Confirmar", e é o que
+       * faz a `Dica` desta tela dizer a verdade: ela é lida DEPOIS de o
+       * `router.replace` ter limpado o `?documento=` da barra, então derivar o
+       * estado da URL aqui diria "nenhuma ligada a nota" num lote que nasceu
+       * ligado.
+       */
+      preVinculadaA: Documento | null;
+    };
 
 /** `"3"` → 3; `"3,5"`, `""` e `"abc"` → `null`. Nunca assume nada. */
 function parseInteiro(texto: string): number | null {
@@ -337,6 +518,35 @@ function LancarParcelasEmLote({
     herdarDaUrl ? lerTextoHerdado(params) : SEM_HERANCA,
   );
 
+  /**
+   * ⚠️ **CONTAI-100, critério 5 do Gate Fiscal — DERIVADO a cada render, nunca
+   * um `useState`.** É o oposto deliberado da linha acima: o TEXTO herdado é
+   * congelado na montagem (e pode, porque é só pré-preenchimento de campo), e o
+   * `id` é lido da URL **agora**.
+   *
+   * O motivo é do Next 16: navegar para a MESMA rota com query diferente não
+   * remonta o segmento. Um id copiado para estado na montagem sobreviveria a
+   * "abrir com a Nota A, voltar, entrar de novo pela Nota B" — e as N parcelas
+   * nasceriam pré-ligadas à A, sem o Mateus ver. O cenário A→B é E2E deste
+   * ticket, não só comentário.
+   *
+   * `herdarDaUrl` cobre o critério 14: "Lançar outro lote" (rodada > 0) não
+   * herda o `?documento=` da rodada anterior, mesmo padrão de não-herança que o
+   * CONTAI-089/071 já aplicam ao texto.
+   */
+  const documentoNaUrl = herdarDaUrl ? params.get(PARAM_DOCUMENTO) : null;
+
+  /**
+   * A nota carregada — de QUALQUER id, porque quem decide se ela vale é
+   * `decidirPreVinculoDoLote`, comparando `nota.id` com o id da URL atual.
+   * Guardar a nota sem guardar "para qual id ela serve" seria o estado
+   * congelado de novo, com outro nome.
+   */
+  const [nota, setNota] = useState<Documento | null>(null);
+  /** O id para o qual `carregarDocumento` falhou — por id, nunca um booleano. */
+  const [falhouParaId, setFalhouParaId] = useState<string | null>(null);
+  const [tentativaDaNota, setTentativaDaNota] = useState(0);
+
   // ── Os campos comuns, preenchidos UMA vez (critério 4) ────────────────
   // ⚠️ Herdar aqui é a MESMA exceção ao "SEM DEFAULT" já aberta pelo CONTAI-064
   // (dado replicado de fonte real, com a origem visível na `ajuda`) — e os três
@@ -359,6 +569,64 @@ function LancarParcelasEmLote({
   /** Houve edição manual de linha? Decide se voltar à Tela 1 confirma antes. */
   const [editouLinha, setEditouLinha] = useState(false);
   const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
+
+  /**
+   * CONTAI-100 — carrega a nota do `?documento=` atual. Espelha o efeito de
+   * `compra-cartao/page.tsx`, com duas diferenças que vêm do critério 5:
+   *
+   *   1. **a nota não é "a nota desta tela", é "a nota do id X"** — por isso o
+   *      `catch` grava o ID que falhou, e não um booleano `erro`. Com booleano,
+   *      a falha da Nota A continuaria aparecendo depois de a URL já apontar
+   *      para a B;
+   *   2. **o id não é apagado no `catch`.** Lá, nota que não abre zera
+   *      `documentoDeOrigemId` e a tela cai no caso "sem contexto"; aqui isso
+   *      apagaria o aviso que o `cto-obra` exigiu que fosse visível (Estado 3
+   *      do mock) e o "Tentar de novo" não teria o que tentar.
+   */
+  useEffect(() => {
+    if (documentoNaUrl === null) return;
+    let cancelado = false;
+
+    void (async () => {
+      try {
+        const carregado = await carregarDocumento(documentoNaUrl);
+        if (!cancelado) setNota(carregado);
+      } catch {
+        // Nota que não abre NÃO trava o lote: o dispêndio é o fato e tem de
+        // entrar. O que o pré-vínculo perde é intenção, e ela se declara
+        // depois, pelo agendamento.
+        if (!cancelado) setFalhouParaId(documentoNaUrl);
+      }
+    })();
+
+    return () => {
+      cancelado = true;
+    };
+  }, [documentoNaUrl, tentativaDaNota]);
+
+  /**
+   * O "Tentar de novo" do Estado 3 — e, como em `compra-cartao/page.tsx`, ele
+   * NÃO recarrega a página: aqui isso apagaria os seis campos comuns já
+   * digitados (e, na Tela 2, as 24 linhas já editadas à mão).
+   */
+  const recarregarNota = useCallback(() => {
+    setFalhouParaId(null);
+    setTentativaDaNota((t) => t + 1);
+  }, []);
+
+  /**
+   * ⚠️ **O gate do critério 5, num lugar só.** Derivado a cada render, e
+   * reavaliado no clique de "Confirmar" porque `confirmar` fecha sobre o render
+   * vigente — nunca sobre o da montagem.
+   */
+  const preVinculo = decidirPreVinculoDoLote({
+    documentoNaUrl,
+    nota,
+    falhouParaId,
+    obraId: obra?.id ?? null,
+  });
+  /** A nota que REALMENTE vai para a RPC — `null` em todos os outros estados. */
+  const notaDoPreVinculo = idDoPreVinculoParaGravar(preVinculo);
 
   const totalCentavos = parseValorInput(valorTotal);
   const n = parseInteiro(quantas);
@@ -388,7 +656,20 @@ function LancarParcelasEmLote({
               : n === null
                 ? "o número de parcelas"
                 : null;
-  const podeGerar = faltando === null && erroDeN === undefined;
+  /**
+   * CONTAI-100 — "Gerar" ESPERA a nota resolver, e é o mesmo gate que o link do
+   * lote já tem em `compra-cartao/page.tsx` (CONTAI-089, critério 9), pelo mesmo
+   * motivo: a Tela 2 é onde o "Confirmar" mora, e ela não tem estado de
+   * carregamento (mock §3). Chegar na revisão com a nota ainda em voo seria
+   * oferecer o clique final sem a tela ter dito a qual nota ele pré-vincula —
+   * exatamente o que o critério 6 do Gate Fiscal recusa.
+   *
+   * ⚠️ Espera só o estado `carregando`: `nao_carregou` e `obra_diferente` são
+   * respostas, não pendências — o lote segue, sem pré-vínculo.
+   */
+  const esperandoANota = preVinculo.estado === "carregando";
+  const podeGerar =
+    faltando === null && erroDeN === undefined && !esperandoANota;
 
   const entradaDoLote: EntradaLoteCompraCartao = useMemo(
     () => ({
@@ -473,11 +754,18 @@ function LancarParcelasEmLote({
         dataCompra,
         valorTotalCentavos: totalCentavos,
         parcelas: linhas,
-        // ⚠️ Não há `documentoOrigemId` para passar — critério 10 por
-        // assinatura: nem `NovoLoteCompraCartao` (`lib/data.ts`) nem a RPC
-        // `compra_cartao_gravar_lote` (migration 0026) têm o parâmetro. O
-        // CONTAI-089 não o acrescentou: o que ele herda não chega até aqui —
-        // morre nos `useState` da Tela 1, como texto.
+        // ⚠️ **Continua não existindo `documentoOrigemId` para passar** — ADENDO
+        // 9 §M por assinatura: nem `NovoLoteCompraCartao` (`lib/data.ts`) nem a
+        // RPC `compra_cartao_gravar_lote` (0026 → 0032) têm o parâmetro, e o
+        // CONTAI-100 não o acrescentou.
+        //
+        // ⚠️ **CONTAI-100, critério 5 — `notaDoPreVinculo` é do render ATUAL.**
+        // Esta função fecha sobre o render em que o clique aconteceu, então o id
+        // que sai daqui é o vigente no instante do salvamento. Quem trocar isto
+        // por um valor lido na montagem (ou por uma `ref` preenchida uma vez)
+        // reabre o cenário A→B que o Gate Fiscal nomeia como análogo técnico do
+        // CONTAI-083.
+        documentoPrevisto: notaDoPreVinculo,
       });
       /**
        * CONTAI-089, critério 10 — a query string sai da barra ANTES de a tela
@@ -493,6 +781,10 @@ function LancarParcelasEmLote({
       setFase({
         nome: "sucesso",
         favorecidoNome: nome.trim(),
+        // Critério 10: congelado AQUI, no mesmo valor que foi para a RPC. O
+        // `replace` acima já tirou o `?documento=` da barra, então a Tela 3 não
+        // tem mais de onde derivar isto.
+        preVinculadaA: notaDoPreVinculo,
         itens: gravadas.map((g, i) => ({
           ...g,
           valorCentavos: linhas[i].valorCentavos,
@@ -558,9 +850,17 @@ function LancarParcelasEmLote({
               );
             })}
           </Card>
+          {/* ⚠️ **CONTAI-100, critério 10 — esta `Dica` era FIXA e passou a se
+              bifurcar.** O texto de baixo ("Nenhuma delas está ligada a nota")
+              é o de hoje, byte a byte, e continua certo para o lote sem origem;
+              mas ele ficaria FALSO no estado exato que este ticket criou, e
+              texto fixo que afirma um fato falso é o mesmo defeito que a
+              disciplina fiscal persegue ("campo preenchido afirma"), com outro
+              nome. Achado §4 de `design/mocks/CONTAI-100.md`. */}
           <Dica>
-            Nenhuma delas está ligada a nota. O vínculo é feito depois, parcela
-            por parcela, no pré-vínculo de cada agendamento.
+            {fase.preVinculadaA === null
+              ? "Nenhuma delas está ligada a nota. O vínculo é feito depois, parcela por parcela, no pré-vínculo de cada agendamento."
+              : dicaDoLotePreVinculado(fase.preVinculadaA)}
           </Dica>
           {/* Critério 18: banner ÚNICO, nunca repetido por linha. */}
           <Banner cor="red" role="status">
@@ -646,6 +946,18 @@ function LancarParcelasEmLote({
               </div>
             ) : null}
           </Card>
+
+          {/* CONTAI-100, critério 6 do Gate Fiscal — o aviso tem de aparecer
+              "antes do salvamento", e é AQUI que o clique final mora. Mesmo
+              conteúdo da Tela 1, entre o resumo fixo e o cabeçalho sticky da
+              tabela (mock §3); o parágrafo difere numa frase porque esta tela já
+              sabe o N. Sem Estado 1 ("Carregando"): "Gerar" já esperou a nota
+              resolver — ver `esperandoANota`. */}
+          <BlocoDoPreVinculo
+            pre={preVinculo}
+            mecanismo={mecanismoDaRevisao(parcelas.length)}
+            onTentarDeNovo={recarregarNota}
+          />
 
           {/* Cabeçalho da tabela — `sticky` porque 24 linhas não cabem na
               altura útil (spec, §3). Só existe na tela larga: no piso cada
@@ -761,8 +1073,19 @@ function LancarParcelasEmLote({
               }
             />
 
-            {/* Critério 6 — texto verbatim, pluralização ratificada pelo
-                `contador`. A constante mora em `lib/fiscal/parcelamento.ts`. */}
+            {/* CONTAI-100 — logo depois da `AfirmacaoObra` e ANTES do banner de
+                agendamento: mesma posição relativa que `compra-cartao/page.tsx`
+                usa para `obraDivergente`/`LigadoANota` em relação ao próprio
+                banner (mock §2). Sem `?documento=` não desenha nada. */}
+            <BlocoDoPreVinculo
+              pre={preVinculo}
+              mecanismo={MECANISMO_DO_PRE_VINCULO}
+              onTentarDeNovo={recarregarNota}
+            />
+
+            {/* CONTAI-084, critério 6 — texto verbatim, pluralização ratificada
+                pelo `contador`. A constante mora em
+                `lib/fiscal/parcelamento.ts`. */}
             <Banner cor="amb" role="status">
               {LOTE_BANNER_AGENDAMENTO}
             </Banner>
@@ -848,7 +1171,12 @@ function LancarParcelasEmLote({
               ? erroDeN
               : faltando
                 ? `Informe ${faltando} para continuar`
-                : `Gerar as ${n} parcelas →`}
+                : // CONTAI-100 — o botão desabilitado diz o que está
+                  // acontecendo, mesmo texto do Estado 1 do bloco acima: o
+                  // padrão do app é o rótulo explicar a espera, não sumir.
+                  esperandoANota
+                  ? CARREGANDO_A_NOTA
+                  : `Gerar as ${n} parcelas →`}
           </Botao>
           <BotaoLink href="/adicionar/compra-cartao">Voltar</BotaoLink>
         </Rodape>

@@ -10,7 +10,10 @@ import {
   CHIP_PRE_VINCULO,
   compromissosQuePreLigam,
   documentosResolvidosNaConfirmacao,
+  decidirPreVinculoDoLote,
+  identificarDocumentoComFavorecido,
   identificarDocumentoPreLigado,
+  idDoPreVinculoParaGravar,
   idsDaUniaoDoPreVinculo,
   LIGADO_AO_CONFIRMAR_PORQUE,
   pagamentosNovosPorCompromisso,
@@ -2475,6 +2478,220 @@ describe("revalidacoesPendentesDaFatura — a lista derivada do ESTADO GRAVADO",
   it("pagamento que não está na lista carregada degrada em silêncio", () => {
     expect(revalidacoesPendentesDaFatura([pendente("c1", "pag-1")], docs, [])).toEqual(
       [],
+    );
+  });
+});
+
+// ── CONTAI-100 · o gate do pré-vínculo do LOTE de parcelas ───────────────
+//
+// ⚠️ Os testes moram AQUI, e não em `parcelamento.test.ts`, pelo mesmo motivo
+// que a função: a trava por grep de `resumo.test.ts` mantém pré-vínculo fora
+// dos outros módulos de `lib/fiscal/`.
+
+/**
+ * A nota de origem do relato 113: NF 1726, Ilhamix, R$ 12.340,00 — montada pelo
+ * `doc` que este arquivo já usa, para não existir uma segunda fábrica de
+ * `Documento` discordando da primeira.
+ */
+function nota(over: Partial<Documento> & { id: string }): Documento {
+  return doc({
+    valorCentavos: 1_234_000,
+    numero: "1726",
+    favorecidoNome: "Ilhamix Concreto Ltda",
+    ...over,
+  });
+}
+
+/** A obra do `doc`/`comp` deste arquivo — a mesma em que o lote é lançado. */
+const OBRA_DO_LOTE = OBRA;
+
+describe("decidirPreVinculoDoLote — os 5 estados (CONTAI-100, critério 6)", () => {
+  it("sem `?documento=` não existe bloco nenhum: a tela é a de antes do ticket", () => {
+    expect(
+      decidirPreVinculoDoLote({
+        documentoNaUrl: null,
+        nota: null,
+        falhouParaId: null,
+        obraId: OBRA_DO_LOTE,
+      }),
+    ).toEqual({ estado: "sem_origem" });
+  });
+
+  it("query string com `?documento=` vazio é tratada como ausência, nunca como id", () => {
+    expect(
+      decidirPreVinculoDoLote({
+        documentoNaUrl: "",
+        nota: null,
+        falhouParaId: null,
+        obraId: OBRA_DO_LOTE,
+      }),
+    ).toEqual({ estado: "sem_origem" });
+  });
+
+  it("id na URL e nada carregado ainda: carregando", () => {
+    expect(
+      decidirPreVinculoDoLote({
+        documentoNaUrl: "nota-a",
+        nota: null,
+        falhouParaId: null,
+        obraId: OBRA_DO_LOTE,
+      }),
+    ).toEqual({ estado: "carregando" });
+  });
+
+  it("nota carregada da MESMA obra: pronto, e é ela que vai para a RPC", () => {
+    const a = nota({ id: "nota-a" });
+    const pre = decidirPreVinculoDoLote({
+      documentoNaUrl: "nota-a",
+      nota: a,
+      falhouParaId: null,
+      obraId: OBRA_DO_LOTE,
+    });
+    expect(pre).toEqual({ estado: "pronto", nota: a });
+    expect(idDoPreVinculoParaGravar(pre)).toBe(a);
+  });
+
+  it("falha de carregamento do id ATUAL: aviso visível, e nada para gravar", () => {
+    const pre = decidirPreVinculoDoLote({
+      documentoNaUrl: "nota-a",
+      nota: null,
+      falhouParaId: "nota-a",
+      obraId: OBRA_DO_LOTE,
+    });
+    expect(pre).toEqual({ estado: "nao_carregou" });
+    // O lote SEGUE — pré-vínculo não é custo (ADENDO 6 §J.1), e a falha de uma
+    // intenção não recusa o registro do dispêndio.
+    expect(idDoPreVinculoParaGravar(pre)).toBeNull();
+  });
+
+  it("falha que ficou para TRÁS não contamina o id novo: volta a carregando", () => {
+    // A falhou, a URL já aponta para B. Com um booleano `erro` em vez do id, o
+    // aviso da A continuaria na tela em cima de uma nota que está carregando.
+    expect(
+      decidirPreVinculoDoLote({
+        documentoNaUrl: "nota-b",
+        nota: null,
+        falhouParaId: "nota-a",
+        obraId: OBRA_DO_LOTE,
+      }),
+    ).toEqual({ estado: "carregando" });
+  });
+
+  it("nota de OUTRA obra: aviso com o motivo do parecer, e zero pré-vínculo", () => {
+    const outra = nota({ id: "nota-a", obraId: "obra-apartamento" });
+    const pre = decidirPreVinculoDoLote({
+      documentoNaUrl: "nota-a",
+      nota: outra,
+      falhouParaId: null,
+      obraId: OBRA_DO_LOTE,
+    });
+    expect(pre).toEqual({
+      estado: "obra_diferente",
+      nota: outra,
+      // Verbatim de `lib/fiscal/vinculo.ts` — a tela não reescreve o motivo.
+      motivo: MOTIVO_OBRA_DIFERENTE,
+    });
+    // ⚠️ Não bloqueia o lote, mas NÃO grava: vínculo de obra errada não se
+    // grava para depois se explicar.
+    expect(idDoPreVinculoParaGravar(pre)).toBeNull();
+  });
+
+  it("obra da tela ainda carregando: carregando, nunca `pronto` por omissão", () => {
+    const pre = decidirPreVinculoDoLote({
+      documentoNaUrl: "nota-a",
+      nota: nota({ id: "nota-a" }),
+      falhouParaId: null,
+      obraId: null,
+    });
+    expect(pre).toEqual({ estado: "carregando" });
+    expect(idDoPreVinculoParaGravar(pre)).toBeNull();
+  });
+});
+
+describe("decidirPreVinculoDoLote — o id é o VIGENTE, nunca o congelado (critério 5)", () => {
+  /**
+   * ⚠️ **O cenário A→B do Gate Fiscal, em forma de unidade.** O E2E prova o
+   * mesmo pelo banco; aqui está provado que a REGRA não depende de o React
+   * limpar estado: uma nota carregada para o id A **nunca** é devolvida como
+   * pré-vínculo enquanto a URL diz B, mesmo que o efeito ainda não tenha rodado.
+   *
+   * Sem isto, o cenário é o análogo técnico do CONTAI-083 que o Ponto 2 do Gate
+   * Fiscal nomeia: contexto obsoleto sobrevivendo a uma troca de nota no meio do
+   * fluxo, sem o Mateus ver.
+   */
+  it("URL já em B com a nota A ainda em mão: carregando, e NADA de A vaza", () => {
+    const a = nota({ id: "nota-a" });
+    const pre = decidirPreVinculoDoLote({
+      documentoNaUrl: "nota-b",
+      nota: a,
+      falhouParaId: null,
+      obraId: OBRA_DO_LOTE,
+    });
+    expect(pre).toEqual({ estado: "carregando" });
+    expect(idDoPreVinculoParaGravar(pre)).toBeNull();
+  });
+
+  it("quando B chega, é B que vai para a RPC — e só B", () => {
+    const b = nota({ id: "nota-b", numero: "1801" });
+    const pre = decidirPreVinculoDoLote({
+      documentoNaUrl: "nota-b",
+      nota: b,
+      falhouParaId: null,
+      obraId: OBRA_DO_LOTE,
+    });
+    expect(idDoPreVinculoParaGravar(pre)).toBe(b);
+    expect(idDoPreVinculoParaGravar(pre)?.id).not.toBe("nota-a");
+  });
+
+  it("a URL voltando a ficar sem id descarta o pré-vínculo inteiro", () => {
+    // É o que acontece no `router.replace` da fase de sucesso e no "Lançar
+    // outro lote" (critério 14): a nota continua em mão, e mesmo assim não há
+    // pré-vínculo nenhum a gravar.
+    const pre = decidirPreVinculoDoLote({
+      documentoNaUrl: null,
+      nota: nota({ id: "nota-a" }),
+      falhouParaId: null,
+      obraId: OBRA_DO_LOTE,
+    });
+    expect(pre).toEqual({ estado: "sem_origem" });
+    expect(idDoPreVinculoParaGravar(pre)).toBeNull();
+  });
+});
+
+describe("identificação da nota do pré-vínculo (CONTAI-100, critério 6)", () => {
+  it("número, favorecido e valor — os três que o Gate Fiscal exige ver", () => {
+    expect(identificarDocumentoComFavorecido(nota({ id: "n" }))).toBe(
+      `Nota nº 1726 — Ilhamix Concreto Ltda — ${formatarBRL(1_234_000)}`,
+    );
+  });
+
+  it("o quem e o quanto são os MESMOS da função de sempre — nunca uma 2ª redação", () => {
+    const n = nota({ id: "n" });
+    const curta = identificarDocumentoPreLigado(n);
+    const longa = identificarDocumentoComFavorecido(n);
+    // A versão com favorecido é a curta com o favorecido inserido no meio: os
+    // fragmentos vêm de uma definição só (a divergência entre duas redações da
+    // mesma nota é a D40/D55).
+    expect(curta).toBe(`Nota nº 1726 — ${formatarBRL(1_234_000)}`);
+    expect(longa.startsWith("Nota nº 1726 — ")).toBe(true);
+    expect(longa.endsWith(` — ${formatarBRL(1_234_000)}`)).toBe(true);
+  });
+
+  it("sem número cai no rótulo do tipo; sem valor, DIZ que não há valor", () => {
+    expect(
+      identificarDocumentoComFavorecido(
+        nota({ id: "n", numero: null, valorCentavos: null }),
+      ),
+    ).toBe("NF material — Ilhamix Concreto Ltda — sem valor informado");
+  });
+
+  it("sem emitente, nomeia a ausência em vez de imprimir vazio", () => {
+    expect(
+      identificarDocumentoComFavorecido(
+        nota({ id: "n", favorecidoNome: null }),
+      ),
+    ).toBe(
+      `Nota nº 1726 — documento sem emitente — ${formatarBRL(1_234_000)}`,
     );
   });
 });

@@ -1263,6 +1263,7 @@ export type Database = {
       compra_cartao_gravar_lote: {
         Args: {
           p_data_compra: string
+          p_documento_previsto_id?: string
           p_favorecido_id: string
           p_obra_id: string
           p_parcelas: Json

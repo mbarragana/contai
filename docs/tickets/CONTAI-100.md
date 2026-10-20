@@ -35,11 +35,11 @@ compromisso depois e repetir manualmente uma ligação que eu já declarei no
 ato de registrar o pagamento.
 
 ## Critérios de Aceite
-1. [ ] Proposta de design nível 2 em `design/mocks/CONTAI-100.md` (4 estados
+1. [x] Proposta de design nível 2 em `design/mocks/CONTAI-100.md` (4 estados
    do bloco de pré-vínculo nas Telas 1 e 2 do lote — carregando, nota
    carregada, nota não carregou, obra divergente — mais a bifurcação da
    `Dica` da Tela 3).
-2. [ ] Quando `/adicionar/compra-cartao` carrega com `?documento=<id>`
+2. [x] Quando `/adicionar/compra-cartao` carrega com `?documento=<id>`
    resolvido para a mesma obra (hoje só alcançável via `CONTAI-099` →
    "Registrar o pagamento desta nota" → Cartão, mas a regra pendura na
    condição real de `compra-cartao/page.tsx` — `origemParaGravar !== null` —
@@ -48,25 +48,25 @@ ato de registrar o pagamento.
    herde de graça), o link "Lançar as parcelas em lote →" propaga esse `id`
    para `/adicionar/compra-cartao/parcelas` como `?documento=<id>`, **além**
    dos 3 textos que o `CONTAI-089` já propaga.
-3. [ ] Ao confirmar o lote, se o `?documento=<id>` da URL resolveu para um
+3. [x] Ao confirmar o lote, se o `?documento=<id>` da URL resolveu para um
    documento válido da mesma obra, cada uma das N linhas de `compromisso`
    recém-criadas recebe, na MESMA transação da RPC `compra_cartao_gravar_lote`
    (migration nova, parâmetro aditivo `p_documento_previsto_id`), uma linha
    correspondente em `compromisso_documento_previsto` apontando para essa
    nota — verificável lendo a tabela depois do lote confirmado.
-4. [ ] Nenhuma das N parcelas recebe `documento_origem_id` preenchido em
+4. [x] Nenhuma das N parcelas recebe `documento_origem_id` preenchido em
    nenhuma circunstância — proibição de
    `docs/pareceres/2026-08-18-compromisso-versus-pagamento.md` (ADENDO 9),
    que este ticket reforça e não reabre. Verificável por E2E: todas as N
    linhas de `compromisso` têm `documento_origem_id = null`.
-5. [ ] O `id` usado para gravar o pré-vínculo é sempre o vigente no momento
+5. [x] O `id` usado para gravar o pré-vínculo é sempre o vigente no momento
    do salvamento efetivo do lote — lido reativamente da URL, nunca congelado
    num estado inicializado uma única vez (ao contrário do texto herdado do
    `CONTAI-089`, que pode ficar como está). Verificável por E2E: abrir
    `/parcelas?documento=A`, navegar (sem salvar) para a mesma rota com
    `?documento=B`, salvar — as N parcelas pré-vinculam exclusivamente à Nota
    B, nenhuma à A.
-6. [ ] Antes do salvamento (Telas 1 e 2 do lote), a tela exibe qual nota está
+6. [x] Antes do salvamento (Telas 1 e 2 do lote), a tela exibe qual nota está
    sendo usada como origem do pré-vínculo (número/tipo, favorecido, valor),
    nos 4 estados especificados em `design/mocks/CONTAI-100.md` §2-3:
    carregando; nota carregada (chip `CHIP_PRE_VINCULO` + identificação da
@@ -74,43 +74,43 @@ ato de registrar o pagamento.
    pré-vínculo, com opção de tentar de novo); obra divergente (aviso visível
    com o texto de `MOTIVO_OBRA_DIFERENTE` — lote segue sem pré-vínculo, não
    bloqueia).
-7. [ ] O detalhe da nota de origem passa a listar as N parcelas como
+7. [x] O detalhe da nota de origem passa a listar as N parcelas como
    pré-ligadas (`compromissosQuePreLigam`, `CONTAI-091`), e o chip
    `CHIP_PRE_VINCULO` (variante N=1 do ADENDO 8 §L.2 do parecer) aparece nas
    3 superfícies já existentes (detalhe do compromisso, detalhe da nota,
    seletor de `/pagamento/[id]/ligar`), sem exigir ação manual adicional
    depois do lote salvo.
-8. [ ] O pré-vínculo criado continua revisável/desfazível, individualmente
+8. [x] O pré-vínculo criado continua revisável/desfazível, individualmente
    por parcela, antes da confirmação de pagamento de cada uma, pela tela
    `/pre-vincular` já existente (`CONTAI-080`/`081`) — não existe, neste
    ticket, ação de desfazer o pré-vínculo das N parcelas de uma vez só
    (dívida nomeada no Out of Scope).
-9. [ ] Fora do contexto de `documento.id` (lote acessado sem nota de
+9. [x] Fora do contexto de `documento.id` (lote acessado sem nota de
    origem — caminho atual do `CONTAI-089`), nada muda: zero pré-vínculo
    criado, `documento_origem_id` continua `null`, comportamento idêntico ao
    de hoje — verificável por E2E (`count(compromisso_documento_previsto) = 0`
    para as N linhas do lote).
-10. [ ] A `Dica` fixa da Tela 3 (sucesso), que hoje sempre afirma "Nenhuma
+10. [x] A `Dica` fixa da Tela 3 (sucesso), que hoje sempre afirma "Nenhuma
     delas está ligada a nota", se bifurca conforme o lote nasceu ou não com
     pré-vínculo (texto exato em `design/mocks/CONTAI-100.md` §4) — para não
     afirmar um fato falso sobre o próprio resultado deste ticket.
-11. [ ] Os comentários-guarda existentes que afirmam que esta rota "nunca lê
+11. [x] Os comentários-guarda existentes que afirmam que esta rota "nunca lê
     `?documento=`"/"não recebe id de documento"
     (`compra-cartao/parcelas/page.tsx` ~linhas 10-28; `compra-cartao/page.tsx`
     ~linhas 288-296 e 631-641; cabeçalho de `texto-herdado.ts`; comentário da
     migration `0026`; comentário de `lib/data.ts:2381`) são reescritos para
     refletir a nova realidade — comentário que afirma uma invariante morta é
     o mesmo defeito que a disciplina fiscal persegue, com outro nome.
-12. [ ] Nenhum campo, checkbox ou toggle novo nesta tela oferece "desligar"
+12. [x] Nenhum campo, checkbox ou toggle novo nesta tela oferece "desligar"
     o pré-vínculo automático no ato — é informativo e automático, nunca
     editável nesta tela; desfazer continua sendo só via `/pre-vincular`,
     depois, por compromisso.
-13. [ ] `e2e/privilegios.spec.ts` continua verde sem mudança no mapa de
+13. [x] `e2e/privilegios.spec.ts` continua verde sem mudança no mapa de
     GRANTs (nenhuma tabela nova; `compromisso_documento_previsto` já tem
     `INSERT` para `authenticated` desde a migration `0023`) — só a entrada de
     `FUNCOES_ESPERADAS` para `compra_cartao_gravar_lote` precisa casar com a
     aridade nova (DROP + CREATE, sem sobrecarga viva da assinatura antiga).
-14. [ ] "Lançar outro lote" (rodada > 0) e a fase de sucesso não reaproveitam
+14. [x] "Lançar outro lote" (rodada > 0) e a fase de sucesso não reaproveitam
     o `?documento=` de uma rodada anterior — mesmo padrão de não-herança que
     o `CONTAI-089`/`071` já aplicam ao texto.
 
@@ -378,3 +378,49 @@ completa do ADENDO 8 §L.2, que continua restrita às 3 superfícies do
 Tela 3 (sucesso) bifurca para não afirmar "nenhuma ligada a nota" quando o
 lote nasceu pré-vinculado. Cenário gestão (ver "Cenário e checagem final").
 Sem campo fiscal novo, sem toggle de "desligar" pré-vínculo.
+
+## Status — DONE (2026-10-20)
+
+Pipeline completo do `/develop`, todos os gates fechados sem retrabalho (0
+loops de feedback):
+
+- **Gate 1 (lead-engineer, opus)**: implementado. Migration
+  `supabase/migrations/0032_compra_cartao_lote_pre_vinculo.sql` (DROP+CREATE
+  da RPC `compra_cartao_gravar_lote`, parâmetro aditivo
+  `p_documento_previsto_id`); lógica pura em `lib/fiscal/compromisso.ts`
+  (desvio ratificado no Gate 2 — a Viabilidade do ticket citava
+  `parcelamento.ts`, mas a trava de `resumo.test.ts` e a coesão com
+  `CHIP_PRE_VINCULO`/`idsDaUniaoDoPreVinculo` apontavam para `compromisso.ts`;
+  a implementação corrigiu a própria Viabilidade); telas 1/2/3 do lote
+  (`app/(captura)/adicionar/compra-cartao/parcelas/page.tsx`) e `hrefDoLote`
+  (`.../compra-cartao/page.tsx`) atualizados; 5 comentários-guarda
+  reescritos; 6 E2E novos em `e2e/cartao-lote.spec.ts` + ajuste de aridade em
+  `e2e/privilegios.spec.ts`; 14 testes unitários novos em
+  `lib/fiscal/compromisso.test.ts`.
+- **Gate 2 (review)**: `cto-obra` (fable) → APPROVE. `contador` (subagent
+  fiscal sobre o mesmo diff) → APPROVE, confirmando os 2 critérios
+  não-negociáveis (id vigente no clique; nota exibida antes de salvar) e que
+  o ADENDO 9 não foi reaberto (`documento_origem_id` nunca gravado).
+- **Gate 3 (testes)**: `npm run quality` completo contra o stack local
+  (Postgres em Docker, nunca stub) — lint 0 erros, typecheck 0 erros,
+  `npm run test` 1534/1534, `npm run test:e2e` **528/528**. Confirmado em
+  disco (não só relato de agente) que os 3 cenários do Gate Fiscal estão
+  cobertos: `documento_origem_id` sempre `null` nas N linhas, cenário A→B do
+  id vigente (`e2e/cartao-lote.spec.ts`), bifurcação da `Dica` da Tela 3.
+- **Gate 4 (po)**: PASS nos 14/14 critérios de aceite. Nenhum arquivo mudou
+  entre o APPROVE do Gate 2 e esta validação (`git status` confirmado).
+- **Migration**: `npx supabase db push` aplicado e confirmado via
+  `npx supabase migration list` (remoto em 0032, igual ao local) **antes**
+  do `git push` de código.
+
+Dívidas nomeadas (não bloqueiam, registradas para decisão futura, já citadas
+na seção "Viabilidade (CTO)"): assimetria entre fluxo individual
+(`documento_origem_id`, imutável) e lote (pré-vínculo, editável); "Lançar
+outro lote" não herda contexto de documento (padrão esperado, pode
+surpreender); garantia estrutural "rota nunca recebe id" substituída por
+nome de parâmetro + testes (mais fraca, registrada no próprio ticket); corrida
+entre abas no pré-vínculo (dívida pré-existente do `CONTAI-081`, não
+agravada). Nota lateral do Gate 2: `design/mocks/CONTAI-100.md` recebeu uma
+seção `## Campos` ("SEM CAMPOS") para destravar `lib/design/campos-do-spec.test.ts`
+— edição mecânica ratificada pelo `cto-obra`; fusão com o §6 existente do mock
+fica para o `designer` numa próxima passada.

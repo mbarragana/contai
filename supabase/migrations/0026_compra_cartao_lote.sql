@@ -33,12 +33,33 @@
 -- nota — três vezes. Herança em massa, de propósito, numa única ação,
 -- escalaria o mesmo erro para 24 parcelas de uma vez.
 --
--- A proibição fica na ASSINATURA, não na disciplina do chamador: não há como
--- passar o id. A chamada interna a `compra_cartao_gravar` abaixo omite o
--- parâmetro, e ele cai no `default null` da 0013 — cada parcela nasce com
--- `documento_origem_id` nulo, idêntica a uma criação manual sem contexto de
--- nota. O vínculo é ato deliberado posterior, uma parcela de cada vez, no
--- pré-vínculo (CONTAI-080/081).
+-- A chamada interna a `compra_cartao_gravar` abaixo omite o parâmetro, e ele
+-- cai no `default null` da 0013 — cada parcela nasce com `documento_origem_id`
+-- nulo. **Isso continua valendo, e o CONTAI-100 não o reabriu.**
+--
+-- ⚠️ **ESTA FUNÇÃO NÃO EXISTE MAIS COMO ESTÁ AQUI — leia a 0032.** O
+-- CONTAI-100 fez `drop` + `create` dela com um parâmetro a mais,
+-- `p_documento_previsto_id uuid default null` (aridade 5 → 6), para que as N
+-- parcelas possam nascer PRÉ-VINCULADAS à nota que o Mateus estava olhando.
+-- Duas frases deste arquivo ficaram FALSAS a partir de então, e são corrigidas
+-- aqui em vez de apagadas:
+--   * *"A proibição fica na ASSINATURA, não na disciplina do chamador: não há
+--     como passar o id"* — havia uma segunda garantia estrutural (a rota do
+--     lote não recebia id nenhum), e o CONTAI-100 a derrubou de propósito. O
+--     que sobra é `documento_origem_id` continuar ausente da assinatura, mais o
+--     nome do parâmetro novo (`previsto`, nunca `origem`) e os E2E do
+--     CONTAI-100. Garantia mais fraca que a anterior, registrada e não
+--     escondida (dívida 3 do ticket).
+--   * *"O vínculo é ato deliberado posterior, uma parcela de cada vez"* — o
+--     PRÉ-vínculo passou a poder nascer no mesmo ato, para as N de uma vez. O
+--     que continua sendo deliberado, posterior e uma parcela de cada vez é o
+--     vínculo FORMAL (`pagamento_documento`), na confirmação do pagamento — e o
+--     desfazer, em `/compromisso/[id]/pre-vincular`.
+-- Por que isso não reabre o ADENDO 9: pré-vínculo não é custo, não é nó de
+-- `alocarCusto` e não tira a nota de "sem pagamento vinculado" (§J.1) — é campo
+-- e mecanismo diferentes do que o §M regula. O raciocínio completo está no
+-- cabeçalho da 0032; nada do SQL deste arquivo foi editado (migration já
+-- aplicada), só este comentário.
 --
 -- ── Por que reusar `compra_cartao_gravar` por dentro ─────────────────────
 -- Ela já resolve, numa transação, o trio compromisso + fatura (`on conflict do

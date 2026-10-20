@@ -5,14 +5,22 @@ import {
   compromissos,
   criarDocumento,
   criarFavorecido,
+  criarObra,
   criarPagamento,
   criarVinculo,
   faturaCompromissos,
   faturas,
+  preVinculos,
+  vinculos,
   type Db,
 } from "./banco";
 import { expect, test } from "./fixtures";
 import { escolher } from "./formularios";
+
+// ⚠️ CONTAI-100 — o chip do pré-vínculo vem da constante do parecer
+// (`lib/fiscal/compromisso.ts`, ADENDO 6 §J.2), nunca reescrito no teste: teste
+// que repete o texto fiscal à mão deixa de reprovar quando a tela diverge dele.
+import { CHIP_PRE_VINCULO } from "@/lib/fiscal/compromisso";
 
 /**
  * CONTAI-084 — LOTE DE PARCELAS de uma compra no cartão, contra o Postgres
@@ -111,16 +119,21 @@ function queryDoHref(href: string): URLSearchParams {
 
 test.describe("a porta de entrada do lote", () => {
   /**
-   * ⚠️ **TESTE REESCRITO PELO CONTAI-089 — e o que ele prova mudou de lado.**
+   * ⚠️ **TESTE REESCRITO DUAS VEZES, e a segunda inverteu metade do que ele
+   * provava.**
    *
-   * Até aqui ele exigia `href` CRU, sem query nenhuma, porque o único parâmetro
-   * que existia era o `?documento=` e levar o ID da nota até a porta da rota
-   * irmã seria burlar o critério 10 pelo endereço. O que a URL carrega agora é
-   * TEXTO — favorecido, CNPJ/CPF e valor —, e a assertiva passa a ser a dos
-   * dois lados do critério 7: **o id do documento NÃO viaja**, e os três textos
-   * viajam.
+   * No CONTAI-084 ele exigia `href` CRU, sem query nenhuma. O CONTAI-089 trocou
+   * isso por TEXTO (favorecido, CNPJ/CPF e valor) e manteve a exigência de que
+   * **o id do documento NÃO viajasse**.
+   *
+   * O **CONTAI-100** derrubou essa segunda metade de propósito (critério 2): o
+   * id passa a viajar, condicionado a `origemParaGravar !== null`, e o que ele
+   * habilita do outro lado é PRÉ-vínculo — intenção editável, que não é custo
+   * (ADENDO 6 §J.1) —, nunca `documento_origem_id`, que a RPC do lote continua
+   * não aceitando (ADENDO 9 §M). O que este teste prova agora: os três textos
+   * **e** o id viajam, e o id é o da nota que a tela estava mostrando.
    */
-  test("o link aparece sob a recusa de parcelado e carrega TEXTO, nunca o id da nota", async ({
+  test("o link aparece sob a recusa de parcelado e carrega o TEXTO e o id da nota", async ({
     page,
     db,
   }) => {
@@ -132,31 +145,27 @@ test.describe("a porta de entrada do lote", () => {
     const link = page.getByRole("link", {
       name: "Lançar as parcelas em lote →",
     });
-    // Critério 9: o link só existe depois que o efeito INTEIRO terminou — e
-    // `toBeVisible` espera por isso, que é o estado "Carregando a nota…".
+    // CONTAI-089, critério 9: o link só existe depois que o efeito INTEIRO
+    // terminou — e `toBeVisible` espera por isso, que é o "Carregando a nota…".
     await expect(link).toBeVisible();
 
     const href = (await link.getAttribute("href"))!;
-    // ⚠️ A metade que importa: nenhum id de documento no caminho. Não é
-    // disciplina de quem monta o link — a rota irmã não tem como receber um.
-    expect(href).not.toContain(documentoId);
-    expect(href).not.toContain("documento=");
     expect(href.startsWith("/adicionar/compra-cartao/parcelas?")).toBe(true);
 
-    // E a outra metade: os três textos, do jeito que a tela de origem mostra
-    // (CNPJ com máscara, valor em texto decimal pt-BR).
+    // Os três textos, do jeito que a tela de origem mostra (CNPJ com máscara,
+    // valor em texto decimal pt-BR) — e, desde o CONTAI-100, o id da nota.
     const query = queryDoHref(href);
     expect(query.get("favorecidoNome")).toBe("Depósito Bom Jesus");
     expect(query.get("favorecidoDocumento")).toBe(CNPJ_CONCRETEIRA);
     expect(query.get("valorTotal")).toBe("950,00");
+    expect(query.get("documento")).toBe(documentoId);
 
     await link.click();
     await expect(
       page.getByRole("heading", { name: "Lançar parcelas em lote" }),
     ).toBeVisible();
     expect(page.url()).toContain("/adicionar/compra-cartao/parcelas");
-    expect(page.url()).not.toContain("documento=");
-    expect(page.url()).not.toContain(documentoId);
+    expect(page.url()).toContain(`documento=${documentoId}`);
 
     // Os três chegam preenchidos, EDITÁVEIS, com a origem dita no campo
     // (critérios 1 e 2) — e nada de bloco travado de favorecido, que é o
@@ -495,16 +504,23 @@ test.describe("caminho feliz — N compras independentes num ato só", () => {
 });
 
 /**
- * CONTAI-089 — **herdar TEXTO não é herdar VÍNCULO**, provado no banco.
+ * CONTAI-089 — **herdar TEXTO não é herdar ORIGEM**, provado no banco.
  *
- * Este bloco é a mitigação do Pre-mortem 1 do ticket: o medo não é o campo
- * preenchido, é o id do documento viajar escondido até
- * `compra_cartao_gravar_lote` e reabrir o incidente P0 do CONTAI-083 (Ilhamix)
- * multiplicado por N parcelas numa ação só. A garantia é estrutural — nem
- * `NovoLoteCompraCartao` nem a RPC da migration 0026 têm o parâmetro —, e aqui
- * ela é CONFERIDA no estado gravado, não deduzida da assinatura.
+ * Este bloco é a mitigação do Pre-mortem 1 do CONTAI-089: o medo não é o campo
+ * preenchido, é `documento_origem_id` ser gravado em massa e reabrir o incidente
+ * P0 do CONTAI-083 (Ilhamix) multiplicado por N parcelas numa ação só. A
+ * garantia continua estrutural — nem `NovoLoteCompraCartao` nem a RPC (0026 →
+ * 0032) têm o parâmetro —, e aqui ela é CONFERIDA no estado gravado, não
+ * deduzida da assinatura.
+ *
+ * ⚠️ **O título dizia "não vira VÍNCULO" e o CONTAI-100 o tornou impreciso.**
+ * Desde ele, o lote alcançado de uma nota NASCE com PRÉ-vínculo (intenção
+ * editável, ADENDO 6 §J.1) — o que continua não existindo é `documento_origem_id`
+ * (fato imutável da criação, ADENDO 9 §M). Os dois são campos, tabelas e regras
+ * diferentes, e este bloco prova o segundo; o pré-vínculo tem bloco próprio
+ * abaixo.
  */
-test.describe("herança de texto não vira vínculo (CONTAI-089)", () => {
+test.describe("herança de texto não vira origem (CONTAI-089)", () => {
   test("lote gerado de uma Tela 1 herdada: as N parcelas nascem com documento_origem_id nulo", async ({
     page,
     db,
@@ -531,8 +547,8 @@ test.describe("herança de texto não vira vínculo (CONTAI-089)", () => {
       page.getByRole("heading", { name: "Parcelas lançadas" }),
     ).toBeVisible();
 
-    // ⚠️ A ASSERTIVA DO CRITÉRIO 5: nenhuma das N linhas ficou ligada à nota de
-    // onde o TEXTO veio. Nem uma.
+    // ⚠️ A ASSERTIVA DO CRITÉRIO 5 do CONTAI-089: nenhuma das N linhas ficou
+    // com ORIGEM. Nem uma — e o CONTAI-100 não mudou isto.
     const cs = await compromissos(db);
     expect(cs).toHaveLength(2);
     for (const c of cs) {
@@ -540,9 +556,14 @@ test.describe("herança de texto não vira vínculo (CONTAI-089)", () => {
       expect(c.favorecido_id).toBe(loja);
       expect(Number(c.valor_previsto)).toBe(475);
     }
-    // E o acervo não ganhou vínculo por outra porta: a nota continua sem
-    // pagamento nenhum ligado a ela.
+    // E o acervo não ganhou vínculo FORMAL por outra porta: a nota continua sem
+    // pagamento nenhum ligado a ela — pré-vínculo não é pagamento (§J.1).
     expect(await faturaCompromissos(db)).toHaveLength(2);
+    expect(await vinculos(db)).toHaveLength(0);
+    // O que o CONTAI-100 acrescentou, dito aqui para não ficar implícito: as
+    // duas parcelas nasceram PRÉ-ligadas à nota de onde o texto veio. É o bloco
+    // de baixo que prova isso em detalhe.
+    expect(await preVinculos(db)).toHaveLength(2);
 
     // O CNPJ herdado reusou o MESMO favorecido — é metade do motivo de herdar
     // (redigitar um dígito criaria uma segunda linha da mesma empresa na ficha
@@ -564,6 +585,10 @@ test.describe("herança de texto não vira vínculo (CONTAI-089)", () => {
     await expect(page.getByLabel("CNPJ / CPF do favorecido")).toHaveValue("");
     await expect(page.getByLabel("Valor total da compra")).toHaveValue("");
     await expect(page.getByText(AJUDA_HERDADA)).toHaveCount(0);
+    // CONTAI-100, critério 14 — a rodada 2 também não herda o CONTEXTO de nota:
+    // nasce sem bloco de pré-vínculo, do mesmo jeito que nasce sem texto.
+    await expect(page.locator("[data-pre-vinculo=lote]")).toHaveCount(0);
+    await expect(page.getByText(CHIP_PRE_VINCULO)).toHaveCount(0);
   });
 
   /**
@@ -774,5 +799,374 @@ test.describe("tudo-ou-nada: as guardas do servidor (critério 12)", () => {
     expect(error?.message).toMatch(/não bate com o valor total/i);
     expect(await compromissos(db)).toHaveLength(0);
     expect(await faturas(db)).toHaveLength(0);
+  });
+});
+
+/**
+ * ⚠️ **CONTAI-100 — o PRÉ-VÍNCULO automático do lote, provado no banco.**
+ *
+ * O que estes testes provam, e por que cada um importa:
+ *   1. caminho com nota de origem — N parcelas, N linhas de
+ *      `compromisso_documento_previsto` apontando para ELA, e **zero**
+ *      `documento_origem_id` (critérios 3 e 4; ADENDO 9 §M intocado);
+ *   2. o cenário A→B do critério 5 — reentrada por outra nota sem ter salvo a
+ *      primeira: o pré-vínculo é da nota VIGENTE no salvamento, nunca da
+ *      obsoleta. É o análogo técnico do CONTAI-083 que o Gate Fiscal nomeia, e a
+ *      única razão pela qual este ticket pôde ser aprovado;
+ *   3. lote sem `?documento=` — comportamento idêntico ao de antes do ticket:
+ *      zero pré-vínculo, zero origem (critério 9).
+ *
+ * ⚠️ **O que o item 2 NÃO cobre, e está coberto em unidade**: a troca de query
+ * na MESMA rota sem remontagem (o ponto cego do Next 16 que o critério 5 nomeia)
+ * não é alcançável pela navegação do app hoje — toda reentrada passa por
+ * `/adicionar/compra-cartao`. Quem prova que a REGRA não depende da remontagem é
+ * `decidirPreVinculoDoLote` em `lib/fiscal/parcelamento.test.ts` ("URL já em B
+ * com a nota A ainda em mão"): nota de outro id nunca sai como pré-vínculo.
+ * Registrado aqui em vez de silenciado — o E2E prova o resultado, o unitário
+ * prova o mecanismo.
+ */
+test.describe("pré-vínculo automático no lote (CONTAI-100)", () => {
+  /**
+   * Os CNPJs das notas destes testes — **com dígito verificador de verdade**,
+   * porque o formulário do lote valida o documento herdado
+   * (`tipoPorDocumento`), e um CNPJ inventado travaria o botão "Gerar" com
+   * "Informe o CNPJ/CPF", em vez de provar o pré-vínculo. Filiais diferentes da
+   * mesma raiz: `favorecido` tem unicidade por (dono, documento) desde a 0003.
+   */
+  const CNPJ_NOTA_A = "11222333000181";
+  const CNPJ_NOTA_B = "11222333000262";
+
+  /** A nota do relato 113: NF numerada, para a tela poder identificá-la. */
+  async function notaNumerada(
+    db: Db,
+    numero: string,
+    valor = 950,
+    cnpj = CNPJ_NOTA_A,
+  ) {
+    const emitente = await criarFavorecido(db, {
+      tipo: "pj",
+      nome: `Ilhamix Concreto ${numero}`,
+      documento: cnpj,
+    });
+    const documentoId = await criarDocumento(db, {
+      favorecido_id: emitente,
+      tipo: "nf_material",
+      classificacao: "material",
+      valor,
+      numero,
+      destinatario_cpf_ok: true,
+      status: "registrado",
+    });
+    return { emitente, documentoId };
+  }
+
+  /** Da nota ao lote, pelo caminho real do CONTAI-099 → cartão → lote. */
+  async function doLoteComANota(page: Page, documentoId: string) {
+    await page.goto(`/adicionar/compra-cartao?documento=${documentoId}`);
+    await escolher(page, "Parcelado?", "Parcelado");
+    await page
+      .getByRole("link", { name: "Lançar as parcelas em lote →" })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Lançar parcelas em lote" }),
+    ).toBeVisible();
+  }
+
+  test("nota de origem válida: as N parcelas nascem pré-ligadas a ela, e nenhuma com origem", async ({
+    page,
+    db,
+  }) => {
+    const { documentoId } = await notaNumerada(db, "1726", 12_340);
+
+    await doLoteComANota(page, documentoId);
+
+    // ── Critério 6 · a nota é IDENTIFICADA antes de qualquer salvamento ──
+    // Chip verbatim (ADENDO 6 §J.2) + número, favorecido e valor, na Tela 1.
+    await expect(page.getByText(CHIP_PRE_VINCULO)).toBeVisible();
+    await expect(
+      page.getByText(/Pré-vínculo com\s*Nota nº 1726 — Ilhamix Concreto 1726/),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        /As parcelas que você gerar aqui vão nascer já ligadas a esta nota\./,
+      ),
+    ).toBeVisible();
+    // Critério 12: nada aqui oferece "desligar" o pré-vínculo.
+    await expect(page.getByRole("checkbox")).toHaveCount(0);
+    await expect(page.getByText(/[Dd]esligar/)).toHaveCount(0);
+
+    await page.getByLabel("Data da compra").fill("2026-10-01");
+    await page.getByLabel("Vencimento da 1ª fatura").fill("2026-10-15");
+    await page.getByLabel("Número de parcelas").fill("2");
+    await page.getByRole("button", { name: /^Gerar as 2 parcelas/ }).click();
+
+    // ── Critério 6 · e de novo na Tela 2, onde o clique final mora ───────
+    await expect(
+      page.getByRole("heading", { name: "Revisar as parcelas" }),
+    ).toBeVisible();
+    await expect(page.getByText(CHIP_PRE_VINCULO)).toBeVisible();
+    await expect(
+      page.getByText(/As 2 parcelas abaixo vão nascer já ligadas a esta nota\./),
+    ).toBeVisible();
+
+    await page.getByRole("button", { name: "Confirmar as 2 parcelas" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Parcelas lançadas" }),
+    ).toBeVisible();
+
+    // ── Critério 10 · a Dica da Tela 3 não afirma mais o que ficou falso ─
+    await expect(
+      page.getByText(/^Todas nascem pré-ligadas a Nota nº 1726 — /),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Nenhuma delas está ligada a nota.", { exact: false }),
+    ).toHaveCount(0);
+
+    // ── Critério 3 · N linhas de pré-vínculo, uma por parcela ────────────
+    const cs = await compromissos(db);
+    expect(cs).toHaveLength(2);
+    const pres = await preVinculos(db);
+    expect(pres).toHaveLength(2);
+    for (const p of pres) expect(p.documento_id).toBe(documentoId);
+    // Uma por COMPROMISSO, nunca duas na mesma parcela nem uma só para as duas.
+    expect(new Set(pres.map((p) => p.compromisso_id)).size).toBe(2);
+    expect(pres.map((p) => p.compromisso_id).sort()).toEqual(
+      cs.map((c) => c.id).sort(),
+    );
+
+    // ── Critério 4 · ZERO origem, em nenhuma circunstância ───────────────
+    // ⚠️ É a assertiva que impede este ticket de virar o CONTAI-083 em lote:
+    // pré-vínculo é intenção editável, origem é fato imutável da criação.
+    for (const c of cs) expect(c.documento_origem_id).toBeNull();
+
+    // E nada virou vínculo FORMAL: a nota continua sem pagamento ligado (§J.1).
+    expect(await vinculos(db)).toHaveLength(0);
+  });
+
+  /**
+   * ⚠️ **O CENÁRIO A→B — critério 5, exigência do Gate Fiscal, não sugestão.**
+   *
+   * Abrir o lote pela Nota A, não salvar, reentrar pela Nota B e salvar: as N
+   * parcelas pré-vinculam **exclusivamente** à B. Se o id fosse congelado na
+   * primeira entrada, elas nasceriam ligadas à A — contexto obsoleto
+   * sobrevivendo a uma troca de nota, sem o Mateus ver, que é exatamente o
+   * padrão que o ADENDO 9 §M.0 descreve no incidente da Ilhamix.
+   */
+  test("reentrada por outra nota sem salvar a primeira: pré-vincula só à nota VIGENTE", async ({
+    page,
+    db,
+  }) => {
+    const notaA = await notaNumerada(db, "1726", 950, CNPJ_NOTA_A);
+    const notaB = await notaNumerada(db, "1801", 950, CNPJ_NOTA_B);
+
+    // Primeira entrada, pela Nota A — e ela é ABANDONADA sem salvar.
+    await doLoteComANota(page, notaA.documentoId);
+    await expect(
+      page.getByText(/Pré-vínculo com\s*Nota nº 1726/),
+    ).toBeVisible();
+    await page.getByLabel("Data da compra").fill("2026-10-01");
+
+    // Reentrada pela Nota B, pelo mesmo caminho real.
+    await doLoteComANota(page, notaB.documentoId);
+    // A tela afirma a nota NOVA, e não resta rastro da antiga na identificação.
+    await expect(
+      page.getByText(/Pré-vínculo com\s*Nota nº 1801/),
+    ).toBeVisible();
+    await expect(page.getByText(/Nota nº 1726/)).toHaveCount(0);
+
+    await page.getByLabel("Data da compra").fill("2026-10-01");
+    await page.getByLabel("Vencimento da 1ª fatura").fill("2026-10-15");
+    await page.getByLabel("Número de parcelas").fill("2");
+    await page.getByRole("button", { name: /^Gerar as 2 parcelas/ }).click();
+    await page.getByRole("button", { name: "Confirmar as 2 parcelas" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Parcelas lançadas" }),
+    ).toBeVisible();
+
+    // ⚠️ As duas metades da assertiva: TODAS na B, NENHUMA na A.
+    const pres = await preVinculos(db);
+    expect(pres).toHaveLength(2);
+    for (const p of pres) expect(p.documento_id).toBe(notaB.documentoId);
+    expect(pres.some((p) => p.documento_id === notaA.documentoId)).toBe(false);
+
+    const cs = await compromissos(db);
+    expect(cs).toHaveLength(2);
+    for (const c of cs) expect(c.documento_origem_id).toBeNull();
+  });
+
+  /**
+   * Critério 9 — o caminho SEM nota de origem não regrediu em nada: zero
+   * pré-vínculo, zero origem, e a tela sem bloco nenhum a mais.
+   */
+  test("lote sem ?documento=: zero pré-vínculo, e a tela é a de antes do ticket", async ({
+    page,
+    db,
+  }) => {
+    await page.goto("/adicionar/compra-cartao/parcelas");
+    // Nenhum vestígio do bloco novo quando não há nota no contexto.
+    await expect(page.locator("[data-pre-vinculo=lote]")).toHaveCount(0);
+    await expect(page.getByText(CHIP_PRE_VINCULO)).toHaveCount(0);
+    await expect(page.getByText("Carregando a nota de origem…")).toHaveCount(0);
+
+    await preencherDadosComuns(page, {
+      valorTotal: "45.000,00",
+      dataCompra: "2026-10-01",
+      primeiroVencimento: "2026-10-15",
+      parcelas: "3",
+    });
+    await page.getByRole("button", { name: /^Gerar as 3 parcelas/ }).click();
+    await expect(page.locator("[data-pre-vinculo=lote]")).toHaveCount(0);
+    await page.getByRole("button", { name: "Confirmar as 3 parcelas" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Parcelas lançadas" }),
+    ).toBeVisible();
+
+    // A `Dica` de hoje, byte a byte — e ela continua VERDADEIRA neste caminho.
+    await expect(
+      page.getByText(/^Nenhuma delas está ligada a nota\./),
+    ).toBeVisible();
+
+    expect(await compromissos(db)).toHaveLength(3);
+    // ⚠️ A contagem do critério 9: nenhuma linha de pré-vínculo nasceu.
+    expect(await preVinculos(db)).toHaveLength(0);
+    for (const c of await compromissos(db)) {
+      expect(c.documento_origem_id).toBeNull();
+    }
+  });
+
+  /**
+   * Critério 6, o 4º estado — nota de OUTRA obra. O lote **não é bloqueado**
+   * (pré-vínculo não é custo, §J.1): avisa com o motivo do parecer, grava as N
+   * parcelas e não grava pré-vínculo nenhum.
+   */
+  test("nota de outra obra: aviso com o texto do parecer, lote segue, zero pré-vínculo", async ({
+    page,
+    db,
+  }) => {
+    const emitente = await criarFavorecido(db, {
+      tipo: "pj",
+      nome: "Ilhamix de outra obra",
+      documento: "11222333000181",
+    });
+    const documentoId = await criarDocumento(db, {
+      // Outra obra do MESMO dono: é o caso que a RLS deixa passar (a policy só
+      // exige mesmo `user_id`) e que só `podeVincular` barra — exatamente a
+      // repartição que a 0023 escreve por extenso.
+      obra_id: await criarObra(db, { nome: "Apartamento da praia" }),
+      favorecido_id: emitente,
+      tipo: "nf_material",
+      classificacao: "material",
+      valor: 950,
+      numero: "1726",
+      destinatario_cpf_ok: true,
+      status: "registrado",
+    });
+
+    // ⚠️ `goto` direto, e não pelo link: a tela anterior recusa propagar o id de
+    // nota de outra obra (`origemParaGravar` é `null` lá). Este teste existe
+    // para o caso de o id chegar por outra porta — URL colada, caminho futuro —
+    // e prova que a SEGUNDA camada (esta tela) também recusa.
+    await page.goto(
+      `/adicionar/compra-cartao/parcelas?documento=${documentoId}`,
+    );
+    await expect(
+      page.getByText("Estas parcelas não vão nascer com pré-vínculo."),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/Nada é somado entre obras/),
+    ).toBeVisible();
+    await expect(page.getByText(CHIP_PRE_VINCULO)).toHaveCount(0);
+
+    await preencherDadosComuns(page, {
+      valorTotal: "900,00",
+      dataCompra: "2026-10-01",
+      primeiroVencimento: "2026-10-15",
+      parcelas: "2",
+    });
+    await page.getByRole("button", { name: /^Gerar as 2 parcelas/ }).click();
+    await page.getByRole("button", { name: "Confirmar as 2 parcelas" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Parcelas lançadas" }),
+    ).toBeVisible();
+
+    // O lote entrou (o dispêndio é o fato), e o pré-vínculo não.
+    expect(await compromissos(db)).toHaveLength(2);
+    expect(await preVinculos(db)).toHaveLength(0);
+    await expect(
+      page.getByText(/^Nenhuma delas está ligada a nota\./),
+    ).toBeVisible();
+  });
+
+  /**
+   * A guarda de SERVIDOR da 0032, chamada direto — porque o que está em jogo é
+   * a transação, e a tela não consegue montar este caso (ela recusa antes).
+   * Nota de outra obra no parâmetro = lote inteiro recusado, nada gravado.
+   */
+  test("RPC com nota de outra obra: recusa o lote inteiro, zero linhas", async ({
+    db,
+  }) => {
+    const favorecidoId = await favorecidoDeConcreto(db);
+    const emitente = await criarFavorecido(db, {
+      tipo: "pj",
+      nome: "Emitente de outra obra",
+      documento: "11222333000181",
+    });
+    const documentoId = await criarDocumento(db, {
+      // Outra obra do MESMO dono: é o caso que a RLS deixa passar (a policy só
+      // exige mesmo `user_id`) e que só `podeVincular` barra — exatamente a
+      // repartição que a 0023 escreve por extenso.
+      obra_id: await criarObra(db, { nome: "Apartamento da praia" }),
+      favorecido_id: emitente,
+      tipo: "nf_material",
+      classificacao: "material",
+      valor: 300,
+      destinatario_cpf_ok: true,
+      status: "registrado",
+    });
+
+    const { error } = await db.rpc("compra_cartao_gravar_lote", {
+      p_obra_id: OBRA_ID_SEED,
+      p_favorecido_id: favorecidoId,
+      p_data_compra: "2026-10-01",
+      p_valor_total: 300,
+      p_parcelas: [
+        { valor: 150, vencimento: "2026-10-15" },
+        { valor: 150, vencimento: "2026-11-15" },
+      ],
+      p_documento_previsto_id: documentoId,
+    });
+
+    expect(error?.message).toMatch(/não existe nesta obra/i);
+    // ⚠️ Tudo-ou-nada: a guarda roda ANTES de qualquer insert, e o `raise`
+    // desfaria o que tivesse entrado.
+    expect(await compromissos(db)).toHaveLength(0);
+    expect(await faturas(db)).toHaveLength(0);
+    expect(await preVinculos(db)).toHaveLength(0);
+  });
+
+  /**
+   * E a outra ponta da mesma guarda: id que não existe em obra nenhuma (nota
+   * apagada, URL velha, id inventado) também recusa o lote inteiro — nunca
+   * grava as N parcelas "só sem o pré-vínculo", em silêncio.
+   */
+  test("RPC com id de nota inexistente: recusa, em vez de gravar sem pré-vínculo", async ({
+    db,
+  }) => {
+    const favorecidoId = await favorecidoDeConcreto(db);
+    const { error } = await db.rpc("compra_cartao_gravar_lote", {
+      p_obra_id: OBRA_ID_SEED,
+      p_favorecido_id: favorecidoId,
+      p_data_compra: "2026-10-01",
+      p_valor_total: 300,
+      p_parcelas: [
+        { valor: 150, vencimento: "2026-10-15" },
+        { valor: 150, vencimento: "2026-11-15" },
+      ],
+      p_documento_previsto_id: "00000000-0000-0000-0000-000000000000",
+    });
+
+    expect(error?.message).toMatch(/não existe nesta obra/i);
+    expect(await compromissos(db)).toHaveLength(0);
+    expect(await preVinculos(db)).toHaveLength(0);
   });
 });

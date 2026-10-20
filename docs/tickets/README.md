@@ -1,34 +1,43 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 22 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 21 tickets (mais 1 parado, aguardando o Mateus)
 
-**2026-10-20: `CONTAI-100` criado, P1** — relato de backlog (`113`), caso
+**2026-10-20: `CONTAI-100` entregue** (Gate 4, 14/14 PASS) — pré-vínculo
+automático no lote de parcelas com origem. Relato de backlog (`113`), caso
 vivido ao vivo: Mateus cadastrou a NF 1726 (Ilhamix) e registrou 2x no
 cartão via `CONTAI-099` → "Lançar parcelas em lote" (`CONTAI-084`/`089`); as
 2 parcelas salvaram sem nenhum vínculo com a nota. Quando o lote é alcançado
-com `documento.id` de origem no contexto, cada parcela nasce com pré-vínculo
-automático em `compromisso_documento_previsto` (gravado na mesma transação
-da RPC `compra_cartao_gravar_lote`, migration nova por DROP+CREATE) — nunca
-`documento_origem_id` (ADENDO 9 intocado). Gate Fiscal (`contador`):
+com `documento.id` de origem no contexto (condição real de
+`/adicionar/compra-cartao` — `origemParaGravar !== null`, não um caminho
+nomeado), cada parcela nasce com pré-vínculo automático em
+`compromisso_documento_previsto` (gravado na mesma transação da RPC
+`compra_cartao_gravar_lote`, migration `0032` por DROP+CREATE) — nunca
+`documento_origem_id` (ADENDO 9 intocado). Gate Fiscal (`contador`, Gate 2):
 confirmado que a conversão automática N=1 na confirmação de cada parcela
 (ADENDO 7 §K.2/§K.5) não recria o `CONTAI-083` — no 083 o erro foi
 correspondência errada entre notas do mesmo favorecido, herdada às cegas em
 3 atos de criação separados no tempo; aqui as N parcelas nascem num único
 ato atômico, dividindo uma nota já identificada sem ambiguidade no momento
-do clique — condicionado a 2 critérios novos que entraram no ticket: o `id`
-usado no salvamento tem que ser o vigente no instante (nunca congelado,
-cenário de teste A→B exigido) e a tela tem que exibir a nota antes de
-salvar. `cto-obra`: regra pendurada na condição real de
-`/adicionar/compra-cartao` (`origemParaGravar !== null`), não num caminho
-nomeado — achou um 4º caminho de entrada que o relato não citava
-(`documento/[id]/corrigir/emitente`); pré-vínculo é por parcela individual,
-sem alternativa no modelo (`compromisso_documento_previsto` não tem conceito
-de lote). `designer`: nível 2, `design/mocks/CONTAI-100.md` — 4 estados
-(carregando/nota carregada/não carregou/obra divergente) nas Telas 1 e 2 do
-lote; achado adicional fora do mandato original: a `Dica` da Tela 3 de
-sucesso ("nenhuma ligada a nota") ficaria falsa e precisa bifurcar. Sem
-migration de tabela nova (função existente ganha parâmetro aditivo).
-Complexidade M. **Pronto para `/develop`.** Detalhe: `docs/tickets/CONTAI-100.md`.
+do clique — condicionado aos 2 critérios não-negociáveis do Gate Fiscal: o
+`id` usado no salvamento é sempre o vigente no instante (nunca congelado,
+cenário A→B coberto por E2E dedicado) e a tela exibe a nota antes de salvar
+(4 estados: carregando/nota carregada/não carregou/obra divergente).
+`cto-obra` (Gate 2, APPROVE): desvio de arquitetura ratificado — a lógica
+pura do pré-vínculo ficou em `lib/fiscal/compromisso.ts`, não em
+`parcelamento.ts` como a Viabilidade do ticket previa, por coesão com o
+resto do pré-vínculo e por uma trava de `resumo.test.ts`; a Viabilidade
+estava errada, a implementação corrigiu. `Dica` fixa da Tela 3 de sucesso
+bifurca para não afirmar "nenhuma ligada a nota" quando o lote nasceu
+pré-vinculado (achado do `designer`, nível 2, `design/mocks/CONTAI-100.md`).
+5 comentários-guarda do `CONTAI-089` reescritos (não apagados) explicando a
+mudança de doutrina. `npm run quality` completo, 100% verde: lint,
+typecheck, Vitest 1534/1534, Playwright 528/528 (Postgres local) — 6 E2E
+novos cobrindo especificamente os 3 pontos do Gate Fiscal. Migration `0032`
+aplicada no remoto (`supabase db push`) antes do push de código. Zero loop
+de feedback nos 4 gates. Dívidas nomeadas (não bloqueiam): assimetria entre
+fluxo individual (`documento_origem_id`) e lote (pré-vínculo); desfazer
+pré-vínculo em lote fica para ticket futuro do `po`. Detalhe:
+`docs/tickets/CONTAI-100.md`.
 
 **2026-10-19: `CONTAI-099` entregue** (Gate 4, 10/10 PASS) — CTA "Registrar
 o pagamento desta nota" na tela de confirmação do documento (`Registrado`),
