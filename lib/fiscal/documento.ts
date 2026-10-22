@@ -403,6 +403,64 @@ export function pendenteDeCno(
   return exigeCnoReferenciado(tipo) && resposta === "nao_traz";
 }
 
+// ── CONTAI-101 · a pré-condição da correção "a nota passou a trazer o CNO" ──
+
+/**
+ * Por que esta correção **não** se aplica a um documento — ou `null` quando ela
+ * se aplica.
+ *
+ * Os três valores são as três recusas do critério 6 do CONTAI-101, na ordem em
+ * que a tela as avalia. Token e não frase: o texto de cada recusa é da tela (o
+ * de `ja_traz_cno` precisa interpolar o CNO impresso), e a decisão é daqui.
+ */
+export type RecusaDaCorrecaoDeCno =
+  /** (a) O CNO impresso só existe em NF de serviço. */
+  | "nao_e_nf_servico"
+  /** (b) `nota_traz_cno = null` — a pergunta nunca foi feita nesta nota. */
+  | "nunca_perguntado"
+  /** (b) `nota_traz_cno = true` — a nota já traz CNO impresso. */
+  | "ja_traz_cno"
+  /** (c) A obra não tem CNO cadastrado: não há valor a gravar. */
+  | "obra_sem_cno";
+
+/**
+ * **CONTAI-101 — de quais estados esta correção parte, e de quais não parte.**
+ *
+ * Ratificado no ADENDO 2026-10-22 do parecer
+ * `2026-08-18-correcao-de-documento-registrado.md`: `nao_traz → desta_obra` é
+ * corrigível, porque são **dois estados de origem**, e não dois pontos da mesma
+ * régua. O que torna este caso corrigível é o papel ter mudado — o prestador
+ * reemitiu com o CNO impresso —, não o app ter errado.
+ *
+ * ⚠️ As três recusas são **pré-condição de estado, não validação de campo**: a
+ * tela as mostra ANTES de montar qualquer campo, e nenhuma delas grava nada. A
+ * RPC `corrigir_cno_documento` repete as duas últimas, porque a promessa é do
+ * ato e não da tela — mas recusar TARDE é pedir trabalho fiscal que vai para o
+ * lixo e ensina que o erro é do app (achado do Gate 2 do CONTAI-086).
+ *
+ * ⚠️ **`outra_obra` não aparece aqui, e a ausência é o ADENDO §2**: aquele
+ * estado bloqueia o registro no ato (critério 2 do CONTAI-007) e **nunca
+ * persiste** — `notaTrazCno` é `boolean | null`, sem terceiro valor gravável.
+ * Não há linha para corrigir, logo não há recusa a escrever.
+ *
+ * A ordem importa: tipo antes de estado, estado antes do cadastro da obra. A
+ * nota de material não chega a ouvir sobre o CNO da obra, e a nota que já traz
+ * CNO não ouve "cadastre o CNO da obra" — cada uma lê a frase que descreve o
+ * próprio caso.
+ */
+export function recusaDaCorrecaoDeCno(
+  tipo: TipoDocumento | null,
+  notaTrazCno: boolean | null,
+  /** `obra.cno`. Branco é tratado como ausente, igual à guarda da RPC. */
+  cnoDaObra: string | null,
+): RecusaDaCorrecaoDeCno | null {
+  if (!exigeCnoReferenciado(tipo)) return "nao_e_nf_servico";
+  if (notaTrazCno === null) return "nunca_perguntado";
+  if (notaTrazCno === true) return "ja_traz_cno";
+  if (cnoDaObra === null || cnoDaObra.trim() === "") return "obra_sem_cno";
+  return null;
+}
+
 /**
  * O que vai para `documento.cno_referenciado` — **o número, nunca um "sim"**.
  *

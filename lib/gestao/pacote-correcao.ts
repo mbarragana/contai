@@ -20,8 +20,17 @@
  * específica (parecer `2026-08-18-correcao-de-documento-registrado.md` §5).
  */
 
-/** As três correções que o pacote sabe enfileirar — e só elas. */
-export type CorrecaoDoPacote = "numero" | "valor" | "retencao";
+/**
+ * As correções que o pacote sabe enfileirar — e só elas.
+ *
+ * ⚠️ `"cno"` entrou no CONTAI-101, e ele é o único token **condicional**: a
+ * opção só é oferecida em `documento-novo` quando `notaTrazCno === false`
+ * (critério 2), porque a correção só parte desse estado. Estar nesta lista não é
+ * autorização — quem decide se há o que corrigir é `recusaDaCorrecaoDeCno`
+ * (`lib/fiscal/documento.ts`), na tela, e a RPC `corrigir_cno_documento`, no
+ * ato.
+ */
+export type CorrecaoDoPacote = "numero" | "valor" | "retencao" | "cno";
 
 /**
  * A ordem de navegação, fixa.
@@ -36,6 +45,9 @@ export const ORDEM_DO_PACOTE: readonly CorrecaoDoPacote[] = [
   "numero",
   "valor",
   "retencao",
+  // CONTAI-101, por último — e continua sendo ORDEM, não regra fiscal: o CNO
+  // não depende do resultado de nenhuma das outras três, nem elas do dele.
+  "cno",
 ] as const;
 
 /**
@@ -47,6 +59,7 @@ const ROTULO_DA_CORRECAO: Record<CorrecaoDoPacote, string> = {
   numero: "o número",
   valor: "o valor",
   retencao: "a retenção",
+  cno: "o CNO",
 };
 
 /**

@@ -8,6 +8,7 @@ import type { CampoDoSpec } from "../lib/design/campos-do-spec";
 import { OBRA_ID_SEED } from "./ambiente";
 import {
   criarCompromisso,
+  criarDocumento,
   criarFavorecido,
   criarPagamento,
   type Db,
@@ -327,6 +328,23 @@ const MAPA: Record<string, Classificacao> = {
     specs: ["CONTAI-061"],
     iniciais: ["comprovante"],
     abrir: async (db) => `/pagamento/${await umPagamentoSemComprovante(db)}/comprovante`,
+  },
+  /**
+   * CONTAI-101 — registrar que a nota passou a trazer o CNO desta obra.
+   * **VISITADA**, ao contrário das quatro telas irmãs de `corrigir/*`: ali o
+   * campo só nasce depois do passo 1 (o motivo), e aqui **não há passo 1** — a
+   * tela não pergunta motivo (ADENDO 2026-10-22: uma causa só), então o `anexo`
+   * existe no primeiro render e está dentro do alcance da enumeração.
+   *
+   * ⚠️ O CNO exibido NÃO é campo e não aparece aqui de propósito: ele é fato
+   * derivado de `obra.cno`, lido no servidor, read-only — o spec o declara como
+   * `NÃO É CONTROLE`. Campo nenhum desta tela pergunta coisa alguma sobre o CNO.
+   */
+  "/documento/[id]/corrigir/cno": {
+    specs: ["CONTAI-101"],
+    iniciais: ["anexo"],
+    abrir: async (db) =>
+      `/documento/${await umaNotaQueNaoTrazCno(db)}/corrigir/cno`,
   },
   "/pendencias": { semCamposFiscais: "lista de pendências, só leitura" },
   // ⚠️ CONTAI-040: a rota nasce sem a tabela (que é do CONTAI-041) — hoje é o
@@ -651,6 +669,32 @@ async function umPagamentoSemComprovante(db: Db): Promise<string> {
     data_pagamento: "2026-04-10",
     meio: "pix",
     comprovante_path: null,
+  });
+}
+
+/**
+ * CONTAI-101 — a NF de serviço que AFIRMOU não trazer CNO, na obra do seed (que
+ * tem CNO cadastrado). É o único estado em que `/corrigir/cno` monta campo: as
+ * três recusas de pré-condição cobrem todo o resto, e nelas a tela não tem
+ * controle nenhum.
+ */
+async function umaNotaQueNaoTrazCno(db: Db): Promise<string> {
+  const favorecidoId = await criarFavorecido(db, {
+    nome: "PerfuraTec Serviços",
+    documento: "11222333000144",
+    tipo: "pj",
+  });
+  return criarDocumento(db, {
+    tipo: "nf_servico",
+    favorecido_id: favorecidoId,
+    valor: 25000,
+    classificacao: "mao_obra",
+    destinatario_cpf_ok: true,
+    retencao_na_nota: "destacada",
+    status: "registrado",
+    numero: "1190",
+    data_emissao: "2026-06-17",
+    nota_traz_cno: false,
   });
 }
 

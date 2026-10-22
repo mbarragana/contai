@@ -698,6 +698,49 @@ export async function corrigirNumeroDoDocumento(entrada: {
 }
 
 /**
+ * **CONTAI-101 — registrar que a nota PASSOU A TRAZER o CNO desta obra**
+ * (`docs/backlog/114-2026-10-22-corrigir-cno-ausente-apos-reemissao.md`).
+ * Palavras do Mateus: *"a nota fiscal que recebi não constava CNO da obra,
+ * solicitei e eles me enviaram, mas não consigo adicionar uma nova nota com a
+ * razão adição de CNO."*
+ *
+ * Ratificado no ADENDO 2026-10-22 do parecer
+ * `2026-08-18-correcao-de-documento-registrado.md`: `nao_traz → desta_obra` é
+ * corrigível. `outra_obra` **não ganha caminho** — aquele estado bloqueia no ato
+ * do registro e nunca persiste.
+ *
+ * ⚠️ **NÃO EXISTE `cno` na entrada, e a ausência é o critério 8.** O valor
+ * gravado é lido de `obra` DENTRO da função Postgres, na mesma transação. A tela
+ * mostra `obra.cno` para confirmação; quem o grava é o servidor. Um parâmetro
+ * aqui seria o caminho por onde o cliente escreveria em
+ * `documento.cno_referenciado` um número que papel nenhum mostra — e
+ * `documento_cno_coerente` (0015) aceitaria, porque ela só exige que o campo
+ * não seja nulo.
+ *
+ * ⚠️ **Sem `motivo`**: ele é fixo (`cno_obtido_do_prestador`, migration 0033) e
+ * gravado pelo servidor. A tela não oferece `PassoMotivo` — com motivo
+ * escolhível existiria um caminho ("eu digitei errado") que gravaria
+ * `notaTrazCno = true` sem papel nenhum mostrando o CNO (§3 do parecer).
+ *
+ * ⚠️ **`anexoPath` é `string`, não `string | null`**: o anexo é incondicional
+ * (critério 7). A RPC recusa vazio de qualquer forma, mas o tipo recusa antes.
+ */
+export async function corrigirCnoDoDocumento(entrada: {
+  documentoId: string;
+  anexoPath: string;
+}): Promise<string> {
+  const { data, error } = await getSupabase().rpc("corrigir_cno_documento", {
+    p_documento_id: entrada.documentoId,
+    // Vai SEMPRE, sem spread-condicional: o parâmetro não tem `default null` na
+    // função, e omiti-lo é chamada sem argumento obrigatório, que o PostgREST
+    // recusa com um erro que não descreve o que faltou.
+    p_anexo_path: entrada.anexoPath,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+/**
  * Critério 19 — *"Marcar: o CNPJ deste registro está errado — tratar"*.
  *
  * IDEMPOTENTE: voltar e marcar de novo deixa a lista com uma linha só. Não

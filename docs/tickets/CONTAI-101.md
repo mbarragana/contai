@@ -25,81 +25,81 @@ anexando a nota reemitida como prova, para que a pendência de cobrança feche
 e a posição da aferição INSS passe a considerar esse documento corretamente.
 
 ## Critérios de Aceite
-1. [ ] Proposta nível 2 em `design/mocks/CONTAI-101.md`.
-2. [ ] Documento com `notaTrazCno = false` ganha, no ponto de entrada único
+1. [x] Proposta nível 2 em `design/mocks/CONTAI-101.md`.
+2. [x] Documento com `notaTrazCno = false` ganha, no ponto de entrada único
    `/documento/[id]/documento-novo`, uma 4ª opção em `CorrecaoDoPacote`
    (`lib/gestao/pacote-correcao.ts:24`) com token `"cno"`, rótulo "CNO — hoje:
    não traz CNO" — entra em `ORDEM_DO_PACOTE` por último; aparece quando, e só
    quando, `notaTrazCno === false`. O rótulo do link de `documento-novo`
    ("corrigir número, valor e/ou retenção") ganha " e/ou CNO" na mesma
    condição.
-3. [ ] Para `notaTrazCno = null` (pergunta nunca feita), `notaTrazCno = true`
+3. [x] Para `notaTrazCno = null` (pergunta nunca feita), `notaTrazCno = true`
    (já tinha `desta_obra`) ou resposta `outra_obra` (bloqueio definitivo no
    registro, nunca persiste — confirmado em código, `lib/types.ts:205-206`),
    a opção não aparece em `documento-novo`, e a rota
    `/documento/[id]/corrigir/cno` recusa no topo, sem gravar nada, se acessada
    por URL direta.
-4. [ ] Rota nova `/documento/[id]/corrigir/cno`, cópia reduzida de
+4. [x] Rota nova `/documento/[id]/corrigir/cno`, cópia reduzida de
    `corrigir/numero/page.tsx`: **sem** `PassoMotivo` (nenhuma escolha de
    motivo — diferente de `corrigir/numero`/`corrigir/valor`/`corrigir/retencao`,
    que perguntam o motivo), **sem** campo de texto para digitar o CNO, **sem**
    bloco de "custo confirmado por ano", **sem** estado "Nada a corrigir" (as
    recusas do critério 6 já cobrem os únicos casos sem o que fazer).
-5. [ ] Tela mostra, read-only, "CNO na nota — hoje: não traz CNO" → "depois:
+5. [x] Tela mostra, read-only, "CNO na nota — hoje: não traz CNO" → "depois:
    {obra.cno}, o CNO cadastrado nesta obra" — nunca campo editável de CNO.
-6. [ ] Tela recusa no topo, antes de qualquer campo, sem gravar nada, nos três
+6. [x] Tela recusa no topo, antes de qualquer campo, sem gravar nada, nos três
    casos: (a) `documento.tipo` não é NF de serviço (`!exigeCnoReferenciado`);
    (b) `notaTrazCno !== false`, com texto distinguindo `null` ("esta nota
    nunca foi perguntada sobre o CNO impresso") de `true` ("esta nota já traz
    CNO impresso: {cnoReferenciado}"); (c) `obra.cno === null` — recusa oferece
    link para cadastrar o CNO da obra (`/obras/[id]`, bloco `CamposCno`).
-7. [ ] Anexo (nota substitutiva, carta de correção ou documento complementar —
+7. [x] Anexo (nota substitutiva, carta de correção ou documento complementar —
    qualquer papel em que o CNO apareça impresso e legível; a UI não distingue
    o tipo de instrumento) é **sempre obrigatório, de forma incondicional** —
    não há motivo que dispense. Botão "Gravar a correção" nasce desabilitado e
    só habilita com anexo escolhido (chip existente) ou enviado (arquivo novo).
    Sem anexo, a RPC também recusa gravar.
-8. [ ] RPC `corrigir_cno_documento(p_documento_id uuid, p_anexo_path text)
+8. [x] RPC `corrigir_cno_documento(p_documento_id uuid, p_anexo_path text)
    returns uuid` lê `obra.cno` no servidor (nunca recebe CNO como parâmetro),
    e grava, no mesmo ato, `notaTrazCno = true` e `cnoReferenciado = obra.cno`
    — verificável lendo o documento depois da correção salva.
-9. [ ] RPC recusa (`raise exception`, nada gravado) quando: `p_anexo_path` é
+9. [x] RPC recusa (`raise exception`, nada gravado) quando: `p_anexo_path` é
    nulo/vazio; `p_documento_id` não encontrado; `notaTrazCno` do documento é
    diferente de `false`; `obra.cno` do documento é nulo/vazio.
-10. [ ] Rastro: uma única linha em `revisao` por ato — `entidade = 'documento'`,
+10. [x] Rastro: uma única linha em `revisao` por ato — `entidade = 'documento'`,
     `campo = 'cno_referenciado'`, `antes = null`, `depois = {CNO gravado}`,
     `motivo = 'cno_obtido_do_prestador'` (valor novo do enum `motivo_revisao`,
     gravado automaticamente pelo servidor — nunca escolhido em tela),
     `motivo_texto = null`. O campo `notaTrazCno`/`nota_traz_cno` **não** gera
     linha própria — é o mesmo fato de `cno_referenciado`, amarrado pelo check
     `documento_cno_coerente` (migration `0015`), não uma segunda correção.
-11. [ ] "Anos afetados" sempre vazio para esta correção
+11. [x] "Anos afetados" sempre vazio para esta correção
     (`revisao_gravar_anos(..., '[]'::jsonb)`) — CNO nunca move custo entre
     anos (mesma doutrina do `numero`/`serie` no CONTAI-085).
-12. [ ] O anexo da nota reemitida entra em `documento_anexo`, vinculado à
+12. [x] O anexo da nota reemitida entra em `documento_anexo`, vinculado à
     `revisao_id` do ato — `documento.arquivo_path` do registro original
     **não muda** (imutável por trigger desde a migration `0014`, append-only,
     mesmo princípio do CONTAI-085). O dossiê do documento passa a listar os
     dois arquivos.
-13. [ ] Depois da correção salva, a pendência âmbar "nota sem CNO"
+13. [x] Depois da correção salva, a pendência âmbar "nota sem CNO"
     (`lib/fiscal/resumo.ts:891-915`) deixa de listar esse documento —
     verificável comparando o resumo de pendências antes/depois. Automático,
     sem recálculo manual: a pendência é gerada ao vivo a partir de
     `notaTrazCno` a cada chamada.
-14. [ ] `posicaoDeAfericao` (`lib/fiscal/afericao.ts`) passa a contar a nota na
+14. [x] `posicaoDeAfericao` (`lib/fiscal/afericao.ts`) passa a contar a nota na
     próxima chamada (sujeita às demais condições já existentes de
     `motivoForaDaBase`), sem necessidade de reabrir/recalcular nenhuma posição
     anterior — não existe tabela de "posição" de aferição persistida no
     projeto.
-15. [ ] Link condicional em `/documento/[id]`, só quando `notaTrazCno ===
+15. [x] Link condicional em `/documento/[id]`, só quando `notaTrazCno ===
     false`: "Registrar que a nota agora traz o CNO — hoje: não traz CNO" →
     `/documento/[id]/corrigir/cno` (mesmo padrão dos outros links de
     correção).
-16. [ ] Histórico de correções do documento mostra a mudança com os rótulos:
+16. [x] Histórico de correções do documento mostra a mudança com os rótulos:
     campo "CNO impresso na nota" (`ROTULO_CAMPO.cno_referenciado`), motivo "o
     prestador enviou a nota com o CNO desta obra"
     (`ROTULO_MOTIVO_NO_RASTRO.cno_obtido_do_prestador`).
-17. [ ] Migration `0033_motivo_cno_obtido_do_prestador.sql` (só `alter type
+17. [x] Migration `0033_motivo_cno_obtido_do_prestador.sql` (só `alter type
     motivo_revisao add value 'cno_obtido_do_prestador'`, sozinha — valor de
     enum é irreversível, mesmo precedente das migrations `0018`/`0030`) e
     migration `0034_corrigir_cno_documento.sql` (constraint
@@ -369,13 +369,79 @@ o molde deles, sem ordem obrigatória com nenhum ticket aberto na fila.
 ## Cenário e checagem final
 **Gestão** — correção documental, em casa, sentado, não captura no canteiro.
 Serve à meta 1 (documento hábil correto) e à meta 2 (aferição INSS íntegra:
-fecha a pendência "Nota sem CNO" que hoje nunca fecha sozinha). Sem condição
-fiscal órfã — os textos citados (`CNO_NAO_ALCANCA_O_CUSTO` e
-`CONSEQUENCIA_CNO_DA_NOTA`, `lib/fiscal/obra.ts:255-267`) vêm verbatim do
-ADENDO 2026-10-22 ao parecer `2026-08-18-correcao-de-documento-registrado.md`,
-nenhum reescrito de memória. Sem UI que quebre disciplina de campo fiscal:
+fecha a pendência "Nota sem CNO" que hoje nunca fecha sozinha — a do painel,
+`lib/fiscal/resumo.ts`, que não tem janela de emissão; **não** a lista
+`/obras/[id]/notas-sem-cno`, que só olha `dataInicioObra ≤ emissão ≤
+cnoRegistradoEm` e por isso nunca conteve a nota do relato 114). Sem condição
+fiscal órfã — e a proveniência de cada texto, **corrigida no Gate 2**:
+`CONSEQUENCIA_DESTA_CORRECAO` (consequência da tela normal) é verbatim do
+**Fecho/CRC do ADENDO 2026-10-22**; `CNO_NAO_ALCANCA_O_CUSTO` e
+`CONSEQUENCIA_CNO_DA_NOTA` (`lib/fiscal/obra.ts:255-269`) são verbatim do
+**Gate Fiscal do CONTAI-007**, e o primeiro só aparece na Recusa 2 quando o CNO
+impresso diverge do da obra. Nenhum reescrito de memória. Sem UI que quebre
+disciplina de campo fiscal:
 não há campo fiscal em branco nesta tela — o único "campo" é o anexo (ato,
 não pergunta), e o CNO exibido é fato derivado de `obra.cno`, lido no
 servidor, nunca digitado. Teste do Canteiro não se aplica (tela de gestão,
 não de captura).
 **Veredito: APROVADO.** Pronto para `/develop`.
+
+## Status — DONE (2026-10-22)
+
+Pipeline completo do `/develop`, todos os gates fechados.
+
+- **Gate 1 (lead-engineer, opus)**: implementado. Migrations
+  `supabase/migrations/0033_motivo_cno_obtido_do_prestador.sql` (só o `add
+  value` do enum) e `0034_corrigir_cno_documento.sql` (check
+  `revisao_campo_da_entidade` recriado com `'cno_referenciado'`, RPC
+  `corrigir_cno_documento(uuid, text)` sem `p_cno`/`p_motivo`/`p_anos`, mais
+  `revoke`/`grant` explícitos); rota nova
+  `app/(gestao)/documento/[id]/corrigir/cno/page.tsx` (passo único: o anexo);
+  pré-condição em função pura `recusaDaCorrecaoDeCno` (`lib/fiscal/documento.ts`
+  — desvio do "inline na página" que o ticket descrevia, ratificado no Gate 2);
+  4º token em `lib/gestao/pacote-correcao.ts`; rótulos em
+  `app/_components/corrigir.tsx`; `corrigirCnoDoDocumento` em `lib/data.ts`;
+  `lib/types.ts`/`lib/database.types.ts`/`e2e/privilegios.spec.ts` no mesmo
+  diff; `e2e/corrigir-cno.spec.ts` novo (8 cenários) e a rota declarada em
+  `e2e/campos-fiscais.spec.ts` (obrigatório: aquele mapa é exaustivo).
+- **Gate 2 (review)**: `cto-obra` (fable) → **APPROVE** sobre o diff final.
+  `contador` (sobre o mesmo diff) → **APROVADO**. Três ressalvas do Gate 2
+  entraram no código: a RPC passou a recusar também por `tipo` (a `0015` amarra
+  `nota_traz_cno` ⇔ `cno_referenciado` e nada diz sobre `tipo`); a consequência
+  da tela normal é o **Fecho/CRC do ADENDO 2026-10-22**, não
+  `CNO_NAO_ALCANCA_O_CUSTO` (que só aparece na Recusa 2 quando o CNO impresso
+  diverge do da obra — com os dois iguais a frase seria falsa); e o banner de
+  sucesso passou a dizer o que de fato fecha (a pendência do painel, por NOTA).
+- **Gate 3 (testes)**: `npm run quality` completo contra o stack local — lint,
+  typecheck, **1540** unit e **538** E2E verdes.
+- **Gate 4 (po)**: **PASS nos 17/17 critérios**. Quatro arquivos mudaram depois
+  do APPROVE do Gate 2, em ajuste **cosmético pedido pelo próprio `cto-obra`**
+  (`0034`, `e2e/privilegios.spec.ts`, `design/mocks/CONTAI-101.md`, este
+  ticket): "base provável" → "a que o fisco aceitaria provada" em dois
+  comentários sobre a D57, e intervalos de citação de linha corrigidos. **Sem
+  nova linha do `contador`**: as ocorrências são comentário de código, nenhuma
+  renderizada, e a frase nova é a já ratificada em `lib/fiscal/afericao.ts:46`
+  (citada como palavras do `contador` em
+  `docs/pareceres/2026-09-27-extracao-tributo-e-cno.md:175`), na direção mais
+  conservadora. Nenhum texto de tela mudou depois do APPROVE. Registro completo
+  em `docs/backlog/115-2026-10-22-gate4-contai-101.md`.
+- **Migration**: `npx supabase db push` (`0033` e `0034`) **antes** do
+  `git push` — a ordem do `CLAUDE.md`, e aqui das cruéis: a `0034` concede
+  `execute` a `authenticated`, e código na frente da migration dá
+  `permission denied` com o E2E local verde.
+
+**Dívida nomeada no Gate 4 — D93 (P2)**: documento em `quarentena` com
+`notaTrazCno = false` é corrigível por esta rota (e deve ser — o papel passou a
+mostrar o CNO), mas `lib/fiscal/resumo.ts:894` pula quarentena ao montar a
+pendência `sem-cno:`, então para ele a última frase do banner de sucesso promete
+o desaparecimento de algo que nunca apareceu. Decidida como **dívida, não
+FAIL**: a gravação está certa nesse estado, nenhum critério é violado e bloquear
+prenderia documento com papel correto. 4ª recusa por `status` **rejeitada**;
+conserto provável é a frase condicional. Detalhe e a pergunta de fundo (nota em
+quarentena deveria ter pendência "sem CNO" própria? — doutrina do `contador`) em
+`docs/backlog/115-2026-10-22-gate4-contai-101.md`.
+
+**Perguntas abertas no fechamento**: a 1 foi respondida pelo código
+(`carregarDocumento` já traz `cnoReferenciado`); a 2 (redirecionamento
+automático depois de cadastrar o CNO da obra) segue na leitura padrão (b), sem
+redirecionamento — conveniência, não dívida.

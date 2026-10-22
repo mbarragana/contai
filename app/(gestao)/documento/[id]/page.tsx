@@ -836,9 +836,14 @@ function DetalheDocumento() {
             roteamento de UI, cada correção continua com a sua RPC, o seu motivo
             e o seu rastro. Os links individuais abaixo continuam existindo para
             correção isolada. */}
+        {/* ⚠️ **CONTAI-101 — " e/ou CNO" na MESMA condição da 4ª opção lá
+            dentro** (critério 2): o rótulo promete o que a tela seguinte de fato
+            oferece. Prometer CNO numa nota que já o traz (ou que nunca foi
+            perguntada) mandaria o Mateus para uma caixa que não existe. */}
         <BotaoLink href={`/documento/${d.id}/documento-novo`}>
           Recebi um documento novo para esta nota — corrigir número, valor e/ou
           retenção
+          {d.notaTrazCno === false ? " e/ou CNO" : ""}
         </BotaoLink>
         <BotaoLink href={`/documento/${d.id}/corrigir/valor`}>
           Corrigir o valor — hoje: {valor}
@@ -855,6 +860,18 @@ function DetalheDocumento() {
         <BotaoLink href={`/documento/${d.id}/corrigir/numero`}>
           Corrigir o número/série — hoje: Nº {d.numero ?? "(em branco)"}
         </BotaoLink>
+        {/* ⚠️ **CONTAI-101 — link CONDICIONAL, ao contrário dos outros desta
+            lista** (critério 15), e a diferença é o ponto: nos outros há sempre
+            o que corrigir; aqui a PRÉ-CONDIÇÃO é a regra. A correção parte de um
+            estado de origem único (`notaTrazCno === false`, ratificado no ADENDO
+            2026-10-22 do parecer de 18/08). `null` ("nunca perguntado") e `true`
+            ("já traz CNO") não têm o que corrigir, e `outra_obra` nunca
+            persiste. */}
+        {d.notaTrazCno === false ? (
+          <BotaoLink href={`/documento/${d.id}/corrigir/cno`}>
+            Registrar que a nota agora traz o CNO — hoje: não traz CNO
+          </BotaoLink>
+        ) : null}
         <BotaoLink href={`/documento/${d.id}/corrigir/emitente`}>
           Corrigir o nome do emitente — vale para todos os registros dele
         </BotaoLink>

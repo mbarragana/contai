@@ -1,8 +1,71 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 22 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 21 tickets (mais 1 parado, aguardando o Mateus)
 
-**2026-10-22: `CONTAI-101` criado** — corrigir "nota sem CNO" depois que o
+**2026-10-22: `CONTAI-101` entregue** (Gate 4, 17/17 PASS) — corrigir "nota
+sem CNO" depois que o prestador reemite com o CNO impresso. Rota nova
+`/documento/[id]/corrigir/cno`, **um passo só: o anexo** — sem `PassoMotivo`,
+sem campo de CNO digitável, sem bloco de custo por ano, sem estado "Nada a
+corrigir". O valor gravado nunca vem do cliente: a RPC
+`corrigir_cno_documento(uuid, text)` **não tem `p_cno`** (nem `p_motivo`, nem
+`p_anos`) e lê `obra.cno` no servidor, dentro da transação — com um parâmetro,
+qualquer chamada ao PostgREST escreveria em `documento.cno_referenciado` um
+número que papel nenhum mostra. Grava `nota_traz_cno = true` +
+`cno_referenciado` num `update`, **uma** linha de `revisao`
+(`campo = 'cno_referenciado'`, `antes = null`, motivo fixo
+`cno_obtido_do_prestador`, `motivo_texto = null`), "anos afetados" sempre
+`'[]'` (§0(a): só `valor` move custo entre anos) e o anexo **incondicional**
+em `documento_anexo` vinculado à `revisao_id`, com
+`documento.arquivo_path` intacto (append-only desde a `0014`). Migrations
+`0033` (só o `add value` do enum, isolado pelo precedente `0018`/`0030`) e
+`0034` (check `revisao_campo_da_entidade` recriado + RPC + `revoke`/`grant`).
+Pré-condição de estado em função pura `recusaDaCorrecaoDeCno`
+(`lib/fiscal/documento.ts`, com teste próprio) — desvio do "inline na página"
+que o ticket descrevia, ratificado no Gate 2: a decisão é fiscal, não layout.
+4ª opção condicional em `documento-novo` e link condicional em
+`/documento/[id]`, os dois só com `notaTrazCno === false`. **Três ressalvas do
+Gate 2 entraram no código**: (1) a RPC recusa também por `tipo` — a `0015`
+amarra `nota_traz_cno` ⇔ `cno_referenciado` e **não diz nada sobre `tipo`**,
+então um INSERT direto ou backfill produziria um boleto em `false`; (2) a
+consequência da tela normal é o **Fecho/CRC do ADENDO 2026-10-22**, e **não**
+`CNO_NAO_ALCANCA_O_CUSTO` (Gate Fiscal do `CONTAI-007`), que só aparece na
+Recusa 2 quando o CNO impresso **diverge** do da obra — com os dois iguais a
+frase termina afirmando algo falso; (3) o banner de sucesso passou a dizer o
+que de fato fecha: a pendência "Nota sem CNO" **do painel**
+(`lib/fiscal/resumo.ts`, sem janela de emissão), **desta nota**, nunca "a
+pendência de cobrança deste prestador" — era falso duas vezes, e a lista
+`/obras/[id]/notas-sem-cno` nunca conteve a nota do relato 114. O E2E do
+antes/depois da pendência usa emissão **dentro da janela do seed**, senão o
+"antes" não lista e o teste prova nada (é o furo do pre-mortem 2 do ticket).
+`npm run quality` completo, 100% verde: lint, typecheck, Vitest 1540,
+Playwright 538 (Postgres local), 8 cenários E2E novos em
+`e2e/corrigir-cno.spec.ts` — um deles tentando quebrar a trava do critério 8
+pela porta do PostgREST. Critério 14 (`posicaoDeAfericao`) fica sem asserção
+E2E porque **nenhuma página renderiza** a função; coberto por
+`lib/fiscal/afericao.test.ts`. Quatro arquivos mudaram depois do APPROVE do
+Gate 2, em ajuste **cosmético de comentário** pedido pelo próprio `cto-obra`
+("base provável" → "a que o fisco aceitaria provada", frase já canônica em
+`lib/fiscal/afericao.ts:46`; intervalos de citação de linha) — **sem texto de
+tela alterado, logo sem nova linha do `contador`**. Assinaturas sobre o diff
+final: `cto-obra` APPROVE, `contador` APROVADO. ⚠️ Release: `npx supabase db
+push` (`0033`/`0034`) **antes** do `git push` — a `0034` concede `execute` a
+`authenticated`, e código na frente da migration dá `permission denied` com o
+E2E local verde. **Dívida D93 nova (P2)**: documento em `quarentena` com
+`notaTrazCno = false` é corrigível por esta rota (e deve ser — o papel passou
+a mostrar o CNO), mas `lib/fiscal/resumo.ts:894` pula quarentena ao montar a
+pendência, então para ele o banner promete o desaparecimento de algo que nunca
+apareceu; decidido pelo `po` como **dívida, não FAIL** (a gravação está certa
+nesse estado, nenhum critério é violado, e bloquear prenderia documento com
+papel correto — 4ª recusa por `status` **rejeitada**). Pergunta aberta 1
+respondida pelo código (`carregarDocumento` já traz `cnoReferenciado`); a 2
+(redirecionamento após cadastrar o CNO da obra) segue na leitura padrão: sem
+redirecionamento. Detalhe: `docs/tickets/CONTAI-101.md`, Gate 4 em
+`docs/backlog/115-2026-10-22-gate4-contai-101.md`.
+
+<details>
+<summary>Como o ticket foi criado (2026-10-22, antes do `/develop`)</summary>
+
+Corrigir "nota sem CNO" depois que o
 prestador reemite com o CNO impresso. Relato de backlog (`114`), caso real:
 Mateus recebeu NF de serviço sem CNO (`notaTrazCno = false`), cobrou do
 prestador, recebeu a reemissão com o CNO impresso, e não achou onde registrar
@@ -38,6 +101,8 @@ não bloqueantes (confirmar que `carregarDocumento` já traz `cnoReferenciado`
 sem chamada extra; se o cadastro de CNO da obra na Recusa 3 deveria
 redirecionar automaticamente de volta — leitura padrão: não, sem
 redirecionamento). Detalhe: `docs/tickets/CONTAI-101.md`.
+
+</details>
 
 **2026-10-20: `CONTAI-100` entregue** (Gate 4, 14/14 PASS) — pré-vínculo
 automático no lote de parcelas com origem. Relato de backlog (`113`), caso

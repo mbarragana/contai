@@ -19,6 +19,7 @@ import {
   notaTrazCnoParaBanco,
   numeroParaBanco,
   pendenteDeCno,
+  recusaDaCorrecaoDeCno,
   resumoAfirmado,
   CONSEQUENCIA_QUARENTENA,
 
@@ -668,6 +669,74 @@ describe("CONTAI-007 · 'desta obra' numa obra sem CNO", () => {
         HOJE,
       ),
     ).toEqual([]);
+  });
+});
+
+/**
+ * **CONTAI-101 — de quais estados a correção "a nota passou a trazer o CNO"
+ * parte, e de quais não parte.**
+ *
+ * Fonte: ADENDO 2026-10-22 do parecer
+ * `docs/pareceres/2026-08-18-correcao-de-documento-registrado.md`. O que estes
+ * testes travam é a pré-condição fiscal — e ela é a story inteira: cada recusa
+ * que vazasse deixaria gravar `notaTrazCno = true` num estado que o ADENDO não
+ * ratificou, inventando um `antes` que ninguém nunca afirmou.
+ */
+describe("CONTAI-101 · recusaDaCorrecaoDeCno", () => {
+  const CNO = "12.345.67890/26";
+
+  it("o caso ratificado: NF de serviço em `nao_traz`, obra com CNO → corrigível", () => {
+    // `false` é o estado de origem único do ADENDO: o CNO estava GENUINAMENTE
+    // ausente na nota original, e o prestador reemitiu com ele impresso.
+    expect(recusaDaCorrecaoDeCno("nf_servico", false, CNO)).toBeNull();
+  });
+
+  it("(a) só NF de serviço — o CNO impresso não existe nos outros tipos", () => {
+    // Material não abate aferição nenhuma e boleto não é documentação hábil:
+    // `notaTrazCnoParaBanco` devolve `null` para os dois, então este estado é
+    // inalcançável pela captura — mas a rota é abrível por URL direta.
+    expect(recusaDaCorrecaoDeCno("nf_material", false, CNO)).toBe(
+      "nao_e_nf_servico",
+    );
+    expect(recusaDaCorrecaoDeCno("boleto", false, CNO)).toBe(
+      "nao_e_nf_servico",
+    );
+    expect(recusaDaCorrecaoDeCno(null, false, CNO)).toBe("nao_e_nf_servico");
+  });
+
+  it("⚠️ (b) `null` e `true` recusam, e são recusas DIFERENTES", () => {
+    // Colapsar os dois num texto só é o mesmo defeito que justifica duas
+    // colunas no banco: "ninguém perguntou" e "já traz CNO impresso" não são o
+    // mesmo fato, e o Mateus precisa ler o que descreve o caso dele.
+    expect(recusaDaCorrecaoDeCno("nf_servico", null, CNO)).toBe(
+      "nunca_perguntado",
+    );
+    expect(recusaDaCorrecaoDeCno("nf_servico", true, CNO)).toBe("ja_traz_cno");
+  });
+
+  it("(c) obra sem CNO cadastrado: não há valor a gravar", () => {
+    // O conserto é cadastrar o CNO da obra, não mexer nesta nota — e é por isso
+    // que esta recusa é a única com um segundo link de saída.
+    expect(recusaDaCorrecaoDeCno("nf_servico", false, null)).toBe(
+      "obra_sem_cno",
+    );
+    // Branco é ausência, igual à guarda `btrim(v_cno) = ''` da RPC: sem esta
+    // linha, um CNO em branco gravaria `cno_referenciado = ''` — não-nulo o
+    // bastante para `documento_cno_coerente` (0015) aceitar, e vazio o bastante
+    // para `posicaoDeAfericao` nunca casar com o CNO da obra.
+    expect(recusaDaCorrecaoDeCno("nf_servico", false, "   ")).toBe(
+      "obra_sem_cno",
+    );
+  });
+
+  it("⚠️ a ORDEM das recusas: tipo antes de estado, estado antes do cadastro", () => {
+    // Cada nota lê a frase que descreve o próprio caso. Uma NF de material numa
+    // obra sem CNO não ouve "cadastre o CNO da obra" — ela nunca teria o que
+    // corrigir aqui de qualquer forma.
+    expect(recusaDaCorrecaoDeCno("nf_material", null, null)).toBe(
+      "nao_e_nf_servico",
+    );
+    expect(recusaDaCorrecaoDeCno("nf_servico", true, null)).toBe("ja_traz_cno");
   });
 });
 

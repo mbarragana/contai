@@ -39,6 +39,8 @@ describe("lerPacote", () => {
       "retencao",
     ]);
     expect(lerPacote(params("?pacote=valor"))).toEqual(["valor"]);
+    // CONTAI-101 — o 4º token, e ele entra POR ÚLTIMO na ordem canônica.
+    expect(lerPacote(params("?pacote=cno,valor"))).toEqual(["valor", "cno"]);
   });
 
   it("ignora lixo em silêncio — querystring digitada à mão não derruba a tela", () => {
@@ -123,20 +125,38 @@ describe("proximaDoPacote", () => {
       visitadas.push(proxima.correcao);
       pacote = lerPacote(new URLSearchParams(proxima.href.split("?")[1]))!;
     }
-    expect(visitadas).toEqual(["numero", "valor", "retencao"]);
+    expect(visitadas).toEqual(["numero", "valor", "retencao", "cno"]);
     expect(pacote).toEqual([]);
+  });
+
+  it("CONTAI-101 — o CNO vem por último e aponta para a rota dele", () => {
+    // Se o `cno` fosse o primeiro da ORDEM, um pacote com número e CNO levaria
+    // o Mateus para a correção de CNO antes da do número — ordem diferente da
+    // que a tela de entrada lista, e nada no Gate Fiscal pede isso.
+    const comNumero = proximaDoPacote(DOC, ["cno", "numero"], PAPEL)!;
+    expect(comNumero.correcao).toBe("numero");
+
+    const soCno = proximaDoPacote(DOC, ["cno"], PAPEL)!;
+    expect(soCno.rotulo).toBe("o CNO");
+    expect(soCno.href.startsWith(`/documento/${DOC}/corrigir/cno?`)).toBe(true);
+    const query = new URLSearchParams(soCno.href.split("?")[1]);
+    expect(query.get("pacote")).toBe("");
+    expect(query.get("anexo")).toBe(PAPEL);
   });
 });
 
 describe("os textos dos botões de avanço", () => {
   it("são os do spec, com o artigo certo em cada correção", () => {
-    const comArtigo = (c: "numero" | "valor" | "retencao") =>
+    const comArtigo = (c: "numero" | "valor" | "retencao" | "cno") =>
       proximaDoPacote(DOC, [c], null)!;
     expect(textoContinuar(comArtigo("numero"))).toBe(
       "Continuar: corrigir o número →",
     );
     expect(textoContinuar(comArtigo("retencao"))).toBe(
       "Continuar: corrigir a retenção →",
+    );
+    expect(textoContinuar(comArtigo("cno"))).toBe(
+      "Continuar: corrigir o CNO →",
     );
     expect(textoPular(comArtigo("valor"))).toBe(
       "Pular esta e continuar: corrigir o valor →",

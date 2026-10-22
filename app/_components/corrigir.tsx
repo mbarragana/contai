@@ -66,12 +66,22 @@ import type { CampoRevisao, MotivoRevisao, Revisao } from "@/lib/types";
  * veio de outro pagamento desta fatura"). O que ele NÃO é é um sinônimo do
  * anterior — a distinção entre os dois é exigência fiscal (Gate Fiscal item 4),
  * escrita por extenso na migration 0030.
+ *
+ * ⚠️ `cno_obtido_do_prestador` (CONTAI-101) sai pela mesma razão, e nela a
+ * exclusão é **exigência fiscal, não simetria**: a tela de `corrigir/cno` não
+ * pergunta motivo porque o ADENDO 2026-10-22 ratificou UMA causa só (o dado
+ * estava ausente, o prestador reemitiu com o CNO impresso). Oferecer a lista do
+ * §5 ali abriria um caminho sem anexo ("eu digitei errado") que gravaria
+ * `notaTrazCno = true` **sem papel nenhum mostrando o CNO** — a divergência
+ * app↔papel que o §3 proíbe. Motivo fixo e anexo incondicional são a mesma
+ * decisão vista de dois lados.
  */
 export type MotivoEscolhido = Exclude<
   MotivoRevisao,
   | "arquivamento_corrigido"
   | "comprovante_chegou_depois"
   | "comprovante_reaproveitado_de_irmao"
+  | "cno_obtido_do_prestador"
 >;
 
 /** A quarta resposta do passo 1, e ela NÃO grava nada (adendo §1). */
@@ -116,6 +126,15 @@ export const ROTULO_MOTIVO_NO_RASTRO: Record<MotivoRevisao, string> = {
    */
   comprovante_reaproveitado_de_irmao:
     "o comprovante foi reaproveitado de outro pagamento desta fatura",
+  /**
+   * CONTAI-101, critério 16 — gravado pela MÁQUINA, sem pergunta. A frase nomeia
+   * O FATO (de onde o dado veio), e **não** repete
+   * `emitente_corrigiu_a_nota`: quem ler o histórico em 2034 precisa distinguir
+   * "a nota estava errada e foi corrigida" de "a nota estava certa sobre si
+   * mesma, e o prestador reemitiu com o dado que faltava". Os dois regimes são
+   * separados no ADENDO 2026-10-22 do parecer de 18/08.
+   */
+  cno_obtido_do_prestador: "o prestador enviou a nota com o CNO desta obra",
 };
 
 /**
@@ -639,6 +658,12 @@ const ROTULO_CAMPO: Record<CampoRevisao, string> = {
   // a "esta nota destaca alguma retenção?", e `legivel` traduz os dois lados por
   // `OPCOES_GATE` ("Nenhuma" → "Destacada").
   retencao_na_nota: "resposta sobre retenção na nota",
+  // CONTAI-101 — o CNO impresso na nota, obtido do prestador depois do registro.
+  // ⚠️ "impresso na nota", e não "CNO da obra": o que a linha registra é o que o
+  // PAPEL passou a mostrar. A distinção é a razão de `documento.cno_referenciado`
+  // guardar o número em vez de um "é o desta obra" (0015: "o papel não muda
+  // quando o cadastro muda").
+  cno_referenciado: "CNO impresso na nota",
   // CONTAI-087 — a linha de retenção que nasceu depois do registro, ou que saiu
   // pela reversão do gate. O antes/depois é JSON (o snapshot completo), e quem o
   // torna legível é `descreverLinhaDoRastro`.

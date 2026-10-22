@@ -186,6 +186,20 @@ export default function DocumentoNovo() {
   const gateHoje =
     OPCOES_GATE.find((o) => o.valor === d.retencaoNaNota)?.texto ?? "—";
 
+  /**
+   * ⚠️ **CONTAI-101, critério 2 — o CNO entra na lista SÓ com
+   * `notaTrazCno === false`**, e a condição é a regra, não uma otimização de
+   * tela. A correção parte de um estado de origem único (`nao_traz`, ratificado
+   * no ADENDO 2026-10-22): `null` é "a pergunta nunca foi feita" e `true` é "já
+   * traz CNO" — nenhum dos dois tem o que corrigir aqui, e os dois cairiam nas
+   * recusas de pré-condição de `/corrigir/cno`. `outra_obra` não aparece porque
+   * **nunca persiste** (bloqueio no ato do registro, `lib/types.ts`).
+   *
+   * Mesma doutrina da retenção acima: oferecer a caixa e recusar na tela
+   * seguinte é pedir trabalho fiscal que vai para o lixo.
+   */
+  const podeCorrigirCno = d.notaTrazCno === false;
+
   const opcoes: { valor: CorrecaoDoPacote; rotulo: string }[] = [
     {
       valor: "numero",
@@ -201,6 +215,9 @@ export default function DocumentoNovo() {
     },
     ...(temGateDeRetencao
       ? [{ valor: "retencao" as const, rotulo: `Retenção — hoje: ${gateHoje}` }]
+      : []),
+    ...(podeCorrigirCno
+      ? [{ valor: "cno" as const, rotulo: "CNO — hoje: não traz CNO" }]
       : []),
   ];
 

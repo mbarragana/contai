@@ -285,6 +285,19 @@ const FUNCOES_ESPERADAS: Record<string, string> = {
   // então sem EXECUTE aqui a chamada interna falharia com o papel do app —
   // mesmo caso de `revisao_gravar_anos` e `pendencia_do_ano`.
   documento_retencao_inserir: "authenticated",
+  // ── CONTAI-101 (migration 0034) ────────────────────────────────────────
+  // Registrar que a nota passou a trazer o CNO desta obra. Nenhuma tabela nova
+  // neste ticket — e o mapa muda de qualquer forma, pela mesma razão da 0027:
+  // função nasce com `execute` para `public`, e sem o revoke da 0034 o anônimo
+  // poderia marcar como "traz CNO" uma nota do acervo que não traz. O efeito não
+  // é cosmético: a nota sairia de `foraDaBase` (motivo `nota_sem_cno`,
+  // `lib/fiscal/afericao.ts`) sem papel que a sustente — e sair de `foraDaBase`
+  // não é abater a aferição (D57: a base não é reduzida pelo valor da nota nem
+  // por percentual nenhum), é a pendência desaparecer do relatório sem fato que
+  // a resolva, e a nota passar a compor o `baseCentavos` — proxy declarado
+  // (D57, `lib/fiscal/afericao.ts`), já maior do que a que o fisco aceitaria
+  // provada.
+  corrigir_cno_documento: "authenticated",
   marcar_emitente_errado: "authenticated",
   mover_documento_de_obra: "authenticated",
   pendencia_do_ano: "authenticated",

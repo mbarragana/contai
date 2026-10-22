@@ -1275,6 +1275,25 @@ export type Database = {
         Args: { p_compromisso_id: string; p_nova_data: string }
         Returns: undefined
       }
+      // ── CONTAI-101 (migration 0034) ──────────────────────────────────────
+      // Registrar que a nota passou a trazer o CNO desta obra.
+      //
+      // ⚠️ **NÃO EXISTE `p_cno`, e a ausência é a trava do critério 8**: o valor
+      // gravado é lido de `obra` DENTRO da função, no servidor. Um parâmetro
+      // aqui seria o caminho por onde um cliente escreveria em
+      // `documento.cno_referenciado` um número que papel nenhum mostra.
+      //
+      // ⚠️ Os DOIS parâmetros são obrigatórios — sem `?`, porque nenhum tem
+      // `default null` na função: o anexo é incondicional (critério 7), e
+      // opcional no tipo deixaria a chamada sem papel parecer legítima no call
+      // site, para falhar só no servidor.
+      corrigir_cno_documento: {
+        Args: {
+          p_anexo_path: string
+          p_documento_id: string
+        }
+        Returns: string
+      }
       corrigir_documento: {
         Args: {
           p_anexo_path?: string
@@ -1448,6 +1467,9 @@ export type Database = {
         | "arquivamento_corrigido"
         | "comprovante_chegou_depois"
         | "comprovante_reaproveitado_de_irmao"
+        // CONTAI-101 (migration 0033) — gravado pela MÁQUINA no ato de
+        // `corrigir_cno_documento`: a tela não oferece `PassoMotivo`.
+        | "cno_obtido_do_prestador"
       natureza_aquisicao_terreno:
         | "a_vista"
         | "financiado"
@@ -1631,6 +1653,7 @@ export const Constants = {
         "arquivamento_corrigido",
         "comprovante_chegou_depois",
         "comprovante_reaproveitado_de_irmao",
+        "cno_obtido_do_prestador",
       ],
       natureza_aquisicao_terreno: [
         "a_vista",

@@ -671,7 +671,18 @@ export type CampoRevisao =
    * JSON, não numa entidade nova: estender `entidade_revisao` é irreversível e
    * obrigaria toda leitura de rastro de documento a conhecer um segundo caminho.
    */
-  | "linha_retencao";
+  | "linha_retencao"
+  /**
+   * CONTAI-101 (migration 0034) — o CNO impresso na nota, obtido do prestador
+   * depois do registro. `antes` é SEMPRE `null` (o estado de origem é
+   * `nao_traz`, e `documento_cno_coerente` da 0015 obriga `cno_referenciado is
+   * null` nele) e `depois` é o CNO da obra, lido no servidor.
+   *
+   * ⚠️ **`nota_traz_cno` NÃO tem token próprio, e a ausência é o critério 10**:
+   * os dois campos são um fato só, amarrado pelo check `documento_cno_coerente`
+   * — duas linhas mostrariam duas correções onde houve uma.
+   */
+  | "cno_referenciado";
 
 /** Uma linha do rastro (§5). `antes`/`depois` são texto: `null` ≠ zero. */
 export interface Revisao {

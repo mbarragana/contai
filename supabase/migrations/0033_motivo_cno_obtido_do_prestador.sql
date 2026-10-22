@@ -1,0 +1,40 @@
+-- CONTAI-101 — o valor de enum, SOZINHO, numa migration própria (critério 17).
+--
+-- Fonte normativa: `docs/pareceres/2026-08-18-correcao-de-documento-registrado.md`
+-- §1 + **ADENDO — 2026-10-22**, que estende a tabela de corrigibilidade do §1
+-- com a linha `notaTrazCno`/`cnoReferenciado` (campo que nasceu um mês depois
+-- do corpo do parecer, no CONTAI-007 / migration 0015). Nada aqui é inferido.
+--
+-- ⚠️ **POR QUE O MOTIVO É PRÓPRIO, e não `emitente_corrigiu_a_nota`** — o ADENDO
+-- ratifica UMA causa só para esta correção: o dado estava **genuinamente
+-- ausente** na nota original (resposta `nao_traz`, afirmada olhando o papel) e
+-- o prestador reemitiu com o CNO impresso. Não é "a nota estava errada": ela
+-- estava certa sobre si mesma, e o que mudou foi o papel. Marcar este ato com o
+-- motivo da correção de erro misturaria, para quem ler o acervo em 2034, duas
+-- coisas de regime diferente — "o emitente corrigiu um erro" e "o emitente
+-- forneceu o que faltava".
+--
+-- ⚠️ E ele é gravado pela MÁQUINA, sem perguntar — como `arquivamento_corrigido`
+-- (0009), `comprovante_chegou_depois` (0018) e
+-- `comprovante_reaproveitado_de_irmao` (0030). A tela **não oferece
+-- `PassoMotivo`**, e a ausência é decisão do `cto-obra` escrita na Viabilidade
+-- do ticket: com motivo escolhível existiria um caminho ("eu digitei errado")
+-- que gravaria `nota_traz_cno = true` **sem papel nenhum mostrando o CNO** — a
+-- divergência app↔papel que o §3 do parecer proíbe. Motivo fixo e anexo
+-- incondicional são a mesma decisão vista de dois lados.
+--
+-- ⚠️ **ARQUIVO SEPARADO, e a razão é a da 0018/0030 — não "senão quebra".** Desde
+-- o PG 12 `alter type ... add value` roda dentro de transação; o que o Postgres
+-- recusa é USAR o valor novo num statement EXECUTADO na mesma transação. A 0034
+-- só DEFINE a RPC (o plpgsql não resolve o corpo no `create function`), então
+-- juntar as duas funcionaria. A separação fica pelas três razões já escritas na
+-- 0018: precedente do repo, margem para um backfill futuro, e o fato de
+-- `add value` ser irreversível (não existe `drop value`) — isolado, é o menor
+-- diff possível de auditar.
+--
+-- ── A PERGUNTA OBRIGATÓRIA DO REPO ──────────────────────────────────────
+-- "Isto depende de algum default do stack local que o projeto remoto não tem?"
+-- **Não.** Nenhuma tabela, coluna, sequence, view ou função nasce aqui — só um
+-- rótulo a mais num enum que existe desde a 0009. Nada a conceder, nada a
+-- revogar: `motivo_revisao` não é objeto com ACL própria que o app toque.
+alter type motivo_revisao add value 'cno_obtido_do_prestador';

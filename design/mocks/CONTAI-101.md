@@ -75,32 +75,59 @@ anexo.tsx`) e `EstadoErro`/`Carregando`/`Banner`/`Card`/`BotaoLink`/
   criado." Retry sem redigitar (anexo preservado).
 - **Sucesso**: `CabecalhoDaTela titulo="CNO corrigido ✓"`. `Banner cor="grn"`:
   "Corrigido. Esta nota agora traz o CNO **{obra.cno}**, e a correção ficou
-  registrada no histórico do documento. A pendência de cobrança deste
-  prestador fecha sozinha." Sem card de "anos afetados". `HistoricoDeCorrecoes`
-  embaixo, igual às telas-irmãs.
+  registrada no histórico do documento. A pendência 'Nota sem CNO' desta nota
+  deixa de aparecer no painel." Sem card de "anos afetados".
+  `HistoricoDeCorrecoes` embaixo, igual às telas-irmãs.
+  ⚠️ **Última frase corrigida no Gate 2** — a v1 dizia *"a pendência de cobrança
+  deste prestador fecha sozinha"*, e era falso duas vezes: a pendência é por
+  NOTA, não por prestador, e o que fecha é a do painel, não a lista de cobrança
+  (ver "Textos com consequência fiscal").
 
 ## Campos
 
-- `anexo`/`chipEscolhido` — um dos dois, arquivo — **sempre obrigatório** (não
+- `anexo`, `chipEscolhido` — um dos dois, arquivo — **sempre obrigatório** (não
   condicional por motivo — não há motivo a escolher, diferente de
   `numero`/`valor`) — validação/mensagem de `corrigir/valor`. Botão primário
   nasce desabilitado, rótulo "Anexe a nota reemitida para gravar"; habilita só
-  com chip escolhido ou upload concluído.
-- Não existe campo de CNO digitável: o valor gravado é **sempre** `obra.cno`,
-  lido no servidor no ato da gravação (nunca por URL/estado do cliente). Isto
-  não é campo fiscal em branco esperando resposta — é exibição de um fato já
-  gravado no cadastro da obra, mostrado para confirmação, não perguntado. Não
-  viola "campo vazio pergunta, campo preenchido afirma": não há pergunta
-  aqui, só o anexo afirma algo.
-- Motivo de `revisao`: fixo `cno_obtido_do_prestador`, gravado pelo servidor —
-  nunca campo de tela, nunca escolha do usuário (decisão do `cto-obra`).
+  com chip escolhido ou upload concluído — SEM DEFAULT
+- `pacote`, `anexoDoPacote` (query, CONTAI-088) — tokens restantes e path do
+  papel que chegou do pacote; nunca persistidos fora da URL, e o path só
+  pré-seleciona chip que esteja NESTE documento — SOMENTE LEITURA
+- NÃO É CONTROLE — não existe campo de CNO digitável: o valor gravado é
+  **sempre** `obra.cno`, lido no servidor no ato da gravação (nunca por
+  URL/estado do cliente). Isto não é campo fiscal em branco esperando resposta —
+  é exibição de um fato já gravado no cadastro da obra, mostrado para
+  confirmação, não perguntado. Não viola "campo vazio pergunta, campo
+  preenchido afirma": não há pergunta aqui, só o anexo afirma algo.
+- NÃO É CONTROLE — motivo de `revisao`: fixo `cno_obtido_do_prestador`, gravado
+  pelo servidor — nunca campo de tela, nunca escolha do usuário (decisão do
+  `cto-obra`).
 
 ## Textos com consequência fiscal
 
-- `CNO_NAO_ALCANCA_O_CUSTO` (verbatim, `lib/fiscal/obra.ts:264-267`): "A nota
+⚠️ **Corrigido no Gate 2 (cto-obra + contador), 2026-10-22** — a v1 deste spec
+mandava `CNO_NAO_ALCANCA_O_CUSTO` para a tela normal e dava a ele proveniência
+do ADENDO. Os dois pontos estavam errados, e é o que vale agora:
+
+- **Tela normal** — `Consequencia` é o **Fecho/CRC do ADENDO 2026-10-22**,
+  verbatim (`CONSEQUENCIA_DESTA_CORRECAO`, definido na própria página porque
+  `lib/fiscal/obra.ts` está fora do escopo do ticket): "Este campo não alimenta
+  a Declaração de Ajuste Anual (custo de aquisição não muda) nem é ele próprio
+  objeto de retificadora — o que ele alimenta é a posição da aferição do INSS,
+  que não é apuração da DAA."
+- `CNO_NAO_ALCANCA_O_CUSTO` (verbatim, `lib/fiscal/obra.ts:260-269`,
+  proveniência **Gate Fiscal do CONTAI-007** — **não** do ADENDO): "A nota
   continua sendo documentação hábil para o custo de aquisição no IRPF — o que
   ela não faz é reduzir a base de INSS de uma obra que ela não referencia."
-  Usado na Recusa 2 (`true`) e como `Consequencia` na tela normal.
+  Usado **só na Recusa 2 (`true`)**, e **só quando o CNO impresso diverge do da
+  obra** (`cnoNormalizado` dos dois): com os dois coincidindo, a frase termina
+  afirmando algo falso sobre esta nota.
+- **Banner de sucesso** — "A pendência 'Nota sem CNO' desta nota deixa de
+  aparecer no painel." Fechado pelo `contador` no Gate 2: o que fecha é a
+  pendência `sem-cno:` do painel (`lib/fiscal/resumo.ts`, sem janela de
+  emissão), **não** a lista `/obras/[id]/notas-sem-cno` (`notasEmitidasSemCno`,
+  que só olha `dataInicioObra ≤ emissão ≤ cnoRegistradoEm`) — no caso do relato
+  114 a nota foi emitida depois de o CNO sair e nunca esteve nessa lista.
 - `CONSEQUENCIA_CNO_DA_NOTA` (verbatim, `lib/fiscal/obra.ts:255-258`) — descreve
   o estado ANTES da correção (já na pendência "Nota sem CNO" do painel); **não
   aparece nesta tela**, citada só para o `lead-engineer` não trocar os dois
