@@ -196,6 +196,98 @@ abate na aferição é o efetivamente declarado, e conferir isso não é do app.
 
 ---
 
+# ADENDO — 2026-10-22 · `notaTrazCno`/`cnoReferenciado`, campo ausente da
+# tabela do §1 porque nasceu um mês depois (CONTAI-007, migration 0015)
+
+- **Provocação**: Gate Fiscal do `CONTAI-101`
+  (`docs/backlog/114-2026-10-22-corrigir-cno-ausente-apos-reemissao.md`): nota
+  registrada com `notaTrazCno = false` (resposta `nao_traz`), o prestador
+  reemite já com o CNO da obra impresso, e não existe tela que aceite essa
+  correção. Caso-irmão já resolvido para outro campo: `CONTAI-085`
+  (`numero`/`serie`).
+- **Status**: **estende** a tabela do §1 deste parecer. Não contradiz, não
+  reabre e não precisa enfrentar o parecer de 2026-09-20
+  (`docs/pareceres/2026-09-20-cno-nao-bloqueia-correcao-de-obra.md`) — aquele
+  trata de pergunta diferente: `podeCorrigirObra`/`documento.obra_id` (para
+  qual OBRA o documento está arquivado). Este adendo trata do campo
+  `notaTrazCno`/`cnoReferenciado` do próprio documento (o que a NOTA diz sobre
+  CNO), dentro da mesma obra. São eixos distintos e os dois seguem valendo
+  lado a lado.
+
+## 1. Nova linha da tabela de corrigibilidade (§1 do corpo)
+
+| Campo | Veredito | Condição |
+|---|---|---|
+| `notaTrazCno`/`cnoReferenciado` | **CORRIGÍVEL COM CONDIÇÃO — só na direção `nao_traz → desta_obra`** | Dado genuinamente **ausente** na nota original (não havia CNO impresso, não houve afirmação a desdizer), agora obtido por **reemissão do prestador**. Exige, no mesmo ato: anexo da nota reemitida com o CNO visível e legível, e grava `notaTrazCno = true` + `cnoReferenciado = <CNO informado>`. `notaTrazCno = null` (pergunta nunca feita, registro legado) **não** ganha esta rota — é lacuna de captura diferente, fora deste parecer. A direção `outra_obra` **não existe** nesta tabela porque não é um estado que o acervo chega a gravar — ver §2 |
+
+## 2. Por que `nao_traz → desta_obra` é corrigível, e `outra_obra` não é "o
+mesmo caso, só mais arriscado" — são régua diferentes, não dois pontos da
+mesma régua
+
+`[Certain]` A pergunta do `po` presume que existe um espectro único
+("CNO mexeu, então quanto mais se mexe, mais arriscado"). Não existe. O que
+distingue os dois é **o que já estava gravado antes do clique**:
+
+- **`nao_traz`**: o documento **foi salvo**, com `notaTrazCno = false` e
+  `cnoReferenciado = null`. Há uma linha real no acervo descrevendo um fato
+  genuinamente incompleto — a nota, no papel que o Mateus tinha em mãos
+  naquele momento, não trazia CNO nenhum. Não houve afirmação errada a
+  desfazer; havia um dado que faltava e passou a existir. É exatamente o
+  padrão que a tabela do §1 já aceita para `valor` (`null → valor`, "mesmo
+  caminho, sem exceção") e para `favorecidoId` (ponteiro que nasce vazio e
+  passa a apontar). **Corrigir aqui é completar, não desdizer.**
+- **`outra_obra`**: confirmado em código nesta sessão —
+  `app/(captura)/adicionar/documento/page.tsx` (comentário do CONTAI-069: "o
+  bloqueio só existe depois de `outra_obra`") e `lib/types.ts:205-206` — esta
+  resposta **bloqueia o registro no ato** (critério 2 do `CONTAI-007`). O tipo
+  de `notaTrazCno` é `boolean | null`: **não existe um terceiro valor
+  persistido para "outra obra"**. Nenhuma linha de `documento` chega a
+  existir com esse estado. Pedir uma "rota de correção" para `outra_obra` é
+  pedir edição de um dado que a arquitetura **nunca grava** — não é um caso
+  mais arriscado de corrigibilidade, **é um caso sem objeto**: não há "antes"
+  a corrigir, porque o "antes" nunca foi salvo.
+
+A doutrina do `CONTAI-007` ("CNO de outra obra: erro sem conserto depois da
+emissão", bloqueio de entrada) e a corrigibilidade de `nao_traz → desta_obra`
+normatizada aqui **não se tocam**: a primeira existe porque não há registro a
+corrigir; a segunda existe porque há registro, e ele está genuinamente
+incompleto, não errado. Ratifico a primeira sem alteração e crio a segunda sem
+que uma afrouxe a outra.
+
+## 3. O caso que isto NÃO resolve, registrado como lacuna futura — não como
+impossibilidade
+
+`[Guessing quanto à frequência — não é o caso relatado pelo Mateus]` Se um dia
+existir uma nota que **imprimiu** um CNO (não `nao_traz`) e precisar trocá-lo
+por outro — isso não é "completar dado ausente", é alterar uma afirmação já
+impressa no papel, e cai na régua geral do §3 do corpo deste parecer ("esse
+dado está errado na nota, ou só aqui no app?"): se o CNO impresso está errado
+**no papel**, pede-se nota substitutiva (ou carta de correção, a depender do
+que a legislação municipal permitir para este dado — ver Gate Fiscal do
+`CONTAI-101`) ao emitente, e segue o padrão geral de correção por reemissão. Mas
+essa hipótese **não corresponde a `outra_obra` como o campo está modelado
+hoje** (que nunca persiste) — seria um terceiro estado que o produto não tem.
+**Não decido modelagem de produto para um fato que ainda não ocorreu.** Registro
+como lacuna a avaliar no dia em que o caso concreto aparecer, não como
+doutrina fechada por impossibilidade — a impossibilidade de hoje é de dado
+(não existe linha salva), não de princípio fiscal.
+
+## Fecho deste ADENDO
+
+- **Automático**: nenhuma mudança além do que a correção já exige de toda
+  correção deste parecer (anexo no mesmo ato, rastro em `revisao`, sem
+  default, motivo que descreva o fato real).
+- **Só o Mateus**: afirmar que o CNO do anexo reemitido é o impresso nele —
+  mesmo padrão do §2/§3 do corpo, aplicado a este campo.
+- **CRC**: nenhuma. Este campo não alimenta a Declaração de Ajuste Anual
+  (custo de aquisição não muda) nem é ele próprio objeto de retificadora — o
+  que ele alimenta é a posição da aferição do INSS, que não é apuração da
+  DAA.
+
+**O contai redige, dateia e organiza. Não assina.**
+
+---
+
 ## Fora deste parecer, mas irmão dele
 
 Documento registrado **em duplicidade** não se resolve editando campo: precisa

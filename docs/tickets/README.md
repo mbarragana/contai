@@ -1,6 +1,43 @@
 # Índice de tickets — por ordem de execução
 
-## 🔎 O que está em aberto — 21 tickets (mais 1 parado, aguardando o Mateus)
+## 🔎 O que está em aberto — 22 tickets (mais 1 parado, aguardando o Mateus)
+
+**2026-10-22: `CONTAI-101` criado** — corrigir "nota sem CNO" depois que o
+prestador reemite com o CNO impresso. Relato de backlog (`114`), caso real:
+Mateus recebeu NF de serviço sem CNO (`notaTrazCno = false`), cobrou do
+prestador, recebeu a reemissão com o CNO impresso, e não achou onde registrar
+isso — nenhuma das 5 telas de `corrigir/*` toca o campo, e o ponto único
+`documento-novo` (`CONTAI-088`) não lista CNO como opção. Caso-irmão já
+entregue para outro campo: `CONTAI-085` (número/série), nunca estendido a
+CNO. `/tickets-req` completo: nova rota `/documento/[id]/corrigir/cno`, cópia
+reduzida de `corrigir/numero/page.tsx` — **sem** `PassoMotivo`, sem campo de
+texto para digitar o CNO (o valor gravado é sempre `obra.cno`, lido no
+servidor), sem bloco de custo por ano, sem estado "Nada a corrigir"; três
+recusas no topo (não é NF de serviço; `notaTrazCno !== false`; obra sem CNO
+cadastrado). `contador` (Gate Fiscal): **ADENDO 2026-10-22** ao parecer
+`docs/pareceres/2026-08-18-correcao-de-documento-registrado.md` §1, ratifica
+`nao_traz → desta_obra` como corrigível sem afrouxar a doutrina de bloqueio
+definitivo de `outra_obra` (que nunca persiste um documento, logo não tem o
+que corrigir aqui — lacuna futura registrada, não doutrina fechada);
+confirma que a posição de aferição INSS é sempre on-demand
+(`posicaoDeAfericao`, sem tabela de "posição" persistida, nada a reabrir);
+decide que o anexo exigido pode ser qualquer papel com o CNO impresso e
+legível (nota substitutiva, carta de correção ou complementar), não só
+reemissão integral. `cto-obra` (Gate 3 do `/tickets-req`): discordou do
+critério inicial do `po` de "anexo condicional por motivo" — ratificou anexo
+**sempre obrigatório e incondicional**, sem `PassoMotivo`, porque o ADENDO só
+ratifica uma causa (dado ausente, agora obtido), e oferecer motivo abriria
+caminho sem anexo; motivo de revisão fixo `cno_obtido_do_prestador`
+(migration `0033`, enum isolado, mesmo precedente de `0018`/`0030`), RPC nova
+`corrigir_cno_documento` que lê `obra.cno` no servidor — nunca recebe CNO
+como parâmetro (migration `0034`, com grants explícitos). `designer`: nível
+2, `design/mocks/CONTAI-101.md` (campo único, sem motivo, sem valor
+digitável — a complexidade está nas 3 recusas de pré-condição e no texto, não
+em layout). Complexidade S. **Pronto para `/develop`.** 2 perguntas abertas
+não bloqueantes (confirmar que `carregarDocumento` já traz `cnoReferenciado`
+sem chamada extra; se o cadastro de CNO da obra na Recusa 3 deveria
+redirecionar automaticamente de volta — leitura padrão: não, sem
+redirecionamento). Detalhe: `docs/tickets/CONTAI-101.md`.
 
 **2026-10-20: `CONTAI-100` entregue** (Gate 4, 14/14 PASS) — pré-vínculo
 automático no lote de parcelas com origem. Relato de backlog (`113`), caso
